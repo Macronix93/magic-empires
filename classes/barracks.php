@@ -10,7 +10,7 @@ class Barracks {
         $this->getSoldierList();
     }
 
-    public function getSoldierList() {
+    public function getSoldierList(): array {
         $result = $this->mysqli->query("SELECT * FROM soldierlist");
         $this->soldiers = [];
 
@@ -71,25 +71,21 @@ class Barracks {
         return $this->soldiers[$sid]["scoregain"];
     }
 
-    public function getSoldierIcon($sid) {
-        switch ($sid) {
-            case 0: // Milizsoldat
-                return " <img src='images/icons/icon_militia.png' class='ressource-icons' alt='Milizsoldat'>";
-            case 1: // Schwertkämpfer
-                return " <img src='images/icons/icon_swordsman.png' class='ressource-icons' alt='Schwertkämpfer'>";
-            case 2: // Dieb
-                return " <img src='images/icons/icon_thief.png' class='ressource-icons' alt='Dieb'>";
-            case 3: // Eroberer
-                return " <img src='images/icons/icon_conqueror.png' class='ressource-icons' alt='Eroberer'>";
-        }
-        return "ICON NOT FOUND";
+    public function getSoldierIcon($sid): string {
+        return match ($sid) {
+            0 => " <img src='images/icons/icon_militia.png' class='ressource-icons' alt='Milizsoldat'>",
+            1 => " <img src='images/icons/icon_swordsman.png' class='ressource-icons' alt='Schwertkämpfer'>",
+            2 => " <img src='images/icons/icon_thief.png' class='ressource-icons' alt='Dieb'>",
+            3 => " <img src='images/icons/icon_conqueror.png' class='ressource-icons' alt='Eroberer'>",
+            default => "ICON NOT FOUND",
+        };
     }
 
     public function getSoldierDescription($sid) {
         return $this->soldiers[$sid]["description"];
     }
 
-    public function getSoldierCount() {
+    public function getSoldierCount(): int {
         return count($this->soldiers);
     }
 }

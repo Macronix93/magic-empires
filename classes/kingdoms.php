@@ -94,7 +94,7 @@ class Kingdoms {
         return $this->id;
     }
 
-    public function getIcon($buildingid, $bname) {
+    public function getIcon($buildingid, $bname): string {
         if (isset($buildingid)) {
             return "<img src='images/icons/icon_building$buildingid.png' class='menu-icons' alt='$bname'/>";
         } else {
@@ -102,7 +102,7 @@ class Kingdoms {
         }
     }
 
-    public function getKingdomBuildings($kingdomid) {
+    public function getKingdomBuildings($kingdomid): void {
         $stmt = $this->mysqli->prepare("SELECT buildingid, buildingname FROM buildings WHERE kingdomid = ?");
         $stmt->bind_param('i', $kingdomid);
         $stmt->execute();
@@ -117,7 +117,7 @@ class Kingdoms {
         $stmt->close();
     }
 
-    public function isKingdomRecruiting($kingdomid) {
+    public function isKingdomRecruiting($kingdomid): bool {
         $stmt = $this->mysqli->prepare("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1");
         $actionid = ACTION_BUILD_TROOPS;
         $stmt->bind_param('ii', $kingdomid, $actionid);
@@ -135,7 +135,7 @@ class Kingdoms {
         return $this->recruitingid;
     }
 
-    public function isKingdomBuilding($kingdomid) {
+    public function isKingdomBuilding($kingdomid): bool {
         $stmt = $this->mysqli->prepare("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1");
         $actionid = ACTION_BUILD_BUILDING;
         $stmt->bind_param('ii', $kingdomid, $actionid);
@@ -165,7 +165,7 @@ class Kingdoms {
         return $this->woodperhour;
     }
 
-    public function setKingdomWood($kingdomid, $amount) {
+    public function setKingdomWood($kingdomid, $amount): void {
         $this->wood = $amount;
         $this->mysqli->query("UPDATE kingdoms SET wood = '$this->wood' WHERE id = '$kingdomid';");
     }
@@ -200,7 +200,7 @@ class Kingdoms {
         return $this->stoneperhour;
     }
 
-    public function setKingdomStone($kingdomid, $amount) {
+    public function setKingdomStone($kingdomid, $amount): void {
         $this->stone = $amount;
         $this->mysqli->query("UPDATE kingdoms SET stone = '$this->stone' WHERE id = '$kingdomid';");
     }

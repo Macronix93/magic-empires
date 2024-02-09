@@ -10,7 +10,7 @@ class Buildings {
         $this->getBuildingList();
     }
 
-    public function isBuilt($kingdomid, $bid) {
+    public function isBuilt($kingdomid, $bid): bool {
         $stmt = $this->mysqli->prepare("SELECT * FROM buildings WHERE kingdomid = ? AND buildingid = ?");
         $stmt->bind_param("ii", $kingdomid, $bid);
         $stmt->execute();
@@ -25,7 +25,7 @@ class Buildings {
         }
     }
 
-    public function getBuildingList() {
+    public function getBuildingList(): array {
         $result = $this->mysqli->query("SELECT * FROM buildinglist");
         $this->buildings = [];
 
@@ -49,7 +49,7 @@ class Buildings {
         return $this->buildings;
     }
 
-    public function getBuildingLevel($bid, $kingdomid) {
+    public function getBuildingLevel($bid, $kingdomid): int {
         $level = 0;
 
         $stmt = $this->mysqli->prepare("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?");
@@ -111,7 +111,7 @@ class Buildings {
         return $cost;
     }
 
-    function calculateBuildingCost($building, $bID, $level) {
+    function calculateBuildingCost($building, $bID, $level): array {
         $mult = $building->getBuildingMult($bID);
 
         $costWood = round($building->getBuildingCost($bID, BUILDING_COST_WOOD) + $building->getBuildingCost($bID, BUILDING_COST_WOOD) * $mult * $level);
@@ -127,7 +127,7 @@ class Buildings {
         );
     }
 
-    public function showBuildingInfo($bid, $kid, $kObject) {
+    public function showBuildingInfo($bid, $kid, $kObject): string {
         switch ($bid) {
             case 1:
                 // Universität
@@ -322,7 +322,7 @@ class Buildings {
                         echo "<tr>
                                     <td class='td-center' style='width: 10%;'>" . $soldiers->getSoldierIcon($i) . "</td>
                                     <td style='width: 40%;'><b class='popup' id='description" . $i . "' style='cursor: pointer;'>" . $soldiers->getSoldierName($i) . " 
-                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers->getSoldierDescription($i) . "</div>  (" . (isset($kingdomSoldiers[$i]) ? $kingdomSoldiers[$i] : 0) . ")</b><br><br>
+                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers->getSoldierDescription($i) . "</div>  (" . ($kingdomSoldiers[$i] ?? 0) . ")</b><br><br>
                                         <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "
                                         <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "
                                         <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'> " . $textVillager . "<br>
@@ -394,7 +394,7 @@ class Buildings {
         return "";
     }
 
-    public function getBuildingIcon($bid) {
+    public function getBuildingIcon($bid): string {
         if (isset($this->buildings[$bid])) {
             return "<img src='images/icons/icon_building$bid.png' class='ressource-icons' alt='{$this->buildings[$bid]["buildingname"]}'/>";
         } else {
@@ -402,7 +402,7 @@ class Buildings {
         }
     }
 
-    public function getBuildingCount() {
+    public function getBuildingCount(): int {
         return count($this->buildings);
     }
 }

@@ -9,6 +9,10 @@ include_once("layout/head.php");
 ?>
 <body>
 <?php
+$name = "";
+$email = "";
+$pass = "";
+
 // Check if user submitted the form
 if (isset($_POST["submit"])) {
     $name = $_POST["username"];

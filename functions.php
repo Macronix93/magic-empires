@@ -93,19 +93,19 @@ if (time() - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
 */
 
 // Make Input data secure
-function makeSecure($data) {
+function makeSecure($data): string {
     $data = trim($data);
     $data = stripslashes($data);
     return htmlspecialchars($data);
 }
 
 // Show messages indicator
-function showNewMessagesIndicator($number) {
+function showNewMessagesIndicator($number): void {
     echo ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
 }
 
 // Convert seconds to a string
-function convertSecToStr($secs) {
+function convertSecToStr($secs): string {
     if ($secs == 0) {
         return '0s';
     }
@@ -137,7 +137,7 @@ function convertSecToStr($secs) {
     return trim($output);
 }
 
-function changeLocation($url, $seconds) {
+function changeLocation($url, $seconds): void {
     $urlJson = json_encode($url);
     $secondsJson = json_encode($seconds);
 

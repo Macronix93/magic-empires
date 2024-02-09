@@ -21,7 +21,7 @@ class User {
     }
 
     // Function to register a new user
-    public function registerUser($name, $email, $pass) {
+    public function registerUser($name, $email, $pass): void {
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activationkey = md5($email . $name);
 
@@ -58,7 +58,7 @@ class User {
     }
 
     // Function to log in a user
-    public function loginUser($name, $pass) {
+    public function loginUser($name, $pass): void {
         $stmt = $this->mysqli->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
         $stmt->bind_param('s', $name);
         $stmt->execute();
@@ -133,19 +133,19 @@ class User {
     }
 
     // Check if user is logged in
-    public function isLoggedIn() {
+    public function isLoggedIn(): bool {
         if (isset($_SESSION["userid"])) return true;
         else return false;
     }
 
     // Get ID of the user
     public function getUserID() {
-        return isset($_SESSION["userid"]) ? $_SESSION["userid"] : "";
+        return $_SESSION["userid"] ?? "";
     }
 
     // Get the name of the user
     public function getUserName() {
-        return isset($_SESSION["username"]) ? $_SESSION["username"] : "";
+        return $_SESSION["username"] ?? "";
     }
 
     public function getUserScore() {
@@ -183,7 +183,7 @@ class User {
     }*/
 
     // Get and execute events tied to the user
-    public function processUserEvents($userid) {
+    public function processUserEvents($userid): void {
         $stmt = $this->mysqli->prepare("SELECT * FROM events WHERE userid = ?");
         $stmt->bind_param('i', $userid);
         $stmt->execute();
@@ -256,7 +256,7 @@ class User {
     }
 
     // Show register and login forms
-    function showRegisterForm($nameErr, $emailErr, $passErr, $captchaErr) {
+    function showRegisterForm($nameErr, $emailErr, $passErr, $captchaErr): void {
         ?>
         <div class="form">
             <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
@@ -280,7 +280,7 @@ class User {
                             <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
                             <td><label>
                                     <input style="padding:3px" class="regis" type="text" name="username"
-                                           value="<?php echo isset($_POST["username"]) ? $_POST["username"] : ""; ?>">
+                                           value="<?php echo $_POST["username"] ?? ""; ?>">
                                 </label></td>
                         </tr>
 
@@ -288,7 +288,7 @@ class User {
                             <td style="color:#ffffff"><b>E-Mail:</b></td>
                             <td><label>
                                     <input style="padding:3px" class="regis" type="text" name="email"
-                                           value="<?php echo isset($_POST["email"]) ? $_POST["email"] : ""; ?>">
+                                           value="<?php echo $_POST["email"] ?? ""; ?>">
                                 </label></td>
                         </tr>
 
@@ -319,9 +319,8 @@ class User {
         <?php
     }
 
-    function showLoginForm($error) {
+    function showLoginForm($error): void {
         ?>
-        <body>
         <div class="form">
             <form id='login' action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method='post'
                   accept-charset='UTF-8'>
@@ -337,7 +336,7 @@ class User {
                             <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
                             <td><label>
                                     <input style="padding: 3px" type="text" name="username"
-                                           value="<?php echo isset($_POST["username"]) ? $_POST["username"] : ""; ?>">
+                                           value="<?php echo $_POST["username"] ?? ""; ?>">
                                 </label></td>
                         </tr>
 
@@ -360,8 +359,6 @@ class User {
                 </fieldset>
             </form>
         </div>
-        </body>
-        </html>
         <?php
     }
 }

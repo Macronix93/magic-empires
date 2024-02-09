@@ -10,7 +10,7 @@ class Map {
     }
 
     // Get specific map field icon
-    public function getFieldIcon($fieldtype) {
+    public function getFieldIcon($fieldtype): string {
         $field = "";
         switch ($fieldtype) {
             case 1:
@@ -32,7 +32,7 @@ class Map {
         return $field;
     }
 
-    public function getKingdomIconByLevel($kingdomid) {
+    public function getKingdomIconByLevel($kingdomid): string {
         $stmt = $this->mysqli->prepare("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = 0");
         $stmt->bind_param('i', $kingdomid);
         $stmt->execute();
@@ -49,7 +49,7 @@ class Map {
         };
     }
 
-    public function getArrivalTime($startx, $starty, $endx, $endy) {
+    public function getArrivalTime($startx, $starty, $endx, $endy): int {
         $minX = min($startx, $endx);
         $maxX = max($startx, $endx);
         $minY = min($starty, $endy);
@@ -89,7 +89,7 @@ class Map {
         return $totaltime;
     }
 
-    public function getFieldTraversalTime($fieldtype) {
+    public function getFieldTraversalTime($fieldtype): int {
         $time = 0;
         switch ($fieldtype) {
             case 1:
@@ -112,7 +112,7 @@ class Map {
     }
 
     // Render and show the map
-    public function renderMap() {
+    public function renderMap(): void {
         // Show info about the fields
         echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
               <img src='images/küste.png' class='map-legend' alt=''> Küste 
