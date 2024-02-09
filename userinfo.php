@@ -1,7 +1,14 @@
 <?php
 global $db_instance, $user;
 require_once("functions.php");
-
+?>
+<!DOCTYPE html>
+<html lang="de">
+<?php
+include_once("layout/head.php");
+?>
+<body>
+<?php
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
     changeLocation("login.php", 0);
@@ -101,3 +108,5 @@ if (isset($_GET["userid"])) {
     <?php
 }
 ?>
+</body>
+</html>

@@ -1,6 +1,7 @@
 <?php
+global $db_instance, $user;
 
-if (!empty($_GET["key"]) && isset($_GET["key"])) {
+if (!empty($_GET["key"])) {
     require_once("functions.php");
     session_destroy();
 
@@ -38,5 +39,3 @@ if (!empty($_GET["key"]) && isset($_GET["key"])) {
 } else {
     changeLocation("login.php", 0);
 }
-
-?>

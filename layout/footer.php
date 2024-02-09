@@ -19,4 +19,3 @@
     </div>
 </div>
 <footer>© Magic Empires - 2023</footer>
-</html>

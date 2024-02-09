@@ -1,14 +1,14 @@
-<html lang="de">
-<head>
-    <script src='https://www.google.com/recaptcha/api.js'></script>
-    <title>Magic Empires</title>
-</head>
-</html>
-
 <?php
-global $user, $db_instance;
+global $db_instance, $user;
 require_once("functions.php");
-
+?>
+<!DOCTYPE html>
+<html lang="de">
+<?php
+include_once("layout/head.php");
+?>
+<body>
+<?php
 // Check if user submitted the form
 if (isset($_POST["submit"])) {
     $name = $_POST["username"];
@@ -89,3 +89,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Show register form
 $user->showRegisterForm($nameErr, $emailErr, $passErr, $captchaErr);
 ?>
+<script src='https://www.google.com/recaptcha/api.js'></script>
+</body>
+</html>
