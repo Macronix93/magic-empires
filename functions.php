@@ -139,7 +139,11 @@ function convertSecToStr($secs): string {
 
 function changeLocation($url, $seconds): void {
     $urlJson = json_encode($url);
-    $secondsJson = json_encode($seconds);
+    $secondsJson = json_encode($seconds) * 1000;
 
-    echo '<script type="text/javascript">', 'changeLoc(', $secondsJson, ', ', $urlJson, ');', '</script>';
+    //echo '<script type="text/javascript">', 'changeLoc(', $secondsJson, ', ', $urlJson, ');', '</script>';
+    echo "<script>setTimeout(function() {
+                    window.location.href = $urlJson;
+                }, $secondsJson)
+            </script>";
 }

@@ -5,12 +5,11 @@ require_once("functions.php");
 <!DOCTYPE html>
 <html lang="de">
 <?php
-include_once("layout/head.php");
+include_once("layout/head.html");
 ?>
 <body>
 <?php
 if ($user->isLoggedIn()) {
-    //header("Location: index.php");
     changeLocation("index.php", 0);
     exit;
 }

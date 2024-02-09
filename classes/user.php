@@ -50,7 +50,7 @@ class User {
 
         if (mail($empfaenger, $betreff, $nachricht, $header)) echo "mail gesendet!";
 
-        echo "<div style='text-align: center;'><b style='color: mediumseagreen;'>Du hast dich erfolgreich registriert! Ein Aktivierungslink wurde an deine E-Mail gesendet.</b><br><br><a href = 'login.php'>Hier einloggen</a></div>";
+        echo "<div style='text-align: center;'><b style='color: mediumseagreen;'>Du hast dich erfolgreich registriert! Ein Aktivierungslink wurde an deine E-Mail gesendet.</b><br><br><a href='login.php'>Hier einloggen</a></div>";
 
         unset($_POST);
 
