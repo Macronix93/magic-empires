@@ -44,11 +44,12 @@ global $user, $db_instance;
         $kingdom = new Kingdoms($db_instance);
         $kingdom->getKingdomRessources($_SESSION["kingdomid"]);
         $serverTime = time();
-
-        echo "      <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
-                        <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit'/><span id='servertime'><script>updateTime($serverTime)</script></span>
-                    </div>
-                    <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() == 0 ? "0" : $user->getUserScore()) . "
+        ?>
+        <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
+            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit'/><span id='servertime'><script>updateTime(<?php echo $serverTime ?>)</script></span>
+        </div>
+        <?php
+        echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() == 0 ? "0" : $user->getUserScore()) . "
                     <div class='split-content'>
                         <div><img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> 
                         <span style='color: " . ($kingdom->getKingdomFood() == $kingdom->getKingdomMaxFood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . $kingdom->getKingdomFood() . "</span></div>
