@@ -97,13 +97,6 @@
             window.open(url, "popup", `scrollbars=yes, width=${width}, height=${height}, left=${left}, top=${top}`);
         }
 
-        // Change location after x seconds
-        function changeLoc(seconds, url) {
-            setTimeout(() => {
-                window.location.href = url;
-            }, seconds * 1000);
-        }
-
         function userList() {
             const width = 550;
             const height = 400;

@@ -1,6 +1,12 @@
 <?php
 global $db_instance, $user;
 require_once("functions.php");
+
+// Check if user is not logged in, and if so, redirect him to login page
+if (!($user->isLoggedIn())) {
+    changeLocation("login.php", 0);
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -9,12 +15,6 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
-// Check if user is not logged in, and if so, redirect him to login page
-if (!($user->isLoggedIn())) {
-    changeLocation("login.php", 0);
-    exit;
-}
-
 $stmt = $db_instance->prepare("SELECT username FROM users ORDER BY username");
 $stmt->execute();
 $result = $stmt->get_result();

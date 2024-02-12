@@ -4,7 +4,7 @@ require_once("functions.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
-    header("Refresh: 0; URL=login.php");
+    changeLocation("login.php", 0);
     exit;
 }
 ?>
@@ -12,12 +12,9 @@ if (!($user->isLoggedIn())) {
 <html lang="de">
 <?php
 include_once("layout/head.html");
-?>
-<body>
-<?php
 include_once("layout/header.php");
 ?>
-
+<body>
 <div class="content">
     <div class="content-box">
         <div class="left-container">

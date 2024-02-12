@@ -91,7 +91,7 @@ class User {
                 if (!$status) {
                     $this->error = "<b class='error'>Bitte aktiviere deinen Account mit dem Aktivierungslink, der an deine E-Mail-Adresse geschickt wurde!</b><br><br>";
                 } else {
-                    $stmt = $this->mysqli->prepare("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = UNIX_TIMESTAMP(NOW()) WHERE id = ?");
+                    $stmt = $this->mysqli->prepare("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = UNIX_TIMESTAMP(NOW()), lastactivity = UNIX_TIMESTAMP(NOW()) WHERE id = ?");
                     $stmt->bind_param('i', $userid);
                     $stmt->execute();
                     $stmt->close();
