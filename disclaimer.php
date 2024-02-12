@@ -12,9 +12,11 @@ if (!($user->isLoggedIn())) {
 <html lang="de">
 <?php
 include_once("layout/head.html");
-include_once("layout/header.php");
 ?>
 <body>
+<?php
+include_once("layout/header.php");
+?>
 <div class="content">
     <div class="content-box">
         <div class="left-container">
