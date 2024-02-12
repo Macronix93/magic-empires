@@ -238,9 +238,10 @@ class User {
                         $stmtSoldiers->bind_param("iisi", $this->kingdomid, $this->soldierid, $soldierName, $soldierdifference);
                         $stmtSoldiers->execute();
                         $stmtSoldiers->close();
+                        $villCost = $soldierdifference * $soldiers->getSoldierVillagerCost($this->soldierid);
 
                         // Update kingdom villager count
-                        $this->mysqli->query("UPDATE kingdoms SET villager = villager-$soldierdifference WHERE id = '$this->kingdomid'");
+                        $this->mysqli->query("UPDATE kingdoms SET villager = villager-$villCost WHERE id = '$this->kingdomid'");
 
                         // Update user score
                         $this->mysqli->query("UPDATE users SET score = score+($soldierdifference * " . $soldiers->getSoldierScoreGain($this->soldierid) . ") WHERE id = '$userid'");
