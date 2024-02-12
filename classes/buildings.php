@@ -276,8 +276,13 @@ class Buildings {
                                     $remainingTimeInSeconds = $soldiers->getSoldierTime($i);
                                 }
 
-                                //$textBuild = "In Ausbildung: " . $soldiergoal . "<br><br><b><span id='counter'><script type='text/javascript'>startCountdown($remainingTimeInSeconds)</script></span></b><br> <a href='buildings.php?bid=2&recruit=" . $i . "&count=cancel'>Abbruch</a>";
-                                $textBuild = "In Ausbildung: " . $soldiergoal . "<br><br><b><span id='counter'><script type='text/javascript'>startCountdown($remainingTimeInSeconds)</script></span></b><br> 
+                                $textBuild = "In Ausbildung: " . $soldiergoal . "<br><br><b>
+                                              <span id='counter'>
+                                              <script type='text/javascript'>
+                                              diff = " . json_encode($remainingTimeInSeconds) . "
+                                              startCountdown(diff);
+                                              </script>
+                                              </span></b><br> 
                                               <form action='buildings.php' method='GET'>
                                                 <input type='hidden' name='bid' value='2'>
                                                 <input type='hidden' name='recruit' value='" . $i . "'>
@@ -404,5 +409,9 @@ class Buildings {
 
     public function getBuildingCount(): int {
         return count($this->buildings);
+    }
+
+    public function getRessourceText($cost, $currentVal): string {
+        return ($cost > $currentVal ? "<b class='error'>" . $cost . "</b>" : $cost);
     }
 }

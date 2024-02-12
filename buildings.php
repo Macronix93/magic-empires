@@ -173,10 +173,14 @@ include_once("layout/header.php");
                                         $costStone = $costs["costStone"];
                                         $costGold = $costs["costGold"];
 
-                                        $textWood = ($costWood > $kingdomWood ? "<b class='error'>" . $costWood . "</b>" : $costWood);
+                                        /*$textWood = ($costWood > $kingdomWood ? "<b class='error'>" . $costWood . "</b>" : $costWood);
                                         $textFood = ($costFood > $kingdomFood ? "<b class='error'>" . $costFood . "</b>" : $costFood);
                                         $textStone = ($costStone > $kingdomStone ? "<b class='error'>" . $costStone . "</b>" : $costStone);
-                                        $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . $costGold . "</b>" : $costGold);
+                                        $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . $costGold . "</b>" : $costGold);*/
+                                        $textWood = $buildings->getRessourceText($costWood, $kingdomWood);
+                                        $textFood = $buildings->getRessourceText($costFood, $kingdomFood);
+                                        $textStone = $buildings->getRessourceText($costStone, $kingdomStone);
+                                        $textGold = $buildings->getRessourceText($costGold, $kingdomGold);
                                         $textBuild = "";
 
                                         if ($kingdomIsBuilding) {
@@ -191,13 +195,16 @@ include_once("layout/header.php");
 
                                                 $differenceTime = $buildTime - time();
 
-                                                //$textBuild = "<b><span id='counter'><script type='text/javascript'>startCountdown($differenceTime)</script></span></b><br><a href='buildings.php?action=cancel&bid=" . $i . "'>Abbruch</a>";
-                                                $textBuild = "<b><span id='counter'><script type='text/javascript'>startCountdown($differenceTime)</script></span></b><br>
-                                                                  <form action='buildings.php' method='GET'>
-                                                                    <input type='hidden' name='action' value='cancel'>
-                                                                    <input type='hidden' name='bid' value='" . $i . "'>
-                                                                    <input type='submit' value='Abbruch' style='margin-top: 5px;'>
-                                                                  </form>";
+                                                $textBuild = "<b><span id='counter'></span></b><br>
+                                                              <script type='text/javascript'>
+                                                                diff = " . json_encode($differenceTime) . "
+                                                                startCountdown(diff);
+                                                              </script>
+                                                              <form action='buildings.php' method='GET'>
+                                                                <input type='hidden' name='action' value='cancel'>
+                                                                <input type='hidden' name='bid' value='" . $i . "'>
+                                                                <input type='submit' value='Abbruch' style='margin-top: 5px;'>
+                                                              </form>";
                                             } else {
                                                 $textBuild = "-";
                                             }
