@@ -58,13 +58,14 @@ include_once("layout/header.php");
                     <table class="table">
                         <tr>
                             <td class="td-center td-gradient"
-                                style="width: 10%;">
+                                style="width: 20%;"
+                                colspan="2">
                                 <b>Rang</b></td>
                             <td class="td-center td-gradient"
-                                style="width: 45%;">
+                                style="width: 50%;">
                                 <b>Benutzer</b></td>
                             <td class="td-center td-gradient"
-                                style="width: 45%;">
+                                style="width: 20%;">
                                 <b>Punkte</b></td>
                         </tr>
                         <?php
@@ -73,7 +74,8 @@ include_once("layout/header.php");
                         while ($row = $result->fetch_assoc()) {
                             $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : "#0BDA51";
 
-                            echo "<tr><td class='td-center'>$position</td>
+                            echo "<tr><td class='td-center' style='min-width: 12%'>$position</td>
+                                        <td class='td-center' style='max-width: 50px'><img src='images/icons/icon_neutral.png' class='ressource-icons' alt=''></td>
                                         <td title='Letzte Aktivität: " . date("d.m.Y", $row["lastactivity"]) . " um " . date("H:i:s", $row["lastactivity"]) . "' >
                                         <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' style='color: $color;'>{$row["username"]}</a>
                                         </td><td class='td-center'>{$row["score"]}</td></tr>";
