@@ -36,7 +36,7 @@ if (isset($_GET["userid"])) {
     $userrank = array_search($_GET["userid"], array_column($sortedusers, "id")) + 1;
     $stmt->close();
 
-    if ($result->num_rows == 0) {
+    if (!$row) {
         echo "<div style='text-align: center;'>
         <p style='margin-top: 20px; background-color: rgba(0, 0, 0, 0.7); display: inline-block;'>Dieser Benutzer existiert nicht!
         </p></div>";
