@@ -85,7 +85,7 @@ include_once("layout/header.php");
                                     if ($kingdomIsBuilding) {
                                         $error = "Du baust bereits!";
                                     } else {
-                                        $towncenterLevel = $buildings->getBuildingLevel(1, $kID);
+                                        $towncenterLevel = $buildings->getBuildingLevel(0, $kID);
                                         $requiredLevel = $buildings->getBuildingRequiredLevel($bID);
 
                                         // Town center level is equal or higher than required level... build!
@@ -114,6 +114,12 @@ include_once("layout/header.php");
                                     $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $costFood);
                                     $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() + $costStone);
                                     $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $costGold);
+
+                                    // Get current ressources
+                                    $kingdomWood = $kingdom->getKingdomWood();
+                                    $kingdomFood = $kingdom->getKingdomFood();
+                                    $kingdomStone = $kingdom->getKingdomStone();
+                                    $kingdomGold = $kingdom->getKingdomGold();
                                 } else {
                                     $error = "Du baust gerade nichts!";
                                 }
@@ -133,108 +139,100 @@ include_once("layout/header.php");
                         }
                     }
 
+                    // Show an error if there is any and display all available buildings
                     if ($error != null) {
-                        echo $error;
-                        changeLocation("buildings.php?bid=0", 2);
-                    } else {
-                        if ($bID == 0 || (isset($_GET["action"]) && $_GET["action"] == "build") || (isset($_GET["action"]) && $_GET["action"] == "cancel")) {
-                            $towncenterlevel = $buildings->getBuildingLevel(0, $kID);
+                        echo $error . "<br><br>";
+                    }
+                    if ($bID == 0 || (isset($_GET["action"]) && $_GET["action"] == "build") || (isset($_GET["action"]) && $_GET["action"] == "cancel")) {
+                    $towncenterlevel = $buildings->getBuildingLevel(0, $kID);
 
-                            $kingdomIsBuilding = $kingdom->isKingdomBuilding($kID);
-                            if ($kingdomIsBuilding) {
-                                $kingdomBuildingID = $kingdom->getKingdomBuildingID();
-                            }
-                            ?>
-                            <table class="table">
-                            <tr>
-                                <td class="td-center td-gradient"
-                                    style="width: 5%;">
-                                    <b></b></td>
-                                <td class="td-center td-gradient"
-                                    style="width: 35%;">
-                                    <b>Gebäude</b></td>
-                                <td class="td-center td-gradient"
-                                    style="width: 30%;">
-                                    <b>Aktion</b></td>
-                            </tr>
-                            <?php
-                            for ($i = 0; $i < $buildings->getBuildingCount(); $i++) {
-                                if ($towncenterlevel >= $buildings->getBuildingRequiredLevel($i)) {
-                                    $level = $buildings->getBuildingLevel($i, $kID);
+                    $kingdomIsBuilding = $kingdom->isKingdomBuilding($kID);
+                    if ($kingdomIsBuilding) {
+                        $kingdomBuildingID = $kingdom->getKingdomBuildingID();
+                    }
+                    ?>
+                    <table class="table">
+                        <tr>
+                            <td class="td-center td-gradient"
+                                style="width: 5%;">
+                                <b></b></td>
+                            <td class="td-center td-gradient"
+                                style="width: 35%;">
+                                <b>Gebäude</b></td>
+                            <td class="td-center td-gradient"
+                                style="width: 30%;">
+                                <b>Aktion</b></td>
+                        </tr>
+                        <?php
+                        for ($i = 0; $i < $buildings->getBuildingCount(); $i++) {
+                            if ($towncenterlevel >= $buildings->getBuildingRequiredLevel($i)) {
+                                $level = $buildings->getBuildingLevel($i, $kID);
 
-                                    if ($level < MAX_BUILDING_LEVEL) {
-                                        if (!is_numeric($level)) {
-                                            $level = "0";
-                                        }
-
-                                        $costs = $buildings->calculateBuildingCost($buildings, $i, $level);
-                                        $costWood = $costs["costWood"];
-                                        $costFood = $costs["costFood"];
-                                        $costStone = $costs["costStone"];
-                                        $costGold = $costs["costGold"];
-
-                                        /*$textWood = ($costWood > $kingdomWood ? "<b class='error'>" . $costWood . "</b>" : $costWood);
-                                        $textFood = ($costFood > $kingdomFood ? "<b class='error'>" . $costFood . "</b>" : $costFood);
-                                        $textStone = ($costStone > $kingdomStone ? "<b class='error'>" . $costStone . "</b>" : $costStone);
-                                        $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . $costGold . "</b>" : $costGold);*/
-                                        $textWood = $buildings->getRessourceText($costWood, $kingdomWood);
-                                        $textFood = $buildings->getRessourceText($costFood, $kingdomFood);
-                                        $textStone = $buildings->getRessourceText($costStone, $kingdomStone);
-                                        $textGold = $buildings->getRessourceText($costGold, $kingdomGold);
-                                        $textBuild = "";
-
-                                        if ($kingdomIsBuilding) {
-                                            if ($kingdomBuildingID == $i) {
-                                                $stmt = $mysqli->prepare("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?");
-                                                $action = ACTION_BUILD_BUILDING;
-                                                $stmt->bind_param('iii', $kID, $i, $action);
-                                                $stmt->execute();
-                                                $stmt->bind_result($buildTime);
-                                                $stmt->fetch();
-                                                $stmt->close();
-
-                                                $differenceTime = $buildTime - time();
-
-                                                $textBuild = "<b><span id='counter'></span></b><br>
-                                                              <script type='text/javascript'>
-                                                                diff = " . json_encode($differenceTime) . "
-                                                                startCountdown(diff);
-                                                              </script>
-                                                              <form action='buildings.php' method='GET'>
-                                                                <input type='hidden' name='action' value='cancel'>
-                                                                <input type='hidden' name='bid' value='" . $i . "'>
-                                                                <input type='submit' value='Abbruch' style='margin-top: 5px;'>
-                                                              </form>";
-                                            } else {
-                                                $textBuild = "-";
-                                            }
-                                        } else {
-                                            if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
-                                                $textBuild = "Nicht genug Rohstoffe!";
-                                            } else {
-                                                // $textBuild = "<a href='buildings.php?action=build&bid=" . $i . "'>Aufrüsten</a>";
-                                                $textBuild = "<form action='buildings.php' method='GET'>
-                                                                    <input type='hidden' name='action' value='build'>
-                                                                    <input type='hidden' name='bid' value='" . $i . "'>
-                                                                    <input type='submit' value='" . ($level > 0 ? "Aufrüsten" : "Bauen") . "'>
-                                                                  </form>";
-                                            }
-                                        }
-
-                                        echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings->getBuildingIcon($i) . "</td>";
-                                        echo "<td style='width: 40%;'><b>" . $buildings->getBuildingName($i) . " (" . $level . ")</b><br><br>";
-                                        echo "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> " . $textWood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "<br>";
-                                        echo "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> " . $textStone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "<br>";
-                                        echo "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit'> " . convertSecToStr($buildings->getBuildingTime($i) * ($level == 0 ? 1 : $level + 1)) . "<br><br></td><td class='td-center' style='width: 40%;'>" . $textBuild . "</td></tr>";
+                                if ($level < MAX_BUILDING_LEVEL) {
+                                    if (!is_numeric($level)) {
+                                        $level = "0";
                                     }
+
+                                    $costs = $buildings->calculateBuildingCost($buildings, $i, $level);
+                                    $costWood = $costs["costWood"];
+                                    $costFood = $costs["costFood"];
+                                    $costStone = $costs["costStone"];
+                                    $costGold = $costs["costGold"];
+
+                                    $textWood = $buildings->getRessourceText($costWood, $kingdomWood);
+                                    $textFood = $buildings->getRessourceText($costFood, $kingdomFood);
+                                    $textStone = $buildings->getRessourceText($costStone, $kingdomStone);
+                                    $textGold = $buildings->getRessourceText($costGold, $kingdomGold);
+                                    $textBuild = "";
+
+                                    if ($kingdomIsBuilding) {
+                                        if ($kingdomBuildingID == $i) {
+                                            $stmt = $mysqli->prepare("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?");
+                                            $action = ACTION_BUILD_BUILDING;
+                                            $stmt->bind_param('iii', $kID, $i, $action);
+                                            $stmt->execute();
+                                            $stmt->bind_result($buildTime);
+                                            $stmt->fetch();
+                                            $stmt->close();
+
+                                            $differenceTime = $buildTime - time();
+
+                                            $textBuild = "<b><span id='counter'></span></b><br>
+                                                                      <script type='text/javascript'>
+                                                                        diff = " . json_encode($differenceTime) . "
+                                                                        startCountdown(diff);
+                                                                      </script>
+                                                                      <form action='buildings.php' method='GET'>
+                                                                        <input type='hidden' name='action' value='cancel'>
+                                                                        <input type='hidden' name='bid' value='" . $i . "'>
+                                                                        <input type='submit' value='Abbruch' style='margin-top: 5px;'>
+                                                                      </form>";
+                                        } else {
+                                            $textBuild = "-";
+                                        }
+                                    } else {
+                                        if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
+                                            $textBuild = "Nicht genug Rohstoffe!";
+                                        } else {
+                                            $textBuild = "<form action='buildings.php' method='GET'>
+                                                                            <input type='hidden' name='action' value='build'>
+                                                                            <input type='hidden' name='bid' value='" . $i . "'>
+                                                                            <input type='submit' value='" . ($level > 0 ? "Aufrüsten" : "Bauen") . "'>
+                                                                          </form>";
+                                        }
+                                    }
+
+                                    echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings->getBuildingIcon($i) . "</td>";
+                                    echo "<td style='width: 40%;'><b>" . $buildings->getBuildingName($i) . " (" . $level . ")</b><br><br>";
+                                    echo "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> " . $textWood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "<br>";
+                                    echo "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> " . $textStone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "<br>";
+                                    echo "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit'> " . convertSecToStr($buildings->getBuildingTime($i) * ($level == 0 ? 1 : $level + 1)) . "<br><br></td><td class='td-center' style='width: 40%;'>" . $textBuild . "</td></tr>";
                                 }
                             }
                         }
+                        }
                         ?>
-                        </table>
-                        <?php
-                    }
-                    ?>
+                    </table>
                 </div>
             </div>
         </div>

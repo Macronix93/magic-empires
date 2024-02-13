@@ -87,6 +87,8 @@ class User {
             $stmt->fetch();
             $stmt->close();
 
+            echo $status;
+
             if (password_verify($pass, $password)) {
                 if (!$status) {
                     $this->error = "<b class='error'>Bitte aktiviere deinen Account mit dem Aktivierungslink, der an deine E-Mail-Adresse geschickt wurde!</b><br><br>";
