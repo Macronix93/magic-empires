@@ -35,12 +35,11 @@ include_once("layout/header.php");
 
                 $kID = $_SESSION["kingdomid"];
                 $bID = (empty($_GET["bid"]) ? 0 : $_GET["bid"]);
+                $error = null;
                 ?>
                 <div class="big-box-header">
                     <p>
                         <?php
-                        $error = null;
-
                         if (isset($_GET["bid"]) && ($bID < 0 || $bID > $buildings->getBuildingCount())) {
                             echo "Fehler";
                             $error = "Das Gebäude existiert nicht!";
@@ -114,12 +113,6 @@ include_once("layout/header.php");
                                     $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $costFood);
                                     $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() + $costStone);
                                     $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $costGold);
-
-                                    // Get current ressources
-                                    $kingdomWood = $kingdom->getKingdomWood();
-                                    $kingdomFood = $kingdom->getKingdomFood();
-                                    $kingdomStone = $kingdom->getKingdomStone();
-                                    $kingdomGold = $kingdom->getKingdomGold();
                                 } else {
                                     $error = "Du baust gerade nichts!";
                                 }
@@ -139,11 +132,19 @@ include_once("layout/header.php");
                         }
                     }
 
-                    // Show an error if there is any and display all available buildings
+                    // Show an error if there is any
                     if ($error != null) {
                         echo $error . "<br><br>";
                     }
+
+                    // Display all available buildings
                     if ($bID == 0 || (isset($_GET["action"]) && $_GET["action"] == "build") || (isset($_GET["action"]) && $_GET["action"] == "cancel")) {
+                    // Get current ressources
+                    $kingdomWood = $kingdom->getKingdomWood();
+                    $kingdomFood = $kingdom->getKingdomFood();
+                    $kingdomStone = $kingdom->getKingdomStone();
+                    $kingdomGold = $kingdom->getKingdomGold();
+
                     $towncenterlevel = $buildings->getBuildingLevel(0, $kID);
 
                     $kingdomIsBuilding = $kingdom->isKingdomBuilding($kID);

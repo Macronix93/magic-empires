@@ -154,67 +154,69 @@ class Buildings {
                     $kingdomRecruitingID = $kingdom->getKingdomRecruitingID();
                 }
 
-                if (isset($_GET["recruit"])) {
-                    if (isset($_GET["count"])) {
-                        if ($_GET["count"] == "cancel") {
-                            if ($kingdomIsRecruiting) {
-                                // Calculate remaining soldiers to be recruited and resulting refunds
-                                $stmt = $this->mysqli->prepare("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?");
-                                $action = ACTION_BUILD_TROOPS;
-                                $soldiergoal = 0;
-                                $stmt->bind_param('iii', $kID, $action, $sID);
-                                $stmt->execute();
-                                $stmt->bind_result($soldiergoal);
-                                $stmt->fetch();
-                                $stmt->close();
+                if (isset($_GET["recruit"]) && isset($_GET["count"])) {
+                    if ($_GET["count"] == "cancel") {
+                        if ($kingdomIsRecruiting) {
+                            // Calculate remaining soldiers to be recruited and resulting refunds
+                            $stmt = $this->mysqli->prepare("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?");
+                            $action = ACTION_BUILD_TROOPS;
+                            $soldiergoal = 0;
+                            $stmt->bind_param('iii', $kID, $action, $sID);
+                            $stmt->execute();
+                            $stmt->bind_result($soldiergoal);
+                            $stmt->fetch();
+                            $stmt->close();
 
-                                // Refund player
-                                $kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers->getSoldierFoodCost($sID));
-                                $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers->getSoldierGoldCost($sID));
+                            // Refund player
+                            $kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers->getSoldierFoodCost($sID));
+                            $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers->getSoldierGoldCost($sID));
 
-                                // Delete the job
-                                $this->mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND soldierid = '$sID' AND kingdomid = '$kID'");
-                            } else {
-                                $error = "Du rekrutierst gerade nicht!";
-                            }
+                            // Delete the job
+                            $this->mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND soldierid = '$sID' AND kingdomid = '$kID'");
                         } else {
-                            if ($kingdomIsRecruiting) {
-                                $error = "Du bist bereits am rekrutieren!";
-                            } else if (!is_numeric($_GET["count"]) || $_GET["count"] < 1) {
-                                $error = "Keine Angabe der Anzahl!";
+                            $error = "Du rekrutierst gerade nicht!";
+                        }
+                    } else {
+                        if ($kingdomIsRecruiting) {
+                            $error = "Du bist bereits am rekrutieren!";
+                        } else if (!is_numeric($_GET["count"]) || $_GET["count"] < 1) {
+                            $error = "Keine Angabe der Anzahl!";
+                        } else if ($_GET["count"] > 99) {
+                            $error = "Maximale Anzahl beträgt 99!";
+                        } else if ($_GET["recruit"] < 0 || $_GET["recruit"] > $soldiers->getSoldierCount()) {
+                            $error = "Diese Einheit existiert nicht!";
+                        } else {
+                            $costFood = $soldiers->getSoldierFoodCost($sID) * $_GET["count"];
+                            $costGold = $soldiers->getSoldierGoldCost($sID) * $_GET["count"];
+                            $costVillager = $soldiers->getSoldierVillagerCost($sID) * $_GET["count"];
+
+                            if ($costFood > $kingdomFood) {
+                                $error = "Nicht genug Nahrung!";
+                            } else if ($costGold > $kingdomGold) {
+                                $error = "Nicht genug Gold!";
+                            } else if ($costVillager > $kingdomVillager) {
+                                $error = "Nicht genug Dorfbewohner!";
                             } else {
-                                $costFood = $soldiers->getSoldierFoodCost($sID) * $_GET["count"];
-                                $costGold = $soldiers->getSoldierGoldCost($sID) * $_GET["count"];
-                                $costVillager = $soldiers->getSoldierVillagerCost($sID) * $_GET["count"];
+                                $currenttime = time();
+                                $recruitingtime = $currenttime + $soldiers->getSoldierTime($sID) * $_GET["count"];
 
-                                if ($costFood > $kingdomFood) {
-                                    $error = "Nicht genug Nahrung!";
-                                } else if ($costGold > $kingdomGold) {
-                                    $error = "Nicht genug Gold!";
-                                } else if ($costVillager > $kingdomVillager) {
-                                    $error = "Nicht genug Dorfbewohner!";
-                                } else {
-                                    $currenttime = time();
-                                    $recruitingtime = $currenttime + $soldiers->getSoldierTime($sID) * $_GET["count"];
-
-                                    // Maybe prepare this query?!
-                                    $this->mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
+                                // TODO: Maybe prepare this query?!
+                                $this->mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
                                                 VALUES('" . ACTION_BUILD_TROOPS . "', '{$user->getUserID()}', '$kID', '0', '0', '0', '-', '$sID', '" . $recruitingtime . "', " . $_GET["count"] . ");");
 
-                                    // Subtract values for food and gold
-                                    $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() - $costFood);
-                                    $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $costGold);
-                                }
+                                // Subtract values for food and gold
+                                $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() - $costFood);
+                                $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $costGold);
                             }
                         }
                     }
                 }
                 if ($error != null) {
-                    echo $error;
-                    changeLocation("buildings.php?bid=2", 2);
-                } else {
-                    ?>
-                    <table class="table">
+                    echo $error . "<br><br>";
+                    //changeLocation("buildings.php?bid=2", 2);
+                }// else {
+                ?>
+                <table class="table">
                     <tr>
                         <td class="td-center td-gradient"
                             style="width: 5%;">
@@ -295,7 +297,7 @@ class Buildings {
                         } else {
                             if ($costFood > $kingdomFood || $costGold > $kingdomGold) {
                                 $textBuild = "Nicht genug Rohstoffe!";
-                            } else if ($kingdomVillager == 0) {
+                            } else if ($kingdomVillager < $costVillager) {
                                 $textBuild = "Nicht genug Dorfbewohner!";
                             } else {
                                 // Calculate the maximum soldiers recruitable based on each resource
@@ -305,7 +307,8 @@ class Buildings {
                                 $maxSoldiersFood = floor($kingdomFood / $foodCostPerSoldier);
                                 $maxSoldiersGold = floor($kingdomGold / $goldCostPerSoldier);
                                 $maxSoldiersVillagers = floor($kingdomVillager / $villagerCostPerSoldier);
-                                $maxSoldiers = min($maxSoldiersFood, $maxSoldiersGold, $maxSoldiersVillagers);
+                                $maxRecruitVal = min($maxSoldiersFood, $maxSoldiersGold, $maxSoldiersVillagers);
+                                $maxSoldiers = min($maxRecruitVal, 99);
 
                                 $textBuild = "<form action='buildings.php?' method='GET'>
                                                     <input type='hidden' name='bid' value='2'>
@@ -326,7 +329,7 @@ class Buildings {
 
                         echo "<tr>
                                     <td class='td-center' style='width: 10%;'>" . $soldiers->getSoldierIcon($i) . "</td>
-                                    <td style='width: 40%;'><b class='popup' id='description" . $i . "' style='cursor: pointer;'>" . $soldiers->getSoldierName($i) . " 
+                                    <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers->getSoldierName($i) . " 
                                         <div id='description" . $i . "_box' class='popupbox'>" . $soldiers->getSoldierDescription($i) . "</div>  (" . ($kingdomSoldiers[$i] ?? 0) . ")</b><br><br>
                                         <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "
                                         <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "
@@ -338,8 +341,8 @@ class Buildings {
                                     <td class='td-center' style='width: 40%;'>$textBuild</td>
                                 </tr>";
                     }
-                }
-                ?>
+                    //}
+                    ?>
                 </table>
                 <?php
                 break;

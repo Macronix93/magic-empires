@@ -216,20 +216,16 @@ class User {
                     }
                     break;
                 case ACTION_BUILD_TROOPS:
-                    //if ($_SESSION["kingdomid"] == $this->kingdomid) {
                     $soldiers = new Barracks($this->mysqli);
                     $soldiertime = $soldiers->getSoldierTime($this->soldierid);
 
                     $currenttime = time();
                     $totaldifference = $this->recruittime - $currenttime;
                     $numberLeftToRecruit = max(0, ceil($totaldifference / $soldiertime));
-                    //$remainingTimeInSeconds = max(0, $totaldifference % $soldiertime);
                     $soldierdifference = $this->soldiergoal - $numberLeftToRecruit;
 
                     if ($soldierdifference != 0) {
-                        //$newSoldierGoal = max(0, $this->soldiergoal - $soldierdifference);
-
-                        $this->mysqli->query("UPDATE events SET soldiergoal = GREATEST(0, soldiergoal - $soldierdifference) WHERE kingdomid = '$this->kingdomid' AND soldierid = '$this->soldierid'");
+                        $this->mysqli->query("UPDATE events SET soldiergoal = soldiergoal - $soldierdifference WHERE kingdomid = '$this->kingdomid' AND soldierid = '$this->soldierid'");
 
                         // Update soldiers for kingdom
                         $query = "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
@@ -252,7 +248,6 @@ class User {
                     if ($numberLeftToRecruit == 0) {
                         $this->mysqli->query("DELETE FROM events WHERE eventid = '$this->eventid'");
                     }
-                    //}
                     break;
             }
         }

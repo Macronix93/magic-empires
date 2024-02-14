@@ -6,7 +6,7 @@
 /*
     Check session and create if non-existent
 */
-if (session_status() === PHP_SESSION_NONE) {
+if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
@@ -34,13 +34,15 @@ const BUILDING_COST_STONE = 3;
 const BUILDING_COST_GOLD = 4;
 const MAX_BUILDING_LEVEL = 10;
 const DEFAULT_WALL_HP = 200;
-const TIMEOUT_MAX_SECONDS = 1800;
-const USER_UPDATE_TICK = 30;
+const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
+const AFK_SECONDS = 300; // 5 Minutes
+const USER_UPDATE_TICK = 30; // 30 Seconds
 const MAX_USER_MESSAGES = 50;
 const MAX_GUILD_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 400;
 const MAX_SUBJECT_LENGTH = 16;
 const INACTIVITY_DELAY = 864000;
+const MAX_SOLDIERS = 4;
 
 ini_set('max_execution_time', 300);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -61,31 +63,32 @@ $db_instance = $db->getConnection();
 $user = new User($db_instance);
 
 // Timeout Check
-if (!isset($_SESSION["lastactivity"])) {
-    // initiate value
-    $_SESSION["lastactivity"] = time();
-}
-
-// last activity is more than TIMEOUT_MAX_SECONDS seconds ago
-if (time() - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
-    //changeLocation("login.php", 0);
-    header("Location: login.php");
-
-    session_destroy();
-    exit;
-} else {
-    // update last activity timestamp
-    $currentTimestamp = time();
-
-    if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK) {
-        $stmt = $db_instance->prepare("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?");
-        $userID = $user->getUserID();
-        $stmt->bind_param('i', $userID);
-        $stmt->execute();
-        $stmt->close();
+if ($user->isLoggedIn()) {
+    if (!isset($_SESSION["lastactivity"])) {
+        // initiate value
+        $_SESSION["lastactivity"] = time();
     }
 
-    $_SESSION["lastactivity"] = $currentTimestamp;
+    // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
+    if (time() - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
+        session_destroy();
+
+        changeLocation("login.php", 0);
+        exit;
+    } else {
+        // update last activity timestamp
+        $currentTimestamp = time();
+
+        if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK) {
+            $stmt = $db_instance->prepare("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?");
+            $userID = $user->getUserID();
+            $stmt->bind_param('i', $userID);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        $_SESSION["lastactivity"] = $currentTimestamp;
+    }
 }
 
 /*
@@ -139,5 +142,12 @@ function convertSecToStr($secs): string {
 
 function changeLocation($url, $seconds): void {
     $urlJson = json_encode($url);
-    header("refresh: $seconds; url=$urlJson");
+    $secondsInMs = json_encode($seconds) * 1000;
+    ?>
+    <script>setTimeout(function () {
+            window.location.href = <?php echo $urlJson ?>;
+        }, <?php echo $secondsInMs ?>);
+    </script>
+    <?php
+    //header("refresh: $seconds; url=$urlJson");
 }

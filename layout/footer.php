@@ -18,4 +18,4 @@
         ?>
     </div>
 </div>
-<footer>© Magic Empires - 2023</footer>
+<footer>© Magic Empires - 2024</footer>

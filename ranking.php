@@ -70,12 +70,15 @@ include_once("layout/header.php");
                         </tr>
                         <?php
                         $position = ($currentpage - 1) * $rowsperpage + 1;
-                        $icon = "";
-                        $change = "";
 
                         while ($row = $result->fetch_assoc()) {
+                            $icon = "";
+                            $change = "";
+                            $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $row["lastactivity"] > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
+
                             // Check last rank (since 00:00) and compare with current rank
                             $diff = $row['lastrank'] - $position;
+
                             if ($position < $row["lastrank"]) {
                                 $icon = "<img src='images/icons/icon_arrow_up.png' class='ressource-icons' alt=''>";
                                 $change = "+" . $diff;
@@ -84,11 +87,9 @@ include_once("layout/header.php");
                                 $change = $diff;
                             }
 
-                            $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : "#0BDA51";
-
                             echo "<tr><td class='td-center' style='min-width: 12%; text-align: right; border-right: none;'>$position</td>
                                         <td style='border-left: none; padding: 0; margin:0;'>
-                                        <b class='popup' id='description" . $position . "' style='cursor: pointer;'>$icon</b>
+                                        <b class='popup' id='description" . $position . "'>$icon</b>
                                         <div id='description" . $position . "_box' class='popupbox'>Rang um 00:00 Uhr: {$row['lastrank']}<br>Änderung von $change</div>
                                         </td>
                                         <td title='Letzte Aktivität: " . date("d.m.Y", $row["lastactivity"]) . " um " . date("H:i:s", $row["lastactivity"]) . "' >
