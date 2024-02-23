@@ -18,7 +18,7 @@
         <div style='overflow: hidden; white-space: nowrap;' id='username'>";
         echo $user->getUserName();
         echo "</div>
-        <a href='logout.php'><img src='images/icons/icon_logout.png' class='menu-icons' alt=''/></a>
+        <a href='logout.php'><img src='images/icons/icon_logout.png' class='ressource-icons' alt=''/></a>
       </div>";
 
         // Calculate and update the styling of the username dynamically
@@ -34,7 +34,7 @@
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
             Nachrichten&nbsp;<?php showNewMessagesIndicator($num_unread_messages); ?>
         </div>
-        <div class="box<?= $currentPage === 'index.php' ? ' active' : '' ?>" onclick="navigateTo('index.php', this)">
+        <div class="box<?= $currentPage === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde
         </div>
         <div class="box<?= $currentPage === 'ranking.php' ? ' active' : '' ?>"
@@ -44,7 +44,8 @@
         <div class="box<?= $currentPage === 'map.php' ? ' active' : '' ?>" onclick="navigateTo('map.php', this)">
             <img src="images/icons/icon_map.png" class="menu-icons" alt="Karte"/> Karte
         </div>
-        <div class="box<?= $currentPage === 'index.php' ? ' active' : '' ?>" onclick="navigateTo('index.php', this)">
+        <div class="box<?= $currentPage === 'buildinglist.php' ? ' active' : '' ?>"
+             onclick="navigateTo('buildinglist.php', this)">
             <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Gebäude"/> Gebäude
         </div>
         <div class="box<?= $currentPage === 'warsim.php' ? ' active' : '' ?>" onclick="navigateTo('warsim.php', this)">
@@ -55,10 +56,12 @@
 <div class="box-container">
     <div class="box-header">Allgemeines</div>
     <div class="box-content">
-        <div class="box<?= $currentPage === 'index.php' ? ' active' : '' ?>" onclick="navigateTo('index.php', this)">
+        <div class="box<?= $currentPage === 'settings.php' ? ' active' : '' ?>"
+             onclick="navigateTo('settings.php', this)">
             <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen
         </div>
-        <div class="box<?= $currentPage === 'index.php' ? ' active' : '' ?>" onclick="navigateTo('index.php', this)">
+        <div class="box<?= $currentPage === 'donations.php' ? ' active' : '' ?>"
+             onclick="navigateTo('donations.php', this)">
             <img src="images/icons/icon_donation.png" class="menu-icons" alt="Spenden"/> Spenden
         </div>
     </div>

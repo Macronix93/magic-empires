@@ -75,9 +75,8 @@ include_once("layout/header.php");
                             $icon = "";
                             $change = "";
                             $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $row["lastactivity"] > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
-
-                            // Check last rank (since 00:00) and compare with current rank
-                            $diff = $row['lastrank'] - $position;
+                            $lastactivity = ($row["lastactivity"] == 0) ? "Nicht verfügbar" : (date('d.m.Y', $row['lastactivity']) . " um " . date('H:i:s', $row['lastactivity']));
+                            $diff = $row['lastrank'] - $position; // Check last rank (since 00:00) and compare with current rank
 
                             if ($position < $row["lastrank"]) {
                                 $icon = "<img src='images/icons/icon_arrow_up.png' class='ressource-icons' alt=''>";
@@ -87,14 +86,20 @@ include_once("layout/header.php");
                                 $change = $diff;
                             }
 
-                            echo "<tr><td class='td-center' style='min-width: 12%; text-align: right; border-right: none;'>$position</td>
+                            echo "<tr>
+                                        <td class='td-center' style='min-width: 12%; text-align: right; border-right: none;'>$position</td>
                                         <td style='border-left: none; padding: 0; margin:0;'>
-                                        <b class='popup' id='description" . $position . "'>$icon</b>
-                                        <div id='description" . $position . "_box' class='popupbox'>Rang um 00:00 Uhr: {$row['lastrank']}<br>Änderung von $change</div>
+                                            <div class='popup' id='description" . $position . "'>$icon</div>
+                                            <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row['lastrank']}<br>Änderung von $change</div>
                                         </td>
-                                        <td title='Letzte Aktivität: " . date("d.m.Y", $row["lastactivity"]) . " um " . date("H:i:s", $row["lastactivity"]) . "' >
-                                        <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' style='color: $color;'>{$row["username"]}</a>
-                                        </td><td class='td-center'>{$row["score"]}</td></tr>";
+                                        <td>
+                                            <div>
+                                                <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color;'>{$row["username"]}</a>
+                                                <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $lastactivity</div>
+                                            </div>
+                                        </td>
+                                        <td class='td-center'>{$row["score"]}</td>
+                                    </tr>";
 
                             $position++;
                         }

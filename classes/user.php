@@ -126,7 +126,7 @@ class User {
         if (!$result = mysqli_query($this->mysqli, $query)) {
             exit(mysqli_error($this->mysqli));
         }
-        $data = '';
+        $data = "";
         if (mysqli_num_rows($result) > 0) {
             while ($row = mysqli_fetch_assoc($result)) {
                 $data = $row['id'];
@@ -198,7 +198,7 @@ class User {
         while ($stmt->fetch()) {
             switch ($this->actionid) {
                 case ACTION_BUILD_BUILDING:
-                    if ($_SESSION["kingdomid"] == $this->kingdomid && $this->buildingtime < time()) {
+                    if (/*$_SESSION["kingdomid"] == $this->kingdomid && */ $this->buildingtime < time()) {
                         $result = $this->mysqli->query("SELECT buildingscore FROM buildinglist WHERE id = '$this->buildingid'");
                         $row = $result->fetch_assoc();
                         $score = $row["buildingscore"];
@@ -210,6 +210,95 @@ class User {
                             $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$this->kingdomid', '$this->buildingid', '$this->buildingname', 1)");
                         } else { // Update current building
                             $this->mysqli->query("UPDATE buildings SET buildinglevel = buildinglevel+1 WHERE kingdomid = '$this->kingdomid' AND buildingid = '$this->buildingid'");
+
+                            $fieldtype = FIELD_TYPE_PLAINS;
+                            $foodrate = $woodrate = $stonerate = $goldrate = 0;
+                            switch ($this->buildingid) {
+                                case BUILDING_STORAGE:
+                                    // Update storage values based on buildinglevel
+                                    $maxval = MAX_STORAGE_VALUE;
+                                    $updateval = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
+
+                                    if ($this->buildinglevel + 1 == MAX_BUILDING_LEVEL) {
+                                        $query = "UPDATE kingdoms SET maxfood = $maxval, maxwood = $maxval, maxstone = $maxval, maxgold = $maxval  WHERE id = '$this->kingdomid'";
+                                    } else {
+                                        $query = "UPDATE kingdoms SET maxfood = maxfood + $updateval, maxwood = maxwood + $updateval, maxstone = maxstone + $updateval, maxgold = maxgold + $updateval  WHERE id = '$this->kingdomid'";
+                                    }
+                                    $this->mysqli->query($query);
+                                    break;
+                                case BUILDING_MILL:
+                                    $stmtGain = $this->mysqli->prepare("
+                                        SELECT ft.foodrate
+                                        FROM map AS m 
+                                        INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                        WHERE m.kingdomid = ?
+                                    ");
+                                    $stmtGain->bind_param('i', $this->kingdomid);
+                                    $stmtGain->execute();
+                                    $stmtGain->bind_result($foodrate);
+                                    $stmtGain->store_result();
+                                    $stmtGain->fetch();
+
+                                    $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $foodrate . "  WHERE id = '$this->kingdomid'";
+                                    $this->mysqli->query($query);
+
+                                    $stmtGain->close();
+                                    break;
+                                case BUILDING_SAWMILL:
+                                    $stmtGain = $this->mysqli->prepare("
+                                        SELECT ft.woodrate
+                                        FROM map AS m 
+                                        INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                        WHERE m.kingdomid = ?
+                                    ");
+                                    $stmtGain->bind_param('i', $this->kingdomid);
+                                    $stmtGain->execute();
+                                    $stmtGain->bind_result($woodrate);
+                                    $stmtGain->store_result();
+                                    $stmtGain->fetch();
+
+                                    $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $woodrate . "  WHERE id = '$this->kingdomid'";
+                                    $this->mysqli->query($query);
+
+                                    $stmtGain->close();
+                                    break;
+                                case BUILDING_STONEMINE:
+                                    $stmtGain = $this->mysqli->prepare("
+                                        SELECT ft.stonerate
+                                        FROM map AS m 
+                                        INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                        WHERE m.kingdomid = ?
+                                    ");
+                                    $stmtGain->bind_param('i', $this->kingdomid);
+                                    $stmtGain->execute();
+                                    $stmtGain->bind_result($stonerate);
+                                    $stmtGain->store_result();
+                                    $stmtGain->fetch();
+
+                                    $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stonerate . "  WHERE id = '$this->kingdomid'";
+                                    $this->mysqli->query($query);
+
+                                    $stmtGain->close();
+                                    break;
+                                case BUILDING_GOLDMINE:
+                                    $stmtGain = $this->mysqli->prepare("
+                                        SELECT m.fieldtype, ft.goldrate 
+                                        FROM map AS m 
+                                        INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                        WHERE m.kingdomid = ?
+                                    ");
+                                    $stmtGain->bind_param('i', $this->kingdomid);
+                                    $stmtGain->execute();
+                                    $stmtGain->bind_result($fieldtype, $goldrate);
+                                    $stmtGain->store_result();
+                                    $stmtGain->fetch();
+
+                                    $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $goldrate . "  WHERE id = '$this->kingdomid'";
+                                    $this->mysqli->query($query);
+
+                                    $stmtGain->close();
+                                    break;
+                            }
                         }
 
                         $this->mysqli->query("UPDATE users SET score = score+" . $score . " WHERE id = '$userid'") or die($this->mysqli->error);

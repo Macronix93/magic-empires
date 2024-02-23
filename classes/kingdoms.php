@@ -60,7 +60,8 @@ class Kingdoms {
 
                 if ($row->kingdomid == -1) {
                     // Field is empty, so we take it
-                    return $this->foundFreeField($randx, $randy, $userid, $username);
+                    $this->foundFreeField($randx, $randy, $userid, $username);
+                    return 1;
                 } else {
                     // Found a kingdom, search again
                     $count++;
@@ -235,9 +236,9 @@ class Kingdoms {
         return $this->villagerperhour;
     }
 
-    public function foundFreeField($randx, $randy, $userid, $username) {
-        $stmt = $this->mysqli->prepare("INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy) VALUES (?, ?, ?, '$randx', '$randy')");
-        $stmt->bind_param('sis', $username, $userid, $username);
+    public function foundFreeField($randx, $randy, $userid, $username): int {
+        $stmt = $this->mysqli->prepare("INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, wood, stone, gold) VALUES (?, ?, ?, '$randx', '$randy', ?, ?, ?, ?)");
+        $stmt->bind_param('sisiiii', $username, $userid, $username, STARTING_FOOD, STARTING_WOOD, STARTING_STONE, STARTING_GOLD);
         $stmt->execute();
         $insertid = $stmt->insert_id;
         $stmt->close();
@@ -250,6 +251,91 @@ class Kingdoms {
         $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$insertid', '0', 'Dorfzentrum', '1')");
         $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$insertid', '3', 'Mauer', '1')");
         $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$insertid', '9', 'Lager', '1')");
+
+        // Update ressource gain rates based on fieldtypes
+
+
+        /*case BUILDING_MILL:
+            $stmtGain = $this->mysqli->prepare("
+                                            SELECT ft.foodrate
+                                            FROM map AS m
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
+                                            WHERE m.kingdomid = ?
+                                        ");
+            $stmtGain->bind_param('i', $this->kingdomid);
+            $stmtGain->execute();
+            $stmtGain->bind_result($foodrate);
+            $stmtGain->store_result();
+            $stmtGain->close();
+
+            if ($fieldtype == FIELD_TYPE_COAST) {
+                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $foodrate . "  WHERE id = '$this->kingdomid'";
+            } else {
+                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN . " WHERE id = '$this->kingdomid'";
+            }
+            $this->mysqli->query($query);
+            break;
+        case BUILDING_SAWMILL:
+            $stmtGain = $this->mysqli->prepare("
+                                            SELECT ft.woodrate
+                                            FROM map AS m
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
+                                            WHERE m.kingdomid = ?
+                                        ");
+            $stmtGain->bind_param('i', $this->kingdomid);
+            $stmtGain->execute();
+            $stmtGain->bind_result($woodrate);
+            $stmtGain->store_result();
+            $stmtGain->close();
+
+            if ($fieldtype == FIELD_TYPE_FOREST) {
+                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $woodrate . "  WHERE id = '$this->kingdomid'";
+            } else {
+                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN . " WHERE id = '$this->kingdomid'";
+            }
+            $this->mysqli->query($query);
+            break;
+        case BUILDING_STONEMINE:
+            $stmtGain = $this->mysqli->prepare("
+                                            SELECT ft.stonerate
+                                            FROM map AS m
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
+                                            WHERE m.kingdomid = ?
+                                        ");
+            $stmtGain->bind_param('i', $this->kingdomid);
+            $stmtGain->execute();
+            $stmtGain->bind_result($stonerate);
+            $stmtGain->store_result();
+            $stmtGain->close();
+
+            if ($fieldtype == FIELD_TYPE_MOUNTAINS) {
+                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stonerate . "  WHERE id = '$this->kingdomid'";
+            } else {
+                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN . " WHERE id = '$this->kingdomid'";
+            }
+            $this->mysqli->query($query);
+            break;
+        case BUILDING_GOLDMINE:
+            $stmtGain = $this->mysqli->prepare("
+                                            SELECT ft.goldrate
+                                            FROM map AS m
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
+                                            WHERE m.kingdomid = ?
+                                        ");
+            $stmtGain->bind_param('i', $this->kingdomid);
+            $stmtGain->execute();
+            $stmtGain->bind_result($goldrate);
+            $stmtGain->store_result();
+            $stmtGain->close();
+
+            if ($fieldtype == FIELD_TYPE_DESERT) {
+                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $goldrate . "  WHERE id = '$this->kingdomid'";
+            } else {
+                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN . " WHERE id = '$this->kingdomid'";
+            }
+            $this->mysqli->query($query);
+            break;
+            return $insertid;*/
         return $insertid;
     }
 }
