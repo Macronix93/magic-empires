@@ -27,9 +27,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=6Lf1Ok4UAAAAAG9oYNxP0_LDyUZfcie2XWhyZKBe&response=' . $_POST['g-recaptcha-response']);
     $data = json_decode($json);
 
-    /*if(!$data->success) {
+    if (!$data->success) {
         $captchaErr = "Bitte den Botschutz akzeptieren!";
-    }*/
+    }
 
     if (empty($_POST["username"])) {
         $nameErr = "Bitte einen Nickname angeben!";

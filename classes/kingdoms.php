@@ -27,7 +27,9 @@ class Kingdoms {
     }
 
     // Function to create a new kingdom
-    public function createKingdom($userid, $username) {
+    public function createKingdom($userid, $username): false|int {
+        $usernameVar = $username;
+
         // Count available fields with no kingdom on it
         $result = $this->mysqli->query("SELECT COUNT(*) FROM map WHERE kingdomid = '-1'");
         $rows = $result->fetch_row();
@@ -54,14 +56,13 @@ class Kingdoms {
                 $randx = rand(1, 100);
                 $randy = rand(1, 100);
 
-                $result = $this->mysqli->query("SELECT kingdomid FROM map WHERE mapx = '$randx' AND mapy = '$randy' LIMIT 1");
+                $result = $this->mysqli->query("SELECT kingdomid, fieldtype FROM map WHERE mapx = '$randx' AND mapy = '$randy' LIMIT 1");
                 $row = $result->fetch_object();
                 $result->close();
 
                 if ($row->kingdomid == -1) {
                     // Field is empty, so we take it
-                    $this->foundFreeField($randx, $randy, $userid, $username);
-                    return 1;
+                    return $this->foundFreeField($row->fieldtype, $randx, $randy, $userid, $usernameVar);
                 } else {
                     // Found a kingdom, search again
                     $count++;
@@ -69,14 +70,14 @@ class Kingdoms {
             }
 
             // Just go to the next available slot if no free slot found at random
-            $result = $this->mysqli->query("SELECT mapx, mapy FROM map WHERE kingdomid = '-1' LIMIT 1");
+            $result = $this->mysqli->query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = '-1' LIMIT 1");
             $row = $result->fetch_object();
             $mapx = $row->mapx;
             $mapy = $row->mapy;
             $result->free();
 
             // Insert it into kingdoms table
-            $insertid = $this->foundFreeField($mapx, $mapy, $userid, $username);
+            $insertid = $this->foundFreeField($row->fieldtype, $mapx, $mapy, $userid, $usernameVar);
         }
 
         return $insertid;
@@ -236,106 +237,41 @@ class Kingdoms {
         return $this->villagerperhour;
     }
 
-    public function foundFreeField($randx, $randy, $userid, $username): int {
-        $stmt = $this->mysqli->prepare("INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, wood, stone, gold) VALUES (?, ?, ?, '$randx', '$randy', ?, ?, ?, ?)");
-        $stmt->bind_param('sisiiii', $username, $userid, $username, STARTING_FOOD, STARTING_WOOD, STARTING_STONE, STARTING_GOLD);
+    public function foundFreeField($fieldtype, $randx, $randy, $userid, $username): int {
+        $food = STARTING_FOOD;
+        $wood = STARTING_WOOD;
+        $stone = STARTING_STONE;
+        $gold = STARTING_GOLD;
+
+        // Get ressource gain rates based on fieldtype
+        $result = $this->mysqli->query("SELECT foodrate, woodrate, stonerate, goldrate FROM fieldtypes WHERE fieldid = $fieldtype");
+        $row = $result->fetch_object();
+        $foodrate = STARTING_GAIN * $row->foodrate;
+        $woodrate = STARTING_GAIN * $row->woodrate;
+        $stonerate = STARTING_GAIN * $row->stonerate;
+        $goldrate = STARTING_GAIN * $row->goldrate;
+        $result->free();
+
+        // Insert kingdom
+        $kingdomname = "{$username}_Koenigreich_$userid";
+        $stmt = $this->mysqli->prepare("INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, wood, stone, gold, foodperhour, woodperhour, stoneperhour, goldperhour) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param('sisiiiiiiiiii', $kingdomname, $userid, $username, $randx, $randy, $food, $wood, $stone, $gold, $foodrate, $woodrate, $stonerate, $goldrate);
         $stmt->execute();
         $insertid = $stmt->insert_id;
         $stmt->close();
 
         // Update map properties of x and y
         $this->mysqli->query("UPDATE map SET kingdomid = '$insertid' WHERE mapx = '$randx' AND mapy = '$randy';");
-        $this->mysqli->query("UPDATE kingdoms SET kingdomname = '{$username}_Koenigreich_$insertid' WHERE id = '$insertid';");
 
         // Insert standard buildings for this kingdom
-        $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$insertid', '0', 'Dorfzentrum', '1')");
-        $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$insertid', '3', 'Mauer', '1')");
-        $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$insertid', '9', 'Lager', '1')");
-
-        // Update ressource gain rates based on fieldtypes
-
-
-        /*case BUILDING_MILL:
-            $stmtGain = $this->mysqli->prepare("
-                                            SELECT ft.foodrate
-                                            FROM map AS m
-                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
-                                            WHERE m.kingdomid = ?
-                                        ");
-            $stmtGain->bind_param('i', $this->kingdomid);
-            $stmtGain->execute();
-            $stmtGain->bind_result($foodrate);
-            $stmtGain->store_result();
-            $stmtGain->close();
-
-            if ($fieldtype == FIELD_TYPE_COAST) {
-                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $foodrate . "  WHERE id = '$this->kingdomid'";
-            } else {
-                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN . " WHERE id = '$this->kingdomid'";
-            }
-            $this->mysqli->query($query);
-            break;
-        case BUILDING_SAWMILL:
-            $stmtGain = $this->mysqli->prepare("
-                                            SELECT ft.woodrate
-                                            FROM map AS m
-                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
-                                            WHERE m.kingdomid = ?
-                                        ");
-            $stmtGain->bind_param('i', $this->kingdomid);
-            $stmtGain->execute();
-            $stmtGain->bind_result($woodrate);
-            $stmtGain->store_result();
-            $stmtGain->close();
-
-            if ($fieldtype == FIELD_TYPE_FOREST) {
-                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $woodrate . "  WHERE id = '$this->kingdomid'";
-            } else {
-                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN . " WHERE id = '$this->kingdomid'";
-            }
-            $this->mysqli->query($query);
-            break;
-        case BUILDING_STONEMINE:
-            $stmtGain = $this->mysqli->prepare("
-                                            SELECT ft.stonerate
-                                            FROM map AS m
-                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
-                                            WHERE m.kingdomid = ?
-                                        ");
-            $stmtGain->bind_param('i', $this->kingdomid);
-            $stmtGain->execute();
-            $stmtGain->bind_result($stonerate);
-            $stmtGain->store_result();
-            $stmtGain->close();
-
-            if ($fieldtype == FIELD_TYPE_MOUNTAINS) {
-                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stonerate . "  WHERE id = '$this->kingdomid'";
-            } else {
-                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN . " WHERE id = '$this->kingdomid'";
-            }
-            $this->mysqli->query($query);
-            break;
-        case BUILDING_GOLDMINE:
-            $stmtGain = $this->mysqli->prepare("
-                                            SELECT ft.goldrate
-                                            FROM map AS m
-                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid
-                                            WHERE m.kingdomid = ?
-                                        ");
-            $stmtGain->bind_param('i', $this->kingdomid);
-            $stmtGain->execute();
-            $stmtGain->bind_result($goldrate);
-            $stmtGain->store_result();
-            $stmtGain->close();
-
-            if ($fieldtype == FIELD_TYPE_DESERT) {
-                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $goldrate . "  WHERE id = '$this->kingdomid'";
-            } else {
-                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN . " WHERE id = '$this->kingdomid'";
-            }
-            $this->mysqli->query($query);
-            break;
-            return $insertid;*/
+        $this->mysqli->query("
+            INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel)
+            SELECT '$insertid', '0', 'Dorfzentrum', '1'
+            UNION ALL
+            SELECT '$insertid', '3', 'Mauer', '1'
+            UNION ALL
+            SELECT '$insertid', '9', 'Lager', '1'
+        ");
         return $insertid;
     }
 }

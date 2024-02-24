@@ -94,7 +94,7 @@ include_once("layout/header.php");
                                         </td>
                                         <td>
                                             <div>
-                                                <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color;'>{$row["username"]}</a>
+                                                <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>{$row["username"]}</a>
                                                 <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $lastactivity</div>
                                             </div>
                                         </td>

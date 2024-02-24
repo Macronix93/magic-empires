@@ -54,6 +54,20 @@ class User {
 
         unset($_POST);
 
+        // Update lastrank
+        $stmt = $this->mysqli->prepare("UPDATE users 
+                                        JOIN (
+                                            SELECT id, (@rank := @rank + 1) AS new_rank
+                                            FROM (SELECT id FROM users ORDER BY score DESC) AS ranked_users
+                                            CROSS JOIN (SELECT @rank := 0) AS init
+                                        ) AS ranked_users ON users.id = ranked_users.id
+                                        SET users.lastrank = ranked_users.new_rank
+                                        WHERE users.id = ?");
+        $stmt->bind_param('i', $insertid);
+        $stmt->execute();
+        $stmt->close();
+
+
         $this->mysqli->close();
     }
 
@@ -201,7 +215,7 @@ class User {
                     if (/*$_SESSION["kingdomid"] == $this->kingdomid && */ $this->buildingtime < time()) {
                         $result = $this->mysqli->query("SELECT buildingscore FROM buildinglist WHERE id = '$this->buildingid'");
                         $row = $result->fetch_assoc();
-                        $score = $row["buildingscore"];
+                        $score = $row["buildingscore"] * $this->buildinglevel;
                         $result->close();
 
                         $this->mysqli->query("DELETE FROM events WHERE eventid = '$this->eventid'");

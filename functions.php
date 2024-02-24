@@ -63,6 +63,7 @@ const BASE_FOOD_GAIN = 20;
 const BASE_WOOD_GAIN = 20;
 const BASE_STONE_GAIN = 15;
 const BASE_GOLD_GAIN = 10;
+const STARTING_GAIN = 10;
 
 
 ini_set('max_execution_time', 300);
