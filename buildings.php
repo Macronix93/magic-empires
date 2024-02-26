@@ -65,8 +65,7 @@ include_once("layout/header.php");
                     <p>
                         <?php
                         if (isset($_GET["bid"]) && ($bID < 0 || $bID > $buildingcount)) {
-                            echo "Fehler";
-                            $error = "Das Gebäude existiert nicht!";
+                            changeLocation("buildings.php?bid=0", 0);
                         } else {
                             echo(isset($_GET["action"]) ? $buildings[0]->getBuildingName() : $buildings[$bID]->getBuildingName());
                         }
@@ -154,7 +153,27 @@ include_once("layout/header.php");
                                         break;
                                     case 2:
                                         // Kaserne
-                                        $soldiers = new Barracks($mysqli);
+                                        $soldiers = [];
+                                        $result = $mysqli->query("SELECT * FROM soldierlist");
+
+                                        while ($row = $result->fetch_assoc()) {
+                                            $soldier = new Soldier();
+                                            $soldier->setSoldierID($row["id"]);
+                                            $soldier->setSoldierName($row["soldiername"]);
+                                            $soldier->setSoldierDescription($row["description"]);
+                                            $soldier->setSoldierAttack($row["attack"]);
+                                            $soldier->setSoldierDefense($row["defense"]);
+                                            $soldier->setSoldierFoodCost($row["food"]);
+                                            $soldier->setSoldierGoldCost($row["gold"]);
+                                            $soldier->setSoldierVillagerCost($row["villager"]);
+                                            $soldier->setSoldierRequiredLevel($row["requiredlevel"]);
+                                            $soldier->setSoldierTime($row["requiredtime"]);
+                                            $soldier->setSoldierScoreGain($row["scoregain"]);
+
+                                            $soldiers[] = $soldier;
+                                        }
+                                        $result->close();
+                                        $soldiercount = count($soldiers);
 
                                         $kingdomFood = $kingdom->getKingdomFood();
                                         $kingdomGold = $kingdom->getKingdomGold();
@@ -185,8 +204,8 @@ include_once("layout/header.php");
                                                     $stmt->close();
 
                                                     // Refund player
-                                                    $kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers->getSoldierFoodCost($sID));
-                                                    $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers->getSoldierGoldCost($sID));
+                                                    $kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
+                                                    $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());
 
                                                     // Delete the job
                                                     $mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND soldierid = '$sID' AND kingdomid = '$kID'");
@@ -200,12 +219,12 @@ include_once("layout/header.php");
                                                     $error = "Keine Angabe der Anzahl!";
                                                 } else if ($_GET["count"] > 99) {
                                                     $error = "Maximale Anzahl beträgt 99!";
-                                                } else if ($_GET["recruit"] < 0 || $_GET["recruit"] > $soldiers->getSoldierCount()) {
+                                                } else if ($_GET["recruit"] < 0 || $_GET["recruit"] > $soldiercount) {
                                                     $error = "Diese Einheit existiert nicht!";
                                                 } else {
-                                                    $costFood = $soldiers->getSoldierFoodCost($sID) * $_GET["count"];
-                                                    $costGold = $soldiers->getSoldierGoldCost($sID) * $_GET["count"];
-                                                    $costVillager = $soldiers->getSoldierVillagerCost($sID) * $_GET["count"];
+                                                    $costFood = $soldiers[$sID]->getSoldierFoodCost() * $_GET["count"];
+                                                    $costGold = $soldiers[$sID]->getSoldierGoldCost() * $_GET["count"];
+                                                    $costVillager = $soldiers[$sID]->getSoldierVillagerCost() * $_GET["count"];
 
                                                     if ($costFood > $kingdomFood) {
                                                         $error = "Nicht genug Nahrung!";
@@ -215,7 +234,7 @@ include_once("layout/header.php");
                                                         $error = "Nicht genug Dorfbewohner!";
                                                     } else {
                                                         $currenttime = time();
-                                                        $recruitingtime = $currenttime + $soldiers->getSoldierTime($sID) * $_GET["count"];
+                                                        $recruitingtime = $currenttime + $soldiers[$sID]->getSoldierTime() * $_GET["count"];
 
                                                         // TODO: Maybe prepare this query?!
                                                         $mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
@@ -255,18 +274,18 @@ include_once("layout/header.php");
                                             $stmt->bind_param("i", $kID);
                                             $stmt->execute();
                                             $soldierid = -1;
-                                            $soldiercount = 0;
-                                            $stmt->bind_result($soldierid, $soldiercount);
+                                            $solcount = 0;
+                                            $stmt->bind_result($soldierid, $solcount);
                                             $kingdomSoldiers = array();
                                             while ($stmt->fetch()) {
-                                                $kingdomSoldiers[$soldierid] = $soldiercount;
+                                                $kingdomSoldiers[$soldierid] = $solcount;
                                             }
                                             $stmt->close();
 
-                                            for ($i = 0; $i < $soldiers->getSoldierCount(); $i++) {
-                                                $costFood = $soldiers->getSoldierFoodCost($i);
-                                                $costGold = $soldiers->getSoldierGoldCost($i);
-                                                $costVillager = $soldiers->getSoldierVillagerCost($i);
+                                            for ($i = 0; $i < $soldiercount; $i++) {
+                                                $costFood = $soldiers[$i]->getSoldierFoodCost();
+                                                $costGold = $soldiers[$i]->getSoldierGoldCost();
+                                                $costVillager = $soldiers[$i]->getSoldierVillagerCost();
 
                                                 $textFood = ($costFood > $kingdomFood ? "<b class='error'>" . $costFood . "</b>" : $costFood);
                                                 $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . $costGold . "</b>" : $costGold);
@@ -284,14 +303,14 @@ include_once("layout/header.php");
                                                         $stmt->fetch();
                                                         $stmt->close();
 
-                                                        $soldiertime = $soldiers->getSoldierTime($i);
+                                                        $soldiertime = $soldiers[$i]->getSoldierTime();
                                                         $currenttime = time();
                                                         $totaldifference = $recruittime - $currenttime;
                                                         $remainingTimeInSeconds = max(0, $totaldifference % $soldiertime);
 
                                                         // Job was just started
                                                         if ($remainingTimeInSeconds == 0) {
-                                                            $remainingTimeInSeconds = $soldiers->getSoldierTime($i);
+                                                            $remainingTimeInSeconds = $soldiers[$i]->getSoldierTime();
                                                         }
 
                                                         $textBuild = "In Ausbildung: " . $soldiergoal . "<br><br><b>
@@ -317,9 +336,9 @@ include_once("layout/header.php");
                                                         $textBuild = "Nicht genug Dorfbewohner!";
                                                     } else {
                                                         // Calculate the maximum soldiers recruitable based on each resource
-                                                        $foodCostPerSoldier = $soldiers->getSoldierFoodCost($i);
-                                                        $goldCostPerSoldier = $soldiers->getSoldierGoldCost($i);
-                                                        $villagerCostPerSoldier = $soldiers->getSoldierVillagerCost($i);
+                                                        $foodCostPerSoldier = $soldiers[$i]->getSoldierFoodCost();
+                                                        $goldCostPerSoldier = $soldiers[$i]->getSoldierGoldCost();
+                                                        $villagerCostPerSoldier = $soldiers[$i]->getSoldierVillagerCost();
                                                         $maxSoldiersFood = floor($kingdomFood / $foodCostPerSoldier);
                                                         $maxSoldiersGold = floor($kingdomGold / $goldCostPerSoldier);
                                                         $maxSoldiersVillagers = floor($kingdomVillager / $villagerCostPerSoldier);
@@ -344,15 +363,15 @@ include_once("layout/header.php");
                                                 }
 
                                                 echo "<tr>
-                                                    <td class='td-center' style='width: 10%;'>" . $soldiers->getSoldierIcon($i) . "</td>
-                                                    <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers->getSoldierName($i) . " 
-                                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers->getSoldierDescription($i) . "</div>  (" . ($kingdomSoldiers[$i] ?? 0) . ")</b><br><br>
+                                                    <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->getSoldierIcon() . "</td>
+                                                    <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers[$i]->getSoldierName() . " 
+                                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->getSoldierDescription() . "</div>  (" . ($kingdomSoldiers[$i] ?? 0) . ")</b><br><br>
                                                         <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "
                                                         <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "
                                                         <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'> " . $textVillager . "<br>
-                                                        <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers->getSoldierAttack($i) . " 
-                                                        <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers->getSoldierDefense($i) . "<br>
-                                                        <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit'> " . convertSecToStr($soldiers->getSoldierTime($i)) . "
+                                                        <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->getSoldierAttack() . " 
+                                                        <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->getSoldierDefense() . "<br>
+                                                        <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit'> " . convertSecToStr($soldiers[$i]->getSoldierTime()) . "
                                                         <br><br></td>
                                                     <td class='td-center' style='width: 40%;'>$textBuild</td>
                                                 </tr>";
@@ -429,7 +448,7 @@ include_once("layout/header.php");
                     }
 
                     // Show an error if there is any
-                    if ($error != null) {
+                    if ($error != null && $bID != 2) {
                         echo $error . "<br><br>";
                     }
 

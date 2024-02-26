@@ -32,7 +32,19 @@ include_once("layout/header.php");
                     <?php
                     echo "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
-                    $soldiers = new Barracks($db_instance);
+                    $soldiers = [];
+                    $result = $db_instance->query("SELECT id, soldiername, attack, defense FROM soldierlist");
+
+                    while ($row = $result->fetch_assoc()) {
+                        $soldier = new Soldier();
+                        $soldier->setSoldierID($row["id"]);
+                        $soldier->setSoldierName($row["soldiername"]);
+                        $soldier->setSoldierAttack($row["attack"]);
+                        $soldier->setSoldierDefense($row["defense"]);
+
+                        $soldiers[] = $soldier;
+                    }
+                    $result->close();
                     ?>
                     <table class="table">
                         <tr>
@@ -41,14 +53,14 @@ include_once("layout/header.php");
                             <td class="td-center td-gradient">Gegner Truppen</td>
                         </tr>
                         <?php
-                        $soldierCount = $soldiers->getSoldierCount();
+                        $soldierCount = count($soldiers);
 
                         for ($i = 0; $i < $soldierCount; $i++) {
                             echo "<tr>
-                                        <td>" . $soldiers->getSoldierIcon($i) . " " . $soldiers->getSoldierName($i) . "<br>
+                                        <td>" . $soldiers[$i]->getSoldierIcon() . " " . $soldiers[$i]->getSoldierName() . "<br>
                                         <div class='split-content' style='width: 104px;'>
-                                            <div id='atk_" . $i . "' data-attack='" . $soldiers->getSoldierAttack($i) . "'><img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers->getSoldierAttack($i) . "</div>
-                                            <div id='def_" . $i . "' data-defense='" . $soldiers->getSoldierDefense($i) . "' style='margin-left: 15px;'><img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers->getSoldierDefense($i) . "</div>
+                                            <div id='atk_" . $i . "' data-attack='" . $soldiers[$i]->getSoldierAttack() . "'><img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->getSoldierAttack() . "</div>
+                                            <div id='def_" . $i . "' data-defense='" . $soldiers[$i]->getSoldierDefense() . "' style='margin-left: 15px;'><img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->getSoldierDefense() . "</div>
                                         </div>
                                         </td>
                                         <td class='td-center'><input type='text' id='own_" . $i . "' name='own" . $i . "' size='2' maxlength='3' value='0'></td>

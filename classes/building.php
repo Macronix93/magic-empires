@@ -2,24 +2,24 @@
 
 class Building {
     private $mysqli;
-    private $bid; // ID of the building
-    private $kid; // ID of the kingdom that the building is connected to
-    private $blevel; // Current level of the building for the kingdom
-    private $breqlevel; // Required (towncenter) level for building
-    private $btime; // Time to build
-    private $bmult; // Multiplier for cost?
-    private $bname; // Name of the building
-    private $bscore; // The score that is gained when building was built
-    private $bfoodcost;
-    private $bwoodcost;
-    private $bstonecost;
-    private $bgoldcost;
+    private int $bid; // ID of the building
+    private int $kid; // ID of the kingdom that the building is connected to
+    private int $blevel; // Current level of the building for the kingdom
+    private int $breqlevel; // Required (towncenter) level for building
+    private int $btime; // Time to build
+    private float $bmult; // Multiplier for cost?
+    private string $bname; // Name of the building
+    private int $bscore; // The score that is gained when building was built
+    private int $bfoodcost;
+    private int $bwoodcost;
+    private int $bstonecost;
+    private int $bgoldcost;
 
     public function __construct($db_conn) {
         $this->mysqli = $db_conn;
     }
 
-    public function getBuildingKingdomID() {
+    public function getBuildingKingdomID(): int {
         return $this->kid;
     }
 
@@ -27,7 +27,7 @@ class Building {
         $this->kid = $id;
     }
 
-    public function getBuildingID() {
+    public function getBuildingID(): int {
         return $this->bid;
     }
 
@@ -35,7 +35,7 @@ class Building {
         $this->bid = $id;
     }
 
-    public function getBuildingRequiredLevel() {
+    public function getBuildingRequiredLevel(): int {
         return $this->breqlevel;
     }
 
@@ -43,7 +43,7 @@ class Building {
         $this->breqlevel = $reqlevel;
     }
 
-    public function getBuildingTime() {
+    public function getBuildingTime(): int {
         return $this->btime;
     }
 
@@ -51,7 +51,7 @@ class Building {
         $this->btime = $time;
     }
 
-    public function getBuildingMult() {
+    public function getBuildingMult(): float {
         return $this->bmult;
     }
 
@@ -59,7 +59,7 @@ class Building {
         $this->bmult = $mult;
     }
 
-    public function getBuildingName() {
+    public function getBuildingName(): string {
         return $this->bname;
     }
 
@@ -67,7 +67,7 @@ class Building {
         $this->bname = $name;
     }
 
-    public function getBuildingScore() {
+    public function getBuildingScore(): int {
         return $this->bscore;
     }
 
@@ -75,7 +75,7 @@ class Building {
         $this->bscore = $score;
     }
 
-    public function getBuildingLevel() {
+    public function getBuildingLevel(): int {
         return $this->blevel;
     }
 
