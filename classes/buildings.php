@@ -213,7 +213,7 @@ class Buildings {
                 }
                 if ($error != null) {
                     echo $error . "<br><br>";
-                    //changeLocation("buildings.php?bid=2", 2);
+                    //changeLocation("buildings_old.php?bid=2", 2);
                 }// else {
                 ?>
                 <table class="table">
@@ -285,7 +285,7 @@ class Buildings {
                                               startCountdown(diff);
                                               </script>
                                               </span></b><br> 
-                                              <form action='buildings.php' method='GET'>
+                                              <form action='buildings_old.php' method='GET'>
                                                 <input type='hidden' name='bid' value='2'>
                                                 <input type='hidden' name='recruit' value='" . $i . "'>
                                                 <input type='hidden' name='count' value='cancel'>
@@ -310,7 +310,7 @@ class Buildings {
                                 $maxRecruitVal = min($maxSoldiersFood, $maxSoldiersGold, $maxSoldiersVillagers);
                                 $maxSoldiers = min($maxRecruitVal, 99);
 
-                                $textBuild = "<form action='buildings.php?' method='GET'>
+                                $textBuild = "<form action='buildings_old.php?' method='GET'>
                                                     <input type='hidden' name='bid' value='2'>
                                                     <input type='hidden' name='recruit' value='" . $i . "'>
                                                     <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2'>
