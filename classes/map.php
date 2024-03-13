@@ -32,6 +32,28 @@ class Map {
         return $field;
     }
 
+    public function getFieldTypeColor($fieldtype): string {
+        $color = "";
+        switch ($fieldtype) {
+            case 1:
+                $color = "rgb(185, 122, 87)";
+                break;
+            case 2:
+                $color = "rgb(0, 162, 232)";
+                break;
+            case 3:
+                $color = "rgb(34, 177, 76)";
+                break;
+            case 4:
+                $color = "rgb(255, 201, 14)";
+                break;
+            case 5:
+                $color = "rgb(181, 230, 29)";
+                break;
+        }
+        return $color;
+    }
+
     public function getKingdomIconByLevel($kingdomid): string {
         $stmt = $this->mysqli->prepare("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = 0");
         $stmt->bind_param('i', $kingdomid);
@@ -166,23 +188,22 @@ class Map {
 
         ?>
         <style>
-            .image-container {
-                position: relative;
-                width: 50px;
-                height: 50px;
+            .cell-container {
+                width: 100%;
+                height: 100%;
             }
 
-            .overlay-img {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 50px;
+            .kingdom-img {
+                width: 100%;
+                height: 100%;
             }
 
             td {
                 text-align: center;
                 margin: 0;
                 padding: 0;
+                width: 50px;
+                height: 50px;
             }
 
             .td-main {
@@ -207,21 +228,25 @@ class Map {
                 <td rowspan="12" height=12 class="left-right-cell td-gradient"><?php echo $link_links ?></td>
 
                 <?php
+                $fieldcolor = array(array());
+                $mycoords = array(array());
+
                 while ($row2 = $result2->fetch_assoc()) {
-                    $fieldImage = "<div class='image-container'>";
+                    $mycoords[$row2["mapx"]][$row2["mapy"]] = false;
+                    $fieldImage = "";
+                    $fieldcolor[$row2["mapx"]][$row2["mapy"]] = $this->getFieldTypeColor($row2["fieldtype"]);
 
                     if ($row2["kingdomid"] != -1) {
-                        $fieldImage .= "<a href='map.php?startx=" . $this->startx . "&starty=" . $this->starty . "&kid=" . $row2["kingdomid"] . "'>
-                                            <img src=" . $this->getFieldIcon($row2["fieldtype"]) . " class='map-img' alt=''>
-                                            <img src='" . $this->getKingdomIconByLevel($row2["kingdomid"]) . "' class='map-img overlay-img' alt=''>
-                                            </a>";
-                    } else {
-                        $fieldImage .= "<img src=" . $this->getFieldIcon($row2["fieldtype"]) . " class='map-img' alt=''>";
+                        if ($row2["kingdomid"] == $_SESSION["kingdomid"]) {
+                            $mycoords[$row2["mapx"]][$row2["mapy"]] = true;
+                        }
+
+                        $fieldImage = "<div class='cell-container'><a href='map.php?startx=" . $this->startx . "&starty=" . $this->starty . "&kid=" . $row2["kingdomid"] . "'>
+                                            <img src='" . $this->getKingdomIconByLevel($row2["kingdomid"]) . "' class='kingdom-img' alt=''>
+                                            </a></div>";
                     }
 
-                    $fieldImage .= "</div>";
-
-                    $coords[$row2["mapx"]][$row2["mapy"]] = "<div class='cell-container'>" . $fieldImage . "</div>";
+                    $coords[$row2["mapx"]][$row2["mapy"]] = $fieldImage;
                 }
 
                 for ($i = $this->starty; $i <= $this->starty + 9; $i++) {
@@ -229,7 +254,11 @@ class Map {
                     echo "<td style='padding: 15px;'>$i</td>";
 
                     for ($j = $this->startx; $j <= $this->startx + 9; $j++) {
-                        echo "<td>{$coords[$j][$i]}</td>";
+                        if ($mycoords[$j][$i]) {
+                            echo "<td style='border: 2px solid red; background-color: " . $fieldcolor[$j][$i] . "'>{$coords[$j][$i]}</td>";
+                        } else {
+                            echo "<td style='background-color: " . $fieldcolor[$j][$i] . "'>{$coords[$j][$i]}</td>";
+                        }
                         if ($j == $xend && $i == $ystart) echo "<td rowspan='12' class='left-right-cell td-gradient'>$link_rechts</td>";
                     }
 

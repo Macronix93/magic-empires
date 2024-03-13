@@ -346,19 +346,18 @@ include_once("layout/header.php");
                                                         $maxSoldiers = min($maxRecruitVal, 99);
 
                                                         $textBuild = "<form action='buildings.php?' method='GET'>
-                                                    <input type='hidden' name='bid' value='2'>
-                                                    <input type='hidden' name='recruit' value='" . $i . "'>
-                                                    <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2'>
-                                                    <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $maxSoldiers . "\")'><br>
-                                                    <input type='submit' value='Ausbilden' style='margin-top: 10px'>
-                                                </form>
-                                    
-                                                <script>
-                                                    function fillMax(i, maxValue) {
-                                                        document.getElementById('count' + i).value = maxValue;
-                                                        return false;
-                                                    }
-                                                </script>";
+                                                                            <input type='hidden' name='bid' value='2'>
+                                                                            <input type='hidden' name='recruit' value='" . $i . "'>
+                                                                            <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2'>
+                                                                            <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $maxSoldiers . "\")'><br>
+                                                                            <input type='submit' value='Ausbilden' style='margin-top: 10px'>
+                                                                        </form>
+                                                                        <script>
+                                                                            function fillMax(i, maxValue) {
+                                                                                document.getElementById('count' + i).value = maxValue;
+                                                                                return false;
+                                                                            }
+                                                                        </script>";
                                                     }
                                                 }
 
