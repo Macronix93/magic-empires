@@ -90,7 +90,7 @@ include_once("layout/header.php");
                                         <td class='td-center' style='min-width: 12%; text-align: right; border-right: none;'>$position</td>
                                         <td style='border-left: none; padding: 0; margin:0;'>
                                             <div class='popup' id='description" . $position . "'>$icon</div>
-                                            <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row['lastrank']}<br>Änderung von $change</div>
+                                            <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row['lastrank']} ($change)</div>
                                         </td>
                                         <td>
                                             <div>

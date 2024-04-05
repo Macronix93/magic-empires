@@ -34,30 +34,35 @@ include_once("layout/header.php");
                 <div class="big-box-content">
                     <?php
                     $mysqli = $db_instance;
+                    $error = null;
 
                     if (isset($_POST["sendpm"])) {
                         $receiver = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
                         $subject = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["subject"]);
-                        $text = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $_POST["text"]);
-                        $error = null;
+                        $text = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
+                        //$text = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $_POST["text"]);
+
+                        $lineBreaksCount = substr_count($text, '<br />');
 
                         // Check different errors
                         if ($receiver == $_SESSION["username"]) {
                             $error = "Du kannst keine Nachrichten an dich selbst senden!";
                         } else if (preg_match('/\s/', $receiver)) {
                             $error = "Dieser Benutzer existiert nicht!";
-                        } else if (empty(trim($subject)) || empty(trim($text))) {
+                        } else if (empty(trim($subject)) || empty(trim($text)) || empty(trim(strip_tags($text)))) {
                             $error = "Bitte alle Felder ausfüllen!";
                         } else if (strlen($subject) > MAX_SUBJECT_LENGTH) {
                             $error = "Betreff darf maximal " . MAX_SUBJECT_LENGTH . " Zeichen lang sein!";
                         } else if (strlen($text) > MAX_MESSAGE_LENGTH) {
                             $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
+                        } else if ($lineBreaksCount > MAX_LINE_BREAK_COUNT) {
+                            $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
                         }
 
                         // Prevent HTML Injection
                         $receiver = htmlspecialchars($receiver, ENT_QUOTES, "UTF-8");
                         $subject = htmlspecialchars($subject, ENT_QUOTES, "UTF-8");
-                        $text = htmlspecialchars($text, ENT_QUOTES, "UTF-8");
+                        $textToOutput = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $text);
 
                         if ($error !== null) {
                             echo $error . "<br><br>";
@@ -88,18 +93,16 @@ include_once("layout/header.php");
 
                                     $stmt = $db_instance->prepare("INSERT INTO messages (sender, receiver, date, hasread, subject, message) VALUES (?, ?, ?, ?, ?, ?)");
                                     if ($stmt) {
-                                        $stmt->bind_param("ssiiss", $_SESSION['username'], $receiver, $time, $notread, $subject, $text);
+                                        $stmt->bind_param("ssiiss", $_SESSION['username'], $receiver, $time, $notread, $subject, $textToOutput);
                                         $stmt->execute();
                                         $stmt->close();
                                     }
 
                                     $_SESSION["msgsent"] = true;
-                                    //echo "Deine Nachricht wurde verschickt!<br><br>";
-                                    //changeLocation("messages.php", 2);
                                 }
                             }
                         }
-                    } //else {
+                    }
                     if (isset($_GET["action"])) {
                         if ($_GET["action"] == "folder") {
                             if ($_GET["folderid"] == 1) {
@@ -144,17 +147,21 @@ include_once("layout/header.php");
                                 echo "Ordner \"Gilden-Nachrichten\"";
                             } else {
                                 echo "Ordner existiert nicht!";
+
                                 changeLocation("messages.php", 2);
                             }
                         } else if ($_GET["action"] == "new") {
                             if (isset($_SESSION["msgsent"]) && $_SESSION["msgsent"]) {
                                 $_SESSION["msgsent"] = false;
+
                                 echo "Deine Nachricht wurde verschickt!";
+
                                 changeLocation("messages.php", 2);
                             } else {
                                 ?>
-                                <form name="newmessage" action="messages.php?action=new" method="POST"
-                                      style="width: 100%;">
+                                <form name="newmessage"
+                                      action="messages.php?action=new<?php if (isset($_GET["receiver"])) echo "&receiver=" . urlencode($_GET["receiver"]); ?><?php if (isset($_GET["subject"])) echo "&subject=" . urlencode($_GET["subject"]); ?>"
+                                      method="POST" style="width: 100%;">
                                     <table class="table">
                                         <tr>
                                             <td style="width: 25%;">
@@ -166,13 +173,14 @@ include_once("layout/header.php");
                                                     ?>
                                                     <label>
                                                         <input type="text" name="receiver" maxlength="16"
-                                                               value="<?php echo $_GET["receiver"]; ?>">
+                                                               value="<?php echo htmlspecialchars($_GET["receiver"]); ?>">
                                                     </label>
                                                     <?php
                                                 } else {
                                                     ?>
                                                     <label>
-                                                        <input type="text" name="receiver" maxlength="16" value="">
+                                                        <input type="text" name="receiver" maxlength="16"
+                                                               value="<?php echo isset($_POST["receiver"]) ? htmlspecialchars($_POST["receiver"]) : ""; ?>">
                                                     </label> <a href="javascript:userList()"><input type="button"
                                                                                                     value="Benutzerliste"></a>
                                                     <?php
@@ -186,7 +194,7 @@ include_once("layout/header.php");
                                                 <label>
                                                     <input type="text" name="subject"
                                                            maxlength="<?php echo MAX_SUBJECT_LENGTH; ?>"
-                                                           value="<?php echo($_GET["subject"] ?? ""); ?>">
+                                                           value="<?php echo(isset($_GET["subject"]) ? htmlspecialchars($_GET["subject"]) : (isset($_POST["subject"]) ? htmlspecialchars($_POST["subject"]) : "")); ?>">
                                                 </label>
                                             </td>
                                         </tr>
@@ -194,9 +202,9 @@ include_once("layout/header.php");
                                             <td><b>Nachricht:</b></td>
                                             <td>
                                                 <label>
-                                                        <textarea name="text" rows="8"
-                                                                  maxlength="<?php echo MAX_MESSAGE_LENGTH; ?>"
-                                                                  style="width: 100%; resize: vertical;"></textarea>
+                                                    <textarea name="text" rows="8"
+                                                              maxlength="<?php echo MAX_MESSAGE_LENGTH; ?>"
+                                                              style="width: 100%; resize: vertical;"><?php echo(isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : ""); ?></textarea
                                                 </label>
                                             </td>
                                         </tr>

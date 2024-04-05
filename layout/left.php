@@ -18,7 +18,7 @@
         <div style='overflow: hidden; white-space: nowrap;' id='username'>";
         echo $user->getUserName();
         echo "</div>
-        <a href='logout.php'><img src='images/icons/icon_logout.png' class='ressource-icons' alt=''/></a>
+        <a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt=''/></a>
       </div>";
 
         // Calculate and update the styling of the username dynamically

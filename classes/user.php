@@ -13,7 +13,9 @@ class User {
         $buildingname = "",
         $recruittime = 0,
         $soldiergoal = 0,
-        $soldierid = 0;
+        $soldierid = 0,
+        $targetid = 0,
+        $arrivaltime = 0;
 
     // Constructor
     public function __construct($db_conn) {
@@ -206,13 +208,13 @@ class User {
         $stmt->bind_param('i', $userid);
         $stmt->execute();
         $stmt->bind_result($this->eventid, $this->actionid, $this->user, $this->kingdomid, $this->buildingid,
-            $this->buildingtime, $this->buildinglevel, $this->buildingname, $this->soldierid, $this->recruittime, $this->soldiergoal);
+            $this->buildingtime, $this->buildinglevel, $this->buildingname, $this->soldierid, $this->recruittime, $this->soldiergoal, $this->targetid, $this->arrivaltime);
         $stmt->store_result();
 
         while ($stmt->fetch()) {
             switch ($this->actionid) {
                 case ACTION_BUILD_BUILDING:
-                    if (/*$_SESSION["kingdomid"] == $this->kingdomid && */ $this->buildingtime < time()) {
+                    if ($this->buildingtime < time()) {
                         $result = $this->mysqli->query("SELECT buildingscore FROM buildinglist WHERE id = '$this->buildingid'");
                         $row = $result->fetch_assoc();
                         $score = $row["buildingscore"] * $this->buildinglevel + 1;
@@ -223,12 +225,15 @@ class User {
                         if ($this->buildinglevel == 0) { // Insert new building
                             $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$this->kingdomid', '$this->buildingid', '$this->buildingname', 1)");
                         } else { // Update current building
+                            echo "update building to level " . $this->buildinglevel + 1;
+
                             $this->mysqli->query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = '$this->kingdomid' AND buildingid = '$this->buildingid'");
                         }
                         $this->mysqli->query("UPDATE users SET score = score + " . $score . " WHERE id = '$userid'") or die($this->mysqli->error);
 
                         $fieldtype = FIELD_TYPE_PLAINS;
                         $foodrate = $woodrate = $stonerate = $goldrate = 0;
+
                         switch ($this->buildingid) {
                             case BUILDING_STORAGE:
                                 // Update storage values based on buildinglevel
@@ -365,6 +370,8 @@ class User {
                     if ($numberLeftToRecruit == 0) {
                         $this->mysqli->query("DELETE FROM events WHERE eventid = '$this->eventid'");
                     }
+                    break;
+                case ACTION_TRADING:
                     break;
             }
         }

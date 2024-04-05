@@ -33,6 +33,7 @@ const MAX_MAP_SEARCHES = 3;
 const ACTION_BUILD_BUILDING = 1;
 const ACTION_BUILD_TROOPS = 2;
 const ACTION_SEND_TROOPS = 3;
+const ACTION_TRADING = 4;
 const BUILDING_COST_WOOD = 1;
 const BUILDING_COST_FOOD = 2;
 const BUILDING_COST_STONE = 3;
@@ -45,6 +46,7 @@ const USER_UPDATE_TICK = 30; // 30 Seconds
 const MAX_USER_MESSAGES = 50;
 const MAX_GUILD_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 400;
+const MAX_LINE_BREAK_COUNT = 10;
 const MAX_SUBJECT_LENGTH = 16;
 const INACTIVITY_DELAY = 864000;
 const MAX_SOLDIERS = 4;
@@ -73,8 +75,8 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     AutoLoad classes
 */
 spl_autoload_register(function ($class_name) {
-    $class = strtolower($class_name);
-    include("classes/$class.php");
+    //$class = ;
+    include("classes/" . strtolower($class_name) . ".php");
 });
 
 // Database instance for classes
@@ -111,6 +113,12 @@ if ($user->isLoggedIn()) {
 
         $_SESSION["lastactivity"] = $currentTimestamp;
     }
+
+    $kingdom = new Kingdoms($db_instance);
+    $kingdom->getKingdomRessources($_SESSION["kingdomid"]);
+
+    // Process user events
+    $user->processUserEvents($user->getUserID());
 }
 
 /*
@@ -172,4 +180,12 @@ function changeLocation($url, $seconds): void {
     </script>
     <?php
     //header("refresh: $seconds; url=$urlJson");
+}
+
+function setError($msg): void {
+    $_SESSION["error"] = $msg;
+}
+
+function getError(): string {
+    return $_SESSION["error"] ?? "";
 }

@@ -297,6 +297,11 @@ td {
     height: 24px;
 }
 
+.item-icons {
+    width: 36px;
+    height: 36px;
+}
+
 .split-content {
     display: flex;
     justify-content: space-between;

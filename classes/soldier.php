@@ -95,10 +95,10 @@ class Soldier {
 
     public function getSoldierIcon(): string {
         return match ($this->sid) {
-            0 => " <img src='images/icons/icon_militia.png' class='ressource-icons' alt='Milizsoldat'>",
-            1 => " <img src='images/icons/icon_swordsman.png' class='ressource-icons' alt='Schwertkämpfer'>",
-            2 => " <img src='images/icons/icon_thief.png' class='ressource-icons' alt='Dieb'>",
-            3 => " <img src='images/icons/icon_conqueror.png' class='ressource-icons' alt='Eroberer'>",
+            0 => " <img src='images/icons/icon_militia.png' class='item-icons' alt='Milizsoldat'>",
+            1 => " <img src='images/icons/icon_swordsman.png' class='item-icons' alt='Schwertkämpfer'>",
+            2 => " <img src='images/icons/icon_thief.png' class='item-icons' alt='Dieb'>",
+            3 => " <img src='images/icons/icon_conqueror.png' class='item-icons' alt='Eroberer'>",
             default => "ICON NOT FOUND",
         };
     }

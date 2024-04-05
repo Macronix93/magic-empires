@@ -113,7 +113,7 @@ class Kingdoms {
         $stmt->bind_result($buildingid, $bname);
 
         while ($stmt->fetch()) {
-            echo "<div class='box" . (!isset($_GET["action"]) && isset($_GET["bid"]) && $_GET["bid"] == $buildingid ? ' active' : '') . "' onclick=\"navigateTo('buildings.php?bid=$buildingid', this)\">" . $this->getIcon($buildingid, $bname) . " $bname</div>";
+            echo "<div class='box" . (!isset($_GET["action"]) && isset($_GET["id"]) && $_GET["id"] == $buildingid ? ' active' : '') . "' onclick=\"navigateTo('buildings.php?id=$buildingid', this)\">" . $this->getIcon($buildingid, $bname) . " $bname</div>";
         }
 
         $stmt->close();
@@ -246,10 +246,10 @@ class Kingdoms {
         // Get ressource gain rates based on fieldtype
         $result = $this->mysqli->query("SELECT foodrate, woodrate, stonerate, goldrate FROM fieldtypes WHERE fieldid = $fieldtype");
         $row = $result->fetch_object();
-        $foodrate = STARTING_GAIN * $row->foodrate;
-        $woodrate = STARTING_GAIN * $row->woodrate;
-        $stonerate = STARTING_GAIN * $row->stonerate;
-        $goldrate = STARTING_GAIN * $row->goldrate;
+        $foodrate = BASE_FOOD_GAIN * $row->foodrate;
+        $woodrate = BASE_WOOD_GAIN * $row->woodrate;
+        $stonerate = BASE_STONE_GAIN * $row->stonerate;
+        $goldrate = BASE_GOLD_GAIN * $row->goldrate;
         $result->free();
 
         // Insert kingdom
