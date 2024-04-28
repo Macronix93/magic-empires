@@ -9,6 +9,8 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
+include_once("layout/banner.html");
+
 $name = "";
 $email = "";
 $pass = "";

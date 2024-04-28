@@ -29,5 +29,8 @@ unset($_SESSION["lastactivity"]);
 include_once("layout/head.html");
 ?>
 <body>
+<?php
+include_once("layout/banner.html");
+?>
 </body>
 </html>

@@ -111,17 +111,17 @@ class Map {
     }
 
     // Render and show the map
-    public function renderMap($startx, $starty, $initialx = -1, $initialy = -1): void {
+    public function renderMap($startx, $starty): void {
         // Generate URL for each arrow button
         $arrowstyle = "width:24px; height:24px; margin: 5px;";
-        $arrowup = "<a href='javascript:void(0);' onclick='updateMap($startx, " . max(1, $starty - 10) . ")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(-90deg);' alt='' title='+10'/></a>";
-        $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap($startx, " . max(1, $starty - 1) . ")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(-90deg);' alt='' title='+1'/></a>";
-        $arrowleft = "<a href='javascript:void(0);' onclick='updateMap(" . max(1, $startx - 10) . ", $starty)'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(180deg);' alt='' title='+10'/></a>";
-        $arrowleft_1 = "<a href='javascript:void(0);' onclick='updateMap(" . max(1, $startx - 1) . ", $starty)'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(180deg);' alt='' title='+1'/></a>";
-        $arrowright = "<a href='javascript:void(0);' onclick='updateMap(" . min(91, $startx + 10) . ", $starty)'><img src='images/icon_right_fast.png' style='" . $arrowstyle . "' alt='' title='+10'/></a>";
-        $arrowright_1 = "<a href='javascript:void(0);' onclick='updateMap(" . min(91, $startx + 1) . ", $starty)'><img src='images/icon_right_slow.png' style='" . $arrowstyle . "' alt='' title='+1'/></a>";
-        $arrowdown = "<a href='javascript:void(0);' onclick='updateMap($startx, " . min(91, $starty + 10) . ")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(90deg);' alt='' title='+10'/></a>";
-        $arrowdown_1 = "<a href='javascript:void(0);' onclick='updateMap($startx, " . min(91, $starty + 1) . ")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(90deg);' alt='' title='+1'/></a>";
+        $arrowup = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 10) . "\")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(-90deg);' alt='' title='+10'/></a>";
+        $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 1) . "\")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(-90deg);' alt='' title='+1'/></a>";
+        $arrowleft = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 10) . "\", \"" . $starty . "\")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(180deg);' alt='' title='+10'/></a>";
+        $arrowleft_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 1) . "\", \"" . $starty . "\")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(180deg);' alt='' title='+1'/></a>";
+        $arrowright = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 10) . "\", \"" . $starty . "\")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . "' alt='' title='+10'/></a>";
+        $arrowright_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 1) . "\", \"" . $starty . "\")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . "' alt='' title='+1'/></a>";
+        $arrowdown = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 10) . "\")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(90deg);' alt='' title='+10'/></a>";
+        $arrowdown_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 1) . "\")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(90deg);' alt='' title='+1'/></a>";
 
         // Coords Variable
         $coords = array();
@@ -174,10 +174,6 @@ class Map {
             .top-bottom-cell {
                 height: 30px;
             }
-
-            .highlight {
-                border: 2px solid red;
-            }
         </style>
         <table class="table">
             <tr>
@@ -218,10 +214,13 @@ class Map {
 
                     for ($j = $startx; $j <= $startx + 9; $j++) {
                         if ($mycoords[$j][$i] == $_SESSION["kingdomid"]) {
-                            echo "<td data-x='$j' data-y='$i' class='highlight' style='background-color: " . $fieldcolor[$j][$i] . "' onclick=\"highlightField(this, '{$mycoords[$j][$i]}', $j, $i)\">{$coords[$j][$i]}</td>";
+                            echo "<td data-x='$j' data-y='$i' class='highlight' style='background-color: " . $fieldcolor[$j][$i] . "' 
+                                onclick='highlightField(this, parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
                         } else {
-                            echo "<td data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' onclick=\"highlightField(this, '{$mycoords[$j][$i]}', $j, $i)\">{$coords[$j][$i]}</td>";
+                            echo "<td data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' 
+                                onclick='highlightField(this, parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
                         }
+
                         if ($j == $xend && $i == $ystart) {
                             echo "<td rowspan='11' class='td-gradient'>$arrowright$arrowright_1</td>";
                         }

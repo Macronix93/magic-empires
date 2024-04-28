@@ -15,6 +15,8 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
+include_once("layout/banner.html");
+
 $stmt = $db_instance->prepare("SELECT username FROM users ORDER BY username");
 $stmt->execute();
 $result = $stmt->get_result();

@@ -15,6 +15,9 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
+include_once("layout/banner.html");
+?>
+<?php
 if (isset($_GET["userid"])) {
     $stmt = $db_instance->prepare("
         SELECT users.*, kingdoms.mapx, kingdoms.mapy

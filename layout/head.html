@@ -229,6 +229,7 @@
             xhttp.send();
 
             document.getElementById("field-info").innerHTML = "";
+            return undefined;
         }
 
         function highlightField(field, clickedfield = -1, x = -1, y = -1) {
@@ -249,7 +250,7 @@
                     document.getElementById("field-info").innerHTML = this.responseText;
                 }
             };
-            xhttp.open("GET", "field_info.php?clickedfield=" + clickedfield + (x !== -1 ? "&x=" + x : +"") + (y !== -1 ? "&y=" + y : +""), true);
+            xhttp.open("GET", "field_info.php?clickedfield=" + clickedfield + (x !== -1 ? "&x=" + x : "") + (y !== -1 ? "&y=" + y : ""), true);
             xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
             xhttp.send();
         }
@@ -273,7 +274,4 @@
         }
     </script>
     <title>Magic Empires</title>
-    <div class="header img">
-        <img src="images/header3.png" alt="Header"/>
-    </div>
 </head>

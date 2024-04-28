@@ -15,7 +15,7 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
-include_once("layout/header.php");
+include_once("layout/banner.html");
 ?>
 <div class="content">
     <div class="content-box">
@@ -54,9 +54,6 @@ include_once("layout/header.php");
                         $stmt->close();
 
                         // Calculate start coordinates
-                        /*$map->startx = ($x % 10 == 0) ? ($x - 9) : (10 * floor($x / 10) + 1);
-                        $map->starty = ($y % 10 == 0) ? ($y - 9) : (10 * floor($y / 10) + 1);*/
-
                         $map->startx = max(1, min($x - 5, 91));
                         $map->starty = max(1, min($y - 5, 91));
                     }

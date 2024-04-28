@@ -49,6 +49,8 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
+include_once("layout/banner.html");
+
 // Show login form
 $user->showLoginForm($user->error);
 ?>
