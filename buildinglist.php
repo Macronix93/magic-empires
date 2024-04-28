@@ -14,9 +14,6 @@ if (!($user->isLoggedIn())) {
 include_once("layout/head.html");
 ?>
 <body>
-<?php
-include_once("layout/header.php");
-?>
 <div class="content">
     <div class="content-box">
         <div class="left-container">

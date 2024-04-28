@@ -111,19 +111,17 @@ class Map {
     }
 
     // Render and show the map
-    public function renderMap($startx, $starty): void {
-        // Show info about the fields
-        echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
-              <img src='images/küste.png' class='map-legend' alt=''> Küste 
-              <img src='images/wald.png' class='map-legend' alt=''> Wald 
-              <img src='images/wüste.png' class='map-legend' alt=''> Wüste 
-              <img src='images/gebirge.png' class='map-legend' alt=''> Gebirge<br><br>";
-
+    public function renderMap($startx, $starty, $initialx = -1, $initialy = -1): void {
         // Generate URL for each arrow button
-        $url_up = "<a href='javascript:void(0);' onclick='updateMap($startx, " . max(1, $starty - 10) . ", -1)'><img src='images/icon_up.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        $link_links = "<a href='javascript:void(0);' onclick='updateMap(" . max(1, $startx - 10) . ", $starty, -1)'><img src='images/icon_left.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        $link_rechts = "<a href='javascript:void(0);' onclick='updateMap(" . min(91, $startx + 10) . ", $starty, -1)'><img src='images/icon_right.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        $link_unten = "<a href='javascript:void(0);' onclick='updateMap($startx, " . min(91, $starty + 10) . ", -1)'><img src='images/icon_down.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
+        $arrowstyle = "width:24px; height:24px; margin: 5px;";
+        $arrowup = "<a href='javascript:void(0);' onclick='updateMap($startx, " . max(1, $starty - 10) . ")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(-90deg);' alt='' title='+10'/></a>";
+        $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap($startx, " . max(1, $starty - 1) . ")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(-90deg);' alt='' title='+1'/></a>";
+        $arrowleft = "<a href='javascript:void(0);' onclick='updateMap(" . max(1, $startx - 10) . ", $starty)'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(180deg);' alt='' title='+10'/></a>";
+        $arrowleft_1 = "<a href='javascript:void(0);' onclick='updateMap(" . max(1, $startx - 1) . ", $starty)'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(180deg);' alt='' title='+1'/></a>";
+        $arrowright = "<a href='javascript:void(0);' onclick='updateMap(" . min(91, $startx + 10) . ", $starty)'><img src='images/icon_right_fast.png' style='" . $arrowstyle . "' alt='' title='+10'/></a>";
+        $arrowright_1 = "<a href='javascript:void(0);' onclick='updateMap(" . min(91, $startx + 1) . ", $starty)'><img src='images/icon_right_slow.png' style='" . $arrowstyle . "' alt='' title='+1'/></a>";
+        $arrowdown = "<a href='javascript:void(0);' onclick='updateMap($startx, " . min(91, $starty + 10) . ")'><img src='images/icon_right_fast.png' style='" . $arrowstyle . " transform: rotate(90deg);' alt='' title='+10'/></a>";
+        $arrowdown_1 = "<a href='javascript:void(0);' onclick='updateMap($startx, " . min(91, $starty + 1) . ")'><img src='images/icon_right_slow.png' style='" . $arrowstyle . " transform: rotate(90deg);' alt='' title='+1'/></a>";
 
         // Coords Variable
         $coords = array();
@@ -131,7 +129,7 @@ class Map {
             $coords[$c] = array();
 
             for ($r = 1; $r <= 100; $r++) {
-                $coords[$c][$r] = "<img src='/images/hochland.png' alt=''/>";
+                $coords[$c][$r] = "";
             }
         }
 
@@ -170,20 +168,27 @@ class Map {
                 font-size: 18px;
                 padding: 5px 10px;
                 text-align: left;
+                width: 50%;
             }
 
             .top-bottom-cell {
                 height: 30px;
             }
+
+            .highlight {
+                border: 2px solid red;
+            }
         </style>
         <table class="table">
             <tr>
                 <td colspan="13" class="top-bottom-cell td-gradient">
-                    <?php echo $url_up ?>
+                    <?php echo $arrowup . $arrowup_1 ?>
                 </td>
             </tr>
             <tr>
-                <td rowspan="12" height=12 class="left-right-cell td-gradient"><?php echo $link_links ?></td>
+                <td rowspan="12" class="td-gradient">
+                    <?php echo $arrowleft . $arrowleft_1 ?>
+                </td>
 
                 <?php
                 $fieldcolor = array(array());
@@ -195,13 +200,13 @@ class Map {
                     $fieldcolor[$row2["mapx"]][$row2["mapy"]] = $this->getFieldTypeColor($row2["fieldtype"]);
 
                     if ($row2["kingdomid"] != -1) {
-                        if ($row2["kingdomid"] == $_SESSION["kingdomid"]) {
-                            $mycoords[$row2["mapx"]][$row2["mapy"]] = true;
-                        }
+                        $mycoords[$row2["mapx"]][$row2["mapy"]] = $row2["kingdomid"];
 
-                        $fieldImage = "<div class='cell-container'><a href='javascript:void(0);' onclick='updateMap($startx, $starty, " . $row2['kingdomid'] . ")'>
+                        $fieldImage = "<div class='cell-container'><a href='javascript:void(0);'>
                                             <img src='" . $this->getKingdomIconByLevel($row2["kingdomid"]) . "' class='kingdom-img' alt=''>
                                         </a></div>";
+                    } else {
+                        $mycoords[$row2["mapx"]][$row2["mapy"]] = -1;
                     }
 
                     $coords[$row2["mapx"]][$row2["mapy"]] = $fieldImage;
@@ -212,12 +217,14 @@ class Map {
                     echo "<td style='padding: 15px;'>$i</td>";
 
                     for ($j = $startx; $j <= $startx + 9; $j++) {
-                        if ($mycoords[$j][$i]) {
-                            echo "<td style='border: 2px solid red; background-color: " . $fieldcolor[$j][$i] . "'>{$coords[$j][$i]}</td>";
+                        if ($mycoords[$j][$i] == $_SESSION["kingdomid"]) {
+                            echo "<td data-x='$j' data-y='$i' class='highlight' style='background-color: " . $fieldcolor[$j][$i] . "' onclick=\"highlightField(this, '{$mycoords[$j][$i]}', $j, $i)\">{$coords[$j][$i]}</td>";
                         } else {
-                            echo "<td style='background-color: " . $fieldcolor[$j][$i] . "'>{$coords[$j][$i]}</td>";
+                            echo "<td data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' onclick=\"highlightField(this, '{$mycoords[$j][$i]}', $j, $i)\">{$coords[$j][$i]}</td>";
                         }
-                        if ($j == $xend && $i == $ystart) echo "<td rowspan='12' class='left-right-cell td-gradient'>$link_rechts</td>";
+                        if ($j == $xend && $i == $ystart) {
+                            echo "<td rowspan='11' class='td-gradient'>$arrowright$arrowright_1</td>";
+                        }
                     }
 
                     echo "</tr>";
@@ -225,100 +232,85 @@ class Map {
 
                 echo "<tr><td>Y<br>X</td><td>$startx</td><td>" . $startx + 1 . "</td><td>" . $startx + 2 . "</td><td>" . $startx + 3 . "</td><td>" . $startx + 4 . "</td><td>" . $startx + 5 . "</td>
                         <td>" . $startx + 6 . "</td><td>" . $startx + 7 . "</td><td>" . $startx + 8 . "</td><td>" . $startx + 9 . "</td></tr>
-                        <tr><td colspan='13' class='top-bottom-cell td-gradient'>$link_unten</td></tr>";
+                        <tr><td colspan='13' class='top-bottom-cell td-gradient'>$arrowdown$arrowdown_1</td></tr>";
                 ?>
         </table>
         <br>
-        <form action="<?php echo $_SERVER["PHP_SELF"]; ?>" method="GET">
+        <form id="update-map">
             X: <label>
-                <input type="text" name="startx" size=3 maxlength=3>
-            </label> Y: <label>
-                <input type="text" name="starty" size=3 maxlength=3>
-            </label>&nbsp;<input type="submit" value="Anzeigen">
+                <input type="text" id="startx" name="startx" size="3" maxlength="3">
+            </label>
+            Y: <label>
+                <input type="text" id="starty" name="starty" size="3" maxlength="3">
+            </label>
+            <input type="button" value="Anzeigen" onclick="sendUpdateMapRequest()">
         </form>
         <?php
-        if (isset($_GET["kid"])) {
-            $stmt = $this->mysqli->prepare("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?");
-            $stmt->bind_param('i', $_GET["kid"]);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $row = $result->fetch_assoc();
-            $stmt->close();
+    }
 
-            if ($result->num_rows == 0) {
-                echo "<br><br>Dieses Königreich existiert nicht!";
-            } else {
-                ?>
-                <br><br>
-                <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
-                    Königreich-Info
-                </div>
-                <table class="table"
-                       style="margin-top: 20px; min-width: 400px; text-align: left;">
-                    <tr>
-                        <td class="td-main"><b>Königreich</b></td>
-                        <?php
-                        echo "<td>" . $row["kingdomname"] . "</td>";
-                        ?>
-                    </tr>
-                    <tr>
-                        <td class="td-main"><b>Besitzer</b></td>
-                        <?php
-                        echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["userid"] . "\");'>{$row["username"]}</a></td>";
-                        ?>
-                    </tr>
-                    <tr>
-                        <td class="td-main"><b>Koordinaten</b></td>
-                        <?php
-                        echo "<td>" . $row["mapx"] . ":" . $row["mapy"] . "</td>";
-                        ?>
-                    </tr>
-                    <tr>
-                        <td class="td-main"><b>Ankunftszeit</b></td>
-                        <?php
-                        // Get the coords of the current kingdom of the user
-                        $x = 0;
-                        $y = 0;
-                        $stmt = $this->mysqli->prepare("SELECT mapx, mapy FROM kingdoms WHERE id = ?");
-                        $stmt->bind_param('i', $_SESSION["kingdomid"]);
-                        $stmt->execute();
-                        $stmt->bind_result($x, $y);
-                        $stmt->fetch();
-                        $stmt->close();
+    public function renderFieldInfo($field): void {
+        $stmt = $this->mysqli->prepare("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?");
+        $stmt->bind_param('i', $field);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
 
-                        echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $row["mapx"], $row["mapy"])) . "</td>";
-                        ?>
-                    </tr>
-                    <?php
-                    if ($row["username"] != $_SESSION["username"]) {
-                        echo "<tr><td colspan='2' class='td-main' style='text-align: center;'>
-                                    <button type='submit' style='margin: 10px;'>Angreifen</button>
-                                    <button type='submit' style='margin: 10px;'>Handeln</button>
-                                </td>
-                                </tr>";
-                    }
-                    ?>
-                </table>
+        if ($result->num_rows == 0) {
+            echo "<br><br>Dieses Königreich existiert nicht!";
+        } else {
+            ?>
+            <br><br>
+            <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
+                Königreich-Info
+            </div>
+            <table class="table"
+            style="margin-top: 20px; min-width: 400px; text-align: left;">
+            <tr>
+                <td class="td-main"><b>Königreich</b></td>
                 <?php
+                echo "<td>" . $row["kingdomname"] . "</td>";
+                ?>
+            </tr>
+            <tr>
+                <td class="td-main"><b>Besitzer</b></td>
+                <?php
+                echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["userid"] . "\");'>{$row["username"]}</a></td>";
+                ?>
+            </tr>
+            <tr>
+                <td class="td-main"><b>Koordinaten</b></td>
+                <?php
+                echo "<td>" . $row["mapx"] . ":" . $row["mapy"] . "</td>";
+                ?>
+            </tr>
+            <tr>
+                <td class="td-main"><b>Ankunftszeit</b></td>
+                <?php
+                // Get the coords of the current kingdom of the user
+                $x = 0;
+                $y = 0;
+                $stmt = $this->mysqli->prepare("SELECT mapx, mapy FROM kingdoms WHERE id = ?");
+                $stmt->bind_param('i', $_SESSION["kingdomid"]);
+                $stmt->execute();
+                $stmt->bind_result($x, $y);
+                $stmt->fetch();
+                $stmt->close();
+
+                echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $row["mapx"], $row["mapy"])) . "</td>";
+                ?>
+            </tr>
+            <?php
+            if ($row["username"] != $_SESSION["username"]) {
+                echo "<tr><td colspan='2' class='td-main' style='text-align: center;'>
+                                            <button type='submit' style='margin: 10px;'>Angreifen</button>
+                                            <button type='submit' style='margin: 10px;'>Handeln</button>
+                                        </td>
+                                        </tr>";
             }
         }
-        echo "<script>
-                    function updateMap(newStartX, newStartY, kID) {
-                        console.log(newStartX, newStartY);
-                        
-                        // Make an AJAX request to update the map
-                        let xhttp = new XMLHttpRequest();
-                        xhttp.onreadystatechange = function() {
-                            if (this.readyState === 4 && this.status === 200) {
-                                // Update the map HTML with the response
-                                document.getElementById('map-container').innerHTML = this.responseText;
-                            }
-                        };
-                        xhttp.open('GET', 'map_update.php?startx=' + newStartX + '&starty=' + newStartY + (kID !== -1 ? '&kid=' + kID : ''), true);
-                        xhttp.send();
-                    }
-                </script>";
+        ?>
+        </table>
+        <?php
     }
 }
-
-?>

@@ -54,13 +54,23 @@ include_once("layout/header.php");
                         $stmt->close();
 
                         // Calculate start coordinates
-                        $map->startx = ($x % 10 == 0) ? ($x - 9) : (10 * floor($x / 10) + 1);
-                        $map->starty = ($y % 10 == 0) ? ($y - 9) : (10 * floor($y / 10) + 1);
+                        /*$map->startx = ($x % 10 == 0) ? ($x - 9) : (10 * floor($x / 10) + 1);
+                        $map->starty = ($y % 10 == 0) ? ($y - 9) : (10 * floor($y / 10) + 1);*/
+
+                        $map->startx = max(1, min($x - 5, 91));
+                        $map->starty = max(1, min($y - 5, 91));
                     }
 
+                    // Show info about the fields
+                    echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
+                          <img src='images/küste.png' class='map-legend' alt=''> Küste 
+                          <img src='images/wald.png' class='map-legend' alt=''> Wald 
+                          <img src='images/wüste.png' class='map-legend' alt=''> Wüste 
+                          <img src='images/gebirge.png' class='map-legend' alt=''> Gebirge<br><br>";
                     echo "<div id='map-container'>";
                     $map->renderMap($map->startx, $map->starty);
                     echo "</div>";
+                    echo "<div id='field-info'></div>";
                     ?>
                 </div>
             </div>

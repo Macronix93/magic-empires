@@ -188,6 +188,89 @@
 
             return false;
         }
+
+        function sendUpdateMapRequest() {
+            let startX, startY, inputX, inputY;
+            let startXField = document.getElementById("startx");
+            let startYField = document.getElementById("starty");
+
+            if (startXField && startXField.value) {
+                startX = inputX = startXField.value;
+            }
+            if (startYField && startYField.value) {
+                startY = inputY = startYField.value;
+            }
+
+            if (startX !== undefined && startY !== undefined) {
+                startX = Math.max(1, Math.min(parseInt(startX) - 5, 91));
+                startY = Math.max(1, Math.min(parseInt(startY) - 5, 91));
+
+                updateMap(startX, startY, inputX, inputY);
+            }
+        }
+
+        function updateMap(newStartX, newStartY, inputX, inputY) {
+            // Make an AJAX request to update the map
+            let xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (this.readyState === 4 && this.status === 200) {
+                    document.getElementById("map-container").innerHTML = this.responseText;
+
+                    if (inputX !== undefined && inputY !== undefined) {
+                        document.getElementById('startx').value = inputX;
+                        document.getElementById('starty').value = inputY;
+
+                        highlightEnteredCoordinates(inputX, inputY);
+                    }
+                }
+            };
+            xhttp.open("GET", "map_update.php?startx=" + newStartX + "&starty=" + newStartY, true);
+            xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            xhttp.send();
+
+            document.getElementById("field-info").innerHTML = "";
+        }
+
+        function highlightField(field, clickedfield = -1, x = -1, y = -1) {
+            // If the clicked td is already highlighted, stop executing the rest
+            if (field.classList.contains("highlight")) {
+                return;
+            }
+
+            // Remove every other td's highlighting
+            clearFieldHighlighting();
+            highlightEnteredCoordinates(x, y);
+
+            // Make an AJAX request to update map and show kingdom info
+            let xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (this.readyState === 4 && this.status === 200) {
+                    // Update the map HTML with the response
+                    document.getElementById("field-info").innerHTML = this.responseText;
+                }
+            };
+            xhttp.open("GET", "field_info.php?clickedfield=" + clickedfield + (x !== -1 ? "&x=" + x : +"") + (y !== -1 ? "&y=" + y : +""), true);
+            xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+            xhttp.send();
+        }
+
+        function highlightEnteredCoordinates(x, y) {
+            clearFieldHighlighting();
+
+            let cell = document.querySelector(`td[data-x="${x}"][data-y="${y}"]`);
+
+            if (cell) {
+                cell.classList.add("highlight");
+            }
+        }
+
+        function clearFieldHighlighting() {
+            let fields = document.getElementsByTagName("td");
+
+            for (let i = 0; i < fields.length; i++) {
+                fields[i].classList.remove("highlight");
+            }
+        }
     </script>
     <title>Magic Empires</title>
     <div class="header img">

@@ -182,10 +182,9 @@ function changeLocation($url, $seconds): void {
     //header("refresh: $seconds; url=$urlJson");
 }
 
-function setError($msg): void {
-    $_SESSION["error"] = $msg;
-}
-
-function getError(): string {
-    return $_SESSION["error"] ?? "";
+function clampValue($value) {
+    if ($value > 91) {
+        return 91;
+    }
+    return max(min($value, 100), 1);
 }
