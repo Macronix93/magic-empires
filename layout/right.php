@@ -12,11 +12,11 @@ global $user, $db_instance;
         }
 
         // Get all kingdoms of a player for him to change anytime
-        $db = Database::getInstance();
-        $mysqli = $db->getConnection();
+        $mysqli = $db_instance;
+        $userid = $user->getUserID();
 
         $stmt = $mysqli->prepare("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?");
-        $stmt->bind_param('i', $_SESSION["userid"]);
+        $stmt->bind_param('i', $userid);
         $stmt->execute();
         $stmt->bind_result($kingdomid, $kingdomname, $x, $y);
         ?>

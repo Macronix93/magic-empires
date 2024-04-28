@@ -58,7 +58,9 @@ include_once("layout/header.php");
                         $map->starty = ($y % 10 == 0) ? ($y - 9) : (10 * floor($y / 10) + 1);
                     }
 
-                    $map->renderMap();
+                    echo "<div id='map-container'>";
+                    $map->renderMap($map->startx, $map->starty);
+                    echo "</div>";
                     ?>
                 </div>
             </div>

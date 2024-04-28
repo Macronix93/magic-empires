@@ -9,29 +9,6 @@ class Map {
         $this->mysqli = $db_conn;
     }
 
-    // Get specific map field icon
-    public function getFieldIcon($fieldtype): string {
-        $field = "";
-        switch ($fieldtype) {
-            case 1:
-                $field = "images/gebirge.png";
-                break;
-            case 2:
-                $field = "images/küste.png";
-                break;
-            case 3:
-                $field = "images/wald.png";
-                break;
-            case 4:
-                $field = "images/wüste.png";
-                break;
-            case 5:
-                $field = "images/hochland.png";
-                break;
-        }
-        return $field;
-    }
-
     public function getFieldTypeColor($fieldtype): string {
         $color = "";
         switch ($fieldtype) {
@@ -134,7 +111,7 @@ class Map {
     }
 
     // Render and show the map
-    public function renderMap(): void {
+    public function renderMap($startx, $starty): void {
         // Show info about the fields
         echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
               <img src='images/küste.png' class='map-legend' alt=''> Küste 
@@ -143,29 +120,10 @@ class Map {
               <img src='images/gebirge.png' class='map-legend' alt=''> Gebirge<br><br>";
 
         // Generate URL for each arrow button
-        if ($this->starty - 10 <= 0) {
-            $url_up = "<a href='{$_SERVER["PHP_SELF"]}?startx=$this->startx&starty=1'><img src='images/icon_up.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        } else {
-            $url_up = "<a href='{$_SERVER["PHP_SELF"]}?startx=" . $this->startx . "&starty=" . round($this->starty - 10) . "'><img src='images/icon_up.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        }
-
-        if ($this->startx - 10 <= 0) {
-            $link_links = "<a href='{$_SERVER["PHP_SELF"]}?startx=1&starty=" . $this->starty . "'><img src='images/icon_left.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        } else {
-            $link_links = "<a href='{$_SERVER["PHP_SELF"]}?startx=" . round($this->startx - 10) . "&starty=$this->starty'><img src='images/icon_left.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        }
-
-        if ($this->startx >= 90 && $this->startx <= 100) {
-            $link_rechts = "<a href='{$_SERVER["PHP_SELF"]}?startx=91&starty=" . $this->starty . "'><img src='images/icon_right.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        } else {
-            $link_rechts = "<a href='{$_SERVER["PHP_SELF"]}?startx=" . (min($this->startx + 10, 91)) . "&starty=" . $this->starty . "'><img src='images/icon_right.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        }
-
-        if ($this->starty >= 90 && $this->starty <= 100) {
-            $link_unten = "<a href='{$_SERVER["PHP_SELF"]}?startx=" . $this->startx . "&starty=91'><img src='images/icon_down.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        } else {
-            $link_unten = "<a href='{$_SERVER["PHP_SELF"]}?startx=" . $this->startx . "&starty=" . (min($this->starty + 10, 91)) . "'><img src='images/icon_down.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
-        }
+        $url_up = "<a href='javascript:void(0);' onclick='updateMap($startx, " . max(1, $starty - 10) . ", -1)'><img src='images/icon_up.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
+        $link_links = "<a href='javascript:void(0);' onclick='updateMap(" . max(1, $startx - 10) . ", $starty, -1)'><img src='images/icon_left.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
+        $link_rechts = "<a href='javascript:void(0);' onclick='updateMap(" . min(91, $startx + 10) . ", $starty, -1)'><img src='images/icon_right.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
+        $link_unten = "<a href='javascript:void(0);' onclick='updateMap($startx, " . min(91, $starty + 10) . ", -1)'><img src='images/icon_down.png' style='width:24px; height:24px; margin: 5px;' alt=''/></a>";
 
         // Coords Variable
         $coords = array();
@@ -177,10 +135,10 @@ class Map {
             }
         }
 
-        $xstart = $this->startx;
-        $xend = $this->startx + 9;
-        $ystart = $this->starty;
-        $yend = $this->starty + 9;
+        $xstart = $startx;
+        $xend = $startx + 9;
+        $ystart = $starty;
+        $yend = $starty + 9;
         $stmt = $this->mysqli->prepare("SELECT * FROM map WHERE mapx BETWEEN ? AND ? AND mapy BETWEEN ? AND ?");
         $stmt->bind_param('iiii', $xstart, $xend, $ystart, $yend);
         $stmt->execute();
@@ -241,19 +199,19 @@ class Map {
                             $mycoords[$row2["mapx"]][$row2["mapy"]] = true;
                         }
 
-                        $fieldImage = "<div class='cell-container'><a href='map.php?startx=" . $this->startx . "&starty=" . $this->starty . "&kid=" . $row2["kingdomid"] . "'>
+                        $fieldImage = "<div class='cell-container'><a href='javascript:void(0);' onclick='updateMap($startx, $starty, " . $row2['kingdomid'] . ")'>
                                             <img src='" . $this->getKingdomIconByLevel($row2["kingdomid"]) . "' class='kingdom-img' alt=''>
-                                            </a></div>";
+                                        </a></div>";
                     }
 
                     $coords[$row2["mapx"]][$row2["mapy"]] = $fieldImage;
                 }
 
-                for ($i = $this->starty; $i <= $this->starty + 9; $i++) {
+                for ($i = $starty; $i <= $starty + 9; $i++) {
                     echo "<tr>";
                     echo "<td style='padding: 15px;'>$i</td>";
 
-                    for ($j = $this->startx; $j <= $this->startx + 9; $j++) {
+                    for ($j = $startx; $j <= $startx + 9; $j++) {
                         if ($mycoords[$j][$i]) {
                             echo "<td style='border: 2px solid red; background-color: " . $fieldcolor[$j][$i] . "'>{$coords[$j][$i]}</td>";
                         } else {
@@ -265,8 +223,8 @@ class Map {
                     echo "</tr>";
                 }
 
-                echo "<tr><td>Y<br>X</td><td>$this->startx</td><td>" . $this->startx + 1 . "</td><td>" . $this->startx + 2 . "</td><td>" . $this->startx + 3 . "</td><td>" . $this->startx + 4 . "</td><td>" . $this->startx + 5 . "</td>
-                        <td>" . $this->startx + 6 . "</td><td>" . $this->startx + 7 . "</td><td>" . $this->startx + 8 . "</td><td>" . $this->startx + 9 . "</td></tr>
+                echo "<tr><td>Y<br>X</td><td>$startx</td><td>" . $startx + 1 . "</td><td>" . $startx + 2 . "</td><td>" . $startx + 3 . "</td><td>" . $startx + 4 . "</td><td>" . $startx + 5 . "</td>
+                        <td>" . $startx + 6 . "</td><td>" . $startx + 7 . "</td><td>" . $startx + 8 . "</td><td>" . $startx + 9 . "</td></tr>
                         <tr><td colspan='13' class='top-bottom-cell td-gradient'>$link_unten</td></tr>";
                 ?>
         </table>
@@ -344,6 +302,22 @@ class Map {
                 <?php
             }
         }
+        echo "<script>
+                    function updateMap(newStartX, newStartY, kID) {
+                        console.log(newStartX, newStartY);
+                        
+                        // Make an AJAX request to update the map
+                        let xhttp = new XMLHttpRequest();
+                        xhttp.onreadystatechange = function() {
+                            if (this.readyState === 4 && this.status === 200) {
+                                // Update the map HTML with the response
+                                document.getElementById('map-container').innerHTML = this.responseText;
+                            }
+                        };
+                        xhttp.open('GET', 'map_update.php?startx=' + newStartX + '&starty=' + newStartY + (kID !== -1 ? '&kid=' + kID : ''), true);
+                        xhttp.send();
+                    }
+                </script>";
     }
 }
 

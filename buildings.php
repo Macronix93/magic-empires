@@ -46,6 +46,10 @@ $buildid = (empty($_GET["bid"]) ? 0 : $_GET["bid"]);
 $buildingName = "";
 $lastid = 0;
 
+// Soldier variables
+$soldiers = [];
+$soldiercount = 0;
+
 // Check if building is valid
 if (isset($_GET["id"]) && ($bID >= 0 && $bID < $buildingcount)) {
     $buildingName = isset($_GET["action"]) ? $buildings[0]->getBuildingName() : $buildings[$bID]->getBuildingName();
@@ -56,6 +60,7 @@ $kingdomWood = $kingdom->getKingdomWood();
 $kingdomFood = $kingdom->getKingdomFood();
 $kingdomStone = $kingdom->getKingdomStone();
 $kingdomGold = $kingdom->getKingdomGold();
+$kingdomVillager = $kingdom->getKingdomVillager();
 
 $kingdomIsBuilding = false;
 $kingdomBuildingID = -1;
@@ -93,10 +98,14 @@ if (isset($_GET["action"])) {
                         if ($towncenterLevel >= $requiredLevel) {
                             $buildingTime = time() + $buildings[$buildid]->getBuildingTime() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
 
-                            $kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() - $costWood);
+                            /*$kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() - $costWood);
                             $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() - $costFood);
                             $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() - $costStone);
-                            $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $costGold);
+                            $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $costGold);*/
+                            $kingdom->giveKingdomWood($kID, -$costWood);
+                            $kingdom->giveKingdomFood($kID, -$costFood);
+                            $kingdom->giveKingdomStone($kID, -$costStone);
+                            $kingdom->giveKingdomGold($kID, -$costGold);
 
                             $mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
                                                     VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->getUserID()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->getBuildingLevel()}', '{$buildings[$buildid]->getBuildingName()}');");
@@ -113,10 +122,14 @@ if (isset($_GET["action"])) {
                 $mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND buildingid = '$buildid'");
 
                 // Refund the player
-                $kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() + $costWood);
+                /*$kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() + $costWood);
                 $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $costFood);
                 $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() + $costStone);
-                $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $costGold);
+                $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $costGold);*/
+                $kingdom->giveKingdomWood($kID, $costWood);
+                $kingdom->giveKingdomFood($kID, $costFood);
+                $kingdom->giveKingdomStone($kID, $costStone);
+                $kingdom->giveKingdomGold($kID, $costGold);
             } else {
                 $error = "Du baust gerade nichts!";
             }
@@ -136,7 +149,6 @@ if (isset($_GET["action"])) {
                     break;
                 case 2:
                     // Kaserne
-                    $soldiers = [];
                     $result = $mysqli->query("SELECT * FROM soldierlist");
 
                     while ($row = $result->fetch_assoc()) {
@@ -187,8 +199,10 @@ if (isset($_GET["action"])) {
                                 $stmt->close();
 
                                 // Refund player
-                                $kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
-                                $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());
+                                /*$kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
+                                $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());*/
+                                $kingdom->giveKingdomFood($kID, $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
+                                $kingdom->giveKingdomGold($kID, $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());
 
                                 // Delete the job
                                 $mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND soldierid = '$sID' AND kingdomid = '$kID'");
@@ -224,8 +238,8 @@ if (isset($_GET["action"])) {
                                                 VALUES('" . ACTION_BUILD_TROOPS . "', '{$user->getUserID()}', '$kID', '0', '0', '0', '-', '$sID', '" . $recruitingtime . "', " . $_GET["count"] . ");");
 
                                     // Subtract values for food and gold
-                                    $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() - $costFood);
-                                    $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $costGold);
+                                    $kingdom->giveKingdomFood($kID, -$costFood);
+                                    $kingdom->giveKingdomGold($kID, -$costGold);
                                 }
                             }
                         }
@@ -254,95 +268,183 @@ if (isset($_GET["action"])) {
                     break;
                 case 10:
                     // Marktplatz
-                    if ($user->getUserName() != "test") {
-                        $error = "Der Marktplatz ist noch nicht fertig!";
-                        $lastid = 0;
-                    } else {
-                        if (isset($_GET["accept"])) {
-                            echo "angebot nr " . $_GET["accept"] . " akzeptieren";
-                        } else if (isset($_GET["delete"])) {
-                            if (!is_numeric($_GET["delete"])) {
-                                $error = "Dieses Angebot existiert nicht!";
+                    $stmt = $mysqli->prepare("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?");
+                    $stmt->bind_param('ii', $_GET["delete"], $kID);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $row = $result->fetch_assoc();
+                    $stmt->close();
+
+                    if (isset($_GET["accept"])) {
+                        $stmt = $mysqli->prepare("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?");
+                        $stmt->bind_param('i', $_GET["accept"]);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        $row = $result->fetch_assoc();
+                        $stmt->close();
+
+                        if ($row && $kID != $row["kingdomid"]) {
+                            $supply = $row["supply"];
+                            $supplyvalue = $row["supplyvalue"];
+                            $demand = $row["demand"];
+                            $demandvalue = $row["demandvalue"];
+
+                            // Check if kingdom has enough ressources to handle the trade
+                            if ($demand == 0 && $kingdom->getKingdomFood() < $demandvalue) {
+                                $error = "Soviel Nahrung kannst du nicht bieten!";
+                            } else if ($demand == 1 && $kingdom->getKingdomWood() < $demandvalue) {
+                                $error = "Soviel Holz kannst du nicht bieten!";
+                            } else if ($demand == 2 && $kingdom->getKingdomStone() < $demandvalue) {
+                                $error = "Soviel Stein kannst du nicht bieten!";
+                            } else if ($demand == 3 && $kingdom->getKingdomGold() < $demandvalue) {
+                                $error = "Soviel Gold kannst du nicht bieten!";
                             } else {
-                                $stmt = $mysqli->prepare("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?");
-                                $stmt->bind_param('ii', $_GET["delete"], $kID);
-                                $stmt->execute();
-                                $result = $stmt->get_result();
-                                $row = $result->fetch_assoc();
-                                $stmt->close();
+                                echo "kannst du dir leisten";
 
-                                if ($row) {
-                                    $supply = $row["supply"];
-                                    $supplyvalue = $row["supplyvalue"];
+                                $otherkingdom = $row["kingdomid"];
+                                $supplyressource = "";
+                                $demandressource = "";
 
-                                    // Give supply ressources back to kingdom
-                                    switch ($supply) {
-                                        case 0:
-                                            $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $supplyvalue);
-                                            break;
-                                        case 1:
-                                            $kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() + $supplyvalue);
-                                            break;
-                                        case 2:
-                                            $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() + $supplyvalue);
-                                            break;
-                                        case 3:
-                                            $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $supplyvalue);
-                                            break;
-                                    }
-
-                                    // Delete the marketplace offer
-                                    $mysqli->query("DELETE FROM marketplace WHERE offerid = '{$_GET["delete"]}'");
-                                } else {
-                                    $error = "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
+                                // Give both kingdoms the respective ressources
+                                switch ($supply) {
+                                    case 0:
+                                        $kingdom->giveKingdomFood($kID, $supplyvalue);
+                                        $supplyressource = "Nahrung";
+                                        break;
+                                    case 1:
+                                        $kingdom->giveKingdomWood($kID, $supplyvalue);
+                                        $supplyressource = "Holz";
+                                        break;
+                                    case 2:
+                                        $kingdom->giveKingdomStone($kID, $supplyvalue);
+                                        $supplyressource = "Stein";
+                                        break;
+                                    case 3:
+                                        $kingdom->giveKingdomGold($kID, $supplyvalue);
+                                        $supplyressource = "Gold";
+                                        break;
                                 }
-                            }
-                        } else if (!empty($_GET["sv"]) && !empty($_GET["dv"])) {
-                            if ($_GET["s"] < 0 || $_GET["s"] > 3 || $_GET["d"] < 0 || $_GET["d"] > 3) {
-                                $error = "Diese Ressource gibt es nicht!";
-                            } else {
-                                if ($_GET["sv"] <= 0 || !is_numeric($_GET["sv"]) || $_GET["dv"] <= 0 || !is_numeric($_GET["dv"])) {
-                                    $error = "Bitte einen vernünftigen Wert eingeben!";
-                                } else {
-                                    // Check if kingdom has enough ressources to handle the trade
-                                    if ($_GET["s"] == 0 && $kingdom->getKingdomFood() < $_GET["sv"]) {
-                                        $error = "Soviel Nahrung kannst du nicht bieten!";
-                                    } else if ($_GET["s"] == 1 && $kingdom->getKingdomFood() < $_GET["sv"]) {
-                                        $error = "Soviel Holz kannst du nicht bieten!";
-                                    } else if ($_GET["s"] == 2 && $kingdom->getKingdomFood() < $_GET["sv"]) {
-                                        $error = "Soviel Stein kannst du nicht bieten!";
-                                    } else if ($_GET["s"] == 3 && $kingdom->getKingdomFood() < $_GET["sv"]) {
-                                        $error = "Soviel Gold kannst du nicht bieten!";
-                                    } else {
-                                        // Check if there is already an offer for this kingdom
-                                        $stmtkingdom = $mysqli->prepare("SELECT offerid FROM marketplace WHERE kingdomid = ?");
-                                        $stmtkingdom->bind_param('i', $kID);
-                                        $stmtkingdom->execute();
-                                        $stmtkingdom->bind_result($offerid);
-                                        $stmtkingdom->fetch();
-                                        $stmtkingdom->close();
+                                switch ($demand) {
+                                    case 0:
+                                        $kingdom->giveKingdomFood($kID, -$demandvalue);
+                                        $kingdom->giveKingdomFood($otherkingdom, $demandvalue);
+                                        $demandressource = "Nahrung";
+                                        break;
+                                    case 1:
+                                        $kingdom->giveKingdomWood($kID, -$demandvalue);
+                                        $kingdom->giveKingdomWood($otherkingdom, $demandvalue);
+                                        $demandressource = "Holz";
+                                        break;
+                                    case 2:
+                                        $kingdom->giveKingdomStone($kID, -$demandvalue);
+                                        $kingdom->giveKingdomStone($otherkingdom, $demandvalue);
+                                        $demandressource = "Stein";
+                                        break;
+                                    case 3:
+                                        $kingdom->giveKingdomGold($kID, -$demandvalue);
+                                        $kingdom->giveKingdomGold($otherkingdom, $demandvalue);
+                                        $demandressource = "Gold";
+                                        break;
+                                }
 
-                                        if ($offerid != 0) {
-                                            $error = "Du hast bereits ein Angebot für dieses Königreich reingestellt!";
-                                        } else {
-                                            // No offer found for the kingdom - insert to database
-                                            $mysqli->query("INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue) 
+                                // Delete the marketplace offer
+                                $mysqli->query("DELETE FROM marketplace WHERE offerid = '{$_GET["accept"]}'");
+
+                                // Send a message to the other kingdom that the offer has been accepted
+                                $time = time();
+                                $subject = "Marktplatz";
+                                $notread = 0;
+                                $sender = "Server";
+                                $message = "Dein Marktplatz-Angebot (" . $supplyvalue . " " . $supplyressource . " gegen " . $demandvalue . " " . $demandressource . ")<br>wurde von " . $user->getUserName() . " angenommen!";
+
+                                $stmt = $mysqli->prepare("INSERT INTO messages (sender, receiver, date, hasread, subject, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                $stmt->bind_param("ssiiss", $sender, $row["username"], $time, $notread, $subject, $message);
+                                $stmt->execute();
+                                $stmt->close();
+                            }
+                        } else {
+                            $error = "Dieses Angebot existiert nicht oder ist von deinem Königreich!";
+                        }
+                    } else if (isset($_GET["delete"])) {
+                        $stmt = $mysqli->prepare("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?");
+                        $stmt->bind_param('ii', $_GET["delete"], $kID);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        $row = $result->fetch_assoc();
+                        $stmt->close();
+
+                        if ($row) {
+                            $supply = $row["supply"];
+                            $supplyvalue = $row["supplyvalue"];
+
+                            // Give supply ressources back to kingdom
+                            switch ($supply) {
+                                case 0:
+                                    $kingdom->giveKingdomFood($kID, $supplyvalue);
+                                    break;
+                                case 1:
+                                    $kingdom->giveKingdomWood($kID, $supplyvalue);
+                                    break;
+                                case 2:
+                                    $kingdom->giveKingdomStone($kID, $supplyvalue);
+                                    break;
+                                case 3:
+                                    $kingdom->giveKingdomGold($kID, $supplyvalue);
+                                    break;
+                            }
+
+                            // Delete the marketplace offer
+                            $mysqli->query("DELETE FROM marketplace WHERE offerid = '{$_GET["delete"]}'");
+                        } else {
+                            $error = "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
+                        }
+                    } else if (!empty($_GET["sv"]) && !empty($_GET["dv"])) {
+                        if ($_GET["s"] < 0 || $_GET["s"] > 3 || $_GET["d"] < 0 || $_GET["d"] > 3) {
+                            $error = "Diese Ressource gibt es nicht!";
+                        } else if ($_GET["s"] == $_GET["d"]) {
+                            $error = "Die Ressourcentypen dürfen nicht gleich sein!";
+                        } else {
+                            if ($_GET["sv"] <= 0 || !is_numeric($_GET["sv"]) || $_GET["dv"] <= 0 || !is_numeric($_GET["dv"]) || $_GET["sv"] > 99999 || $_GET["dv"] > 99999) {
+                                $error = "Die Werte müssen zwischen 1 und 99999 liegen!";
+                            } else {
+                                // Check if kingdom has enough ressources to handle the trade
+                                if ($_GET["s"] == 0 && $kingdom->getKingdomFood() < $_GET["sv"]) {
+                                    $error = "Soviel Nahrung kannst du nicht bieten!";
+                                } else if ($_GET["s"] == 1 && $kingdom->getKingdomWood() < $_GET["sv"]) {
+                                    $error = "Soviel Holz kannst du nicht bieten!";
+                                } else if ($_GET["s"] == 2 && $kingdom->getKingdomStone() < $_GET["sv"]) {
+                                    $error = "Soviel Stein kannst du nicht bieten!";
+                                } else if ($_GET["s"] == 3 && $kingdom->getKingdomGold() < $_GET["sv"]) {
+                                    $error = "Soviel Gold kannst du nicht bieten!";
+                                } else {
+                                    // Check if there is already an offer for this kingdom
+                                    $stmtkingdom = $mysqli->prepare("SELECT offerid FROM marketplace WHERE kingdomid = ?");
+                                    $stmtkingdom->bind_param('i', $kID);
+                                    $stmtkingdom->execute();
+                                    $stmtkingdom->bind_result($offerid);
+                                    $stmtkingdom->fetch();
+                                    $stmtkingdom->close();
+
+                                    if ($offerid != 0) {
+                                        $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
+                                    } else {
+                                        // No offer found for the kingdom - insert to database
+                                        $mysqli->query("INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue) 
                                                                                 VALUES('{$user->getUserID()}', '{$user->getUserName()}', '$kID', '{$_GET["s"]}', '{$_GET["sv"]}', '{$_GET["d"]}', '{$_GET["dv"]}');");
 
-                                            switch ($_GET["s"]) {
-                                                case 0:
-                                                    $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() - $_GET["sv"]);
-                                                    break;
-                                                case 1:
-                                                    $kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() - $_GET["sv"]);
-                                                    break;
-                                                case 2:
-                                                    $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() - $_GET["sv"]);
-                                                    break;
-                                                case 3:
-                                                    $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $_GET["sv"]);
-                                                    break;
-                                            }
+                                        switch ($_GET["s"]) {
+                                            case 0:
+                                                $kingdom->giveKingdomFood($kID, -$_GET["sv"]);
+                                                break;
+                                            case 1:
+                                                $kingdom->giveKingdomWood($kID, -$_GET["sv"]);
+                                                break;
+                                            case 2:
+                                                $kingdom->giveKingdomStone($kID, -$_GET["sv"]);
+                                                break;
+                                            case 3:
+                                                $kingdom->giveKingdomGold($kID, -$_GET["sv"]);
+                                                break;
                                         }
                                     }
                                 }
@@ -429,8 +531,6 @@ include_once("layout/header.php");
                                 for ($i = 0; $i < $buildingcount; $i++) {
                                     if ($towncenterlevel >= $buildings[$i]->getBuildingRequiredLevel()) {
                                         $level = $buildings[$i]->getBuildingLevel();
-
-                                        echo $level;
 
                                         if ($level < MAX_BUILDING_LEVEL) {
                                             if (!is_numeric($level)) {
@@ -624,7 +724,7 @@ include_once("layout/header.php");
                                                         <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->getSoldierAttack() . " 
                                                         <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->getSoldierDefense() . "<br>
                                                         <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit'> " . convertSecToStr($soldiers[$i]->getSoldierTime()) . "
-                                                        <br><br></td>
+                                                        <br></td>
                                                     <td class='td-center' style='width: 40%;'>$textBuild</td>
                                                 </tr>";
                                             }
@@ -695,7 +795,7 @@ include_once("layout/header.php");
                                         ?>
                                         <table class="table">
                                             <form action='buildings.php?' method='GET'>
-                                                <input type='hidden' name='bid' value='10'>
+                                                <input type='hidden' name='id' value='10'>
                                                 <tr>
                                                     <td>
                                                         <label for='sv'>Ich biete:</label>
@@ -740,7 +840,6 @@ include_once("layout/header.php");
                                             </form>
                                         </table>
                                         <br>
-                                        <hr style="color: lightblue">
                                         <br>
                                         <table class="table" style="word-break: break-word">
                                             <tr>
@@ -749,7 +848,9 @@ include_once("layout/header.php");
                                                 <td class="td-center td-gradient">
                                                     <b>Königreich</b></td>
                                                 <td class="td-center td-gradient">
-                                                    <b>Angebot</b></td>
+                                                    <b>Bietet</b></td>
+                                                <td class="td-center td-gradient">
+                                                    <b>Benötigt</b></td>
                                                 <td class="td-center td-gradient">
                                                     <b>Aktion</b></td>
                                             </tr>
@@ -763,6 +864,8 @@ include_once("layout/header.php");
                                             $ressourceicon[1] = "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'>";
                                             $ressourceicon[2] = "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'>";
                                             $ressourceicon[3] = "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'>";
+
+                                            echo "<p>Aktuelle Angebote</p><br>";
 
                                             while ($row = $result->fetch_assoc()) {
                                                 $stmtkingdom = $mysqli->prepare("SELECT kingdomname FROM kingdoms WHERE id = ?");
@@ -783,7 +886,8 @@ include_once("layout/header.php");
 
                                                 echo "<tr><td>{$row["username"]}</td>
                                                             <td>$kingdomname</td>
-                                                            <td class='td-center'>{$ressourceicon[$row["supply"]]} {$row["supplyvalue"]} <=> {$ressourceicon[$row["demand"]]} {$row["demandvalue"]}</td>
+                                                            <td class='td-center'>{$ressourceicon[$row["supply"]]} {$row["supplyvalue"]}</td>
+                                                            <td class='td-center'>{$ressourceicon[$row["demand"]]} {$row["demandvalue"]}</td>
                                                             <td class='td-center'>$textbuild</td>";
                                             }
                                             $stmt->close();

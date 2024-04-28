@@ -225,8 +225,6 @@ class User {
                         if ($this->buildinglevel == 0) { // Insert new building
                             $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$this->kingdomid', '$this->buildingid', '$this->buildingname', 1)");
                         } else { // Update current building
-                            echo "update building to level " . $this->buildinglevel + 1;
-
                             $this->mysqli->query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = '$this->kingdomid' AND buildingid = '$this->buildingid'");
                         }
                         $this->mysqli->query("UPDATE users SET score = score + " . $score . " WHERE id = '$userid'") or die($this->mysqli->error);
@@ -428,7 +426,8 @@ class User {
 
                     <br><br>
 
-                    <div class="g-recaptcha" data-sitekey="6Lf1Ok4UAAAAANS2-TikRjXo-SDdelHVkGKj1PQT"></div>
+                    <div class="g-recaptcha" data-sitekey="6LeaqbQpAAAAABWbpK1bAEJ4FCAFjqbuPkNHtDzk"></div>
+                    <!-- ME Schlüssel: 6Lf1Ok4UAAAAANS2-TikRjXo-SDdelHVkGKj1PQT-->
 
                     <br><br>
 

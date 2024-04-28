@@ -7,7 +7,6 @@ if (!($user->isLoggedIn())) {
     changeLocation("login.php", 0);
     exit;
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -79,7 +78,7 @@ include_once("layout/header.php");
                                 echo "Der Posteingang dieses Benutzers ist voll!<br><br>";
                             } else {
                                 $stmt = $mysqli->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
-                                $stmt->bind_param('s', $receiver);
+                                $stmt->bind_param("s", $receiver);
                                 $stmt->execute();
                                 $stmt->bind_result($exist);
                                 $stmt->fetch();
@@ -91,9 +90,9 @@ include_once("layout/header.php");
                                     $time = time();
                                     $notread = 0;
 
-                                    $stmt = $db_instance->prepare("INSERT INTO messages (sender, receiver, date, hasread, subject, message) VALUES (?, ?, ?, ?, ?, ?)");
+                                    $stmt = $mysqli->prepare("INSERT INTO messages (sender, receiver, date, hasread, subject, message) VALUES (?, ?, ?, ?, ?, ?)");
                                     if ($stmt) {
-                                        $stmt->bind_param("ssiiss", $_SESSION['username'], $receiver, $time, $notread, $subject, $textToOutput);
+                                        $stmt->bind_param("ssiiss", $_SESSION["username"], $receiver, $time, $notread, $subject, $textToOutput);
                                         $stmt->execute();
                                         $stmt->close();
                                     }
@@ -145,6 +144,8 @@ include_once("layout/header.php");
                                 }
                             } else if ($_GET["folderid"] == 2) {
                                 echo "Ordner \"Gilden-Nachrichten\"";
+                            } else if ($_GET["folderid"] == 3) {
+                                echo "Ordner \"Sonstige Nachrichten\"";
                             } else {
                                 echo "Ordner existiert nicht!";
 
@@ -299,7 +300,8 @@ include_once("layout/header.php");
                         $stmt->close();
 
                         echo "" . showNewMessagesIndicator($num_unread_messages) . "<a href='messages.php?action=folder&folderid=1'> Private Nachrichten (" . $sum . " / " . MAX_USER_MESSAGES . ")</a><br>";
-                        echo "<a href='messages.php?action=folder&folderid=2'>Gilden-Nachrichten (0 / " . MAX_GUILD_MESSAGES . ")</a>";
+                        echo "<a href='messages.php?action=folder&folderid=2'>Gilden-Nachrichten (0 / " . MAX_GUILD_MESSAGES . ")</a><br>";
+                        echo "<a href='messages.php?action=folder&folderid=3'>Sonstige Nachrichten (0 / " . MAX_GUILD_MESSAGES . ")</a>";
                         ?>
                         <br><br>
                         <form action='messages.php' method='GET'>

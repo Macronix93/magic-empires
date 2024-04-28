@@ -167,6 +167,14 @@ class Kingdoms {
         return $this->woodperhour;
     }
 
+    public function giveKingdomWood($kingdomid, $amount) {
+        if ($this->wood + $amount > $this->getKingdomMaxWood()) {
+            $amount = $this->getKingdomMaxWood() - $this->getKingdomWood();
+        }
+        $this->wood += $amount;
+        $this->mysqli->query("UPDATE kingdoms SET wood = wood + '$amount' WHERE id = '$kingdomid';");
+    }
+
     public function setKingdomWood($kingdomid, $amount): void {
         $this->wood = $amount;
         $this->mysqli->query("UPDATE kingdoms SET wood = '$this->wood' WHERE id = '$kingdomid';");
@@ -182,6 +190,14 @@ class Kingdoms {
 
     public function getKingdomFoodPerHour() {
         return $this->foodperhour;
+    }
+
+    public function giveKingdomFood($kingdomid, $amount) {
+        if ($this->food + $amount > $this->getKingdomMaxFood()) {
+            $amount = $this->getKingdomMaxFood() - $this->getKingdomFood();
+        }
+        $this->food += $amount;
+        $this->mysqli->query("UPDATE kingdoms SET food = food + '$amount' WHERE id = '$kingdomid';");
     }
 
     public function setKingdomFood($kingdomid, $amount) {
@@ -202,6 +218,14 @@ class Kingdoms {
         return $this->stoneperhour;
     }
 
+    public function giveKingdomStone($kingdomid, $amount) {
+        if ($this->stone + $amount > $this->getKingdomMaxStone()) {
+            $amount = $this->getKingdomMaxStone() - $this->getKingdomStone();
+        }
+        $this->stone += $amount;
+        $this->mysqli->query("UPDATE kingdoms SET stone = stone + '$amount' WHERE id = '$kingdomid';");
+    }
+
     public function setKingdomStone($kingdomid, $amount): void {
         $this->stone = $amount;
         $this->mysqli->query("UPDATE kingdoms SET stone = '$this->stone' WHERE id = '$kingdomid';");
@@ -217,6 +241,14 @@ class Kingdoms {
 
     public function getKingdomGoldPerHour() {
         return $this->goldperhour;
+    }
+
+    public function giveKingdomGold($kingdomid, $amount) {
+        if ($this->gold + $amount > $this->getKingdomMaxGold()) {
+            $amount = $this->getKingdomMaxGold() - $this->getKingdomGold();
+        }
+        $this->gold += $amount;
+        $this->mysqli->query("UPDATE kingdoms SET gold = gold + '$amount' WHERE id = '$kingdomid';");
     }
 
     public function setKingdomGold($kingdomid, $amount) {
