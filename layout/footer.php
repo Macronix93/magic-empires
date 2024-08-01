@@ -18,4 +18,8 @@
         ?>
     </div>
 </div>
-<footer>© Magic Empires - 2024</footer>
+<footer>
+    <div id="footerwrapper">
+        © Magic Empires - 2024
+    </div>
+</footer>

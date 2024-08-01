@@ -96,6 +96,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 // Show register form
 $user->showRegisterForm($nameErr, $emailErr, $passErr, $captchaErr);
 ?>
-<script src='https://www.google.com/recaptcha/api.js'></script>
+<script src="https://www.google.com/recaptcha/api.js"></script>
 </body>
 </html>

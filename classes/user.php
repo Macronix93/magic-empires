@@ -103,7 +103,7 @@ class User {
             $stmt->fetch();
             $stmt->close();
 
-            echo $status;
+            //echo $status;
 
             if (password_verify($pass, $password)) {
                 if (!$status) {
@@ -445,8 +445,8 @@ class User {
     function showLoginForm($error): void {
         ?>
         <div class="form">
-            <form id='login' action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method='post'
-                  accept-charset='UTF-8'>
+            <form id="login" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post"
+                  accept-charset="UTF-8">
                 <fieldset style="background-color:rgba(0, 0, 0, 0.7); width: 25%; padding:20px;">
 
                     <legend><b>Login</b></legend>

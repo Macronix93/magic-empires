@@ -42,6 +42,7 @@ include_once("layout/banner.html");
                         //$text = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $_POST["text"]);
 
                         $lineBreaksCount = substr_count($text, '<br />');
+                        $textWithoutLineBreaks = preg_replace('/<br\s*\/?>/i', '', $text);
 
                         // Check different errors
                         if ($receiver == $_SESSION["username"]) {
@@ -52,7 +53,7 @@ include_once("layout/banner.html");
                             $error = "Bitte alle Felder ausfüllen!";
                         } else if (strlen($subject) > MAX_SUBJECT_LENGTH) {
                             $error = "Betreff darf maximal " . MAX_SUBJECT_LENGTH . " Zeichen lang sein!";
-                        } else if (strlen($text) > MAX_MESSAGE_LENGTH) {
+                        } else if (strlen($textWithoutLineBreaks) > MAX_MESSAGE_LENGTH) {
                             $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
                         } else if ($lineBreaksCount > MAX_LINE_BREAK_COUNT) {
                             $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";

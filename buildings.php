@@ -291,16 +291,14 @@ if (isset($_GET["action"])) {
 
                             // Check if kingdom has enough ressources to handle the trade
                             if ($demand == 0 && $kingdom->getKingdomFood() < $demandvalue) {
-                                $error = "Soviel Nahrung kannst du nicht bieten!";
+                                $error = "Soviel Nahrung kannst du nicht aufbringen!";
                             } else if ($demand == 1 && $kingdom->getKingdomWood() < $demandvalue) {
-                                $error = "Soviel Holz kannst du nicht bieten!";
+                                $error = "Soviel Holz kannst du nicht aufbringen!";
                             } else if ($demand == 2 && $kingdom->getKingdomStone() < $demandvalue) {
-                                $error = "Soviel Stein kannst du nicht bieten!";
+                                $error = "Soviel Stein kannst du nicht aufbringen!";
                             } else if ($demand == 3 && $kingdom->getKingdomGold() < $demandvalue) {
-                                $error = "Soviel Gold kannst du nicht bieten!";
+                                $error = "Soviel Gold kannst du nicht aufbringen!";
                             } else {
-                                echo "kannst du dir leisten";
-
                                 $otherkingdom = $row["kingdomid"];
                                 $supplyressource = "";
                                 $demandressource = "";
