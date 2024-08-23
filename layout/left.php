@@ -32,7 +32,7 @@
         <div class="box<?= $currentPage === 'messages.php' ? ' active' : '' ?>"
              onclick="navigateTo('messages.php', this)">
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
-            Nachrichten&nbsp;<?php showNewMessagesIndicator($num_unread_messages); ?>
+            Nachrichten&nbsp;<?php echo showNewMessagesIndicator($num_unread_messages); ?>
         </div>
         <div class="box<?= $currentPage === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde

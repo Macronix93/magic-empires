@@ -56,6 +56,7 @@ if (isset($_GET["id"]) && ($bID >= 0 && $bID < $buildingcount)) {
     $lastid = $_GET["id"];
 }
 
+// Get kingdoms current resources
 $kingdomWood = $kingdom->getKingdomWood();
 $kingdomFood = $kingdom->getKingdomFood();
 $kingdomStone = $kingdom->getKingdomStone();
@@ -501,7 +502,7 @@ include_once("layout/banner.html");
 
                         changeLocation("buildings.php?id=$lastid", 2);
                     } else {
-                        if ($bID == 0 || (isset($_GET["action"]) && $_GET["action"] == "build") || (isset($_GET["action"]) && $_GET["action"] == "cancel")) {
+                        if ($bID == 0 || (isset($_GET["action"]) && ($_GET["action"] == "build" || $_GET["action"] == "cancel"))) {
                             // Dorfzentrum
 
                             // Get current ressources

@@ -133,8 +133,8 @@ function makeSecure($data): string {
 }
 
 // Show messages indicator
-function showNewMessagesIndicator($number): void {
-    echo ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
+function showNewMessagesIndicator($number): string {
+    return ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
 }
 
 // Convert seconds to a string

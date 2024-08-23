@@ -272,6 +272,19 @@
                 fields[i].classList.remove("highlight");
             }
         }
+
+        function showTimedMessage(message, duration) {
+            let messageDiv = document.createElement("div");
+            //messageDiv.className = "timed-message"; // Add class for styling
+            messageDiv.textContent = message;
+
+            document.body.appendChild(messageDiv);
+
+            // Set a timeout to remove the message after the specified duration
+            setTimeout(function () {
+                messageDiv.style.display = "none"; // Hide the message
+            }, duration);
+        }
     </script>
     <title>Magic Empires</title>
 </head>

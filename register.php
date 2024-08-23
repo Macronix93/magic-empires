@@ -30,9 +30,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // ME Schlüssel: 6Lf1Ok4UAAAAAG9oYNxP0_LDyUZfcie2XWhyZKBe
     $data = json_decode($json);
 
-    if (!$data->success) {
+    /*if (!$data->success) {
         $captchaErr = "Bitte den Botschutz akzeptieren!";
-    }
+    }*/
 
     if (empty($_POST["username"])) {
         $nameErr = "Bitte einen Nickname angeben!";
