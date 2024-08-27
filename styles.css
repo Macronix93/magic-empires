@@ -30,6 +30,25 @@ body {
     color: rgb(255, 255, 255);
 }
 
+#error-modal {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    text-align: center;
+    padding-top: 20%;
+}
+
+#error-message {
+    background: #333;
+    padding: 20px;
+    border-radius: 10px;
+}
+
 #messages-section {
     display: flex;
     flex-direction: column;
@@ -52,7 +71,6 @@ body {
     align-self: flex-end;
     max-width: 500px;
     background-color: rgb(88, 101, 117);
-    /*background: linear-gradient(0deg, rgba(23, 27, 34, 1) 0%, rgba(43, 47, 54, 1) 39%);*/
     border-radius: 30px;
     margin: 5px 0;
     padding: 15px;
@@ -123,15 +141,12 @@ select:focus {
     background-color: var(--box-selected);
 }
 
-.tr-hover {
+.highlight-on-hover {
     cursor: pointer;
-}
-
-.tr-hover td {
     transition: background-color 0.2s;
 }
 
-.tr-hover:hover td {
+tr:hover .highlight-on-hover {
     background-color: var(--box-selected);
 }
 
