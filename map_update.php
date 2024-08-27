@@ -16,5 +16,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo $html;
 } else {
-    header("Location: map.php");
+    changeLocation("Location: map.php");
 }

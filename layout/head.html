@@ -13,29 +13,30 @@
             let el = getElementsByClassName('popup');
 
             for (let i = 0; i < el.length; i++) {
-
                 let box = document.getElementById(el[i].id + '_box');
-                box.style.display = 'none';
-
-                el[i].onmouseover = function (e) {
-                    let mousePos = getMouseLocation(e);
-                    let box = document.getElementById(this.id + '_box');
-
-                    box.style.display = 'block';
-                    box.style.top = (mousePos[1]) + 'px';
-                    box.style.left = (mousePos[0] + 20) + 'px';
-                };
-                el[i].onmousemove = function (e) {
-                    let mousePos = getMouseLocation(e);
-                    let box = document.getElementById(this.id + '_box');
-
-                    box.style.top = (mousePos[1]) + 'px';
-                    box.style.left = (mousePos[0] + 20) + 'px';
-                };
-                el[i].onmouseout = function () {
-                    let box = document.getElementById(this.id + '_box');
+                if (box) {
                     box.style.display = 'none';
-                };
+
+                    el[i].onmouseover = function (e) {
+                        let mousePos = getMouseLocation(e);
+                        let box = document.getElementById(this.id + '_box');
+
+                        box.style.display = 'block';
+                        box.style.top = (mousePos[1]) + 'px';
+                        box.style.left = (mousePos[0] + 20) + 'px';
+                    };
+                    el[i].onmousemove = function (e) {
+                        let mousePos = getMouseLocation(e);
+                        let box = document.getElementById(this.id + '_box');
+
+                        box.style.top = (mousePos[1]) + 'px';
+                        box.style.left = (mousePos[0] + 20) + 'px';
+                    };
+                    el[i].onmouseout = function () {
+                        let box = document.getElementById(this.id + '_box');
+                        box.style.display = 'none';
+                    };
+                }
             }
         }
 
@@ -120,7 +121,7 @@
             }
         }
 
-        function startCountdown(initialSeconds) {
+        function startCountdown(initialSeconds, timerType = 0) {
             let seconds = initialSeconds;
             let countdownInterval;
 
@@ -135,7 +136,9 @@
 
                 if (seconds <= 0) {
                     clearInterval(countdownInterval);
-                    document.getElementById("counter").innerHTML = "Fertig!";
+                    if (timerType === 0) {
+                        document.getElementById("counter").innerHTML = "Fertig!";
+                    }
                 } else {
                     seconds--;
                 }
@@ -284,6 +287,13 @@
             setTimeout(function () {
                 messageDiv.style.display = "none"; // Hide the message
             }, duration);
+        }
+
+        function scrollToLatestMessage() {
+            let messagesSection = document.getElementById("messages-section");
+            if (messagesSection) {
+                messagesSection.scrollTop = messagesSection.scrollHeight - messagesSection.clientHeight;
+            }
         }
     </script>
     <title>Magic Empires</title>

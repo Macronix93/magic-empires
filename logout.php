@@ -3,7 +3,7 @@ require_once("functions.php");
 
 // Check if user is not logged in
 if (!isset($_SESSION["userid"])) {
-    changeLocation("login.php", 0);
+    changeLocation("login.php");
     //header("Location: login.php");
     die;
 }
@@ -22,6 +22,7 @@ unset($_SESSION["username"]);
 unset($_SESSION["kingdomid"]);
 unset($_SESSION["justloggedin"]);
 unset($_SESSION["lastactivity"]);
+unset($_SESSION["lastsentmsg"]);
 ?>
 <!DOCTYPE html>
 <html lang="de">

@@ -16,7 +16,6 @@
 }
 
 html {
-
     margin-right: calc(-1 * (100vw - 100%));
 }
 
@@ -31,16 +30,39 @@ body {
     color: rgb(255, 255, 255);
 }
 
-/*footer {
-    position: relative;
-    margin: 0 22% 0 22%;
-    vertical-align: middle;
-    line-height: 60px;
-    text-align: center;
-    background-color: rgba(0, 0, 0, 0.8);
-    border: 1px solid rgb(255, 255, 255);
-    border-radius: 10px;
-}*/
+#messages-section {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 500px);
+    overflow-x: hidden;
+    word-break: break-word;
+    padding: 10px;
+}
+
+.sender-bubble {
+    align-self: flex-start;
+    max-width: 500px;
+    background-color: rgb(96, 98, 107);
+    border-radius: 30px;
+    margin: 5px 0;
+    padding: 15px;
+}
+
+.receiver-bubble {
+    align-self: flex-end;
+    max-width: 500px;
+    background-color: rgb(88, 101, 117);
+    /*background: linear-gradient(0deg, rgba(23, 27, 34, 1) 0%, rgba(43, 47, 54, 1) 39%);*/
+    border-radius: 30px;
+    margin: 5px 0;
+    padding: 15px;
+}
+
+#newmessage-section form {
+    display: flex;
+    flex-direction: row;
+    padding: 5px;
+}
 
 footer {
     position: fixed;
@@ -101,6 +123,18 @@ select:focus {
     background-color: var(--box-selected);
 }
 
+.tr-hover {
+    cursor: pointer;
+}
+
+.tr-hover td {
+    transition: background-color 0.2s;
+}
+
+.tr-hover:hover td {
+    background-color: var(--box-selected);
+}
+
 option[selected] {
     font-weight: bold;
     color: rgb(255, 255, 127);
@@ -138,6 +172,13 @@ input[type=button]:hover,
 button:hover {
     background: var(--box-selected);
     border-color: var(--box-selected);
+}
+
+input[type=submit]:disabled,
+button:disabled {
+    background: linear-gradient(0deg, rgba(23, 27, 34, 0.37) 0%, rgba(43, 47, 54, 0.42) 39%);
+    border: 2px solid rgba(33, 33, 33, 0.49);
+    color: #989898;
 }
 
 input:-webkit-autofill,
@@ -403,6 +444,10 @@ td {
 @media screen and (max-width: 700px) {
     body {
         background-attachment: scroll;
+    }
+
+    .content {
+        width: 100%;
     }
 
     .header img {

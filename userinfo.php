@@ -4,7 +4,7 @@ require_once("functions.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
-    changeLocation("login.php", 0);
+    changeLocation("login.php");
     exit;
 }
 ?>
@@ -41,12 +41,12 @@ if (isset($_GET["userid"])) {
 
     if (!$row) {
         echo "<div style='text-align: center;'>
-        <p style='margin-top: 20px; background-color: rgba(0, 0, 0, 0.7); display: inline-block;'>Dieser Benutzer existiert nicht!
+        <p style='background-color: rgba(0, 0, 0, 0.7); display: inline-block;'>Dieser Benutzer existiert nicht!
         </p></div>";
         return;
     }
     ?>
-    <table class="table" style="margin-top: 20px; min-width: 400px;">
+    <table class="table" style="">
         <tr>
             <td style="width: 200px;"><b>Benutzer</b></td>
             <?php

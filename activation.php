@@ -37,5 +37,5 @@ if (!empty($_GET["key"])) {
         echo "Ungültiger Aktivierungsschlüssel!";
     }
 } else {
-    changeLocation("login.php", 0);
+    changeLocation("login.php");
 }

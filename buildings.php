@@ -4,7 +4,7 @@ require_once("functions.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
-    changeLocation("login.php", 0);
+    changeLocation("login.php");
     exit;
 }
 
@@ -351,13 +351,12 @@ if (isset($_GET["action"])) {
 
                                 // Send a message to the other kingdom that the offer has been accepted
                                 $time = time();
-                                $subject = "Marktplatz";
                                 $notread = 0;
                                 $sender = "Server";
                                 $message = "Dein Marktplatz-Angebot (" . $supplyvalue . " " . $supplyressource . " gegen " . $demandvalue . " " . $demandressource . ")<br>wurde von " . $user->getUserName() . " angenommen!";
 
-                                $stmt = $mysqli->prepare("INSERT INTO messages (sender, receiver, date, hasread, subject, message) VALUES (?, ?, ?, ?, ?, ?)");
-                                $stmt->bind_param("ssiiss", $sender, $row["username"], $time, $notread, $subject, $message);
+                                $stmt = $mysqli->prepare("INSERT INTO messages (sender, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?)");
+                                $stmt->bind_param("ssiiss", $sender, $row["username"], $time, $notread, $message);
                                 $stmt->execute();
                                 $stmt->close();
                             }

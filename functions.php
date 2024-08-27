@@ -47,7 +47,8 @@ const MAX_USER_MESSAGES = 50;
 const MAX_GUILD_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 400;
 const MAX_LINE_BREAK_COUNT = 10;
-const MAX_SUBJECT_LENGTH = 16;
+const MESSAGES_RATE_LIMIT = 60;
+const MAX_MESSAGES_PER_RATELIMIT = 10;
 const INACTIVITY_DELAY = 864000;
 const MAX_SOLDIERS = 4;
 const STARTING_FOOD = 1000;
@@ -97,7 +98,7 @@ if ($user->isLoggedIn()) {
     if (time() - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
         session_destroy();
 
-        changeLocation("login.php", 0);
+        changeLocation("login.php");
         exit;
     } else {
         // update last activity timestamp
@@ -170,7 +171,7 @@ function convertSecToStr($secs): string {
     return trim($output);
 }
 
-function changeLocation($url, $seconds): void {
+/*function changeLocation($url, $seconds): void {
     $urlJson = json_encode($url);
     $secondsInMs = json_encode($seconds) * 1000;
     ?>
@@ -180,6 +181,14 @@ function changeLocation($url, $seconds): void {
     </script>
     <?php
     //header("refresh: $seconds; url=$urlJson");
+}*/
+
+function changeLocation($url, $seconds = 0): void {
+    if ($seconds === 0) {
+        header("Location: $url");
+    } else {
+        header("refresh:$seconds; url=$url");
+    }
 }
 
 function clampValue($value) {

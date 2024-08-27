@@ -94,12 +94,13 @@ class User {
             $lastlogin = -1;
             $mainkingdom = -1;
             $guild = -1;
+            $lastsentmsg = 0;
 
             // Fetch users data
-            $stmt = $this->mysqli->prepare("SELECT username, status, password, email, lastlogin, score, mainkingdom, guildid FROM users WHERE id = ?");
+            $stmt = $this->mysqli->prepare("SELECT username, status, password, email, lastlogin, score, mainkingdom, guildid, lastsentmsg FROM users WHERE id = ?");
             $stmt->bind_param('i', $userid);
             $stmt->execute();
-            $stmt->bind_result($name, $status, $password, $email, $lastlogin, $score, $mainkingdom, $guild);
+            $stmt->bind_result($name, $status, $password, $email, $lastlogin, $score, $mainkingdom, $guild, $lastsentmsg);
             $stmt->fetch();
             $stmt->close();
 
@@ -122,8 +123,9 @@ class User {
                     $_SESSION["username"] = $name;
                     $_SESSION["kingdomid"] = $mainkingdom;
                     $_SESSION["justloggedin"] = true;
+                    $_SESSION["lastsentmsg"] = $lastsentmsg;
 
-                    changeLocation("index.php", 0);
+                    changeLocation("index.php");
                 }
             } else {
                 $this->error = "<b class='error'>Falsches Passwort!</b><br><br>";

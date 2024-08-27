@@ -4,7 +4,7 @@ require_once("functions.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
-    changeLocation("login.php", 0);
+    changeLocation("login.php");
     exit;
 }
 ?>

@@ -20,7 +20,7 @@ if (isset($_GET["logout"])) {
     }
 } else {
     if ($user->isLoggedIn()) {
-        changeLocation("index.php", 0);
+        changeLocation("index.php");
         exit;
     }
 

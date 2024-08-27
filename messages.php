@@ -4,7 +4,7 @@ require_once("functions.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
-    changeLocation("login.php", 0);
+    changeLocation("login.php");
     exit;
 }
 
@@ -12,52 +12,97 @@ $error = null;
 $htmlToDisplay = "";
 
 function showInbox($db_instance): string {
-    // Count all messages for the user
-    $stmt_msgs = $db_instance->prepare("SELECT id FROM messages WHERE receiver = ?");
-    $stmt_msgs->bind_param("s", $_SESSION["username"]);
-    $stmt_msgs->execute();
-    $result_msgs = $stmt_msgs->get_result();
-    $sum = $result_msgs->num_rows;
-    $stmt_msgs->close();
+    // Get all conversations for the user
+    $stmtMsg = $db_instance->prepare("
+                    SELECT participant, 
+                           MAX(date) AS latest_message_date
+                    FROM (
+                        SELECT sender AS participant, date
+                        FROM messages
+                        WHERE receiver = ?
+                        UNION
+                        SELECT receiver AS participant, date
+                        FROM messages
+                        WHERE sender = ?
+                    ) AS combined
+                    GROUP BY participant
+                    ORDER BY latest_message_date DESC
+                ");
 
-    // Count unread messages for the user
-    $stmt = $db_instance->prepare("SELECT COUNT(*) AS unread_count FROM messages WHERE receiver = ? AND hasread = 0");
-    $stmt->bind_param("s", $_SESSION["username"]);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc();
-    $num_unread_messages = $row["unread_count"];
-    $stmt->close();
+    $stmtMsg->bind_param("ss", $_SESSION["username"], $_SESSION["username"]);
+    $stmtMsg->execute();
+    $query = $stmtMsg->get_result();
+    $stmtMsg->close();
 
-    $htmlToDisplay = showNewMessagesIndicator($num_unread_messages) . "<a href='messages.php?action=folder&folderid=1'> Private Nachrichten (" . $sum . " / " . MAX_USER_MESSAGES . ")</a><br>";
-    $htmlToDisplay .= "<a href='messages.php?action=folder&folderid=2'>Gilden-Nachrichten (0 / " . MAX_GUILD_MESSAGES . ")</a><br>";
-    $htmlToDisplay .= "<a href='messages.php?action=folder&folderid=3'>Sonstige Nachrichten (0 / " . MAX_GUILD_MESSAGES . ")</a>
-                        <br><br>
+    $htmlToDisplay = "";
+
+    if ($query->num_rows > 0) {
+        $htmlToDisplay .= '<table class=table>
+                     <tr>
+                         <td class="td-center td-gradient" style="word-break: break-word">
+                             <b>Konversation mit</b>
+                         </td>
+                         <td class="td-center td-gradient" style="word-break: break-word">
+                             <b>Letzte Nachricht</b>
+                         </td>
+                         <td class="td-center td-gradient" style="word-break: break-word">
+                             <b>Aktion</b>
+                         </td>
+                     </tr>';
+
+        while ($row = $query->fetch_assoc()) {
+            $stmt = $db_instance->prepare("
+                SELECT COUNT(*) AS unread_count 
+                FROM messages 
+                WHERE sender = ? 
+                  AND receiver = ? 
+                  AND hasread = 0
+            ");
+            $stmt->bind_param("ss", $row["participant"], $_SESSION["username"]);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row2 = $result->fetch_assoc();
+            $num_unread_messages = $row2["unread_count"];
+            $stmt->close();
+
+            if (strcmp($row["participant"], "Server") === 0) {
+                continue;
+            }
+
+            $participant = $row["participant"];
+            $htmlToDisplay .= "<tr class='tr-hover' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'><td>$participant " . showNewMessagesIndicator($num_unread_messages) . "</td>
+                                <td>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
+                                <td style='text-align: center'><a href='messages.php?action=delete&s=" . $participant . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td></tr>";
+        }
+
+        $htmlToDisplay .= "</table>";
+    } else {
+        $htmlToDisplay = "Du hast keine Konversationen!";
+    }
+
+    $htmlToDisplay .= "<br>
                         <form action='messages.php' method='GET'>
                             <input type='hidden' name='action' value='new'>
-                            <input type='submit' value='Neue Nachricht' style='margin-top: 5px;'>
+                            <input type='submit' value='Neue Konversation' style='margin-top: 5px;'>
                         </form>";
+
     return $htmlToDisplay;
 }
 
 if (isset($_POST["sendpm"])) {
     $receiver = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
-    $subject = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["subject"]);
     $text = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
-    //$text = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $_POST["text"]);
 
     $lineBreaksCount = substr_count($text, '<br />');
     $textWithoutLineBreaks = preg_replace('/<br\s*\/?>/i', '', $text);
 
     // Check different errors
-    if ($receiver == $_SESSION["username"]) {
+    if ($receiver == $_SESSION["username"] || $receiver == "Server") {
         $error = "Du kannst keine Nachrichten an dich selbst senden!";
     } else if (preg_match('/\s/', $receiver)) {
         $error = "Dieser Benutzer existiert nicht!";
-    } else if (empty(trim($subject)) || empty(trim($text)) || empty(trim(strip_tags($text)))) {
+    } else if (strlen(trim(strip_tags($text))) === 0) {
         $error = "Bitte alle Felder ausfüllen!";
-    } else if (strlen($subject) > MAX_SUBJECT_LENGTH) {
-        $error = "Betreff darf maximal " . MAX_SUBJECT_LENGTH . " Zeichen lang sein!";
     } else if (strlen($textWithoutLineBreaks) > MAX_MESSAGE_LENGTH) {
         $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
     } else if ($lineBreaksCount > MAX_LINE_BREAK_COUNT) {
@@ -66,97 +111,79 @@ if (isset($_POST["sendpm"])) {
 
     if ($error == null) {
         // Prevent HTML Injection
+        $userid = $user->getUserID();
         $receiver = htmlspecialchars($receiver, ENT_QUOTES, "UTF-8");
-        $subject = htmlspecialchars($subject, ENT_QUOTES, "UTF-8");
         $textToOutput = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $text);
+        $time = time();
+        $ratelimit = $time - MESSAGES_RATE_LIMIT;
 
-        $stmt = $db_instance->prepare("SELECT COUNT(*) FROM messages WHERE receiver = ?");
-        $stmt->bind_param('s', $receiver);
+        $query = "SELECT
+                        (SELECT COUNT(*) FROM users WHERE username = ?) AS userexists,
+                        (SELECT lastsentmsg FROM users WHERE id = ?) AS lastsent
+                ";
+
+        $stmt = $db_instance->prepare($query);
+        $stmt->bind_param("si", $receiver, $userid);
         $stmt->execute();
-        $stmt->bind_result($sum);
-        $stmt->fetch();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
         $stmt->close();
+        $userexists = $row["userexists"];
+        $lastsent = $row["lastsent"];
 
-        if ($sum >= MAX_USER_MESSAGES) {
-            $error = "Der Posteingang dieses Benutzers ist voll!";
+        if ($userexists == 0) {
+            $error = "Dieser Benutzer existiert nicht!";
         } else {
-            $stmt = $db_instance->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
-            $stmt->bind_param("s", $receiver);
+            // Query to count messages sent in the last 5 minutes
+            $stmt = $db_instance->prepare("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?");
+            $stmt->bind_param("ii", $userid, $ratelimit);
             $stmt->execute();
-            $stmt->bind_result($exist);
-            $stmt->fetch();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc();
+            $messagecount = $row["messagecount"];
             $stmt->close();
 
-            if ($exist == 0) {
-                $error = "Dieser Benutzer existiert nicht!";
+            $remainingTimeInSeconds = MESSAGES_RATE_LIMIT - ($time - $lastsent);
+
+            if ($messagecount >= MAX_MESSAGES_PER_RATELIMIT) {
+                $error = "Du schickst zuviele Nachrichten! Warte bitte (<span id='counter'>
+                                                                          <script type='text/javascript'>
+                                                                              diff = " . json_encode($remainingTimeInSeconds) . "
+                                                                              startCountdown(diff, 1);
+                                                                          </script>
+                                                                          </span>).";
             } else {
-                $time = time();
                 $notread = 0;
 
-                $stmt = $db_instance->prepare("INSERT INTO messages (sender, receiver, date, hasread, subject, message) VALUES (?, ?, ?, ?, ?, ?)");
+                // Anti spam
+                $stmt = $db_instance->prepare("UPDATE users SET lastsentmsg = $time WHERE id = ?");
+                $stmt->bind_param("i", $userid);
+                $stmt->execute();
+                $stmt->close();
+
+                // Insert message
+                $stmt = $db_instance->prepare("INSERT INTO messages (senderid, sender, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?)");
                 if ($stmt) {
-                    $stmt->bind_param("ssiiss", $_SESSION["username"], $receiver, $time, $notread, $subject, $textToOutput);
+                    $stmt->bind_param("issiis", $_SESSION["userid"], $_SESSION["username"], $receiver, $time, $notread, $textToOutput);
                     $stmt->execute();
                     $stmt->close();
                 }
 
-                $htmlToDisplay = "Deine Nachricht wurde verschickt!<br><br>";
+                unset($_POST["text"]);
+
+                changeLocation("messages.php?action=read&s=" . $receiver);
             }
         }
     }
 }
 
 if (isset($_GET["action"])) {
-    if ($_GET["action"] == "folder") {
-        if ($_GET["folderid"] == 1) {
-            $query = $db_instance->query("SELECT * FROM messages WHERE receiver = '" . $_SESSION["username"] . "' ORDER BY date DESC");
-            $check = $query->num_rows;
-
-            if ($check != 0) {
-                $htmlToDisplay = '<table class=table>
-                    <tr>
-                        <td class="td-center td-gradient" style="word-break: break-word">
-                            <b>Betreff</b>
-                        </td>
-                        <td class="td-center td-gradient" style="word-break: break-word">
-                            <b>Absender</b>
-                        </td>
-                        <td class="td-center td-gradient" style="word-break: break-word"><b>Datum
-                                & Zeit</b></td>
-                        <td class="td-center td-gradient" style="word-break: break-word">
-                            <b>Aktion</b>
-                        </td>
-                    </tr>';
-
-                while ($row = $query->fetch_assoc()) {
-                    $htmlToDisplay .= "<tr><td><a href='messages.php?action=read&m_id=" . $row["id"] . "'>" . $row["subject"] . " " . ($row["hasread"] ? "" : "<b>(neu!)</b>") . "</a></td><td style='word-break: break-word'>" . $row["sender"] . "</td><td>" . date("d.m.Y H:i:s", $row["date"]) . "</td>
-                                                                <td style='text-align: center;'><a href='messages.php?action=read&m_id=" . $row["id"] . "'><img src='images/icons/icon_loupe.png' class='ressource-icons' alt='Lesen'></a> <a href='messages.php?action=delete&m_id=" . $row["id"] . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td></tr>";
-                }
-
-                $htmlToDisplay .= '</table>';
-            } else {
-                $htmlToDisplay = "Dein Nachrichtenordner ist leer!<br><br>
-                    <form action='messages.php' method='GET'>
-                        <input type='hidden' name='action' value='new'>
-                        <input type='submit' value='Neue Nachricht' style='margin-top: 5px;'>
-                    </form>";
-            }
-        } else if ($_GET["folderid"] == 2) {
-            $htmlToDisplay = "Ordner \"Gilden-Nachrichten\"";
-        } else if ($_GET["folderid"] == 3) {
-            $htmlToDisplay = "Ordner \"Sonstige Nachrichten\"";
-        } else {
-            $error = "Ordner existiert nicht!";
-
-            changeLocation("messages.php", 2);
-        }
-    } else if ($_GET["action"] == "new") {
-        $receiver = isset($_GET["receiver"]) ? "&receiver=" . urlencode($_GET["receiver"]) : "";
-        $subject = isset($_GET["subject"]) ? "&subject=" . urlencode($_GET["subject"]) : "";
+    if ($_GET["action"] == "new") {
+        $receiver = isset($_GET["s"]) ? htmlspecialchars($_GET["s"]) : "";
         $receiverText = isset($_GET["receiver"])
             ? '<label>
            <input type="text" name="receiver" maxlength="16"
-                  value="' . htmlspecialchars($_GET["receiver"]) . '">
+                  value="' . htmlspecialchars($_GET["s"]) . '">
        </label>'
             : '<label>
            <input type="text" name="receiver" maxlength="16"
@@ -165,7 +192,6 @@ if (isset($_GET["action"])) {
        <a href="javascript:userList()">
            <input type="button" value="Benutzerliste">
        </a>';
-        $subjectText = isset($_GET["subject"]) ? htmlspecialchars($_GET["subject"]) : (isset($_POST["subject"]) ? htmlspecialchars($_POST["subject"]) : "");
         $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
 
         if (isset($_POST["text"]) && $error == null) {
@@ -173,7 +199,7 @@ if (isset($_GET["action"])) {
         } else {
             $htmlToDisplay .= "
             <form name=\"newmessage\"
-                  action=\"messages.php?action=new$receiver$subject\"
+                  action=\"messages.php?action=new\"
                   method=\"POST\" style=\"width: 100%;\">
                 <table class=\"table\">
                     <tr>
@@ -182,16 +208,6 @@ if (isset($_GET["action"])) {
                         </td>
                         <td>
                             {$receiverText}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><b>Betreff:</b></td>
-                        <td>
-                            <label>
-                                <input type=\"text\" name=\"subject\"
-                                       maxlength=\"{MAX_SUBJECT_LENGTH}\"
-                                       value=\"$subjectText\">
-                            </label>
                         </td>
                     </tr>
                     <tr>
@@ -213,64 +229,151 @@ if (isset($_GET["action"])) {
             </form>";
         }
     } else if ($_GET["action"] == "read") {
-        $stmt = $db_instance->prepare("SELECT * FROM messages WHERE id = ?");
-        $stmt->bind_param("i", $_GET["m_id"]);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
+        if (isset($_GET["s"]) && urlencode($_GET["s"]) != null) {
+            $stmt = $db_instance->prepare("SELECT * FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)");
+            $stmt->bind_param("ssss", $_GET["s"], $_SESSION["username"], $_SESSION["username"], $_GET["s"]);
+            $stmt->execute();
+            $result = $stmt->get_result();
 
-        if ($row["receiver"] != $_SESSION["username"]) {
-            $error = "Diese Nachricht hast du nicht empfangen!";
-        } else {
-            if ($row["hasread"] == 0) {
-                $stmt = $db_instance->prepare("UPDATE messages SET hasread = 1 WHERE id = ?");
-                $stmt->bind_param("i", $_GET["m_id"]);
-                $stmt->execute();
+            if ($result->num_rows == 0) {
+                $error = "Du hast keine Konversation mit " . htmlspecialchars($_GET["s"]) . "!";
+            } else {
+                $htmlToDisplay = '<div style="float: left;"><button onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
+                $htmlToDisplay .= '<h3>Konversation mit 
+                                        <a href="javascript:void(0);" 
+                                         onclick="openUserDetails(\'userinfo.php?userid=' . htmlspecialchars($_GET["s"]) . '\');" 
+                                         class="popup" 
+                                         style="cursor: pointer;">
+                                         ' . htmlspecialchars($_GET["s"]) . '
+                                        </a>
+                                    </h3>';
+                $htmlToDisplay .= '<br><div id="messages-section">';
+
+                while ($row = $result->fetch_assoc()) {
+                    // The other side has written
+                    if ($row["sender"] == $_GET["s"]) {
+                        $htmlToDisplay .= "<div class='sender-bubble'><u>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</u>" . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "<br>" . $row["message"] . "</div>";
+                    } else { // You have written
+                        $htmlToDisplay .= "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $row["message"] . "</div>";
+                    }
+
+                    if ($row["hasread"] == 0 && $row["receiver"] == $_SESSION["username"]) {
+                        $stmt = $db_instance->prepare("UPDATE messages SET hasread = 1 WHERE id = ?");
+                        $stmt->bind_param("i", $row["id"]);
+                        $stmt->execute();
+                    }
+                }
+
+                $htmlToDisplay .= "</div><div id='newmessage-section'>
+                                    <form name=\"newmessage\"
+                                          action=\"messages.php?action=read&s=" . htmlspecialchars($_GET["s"]) . "\"
+                                          method=\"POST\" style=\"width: 100%;\">
+                                           <input type=\"hidden\" name=\"receiver\" value=\"" . htmlspecialchars($_GET["s"]) . "\">
+                                            <textarea id=\"message-input\" name=\"text\" rows=\"5\"
+                                                      maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
+                                                      style=\"width: 100%; resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
+                                            <input type=\"submit\" name=\"sendpm\" value=\"Absenden\n[ENTER]\"/>
+                                    </form>
+                                </div>";
+                $htmlToDisplay .= "<script>
+                                        document.getElementById(\"message-input\").focus();
+                                    
+                                        document.getElementById(\"message-input\").addEventListener(\"keypress\", e => {
+                                            if (e.key === \"Enter\" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                document.querySelector(\"input[name='sendpm']\").click();
+                                            }
+                                        });
+                                    </script>";
+                $htmlToDisplay .= "<script>
+                                        document.querySelector(\"form[name='newmessage']\").addEventListener(\"submit\", function(e) {
+                                            const receiver = document.querySelector(\"input[name='receiver']\").value;
+                                            const currentUser = \"" . $_SESSION['username'] . "\"; // Get current username from PHP session
+                                            const text = document.getElementById(\"message-input\").value;
+                                            const MAX_MESSAGE_LENGTH = \"" . MAX_MESSAGE_LENGTH . "\";
+                                            const MAX_LINE_BREAK_COUNT = \"" . MAX_LINE_BREAK_COUNT . "\";
+                                    
+                                            const textWithoutLineBreaks = text.replace(/(\\r\\n|\\n|\\r)/gm, \"\");
+                                            const lineBreaksCount = (text.match(/(\\r\\n|\\n|\\r)/gm) || []).length;
+                                    
+                                            let error = null;
+                                    
+                                            if (receiver === currentUser || receiver === \"Server\") {
+                                                error = \"Du kannst keine Nachrichten an dich selbst senden!\";
+                                            } else if (/\\s/.test(receiver)) {
+                                                error = \"Dieser Benutzer existiert nicht!\";
+                                            } else if (text.trim().length === 0) {
+                                                error = \"Bitte alle Felder ausfüllen!\";
+                                            } else if (textWithoutLineBreaks.length > MAX_MESSAGE_LENGTH) {
+                                                error = \"Die Nachricht darf maximal \" + MAX_MESSAGE_LENGTH + \" Zeichen lang sein!\";
+                                            } else if (lineBreaksCount > MAX_LINE_BREAK_COUNT) {
+                                                error = \"Dein Text darf maximal \" + MAX_LINE_BREAK_COUNT + \" Zeilenumbrüche beinhalten!\";
+                                            }
+                                    
+                                            if (error) {
+                                                e.preventDefault(); // Prevent form submission
+                                                alert(error); // Show error message to the user
+                                            }
+                                        });
+                                    </script>";
             }
-
-            $htmlToDisplay = "<h3><u>Von " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . ": " . $row["subject"] . "</u></h3><br>";
-            $htmlToDisplay .= $row["message"] . "<br><br>";
-
-            $replysubject = preg_replace('/^(RE: )*/', 'RE: ', stripcslashes($row["subject"]));
-            $htmlToDisplay .= "<form action='messages.php' method='GET'>
-                                                <input type='hidden' name='action' value='new'>
-                                                <input type='hidden' name='receiver' value='" . $row["sender"] . "'>
-                                                <input type='hidden' name='subject' value='" . $replysubject . "'>
-                                                <input type='submit' value='Antworten'>
-                                            </form>
-                                            <form action='messages.php' method='GET'>
-                                                <input type='hidden' name='action' value='delete'>
-                                                <input type='hidden' name='m_id' value='" . $row["id"] . "'>
-                                                <input type='submit' value='Löschen'>
-                                            </form>";
+        } else {
+            $error = "Der Benutzer {$_GET["s"]} existiert nicht!";
         }
     } else if ($_GET["action"] == "delete") {
-        $stmt = $db_instance->prepare("SELECT * FROM messages WHERE id = ?");
-        $stmt->bind_param("i", $_GET["m_id"]);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $stmt->close();
-
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-
-            if ($row["receiver"] != $_SESSION["username"]) {
-                changeLocation("messages.php?action=folder&folderid=1", 2);
-                $error = "Diese Nachricht kannst du nicht löschen!";
+        if (isset($_GET["s"])) {
+            if (empty($_GET["s"])) {
+                changeLocation("messages.php");
             } else {
-                $stmt = $db_instance->prepare("DELETE FROM messages WHERE id = ?");
-                $stmt->bind_param("i", $_GET["m_id"]);
+                $stmt = $db_instance->prepare("SELECT * FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)");
+                $stmt->bind_param("ssss", $_GET["s"], $_SESSION["username"], $_SESSION["username"], $_GET["s"]);
                 $stmt->execute();
+                $result = $stmt->get_result();
                 $stmt->close();
 
-                changeLocation("messages.php?action=folder&folderid=1", 0);
+                if ($result->num_rows == 0) {
+                    $error = "Du hast keine Konversation mit " . htmlspecialchars($_GET["s"]) . "!";
+                } else {
+                    echo "lösche konv mit " . $_GET["s"];
+
+                    $stmt = $db_instance->prepare("DELETE FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)");
+                    $stmt->bind_param("ssss", $_GET["s"], $_SESSION["username"], $_SESSION["username"], $_GET["s"]);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    changeLocation("messages.php");
+                }
             }
         } else {
-            changeLocation("messages.php?action=folder&folderid=1", 2);
-            $error = "Diese Nachricht existiert nicht!";
+            $stmt = $db_instance->prepare("SELECT * FROM messages WHERE id = ?");
+            $stmt->bind_param("i", $_GET["m_id"]);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $stmt->close();
+
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+
+                if ($row["sender"] != $_SESSION["username"]) {
+                    $error = "Diese Nachricht kannst du nicht löschen!";
+
+                    changeLocation("messages.php?action=folder&folderid=4", 2);
+                } else {
+                    $stmt = $db_instance->prepare("DELETE FROM messages WHERE id = ?");
+                    $stmt->bind_param("i", $_GET["m_id"]);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    changeLocation("messages.php?action=read&s={$row["receiver"]}");
+                }
+            } else {
+                $error = "Diese Nachricht existiert nicht!";
+
+                changeLocation("messages.php?action=folder&folderid=4", 2);
+            }
         }
     } else {
-        changeLocation("messages.php", 0);
+        changeLocation("messages.php");
     }
 } else {
     $htmlToDisplay = showInbox($db_instance);
@@ -306,6 +409,10 @@ include_once("layout/banner.html");
 
                     echo $htmlToDisplay;
                     ?>
+
+                    <script>
+                        scrollToLatestMessage();
+                    </script>
                 </div>
             </div>
         </div>
