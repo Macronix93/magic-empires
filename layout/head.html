@@ -87,7 +87,7 @@
 
         // User detail popup
         function openUserDetails(url) {
-            const width = 550;
+            const width = 740;
             const height = 400;
 
             // Calculate the monitor where the browser is located
@@ -101,7 +101,7 @@
         }
 
         function userList() {
-            const width = 550;
+            const width = 740;
             const height = 400;
 
             // Calculate the monitor where the browser is located
@@ -332,7 +332,7 @@
         function insertNewChatMessage(e) {
             e.preventDefault();
 
-            let messageInput = document.getElementById('message-input');
+            let messageInput = document.getElementById("message-input");
             let receiver = document.querySelector('input[name="receiver"]').value;
             let text = messageInput.value;
 
@@ -345,22 +345,21 @@
                         if (response.error) {
                             alert(response.error);
                         } else if (response.html) {
-                            document.getElementById('messages-section').innerHTML += response.html;
-                            messageInput.value = '';
+                            document.getElementById("messages-section").innerHTML += response.html;
+                            messageInput.value = "";
 
                             scrollToLatestMessage();
                         }
                     } catch (e) {
-                        console.error('Error parsing JSON:', e);
+                        console.error("Error parsing JSON:", e);
                     }
                 }
             };
+            xhttp.open("POST", "chat_insert.php", true);
+            xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
-            xhttp.open('POST', 'chat_insert.php', true);
-            xhttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            xhttp.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-            xhttp.send('receiver=' + encodeURIComponent(receiver) + '&text=' + encodeURIComponent(text));
+            xhttp.send("receiver=" + encodeURIComponent(receiver) + "&text=" + encodeURIComponent(text));
         }
 
         function initializeChat() {

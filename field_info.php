@@ -17,9 +17,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
         $stmt->close();
-
         ?>
-        <br><br>
+        <br>
         <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
             <?php
             echo $row["fieldname"];

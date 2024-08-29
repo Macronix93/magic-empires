@@ -201,6 +201,7 @@ class Map {
                         <tr><td colspan='13' class='top-bottom-cell td-gradient'>$arrowdown$arrowdown_1</td></tr>";
                 ?>
         </table>
+        <div id='field-info'></div>
         <br>
         <form id="update-map">
             X: <label>
@@ -226,7 +227,7 @@ class Map {
             echo "<br><br>Dieses Königreich existiert nicht!";
         } else {
             ?>
-            <br><br>
+            <br>
             <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
                 Königreich-Info
             </div>

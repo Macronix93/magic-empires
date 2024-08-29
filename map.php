@@ -58,15 +58,14 @@ include_once("layout/banner.html");
                 }
 
                 // Show info about the fields
-                echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
+                echo "<div style='padding-bottom: 5px;'><img src='images/hochland.png' class='map-legend' alt=''> Hochland 
                           <img src='images/küste.png' class='map-legend' alt=''> Küste 
                           <img src='images/wald.png' class='map-legend' alt=''> Wald 
                           <img src='images/wüste.png' class='map-legend' alt=''> Wüste 
-                          <img src='images/gebirge.png' class='map-legend' alt=''> Gebirge<br><br>";
+                          <img src='images/gebirge.png' class='map-legend' alt=''> Gebirge</div>";
                 echo "<div id='map-container'>";
                 $map->renderMap($map->startx, $map->starty);
                 echo "</div>";
-                echo "<div id='field-info'></div>";
                 ?>
             </div>
         </div>

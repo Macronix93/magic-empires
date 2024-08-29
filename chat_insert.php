@@ -6,7 +6,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     global $db_instance;
     $response = array();
 
-    $receiver = $_SESSION["msgreceiver"];
+    $receiverid = $_SESSION["msgreceiver"];
     $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
 
     // Anti-spam settings
@@ -17,11 +17,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     ob_start();
 
     // Check for errors
-    $error = getError($message, $receiver);
+    $error = getError($message, $receiverid);
 
     // Check if receiver exists
-    $stmt = $db_instance->prepare("SELECT COUNT(*) AS userexists FROM users WHERE username = ?");
-    $stmt->bind_param("s", $receiver);
+    $stmt = $db_instance->prepare("SELECT COUNT(*) AS userexists FROM users WHERE id = ?");
+    $stmt->bind_param("i", $receiverid);
     $stmt->execute();
     $result = $stmt->get_result();
     $row = $result->fetch_assoc();
@@ -52,9 +52,17 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                 // Update last sent message time
                 $_SESSION["lastsentmsg"] = $time;
 
+                // Get receiverid based on receiver name
+                $stmt = $db_instance->prepare("SELECT username FROM users WHERE id = ?");
+                $stmt->bind_param("s", $receiverid);
+                $stmt->execute();
+                $stmt->bind_result($receiver);
+                $stmt->fetch();
+                $stmt->close();
+
                 // Insert message into database
-                $stmt = $db_instance->prepare("INSERT INTO messages (senderid, sender, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("issiis", $_SESSION["userid"], $_SESSION["username"], $receiver, $time, $notread, $message);
+                $stmt = $db_instance->prepare("INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("isisiis", $_SESSION["userid"], $_SESSION["username"], $receiverid, $receiver, $time, $notread, $message);
                 $stmt->execute();
                 $stmt->close();
 

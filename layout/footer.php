@@ -1,10 +1,10 @@
 ﻿<div id="mobile-nav">
     <div class="menu" id="menu">
         <?php
-        include("right.php");
+        include("left.php");
         ?>
         <?php
-        include("left.php");
+        include("right.php");
         ?>
     </div>
     <div class="hamburger-icon" id="hamburger-icon">

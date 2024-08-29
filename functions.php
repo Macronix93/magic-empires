@@ -199,15 +199,15 @@ function clampValue($value) {
 }
 
 // Check for an error in a conversation
-function getError(string $text, string $receiver): string {
+function getError(string $text, string $receiverid): string {
     $error = "";
     $lineBreaksCount = substr_count($text, '<br />');
     $textWithoutLineBreaks = preg_replace('/<br\s*\/?>/i', '', $text);
 
     // Check different errors
-    if ($receiver == $_SESSION["username"] || $receiver == "Server") {
+    if ($receiverid == $_SESSION["userid"]) {
         $error = "Du kannst keine Nachrichten an dich selbst senden!";
-    } else if ($_SESSION["msgreceiver"] != $receiver) {
+    } else if ($_SESSION["msgreceiver"] != $receiverid) {
         $error = "Bitte nutze nur einen Tab für Konversationen!";
     } else if (strlen(trim(strip_tags($text))) === 0) {
         $error = "Bitte alle Felder ausfüllen!";

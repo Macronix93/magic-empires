@@ -24,7 +24,7 @@ global $user, $db_instance;
         <form action="index.php" method="POST">
             <label>
                 <select name="chooseKingdom" onchange="this.form.submit();"
-                        style="">
+                        style="width: 100%;">
                     <?php
                     while ($stmt->fetch()) {
                         if ($kingdomid == $_SESSION["kingdomid"]) {
