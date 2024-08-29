@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE-edge">
-    <meta name="viewport" content="width=device-width, initial-scale:1.0">
+    <meta name="viewport" content="width=device-width, initial-scale:0.75">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9,6 +9,8 @@
             href="https://fonts.googleapis.com/css2?family=Londrina+Outline&family=Londrina+Solid&family=Roboto&family=Signika+Negative:wght@500&display=swap"
             rel="stylesheet">
     <script type="text/javascript">
+        const CHAT_UPDATE_INTERVAL = 5000;
+
         function setup() {
             let el = getElementsByClassName('popup');
 
@@ -311,9 +313,13 @@
             let xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange = function () {
                 if (this.readyState === 4 && this.status === 200) {
-                    document.getElementById("messages-section").innerHTML = this.responseText;
+                    const response = JSON.parse(xhttp.responseText);
 
-                    scrollToLatestMessage();
+                    document.getElementById("messages-section").innerHTML = response.html;
+
+                    if (response.hasNewMessages) {
+                        scrollToLatestMessage();
+                    }
                 }
             };
             xhttp.open("GET", "chat_update.php?action=read&s=" + chatPartner, true);
@@ -376,8 +382,19 @@
             // Chat update function
             setInterval(() => {
                 sendUpdateChatRequest();
-            }, 10000);
+            }, CHAT_UPDATE_INTERVAL);
         }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const mobileNav = document.getElementById("mobile-nav");
+            const hamburgerIcon = document.getElementById("hamburger-icon");
+
+            if (hamburgerIcon) {
+                hamburgerIcon.addEventListener("click", function () {
+                    mobileNav.classList.toggle("open");
+                });
+            }
+        });
     </script>
     <title>Magic Empires</title>
 </head>

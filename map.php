@@ -17,67 +17,65 @@ include_once("layout/head.html");
 <?php
 include_once("layout/banner.html");
 ?>
-<div class="content">
-    <div class="content-box">
-        <div class="left-container">
-            <?php
-            include_once("layout/left.php");
-            ?>
-        </div>
+<div class="content-box">
+    <div class="left-container">
+        <?php
+        include_once("layout/left.php");
+        ?>
+    </div>
 
-        <div class="middle-container">
-            <div class="big-box-container">
-                <div class="big-box-header"><p>Landschaft</p></div>
-                <div class="big-box-content">
-                    <?php
-                    $map = new Map($db_instance);
+    <div class="middle-container">
+        <div class="big-box-container">
+            <div class="big-box-header"><p>Landschaft</p></div>
+            <div class="big-box-content">
+                <?php
+                $map = new Map($db_instance);
 
-                    if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
-                        if ($_GET["startx"] >= 90) {
-                            $_GET["startx"] = 91;
-                        }
-                        if ($_GET["starty"] >= 90) {
-                            $_GET["starty"] = 91;
-                        }
-                        $map->startx = $_GET["startx"];
-                        $map->starty = $_GET["starty"];
-
-                        if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) $map->startx = 1;
-                        if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->starty = 1;
-                    } else {
-                        // Get the coords of the current kingdom
-                        $stmt = $db_instance->prepare("SELECT mapx, mapy FROM kingdoms WHERE id = ?");
-                        $stmt->bind_param('i', $_SESSION["kingdomid"]);
-                        $stmt->execute();
-                        $stmt->bind_result($x, $y);
-                        $stmt->fetch();
-                        $stmt->close();
-
-                        // Calculate start coordinates
-                        $map->startx = max(1, min($x - 5, 91));
-                        $map->starty = max(1, min($y - 5, 91));
+                if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
+                    if ($_GET["startx"] >= 90) {
+                        $_GET["startx"] = 91;
                     }
+                    if ($_GET["starty"] >= 90) {
+                        $_GET["starty"] = 91;
+                    }
+                    $map->startx = $_GET["startx"];
+                    $map->starty = $_GET["starty"];
 
-                    // Show info about the fields
-                    echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
+                    if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) $map->startx = 1;
+                    if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->starty = 1;
+                } else {
+                    // Get the coords of the current kingdom
+                    $stmt = $db_instance->prepare("SELECT mapx, mapy FROM kingdoms WHERE id = ?");
+                    $stmt->bind_param('i', $_SESSION["kingdomid"]);
+                    $stmt->execute();
+                    $stmt->bind_result($x, $y);
+                    $stmt->fetch();
+                    $stmt->close();
+
+                    // Calculate start coordinates
+                    $map->startx = max(1, min($x - 5, 91));
+                    $map->starty = max(1, min($y - 5, 91));
+                }
+
+                // Show info about the fields
+                echo "<img src='images/hochland.png' class='map-legend' alt=''> Hochland 
                           <img src='images/küste.png' class='map-legend' alt=''> Küste 
                           <img src='images/wald.png' class='map-legend' alt=''> Wald 
                           <img src='images/wüste.png' class='map-legend' alt=''> Wüste 
                           <img src='images/gebirge.png' class='map-legend' alt=''> Gebirge<br><br>";
-                    echo "<div id='map-container'>";
-                    $map->renderMap($map->startx, $map->starty);
-                    echo "</div>";
-                    echo "<div id='field-info'></div>";
-                    ?>
-                </div>
+                echo "<div id='map-container'>";
+                $map->renderMap($map->startx, $map->starty);
+                echo "</div>";
+                echo "<div id='field-info'></div>";
+                ?>
             </div>
         </div>
+    </div>
 
-        <div class="right-container">
-            <?php
-            include_once("layout/right.php");
-            ?>
-        </div>
+    <div class="right-container">
+        <?php
+        include_once("layout/right.php");
+        ?>
     </div>
 </div>
 <?php

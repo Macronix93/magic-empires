@@ -6,15 +6,30 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     global $db_instance;
     $response = array();
 
-    $receiver = htmlspecialchars($_POST["receiver"], ENT_QUOTES, "UTF-8");
+    $receiver = $_SESSION["msgreceiver"];
     $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
 
     // Anti-spam settings
     $time = time();
     $ratelimit = $time - MESSAGES_RATE_LIMIT;
 
+    // Render the conversation HTML
+    ob_start();
+
     // Check for errors
     $error = getError($message, $receiver);
+
+    // Check if receiver exists
+    $stmt = $db_instance->prepare("SELECT COUNT(*) AS userexists FROM users WHERE username = ?");
+    $stmt->bind_param("s", $receiver);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$row["userexists"]) {
+        $error = "Dieser Benutzer existiert nicht!";
+    }
 
     if ($error == null) {
         // Check for rate limit
@@ -50,6 +65,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     } else {
         $response["error"] = $error;
     }
+
+    $html = ob_get_clean();
 
     echo json_encode($response);
 } else {

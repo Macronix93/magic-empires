@@ -1,21 +1,14 @@
-﻿<div class="stats-container">
-    <div class="stats-bar">
+﻿<div id="mobile-nav">
+    <div class="menu" id="menu">
         <?php
-        global $kingdom, $user;
-
-        echo "<img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() ==
-            0 ? "0" : $user->getUserScore()) . "
-        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> {$kingdom->getKingdomFood()}
-        ({$kingdom->getKingdomFoodPerHour()} / h)
-        <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> {$kingdom->getKingdomWood()}
-        ({$kingdom->getKingdomWoodPerHour()} / h)
-        <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> {$kingdom->getKingdomStone()}
-        ({$kingdom->getKingdomStonePerHour()} / h)
-        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> {$kingdom->getKingdomGold()}
-        ({$kingdom->getKingdomGoldPerHour()} / h)
-        <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'>
-        {$kingdom->getKingdomVillager()} ({$kingdom->getKingdomVillagerPerHour()} / h)";
+        include("right.php");
         ?>
+        <?php
+        include("left.php");
+        ?>
+    </div>
+    <div class="hamburger-icon" id="hamburger-icon">
+        <p style="font-size: 24px;">&#9776;</p>
     </div>
 </div>
 <footer>

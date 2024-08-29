@@ -70,9 +70,9 @@ function showInbox($db_instance): string {
             }
 
             $participant = $row["participant"];
-            $htmlToDisplay .= "<tr>
-                                    <td class='highlight-on-hover' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$participant " . showNewMessagesIndicator($num_unread_messages) . "</td>
-                                    <td class='highlight-on-hover' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
+            $htmlToDisplay .= "<tr class='tr-hover'>
+                                    <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$participant " . showNewMessagesIndicator($num_unread_messages) . "</td>
+                                    <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
                                     <td style='text-align: center'><a href='messages.php?action=delete&s=" . $participant . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td>
                                 </tr>";
         }
@@ -94,6 +94,7 @@ function showInbox($db_instance): string {
 // For a new conversation
 if (isset($_POST["sendpm"])) {
     $receiver = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
+    $_SESSION["msgreceiver"] = $receiver;
     $text = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
     $error = getError($text, $receiver);
 
@@ -213,6 +214,8 @@ if (isset($_GET["action"])) {
         }
     } else if ($_GET["action"] == "read") {
         if (isset($_GET["s"]) && htmlspecialchars($_GET["s"]) != null) {
+            $_SESSION["msgreceiver"] = htmlspecialchars($_GET["s"]);
+
             $stmt = $db_instance->prepare("SELECT * FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)");
             $stmt->bind_param("ssss", $_GET["s"], $_SESSION["username"], $_SESSION["username"], $_GET["s"]);
             $stmt->execute();
@@ -252,7 +255,7 @@ if (isset($_GET["action"])) {
                                           id='newmessage'
                                           action=\"messages.php?action=read&s=" . htmlspecialchars($_GET["s"]) . "\"
                                           method=\"POST\" style=\"width: 100%;\">
-                                           <input type=\"hidden\" name=\"receiver\" value=\"" . htmlspecialchars($_GET["s"]) . "\">
+                                           <input type=\"hidden\" name=\"receiver\" value=\"" . $_SESSION["msgreceiver"] . "\">
                                             <textarea id=\"message-input\" name=\"text\" rows=\"5\"
                                                       maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
                                                       style=\"width: 100%; resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
@@ -353,11 +356,6 @@ include_once("layout/banner.html");
 
                     echo $htmlToDisplay;
                     ?>
-
-                    <div id="error-modal">
-                        <div id="error-message"></div>
-                    </div>
-
                     <script type="text/javascript">
                         scrollToLatestMessage();
                     </script>

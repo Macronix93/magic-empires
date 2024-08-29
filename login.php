@@ -8,13 +8,7 @@ if (isset($_GET["logout"])) {
 
         session_destroy();
 
-        unset($_SESSION["currlogin"]);
-        unset($_SESSION["lastlogin"]);
-        unset($_SESSION["userid"]);
-        unset($_SESSION["username"]);
-        unset($_SESSION["kingdomid"]);
-        unset($_SESSION["justloggedin"]);
-        unset($_SESSION["lastactivity"]);
+        $_SESSION = [];
     } else {
         $user->error = "Du bist nicht eingeloggt!<br><br>";
     }

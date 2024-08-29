@@ -3,7 +3,7 @@ global $user, $db_instance;
 ?>
 <div class="box-container" id="ressource-box">
     <div class="box-header">Königreich-Info</div>
-    <div class="box-content" style="padding: 10px 10px 20px; background-color: var(--box-content-color);">
+    <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
         // Check if user has changed kingdom via dropdown menu
         if (isset($_POST["chooseKingdom"])) {
@@ -23,7 +23,8 @@ global $user, $db_instance;
 
         <form action="index.php" method="POST">
             <label>
-                <select name="chooseKingdom" onchange="this.form.submit();" style="width:170px">
+                <select name="chooseKingdom" onchange="this.form.submit();"
+                        style="">
                     <?php
                     while ($stmt->fetch()) {
                         if ($kingdomid == $_SESSION["kingdomid"]) {
@@ -46,7 +47,8 @@ global $user, $db_instance;
         $serverTime = time();
         ?>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
-            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit'/><span id='servertime'><script>updateTime(<?php echo $serverTime ?>)</script></span>
+            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit'/><span id='servertime'><script
+                        type="text/javascript">updateTime(<?php echo $serverTime ?>)</script></span>
         </div>
         <?php
         echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() == 0 ? "0" : $user->getUserScore()) . "

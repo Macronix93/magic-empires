@@ -1,28 +1,27 @@
-﻿<div class="box-container">
+﻿<?php
+global $user, $db_instance;
+
+$currentPage = basename($_SERVER["PHP_SELF"]);
+
+// Count unread messages for the user
+$stmt = $db_instance->prepare("SELECT COUNT(*) AS unread_count FROM messages WHERE receiver = ? AND hasread = 0");
+$stmt->bind_param("s", $_SESSION["username"]);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+$num_unread_messages = $row["unread_count"];
+$stmt->close();
+?>
+<div class="box-container">
     <div class="box-header">
         <?php
-        global $user, $db_instance;
-
-        $currentPage = basename($_SERVER["PHP_SELF"]);
-
-        // Count unread messages for the user
-        $stmt = $db_instance->prepare("SELECT COUNT(*) AS unread_count FROM messages WHERE receiver = ? AND hasread = 0");
-        $stmt->bind_param("s", $_SESSION["username"]);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
-        $num_unread_messages = $row["unread_count"];
-        $stmt->close();
-
         echo "<div style='width: 80%; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
         <div style='overflow: hidden; white-space: nowrap;' id='username'>";
         echo $user->getUserName();
-        echo "</div>
-        <a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt=''/></a>
-      </div>";
+        echo "</div><a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt=''/></a></div>";
 
         // Calculate and update the styling of the username dynamically
-        echo "<script>adjustUsernameDisplay()</script>";
+        echo "<script type='text/javascript'>adjustUsernameDisplay()</script>";
         ?>
     </div>
     <div class="box-content">

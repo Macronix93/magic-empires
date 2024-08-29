@@ -7,22 +7,23 @@
 }
 
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
     color: rgb(240, 240, 240);
     text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
     font-family: Arial, Helvetica, sans-serif;
 }
 
 html {
-    margin-right: calc(-1 * (100vw - 100%));
+    /*margin-right: calc(-1 * (100vw - 100%));*/ /*Scrollbar pushes content*/
+    width: 100vw;
+    overflow-x: hidden;
 }
 
 body {
+    margin: 0;
+    padding: 0;
+    transition: font-size 0.5s ease;
     font-size: 18px;
     background: rgb(0, 0, 0) url(images/background.png);
-    overflow-x: hidden;
 }
 
 ::selection {
@@ -30,32 +31,14 @@ body {
     color: rgb(255, 255, 255);
 }
 
-#error-modal {
-    display: none;
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    color: #fff;
-    text-align: center;
-    padding-top: 20%;
-}
-
-#error-message {
-    background: #333;
-    padding: 20px;
-    border-radius: 10px;
-}
-
 #messages-section {
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 500px);
+    max-height: calc(100vh - 550px);
     overflow-x: hidden;
     word-break: break-word;
     padding: 10px;
+    text-align: start;
 }
 
 .sender-bubble {
@@ -100,7 +83,10 @@ footer {
 }
 
 .header {
+    display: flex;
+    align-items: center;
     height: 120px;
+    transition: height 0.5s ease;
 }
 
 #mobile-header {
@@ -141,13 +127,17 @@ select:focus {
     background-color: var(--box-selected);
 }
 
-.highlight-on-hover {
+.td-cursor {
     cursor: pointer;
+}
+
+.tr-hover td {
     transition: background-color 0.2s;
 }
 
-tr:hover .highlight-on-hover {
+.tr-hover:hover td {
     background-color: var(--box-selected);
+    transition: background-color 0.2s;
 }
 
 option[selected] {
@@ -210,26 +200,14 @@ select:-webkit-autofill:focus {
     -webkit-text-fill-color: rgb(240, 240, 240) !important;
 }
 
-/* Der Wrapper für den Inhalt (linke Seite, rechte Seite, Mitte) */
+/* Wrapper for content (left, right, mid) */
 .content-box {
     display: flex;
-    justify-content: space-around;
-    flex-wrap: wrap;
-    border-radius: 10px;
-    margin-bottom: 50px;
+    justify-content: center;
+    gap: 50px;
 }
 
-.content {
-    margin-left: 20%;
-    margin-right: 20%;
-}
-
-/* Anzeige der Ressourcen */
-.stats-container {
-    display: none;
-}
-
-/* Box in der Mitte */
+/* Box in mid */
 .big-box-container {
     border: 1px solid rgb(0, 0, 0);
     background-color: var(--big-box-content-color);
@@ -243,10 +221,7 @@ select:-webkit-autofill:focus {
     text-align: center;
     margin: 20px 50px 20px 50px;
     font-size: 32px;
-}
-
-.big-box-header p {
-    padding-bottom: 15px;
+    height: 50px;
 }
 
 .big-box-content {
@@ -254,8 +229,7 @@ select:-webkit-autofill:focus {
     text-align: center;
 }
 
-
-/* Box an der Seite */
+/* Boxes at each side */
 .box-container {
     border-radius: 10px;
     border: 1px solid rgb(0, 0, 0);
@@ -298,30 +272,27 @@ select:-webkit-autofill:focus {
 }
 
 
-/* Container der einzelnen Seiten bzw. Mitte */
+/* Container of each side and mid */
 .left-container,
 .right-container {
+    height: 100%;
     width: 200px;
-    margin-top: -3px;
 }
 
 .middle-container {
     width: 850px;
-    margin-top: 20px;
-    padding-left: 10px;
-    padding-right: 10px;
 }
 
 /* Misc. */
 a.box {
-    text-decoration: none
+    text-decoration: none;
 }
 
 a.box span {
     position: relative;
     visibility: hidden;
     padding: 10px;
-    text-decoration: none
+    text-decoration: none;
 }
 
 a {
@@ -399,6 +370,39 @@ td {
     align-items: baseline;
 }
 
+/* Map styles */
+.cell-container {
+    width: 100%;
+    height: 100%;
+}
+
+.kingdom-img {
+    width: 100%;
+    height: 100%;
+}
+
+#map-container td {
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    width: 50px;
+    height: 50px;
+    box-sizing: border-box;
+}
+
+#map-container .td-main {
+    background-color: var(--table-color);
+    border: solid 1px rgb(29, 33, 39);
+    font-size: 18px;
+    padding: 5px 10px;
+    text-align: left;
+    width: 50%;
+}
+
+.top-bottom-cell {
+    height: 30px;
+}
+
 .map-img {
     position: relative;
     display: block;
@@ -415,83 +419,122 @@ td {
     border: 2px solid red;
 }
 
-/* Media queries */
-@media screen and (max-width: 2084px) {
-    .content {
-        width: 90%;
-        margin-left: auto;
-        margin-right: auto;
-    }
+/* Container for the menu and hamburger icon */
+#mobile-nav {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    align-items: flex-start;
+    transform: translateX(-250px);
+    transition: transform 0.3s ease;
+    margin-bottom: 100px;
 }
 
-/*@media screen and (max-width: 1786px) {
-    .content {
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .content-box {
-        justify-content: center;
-        align-items: center;
-        flex-direction: column;
-    }
-}*/
-
-@media screen and (max-width: 1392px) {
-    .content {
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .content-box {
-        flex-direction: column;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-
-    .middle-container {
-        width: 100%;
-        max-width: 850px;
-    }
+/* The hidden menu */
+.menu {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 250px;
+    height: 100%;
+    background-color: var(--table-color);
+    border-right: solid black 1px;
+    overflow: auto;
 }
+
+/* Hamburger Icon */
+.hamburger-icon {
+    display: none;
+    width: 50px;
+    height: 50px;
+    border-right: solid black 1px;
+    border-bottom: solid black 1px;
+    border-bottom-right-radius: 10px;
+    background-color: var(--table-color);
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+/* Slide-out effect */
+#mobile-nav.open {
+    transform: translateX(0);
+}
+
 
 /* Smartphone Ansicht */
 @media screen and (max-width: 700px) {
     body {
+        transition: font-size 0.5s ease;
+        font-size: 16px;
         background-attachment: scroll;
     }
 
-    .content {
-        width: 100%;
-    }
-
-    .header img {
-        display: block;
-        height: 80%;
-    }
-
-    .stats-container {
-        display: flex;
-        justify-content: center;
-        position: fixed;
-        top: 0;
-    }
-
-    .stats-bar {
-        border: 1px solid rgb(0, 0, 0);
-        text-align: center;
-        padding: 10px 10px 10px;
-        border-bottom-left-radius: 10px;
-        border-bottom-right-radius: 10px;
-        background-color: var(--table-color);
-    }
-
-    #ressource-box {
-        display: none;
+    .header {
+        transition: height 0.5s ease;
+        height: 70px;
     }
 
     #footerwrapper {
         border-radius: 0;
         width: 100%;
+    }
+
+    .ressource-icons,
+    .menu-icons,
+    .item-icons {
+        width: 20px;
+        height: 20px;
+    }
+
+    input,
+    textarea,
+    button {
+        font-size: 14px;
+    }
+
+    .big-box-header {
+        font-size: 24px;
+    }
+
+    td {
+        font-size: 16px;
+    }
+
+    #newmessage-section textarea {
+        height: 50px;
+    }
+
+    #footerwrapper {
+        display: none;
+    }
+
+    #messages-section {
+        max-height: calc(100vh - 400px);
+    }
+}
+
+@media screen and (max-width: 1392px) {
+    .left-container,
+    .right-container {
+        display: none;
+    }
+
+    .hamburger-icon {
+        display: flex;
+    }
+
+    #mobile-nav {
+        display: flex;
+    }
+
+    .middle-container {
+        width: 95%;
+    }
+
+    .box-container {
+        width: 80%;
     }
 }

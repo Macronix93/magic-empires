@@ -107,7 +107,7 @@ if ($user->isLoggedIn()) {
         if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK) {
             $stmt = $db_instance->prepare("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?");
             $userID = $user->getUserID();
-            $stmt->bind_param('i', $userID);
+            $stmt->bind_param("i", $userID);
             $stmt->execute();
             $stmt->close();
         }
@@ -115,8 +115,8 @@ if ($user->isLoggedIn()) {
         $_SESSION["lastactivity"] = $currentTimestamp;
     }
 
-    $kingdom = new Kingdoms($db_instance);
-    $kingdom->getKingdomRessources($_SESSION["kingdomid"]);
+    /*$kingdom = new Kingdoms($db_instance);
+    $kingdom->getKingdomRessources($_SESSION["kingdomid"]);*/
 
     // Process user events
     $user->processUserEvents($user->getUserID());
@@ -207,8 +207,8 @@ function getError(string $text, string $receiver): string {
     // Check different errors
     if ($receiver == $_SESSION["username"] || $receiver == "Server") {
         $error = "Du kannst keine Nachrichten an dich selbst senden!";
-    } else if (preg_match('/\s/', $receiver)) {
-        $error = "Dieser Benutzer existiert nicht!";
+    } else if ($_SESSION["msgreceiver"] != $receiver) {
+        $error = "Bitte nutze nur einen Tab für Konversationen!";
     } else if (strlen(trim(strip_tags($text))) === 0) {
         $error = "Bitte alle Felder ausfüllen!";
     } else if (strlen($textWithoutLineBreaks) > MAX_MESSAGE_LENGTH) {

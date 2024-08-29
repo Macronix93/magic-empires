@@ -141,40 +141,7 @@ class Map {
         $stmt->bind_param('iiii', $xstart, $xend, $ystart, $yend);
         $stmt->execute();
         $result2 = $stmt->get_result();
-
         ?>
-        <style>
-            .cell-container {
-                width: 100%;
-                height: 100%;
-            }
-
-            .kingdom-img {
-                width: 100%;
-                height: 100%;
-            }
-
-            td {
-                text-align: center;
-                margin: 0;
-                padding: 0;
-                width: 50px;
-                height: 50px;
-            }
-
-            .td-main {
-                background-color: var(--table-color);
-                border: solid 1px rgb(29, 33, 39);
-                font-size: 18px;
-                padding: 5px 10px;
-                text-align: left;
-                width: 50%;
-            }
-
-            .top-bottom-cell {
-                height: 30px;
-            }
-        </style>
         <table class="table">
             <tr>
                 <td colspan="13" class="top-bottom-cell td-gradient">
@@ -210,7 +177,7 @@ class Map {
 
                 for ($i = $starty; $i <= $starty + 9; $i++) {
                     echo "<tr>";
-                    echo "<td style='padding: 15px;'>$i</td>";
+                    echo "<td>$i</td>";
 
                     for ($j = $startx; $j <= $startx + 9; $j++) {
                         if ($mycoords[$j][$i] == $_SESSION["kingdomid"]) {

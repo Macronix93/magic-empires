@@ -4,7 +4,6 @@ require_once("functions.php");
 // Check if user is not logged in
 if (!isset($_SESSION["userid"])) {
     changeLocation("login.php");
-    //header("Location: login.php");
     die;
 }
 
@@ -15,14 +14,8 @@ echo "<p style='text-align: center'>Du hast dich erfolgreich ausgeloggt!<br><br>
 
 session_destroy();
 
-unset($_SESSION["currlogin"]);
-unset($_SESSION["lastlogin"]);
-unset($_SESSION["userid"]);
-unset($_SESSION["username"]);
-unset($_SESSION["kingdomid"]);
-unset($_SESSION["justloggedin"]);
-unset($_SESSION["lastactivity"]);
-unset($_SESSION["lastsentmsg"]);
+$_SESSION = [];
+
 ?>
 <!DOCTYPE html>
 <html lang="de">
