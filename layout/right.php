@@ -51,31 +51,31 @@ global $user, $db_instance;
                         type="text/javascript">updateTime(<?php echo $serverTime ?>)</script></span>
         </div>
         <?php
-        echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() == 0 ? "0" : $user->getUserScore()) . "
+        echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() == 0 ? "0" : fnum($user->getUserScore())) . "
                     <div class='split-content'>
                         <div><img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> 
-                        <span style='color: " . ($kingdom->getKingdomFood() == $kingdom->getKingdomMaxFood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . $kingdom->getKingdomFood() . "</span></div>
-                        <div>({$kingdom->getKingdomFoodPerHour()}/h)</div>
+                        <span style='color: " . ($kingdom->getKingdomFood() == $kingdom->getKingdomMaxFood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomFood()) . "</span></div>
+                        <div>(" . fnum($kingdom->getKingdomFoodPerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
                         <div><img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> 
-                        <span style='color: " . ($kingdom->getKingdomWood() == $kingdom->getKingdomMaxWood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . $kingdom->getKingdomWood() . "</span></div>
-                        <div>({$kingdom->getKingdomWoodPerHour()}/h)</div>
+                        <span style='color: " . ($kingdom->getKingdomWood() == $kingdom->getKingdomMaxWood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomWood()) . "</span></div>
+                        <div>(" . fnum($kingdom->getKingdomWoodPerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
                         <div><img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> 
-                        <span style='color: " . ($kingdom->getKingdomStone() == $kingdom->getKingdomMaxStone() ? "#FFFF7F" : "#FFFFFF") . ";'>" . $kingdom->getKingdomStone() . "</span></div>
-                        <div>({$kingdom->getKingdomStonePerHour()}/h)</div>
+                        <span style='color: " . ($kingdom->getKingdomStone() == $kingdom->getKingdomMaxStone() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomStone()) . "</span></div>
+                        <div>(" . fnum($kingdom->getKingdomStonePerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
                         <div><img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> 
-                        <span style='color: " . ($kingdom->getKingdomGold() == $kingdom->getKingdomMaxGold() ? "#FFFF7F" : "#FFFFFF") . ";'>" . $kingdom->getKingdomGold() . "</span></div>
-                        <div>({$kingdom->getKingdomGoldPerHour()}/h)</div>
+                        <span style='color: " . ($kingdom->getKingdomGold() == $kingdom->getKingdomMaxGold() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomGold()) . "</span></div>
+                        <div>(" . fnum($kingdom->getKingdomGoldPerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
                         <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'> 
-                        <span style='color: " . ($kingdom->getKingdomVillager() == $kingdom->getKingdomMaxVillager() ? "#FFFF7F" : "#FFFFFF") . ";'>" . $kingdom->getKingdomVillager() . "</span></div>
-                        <div>({$kingdom->getKingdomVillagerPerHour()}/h)</div>
+                        <span style='color: " . ($kingdom->getKingdomVillager() == $kingdom->getKingdomMaxVillager() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomVillager()) . "</span></div>
+                        <div>(" . fnum($kingdom->getKingdomVillagerPerHour()) . "/h)</div>
                     </div>";
         ?>
     </div>

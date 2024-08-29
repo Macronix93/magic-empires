@@ -97,7 +97,7 @@ include_once("layout/banner.html");
                                                 <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $lastactivity</div>
                                             </div>
                                         </td>
-                                        <td class='td-center'>{$row["score"]}</td>
+                                        <td class='td-center'>" . fnum($row["score"]) . "</td>
                                     </tr>";
 
                         $position++;

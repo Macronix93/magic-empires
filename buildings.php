@@ -637,9 +637,9 @@ include_once("layout/banner.html");
                                             $costGold = $soldiers[$i]->getSoldierGoldCost();
                                             $costVillager = $soldiers[$i]->getSoldierVillagerCost();
 
-                                            $textFood = ($costFood > $kingdomFood ? "<b class='error'>" . $costFood . "</b>" : $costFood);
-                                            $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . $costGold . "</b>" : $costGold);
-                                            $textVillager = ($costVillager > $kingdomVillager ? "<b class='error'>" . $costVillager . "</b>" : $costVillager);
+                                            $textFood = ($costFood > $kingdomFood ? "<b class='error'>" . fnum($costFood) . "</b>" : fnum($costFood));
+                                            $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . fnum($costGold) . "</b>" : fnum($costGold));
+                                            $textVillager = ($costVillager > $kingdomVillager ? "<b class='error'>" . fnum($costVillager) . "</b>" : fnum($costVillager));
 
                                             if ($kingdomIsRecruiting) {
                                                 if ($kingdomRecruitingID == $i) {
@@ -714,7 +714,7 @@ include_once("layout/banner.html");
                                             echo "<tr>
                                                     <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->getSoldierIcon() . "</td>
                                                     <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers[$i]->getSoldierName() . " 
-                                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->getSoldierDescription() . "</div>  (" . ($kingdomSoldiers[$i] ?? 0) . ")</b><br><br>
+                                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->getSoldierDescription() . "</div>  (" . (isset($kingdomSoldiers[$i]) ? fnum($kingdomSoldiers[$i]) : 0) . ")</b><br><br>
                                                         <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "
                                                         <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "
                                                         <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'> " . $textVillager . "<br>
@@ -733,26 +733,26 @@ include_once("layout/banner.html");
                                     // Mauer
                                     $level = $buildings[3]->getBuildingLevel() * DEFAULT_WALL_HP;
 
-                                    echo "<p><b>Verteidigungswert:</b> $level</p>";
+                                    echo "<p><b>Verteidigungswert:</b> " . fnum($level) . "</p>";
                                     break;
                                 case 4:
                                     // Schmiede
                                     break;
                                 case 5:
                                     // Mühle
-                                    echo "<p><b>Nahrungsertrag pro Stunde:</b> {$kingdom->getKingdomFoodPerHour()}</p>";
+                                    echo "<p><b>Nahrungsertrag pro Stunde:</b> " . fnum($kingdom->getKingdomFoodPerHour()) . "</p>";
                                     break;
                                 case 6:
                                     // Sägewerk
-                                    echo "<p><b>Holzertrag pro Stunde:</b> {$kingdom->getKingdomWoodPerHour()}</p>";
+                                    echo "<p><b>Holzertrag pro Stunde:</b> " . fnum($kingdom->getKingdomWoodPerHour()) . "</p>";
                                     break;
                                 case 7:
                                     // Steinmine
-                                    echo "<p><b>Steinertrag pro Stunde:</b> {$kingdom->getKingdomStonePerHour()}</p>";
+                                    echo "<p><b>Steinertrag pro Stunde:</b> " . fnum($kingdom->getKingdomStonePerHour()) . "</p>";
                                     break;
                                 case 8:
                                     // Goldmine
-                                    echo "<p><b>Goldertrag pro Stunde:</b> {$kingdom->getKingdomGoldPerHour()}</p>";
+                                    echo "<p><b>Goldertrag pro Stunde:</b> " . fnum($kingdom->getKingdomGoldPerHour()) . "</p>";
                                     break;
                                 case 9:
                                     // Lager
@@ -760,30 +760,30 @@ include_once("layout/banner.html");
                                                 <div class='split-content'>
                                                     <div>
                                                         <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> 
-                                                        {$kingdom->getKingdomFood()}
+                                                        " . fnum($kingdom->getKingdomFood()) . "
                                                     </div>
-                                                    <div>von {$kingdom->getKingdomMaxFood()}</div>
+                                                    <div>von " . fnum($kingdom->getKingdomMaxFood()) . "</div>
                                                 </div>
                                                 <div class='split-content'>
                                                     <div>
                                                         <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> 
-                                                        {$kingdom->getKingdomWood()}
+                                                        " . fnum($kingdom->getKingdomWood()) . "
                                                     </div>
-                                                    <div>von {$kingdom->getKingdomMaxWood()}</div>
+                                                    <div>von " . fnum($kingdom->getKingdomMaxWood()) . "</div>
                                                 </div>
                                                 <div class='split-content'>
                                                     <div>
                                                         <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> 
-                                                        {$kingdom->getKingdomStone()}
+                                                        " . fnum($kingdom->getKingdomStone()) . "
                                                     </div>
-                                                    <div>von {$kingdom->getKingdomMaxStone()}</div>
+                                                    <div>von " . fnum($kingdom->getKingdomMaxStone()) . "</div>
                                                 </div>
                                                 <div class='split-content'>
                                                     <div>
                                                         <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> 
-                                                        {$kingdom->getKingdomGold()}
+                                                        " . fnum($kingdom->getKingdomGold()) . "
                                                     </div>
-                                                    <div>von {$kingdom->getKingdomMaxGold()}</div>
+                                                    <div>von " . fnum($kingdom->getKingdomMaxGold()) . "</div>
                                                 </div>
                                         </div>";
                                     break;
@@ -883,8 +883,8 @@ include_once("layout/banner.html");
 
                                             echo "<tr><td>{$row["username"]}</td>
                                                             <td>$kingdomname</td>
-                                                            <td class='td-center'>{$ressourceicon[$row["supply"]]} {$row["supplyvalue"]}</td>
-                                                            <td class='td-center'>{$ressourceicon[$row["demand"]]} {$row["demandvalue"]}</td>
+                                                            <td class='td-center'>{$ressourceicon[$row["supply"]]} " . fnum($row["supplyvalue"]) . "</td>
+                                                            <td class='td-center'>{$ressourceicon[$row["demand"]]} " . fnum($row["demandvalue"]) . "</td>
                                                             <td class='td-center'>$textbuild</td>";
                                         }
                                         $stmt->close();

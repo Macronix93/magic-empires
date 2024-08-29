@@ -171,18 +171,6 @@ function convertSecToStr($secs): string {
     return trim($output);
 }
 
-/*function changeLocation($url, $seconds): void {
-    $urlJson = json_encode($url);
-    $secondsInMs = json_encode($seconds) * 1000;
-    ?>
-    <script>setTimeout(function () {
-            window.location.href = <?php echo $urlJson ?>;
-        }, <?php echo $secondsInMs ?>);
-    </script>
-    <?php
-    //header("refresh: $seconds; url=$urlJson");
-}*/
-
 function changeLocation($url, $seconds = 0): void {
     if ($seconds === 0) {
         header("Location: $url");
@@ -217,4 +205,8 @@ function getError(string $text, string $receiverid): string {
         $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
     }
     return $error;
+}
+
+function fnum($number): string {
+    return number_format($number, 0, ",", ".");
 }

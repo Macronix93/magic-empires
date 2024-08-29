@@ -161,7 +161,7 @@ class Building {
     }
 
     public function getRessourceText($cost, $currentVal): string {
-        return ($cost > $currentVal ? "<b class='error'>" . $cost . "</b>" : $cost);
+        return ($cost > $currentVal ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
     }
 
     public function isBuilt(): bool {
