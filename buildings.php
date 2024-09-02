@@ -10,35 +10,48 @@ if (!($user->isLoggedIn())) {
 
 $error = null;
 
-// Hier PHP Logik + GET/POST Anfragen
+// Here PHP logic + GET/POST requests
 $kingdom = new Kingdoms($db_instance);
 $kingdom->getKingdomRessources($_SESSION["kingdomid"]);
 $kID = $_SESSION["kingdomid"];
 
 $mysqli = $db_instance;
 
-// Get all available buildings and create objects for them
+// Fetch all buildings and their dependencies
 $buildings = [];
-$result = $mysqli->query("SELECT * FROM buildinglist");
+
+$stmt = $mysqli->prepare("SELECT b.*, d.dependencyid, d.dependencylevel FROM buildinglist b LEFT JOIN buildingdeps d ON b.id = d.buildingid");
+$stmt->execute();
+$result = $stmt->get_result();
+$stmt->close();
 
 while ($row = $result->fetch_assoc()) {
-    $building = new Building($mysqli);
-    $building->setBuildingID($row["id"]);
-    $building->setBuildingKingdomID($kID);
-    $building->setBuildingName($row["buildingname"]);
-    $building->setBuildingScore($row["buildingscore"]);
-    $building->setBuildingWoodCost($row["woodcost"]);
-    $building->setBuildingFoodCost($row["foodcost"]);
-    $building->setBuildingStoneCost($row["stonecost"]);
-    $building->setBuildingGoldCost($row["goldcost"]);
-    $building->setBuildingMult($row["multiplicator"]);
-    $building->setBuildingTime($row["timetobuild"]);
-    $building->setBuildingRequiredLevel($row["requiredlevel"]);
-    $building->setBuildingLevel();
+    $buildingID = $row["id"];
 
-    $buildings[] = $building;
+    // Check if building object already exists
+    if (!isset($buildings[$buildingID])) {
+        $building = new Building($mysqli);
+        $building->setBuildingID($buildingID);
+        $building->setBuildingKingdomID($kID);
+        $building->setBuildingName($row["buildingname"]);
+        $building->setBuildingScore($row["buildingscore"]);
+        $building->setBuildingWoodCost($row["woodcost"]);
+        $building->setBuildingFoodCost($row["foodcost"]);
+        $building->setBuildingStoneCost($row["stonecost"]);
+        $building->setBuildingGoldCost($row["goldcost"]);
+        $building->setBuildingMult($row["multiplicator"]);
+        $building->setBuildingTime($row["timetobuild"]);
+        $building->setBuildingRequiredLevel($row["requiredlevel"]);
+        $building->setBuildingLevel();
+
+        $buildings[$buildingID] = $building;
+    }
+
+    // Check if theres a dependency and add it
+    if ($row["dependencyid"] !== null) {
+        $buildings[$buildingID]->addBuildingDependency($row["dependencyid"], $row["dependencylevel"]);
+    }
 }
-$result->close();
 
 $buildingcount = count($buildings);
 $bID = (empty($_GET["id"]) ? 0 : $_GET["id"]);
@@ -92,17 +105,15 @@ if (isset($_GET["action"])) {
                     if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
-                        $towncenterLevel = $buildings[0]->getBuildingLevel();
+                        /*$towncenterLevel = $buildings[0]->getBuildingLevel();
                         $requiredLevel = $buildings[$buildid]->getBuildingRequiredLevel();
+                        $buildingDependencies = $buildings[$buildid]->getBuildingDependencies();
 
-                        // Town center level is equal or higher than required level... build!
+                        // Dependency level is equal or higher than required level... build!
                         if ($towncenterLevel >= $requiredLevel) {
                             $buildingTime = time() + $buildings[$buildid]->getBuildingTime() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
 
-                            /*$kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() - $costWood);
-                            $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() - $costFood);
-                            $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() - $costStone);
-                            $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() - $costGold);*/
+                            // Subtract building costs from kingdom resources
                             $kingdom->giveKingdomWood($kID, -$costWood);
                             $kingdom->giveKingdomFood($kID, -$costFood);
                             $kingdom->giveKingdomStone($kID, -$costStone);
@@ -114,6 +125,30 @@ if (isset($_GET["action"])) {
                             $_SESSION["buildingID"] = $buildid;
                         } else {
                             $error = "Das benötigte Level ist höher als das Level vom Dorfzentrum!";
+                        }*/
+
+                        $buildingDependencies = $buildings[$buildid]->getBuildingDependencies();
+
+                        foreach ($buildingDependencies as $dependency) {
+                            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->getBuildingLevel()) {
+                                $error .= $buildings[$buildid]->getBuildingName() . " setzt " . $buildings[$dependency["dependencyid"]]->getBuildingName() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                            }
+                        }
+
+                        // Dependency check passed - build/upgrade building!
+                        if ($error == null) {
+                            $buildingTime = time() + $buildings[$buildid]->getBuildingTime() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
+
+                            // Subtract building costs from kingdom resources
+                            $kingdom->giveKingdomWood($kID, -$costWood);
+                            $kingdom->giveKingdomFood($kID, -$costFood);
+                            $kingdom->giveKingdomStone($kID, -$costStone);
+                            $kingdom->giveKingdomGold($kID, -$costGold);
+
+                            $mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
+                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->getUserID()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->getBuildingLevel()}', '{$buildings[$buildid]->getBuildingName()}');");
+
+                            $_SESSION["buildingID"] = $buildid;
                         }
                     }
                 }
@@ -123,10 +158,6 @@ if (isset($_GET["action"])) {
                 $mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND buildingid = '$buildid'");
 
                 // Refund the player
-                /*$kingdom->setKingdomWood($kID, $kingdom->getKingdomWood() + $costWood);
-                $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $costFood);
-                $kingdom->setKingdomStone($kID, $kingdom->getKingdomStone() + $costStone);
-                $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $costGold);*/
                 $kingdom->giveKingdomWood($kID, $costWood);
                 $kingdom->giveKingdomFood($kID, $costFood);
                 $kingdom->giveKingdomStone($kID, $costStone);
@@ -200,8 +231,6 @@ if (isset($_GET["action"])) {
                                 $stmt->close();
 
                                 // Refund player
-                                /*$kingdomFood = $kingdom->setKingdomFood($kID, $kingdom->getKingdomFood() + $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
-                                $kingdomGold = $kingdom->setKingdomGold($kID, $kingdom->getKingdomGold() + $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());*/
                                 $kingdom->giveKingdomFood($kID, $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
                                 $kingdom->giveKingdomGold($kID, $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());
 
@@ -492,13 +521,13 @@ include_once("layout/banner.html");
             </div>
             <div class="big-box-content">
                 <?php
-                // Hier Logik für die HTML View (basierend auf dem Gebäude)
+                // Here logic for the HTML view (based on the current building)
 
                 // Show error if there is any
                 if ($error != null) {
                     echo $error . "<br>";
 
-                    changeLocation("buildings.php?id=$lastid", 2);
+                    //changeLocation("buildings.php?id=$lastid", 2);
                 } else {
                     if ($bID == 0 || (isset($_GET["action"]) && ($_GET["action"] == "build" || $_GET["action"] == "cancel"))) {
                         // Dorfzentrum
@@ -508,9 +537,6 @@ include_once("layout/banner.html");
                         $kingdomFood = $kingdom->getKingdomFood();
                         $kingdomStone = $kingdom->getKingdomStone();
                         $kingdomGold = $kingdom->getKingdomGold();
-
-                        $towncenterlevel = $buildings[0]->getBuildingLevel();
-
                         $kingdomIsBuilding = $kingdom->isKingdomBuilding($kID);
 
                         if ($kingdomIsBuilding) {
@@ -526,10 +552,23 @@ include_once("layout/banner.html");
                             </tr>
                             <?php
                             for ($i = 0; $i < $buildingcount; $i++) {
-                                if ($towncenterlevel >= $buildings[$i]->getBuildingRequiredLevel()) {
-                                    $level = $buildings[$i]->getBuildingLevel();
+                                $showBuilding = true;
+                                $buildingDependencies = $buildings[$i]->getBuildingDependencies();
 
-                                    if ($level < MAX_BUILDING_LEVEL) {
+                                foreach ($buildingDependencies as $dependency) {
+                                    if (!$showBuilding) {
+                                        break;
+                                    }
+
+                                    if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->getBuildingLevel()) {
+                                        $showBuilding = false;
+                                    }
+                                }
+
+                                $level = $buildings[$i]->getBuildingLevel();
+
+                                if ($level < MAX_BUILDING_LEVEL) {
+                                    if ($showBuilding) {
                                         if (!is_numeric($level)) {
                                             $level = "0";
                                         }
@@ -586,14 +625,13 @@ include_once("layout/banner.html");
                                         }
 
                                         echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->getBuildingIcon() . "</td>
-                                            <td style='width: 40%;'><b>" . $buildings[$i]->getBuildingName() . " (" . $level . ")</b><br><br>
+                                            <td style='width: 40%;'><b>" . $buildings[$i]->getBuildingName() . " ($level)</b><br><br>
                                             <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> " . $textWood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "<br>
                                             <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> " . $textStone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "<br>
                                             <img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit'> " . convertSecToStr($buildings[$i]->getBuildingTime() * ($level == 0 ? 1 : $level + 1)) . "<br></td><td class='td-center' style='width: 40%;'>" . $textBuild . "</td></tr>";
                                     }
                                 }
                             }
-
                             ?>
                         </table>
                         <?php

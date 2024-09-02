@@ -14,6 +14,7 @@ class Building {
     private int $bwoodcost;
     private int $bstonecost;
     private int $bgoldcost;
+    private array $bdependencies = [];
 
     public function __construct($db_conn) {
         $this->mysqli = $db_conn;
@@ -135,6 +136,17 @@ class Building {
         $this->bgoldcost = $cost;
     }
 
+    public function addBuildingDependency($dependencyid, $dependencylevel): void {
+        $this->bdependencies[] = [
+            "dependencyid" => $dependencyid,
+            "dependencylevel" => $dependencylevel
+        ];
+    }
+
+    public function getBuildingDependencies(): array {
+        return $this->bdependencies;
+    }
+
     function calculateBuildingCost(): array {
         $mult = $this->bmult;
         $level = $this->blevel;
@@ -154,7 +166,7 @@ class Building {
 
     public function getBuildingIcon(): string {
         if (isset($this->bid)) {
-            return "<img src='images/icons/icon_building$this->bid.png' class='item-icons' alt='{$this->bname}'/>";
+            return "<img src='images/icons/icon_building$this->bid.png' class='item-icons' alt='$this->bname'/>";
         } else {
             return "ICON NOT FOUND";
         }
