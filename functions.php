@@ -13,11 +13,6 @@ if (session_status() == PHP_SESSION_NONE) {
 /*
     Constants (defines)
 */
-const HOST = "localhost";
-const USER = "newme";
-const PASSWORD = "q42i7aw8c3";
-const DATABASE = "newme";
-const PORT = "34156";
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 16;
 const MIN_PASSWORD_LENGTH = 5;
@@ -76,9 +71,11 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     AutoLoad classes
 */
 spl_autoload_register(function ($class_name) {
-    //$class = ;
     include("classes/" . strtolower($class_name) . ".php");
 });
+
+// Load .env file
+(new DotEnv(__DIR__ . "/.env"))->load();
 
 // Database instance for classes
 $db = Database::getInstance();

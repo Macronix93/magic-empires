@@ -3,11 +3,6 @@
 class Database {
     private $_connection;
     private static $_instance; //The single instance
-    private $_host = HOST;
-    private $_username = USER;
-    private $_password = PASSWORD;
-    private $_database = DATABASE;
-    private $_port = PORT;
 
     /*
     Get an instance of the Database
@@ -24,7 +19,7 @@ class Database {
     // Constructor
     private function __construct() {
         try {
-            $this->_connection = new mysqli($this->_host, $this->_username, $this->_password, $this->_database, $this->_port);
+            $this->_connection = new mysqli(getenv("HOST"), getenv("USER"), getenv("PASSWORD"), getenv("DATABASE"), getenv("PORT"));
         } catch (Exception $e) {
             trigger_error("Fehler bei der MYSQL-Verbindung: " . mysqli_connect_error() . $e, E_USER_ERROR);
         }
@@ -32,7 +27,6 @@ class Database {
 
     // Magic method clone is empty to prevent duplication of connection
     private function __clone() {
-
     }
 
     // Get mysqli connection
