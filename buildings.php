@@ -938,7 +938,6 @@ include_once("layout/banner.html");
             </div>
         </div>
     </div>
-
     <div class="right-container">
         <?php
         include_once("layout/right.php");

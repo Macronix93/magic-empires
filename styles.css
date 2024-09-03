@@ -14,7 +14,6 @@
 
 html {
     width: 100vw;
-    overflow-x: hidden;
 }
 
 body {
@@ -34,7 +33,7 @@ body {
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 550px);
-    overflow-x: hidden;
+    /*overflow-x: hidden;*/
     word-break: break-word;
     padding: 10px;
     text-align: start;
