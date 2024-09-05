@@ -15,39 +15,26 @@ $kingdom = new Kingdoms($db_instance);
 $kingdom->getKingdomRessources($_SESSION["kingdomid"]);
 $kID = $_SESSION["kingdomid"];
 
-$mysqli = $db_instance;
-
 // Fetch all buildings and their dependencies
 $buildings = [];
+$query = "
+            SELECT b.*, d.dependencyid, d.dependencylevel, bl.buildinglevel 
+            FROM buildinglist b 
+            LEFT JOIN buildingdeps d ON b.id = d.buildingid 
+            LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
+";
+$result = $db_instance->execute_query($query, [$_SESSION["kingdomid"]]);
 
-$stmt = $mysqli->prepare("SELECT b.*, d.dependencyid, d.dependencylevel FROM buildinglist b LEFT JOIN buildingdeps d ON b.id = d.buildingid");
-$stmt->execute();
-$result = $stmt->get_result();
-$stmt->close();
-
-while ($row = $result->fetch_assoc()) {
+foreach ($result as $row) {
     $buildingID = $row["id"];
 
     // Check if building object already exists
     if (!isset($buildings[$buildingID])) {
-        $building = new Building($mysqli);
-        $building->setBuildingID($buildingID);
-        $building->setBuildingKingdomID($kID);
-        $building->setBuildingName($row["buildingname"]);
-        $building->setBuildingScore($row["buildingscore"]);
-        $building->setBuildingWoodCost($row["woodcost"]);
-        $building->setBuildingFoodCost($row["foodcost"]);
-        $building->setBuildingStoneCost($row["stonecost"]);
-        $building->setBuildingGoldCost($row["goldcost"]);
-        $building->setBuildingMult($row["multiplicator"]);
-        $building->setBuildingTime($row["timetobuild"]);
-        $building->setBuildingRequiredLevel($row["requiredlevel"]);
-        $building->setBuildingLevel();
-
-        $buildings[$buildingID] = $building;
+        $building = new Building($db_instance);
+        $buildings = $building->createBuilding($building, $row, $buildings, $buildingID);
     }
 
-    // Check if theres a dependency and add it
+    // Check if there's a dependency and add it
     if ($row["dependencyid"] !== null) {
         $buildings[$buildingID]->addBuildingDependency($row["dependencyid"], $row["dependencylevel"]);
     }
@@ -105,28 +92,6 @@ if (isset($_GET["action"])) {
                     if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
-                        /*$towncenterLevel = $buildings[0]->getBuildingLevel();
-                        $requiredLevel = $buildings[$buildid]->getBuildingRequiredLevel();
-                        $buildingDependencies = $buildings[$buildid]->getBuildingDependencies();
-
-                        // Dependency level is equal or higher than required level... build!
-                        if ($towncenterLevel >= $requiredLevel) {
-                            $buildingTime = time() + $buildings[$buildid]->getBuildingTime() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
-
-                            // Subtract building costs from kingdom resources
-                            $kingdom->giveKingdomWood($kID, -$costWood);
-                            $kingdom->giveKingdomFood($kID, -$costFood);
-                            $kingdom->giveKingdomStone($kID, -$costStone);
-                            $kingdom->giveKingdomGold($kID, -$costGold);
-
-                            $mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
-                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->getUserID()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->getBuildingLevel()}', '{$buildings[$buildid]->getBuildingName()}');");
-
-                            $_SESSION["buildingID"] = $buildid;
-                        } else {
-                            $error = "Das benötigte Level ist höher als das Level vom Dorfzentrum!";
-                        }*/
-
                         $buildingDependencies = $buildings[$buildid]->getBuildingDependencies();
 
                         foreach ($buildingDependencies as $dependency) {
@@ -145,7 +110,7 @@ if (isset($_GET["action"])) {
                             $kingdom->giveKingdomStone($kID, -$costStone);
                             $kingdom->giveKingdomGold($kID, -$costGold);
 
-                            $mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
+                            $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
                                                     VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->getUserID()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->getBuildingLevel()}', '{$buildings[$buildid]->getBuildingName()}');");
 
                             $_SESSION["buildingID"] = $buildid;
@@ -155,7 +120,7 @@ if (isset($_GET["action"])) {
             }
         } else if ($_GET["action"] == "cancel") { // The action that was set is "cancel building"
             if ($kingdomIsBuilding) {
-                $mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND buildingid = '$buildid'");
+                $db_instance->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND buildingid = '$buildid'");
 
                 // Refund the player
                 $kingdom->giveKingdomWood($kID, $costWood);
@@ -181,9 +146,9 @@ if (isset($_GET["action"])) {
                     break;
                 case 2:
                     // Kaserne
-                    $result = $mysqli->query("SELECT * FROM soldierlist");
+                    $result = $db_instance->execute_query("SELECT * FROM soldierlist");
 
-                    while ($row = $result->fetch_assoc()) {
+                    foreach ($result as $row) {
                         $soldier = new Soldier();
                         $soldier->setSoldierID($row["id"]);
                         $soldier->setSoldierName($row["soldiername"]);
@@ -199,7 +164,7 @@ if (isset($_GET["action"])) {
 
                         $soldiers[] = $soldier;
                     }
-                    $result->close();
+
                     $soldiercount = count($soldiers);
 
                     $kingdomFood = $kingdom->getKingdomFood();
@@ -221,21 +186,16 @@ if (isset($_GET["action"])) {
                         if ($_GET["count"] == "cancel") {
                             if ($kingdomIsRecruiting) {
                                 // Calculate remaining soldiers to be recruited and resulting refunds
-                                $stmt = $mysqli->prepare("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?");
-                                $action = ACTION_BUILD_TROOPS;
-                                $soldiergoal = 0;
-                                $stmt->bind_param('iii', $kID, $action, $sID);
-                                $stmt->execute();
-                                $stmt->bind_result($soldiergoal);
-                                $stmt->fetch();
-                                $stmt->close();
+                                $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$kID, ACTION_BUILD_TROOPS, $sID]);
+                                $row = $result->fetch_assoc();
+                                $soldiergoal = $row['soldiergoal'];
 
                                 // Refund player
                                 $kingdom->giveKingdomFood($kID, $soldiergoal * $soldiers[$sID]->getSoldierFoodCost());
                                 $kingdom->giveKingdomGold($kID, $soldiergoal * $soldiers[$sID]->getSoldierGoldCost());
 
                                 // Delete the job
-                                $mysqli->query("DELETE FROM events WHERE userid = '{$user->getUserID()}' AND soldierid = '$sID' AND kingdomid = '$kID'");
+                                $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?", [$user->getUserID(), $sID, $kID]);
                             } else {
                                 $error = "Du rekrutierst gerade nicht!";
                             }
@@ -263,9 +223,9 @@ if (isset($_GET["action"])) {
                                     $currenttime = time();
                                     $recruitingtime = $currenttime + $soldiers[$sID]->getSoldierTime() * $_GET["count"];
 
-                                    // TODO: Maybe prepare this query?!
-                                    $mysqli->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
-                                                VALUES('" . ACTION_BUILD_TROOPS . "', '{$user->getUserID()}', '$kID', '0', '0', '0', '-', '$sID', '" . $recruitingtime . "', " . $_GET["count"] . ");");
+                                    $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
+                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                    $db_instance->execute_query($query, [ACTION_BUILD_TROOPS, $user->getUserID(), $kID, '0', '0', '0', '-', $sID, $recruitingtime, $_GET["count"]]);
 
                                     // Subtract values for food and gold
                                     $kingdom->giveKingdomFood($kID, -$costFood);
@@ -298,20 +258,16 @@ if (isset($_GET["action"])) {
                     break;
                 case 10:
                     // Marktplatz
-                    $stmt = $mysqli->prepare("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?");
-                    $stmt->bind_param('ii', $_GET["delete"], $kID);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $row = $result->fetch_assoc();
-                    $stmt->close();
-
                     if (isset($_GET["accept"])) {
-                        $stmt = $mysqli->prepare("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?");
+                        $result = $db_instance->execute_query("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
+                        $row = $result->fetch_assoc();
+
+                        /*$stmt = $db_instance->prepare("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?");
                         $stmt->bind_param('i', $_GET["accept"]);
                         $stmt->execute();
                         $result = $stmt->get_result();
                         $row = $result->fetch_assoc();
-                        $stmt->close();
+                        $stmt->close();*/
 
                         if ($row && $kID != $row["kingdomid"]) {
                             $supply = $row["supply"];
@@ -376,29 +332,25 @@ if (isset($_GET["action"])) {
                                 }
 
                                 // Delete the marketplace offer
-                                $mysqli->query("DELETE FROM marketplace WHERE offerid = '{$_GET["accept"]}'");
+                                $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
 
                                 // Send a message to the other kingdom that the offer has been accepted
-                                $time = time();
+                                /*$time = time();
                                 $notread = 0;
                                 $sender = "Server";
                                 $message = "Dein Marktplatz-Angebot (" . $supplyvalue . " " . $supplyressource . " gegen " . $demandvalue . " " . $demandressource . ")<br>wurde von " . $user->getUserName() . " angenommen!";
 
-                                $stmt = $mysqli->prepare("INSERT INTO messages (sender, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?)");
+                                $stmt = $db_instance->prepare("INSERT INTO messages (sender, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?)");
                                 $stmt->bind_param("ssiiss", $sender, $row["username"], $time, $notread, $message);
                                 $stmt->execute();
-                                $stmt->close();
+                                $stmt->close();*/
                             }
                         } else {
                             $error = "Dieses Angebot existiert nicht oder ist von deinem Königreich!";
                         }
                     } else if (isset($_GET["delete"])) {
-                        $stmt = $mysqli->prepare("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?");
-                        $stmt->bind_param('ii', $_GET["delete"], $kID);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
+                        $result = $db_instance->execute_query("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?", [$_GET["delete"], $kID]);
                         $row = $result->fetch_assoc();
-                        $stmt->close();
 
                         if ($row) {
                             $supply = $row["supply"];
@@ -421,7 +373,7 @@ if (isset($_GET["action"])) {
                             }
 
                             // Delete the marketplace offer
-                            $mysqli->query("DELETE FROM marketplace WHERE offerid = '{$_GET["delete"]}'");
+                            $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["delete"]]);
                         } else {
                             $error = "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
                         }
@@ -445,19 +397,16 @@ if (isset($_GET["action"])) {
                                     $error = "Soviel Gold kannst du nicht bieten!";
                                 } else {
                                     // Check if there is already an offer for this kingdom
-                                    $stmtkingdom = $mysqli->prepare("SELECT offerid FROM marketplace WHERE kingdomid = ?");
-                                    $stmtkingdom->bind_param('i', $kID);
-                                    $stmtkingdom->execute();
-                                    $stmtkingdom->bind_result($offerid);
-                                    $stmtkingdom->fetch();
-                                    $stmtkingdom->close();
+                                    $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$kID]);
+                                    $row = $result->fetch_assoc();
+                                    $offerid = $row['offerid'] ?? 0;
 
                                     if ($offerid != 0) {
                                         $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
                                     } else {
                                         // No offer found for the kingdom - insert to database
-                                        $mysqli->query("INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue) 
-                                                                                VALUES('{$user->getUserID()}', '{$user->getUserName()}', '$kID', '{$_GET["s"]}', '{$_GET["sv"]}', '{$_GET["d"]}', '{$_GET["dv"]}');");
+                                        $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue) VALUES(?, ?, ?, ?, ?, ?, ?);";
+                                        $result = $db_instance->execute_query($query, [$user->getUserID(), $user->getUserName(), $kID, $_GET["s"], $_GET["sv"], $_GET["d"], $_GET["dv"]]);
 
                                         switch ($_GET["s"]) {
                                             case 0:
@@ -587,13 +536,9 @@ include_once("layout/banner.html");
 
                                         if ($kingdomIsBuilding) {
                                             if ($kingdomBuildingID == $i) {
-                                                $stmt = $mysqli->prepare("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?");
-                                                $action = ACTION_BUILD_BUILDING;
-                                                $stmt->bind_param('iii', $kID, $i, $action);
-                                                $stmt->execute();
-                                                $stmt->bind_result($buildTime);
-                                                $stmt->fetch();
-                                                $stmt->close();
+                                                $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?", [$kID, $i, ACTION_BUILD_BUILDING]);
+                                                $row = $result->fetch_assoc();
+                                                $buildTime = $row["buildingtime"];
 
                                                 $differenceTime = $buildTime - time();
 
@@ -658,17 +603,13 @@ include_once("layout/banner.html");
                                         }
 
                                         // Get soldiers of kingdom
-                                        $stmt = $mysqli->prepare("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?");
-                                        $stmt->bind_param("i", $kID);
-                                        $stmt->execute();
-                                        $soldierid = -1;
-                                        $solcount = 0;
-                                        $stmt->bind_result($soldierid, $solcount);
-                                        $kingdomSoldiers = array();
-                                        while ($stmt->fetch()) {
+                                        $result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$kID]);
+
+                                        foreach ($result as $row) {
+                                            $soldierid = $row['soldierid'] ?? -1;
+                                            $solcount = $row['soldiercount'] ?? 0;
                                             $kingdomSoldiers[$soldierid] = $solcount;
                                         }
-                                        $stmt->close();
 
                                         for ($i = 0; $i < $soldiercount; $i++) {
                                             $costFood = $soldiers[$i]->getSoldierFoodCost();
@@ -681,7 +622,7 @@ include_once("layout/banner.html");
 
                                             if ($kingdomIsRecruiting) {
                                                 if ($kingdomRecruitingID == $i) {
-                                                    $stmt = $mysqli->prepare("SELECT recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?");
+                                                    $stmt = $db_instance->prepare("SELECT recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?");
                                                     $action = ACTION_BUILD_TROOPS;
                                                     $recruittime = 0;
                                                     $soldiergoal = 0;
@@ -890,25 +831,24 @@ include_once("layout/banner.html");
                                                 <b>Aktion</b></td>
                                         </tr>
                                         <?php
-                                        $stmt = $mysqli->prepare("SELECT * FROM marketplace");
-                                        $stmt->execute();
-                                        $result = $stmt->get_result();
-
                                         $ressourceicon = array();
                                         $ressourceicon[0] = "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'>";
                                         $ressourceicon[1] = "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'>";
                                         $ressourceicon[2] = "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'>";
                                         $ressourceicon[3] = "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'>";
 
-                                        echo "<p>Aktuelle Angebote</p><br>";
+                                        echo "<p>Aktuelle Angebote</p>";
 
-                                        while ($row = $result->fetch_assoc()) {
-                                            $stmtkingdom = $mysqli->prepare("SELECT kingdomname FROM kingdoms WHERE id = ?");
-                                            $stmtkingdom->bind_param('i', $row["kingdomid"]);
-                                            $stmtkingdom->execute();
-                                            $stmtkingdom->bind_result($kingdomname);
-                                            $stmtkingdom->fetch();
-                                            $stmtkingdom->close();
+                                        $query = "
+                                                    SELECT m.*, k.kingdomname 
+                                                    FROM marketplace m 
+                                                    LEFT JOIN kingdoms k 
+                                                    ON m.kingdomid = k.id
+                                        ";
+                                        $result = $db_instance->execute_query($query);
+
+                                        foreach ($result as $row) {
+                                            $kingdomname = $row['kingdomname'];
 
                                             $action = ($row["kingdomid"] == $kID) ? "Löschen" : "Annehmen";
                                             $param = ($row["kingdomid"] == $kID) ? "delete" : "accept";
@@ -925,7 +865,6 @@ include_once("layout/banner.html");
                                                             <td class='td-center'>{$ressourceicon[$row["demand"]]} " . fnum($row["demandvalue"]) . "</td>
                                                             <td class='td-center'>$textbuild</td>";
                                         }
-                                        $stmt->close();
                                         ?>
                                     </table>
                                     <?php

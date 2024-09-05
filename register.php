@@ -48,15 +48,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $name = makeSecure($_POST["username"]);
 
-        $stmt = $db_instance->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
-        $stmt->store_result();
-
         // Check if user exists
-        if ($stmt->num_rows == 1) {
-            $stmt->free_result();
-            $stmt->close();
+        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
+
+        if ($result->num_rows == 1) {
             $db_instance->close();
 
             $nameErr = "Dieser Nickname existiert bereits!";
@@ -83,7 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // We check if the user name already exist
+    // We check if the username already exist
     if ($nameErr == NULL && $passErr == NULL && $emailErr == NULL && $captchaErr == NULL) {
         $_POST["username"] = "";
         $_POST["email"] = "";

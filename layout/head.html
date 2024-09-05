@@ -210,11 +210,16 @@
                 startX = Math.max(1, Math.min(parseInt(startX) - 5, 91));
                 startY = Math.max(1, Math.min(parseInt(startY) - 5, 91));
 
+                //clearFieldHighlighting();
                 updateMap(startX, startY, inputX, inputY);
             }
         }
 
         function updateMap(newStartX, newStartY, inputX, inputY) {
+            // Remember the field info and the cell that was highlighted before updating the map
+            let fieldInfoContent = document.getElementById("field-info").innerHTML;
+            let highlightedCell = document.querySelector('td.highlight');
+
             // Make an AJAX request to update the map
             let xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange = function () {
@@ -225,23 +230,33 @@
                         document.getElementById('startx').value = inputX;
                         document.getElementById('starty').value = inputY;
 
-                        highlightEnteredCoordinates(inputX, inputY);
+                        let cell = document.querySelector(`td[data-x="${inputX}"][data-y="${inputY}"]`);
+
+                        if (cell) {
+                            let fieldID = cell.getAttribute('data-fieldid');
+                            highlightField(cell, parseInt(fieldID), inputX, inputY);
+                        }
+                    } else {
+                        let fieldID = highlightedCell.getAttribute('data-fieldid');
+                        let x = highlightedCell.getAttribute('data-x');
+                        let y = highlightedCell.getAttribute('data-y');
+                        highlightField(highlightedCell, parseInt(fieldID), parseInt(x), parseInt(y));
                     }
+
+                    // Restore the field-info content
+                    document.getElementById("field-info").innerHTML = fieldInfoContent;
                 }
             };
             xhttp.open("GET", "map_update.php?startx=" + newStartX + "&starty=" + newStartY, true);
             xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
             xhttp.send();
-
-            document.getElementById("field-info").innerHTML = "";
-            return undefined;
         }
 
         function highlightField(field, clickedfield = -1, x = -1, y = -1) {
             // If the clicked td is already highlighted, stop executing the rest
-            if (field.classList.contains("highlight")) {
+            /*if (field.classList.contains("highlight")) {
                 return;
-            }
+            }*/
 
             // Remove every other td's highlighting
             clearFieldHighlighting();

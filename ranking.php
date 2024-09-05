@@ -36,22 +36,21 @@ include_once("layout/banner.html");
                 $currentpage = isset($_GET["currentpage"]) ? max(1, $_GET["currentpage"]) : 1;
 
                 // Get the total number of rows
-                $stmt = $mysqli->prepare("SELECT COUNT(*) FROM users");
-                $stmt->execute();
-                $stmt->bind_result($numrows);
-                $stmt->fetch();
-                $stmt->close();
-
+                $result = $db_instance->execute_query("SELECT COUNT(*) FROM users");
+                $row = $result->fetch_row();
+                $numrows = $row[0];
                 $totalpages = ceil($numrows / $rowsperpage);
 
                 // Calculate the offset
                 $offset = ($currentpage - 1) * $rowsperpage;
 
                 // Get the data for the current page
-                $stmt = $mysqli->prepare("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?");
+                $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rowsperpage]);
+
+                /*$stmt = $mysqli->prepare("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?");
                 $stmt->bind_param('ii', $offset, $rowsperpage);
                 $stmt->execute();
-                $result = $stmt->get_result();
+                $result = $stmt->get_result();*/
                 ?>
 
                 <table class="table">
@@ -70,7 +69,7 @@ include_once("layout/banner.html");
                     <?php
                     $position = ($currentpage - 1) * $rowsperpage + 1;
 
-                    while ($row = $result->fetch_assoc()) {
+                    foreach ($result as $row) {
                         $icon = "";
                         $change = "";
                         $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $row["lastactivity"] > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
@@ -102,7 +101,6 @@ include_once("layout/banner.html");
 
                         $position++;
                     }
-                    $stmt->close();
                     ?>
                 </table>
 

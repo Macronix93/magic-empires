@@ -36,12 +36,14 @@ include_once("layout/banner.html");
                 }
 
                 // Get some user data to show...
-                $stmt = $db_instance->prepare("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?");
-                $stmt->bind_param('i', $_SESSION["userid"]);
-                $stmt->execute();
-                $stmt->bind_result($ip, $email, $score, $guildid, $registerdate, $mainkingdom);
-                $stmt->fetch();
-                $stmt->close();
+                $result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
+                $row = $result->fetch_assoc();
+                $ip = $row["ip"];
+                $email = $row["email"];
+                $score = $row["score"];
+                $guildid = $row["guildid"];
+                $registerdate = $row["registerdate"];
+                $mainkingdom = $row["mainkingdom"];
                 ?>
 
                 <img src='images/icon_right_slow.png' class="popup" id="test1" alt="" style="width:24px;"/>

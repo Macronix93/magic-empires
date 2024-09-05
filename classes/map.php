@@ -137,6 +137,7 @@ class Map {
         $xend = $startx + 9;
         $ystart = $starty;
         $yend = $starty + 9;
+
         $stmt = $this->mysqli->prepare("SELECT * FROM map WHERE mapx BETWEEN ? AND ? AND mapy BETWEEN ? AND ?");
         $stmt->bind_param('iiii', $xstart, $xend, $ystart, $yend);
         $stmt->execute();
@@ -165,9 +166,9 @@ class Map {
                     if ($row2["kingdomid"] != -1) {
                         $mycoords[$row2["mapx"]][$row2["mapy"]] = $row2["kingdomid"];
 
-                        $fieldImage = "<div class='cell-container'><a href='javascript:void(0);'>
+                        $fieldImage = "<div class='cell-container'>
                                             <img src='" . $this->getKingdomIconByLevel($row2["kingdomid"]) . "' class='kingdom-img' alt=''>
-                                        </a></div>";
+                                        </div>";
                     } else {
                         $mycoords[$row2["mapx"]][$row2["mapy"]] = -1;
                     }
@@ -181,10 +182,19 @@ class Map {
 
                     for ($j = $startx; $j <= $startx + 9; $j++) {
                         if ($mycoords[$j][$i] == $_SESSION["kingdomid"]) {
-                            echo "<td data-x='$j' data-y='$i' class='highlight' style='background-color: " . $fieldcolor[$j][$i] . "' 
+                            echo "<td data-fieldid='" . $mycoords[$j][$i] . "' data-x='$j' data-y='$i' class='highlight' style='background-color: " . $fieldcolor[$j][$i] . "' 
                                 onclick='highlightField(this, parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
+                            echo "<script type='text/javascript'>
+                                        let cell = document.querySelector(`td[data-x=\"$j\"][data-y=\"$i\"]`);
+                                        if (cell) {
+                                            let fieldID = cell.getAttribute('data-fieldid');
+                                            j = $j;
+                                            i = $i;
+                                            highlightField(cell, parseInt(fieldID), j, i);
+                                        }
+                                    </script>";
                         } else {
-                            echo "<td data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' 
+                            echo "<td data-fieldid='" . $mycoords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' 
                                 onclick='highlightField(this, parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
                         }
 

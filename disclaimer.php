@@ -26,9 +26,8 @@ include_once("layout/banner.html");
 
     <div class="middle-container">
         <div class="big-box-container">
-            <div class="big-box-header"><p>Impressum</p></div>
+            <div class="big-box-header"><p>Credits</p></div>
             <div class="big-box-content">
-                Credits:<br><br>
                 Icons © by <a href="https://www.flaticon.com/">Flaticon</a> and many artists<br>
                 Banner & Background Image © by <a href="https://github.com/Naseband">Naseband</a>
             </div>

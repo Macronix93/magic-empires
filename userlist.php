@@ -7,6 +7,9 @@ if (!($user->isLoggedIn())) {
     changeLocation("login.php");
     exit;
 }
+
+// Get the complete userlist
+$result = $db_instance->execute_query("SELECT username FROM users WHERE username != ? ORDER BY username", [$user->getUserName()]);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -14,14 +17,6 @@ if (!($user->isLoggedIn())) {
 include_once("layout/head.html");
 ?>
 <body>
-<?php
-include_once("layout/banner.html");
-
-$stmt = $db_instance->prepare("SELECT username FROM users ORDER BY username");
-$stmt->execute();
-$result = $stmt->get_result();
-$stmt->close();
-?>
 <script type="text/javascript">
     function selectUser(id) {
         opener.newmessage.receiver.value = id;
@@ -32,10 +27,7 @@ $stmt->close();
         <td class="td-center td-gradient"><b>Benutzerliste</b></td>
     </tr>
     <?php
-    while ($row = $result->fetch_assoc()) {
-        if ($row["username"] == $user->getUserName()) {
-            continue;
-        }
+    foreach ($result as $row) {
         echo "<tr><td><a href='javascript:selectUser(\"" . $row["username"] . "\")'>" . $row["username"] . "</a></td></tr>";
     }
     ?>

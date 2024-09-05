@@ -5,11 +5,10 @@ class Building {
     private int $bid; // ID of the building
     private int $kid; // ID of the kingdom that the building is connected to
     private int $blevel; // Current level of the building for the kingdom
-    private int $breqlevel; // Required (towncenter) level for building
     private int $btime; // Time to build
     private float $bmult; // Multiplier for cost?
     private string $bname; // Name of the building
-    private int $bscore; // The score that is gained when building was built
+    private int $bscore; // The score that is gained when building was built/upgraded
     private int $bfoodcost;
     private int $bwoodcost;
     private int $bstonecost;
@@ -34,14 +33,6 @@ class Building {
 
     public function setBuildingID($id): void {
         $this->bid = $id;
-    }
-
-    public function getBuildingRequiredLevel(): int {
-        return $this->breqlevel;
-    }
-
-    public function setBuildingRequiredLevel($reqlevel): void {
-        $this->breqlevel = $reqlevel;
     }
 
     public function getBuildingTime(): int {
@@ -80,14 +71,7 @@ class Building {
         return $this->blevel;
     }
 
-    public function setBuildingLevel(): void {
-        $level = 0;
-        $stmt = $this->mysqli->prepare("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?");
-        $stmt->bind_param('ii', $this->kid, $this->bid);
-        $stmt->execute();
-        $stmt->bind_result($level);
-        $stmt->fetch();
-        $stmt->close();
+    public function setBuildingLevel($level): void {
         $this->blevel = $level;
     }
 
@@ -177,17 +161,30 @@ class Building {
     }
 
     public function isBuilt(): bool {
-        $stmt = $this->mysqli->prepare("SELECT * FROM buildings WHERE kingdomid = ? AND buildingid = ?");
-        $stmt->bind_param("ii", $this->kid, $this->bid);
-        $stmt->execute();
-        $stmt->store_result();
+        $query = "SELECT * FROM buildings WHERE kingdomid = ? AND buildingid = ?";
+        $result = $this->mysqli->execute_query($query, [$this->kid, $this->bid]);
 
-        if ($stmt->num_rows > 0) {
-            $stmt->close();
+        if ($result->num_rows > 0) {
             return true;
         } else {
-            $stmt->close();
             return false;
         }
+    }
+
+    public function createBuilding(Building $building, array $row, array $buildings, mixed $buildingID): array {
+        $building->setBuildingID($buildingID);
+        $building->setBuildingKingdomID($_SESSION["kingdomid"]);
+        $building->setBuildingName($row["buildingname"]);
+        $building->setBuildingScore($row["buildingscore"]);
+        $building->setBuildingWoodCost($row["woodcost"]);
+        $building->setBuildingFoodCost($row["foodcost"]);
+        $building->setBuildingStoneCost($row["stonecost"]);
+        $building->setBuildingGoldCost($row["goldcost"]);
+        $building->setBuildingMult($row["multiplicator"]);
+        $building->setBuildingTime($row["timetobuild"]);
+        $building->setBuildingLevel($row["buildinglevel"] ?? 0);
+
+        $buildings[$buildingID] = $building;
+        return $buildings;
     }
 }

@@ -13,13 +13,9 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     if ($_SESSION["msgreceiver"] != $chatPartner) {
         echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
     } else {
-        $stmt = $db_instance->prepare("SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)");
-        $stmt->bind_param("iiii", $chatPartner, $_SESSION["userid"], $_SESSION["userid"], $chatPartner);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $result = $db_instance->execute_query("SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)", [$chatPartner, $_SESSION["userid"], $_SESSION["userid"], $chatPartner]);
 
-        while ($row = $result->fetch_assoc()) {
-            // The other side has written
+        foreach ($result as $row) {
             if ($row["senderid"] == $chatPartner) {
                 if ($row["hasread"] === 0) {
                     $hasNewMessages = true;
@@ -31,9 +27,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             }
 
             if ($row["hasread"] == 0 && $row["receiverid"] == $_SESSION["userid"]) {
-                $stmt = $db_instance->prepare("UPDATE messages SET hasread = 1 WHERE id = ?");
-                $stmt->bind_param("i", $row["id"]);
-                $stmt->execute();
+                $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
             }
         }
     }

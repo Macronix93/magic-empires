@@ -19,25 +19,19 @@ include_once("layout/banner.html");
 ?>
 <?php
 if (isset($_GET["userid"])) {
-    $stmt = $db_instance->prepare("
-        SELECT users.*, kingdoms.mapx, kingdoms.mapy
-        FROM users
-        INNER JOIN kingdoms ON users.mainkingdom = kingdoms.id
-        WHERE users.id = ?
-    ");
-    $stmt->bind_param('i', $_GET["userid"]);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $query = "
+            SELECT users.*, kingdoms.mapx, kingdoms.mapy
+            FROM users
+            INNER JOIN kingdoms ON users.mainkingdom = kingdoms.id
+            WHERE users.id = ?
+    ";
+    $result = $db_instance->execute_query($query, [$_GET["userid"]]);
     $row = $result->fetch_assoc();
-    $stmt->close();
 
     // Get sorted list of players and calculate the rank
-    $stmt = $db_instance->prepare("SELECT * FROM users ORDER BY score DESC");
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC");
     $sortedusers = $result->fetch_all(MYSQLI_ASSOC);
     $userrank = array_search($_GET["userid"], array_column($sortedusers, "id")) + 1;
-    $stmt->close();
 
     if (!$row) {
         echo "<div style='text-align: center;'>

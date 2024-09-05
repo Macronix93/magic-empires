@@ -10,35 +10,25 @@ if (!($user->isLoggedIn())) {
 
 // Fetch all buildings and their dependencies
 $buildings = [];
+$query = "
+            SELECT b.*, d.dependencyid, d.dependencylevel, bl.buildinglevel 
+            FROM buildinglist b 
+            LEFT JOIN buildingdeps d ON b.id = d.buildingid 
+            LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
+";
+$result = $db_instance->execute_query($query, [$_SESSION["kingdomid"]]);
 
-$stmt = $db_instance->prepare("SELECT b.*, d.dependencyid, d.dependencylevel FROM buildinglist b LEFT JOIN buildingdeps d ON b.id = d.buildingid");
-$stmt->execute();
-$result = $stmt->get_result();
-$stmt->close();
-
-while ($row = $result->fetch_assoc()) {
+foreach ($result as $row) {
     $buildingID = $row["id"];
 
     // Check if building object already exists
     if (!isset($buildings[$buildingID])) {
         $building = new Building($db_instance);
-        $building->setBuildingID($buildingID);
-        $building->setBuildingKingdomID($_SESSION["kingdomid"]);
-        $building->setBuildingName($row["buildingname"]);
-        $building->setBuildingScore($row["buildingscore"]);
-        $building->setBuildingWoodCost($row["woodcost"]);
-        $building->setBuildingFoodCost($row["foodcost"]);
-        $building->setBuildingStoneCost($row["stonecost"]);
-        $building->setBuildingGoldCost($row["goldcost"]);
-        $building->setBuildingMult($row["multiplicator"]);
-        $building->setBuildingTime($row["timetobuild"]);
-        $building->setBuildingRequiredLevel($row["requiredlevel"]);
-        $building->setBuildingLevel();
+        $buildings = $building->createBuilding($building, $row, $buildings, $buildingID);
 
-        $buildings[$buildingID] = $building;
     }
 
-    // Check if theres a dependency and add it
+    // Check if there's a dependency and add it
     if ($row["dependencyid"] !== null) {
         $buildings[$buildingID]->addBuildingDependency($row["dependencyid"], $row["dependencylevel"]);
     }

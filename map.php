@@ -45,12 +45,10 @@ include_once("layout/banner.html");
                     if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->starty = 1;
                 } else {
                     // Get the coords of the current kingdom
-                    $stmt = $db_instance->prepare("SELECT mapx, mapy FROM kingdoms WHERE id = ?");
-                    $stmt->bind_param('i', $_SESSION["kingdomid"]);
-                    $stmt->execute();
-                    $stmt->bind_result($x, $y);
-                    $stmt->fetch();
-                    $stmt->close();
+                    $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
+                    $row = $result->fetch_assoc();
+                    $x = $row["mapx"];
+                    $y = $row["mapy"];
 
                     // Calculate start coordinates
                     $map->startx = max(1, min($x - 5, 91));

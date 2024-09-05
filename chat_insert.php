@@ -20,12 +20,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $error = getError($message, $receiverid);
 
     // Check if receiver exists
-    $stmt = $db_instance->prepare("SELECT COUNT(*) AS userexists FROM users WHERE id = ?");
-    $stmt->bind_param("i", $receiverid);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $result = $db_instance->execute_query("SELECT COUNT(*) AS userexists FROM users WHERE id = ?", [$receiverid]);
     $row = $result->fetch_assoc();
-    $stmt->close();
 
     if (!$row["userexists"]) {
         $error = "Dieser Benutzer existiert nicht!";
@@ -33,42 +29,29 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     if ($error == null) {
         // Check for rate limit
-        $stmt = $db_instance->prepare("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?");
-        $stmt->bind_param("ii", $_SESSION["userid"], $ratelimit);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$_SESSION["userid"], $ratelimit]);
         $row = $result->fetch_assoc();
         $messagecount = $row["messagecount"];
 
-        if ($stmt) {
-            $stmt->close();
+        if ($messagecount >= MAX_MESSAGES_PER_RATELIMIT) {
+            $remainingTimeInSeconds = MESSAGES_RATE_LIMIT - ($time - $_SESSION["lastsentmsg"]);
+            $response["error"] = "Du schickst zuviele Nachrichten! Warte bitte.";
+        } else {
+            // Update last sent message time
+            $_SESSION["lastsentmsg"] = $time;
 
-            if ($messagecount >= MAX_MESSAGES_PER_RATELIMIT) {
-                $remainingTimeInSeconds = MESSAGES_RATE_LIMIT - ($time - $_SESSION["lastsentmsg"]);
-                $response["error"] = "Du schickst zuviele Nachrichten! Warte bitte.";
-            } else {
-                $notread = 0;
+            // Get receiverid based on receiver name
+            $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiverid]);
+            $row = $result->fetch_assoc();
+            $receiver = $row["username"];
 
-                // Update last sent message time
-                $_SESSION["lastsentmsg"] = $time;
+            // Insert message into database
+            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiverid, $receiver, $time, 0, $message]);
 
-                // Get receiverid based on receiver name
-                $stmt = $db_instance->prepare("SELECT username FROM users WHERE id = ?");
-                $stmt->bind_param("s", $receiverid);
-                $stmt->execute();
-                $stmt->bind_result($receiver);
-                $stmt->fetch();
-                $stmt->close();
-
-                // Insert message into database
-                $stmt = $db_instance->prepare("INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("isisiis", $_SESSION["userid"], $_SESSION["username"], $receiverid, $receiver, $time, $notread, $message);
-                $stmt->execute();
-                $stmt->close();
-
-                // Return the new message bubble HTML
-                $response["html"] = "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $message . "</div>";
-            }
+            // Return the new message bubble HTML
+            $response["html"] = "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
+                                    <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $message . "</div>";
         }
     } else {
         $response["error"] = $error;
