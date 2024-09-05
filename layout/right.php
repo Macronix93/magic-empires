@@ -12,28 +12,27 @@ global $user, $db_instance;
         }
 
         // Get all kingdoms of a player for him to change anytime
-        $mysqli = $db_instance;
         $userid = $user->getUserID();
 
-        $stmt = $mysqli->prepare("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?");
-        $stmt->bind_param('i', $userid);
-        $stmt->execute();
-        $stmt->bind_result($kingdomid, $kingdomname, $x, $y);
+        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$userid]);
+        $row = $result->fetch_assoc();
+        $kingdomid = $row["id"];
+        $kingdomname = $row["kingdomname"];
+        $x = $row["mapx"];
+        $y = $row["mapy"];
         ?>
-
         <form action="index.php" method="POST">
             <label>
                 <select name="chooseKingdom" onchange="this.form.submit();"
                         style="width: 100%;">
                     <?php
-                    while ($stmt->fetch()) {
+                    foreach ($result as $row) {
                         if ($kingdomid == $_SESSION["kingdomid"]) {
                             echo "<option value='{$_SESSION["kingdomid"]}' selected='selected'>$kingdomname ($x:$y)</option>";
                         } else {
                             echo "<option value='$kingdomid'>$kingdomname ($x:$y)</option>";
                         }
                     }
-                    $stmt->close();
                     ?>
                 </select>
             </label>

@@ -73,7 +73,16 @@ const STARTING_GAIN = 10;
  */
 #[NoReturn] function globalExceptionHandler($e): void {
     error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
-    echo "An unexpected error occurred! Please stand by.";
+    echo "<body style='
+                        display: flex;
+                        justify-content: center;
+                        background: rgb(0, 0, 0) url(images/background.png);     
+                        color: rgb(240, 240, 240);
+                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
+                        font-family: Arial, Helvetica, sans-serif;
+                        font-size: 24px;'>
+                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>An unexpected error occurred! Please stand by.</p>
+          </body>";
     exit;
 }
 
@@ -88,7 +97,16 @@ function fatalErrorShutdownHandler(): void {
     $error = error_get_last();
     if ($error !== null) {
         error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
-        echo "A fatal error occurred! Please stand by.";
+        echo "<body style='
+                        display: flex;
+                        justify-content: center;
+                        background: rgb(0, 0, 0) url(images/background.png);     
+                        color: rgb(240, 240, 240);
+                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
+                        font-family: Arial, Helvetica, sans-serif;
+                        font-size: 24px;'>
+                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>A fatal error occurred! Please stand by.</p>
+          </body>";
     }
 }
 

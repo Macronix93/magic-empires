@@ -2,8 +2,6 @@
     <div class="menu" id="menu">
         <?php
         include("left.php");
-        ?>
-        <?php
         include("right.php");
         ?>
     </div>
