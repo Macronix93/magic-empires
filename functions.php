@@ -6,6 +6,9 @@
 /*
     Check session and create if non-existent
 */
+
+use JetBrains\PhpStorm\NoReturn;
+
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
@@ -13,6 +16,8 @@ if (session_status() == PHP_SESSION_NONE) {
 /*
     Constants (defines)
 */
+const ERROR_PATH = "D:/xampp/htdocs/magic-empires/errors.log";
+const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 16;
 const MIN_PASSWORD_LENGTH = 5;
@@ -63,13 +68,42 @@ const BASE_STONE_GAIN = 15;
 const BASE_GOLD_GAIN = 10;
 const STARTING_GAIN = 10;
 
+/*
+ * Global exception handlers
+ */
+#[NoReturn] function globalExceptionHandler($e): void {
+    error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
+    echo "An unexpected error occurred! Please stand by.";
+    exit;
+}
 
+/**
+ * @throws ErrorException
+ */
+function globalErrorHandler($errno, $errstr, $errfile, $errline) {
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+}
+
+function fatalErrorShutdownHandler(): void {
+    $error = error_get_last();
+    if ($error !== null) {
+        error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
+        echo "A fatal error occurred! Please stand by.";
+    }
+}
+
+/*
+ * PHP Options
+ */
+/*set_exception_handler('globalExceptionHandler');
+set_error_handler('globalErrorHandler');
+register_shutdown_function('fatalErrorShutdownHandler');*/
 ini_set('max_execution_time', 300);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 /*
-    AutoLoad classes
-*/
+ * AutoLoad classes
+ */
 spl_autoload_register(function ($class_name) {
     include("classes/" . strtolower($class_name) . ".php");
 });
