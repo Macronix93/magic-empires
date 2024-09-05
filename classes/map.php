@@ -31,19 +31,11 @@ class Map {
         return $color;
     }
 
-    public function getKingdomIconByLevel($kingdomid): string {
-        $stmt = $this->mysqli->prepare("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = 0");
-        $stmt->bind_param('i', $kingdomid);
-        $stmt->execute();
-        $level = 1;
-        $stmt->bind_result($level);
-        $stmt->fetch();
-        $stmt->close();
-
+    public function getKingdomIconByLevel($buildinglevel): string {
         return match (true) {
-            $level >= 3 && $level < 6 => "images/town.png",
-            $level >= 6 && $level < 8 => "images/tower2.png",
-            $level >= 8 && $level => "images/castle.png",
+            $buildinglevel >= 3 && $buildinglevel < 6 => "images/town.png",
+            $buildinglevel >= 6 && $buildinglevel < 8 => "images/tower2.png",
+            $buildinglevel >= 8 => "images/castle.png",
             default => "images/house.png",
         };
     }
@@ -54,23 +46,21 @@ class Map {
         $minY = min($starty, $endy);
         $maxY = max($starty, $endy);
 
-        $stmt = $this->mysqli->prepare("SELECT mapx, mapy, fieldtype FROM map
-                                WHERE (mapx BETWEEN ? AND ?)
-                                  AND (mapy BETWEEN ? AND ?)
-                                ORDER BY mapx, mapy");
-        $stmt->bind_param('iiii', $minX, $maxX, $minY, $maxY);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        // Process the result to get the path and calculate total time
+        // Get the path and calculate total time
         $path = [];
         $totaltime = 0;
 
-        while ($row = $result->fetch_assoc()) {
+        $query = "
+                    SELECT mapx, mapy, fieldtype FROM map
+                    WHERE (mapx BETWEEN ? AND ?)
+                    AND (mapy BETWEEN ? AND ?)
+                    ORDER BY mapx, mapy
+        ";
+        $result = $this->mysqli->execute_query($query, [$minX, $maxX, $minY, $maxY]);
+
+        foreach ($result as $row) {
             $path[] = ['x' => $row['mapx'], 'y' => $row['mapy'], 'fieldtype' => $row['fieldtype']];
         }
-
-        $stmt->close();
 
         // Print the path
         /*echo "Path:\n";
@@ -138,10 +128,25 @@ class Map {
         $ystart = $starty;
         $yend = $starty + 9;
 
-        $stmt = $this->mysqli->prepare("SELECT * FROM map WHERE mapx BETWEEN ? AND ? AND mapy BETWEEN ? AND ?");
+
+        $query = "
+                    SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel 
+                    FROM map m 
+                    LEFT JOIN buildings b 
+                    ON m.kingdomid = b.kingdomid AND b.buildingid = 0 
+                    WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?
+        ";
+        $result = $this->mysqli->execute_query($query, [$xstart, $xend, $ystart, $yend]);
+        /*$stmt = $this->mysqli->prepare("SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel
+                                FROM map m 
+                                LEFT JOIN buildings b 
+                                ON m.kingdomid = b.kingdomid AND b.buildingid = 0 
+                                WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?");
         $stmt->bind_param('iiii', $xstart, $xend, $ystart, $yend);
         $stmt->execute();
-        $result2 = $stmt->get_result();
+        $result2 = $stmt->get_result();*/
+
+
         ?>
         <table class="table">
             <tr>
@@ -158,22 +163,22 @@ class Map {
                 $fieldcolor = array(array());
                 $mycoords = array(array());
 
-                while ($row2 = $result2->fetch_assoc()) {
-                    $mycoords[$row2["mapx"]][$row2["mapy"]] = false;
+                foreach ($result as $row) {
+                    $mycoords[$row["mapx"]][$row["mapy"]] = false;
                     $fieldImage = "";
-                    $fieldcolor[$row2["mapx"]][$row2["mapy"]] = $this->getFieldTypeColor($row2["fieldtype"]);
+                    $fieldcolor[$row["mapx"]][$row["mapy"]] = $this->getFieldTypeColor($row["fieldtype"]);
 
-                    if ($row2["kingdomid"] != -1) {
-                        $mycoords[$row2["mapx"]][$row2["mapy"]] = $row2["kingdomid"];
+                    if ($row["kingdomid"] != -1) {
+                        $mycoords[$row["mapx"]][$row["mapy"]] = $row["kingdomid"];
 
-                        $fieldImage = "<div class='cell-container'>
-                                            <img src='" . $this->getKingdomIconByLevel($row2["kingdomid"]) . "' class='kingdom-img' alt=''>
-                                        </div>";
+                        $fieldImage = "<div class='cell-container'><a href='javascript:void(0);'>
+                            <img src='" . $this->getKingdomIconByLevel($row["buildinglevel"]) . "' class='kingdom-img' alt=''>
+                        </a></div>";
                     } else {
-                        $mycoords[$row2["mapx"]][$row2["mapy"]] = -1;
+                        $mycoords[$row["mapx"]][$row["mapy"]] = -1;
                     }
 
-                    $coords[$row2["mapx"]][$row2["mapy"]] = $fieldImage;
+                    $coords[$row["mapx"]][$row["mapy"]] = $fieldImage;
                 }
 
                 for ($i = $starty; $i <= $starty + 9; $i++) {
@@ -226,12 +231,8 @@ class Map {
     }
 
     public function renderFieldInfo($field): void {
-        $stmt = $this->mysqli->prepare("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?");
-        $stmt->bind_param('i', $field);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $result = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
         $row = $result->fetch_assoc();
-        $stmt->close();
 
         if ($result->num_rows == 0) {
             echo "<br><br>Dieses Königreich existiert nicht!";
@@ -265,14 +266,10 @@ class Map {
                 <td class="td-main"><b>Ankunftszeit</b></td>
                 <?php
                 // Get the coords of the current kingdom of the user
-                $x = 0;
-                $y = 0;
-                $stmt = $this->mysqli->prepare("SELECT mapx, mapy FROM kingdoms WHERE id = ?");
-                $stmt->bind_param('i', $_SESSION["kingdomid"]);
-                $stmt->execute();
-                $stmt->bind_result($x, $y);
-                $stmt->fetch();
-                $stmt->close();
+                $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
+                $row2 = $result->fetch_assoc();
+                $x = $row2["mapx"];
+                $y = $row2["mapy"];
 
                 echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $row["mapx"], $row["mapy"])) . "</td>";
                 ?>

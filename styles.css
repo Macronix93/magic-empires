@@ -213,6 +213,7 @@ select:-webkit-autofill:focus {
     border-radius: 10px;
     -webkit-box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
     box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
+    margin-bottom: 30px;
 }
 
 .big-box-header {
@@ -471,6 +472,10 @@ td {
 
 /* Smartphone Ansicht */
 @media screen and (max-width: 700px) {
+    html {
+        width: 100%;
+    }
+
     #map-container td {
         width: 35px;
         height: 35px;
@@ -520,7 +525,7 @@ td {
     }
 
     #messages-section {
-        max-height: calc(100vh - 400px);
+        max-height: calc(100vh - 420px);
     }
 }
 

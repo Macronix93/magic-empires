@@ -4,13 +4,9 @@ global $user, $db_instance;
 $currentPage = basename($_SERVER["PHP_SELF"]);
 
 // Count unread messages for the user
-$stmt = $db_instance->prepare("SELECT COUNT(*) AS unread_count FROM messages WHERE receiver = ? AND hasread = 0");
-$stmt->bind_param("s", $_SESSION["username"]);
-$stmt->execute();
-$result = $stmt->get_result();
+$result = $db_instance->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$user->getUserID()]);
 $row = $result->fetch_assoc();
 $num_unread_messages = $row["unread_count"];
-$stmt->close();
 ?>
 <div class="box-container">
     <div class="box-header">

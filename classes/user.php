@@ -27,18 +27,15 @@ class User {
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activationkey = md5($email . $name);
 
-        $stmt = $this->mysqli->prepare("INSERT INTO users (username, password, activationkey, email, registerdate) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))"); //lastlogin = UNIX_TIMESTAMP(NOW()) ???
-        $stmt->bind_param('ssss', $name, $password, $activationkey, $email);
-        $stmt->execute();
-        $insertid = $stmt->insert_id;
-        $stmt->close();
+        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))", [$name, $password, $activationkey, $email]);
+        $insertid = $this->mysqli->insert_id;
 
         // Try to create kingdom
         $kingdom = new Kingdoms($this->mysqli);
         $mainkingdom = $kingdom->createKingdom($insertid, $name);
 
         // Update mainkingdom in user table
-        $this->mysqli->query("UPDATE users SET mainkingdom = '$mainkingdom' WHERE id = '$insertid'");
+        $this->mysqli->execute_query("UPDATE users SET mainkingdom = '$mainkingdom' WHERE id = ?", [$insertid]);
 
         // Create activation link to activate account
         $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activationkey;
@@ -50,61 +47,47 @@ class User {
             'From: webmaster@magic-empires.de' . "\r\n" .
             'X-Mailer: PHP/' . phpversion();
 
-        if (mail($empfaenger, $betreff, $nachricht, $header)) echo "mail gesendet!";
+        if (mail($empfaenger, $betreff, $nachricht, $header)) echo "DEBUG: mail gesendet!";
 
         echo "<div style='text-align: center;'><b style='color: mediumseagreen;'>Du hast dich erfolgreich registriert! Ein Aktivierungslink wurde an deine E-Mail gesendet.</b><br><br><a href='login.php'>Hier einloggen</a></div>";
 
         unset($_POST);
 
         // Update lastrank
-        $stmt = $this->mysqli->prepare("UPDATE users 
-                                        JOIN (
-                                            SELECT id, (@rank := @rank + 1) AS new_rank
-                                            FROM (SELECT id FROM users ORDER BY score DESC) AS ranked_users
-                                            CROSS JOIN (SELECT @rank := 0) AS init
-                                        ) AS ranked_users ON users.id = ranked_users.id
-                                        SET users.lastrank = ranked_users.new_rank
-                                        WHERE users.id = ?");
-        $stmt->bind_param('i', $insertid);
-        $stmt->execute();
-        $stmt->close();
-
-
+        $query = "
+                    UPDATE users 
+                        JOIN (
+                            SELECT id, (@rank := @rank + 1) AS new_rank
+                            FROM (SELECT id FROM users ORDER BY score DESC) AS ranked_users
+                            CROSS JOIN (SELECT @rank := 0) AS init
+                        ) AS ranked_users ON users.id = ranked_users.id
+                    SET users.lastrank = ranked_users.new_rank
+                    WHERE users.id = ?
+        ";
+        $this->mysqli->execute_query($query, [$insertid]);
         $this->mysqli->close();
     }
 
     // Function to log in a user
     public function loginUser($name, $pass): void {
-        $stmt = $this->mysqli->prepare("SELECT id FROM users WHERE username = ? LIMIT 1");
-        $stmt->bind_param('s', $name);
-        $stmt->execute();
-        $stmt->store_result();
-        $found = $stmt->num_rows == 1;
-        $userid = -1;
-        $stmt->bind_result($userid);
-        $stmt->fetch();
-        $stmt->close();
+        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
+        $row = $result->fetch_assoc();
+        $found = $result->num_rows == 1;
+        $userid = $row["id"];
 
         // Check if user exists
         if ($found) {
-            $status = -1;
-            $password = "";
-            $email = "";
-            $score = -1;
-            $lastlogin = -1;
-            $mainkingdom = -1;
-            $guild = -1;
-            $lastsentmsg = 0;
-
             // Fetch users data
-            $stmt = $this->mysqli->prepare("SELECT username, status, password, email, lastlogin, score, mainkingdom, guildid, lastsentmsg FROM users WHERE id = ?");
-            $stmt->bind_param('i', $userid);
-            $stmt->execute();
-            $stmt->bind_result($name, $status, $password, $email, $lastlogin, $score, $mainkingdom, $guild, $lastsentmsg);
-            $stmt->fetch();
-            $stmt->close();
-
-            //echo $status;
+            $result = $this->mysqli->execute_query("SELECT username, status, password, email, lastlogin, score, mainkingdom, guildid, lastsentmsg FROM users WHERE id = ?", [$userid]);
+            $row = $result->fetch_assoc();
+            $name = $row["username"];
+            $status = $row["status"];
+            $password = $row["password"];
+            //$email = $row["email"];
+            $lastlogin = $row["lastlogin"];
+            $mainkingdom = $row["mainkingdom"];
+            //$guild = $row["guildid"];
+            $lastsentmsg = $row["lastsentmsg"];
 
             if (password_verify($pass, $password)) {
                 if (!$status) {
@@ -139,7 +122,7 @@ class User {
 
     // Get the user ID by activation key
     public function getUserDatabaseID($activationkey) {
-        $activationkey = mysqli_real_escape_string($this->mysqli, $activationkey);
+        /*$activationkey = mysqli_real_escape_string($this->mysqli, $activationkey);
         $query = "SELECT id FROM users WHERE activationkey = '$activationkey'";
         if (!$result = mysqli_query($this->mysqli, $query)) {
             exit(mysqli_error($this->mysqli));
@@ -149,6 +132,12 @@ class User {
             while ($row = mysqli_fetch_assoc($result)) {
                 $data = $row['id'];
             }
+        }*/
+
+        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activationkey]);
+        $data = "";
+        if ($row = $result->fetch_assoc()) {
+            $data = $row["id"];
         }
 
         return $data;
@@ -171,12 +160,10 @@ class User {
     }
 
     public function getUserScore() {
-        $result = $this->mysqli->query("SELECT score FROM users WHERE id = '{$_SESSION["userid"]}'");
+        $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
         $row = $result->fetch_assoc();
-        $score = $row["score"];
-        $result->close();
 
-        return $score;
+        return $row["score"];
     }
 
     // Get user events
@@ -217,22 +204,21 @@ class User {
             switch ($this->actionid) {
                 case ACTION_BUILD_BUILDING:
                     if ($this->buildingtime < time()) {
-                        $result = $this->mysqli->query("SELECT buildingscore FROM buildinglist WHERE id = '$this->buildingid'");
+                        $result = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$this->buildingid]);
                         $row = $result->fetch_assoc();
                         $score = $row["buildingscore"] * $this->buildinglevel + 1;
-                        $result->close();
 
-                        $this->mysqli->query("DELETE FROM events WHERE eventid = '$this->eventid'");
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$this->eventid]);
 
                         if ($this->buildinglevel == 0) { // Insert new building
-                            $this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$this->kingdomid', '$this->buildingid', '$this->buildingname', 1)");
+                            //$this->mysqli->query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES ('$this->kingdomid', '$this->buildingid', '$this->buildingname', 1)");
+                            $this->mysqli->execute_query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES (?, ?, ?, ?)", [$this->kingdomid, $this->buildingid, $this->buildingname, 1]);
                         } else { // Update current building
-                            $this->mysqli->query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = '$this->kingdomid' AND buildingid = '$this->buildingid'");
+                            //$this->mysqli->query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = '$this->kingdomid' AND buildingid = '$this->buildingid'");
+                            $this->mysqli->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = ? AND buildingid = ?", [$this->kingdomid, $this->buildingid]);
                         }
-                        $this->mysqli->query("UPDATE users SET score = score + " . $score . " WHERE id = '$userid'") or die($this->mysqli->error);
-
-                        $fieldtype = FIELD_TYPE_PLAINS;
-                        $foodrate = $woodrate = $stonerate = $goldrate = 0;
+                        //$this->mysqli->query("UPDATE users SET score = score + " . $score . " WHERE id = '$userid'") or die($this->mysqli->error);
+                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $userid]);
 
                         switch ($this->buildingid) {
                             case BUILDING_STORAGE:
@@ -241,14 +227,27 @@ class User {
                                 $updateval = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
 
                                 if ($this->buildinglevel + 1 == MAX_BUILDING_LEVEL) {
-                                    $query = "UPDATE kingdoms SET maxfood = $maxval, maxwood = $maxval, maxstone = $maxval, maxgold = $maxval  WHERE id = '$this->kingdomid'";
+                                    $query = "UPDATE kingdoms SET maxfood = $maxval, maxwood = $maxval, maxstone = $maxval, maxgold = $maxval  WHERE id = ?";
                                 } else {
-                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $updateval, maxwood = maxwood + $updateval, maxstone = maxstone + $updateval, maxgold = maxgold + $updateval  WHERE id = '$this->kingdomid'";
+                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $updateval, maxwood = maxwood + $updateval, maxstone = maxstone + $updateval, maxgold = maxgold + $updateval  WHERE id = ?";
                                 }
-                                $this->mysqli->query($query);
+                                $this->mysqli->execute_query($query, [$this->kingdomid]);
                                 break;
                             case BUILDING_MILL:
-                                $stmtGain = $this->mysqli->prepare("
+                                $query = "
+                                            SELECT ft.foodrate
+                                            FROM map AS m 
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                            WHERE m.kingdomid = ?
+                                ";
+                                $result = $this->mysqli->execute_query($query, [$this->kingdomid]);
+                                $row = $result->fetch_assoc();
+                                $foodrate = $row["foodrate"];
+
+                                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $foodrate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$this->kingdomid]);
+
+                                /*$stmtGain = $this->mysqli->prepare("
                                         SELECT ft.foodrate
                                         FROM map AS m 
                                         INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
@@ -263,10 +262,23 @@ class User {
                                 $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $foodrate . "  WHERE id = '$this->kingdomid'";
                                 $this->mysqli->query($query);
 
-                                $stmtGain->close();
+                                $stmtGain->close();*/
                                 break;
                             case BUILDING_SAWMILL:
-                                $stmtGain = $this->mysqli->prepare("
+                                $query = "
+                                            SELECT ft.woodrate
+                                            FROM map AS m 
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                            WHERE m.kingdomid = ?
+                                ";
+                                $result = $this->mysqli->execute_query($query, [$this->kingdomid]);
+                                $row = $result->fetch_assoc();
+                                $woodrate = $row["woodrate"];
+
+                                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $woodrate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$this->kingdomid]);
+
+                                /*$stmtGain = $this->mysqli->prepare("
                                         SELECT ft.woodrate
                                         FROM map AS m 
                                         INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
@@ -283,10 +295,23 @@ class User {
                                 $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $woodrate . "  WHERE id = '$this->kingdomid'";
                                 $this->mysqli->query($query);
 
-                                $stmtGain->close();
+                                $stmtGain->close();*/
                                 break;
                             case BUILDING_STONEMINE:
-                                $stmtGain = $this->mysqli->prepare("
+                                $query = "
+                                            SELECT ft.stonerate
+                                            FROM map AS m 
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                            WHERE m.kingdomid = ?
+                                ";
+                                $result = $this->mysqli->execute_query($query, [$this->kingdomid]);
+                                $row = $result->fetch_assoc();
+                                $stonerate = $row["stonerate"];
+
+                                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stonerate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$this->kingdomid]);
+
+                                /*$stmtGain = $this->mysqli->prepare("
                                         SELECT ft.stonerate
                                         FROM map AS m 
                                         INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
@@ -301,10 +326,23 @@ class User {
                                 $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stonerate . "  WHERE id = '$this->kingdomid'";
                                 $this->mysqli->query($query);
 
-                                $stmtGain->close();
+                                $stmtGain->close();*/
                                 break;
                             case BUILDING_GOLDMINE:
-                                $stmtGain = $this->mysqli->prepare("
+                                $query = "
+                                            SELECT ft.goldrate
+                                            FROM map AS m 
+                                            INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
+                                            WHERE m.kingdomid = ?
+                                ";
+                                $result = $this->mysqli->execute_query($query, [$this->kingdomid]);
+                                $row = $result->fetch_assoc();
+                                $goldrate = $row["goldrate"];
+
+                                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $goldrate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$this->kingdomid]);
+
+                                /*$stmtGain = $this->mysqli->prepare("
                                         SELECT m.fieldtype, ft.goldrate 
                                         FROM map AS m 
                                         INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
@@ -319,16 +357,16 @@ class User {
                                 $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $goldrate . "  WHERE id = '$this->kingdomid'";
                                 $this->mysqli->query($query);
 
-                                $stmtGain->close();
+                                $stmtGain->close();*/
                                 break;
                         }
                     }
                     break;
                 case ACTION_BUILD_TROOPS:
                     $soldiers = [];
-                    $result = $this->mysqli->query("SELECT id, requiredtime, soldiername, villager, scoregain FROM soldierlist");
+                    $result = $this->mysqli->execute_query("SELECT id, requiredtime, soldiername, villager, scoregain FROM soldierlist");
 
-                    while ($row = $result->fetch_assoc()) {
+                    foreach ($result as $row) {
                         $soldier = new Soldier();
                         $soldier->setSoldierID($row["id"]);
                         $soldier->setSoldierName($row["soldiername"]);
@@ -347,28 +385,26 @@ class User {
                     $soldierdifference = $this->soldiergoal - $numberLeftToRecruit;
 
                     if ($soldierdifference != 0) {
-                        $this->mysqli->query("UPDATE events SET soldiergoal = soldiergoal - $soldierdifference WHERE kingdomid = '$this->kingdomid' AND soldierid = '$this->soldierid'");
+                        $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE kingdomid = ? AND soldierid = ?", [$soldierdifference, $this->kingdomid, $this->soldierid]);
 
                         // Update soldiers for kingdom
+                        $soldierName = $soldiers[$this->soldierid]->getSoldierName();
                         $query = "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
                                       VALUES (?, ?, ?, ?)
-                                      ON DUPLICATE KEY UPDATE soldiercount = soldiercount + $soldierdifference";
-                        $stmtSoldiers = $this->mysqli->prepare($query);
-                        $soldierName = $soldiers[$this->soldierid]->getSoldierName();
-                        $stmtSoldiers->bind_param("iisi", $this->kingdomid, $this->soldierid, $soldierName, $soldierdifference);
-                        $stmtSoldiers->execute();
-                        $stmtSoldiers->close();
+                                      ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?";
+                        $this->mysqli->execute_query($query, [$this->kingdomid, $this->soldierid, $soldierName, $soldierdifference, $soldierdifference]);
                         $villCost = $soldierdifference * $soldiers[$this->soldierid]->getSoldierVillagerCost();
 
                         // Update kingdom villager count
-                        $this->mysqli->query("UPDATE kingdoms SET villager = villager - $villCost WHERE id = '$this->kingdomid'");
+                        $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - $villCost WHERE id = ?", [$this->kingdomid]);
 
                         // Update user score
-                        $this->mysqli->query("UPDATE users SET score = score + ($soldierdifference * " . $soldiers[$this->soldierid]->getSoldierScoreGain() . ") WHERE id = '$userid'");
+                        $this->mysqli->execute_query("UPDATE users SET score = score + (? * ?) WHERE id = ?", [$soldierdifference, $soldiers[$this->soldierid]->getSoldierScoreGain(), $userid]);
                     }
 
                     if ($numberLeftToRecruit == 0) {
-                        $this->mysqli->query("DELETE FROM events WHERE eventid = '$this->eventid'");
+                        //$this->mysqli->query("DELETE FROM events WHERE eventid = '$this->eventid'");
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$this->eventid]);
                     }
                     break;
                 case ACTION_TRADING:
