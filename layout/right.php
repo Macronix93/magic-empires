@@ -16,10 +16,6 @@ global $user, $db_instance;
 
         $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$userid]);
         $row = $result->fetch_assoc();
-        $kingdomid = $row["id"];
-        $kingdomname = $row["kingdomname"];
-        $x = $row["mapx"];
-        $y = $row["mapy"];
         ?>
         <form action="index.php" method="POST">
             <label>
@@ -27,10 +23,10 @@ global $user, $db_instance;
                         style="width: 100%;">
                     <?php
                     foreach ($result as $row) {
-                        if ($kingdomid == $_SESSION["kingdomid"]) {
-                            echo "<option value='{$_SESSION["kingdomid"]}' selected='selected'>$kingdomname ($x:$y)</option>";
+                        if ($row["id"] == $_SESSION["kingdomid"]) {
+                            echo "<option value='{$_SESSION["kingdomid"]}' selected='selected'>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                         } else {
-                            echo "<option value='$kingdomid'>$kingdomname ($x:$y)</option>";
+                            echo "<option value='{$row["id"]}'>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                         }
                     }
                     ?>

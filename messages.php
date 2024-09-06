@@ -16,19 +16,19 @@ function showInbox($db_instance): string {
 
     // Get all conversations for the user
     $query = "
-            SELECT participant, 
-                MAX(date) AS latest_message_date
-            FROM (
-                SELECT senderid AS participant, date
-                FROM messages
-                    WHERE receiverid = ?
-                    UNION
-                    SELECT receiverid AS participant, date
+                SELECT participant, 
+                    MAX(date) AS latest_message_date
+                FROM (
+                    SELECT senderid AS participant, date
                     FROM messages
-                    WHERE senderid = ?
-                ) AS combined
-            GROUP BY participant
-            ORDER BY latest_message_date DESC
+                        WHERE receiverid = ?
+                        UNION
+                        SELECT receiverid AS participant, date
+                        FROM messages
+                        WHERE senderid = ?
+                    ) AS combined
+                GROUP BY participant
+                ORDER BY latest_message_date DESC
     ";
     $result = $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["userid"]]);
 
@@ -46,31 +46,22 @@ function showInbox($db_instance): string {
                          </td>
                      </tr>';
 
-        foreach ($result as $row) {
-            $query = "
-                        SELECT COUNT(m.id) AS unreadcount, u.username AS sendername
-                        FROM messages m
-                        JOIN users u ON m.senderid = u.id
-                        WHERE m.senderid = ? AND m.receiverid = ? AND m.hasread = 0
-            ";
-            $result = $db_instance->execute_query($query, [$row["participant"], $_SESSION["userid"]]);
-            $row2 = $result->fetch_assoc();
-            $num_unread_messages = $row2["unreadcount"];
-            $senderName = $row2["sendername"];
+        $query = "
+                    SELECT 
+                        u.username AS sendername,
+                        COUNT(CASE WHEN m.hasread = 0 THEN 1 END) AS unreadcount
+                    FROM users u
+                    LEFT JOIN messages m 
+                        ON u.id = m.senderid 
+                        AND m.receiverid = ? 
+                    WHERE u.id = ?
+        ";
 
-            /*$stmt = $db_instance->prepare("
-                SELECT COUNT(m.id) AS unreadcount, u.username AS sendername
-                FROM messages m
-                JOIN users u ON m.senderid = u.id
-                WHERE m.senderid = ? AND m.receiverid = ? AND m.hasread = 0
-            ");
-            $stmt->bind_param("ii", $row["participant"], $_SESSION["userid"]);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $row2 = $result->fetch_assoc();
+        foreach ($result as $row) {
+            $result2 = $db_instance->execute_query($query, [$_SESSION["userid"], $row["participant"]]);
+            $row2 = $result2->fetch_assoc();
             $num_unread_messages = $row2["unreadcount"];
             $senderName = $row2["sendername"];
-            $stmt->close();*/
 
             $htmlToDisplay .= "<tr class='tr-hover'>
                                     <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$senderName " . showNewMessagesIndicator($num_unread_messages) . "</td>
