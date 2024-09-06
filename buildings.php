@@ -262,13 +262,6 @@ if (isset($_GET["action"])) {
                         $result = $db_instance->execute_query("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
                         $row = $result->fetch_assoc();
 
-                        /*$stmt = $db_instance->prepare("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?");
-                        $stmt->bind_param('i', $_GET["accept"]);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        $row = $result->fetch_assoc();
-                        $stmt->close();*/
-
                         if ($row && $kID != $row["kingdomid"]) {
                             $supply = $row["supply"];
                             $supplyvalue = $row["supplyvalue"];

@@ -218,7 +218,7 @@ class Kingdoms {
             $amount = $this->getKingdomMaxStone() - $this->getKingdomStone();
         }
         $this->stone += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET stone = stone + ? WHERE id = ?", [$this->stone, $kingdomid]);
+        $this->mysqli->execute_query("UPDATE kingdoms SET stone = stone + ? WHERE id = ?", [$amount, $kingdomid]);
     }
 
     public function setKingdomStone($kingdomid, $amount): void {
