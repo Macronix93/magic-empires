@@ -12,7 +12,7 @@ $error = null;
 
 // Here PHP logic + GET/POST requests
 $kingdom = new Kingdoms($db_instance);
-$kingdom->getKingdomRessources($_SESSION["kingdomid"]);
+$kingdom->getKingdomInfo($_SESSION["kingdomid"]);
 $kID = $_SESSION["kingdomid"];
 
 // Fetch all buildings and their dependencies
@@ -571,9 +571,9 @@ include_once("layout/banner.html");
 
                                         echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->getBuildingIcon() . "</td>
                                             <td style='width: 40%;'><b>" . $buildings[$i]->getBuildingName() . " ($level)</b><br><br>
-                                            <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> " . $textWood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "<br>
-                                            <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> " . $textStone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "<br>
-                                            <img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit'> " . convertSecToStr($buildings[$i]->getBuildingTime() * ($level == 0 ? 1 : $level + 1)) . "<br></td><td class='td-center' style='width: 40%;'>" . $textBuild . "</td></tr>";
+                                            <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> " . $textWood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $textFood . "<br>
+                                            <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> " . $textStone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $textGold . "<br>
+                                            <img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/> " . convertSecToStr($buildings[$i]->getBuildingTime() * ($level == 0 ? 1 : $level + 1)) . "<br></td><td class='td-center' style='width: 40%;'>" . $textBuild . "</td></tr>";
                                     }
                                 }
                             }
@@ -694,12 +694,12 @@ include_once("layout/banner.html");
                                                     <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->getSoldierIcon() . "</td>
                                                     <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers[$i]->getSoldierName() . " 
                                                         <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->getSoldierDescription() . "</div>  (" . (isset($kingdomSoldiers[$i]) ? fnum($kingdomSoldiers[$i]) : 0) . ")</b><br><br>
-                                                        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> " . $textFood . "
-                                                        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> " . $textGold . "
-                                                        <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'> " . $textVillager . "<br>
-                                                        <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->getSoldierAttack() . " 
-                                                        <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->getSoldierDefense() . "<br>
-                                                        <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit'> " . convertSecToStr($soldiers[$i]->getSoldierTime()) . "
+                                                        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $textFood . "
+                                                        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $textGold . "
+                                                        <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/> " . $textVillager . "<br>
+                                                        <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff' title='Angriff'/> " . $soldiers[$i]->getSoldierAttack() . " 
+                                                        <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/> " . $soldiers[$i]->getSoldierDefense() . "<br>
+                                                        <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/> " . convertSecToStr($soldiers[$i]->getSoldierTime()) . "
                                                         <br></td>
                                                     <td class='td-center' style='width: 40%;'>$textBuild</td>
                                                 </tr>";
@@ -738,28 +738,28 @@ include_once("layout/banner.html");
                                     echo "<div style='margin: auto; width: 200px;'>
                                                 <div class='split-content'>
                                                     <div>
-                                                        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> 
+                                                        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> 
                                                         " . fnum($kingdom->getKingdomFood()) . "
                                                     </div>
                                                     <div>von " . fnum($kingdom->getKingdomMaxFood()) . "</div>
                                                 </div>
                                                 <div class='split-content'>
                                                     <div>
-                                                        <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> 
+                                                        <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> 
                                                         " . fnum($kingdom->getKingdomWood()) . "
                                                     </div>
                                                     <div>von " . fnum($kingdom->getKingdomMaxWood()) . "</div>
                                                 </div>
                                                 <div class='split-content'>
                                                     <div>
-                                                        <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> 
+                                                        <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> 
                                                         " . fnum($kingdom->getKingdomStone()) . "
                                                     </div>
                                                     <div>von " . fnum($kingdom->getKingdomMaxStone()) . "</div>
                                                 </div>
                                                 <div class='split-content'>
                                                     <div>
-                                                        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> 
+                                                        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> 
                                                         " . fnum($kingdom->getKingdomGold()) . "
                                                     </div>
                                                     <div>von " . fnum($kingdom->getKingdomMaxGold()) . "</div>
@@ -832,10 +832,10 @@ include_once("layout/banner.html");
                                         </tr>
                                         <?php
                                         $ressourceicon = array();
-                                        $ressourceicon[0] = "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'>";
-                                        $ressourceicon[1] = "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'>";
-                                        $ressourceicon[2] = "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'>";
-                                        $ressourceicon[3] = "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'>";
+                                        $ressourceicon[0] = "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>";
+                                        $ressourceicon[1] = "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>";
+                                        $ressourceicon[2] = "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>";
+                                        $ressourceicon[3] = "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>";
 
                                         echo "<p>Aktuelle Angebote</p>";
 

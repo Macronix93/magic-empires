@@ -14,7 +14,7 @@ $num_unread_messages = $row["unread_count"];
         echo "<div style='width: 80%; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
         <div style='overflow: hidden; white-space: nowrap;' id='username'>";
         echo $user->getUserName();
-        echo "</div><a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt=''/></a></div>";
+        echo "</div><a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout' title='Logout'/></a></div>";
 
         // Calculate and update the styling of the username dynamically
         echo "<script type='text/javascript'>adjustUsernameDisplay()</script>";

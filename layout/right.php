@@ -23,52 +23,51 @@ global $user, $db_instance;
                         style="width: 100%;">
                     <?php
                     foreach ($result as $row) {
-                        if ($row["id"] == $_SESSION["kingdomid"]) {
-                            echo "<option value='{$_SESSION["kingdomid"]}' selected='selected'>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
-                        } else {
-                            echo "<option value='{$row["id"]}'>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
-                        }
+                        $kingdom_name = $row["kingdomname"];
+                        $map_coords = "($row[mapx]:$row[mapy])";
+                        $selected = ($row["id"] == $_SESSION["kingdomid"]) ? "selected='selected'" : "";
+
+                        echo "<option value='{$row["id"]}' $selected>{$kingdom_name} $map_coords</option>";
                     }
                     ?>
                 </select>
             </label>
         </form>
         <br><br>
-
-        <?php
-        // Get kingdom ressources and show information
-        $kingdom = new Kingdoms($db_instance);
-        $kingdom->getKingdomRessources($_SESSION["kingdomid"]);
-        $serverTime = time();
-        ?>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
-            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit'/><span id='servertime'><script
-                        type="text/javascript">updateTime(<?php echo $serverTime ?>)</script></span>
+            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/><span
+                    id='servertime'><script
+                        type="text/javascript">updateTime(<?php echo time(); ?>)</script></span>
         </div>
         <?php
-        echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'> " . ($user->getUserScore() == 0 ? "0" : fnum($user->getUserScore())) . "
+        // Get kingdom resources and show information
+        $kingdom = new Kingdoms($db_instance);
+        $kingdom->getKingdomInfo($_SESSION["kingdomid"]);
+        $serverTime = time();
+
+        echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte' title='Punkte'/> " . ($user->getUserScore() == 0 ? "0" : fnum($user->getUserScore())) . "
                     <div class='split-content'>
-                        <div><img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung'> 
+                        <div><img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> 
                         <span style='color: " . ($kingdom->getKingdomFood() == $kingdom->getKingdomMaxFood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomFood()) . "</span></div>
                         <div>(" . fnum($kingdom->getKingdomFoodPerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
-                        <div><img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz'> 
+                        <div><img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> 
                         <span style='color: " . ($kingdom->getKingdomWood() == $kingdom->getKingdomMaxWood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomWood()) . "</span></div>
                         <div>(" . fnum($kingdom->getKingdomWoodPerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
-                        <div><img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein'> 
+                        <div><img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> 
                         <span style='color: " . ($kingdom->getKingdomStone() == $kingdom->getKingdomMaxStone() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomStone()) . "</span></div>
                         <div>(" . fnum($kingdom->getKingdomStonePerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
-                        <div><img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold'> 
+                        <div><img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> 
                         <span style='color: " . ($kingdom->getKingdomGold() == $kingdom->getKingdomMaxGold() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomGold()) . "</span></div>
                         <div>(" . fnum($kingdom->getKingdomGoldPerHour()) . "/h)</div>
                     </div>
                     <div class='split-content'>
-                        <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'> 
+                        <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/> 
                         <span style='color: " . ($kingdom->getKingdomVillager() == $kingdom->getKingdomMaxVillager() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomVillager()) . "</span></div>
                         <div>(" . fnum($kingdom->getKingdomVillagerPerHour()) . "/h)</div>
                     </div>";

@@ -150,9 +150,9 @@ class Building {
 
     public function getBuildingIcon(): string {
         if (isset($this->bid)) {
-            return "<img src='images/icons/icon_building$this->bid.png' class='item-icons' alt='$this->bname'/>";
+            return "<img src='images/icons/icon_building$this->bid.png' class='item-icons' alt='$this->bname' title='$this->bname'/>";
         } else {
-            return "ICON NOT FOUND";
+            return "ERROR: ICON NOT FOUND";
         }
     }
 

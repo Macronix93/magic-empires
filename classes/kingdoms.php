@@ -19,7 +19,9 @@ class Kingdoms {
         $maxvillager,
         $villagerperhour,
         $buildingid,
-        $recruitingid;
+        $recruitingid,
+        $map_x,
+        $map_y;
 
     // Constructor
     public function __construct($db_conn) {
@@ -28,8 +30,6 @@ class Kingdoms {
 
     // Function to create a new kingdom
     public function createKingdom($userid, $username): false|int {
-        $usernameVar = $username;
-
         // Count available fields with no kingdom on it
         $result = $this->mysqli->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = '-1'");
         $rows = $result->fetch_row();
@@ -58,7 +58,7 @@ class Kingdoms {
 
                 if ($row["kingdomid"] == -1) {
                     // Field is empty, so we take it
-                    return $this->foundFreeField($row["fieldtype"], $randx, $randy, $userid, $usernameVar);
+                    return $this->foundFreeField($row["fieldtype"], $randx, $randy, $userid, $username);
                 } else {
                     // Found a kingdom on that spot on the map, search again
                     $count++;
@@ -72,18 +72,20 @@ class Kingdoms {
             $mapy = $row["mapy"];
 
             // Insert it into kingdoms table
-            $insertid = $this->foundFreeField($row->fieldtype, $mapx, $mapy, $userid, $usernameVar);
+            $insertid = $this->foundFreeField($row->fieldtype, $mapx, $mapy, $userid, $username);
         }
 
         return $insertid;
     }
 
-    public function getKingdomRessources($kingdomid) {
+    public function getKingdomInfo($kingdomid) {
         // Fetch kingdom data
-        $query = "SELECT id,food,maxfood,foodperhour,wood,maxwood,woodperhour,stone,maxstone,stoneperhour,gold,maxgold,goldperhour,villager,maxvillager,villagerperhour FROM kingdoms WHERE id = ?";
+        $query = "SELECT * FROM kingdoms WHERE id = ?";
         $result = $this->mysqli->execute_query($query, [$kingdomid]);
         $row = $result->fetch_assoc();
         $this->id = $row["id"];
+        $this->map_x = $row["mapx"];
+        $this->map_y = $row["mapy"];
         $this->food = $row["food"];
         $this->maxfood = $row["maxfood"];
         $this->foodperhour = $row["foodperhour"];
@@ -160,7 +162,7 @@ class Kingdoms {
         return $this->woodperhour;
     }
 
-    public function giveKingdomWood($kingdomid, $amount) {
+    public function giveKingdomWood($kingdomid, $amount): void {
         if ($this->wood + $amount > $this->getKingdomMaxWood()) {
             $amount = $this->getKingdomMaxWood() - $this->getKingdomWood();
         }
@@ -185,7 +187,7 @@ class Kingdoms {
         return $this->foodperhour;
     }
 
-    public function giveKingdomFood($kingdomid, $amount) {
+    public function giveKingdomFood($kingdomid, $amount): void {
         if ($this->food + $amount > $this->getKingdomMaxFood()) {
             $amount = $this->getKingdomMaxFood() - $this->getKingdomFood();
         }
@@ -211,7 +213,7 @@ class Kingdoms {
         return $this->stoneperhour;
     }
 
-    public function giveKingdomStone($kingdomid, $amount) {
+    public function giveKingdomStone($kingdomid, $amount): void {
         if ($this->stone + $amount > $this->getKingdomMaxStone()) {
             $amount = $this->getKingdomMaxStone() - $this->getKingdomStone();
         }
@@ -236,7 +238,7 @@ class Kingdoms {
         return $this->goldperhour;
     }
 
-    public function giveKingdomGold($kingdomid, $amount) {
+    public function giveKingdomGold($kingdomid, $amount): void {
         if ($this->gold + $amount > $this->getKingdomMaxGold()) {
             $amount = $this->getKingdomMaxGold() - $this->getKingdomGold();
         }

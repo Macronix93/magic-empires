@@ -259,27 +259,22 @@ function highlightField(field, clickedfield = -1, x = -1, y = -1) {
             document.getElementById("field-info").innerHTML = this.responseText;
         }
     };
-    xhttp.open("GET", "field_info.php?clickedfield=" + clickedfield + (x !== -1 ? "&x=" + x : "") + (y !== -1 ? "&y=" + y : ""), true);
+    xhttp.open("GET", "field_info.php?clickedfield=" + clickedfield + "&x=" + x + "&y=" + y, true);
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhttp.send();
 }
 
 function highlightEnteredCoordinates(x, y) {
-    clearFieldHighlighting();
-
     let cell = document.querySelector(`td[data-x="${x}"][data-y="${y}"]`);
-
     if (cell) {
         cell.classList.add("highlight");
     }
 }
 
 function clearFieldHighlighting() {
-    let fields = document.getElementsByTagName("td");
-
-    for (let i = 0; i < fields.length; i++) {
-        fields[i].classList.remove("highlight");
-    }
+    document.querySelectorAll('td.highlight').forEach(cell => {
+        cell.classList.remove('highlight');
+    });
 }
 
 function showTimedMessage(message, duration) {
