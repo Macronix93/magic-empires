@@ -467,3 +467,5 @@ composer.lock
 *.scss.map
 
 .env
+test.html
+image.jpg
