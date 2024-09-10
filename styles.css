@@ -409,13 +409,16 @@ td {
     box-sizing: border-box;
 }
 
-#map-container .td-main {
+.td-mapinfo {
     background-color: var(--table-color);
     border: solid 1px rgb(29, 33, 39);
     font-size: 18px;
     padding: 5px 10px;
     text-align: left;
     width: 50%;
+    height: 50px;
+    margin: 0;
+    box-sizing: border-box;
 }
 
 .top-bottom-cell {

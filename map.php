@@ -28,6 +28,7 @@ include_once("layout/banner.html");
         <div class="big-box-container">
             <div class="big-box-header"><p>Landschaft</p></div>
             <div class="big-box-content">
+
                 <?php
                 $map = new Map($db_instance);
 
@@ -53,6 +54,16 @@ include_once("layout/banner.html");
                     // Calculate start coordinates
                     $map->startx = max(1, min($x - 5, 91));
                     $map->starty = max(1, min($y - 5, 91));
+
+                    echo "<input type='hidden' id='highlightedfield'>
+                            <script type='text/javascript'>
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    let kingdomid = " . json_encode($_SESSION["kingdomid"]) . ";
+                                    let x = " . json_encode($x) . ";
+                                    let y = " . json_encode($y) . ";
+                                    highlightField(kingdomid || -1, x || 0, y || 0);
+                                });
+                            </script>";
                 }
 
                 // Show info about the fields
@@ -65,6 +76,17 @@ include_once("layout/banner.html");
                 $map->renderMap($map->startx, $map->starty);
                 echo "</div>";
                 ?>
+                <div id='field-info'></div>
+                <br>
+                <form id="update-map">
+                    X: <label>
+                        <input type="text" id="startx" name="startx" size="3" maxlength="3">
+                    </label>
+                    Y: <label>
+                        <input type="text" id="starty" name="starty" size="3" maxlength="3">
+                    </label>
+                    <input type="button" value="Anzeigen" onclick="sendUpdateMapRequest()">
+                </form>
             </div>
         </div>
     </div>

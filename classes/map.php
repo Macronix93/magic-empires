@@ -250,22 +250,8 @@ class Map {
                     echo "<td>$i</td>";
 
                     for ($j = $startx; $j <= $startx + 9; $j++) {
-                        if ($mycoords[$j][$i] == $_SESSION["kingdomid"]) {
-                            echo "<td data-fieldid='" . $mycoords[$j][$i] . "' data-x='$j' data-y='$i' class='highlight' style='background-color: " . $fieldcolor[$j][$i] . "' 
-                                onclick='highlightField(this, parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
-                            echo "<script type='text/javascript'>
-                                        let cell = document.querySelector(`td[data-x=\"$j\"][data-y=\"$i\"]`);
-                                        if (cell) {
-                                            let fieldID = cell.getAttribute('data-fieldid');
-                                            j = $j;
-                                            i = $i;
-                                            highlightField(cell, parseInt(fieldID), j, i);
-                                        }
-                                    </script>";
-                        } else {
-                            echo "<td data-fieldid='" . $mycoords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' 
-                                onclick='highlightField(this, parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
-                        }
+                        echo "<td data-fieldid='" . $mycoords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' 
+                            onclick='highlightField(parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
 
                         if ($j == $xend && $i == $ystart) {
                             echo "<td rowspan='11' class='td-gradient'>$arrowright$arrowright_1</td>";
@@ -280,17 +266,6 @@ class Map {
                         <tr><td colspan='13' class='top-bottom-cell td-gradient'>$arrowdown$arrowdown_1</td></tr>";
                 ?>
         </table>
-        <div id='field-info'></div>
-        <br>
-        <form id="update-map">
-            X: <label>
-                <input type="text" id="startx" name="startx" size="3" maxlength="3">
-            </label>
-            Y: <label>
-                <input type="text" id="starty" name="starty" size="3" maxlength="3">
-            </label>
-            <input type="button" value="Anzeigen" onclick="sendUpdateMapRequest()">
-        </form>
         <?php
     }
 
@@ -322,19 +297,19 @@ class Map {
             <table class="table"
                    style="margin-top: 20px; max-width: 400px; text-align: left;">
                 <tr>
-                    <td class="td-main"><b>Koordinaten</b></td>
+                    <td class="td-mapinfo"><b>Koordinaten</b></td>
                     <?php
                     echo "<td>" . $field_x . ":" . $field_y . "</td>";
                     ?>
                 </tr>
                 <tr>
-                    <td class="td-main"><b>Ankunftszeit</b></td>
+                    <td class="td-mapinfo"><b>Ankunftszeit</b></td>
                     <?php
                     echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $field_x, $field_y)) . "</td>";
                     ?>
                 </tr>
                 <tr>
-                    <td colspan='2' class='td-main' style='text-align: center;'>
+                    <td colspan='2' class='td-mapinfo' style='text-align: center;'>
                         <button type='submit'>Erobern</button>
                     </td>
                 </tr>
@@ -354,19 +329,19 @@ class Map {
                 <table class="table"
                 style="margin-top: 20px; max-width: 400px; text-align: left;">
                 <tr>
-                    <td class="td-main"><b>Königreich</b></td>
+                    <td class="td-mapinfo"><b>Königreich</b></td>
                     <?php
                     echo "<td>" . $row["kingdomname"] . "</td>";
                     ?>
                 </tr>
                 <tr>
-                    <td class="td-main"><b>Besitzer</b></td>
+                    <td class="td-mapinfo"><b>Besitzer</b></td>
                     <?php
                     echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["userid"] . "\");'>{$row["username"]}</a></td>";
                     ?>
                 </tr>
                 <tr>
-                    <td class="td-main"><b>Koordinaten</b></td>
+                    <td class="td-mapinfo"><b>Koordinaten</b></td>
                     <?php
                     echo "<td>" . $row["mapx"] . ":" . $row["mapy"] . "</td>";
                     ?>
@@ -382,14 +357,14 @@ class Map {
                     $y = $row2["mapy"];
 
                     if ($field != $my_kingdom_id) {
-                        echo "<td class='td-main'><b>Ankunftszeit</b></td>";
+                        echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
                         echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $row['mapx'], $row['mapy'])) . "</td>";
                     }
                     ?>
                 </tr>
                 <?php
                 if ($row["username"] != $_SESSION["username"]) {
-                    echo "<tr><td colspan='2' class='td-main' style='text-align: center;'>
+                    echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                             <button type='submit' style=''>Angreifen</button>
                                             <button type='submit' style=''>Handeln</button>
                                         </td>
