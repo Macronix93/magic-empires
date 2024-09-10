@@ -77,7 +77,6 @@ include_once("layout/banner.html");
                     echo 'IP not found.';
                 }*/
 
-                include_once("includes/countdown.php");
                 echo "Login-Zeit: <span id='counter'><script>startCountup($timediff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
 
                 echo "Haupt-KönigreichID: $mainkingdom<br>";
