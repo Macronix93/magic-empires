@@ -1,5 +1,5 @@
 <?php
-require_once("functions.php");
+require_once("includes/core.php");
 
 // Check if user is not logged in
 if (!isset($_SESSION["userid"])) {

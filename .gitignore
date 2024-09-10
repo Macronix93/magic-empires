@@ -466,6 +466,6 @@ composer.lock
 *.sass.map
 *.scss.map
 
-.env
+includes/.env
 test.html
 image.jpg

@@ -1,6 +1,6 @@
 <?php
 global $db_instance, $user;
-require_once("functions.php");
+require_once("includes/core.php");
 ?>
 <!DOCTYPE html>
 <html lang="de">

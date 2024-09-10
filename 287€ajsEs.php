@@ -1,5 +1,5 @@
 <?php
-require_once("functions.php");
+require_once("includes/core.php");
 global $db_instance;
 
 $stmt = $db_instance->prepare("SELECT id, maxwood, wood, woodperhour, maxfood, food, foodperhour, maxstone, stone, stoneperhour, maxgold, gold, goldperhour, maxvillager, villager, villagerperhour FROM kingdoms");
@@ -32,7 +32,7 @@ $stmt->close();
 
 ?>
 
-<html>
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE-edge">
@@ -57,22 +57,22 @@ $stmt->close();
 
                 <div id="construction">
                     <div class="preview-item">
-                        <img class="mySlides" src="images/preview_one.png">
+                        <img class="mySlides" src="images/preview_one.png" alt="">
                     </div>
                     <div class="preview-item">
-                        <img class="mySlides" src="images/preview_two.png">
+                        <img class="mySlides" src="images/preview_two.png" alt="">
                     </div>
                     <div class="preview-item">
-                        <img class="mySlides" src="images/preview_three.png">
+                        <img class="mySlides" src="images/preview_three.png" alt="">
                     </div>
                     <div class="preview-item">
-                        <img class="mySlides" src="images/preview_four.png">
+                        <img class="mySlides" src="images/preview_four.png" alt="">
                     </div>
                     <div class="preview-item">
-                        <img class="mySlides" src="images/preview_five.png">
+                        <img class="mySlides" src="images/preview_five.png" alt="">
                     </div>
                     <div class="preview-item">
-                        <img class="mySlides" src="images/preview_six.png">
+                        <img class="mySlides" src="images/preview_six.png" alt="">
                     </div>
                 </div>
             </div>

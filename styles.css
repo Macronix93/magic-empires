@@ -22,7 +22,7 @@ body {
     font-size: 18px;
     background: rgb(0, 0, 0) url(images/background.png);
     overflow-x: hidden;
-    height: 100vh;
+    height: 100%;
 }
 
 ::selection {
@@ -202,6 +202,7 @@ select:-webkit-autofill:focus {
     display: flex;
     justify-content: center;
     gap: 50px;
+    height: 100%;
 }
 
 /* Box in mid */
@@ -213,7 +214,7 @@ select:-webkit-autofill:focus {
     border-radius: 10px;
     -webkit-box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
     box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
-    margin-bottom: 30px;
+    margin-bottom: 40px;
 }
 
 .big-box-header {
@@ -451,7 +452,7 @@ td {
 }
 
 /* The hidden menu */
-.menu {
+#menu {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -463,22 +464,34 @@ td {
 }
 
 /* Hamburger Icon */
-.hamburger-icon {
+#hamburger-icon {
     display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 50px;
     height: 50px;
     border-right: solid black 1px;
     border-bottom: solid black 1px;
     border-bottom-right-radius: 10px;
     background-color: var(--table-color);
-    justify-content: center;
-    align-items: center;
     cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+#hamburger-icon p {
+    margin: 0;
+    line-height: 50px;
+    text-align: center;
 }
 
 /* Slide-out effect */
 #mobile-nav.open {
     transform: translateX(0);
+}
+
+#hamburger-icon.open {
+    transform: translateX(250px);
 }
 
 
@@ -547,8 +560,8 @@ td {
         display: none;
     }
 
-    .hamburger-icon {
-        display: flex;
+    #hamburger-icon {
+        display: block;
     }
 
     #mobile-nav {

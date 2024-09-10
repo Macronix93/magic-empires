@@ -206,6 +206,8 @@ function sendUpdateMapRequest() {
 
 function updateMap(newStartX, newStartY, inputX, inputY) {
     // Remember the field info and the cell that was highlighted before updating the map
+    console.log("moved map")
+
     let fieldInfoContent = document.getElementById("field-info").innerHTML;
     let highlightedCell = document.querySelector('td.highlight');
 
@@ -226,10 +228,12 @@ function updateMap(newStartX, newStartY, inputX, inputY) {
                     highlightField(cell, parseInt(fieldID), inputX, inputY);
                 }
             } else {
-                let fieldID = highlightedCell.getAttribute('data-fieldid');
-                let x = highlightedCell.getAttribute('data-x');
-                let y = highlightedCell.getAttribute('data-y');
-                highlightField(highlightedCell, parseInt(fieldID), parseInt(x), parseInt(y));
+                if (highlightedCell) {
+                    let fieldID = highlightedCell.getAttribute('data-fieldid');
+                    let x = highlightedCell.getAttribute('data-x');
+                    let y = highlightedCell.getAttribute('data-y');
+                    highlightField(highlightedCell, parseInt(fieldID), parseInt(x), parseInt(y));
+                }
             }
 
             // Restore the field-info content
@@ -390,6 +394,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (hamburgerIcon) {
         hamburgerIcon.addEventListener("click", function () {
             mobileNav.classList.toggle("open");
+            hamburgerIcon.classList.toggle("open");
         });
     }
 });

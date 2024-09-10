@@ -76,7 +76,7 @@ const STARTING_GAIN = 10;
     echo "<body style='
                         display: flex;
                         justify-content: center;
-                        background: rgb(0, 0, 0) url(images/background.png);     
+                        background: rgb(0, 0, 0) url(../images/background.png);     
                         color: rgb(240, 240, 240);
                         text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
                         font-family: Arial, Helvetica, sans-serif;
@@ -100,7 +100,7 @@ function fatalErrorShutdownHandler(): void {
         echo "<body style='
                         display: flex;
                         justify-content: center;
-                        background: rgb(0, 0, 0) url(images/background.png);     
+                        background: rgb(0, 0, 0) url(../images/background.png);     
                         color: rgb(240, 240, 240);
                         text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
                         font-family: Arial, Helvetica, sans-serif;

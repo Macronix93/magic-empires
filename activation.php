@@ -2,7 +2,7 @@
 global $db_instance, $user;
 
 if (!empty($_GET["key"])) {
-    require_once("functions.php");
+    require_once("includes/core.php");
     session_destroy();
 
     $stmt = $db_instance->prepare("SELECT status FROM users WHERE activationkey = ?");

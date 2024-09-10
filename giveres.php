@@ -1,5 +1,5 @@
 <?php
-/*require("functions.php");
+/*require("includes/core.php");
 
 $db = Database::getInstance();
 $mysqli = $db->getConnection();

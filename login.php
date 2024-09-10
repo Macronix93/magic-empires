@@ -1,6 +1,6 @@
 <?php
 global $user;
-require_once("functions.php");
+require_once("includes/core.php");
 
 if (isset($_GET["logout"])) {
     if ($user->isLoggedIn()) {

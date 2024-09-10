@@ -1,6 +1,6 @@
 <?php
 global $db_instance, $user;
-require_once("functions.php");
+require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
 if (!($user->isLoggedIn())) {
@@ -86,6 +86,8 @@ include_once("layout/banner.html");
                 echo "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>";
                 echo "Score: $score<br>";
                 echo "Gilde: $guildid<br><br>";
+
+                //echo "<div class='receiver-bubble' style='position: relative;'><img src='images/icons/icon_delete.png' class='ressource-icons' style='position: absolute; top: 10px; right: 20px;' alt='Löschen'></a><u>Du am blabla </u><br>blablabalbablbl aba ba b abba</div>";
                 ?>
             </div>
         </div>

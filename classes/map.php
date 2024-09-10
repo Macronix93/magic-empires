@@ -157,7 +157,8 @@ class Map {
 
     private function getArrivalTime($startx, $starty, $endx, $endy): int {
         $result = $this->calculatePath($startx, $starty, $endx, $endy);
-        // print the path
+
+        // DEBUGGING: print the path
         /*$path = $result['path'];
 
         echo "Path:<br>";
@@ -319,7 +320,7 @@ class Map {
                 ?>
             </div>
             <table class="table"
-                   style="margin-top: 20px; min-width: 400px; text-align: left;">
+                   style="margin-top: 20px; max-width: 400px; text-align: left;">
                 <tr>
                     <td class="td-main"><b>Koordinaten</b></td>
                     <?php
@@ -334,7 +335,7 @@ class Map {
                 </tr>
                 <tr>
                     <td colspan='2' class='td-main' style='text-align: center;'>
-                        <button type='submit' style='margin: 10px;'>Erobern</button>
+                        <button type='submit'>Erobern</button>
                     </td>
                 </tr>
             </table>
@@ -351,7 +352,7 @@ class Map {
                     Königreich-Info
                 </div>
                 <table class="table"
-                style="margin-top: 20px; min-width: 400px; text-align: left;">
+                style="margin-top: 20px; max-width: 400px; text-align: left;">
                 <tr>
                     <td class="td-main"><b>Königreich</b></td>
                     <?php
@@ -389,8 +390,8 @@ class Map {
                 <?php
                 if ($row["username"] != $_SESSION["username"]) {
                     echo "<tr><td colspan='2' class='td-main' style='text-align: center;'>
-                                            <button type='submit' style='margin: 10px;'>Angreifen</button>
-                                            <button type='submit' style='margin: 10px;'>Handeln</button>
+                                            <button type='submit' style=''>Angreifen</button>
+                                            <button type='submit' style=''>Handeln</button>
                                         </td>
                                         </tr>";
                 }

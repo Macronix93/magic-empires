@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once("functions.php");
+require_once("includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     global $db_instance;
