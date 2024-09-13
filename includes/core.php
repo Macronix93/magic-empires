@@ -67,6 +67,7 @@ const BASE_WOOD_GAIN = 20;
 const BASE_STONE_GAIN = 15;
 const BASE_GOLD_GAIN = 10;
 const STARTING_GAIN = 10;
+const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 
 /*
  * Global exception handlers

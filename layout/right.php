@@ -5,12 +5,6 @@ global $user, $db_instance;
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
-        // Check if user has changed kingdom via dropdown menu
-        if (isset($_POST["chooseKingdom"])) {
-            $_SESSION["kingdomid"] = $_POST["chooseKingdom"];
-            unset($_POST);
-        }
-
         // Get all kingdoms of a player for him to change anytime
         $userid = $user->getUserID();
 
@@ -19,7 +13,7 @@ global $user, $db_instance;
         ?>
         <form action="index.php" method="POST">
             <label>
-                <select name="chooseKingdom" onchange="this.form.submit();"
+                <select name="chooseKingdom" onchange="updateKingdom()"
                         style="width: 100%;">
                     <?php
                     foreach ($result as $row) {
@@ -27,7 +21,7 @@ global $user, $db_instance;
                         $map_coords = "($row[mapx]:$row[mapy])";
                         $selected = ($row["id"] == $_SESSION["kingdomid"]) ? "selected='selected'" : "";
 
-                        echo "<option value='{$row["id"]}' $selected>{$kingdom_name} $map_coords</option>";
+                        echo "<option value='{$row["id"]}' $selected>$kingdom_name $map_coords</option>";
                     }
                     ?>
                 </select>
@@ -39,47 +33,26 @@ global $user, $db_instance;
                     id='servertime'><script
                         type="text/javascript">updateTime(<?php echo time(); ?>)</script></span>
         </div>
-        <?php
-        // Get kingdom resources and show information
-        $kingdom = new Kingdoms($db_instance);
-        $kingdom->getKingdomInfo($_SESSION["kingdomid"]);
-        $serverTime = time();
-
-        echo "     <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte' title='Punkte'/> " . ($user->getUserScore() == 0 ? "0" : fnum($user->getUserScore())) . "
-                    <div class='split-content'>
-                        <div><img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> 
-                        <span style='color: " . ($kingdom->getKingdomFood() == $kingdom->getKingdomMaxFood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomFood()) . "</span></div>
-                        <div>(" . fnum($kingdom->getKingdomFoodPerHour()) . "/h)</div>
-                    </div>
-                    <div class='split-content'>
-                        <div><img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> 
-                        <span style='color: " . ($kingdom->getKingdomWood() == $kingdom->getKingdomMaxWood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomWood()) . "</span></div>
-                        <div>(" . fnum($kingdom->getKingdomWoodPerHour()) . "/h)</div>
-                    </div>
-                    <div class='split-content'>
-                        <div><img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> 
-                        <span style='color: " . ($kingdom->getKingdomStone() == $kingdom->getKingdomMaxStone() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomStone()) . "</span></div>
-                        <div>(" . fnum($kingdom->getKingdomStonePerHour()) . "/h)</div>
-                    </div>
-                    <div class='split-content'>
-                        <div><img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> 
-                        <span style='color: " . ($kingdom->getKingdomGold() == $kingdom->getKingdomMaxGold() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomGold()) . "</span></div>
-                        <div>(" . fnum($kingdom->getKingdomGoldPerHour()) . "/h)</div>
-                    </div>
-                    <div class='split-content'>
-                        <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/> 
-                        <span style='color: " . ($kingdom->getKingdomVillager() == $kingdom->getKingdomMaxVillager() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($kingdom->getKingdomVillager()) . "</span></div>
-                        <div>(" . fnum($kingdom->getKingdomVillagerPerHour()) . "/h)</div>
-                    </div>";
-        ?>
+        <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
+             title='Punkte'/> <?= ($user->getUserScore() == 0 ? "0" : fnum($user->getUserScore())) ?>
+        <div id="kingdom-info">
+            <?php
+            // Get kingdom resources and show information
+            $kingdom = new Kingdoms($db_instance);
+            $kingdom->getKingdomInfo($_SESSION["kingdomid"]);
+            $kingdom->renderKingdomInfo();
+            ?>
+        </div>
     </div>
 </div>
 <div class="box-container">
     <div class="box-header">Gebäude</div>
     <div class="box-content">
-        <?php
-        // Show kingdom buildings
-        $kingdom->getKingdomBuildings($_SESSION["kingdomid"]);
-        ?>
+        <div id="kingdom-buildings">
+            <?php
+            // Show kingdom buildings
+            $kingdom->getKingdomBuildings($_SESSION["kingdomid"]);
+            ?>
+        </div>
     </div>
 </div>

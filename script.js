@@ -394,6 +394,27 @@ function initializeChat() {
     }, CHAT_UPDATE_INTERVAL);
 }
 
+function updateKingdom() {
+    // Get the selected kingdom ID from the dropdown
+    let selectElement = document.querySelector("select[name='chooseKingdom']");
+    let kingdomID = selectElement.value;
+
+    // Prepare the form data
+    let formData = new FormData();
+    formData.append("chooseKingdom", kingdomID);
+
+    // Make an AJAX request to update the kingdom info
+    let xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState === 4 && this.status === 200) {
+            window.location.reload();
+        }
+    };
+    xhttp.open("POST", "change_kingdom.php", true);
+    xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    xhttp.send(formData);
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const mobileNav = document.getElementById("mobile-nav");
     const hamburgerIcon = document.getElementById("hamburger-icon");

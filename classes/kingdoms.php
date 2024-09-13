@@ -304,4 +304,32 @@ class Kingdoms {
         $this->mysqli->execute_query($query, [$insertid, $insertid, $insertid]);
         return $insertid;
     }
+
+    public function renderKingdomInfo(): void {
+        echo "     <div class='split-content'>
+                        <div><img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>
+                        <span style='color: " . ($this->getKingdomFood() == $this->getKingdomMaxFood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($this->getKingdomFood()) . "</span></div>
+                        <div>(" . fnum($this->getKingdomFoodPerHour()) . "/h)</div>
+                    </div>
+                    <div class='split-content'>
+                        <div><img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>
+                        <span style='color: " . ($this->getKingdomWood() == $this->getKingdomMaxWood() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($this->getKingdomWood()) . "</span></div>
+                        <div>(" . fnum($this->getKingdomWoodPerHour()) . "/h)</div>
+                    </div>
+                    <div class='split-content'>
+                        <div><img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>
+                        <span style='color: " . ($this->getKingdomStone() == $this->getKingdomMaxStone() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($this->getKingdomStone()) . "</span></div>
+                        <div>(" . fnum($this->getKingdomStonePerHour()) . "/h)</div>
+                    </div>
+                    <div class='split-content'>
+                        <div><img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>
+                        <span style='color: " . ($this->getKingdomGold() == $this->getKingdomMaxGold() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($this->getKingdomGold()) . "</span></div>
+                        <div>(" . fnum($this->getKingdomGoldPerHour()) . "/h)</div>
+                    </div>
+                    <div class='split-content'>
+                        <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/>
+                        <span style='color: " . ($this->getKingdomVillager() == $this->getKingdomMaxVillager() ? "#FFFF7F" : "#FFFFFF") . ";'>" . fnum($this->getKingdomVillager()) . "</span></div>
+                        <div>(" . fnum($this->getKingdomVillagerPerHour()) . "/h)</div>
+                    </div>";
+    }
 }
