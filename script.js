@@ -410,22 +410,20 @@ function updateKingdom() {
                 // Construct the new URL based on the current page
                 let currentUrl = new URL(window.location.href);
                 let pathname = currentUrl.pathname;
+                let params = new URLSearchParams(currentUrl.search);
                 let newUrl;
 
                 if (pathname.includes('buildings.php')) {
-                    // Only keep the id when we are on a building page!
-                    let params = new URLSearchParams();
-                    let id = currentUrl.searchParams.get('id');
+                    // When on buildings.php, keep only the id parameter
+                    let id = params.get('id');
 
+                    params = new URLSearchParams();
                     if (id) {
                         params.set('id', id);
                     }
-                    newUrl = `${pathname}?${params.toString()}`;
-                } else {
-                    // Remove all query parameters
-                    newUrl = pathname;
                 }
 
+                newUrl = `${pathname}?${params.toString()}`;
                 window.location.href = newUrl;
             }
         };

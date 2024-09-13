@@ -280,7 +280,7 @@ class Kingdoms {
         $goldrate = BASE_GOLD_GAIN * $row->goldrate;
 
         // Insert kingdom
-        $kingdomname = "{$username}_Koenigreich_$userid";
+        $kingdomname = "{$username}_$userid";
 
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, wood, stone, gold, foodperhour, woodperhour, stoneperhour, goldperhour) 

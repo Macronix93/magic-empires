@@ -377,8 +377,8 @@ td {
 }
 
 .item-icons {
-    width: 36px;
-    height: 36px;
+    width: 48px;
+    height: 48px;
 }
 
 .split-content {
@@ -388,6 +388,26 @@ td {
 }
 
 /* Map styles */
+.legend-container {
+    padding-bottom: 5px;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.legend-inner-item {
+    border: 1px solid black;
+    width: 32px;
+    height: 32px;
+}
+
 .map-arrows {
     width: 24px;
     height: 24px;

@@ -76,11 +76,13 @@ include_once("layout/banner.html");
                             </script>";
 
                 // Show info about the fields
-                echo "<div style='padding-bottom: 5px;'><img src='images/hochland.png' class='map-legend' alt='Hochland' title='Hochland'/> Hochland 
-                          <img src='images/küste.png' class='map-legend' alt='Küste' title='Küste'/> Küste 
-                          <img src='images/wald.png' class='map-legend' alt='Wald' title='Wald'/> Wald 
-                          <img src='images/wüste.png' class='map-legend' alt='Wüste' title='Wüste'/> Wüste 
-                          <img src='images/gebirge.png' class='map-legend' alt='Gebirge' title='Gebirge'/> Gebirge</div>";
+                echo "<div style='padding-bottom: 5px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;'>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(5)};'></div><span>Hochland</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(2)};'></div><span>Küste</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(3)};'></div><span>Wald</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(4)};'></div><span>Wüste</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(1)};'></div><span>Gebirge</span></div>
+                        </div>";
                 echo "<div id='map-container'>";
                 $map->renderMap($map->startx, $map->starty);
                 echo "</div>";

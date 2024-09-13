@@ -46,7 +46,7 @@ include_once("layout/banner.html");
                 $mainkingdom = $row["mainkingdom"];
                 ?>
 
-                <img src='images/icon_right_slow.png' class="popup" id="test1" alt="" style="width:24px;"/>
+                <img src='images/icons/icon_right_slow.png' class="popup" id="test1" alt="" style="width:24px;"/>
                 <div id="test1_box" class="popupbox">Testbox hahaha <br>hahahah</a></div>
                 <br>
 

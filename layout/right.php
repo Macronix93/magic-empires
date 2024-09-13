@@ -6,9 +6,7 @@ global $user, $db_instance;
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
         // Get all kingdoms of a player for him to change anytime
-        $userid = $user->getUserID();
-
-        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$userid]);
+        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->getUserID()]);
         $row = $result->fetch_assoc();
         ?>
         <form action="index.php" method="POST">
@@ -17,11 +15,9 @@ global $user, $db_instance;
                         style="width: 100%;">
                     <?php
                     foreach ($result as $row) {
-                        $kingdom_name = $row["kingdomname"];
-                        $map_coords = "($row[mapx]:$row[mapy])";
                         $selected = ($row["id"] == $_SESSION["kingdomid"]) ? "selected='selected'" : "";
 
-                        echo "<option value='{$row["id"]}' $selected>$kingdom_name $map_coords</option>";
+                        echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} {$row["mapx"]}:{$row["mapy"]}</option>";
                     }
                     ?>
                 </select>

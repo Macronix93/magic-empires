@@ -9,34 +9,22 @@ class Map {
         $this->mysqli = $db_conn;
     }
 
-    private function getFieldTypeColor($fieldtype): string {
-        $color = "";
-        switch ($fieldtype) {
-            case 1:
-                $color = "rgb(185, 122, 87)";
-                break;
-            case 2:
-                $color = "rgb(0, 162, 232)";
-                break;
-            case 3:
-                $color = "rgb(34, 177, 76)";
-                break;
-            case 4:
-                $color = "rgb(255, 201, 14)";
-                break;
-            case 5:
-                $color = "rgb(181, 230, 29)";
-                break;
-        }
-        return $color;
+    public function getFieldTypeColor($fieldtype): string {
+        return match ($fieldtype) {
+            1 => "rgb(185, 122, 87)",
+            2 => "rgb(0, 162, 232)",
+            3 => "rgb(34, 177, 76)",
+            4 => "rgb(255, 201, 14)",
+            default => "rgb(181, 230, 29)",
+        };
     }
 
     private function getKingdomIconByLevel($buildinglevel): string {
         return match (true) {
-            $buildinglevel >= 3 && $buildinglevel < 6 => "images/town.png",
-            $buildinglevel >= 6 && $buildinglevel < 8 => "images/tower2.png",
-            $buildinglevel >= 8 => "images/castle.png",
-            default => "images/house.png",
+            $buildinglevel >= 3 && $buildinglevel < 6 => "images/icons/town.png",
+            $buildinglevel >= 6 && $buildinglevel < 8 => "images/icons/tower2.png",
+            $buildinglevel >= 8 => "images/icons/castle.png",
+            default => "images/icons/house.png",
         };
     }
 
@@ -179,14 +167,14 @@ class Map {
     // Render and show the map
     public function renderMap($startx, $starty): void {
         // Generate URL for each arrow button
-        $arrowup = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 10) . "\")'><img class='map-arrows' src='images/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
-        $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 1) . "\")'><img class='map-arrows' src='images/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
-        $arrowleft = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 10) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icon_right_fast.png' style='transform: rotate(180deg);' alt='+10' title='+10'/></a>";
-        $arrowleft_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 1) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icon_right_slow.png' style='transform: rotate(180deg);' alt='+1' title='+1'/></a>";
-        $arrowright = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 10) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icon_right_fast.png' alt='+10' title='+10'/></a>";
-        $arrowright_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 1) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icon_right_slow.png' alt='+1' title='+1'/></a>";
-        $arrowdown = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 10) . "\")'><img class='map-arrows' src='images/icon_right_fast.png' style='transform: rotate(90deg);' alt='+10' title='+10'/></a>";
-        $arrowdown_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 1) . "\")'><img  class='map-arrows' src='images/icon_right_slow.png' style='transform: rotate(90deg);' alt='+1' title='+1'/></a>";
+        $arrowup = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
+        $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
+        $arrowleft = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 10) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(180deg);' alt='+10' title='+10'/></a>";
+        $arrowleft_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 1) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(180deg);' alt='+1' title='+1'/></a>";
+        $arrowright = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 10) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' alt='+10' title='+10'/></a>";
+        $arrowright_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 1) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' alt='+1' title='+1'/></a>";
+        $arrowdown = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(90deg);' alt='+10' title='+10'/></a>";
+        $arrowdown_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 1) . "\")'><img  class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(90deg);' alt='+1' title='+1'/></a>";
 
         // Coords Variable
         $coords = array();
