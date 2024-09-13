@@ -396,23 +396,43 @@ function initializeChat() {
 
 function updateKingdom() {
     // Get the selected kingdom ID from the dropdown
-    let selectElement = document.querySelector("select[name='chooseKingdom']");
-    let kingdomID = selectElement.value;
+    let kingdomID = document.getElementById("choosekingdom").value;
 
-    // Prepare the form data
-    let formData = new FormData();
-    formData.append("chooseKingdom", kingdomID);
+    if (kingdomID) {
+        // Prepare the form data
+        let formData = new FormData();
+        formData.append("choosekingdom", kingdomID);
 
-    // Make an AJAX request to update the kingdom info
-    let xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function () {
-        if (this.readyState === 4 && this.status === 200) {
-            window.location.reload();
-        }
-    };
-    xhttp.open("POST", "change_kingdom.php", true);
-    xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhttp.send(formData);
+        // Make an AJAX request to update the kingdom info
+        let xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState === 4 && this.status === 200) {
+                // Construct the new URL based on the current page
+                let currentUrl = new URL(window.location.href);
+                let pathname = currentUrl.pathname;
+                let newUrl;
+
+                if (pathname.includes('buildings.php')) {
+                    // Only keep the id when we are on a building page!
+                    let params = new URLSearchParams();
+                    let id = currentUrl.searchParams.get('id');
+
+                    if (id) {
+                        params.set('id', id);
+                    }
+                    newUrl = `${pathname}?${params.toString()}`;
+                } else {
+                    // Remove all query parameters
+                    newUrl = pathname;
+                }
+
+                window.location.href = newUrl;
+            }
+        };
+        xhttp.open("POST", "change_kingdom.php", true);
+        xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+        xhttp.send(formData);
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
