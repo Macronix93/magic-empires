@@ -9,10 +9,10 @@ if (!($user->isLoggedIn())) {
 }
 
 $error = null;
-$htmlToDisplay = "";
+$view = "";
 
 function showInbox($db_instance): string {
-    $htmlToDisplay = "";
+    $view = "";
 
     // Get all conversations for the user
     $query = "
@@ -33,7 +33,7 @@ function showInbox($db_instance): string {
     $result = $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["userid"]]);
 
     if ($result->num_rows > 0) {
-        $htmlToDisplay .= '<table class="table">
+        $view .= '<table class="table">
                      <tr>
                          <td class="td-center td-gradient" style="word-break: break-word">
                              <b>Konversation mit</b>
@@ -62,26 +62,27 @@ function showInbox($db_instance): string {
             $row2 = $result2->fetch_assoc();
             $num_unread_messages = $row2["unreadcount"];
             $senderName = $row2["sendername"];
+            $old_conversation = time() - $row["latest_message_date"] > CONV_INACTIVITY_TIME ? " tr-inactive" : "";
 
-            $htmlToDisplay .= "<tr class='tr-hover'>
+            $view .= "<tr class='tr-hover$old_conversation'>
                                     <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$senderName " . showNewMessagesIndicator($num_unread_messages) . "</td>
                                     <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
                                     <td style='text-align: center'><a href='messages.php?action=delete&s=" . $senderName . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td>
                                 </tr>";
         }
 
-        $htmlToDisplay .= "</table>";
+        $view .= "</table>";
     } else {
-        $htmlToDisplay = "Du hast keine Konversationen!";
+        $view = "Du hast keine Konversationen!";
     }
 
-    $htmlToDisplay .= "<br>
+    $view .= "<br>
                         <form action='messages.php' method='GET'>
                             <input type='hidden' name='action' value='new'>
                             <input type='submit' value='Neue Konversation' style='margin-top: 5px;'>
                         </form>";
 
-    return $htmlToDisplay;
+    return $view;
 }
 
 // For a new conversation
@@ -159,9 +160,9 @@ if (isset($_GET["action"])) {
         $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
 
         if (isset($_POST["text"]) && $error == null) {
-            $htmlToDisplay .= showInbox($db_instance);
+            $view .= showInbox($db_instance);
         } else {
-            $htmlToDisplay .= "
+            $view .= "
             <form name=\"newmessage\"
                   action=\"messages.php?action=new\"
                   method=\"POST\" style=\"width: 100%;\">
@@ -207,8 +208,8 @@ if (isset($_GET["action"])) {
             if ($result->num_rows == 0) {
                 $error = "Du hast keine Konversation mit " . $chatPartner . "!";
             } else {
-                $htmlToDisplay = '<div style=""><button onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
-                $htmlToDisplay .= '<h3>Konversation mit 
+                $view = '<div style=""><button onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
+                $view .= '<h3>Konversation mit 
                                         <a href="javascript:void(0);" 
                                          onclick="openUserDetails(\'userinfo.php?userid=' . htmlspecialchars($_GET["s"]) . '\');" 
                                          class="popup" 
@@ -216,14 +217,14 @@ if (isset($_GET["action"])) {
                                          ' . $chatPartner . '
                                         </a>
                                     </h3>';
-                $htmlToDisplay .= '<br><div id="messages-section">';
+                $view .= '<br><div id="messages-section">';
 
                 foreach ($result as $row) {
                     // The other side has written
                     if ($row["senderid"] == $_GET["s"]) {
-                        $htmlToDisplay .= "<div class='sender-bubble'><u>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</u>" . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "<br>" . $row["message"] . "</div>";
+                        $view .= "<div class='sender-bubble'><u>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</u>" . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "<br>" . $row["message"] . "</div>";
                     } else { // You have written
-                        $htmlToDisplay .= "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
+                        $view .= "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
                                             <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $row["message"] . "</div>";
                     }
 
@@ -231,7 +232,7 @@ if (isset($_GET["action"])) {
                         $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
                     }
                 }
-                $htmlToDisplay .= "</div><div id='newmessage-section'>
+                $view .= "</div><div id='newmessage-section'>
                                     <form name=\"newmessage\"
                                           id='newmessage'
                                           action=\"messages.php?action=read&s=" . htmlspecialchars($_GET["s"]) . "\"
@@ -243,7 +244,7 @@ if (isset($_GET["action"])) {
                                             <input type=\"submit\" name=\"sendpm\" value=\"Absenden\n[ENTER]\"/>
                                     </form>
                                 </div>";
-                $htmlToDisplay .= "<script type='text/javascript'>
+                $view .= "<script type='text/javascript'>
                                         initializeChat();
                                     </script>";
             }
@@ -292,7 +293,7 @@ if (isset($_GET["action"])) {
         changeLocation("messages.php");
     }
 } else {
-    $htmlToDisplay = showInbox($db_instance);
+    $view = showInbox($db_instance);
 }
 ?>
 <!DOCTYPE html>
@@ -323,7 +324,7 @@ include_once("layout/banner.html");
                         echo $error . "<br><br>";
                     }
 
-                    echo $htmlToDisplay;
+                    echo $view;
                     ?>
                     <script type="text/javascript">
                         scrollToLatestMessage();

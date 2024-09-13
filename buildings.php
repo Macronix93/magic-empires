@@ -473,6 +473,16 @@ include_once("layout/banner.html");
                 } else {
                     if ($bID == 0 || (isset($_GET["action"]) && ($_GET["action"] == "build" || $_GET["action"] == "cancel"))) {
                         // Dorfzentrum
+                        $last_built_building = $user->getLastBuiltBuilding();
+
+                        if (!empty($last_built_building)) {
+                            $buildingName = $last_built_building[0]["buildingname"];
+                            $buildingLevel = $last_built_building[0]["buildinglevel"];
+
+                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $buildingName (Stufe " . ($buildingLevel - 1 < 0 ? "0" : $buildingLevel - 1) . " zu $buildingLevel)<br>";
+
+                            $user->clearLastBuiltBuilding();
+                        }
 
                         // Get current ressources
                         $kingdomWood = $kingdom->getKingdomWood();
@@ -576,11 +586,19 @@ include_once("layout/banner.html");
                     } else {
                         if ($buildings[$bID]->isBuilt()) {
                             switch ($bID) {
-                                case 1:
-                                    // Universität
+                                case 1: // Universität
                                     break;
-                                case 2:
-                                    // Kaserne
+                                case 2: // Kaserne
+                                    $last_recruited_soldier = $user->getLastRecruitedSoldier();
+
+                                    if (!empty($last_recruited_soldier)) {
+                                        $soldierName = $last_recruited_soldier[0]["soldiername"];
+                                        $soldierCount = $last_recruited_soldier[0]["soldiercount"];
+
+                                        echo "<span class='event-finished'>Ausbildung abgeschlossen:</span> $soldierName (Anzahl: $soldierCount)<br><br>";
+
+                                        $user->clearLastRecruitedSoldier();
+                                    }
                                     ?>
                                     <table class="table">
                                         <tr>

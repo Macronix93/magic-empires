@@ -84,14 +84,28 @@ if (isset($_GET["userid"])) {
         <tr>
             <td><b>Haupt-Königreich</b></td>
             <?php
-            $x = ($row["mapx"] % 10 == 0) ? ($row["mapx"] - 9) : (10 * floor($row["mapx"] / 10) + 1);
-            $y = ($row["mapy"] % 10 == 0) ? ($row["mapy"] - 9) : (10 * floor($row["mapy"] / 10) + 1);
+            $x = $row['mapx'];
+            $y = $row['mapy'];
 
-            echo "<td><a href='javascript:void(0);' onclick='openMap(\"map.php?startx=$x&starty=$y&kid={$row["mainkingdom"]}\")'>" . $row['mapx'] . ":" . $row['mapy'] . "</a></td>";
+            echo "<td><a href='javascript:void(0);' onclick='redirectToMap(\"$x\", \"$y\")'>" . $x . ":" . $y . "</a></td>";
             ?>
             <script>
-                function openMap(link) {
-                    window.opener.location.href = link;
+                let mainWindow = null;
+
+                function redirectToMap(x, y) {
+                    if (mainWindow === null || mainWindow.closed) {
+                        mainWindow = window.open("map.php?startx=" + x + "&starty=" + y, "mainWindow");
+                    } else {
+                        let url = mainWindow.location.href;
+
+                        if (url.includes("map.php")) {
+                            mainWindow.document.getElementById('startx').value = x;
+                            mainWindow.document.getElementById('starty').value = y;
+                            mainWindow.sendUpdateMapRequest();
+                        } else {
+                            mainWindow.location.href = "map.php?startx=" + x + "&starty=" + y;
+                        }
+                    }
                 }
             </script>
         </tr>

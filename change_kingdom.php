@@ -13,7 +13,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $row = $result->fetch_assoc();
 
         if ($row['userid'] == $user->getUserID()) {
-            // Create kingdom object
+            // Change current kingdom for the user
             $_SESSION["kingdomid"] = $_POST["chooseKingdom"];
         }
 

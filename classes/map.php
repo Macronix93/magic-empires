@@ -236,7 +236,7 @@ class Map {
                         $mycoords[$row["mapx"]][$row["mapy"]] = $row["kingdomid"];
 
                         $fieldImage = "<div class='cell-container'><a href='javascript:void(0);'>
-                            <img src='" . $this->getKingdomIconByLevel($row["buildinglevel"]) . "' class='kingdom-img' alt=''>
+                            <img src='" . $this->getKingdomIconByLevel($row["buildinglevel"]) . "' class='kingdom-img' alt='Königreich'>
                         </a></div>";
                     } else {
                         $mycoords[$row["mapx"]][$row["mapy"]] = -1;
@@ -275,23 +275,23 @@ class Map {
         $row = $result->fetch_assoc();
         $x = $row["mapx"];
         $y = $row["mapy"];
+        $field_x = isset($_GET["x"]) && $_GET["x"] != -1 ? $_GET["x"] : 1;
+        $field_y = isset($_GET["y"]) && $_GET["y"] != -1 ? $_GET["y"] : 1;
 
-        if ($field == -1) {
-            $field_x = isset($_GET["x"]) && $_GET["x"] != -1 ? $_GET["x"] : 1;
-            $field_y = isset($_GET["y"]) && $_GET["y"] != -1 ? $_GET["y"] : 1;
-
-            // No kingdom on the current field - get the fieldtype and name
-            $query = "
+        $query = "
                     SELECT m.fieldtype, f.fieldname FROM map m
                     JOIN fieldtypes f ON m.fieldtype = f.fieldid
                     WHERE mapx = ? AND mapy = ?
-            ";
-            $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
-            $row = $result->fetch_assoc();
+        ";
+        $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
+        $row = $result->fetch_assoc();
+        $fieldName = $row["fieldname"];
+
+        if ($field == -1) {
             ?>
             <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
                 <?php
-                echo $row["fieldname"];
+                echo $fieldName;
                 ?>
             </div>
             <table class="table"
@@ -316,57 +316,55 @@ class Map {
             </table>
             <?php
         } else {
-            $result = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
-            $row = $result->fetch_assoc();
+            $result2 = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
+            $row2 = $result2->fetch_assoc();
+            $kingdomName = $row2["kingdomname"];
+            $username = $row2["username"];
+            $userid = $row2["userid"];
 
-            if ($result->num_rows == 0) {
+            if ($result2->num_rows == 0) {
                 echo "<br><br>Dieses Königreich existiert nicht!";
             } else {
                 ?>
                 <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
-                    Königreich-Info
+                    <?php
+                    echo "Königreich-Info ({$fieldName})";
+                    ?>
                 </div>
                 <table class="table"
                 style="margin-top: 20px; max-width: 400px; text-align: left;">
                 <tr>
+                    <td class="td-mapinfo"><b>Koordinaten</b></td>
+                    <?php
+                    echo "<td>" . $field_x . ":" . $field_y . "</td>";
+                    ?>
+                </tr>
+                <tr>
                     <td class="td-mapinfo"><b>Königreich</b></td>
                     <?php
-                    echo "<td>" . $row["kingdomname"] . "</td>";
+                    echo "<td>" . $kingdomName . "</td>";
                     ?>
                 </tr>
                 <tr>
                     <td class="td-mapinfo"><b>Besitzer</b></td>
                     <?php
-                    echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["userid"] . "\");'>{$row["username"]}</a></td>";
-                    ?>
-                </tr>
-                <tr>
-                    <td class="td-mapinfo"><b>Koordinaten</b></td>
-                    <?php
-                    echo "<td>" . $row["mapx"] . ":" . $row["mapy"] . "</td>";
+                    echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $userid . "\");'>$username</a></td>";
                     ?>
                 </tr>
                 <tr>
                     <?php
                     // Get the coords of the current kingdom of the user
-                    $my_kingdom_id = $_SESSION["kingdomid"];
-
-                    $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$my_kingdom_id]);
-                    $row2 = $result->fetch_assoc();
-                    $x = $row2["mapx"];
-                    $y = $row2["mapy"];
-
-                    if ($field != $my_kingdom_id) {
+                    if ($field != $_SESSION["kingdomid"]) {
                         echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
-                        echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $row['mapx'], $row['mapy'])) . "</td>";
+                        echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $field_x, $field_y)) . "</td>";
                     }
                     ?>
                 </tr>
                 <?php
-                if ($row["username"] != $_SESSION["username"]) {
+                if ($username != $_SESSION["username"]) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                            <button type='submit' style=''>Angreifen</button>
-                                            <button type='submit' style=''>Handeln</button>
+                                            <button type='submit' style='margin-right: 15px;'>Angreifen</button>
+                                            <button type='submit' style='margin-left: 15px;'>Handeln</button>
                                         </td>
                                         </tr>";
                 }

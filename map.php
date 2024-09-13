@@ -31,19 +31,27 @@ include_once("layout/banner.html");
 
                 <?php
                 $map = new Map($db_instance);
+                $fieldid = -1;
+                $x = 1;
+                $y = 1;
 
                 if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
-                    if ($_GET["startx"] >= 90) {
-                        $_GET["startx"] = 91;
-                    }
-                    if ($_GET["starty"] >= 90) {
-                        $_GET["starty"] = 91;
-                    }
-                    $map->startx = $_GET["startx"];
-                    $map->starty = $_GET["starty"];
-
                     if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) $map->startx = 1;
                     if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->starty = 1;
+
+                    // If there is a kingdom on the field - get the data
+                    $x = $_GET["startx"];
+                    $y = $_GET["starty"];
+                    $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
+
+                    if ($result->num_rows != 0) {
+                        $row = $result->fetch_assoc();
+                        $fieldid = $row["kingdomid"];
+                    }
+
+                    // Calculate start coordinates
+                    $map->startx = max(1, min($x - 5, 91));
+                    $map->starty = max(1, min($y - 5, 91));
                 } else {
                     // Get the coords of the current kingdom
                     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
@@ -54,17 +62,18 @@ include_once("layout/banner.html");
                     // Calculate start coordinates
                     $map->startx = max(1, min($x - 5, 91));
                     $map->starty = max(1, min($y - 5, 91));
+                    $fieldid = $_SESSION["kingdomid"];
+                }
 
-                    echo "<input type='hidden' id='highlightedfield'>
+                echo "<input type='hidden' id='highlightedfield'>
                             <script type='text/javascript'>
                                 document.addEventListener('DOMContentLoaded', function() {
-                                    let kingdomid = " . json_encode($_SESSION["kingdomid"]) . ";
+                                    let kingdomid = " . json_encode($fieldid) . ";
                                     let x = " . json_encode($x) . ";
                                     let y = " . json_encode($y) . ";
                                     highlightField(kingdomid || -1, x || 0, y || 0);
                                 });
                             </script>";
-                }
 
                 // Show info about the fields
                 echo "<div style='padding-bottom: 5px;'><img src='images/hochland.png' class='map-legend' alt='Hochland' title='Hochland'/> Hochland 
@@ -85,7 +94,7 @@ include_once("layout/banner.html");
                     Y: <label>
                         <input type="text" id="starty" name="starty" size="3" maxlength="3">
                     </label>
-                    <input type="button" value="Anzeigen" onclick="sendUpdateMapRequest()">
+                    <input type="button" id="send-map-request" value="Anzeigen" onclick="sendUpdateMapRequest()">
                 </form>
             </div>
         </div>
