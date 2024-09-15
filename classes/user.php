@@ -3,10 +3,13 @@
 class User {
     public string $error = "";
     private $mysqli;
+    private $current_kingdom;
 
     // Constructor
     public function __construct($db_conn) {
         $this->mysqli = $db_conn;
+        $this->current_kingdom = $_SESSION["kingdomid"];
+        echo $this->current_kingdom;
     }
 
     // Function to register a new user
@@ -142,33 +145,43 @@ class User {
     }
 
     public function setLastBuiltBuilding($buildingname, $buildinglevel): void {
-        $_SESSION['last_built_building'][] = [
+        if (!isset($_SESSION["last_built_building"])) {
+            $_SESSION["last_built_building"] = array();
+        }
+        $_SESSION["last_built_building"][$this->current_kingdom] = [
             "buildingname" => $buildingname,
             "buildinglevel" => $buildinglevel
         ];
     }
 
+    public function clearLastBuiltBuilding(): void {
+        if (isset($_SESSION["last_built_building"][$this->current_kingdom])) {
+            unset($_SESSION["last_built_building"][$this->current_kingdom]);
+        }
+    }
+
+    public function getLastBuiltBuilding(): ?array {
+        return $_SESSION["last_built_building"][$this->current_kingdom] ?? null;
+    }
+
     public function setLastRecruitedSoldier($soldiername, $soldierdifference): void {
-        $_SESSION['last_recruited_soldier'][] = [
+        if (!isset($_SESSION["last_recruited_soldier"])) {
+            $_SESSION["last_recruited_soldier"] = array();
+        }
+        $_SESSION["last_recruited_soldier"][$this->current_kingdom] = [
             "soldiername" => $soldiername,
             "soldiercount" => $soldierdifference
         ];
     }
 
-    public function clearLastBuiltBuilding(): void {
-        unset($_SESSION['last_built_building']);
-    }
-
     public function clearLastRecruitedSoldier(): void {
-        unset($_SESSION['last_recruited_soldier']);
+        if (isset($_SESSION["last_recruited_soldier"][$this->current_kingdom])) {
+            unset($_SESSION["last_recruited_soldier"][$this->current_kingdom]);
+        }
     }
 
-    public function getLastBuiltBuilding(): array {
-        return $_SESSION['last_built_building'] ?? [];
-    }
-
-    public function getLastRecruitedSoldier(): array {
-        return $_SESSION['last_recruited_soldier'] ?? [];
+    public function getLastRecruitedSoldier(): ?array {
+        return $_SESSION["last_recruited_soldier"][$this->current_kingdom] ?? null;
     }
 
     // Get and execute events tied to the user

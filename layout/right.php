@@ -17,7 +17,7 @@ global $user, $db_instance;
                     foreach ($result as $row) {
                         $selected = ($row["id"] == $_SESSION["kingdomid"]) ? "selected='selected'" : "";
 
-                        echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} {$row["mapx"]}:{$row["mapy"]}</option>";
+                        echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                     }
                     ?>
                 </select>

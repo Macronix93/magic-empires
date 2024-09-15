@@ -476,11 +476,12 @@ include_once("layout/banner.html");
                         $last_built_building = $user->getLastBuiltBuilding();
 
                         if (!empty($last_built_building)) {
-                            $buildingName = $last_built_building[0]["buildingname"];
-                            $buildingLevel = $last_built_building[0]["buildinglevel"];
+                            $buildingName = $last_built_building["buildingname"];
+                            $buildingLevel = $last_built_building["buildinglevel"];
 
-                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $buildingName (Stufe $buildingLevel zu " . ($buildingLevel + 1) . ")<br><br>";
+                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $buildingName (Stufe " . ($buildingLevel == 0 ? "0" : $buildingLevel) . " zu " . ($buildingLevel + 1) . ")<br><br>";
 
+                            // Clear the last built building data after displaying it
                             $user->clearLastBuiltBuilding();
                         }
 

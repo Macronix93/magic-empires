@@ -77,6 +77,8 @@ include_once("layout/banner.html");
                     echo 'IP not found.';
                 }*/
 
+                print_r($_SESSION);
+
                 echo "Login-Zeit: <span id='counter'><script>startCountup($timediff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
 
                 echo "Haupt-KönigreichID: $mainkingdom<br>";
@@ -85,8 +87,6 @@ include_once("layout/banner.html");
                 echo "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>";
                 echo "Score: $score<br>";
                 echo "Gilde: $guildid<br><br>";
-
-                //echo "<div class='receiver-bubble' style='position: relative;'><img src='images/icons/icon_delete.png' class='ressource-icons' style='position: absolute; top: 10px; right: 20px;' alt='Löschen'></a><u>Du am blabla </u><br>blablabalbablbl aba ba b abba</div>";
                 ?>
             </div>
         </div>
