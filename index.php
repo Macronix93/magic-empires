@@ -30,11 +30,6 @@ include_once("layout/banner.html");
             <div class="big-box-header"><p>Übersicht</p></div>
             <div class="big-box-content">
                 <?php
-                if ($_SESSION["justloggedin"]) {
-                    //$user->checkUserEvents($user->getUserID());
-                    $_SESSION["justloggedin"] = false;
-                }
-
                 // Get some user data to show...
                 $result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
                 $row = $result->fetch_assoc();
@@ -77,10 +72,7 @@ include_once("layout/banner.html");
                     echo 'IP not found.';
                 }*/
 
-                print_r($_SESSION);
-
-                echo "Login-Zeit: <span id='counter'><script>startCountup($timediff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
-
+                echo "Login-Zeit: <span id='counter'><script type='text/javascript'>startCountup($timediff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
                 echo "Haupt-KönigreichID: $mainkingdom<br>";
                 echo "E-Mail: $email<br>";
                 echo "Registriert seit: " . date('d.m.Y H:i:s', $registerdate) . "<br>";

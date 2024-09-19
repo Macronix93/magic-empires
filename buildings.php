@@ -44,7 +44,6 @@ $buildingcount = count($buildings);
 $bID = (empty($_GET["id"]) ? 0 : $_GET["id"]);
 $buildid = (empty($_GET["bid"]) ? 0 : $_GET["bid"]);
 $buildingName = "";
-$lastid = 0;
 
 // Soldier variables
 $soldiers = [];
@@ -52,8 +51,7 @@ $soldiercount = 0;
 
 // Check if building is valid
 if (isset($_GET["id"]) && ($bID >= 0 && $bID < $buildingcount)) {
-    $buildingName = isset($_GET["action"]) ? $buildings[0]->getBuildingName() : $buildings[$bID]->getBuildingName();
-    $lastid = $_GET["id"];
+    $buildingName = isset($_GET["action"]) ? $buildings[0]->getBuildingName() . " (" . $buildings[0]->getBuildingLevel() . ")" : $buildings[$bID]->getBuildingName() . " (" . $buildings[$bID]->getBuildingLevel() . ")";
 }
 
 // Get kingdoms current resources
@@ -424,7 +422,6 @@ if (isset($_GET["action"])) {
             }
         } else {
             $error = "Das Gebäude wurde noch nicht gebaut!";
-            $lastid = 0;
         }
     } else {
         $error = "Das Gebäude existiert nicht!";
@@ -479,7 +476,7 @@ include_once("layout/banner.html");
                             $buildingName = $last_built_building["buildingname"];
                             $buildingLevel = $last_built_building["buildinglevel"];
 
-                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $buildingName (Stufe " . ($buildingLevel == 0 ? "0" : $buildingLevel) . " zu " . ($buildingLevel + 1) . ")<br><br>";
+                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $buildingName (" . ($buildingLevel == 0 ? "0" : $buildingLevel) . " → " . ($buildingLevel + 1) . ")<br><br>";
 
                             // Clear the last built building data after displaying it
                             $user->clearLastBuiltBuilding();
@@ -593,10 +590,10 @@ include_once("layout/banner.html");
                                     $last_recruited_soldier = $user->getLastRecruitedSoldier();
 
                                     if (!empty($last_recruited_soldier)) {
-                                        $soldierName = $last_recruited_soldier[0]["soldiername"];
-                                        $soldierCount = $last_recruited_soldier[0]["soldiercount"];
+                                        $soldierName = $last_recruited_soldier["soldiername"];
+                                        $soldierCount = $last_recruited_soldier["soldiercount"];
 
-                                        echo "<span class='event-finished'>Ausbildung abgeschlossen:</span> $soldierName (Anzahl: $soldierCount)<br><br>";
+                                        echo "<span class='event-finished'>Ausbildung abgeschlossen:</span> $soldierName (+$soldierCount)<br><br>";
 
                                         $user->clearLastRecruitedSoldier();
                                     }

@@ -8,8 +8,7 @@ class User {
     // Constructor
     public function __construct($db_conn) {
         $this->mysqli = $db_conn;
-        $this->current_kingdom = $_SESSION["kingdomid"];
-        echo $this->current_kingdom;
+        $this->current_kingdom = $_SESSION["kingdomid"] ?? null;
     }
 
     // Function to register a new user
@@ -95,7 +94,6 @@ class User {
                     $_SESSION["userid"] = $userid;
                     $_SESSION["username"] = $name;
                     $_SESSION["kingdomid"] = $mainkingdom;
-                    $_SESSION["justloggedin"] = true;
                     $_SESSION["lastsentmsg"] = $lastsentmsg;
 
                     changeLocation("index.php");

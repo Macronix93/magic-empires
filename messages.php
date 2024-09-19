@@ -200,14 +200,17 @@ if (isset($_GET["action"])) {
             // Get chat partner name based on id
             $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$_SESSION["msgreceiver"]]);
             $row = $result->fetch_assoc();
-            $chatPartner = $row["username"];
-
-            $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
-            $result = $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
+            /*$chatPartner = $row["username"];
+            echo $row["username"];*/
 
             if ($result->num_rows == 0) {
-                $error = "Du hast keine Konversation mit " . $chatPartner . "!";
+                $error = "Du hast keine Konversation mit diesem Nutzer!";
             } else {
+                $chatPartner = $row["username"];
+
+                $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
+                $result = $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
+
                 $view = '<div style=""><button onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
                 $view .= '<h3>Konversation mit 
                                         <a href="javascript:void(0);" 

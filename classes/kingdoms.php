@@ -116,11 +116,16 @@ class Kingdoms {
     public function getKingdomBuildings($kingdomid): void {
         $result = $this->mysqli->execute_query("SELECT buildingid, buildingname FROM buildings WHERE kingdomid = ?", [$kingdomid]);
 
-        foreach ($result as $row) {
-            $buildingid = $row["buildingid"];
-            $bname = $row["buildingname"];
+        if ($result->num_rows === 0) {
+            echo "Es wurden alle Gebäude gebaut.";
+        } else {
 
-            echo "<div class='box" . (!isset($_GET["action"]) && isset($_GET["id"]) && $_GET["id"] == $buildingid ? ' active' : '') . "' onclick=\"navigateTo('buildings.php?id=$buildingid', this)\">" . $this->getIcon($buildingid, $bname) . " $bname</div>";
+            foreach ($result as $row) {
+                $buildingid = $row["buildingid"];
+                $bname = $row["buildingname"];
+
+                echo "<div class='box" . (isset($_GET["id"]) && $_GET["id"] == $buildingid ? ' active' : '') . "' onclick=\"navigateTo('buildings.php?id=$buildingid', this)\">" . $this->getIcon($buildingid, $bname) . " $bname</div>";
+            }
         }
     }
 
