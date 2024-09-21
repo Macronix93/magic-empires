@@ -8,7 +8,7 @@ if (!($user->isLoggedIn())) {
     exit;
 }
 
-$error = null;
+$error = "";
 
 // Here PHP logic + GET/POST requests
 $kingdom = new Kingdoms($db_instance);
@@ -99,7 +99,7 @@ if (isset($_GET["action"])) {
                         }
 
                         // Dependency check passed - build/upgrade building!
-                        if ($error == null) {
+                        if (empty($error)) {
                             $buildingTime = time() + $buildings[$buildid]->getBuildingTime() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
 
                             // Subtract building costs from kingdom resources
@@ -199,7 +199,7 @@ if (isset($_GET["action"])) {
                             }
                         } else {
                             if ($kingdomIsRecruiting) {
-                                $error = "Du bist bereits am rekrutieren!";
+                                $error = "Du bist bereits am Rekrutieren!";
                             } else if (!is_numeric($_GET["count"]) || $_GET["count"] < 1) {
                                 $error = "Keine Angabe der Anzahl!";
                             } else if ($_GET["count"] > 99) {
@@ -450,7 +450,7 @@ include_once("layout/banner.html");
             <div class="big-box-header">
                 <p>
                     <?php
-                    if ($error != null) {
+                    if (!empty($error)) {
                         echo "Fehler";
                     } else {
                         echo $buildingName;
@@ -463,7 +463,7 @@ include_once("layout/banner.html");
                 // Here logic for the HTML view (based on the current building)
 
                 // Show error if there is any
-                if ($error != null) {
+                if (!empty($error)) {
                     echo $error . "<br>";
 
                     //changeLocation("buildings.php?id=$lastid", 2);

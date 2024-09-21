@@ -1,16 +1,16 @@
 <?php
-global $user;
+global $db_instance, $user;
 require_once("includes/core.php");
+
+// Set error variable to empty string
+$error = "";
 
 if (isset($_GET["logout"])) {
     if ($user->isLoggedIn()) {
-        //echo "<p style='text-align: center'>Du hast dich erfolgreich ausgeloggt!</p>";
-
+        session_unset();
         session_destroy();
-
-        $_SESSION = [];
     } else {
-        $user->error = "Du bist nicht eingeloggt!<br><br>";
+        changeLocation("login.php");
     }
 } else {
     if ($user->isLoggedIn()) {
@@ -19,22 +19,48 @@ if (isset($_GET["logout"])) {
     }
 
     // Set form vars to null
-    $name = $pass = "";
+    $name = "";
+    $pass = "";
 
     if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        if (empty($_POST["username"]) || empty($_POST["password"])) {
-            $user->error = "Bitte beide Felder ausfüllen!<br><br>";
-        } else {
+        // Check if user submitted the form
+        if (isset($_POST["login"])) {
             $name = makeSecure($_POST["username"]);
             $pass = makeSecure($_POST["password"]);
         }
 
-        if ($user->error == NULL) {
-            $user->loginUser($name, $pass);
+        if (empty($name) || empty($pass)) {
+            $error = "Bitte beide Felder ausfüllen!";
+        } else {
+            $result = $db_instance->execute_query("SELECT id, password, status FROM users WHERE username = ? LIMIT 1", [$name]);
+            $row = $result->fetch_assoc();
+            $found = $result->num_rows == 1;
+
+            // Check if user exists
+            if ($found) {
+                $userid = $row["id"];
+                $password = $row["password"];
+                $status = $row["status"];
+
+                if (!password_verify($pass, $password)) {
+                    $error .= "Falsches Passwort!";
+                } else if (!$status) {
+                    $error .= "Account nicht aktiviert durch Aktivierungslink!";
+                } else {
+                    if (empty($error)) {
+                        unset($_POST);
+                        $user->loginUser($userid);
+                    }
+                }
+            } else {
+                $error .= "Dieser Nickname existiert nicht!";
+            }
         }
+
+        // Add additional space for error message
+        $error .= "<br><br>";
     }
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -46,7 +72,7 @@ include_once("layout/head.html");
 include_once("layout/banner.html");
 
 // Show login form
-$user->showLoginForm($user->error);
+$user->showLoginForm($error);
 ?>
 </body>
 </html>

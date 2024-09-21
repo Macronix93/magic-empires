@@ -319,7 +319,7 @@ function sendUpdateChatRequest() {
 }
 
 function updateChat(chatPartner) {
-    // Make an AJAX request to update the map
+    // Make an AJAX request to update the chat
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {

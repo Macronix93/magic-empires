@@ -1,9 +1,9 @@
 :root {
     --box-content-color: rgb(58, 66, 79);
-    --big-box-content-color: rgb(58, 66, 79);
     --table-color: rgb(68, 80, 91);
     --box-selected: rgb(112, 115, 124);
     --link-color: rgb(183, 204, 245);
+    --box-header: rgb(43, 47, 54);
 }
 
 * {
@@ -22,7 +22,6 @@ body {
     font-size: 18px;
     background: rgb(0, 0, 0) url(images/background.jpg);
     overflow-x: hidden;
-    /*height: 100%;*/
 }
 
 ::selection {
@@ -98,17 +97,29 @@ footer {
     margin-right: auto;
 }
 
-div.form {
-    display: block;
-    text-align: center;
+.form {
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-form,
 .g-recaptcha {
     display: inline-block;
-    margin-left: auto;
-    margin-right: auto;
+}
+
+.login-register {
+    margin: auto;
     text-align: center;
+    min-width: 25%;
+}
+
+fieldset {
+    padding: 20px;
+    background: rgb(58, 63, 72);
+    border-radius: 10px;
+    border: 1px solid rgb(0, 0, 0);
+    -webkit-box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
+    box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
 }
 
 select {
@@ -155,7 +166,7 @@ button {
     border: 2px solid rgb(33, 33, 33);
     border-radius: 5px;
     padding: 5px;
-    background-color: var(--big-box-content-color);
+    background-color: var(--box-content-color);
 }
 
 input[type=text]:focus,
@@ -216,7 +227,7 @@ select:-webkit-autofill:focus {
     display: inline-block;
     width: 100%;
     outline: 1px solid rgb(0, 0, 0);
-    background-color: var(--big-box-content-color);
+    background-color: var(--box-content-color);
     border-radius: 10px;
     -webkit-box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
     box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
@@ -253,8 +264,7 @@ select:-webkit-autofill:focus {
     justify-content: center;
     align-items: center;
     height: 40px;
-    background: rgb(43, 47, 54);
-    background: linear-gradient(0deg, rgba(23, 27, 34, 1) 0%, rgba(43, 47, 54, 1) 39%);
+    background: var(--box-header) linear-gradient(0deg, rgba(23, 27, 34, 1) 0%, rgba(43, 47, 54, 1) 39%);
     border-bottom: 2px solid rgb(0, 0, 0);
 }
 
@@ -308,7 +318,8 @@ a {
     text-decoration: none;
 }
 
-a:hover {
+a:hover,
+a:hover b {
     color: var(--link-color);
 }
 
@@ -354,10 +365,11 @@ td {
     position: absolute;
     top: 0;
     left: 0;
-    border: solid 1px;
-    background-color: rgb(0, 0, 0);
-    padding: 5px;
-    max-width: 350px
+    border: solid 1px rgb(0, 0, 0);
+    border-radius: 15px;
+    background: var(--box-header) linear-gradient(0deg, rgba(23, 27, 34, 1) 0%, rgba(43, 47, 54, 1) 39%);
+    padding: 15px;
+    max-width: 350px;
 }
 
 .popup {
@@ -403,7 +415,7 @@ td {
 }
 
 .legend-inner-item {
-    border: 1px solid black;
+    border: 1px solid rgb(0, 0, 0);
     width: 32px;
     height: 32px;
 }
@@ -492,7 +504,7 @@ td {
     width: 250px;
     height: 100%;
     background-color: var(--table-color);
-    border-right: solid black 1px;
+    border-right: solid rgb(0, 0, 0) 1px;
     overflow: auto;
 }
 
@@ -504,8 +516,8 @@ td {
     left: 0;
     width: 50px;
     height: 50px;
-    border-right: solid black 1px;
-    border-bottom: solid black 1px;
+    border-right: solid rgb(0, 0, 0) 1px;
+    border-bottom: solid rgb(0, 0, 0) 1px;
     border-bottom-right-radius: 10px;
     background-color: var(--table-color);
     cursor: pointer;

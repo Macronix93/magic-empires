@@ -40,8 +40,6 @@ class User {
 
         echo "<div style='text-align: center;'><b style='color: mediumseagreen;'>Du hast dich erfolgreich registriert! Ein Aktivierungslink wurde an deine E-Mail gesendet.</b><br><br><a href='login.php'>Hier einloggen</a></div>";
 
-        unset($_POST);
-
         // Update lastrank
         $query = "
                     UPDATE users 
@@ -58,14 +56,32 @@ class User {
     }
 
     // Function to log in a user
-    public function loginUser($name, $pass): void {
-        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
+    public function loginUser($userid): void {
+        $timestamp = time();
+
+        // Fetch users data
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, lastsentmsg FROM users WHERE id = ?", [$userid]);
+        $row = $result->fetch_assoc();
+        $_SESSION["currlogin"] = $timestamp;
+        $_SESSION["userid"] = $userid;
+        $_SESSION["lastlogin"] = $row["lastlogin"];
+        $_SESSION["username"] = $row["username"];
+        $_SESSION["kingdomid"] = $row["mainkingdom"];
+        $_SESSION["lastsentmsg"] = $row["lastsentmsg"];
+
+        // Update login time
+        $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$userid]);
+
+        changeLocation("index.php");
+
+        /*$result = $this->mysqli->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
         $row = $result->fetch_assoc();
         $found = $result->num_rows == 1;
-        $userid = $row["id"];
 
         // Check if user exists
         if ($found) {
+            $userid = $row["id"];
+
             // Fetch users data
             $result = $this->mysqli->execute_query("SELECT username, status, password, email, lastlogin, score, mainkingdom, guildid, lastsentmsg FROM users WHERE id = ?", [$userid]);
             $row = $result->fetch_assoc();
@@ -105,7 +121,7 @@ class User {
             $this->error = "<b class='error'>Dieser Nickname existiert nicht!</b><br><br>";
         }
 
-        $this->mysqli->close();
+        $this->mysqli->close();*/
     }
 
     // Get the user ID by activation key
@@ -342,64 +358,53 @@ class User {
     }
 
     // Show register and login forms
-    function showRegisterForm($nameErr, $emailErr, $passErr, $captchaErr): void {
+    function showRegisterForm($error): void {
         ?>
         <div class="form">
-            <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
-                <fieldset style="background-color:rgba(0, 0, 0, 0.7); width:25%; padding:20px;">
-
+            <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
+                <fieldset>
                     <legend><b>Registrieren</b></legend>
-
-                    <span class="error"><?php echo $nameErr;
-                        if (!empty($nameErr)) echo "<br>"; ?></span>
-                    <span class="error"><?php echo $emailErr;
-                        if (!empty($emailErr)) echo "<br>"; ?></span>
-                    <span class="error"><?php echo $passErr;
-                        if (!empty($passErr)) echo "<br>"; ?></span>
-                    <span class="error"><?php echo $captchaErr; ?></span>
-
-                    <br><br>
-
-                    <table style="border: 0 solid transparent;">
-
-                        <tr style="background: none">
+                    <span class="error"><?php echo $error; ?></span>
+                    <table class="table">
+                        <tr>
                             <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
-                            <td><label>
+                            <td>
+                                <label>
                                     <input style="padding:3px" class="regis" type="text" name="username"
                                            value="<?php echo $_POST["username"] ?? ""; ?>">
-                                </label></td>
+                                </label>
+                            </td>
                         </tr>
-
-                        <tr style="background: none">
-                            <td style="color:#ffffff"><b>E-Mail:</b></td>
-                            <td><label>
+                        <tr>
+                            <td style="color:#ffffff">
+                                <b>E-Mail:</b>
+                            </td>
+                            <td>
+                                <label>
                                     <input style="padding:3px" class="regis" type="text" name="email"
                                            value="<?php echo $_POST["email"] ?? ""; ?>">
-                                </label></td>
+                                </label>
+                            </td>
                         </tr>
-
-                        <tr style="background: none">
-                            <td style="color:#ffffff"><b>Passwort:</b></td>
-                            <td><label>
+                        <tr>
+                            <td style="color:#ffffff">
+                                <b>Passwort:</b>
+                            </td>
+                            <td>
+                                <label>
                                     <input style="padding:3px" class="regis" type="password" name="password"
                                 </label>
                             </td>
                         </tr>
-
                     </table>
-
-                    <br><br>
-
+                    <br>
                     <div class="g-recaptcha" data-sitekey="6LeaqbQpAAAAABWbpK1bAEJ4FCAFjqbuPkNHtDzk"></div>
                     <!-- ME Schlüssel: 6Lf1Ok4UAAAAANS2-TikRjXo-SDdelHVkGKj1PQT-->
-
                     <br><br>
-
                     <input type='submit' name='submit' value='Registrieren' style="width:125px; height:50px;"/>
                     <br><br>
-                    ___________________________________<br><br>
+                    <hr>
                     <i>Du bist bereits registriert? Logge dich <a href='login.php'><b>hier</b></a> ein.</i>
-
                 </fieldset>
             </form>
         </div>
@@ -409,40 +414,36 @@ class User {
     function showLoginForm($error): void {
         ?>
         <div class="form">
-            <form id="login" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post"
-                  accept-charset="UTF-8">
-                <fieldset style="background-color:rgba(0, 0, 0, 0.7); width: 25%; padding:20px;">
-
+            <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
+                <fieldset>
                     <legend><b>Login</b></legend>
-
                     <span class="error"><?php echo $error; ?></span>
-
-                    <table style="border: 0 solid transparent;">
-
-                        <tr style="background: none">
+                    <table class="table">
+                        <tr>
                             <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
-                            <td><label>
+                            <td>
+                                <label>
                                     <input style="padding: 3px" type="text" name="username"
                                            value="<?php echo $_POST["username"] ?? ""; ?>">
-                                </label></td>
+                                </label>
+                            </td>
                         </tr>
-
-                        <tr style="background: none">
-                            <td style="color:#ffffff"><b>Passwort:</b></td>
-                            <td><label>
+                        <tr>
+                            <td style="color:#ffffff">
+                                <b>Passwort:</b>
+                            </td>
+                            <td>
+                                <label>
                                     <input style="padding: 3px" type="password" name="password">
-                                </label></td>
+                                </label>
+                            </td>
                         </tr>
-
                     </table>
-
-                    <br><br>
-
+                    <br>
                     <input type='submit' name='login' value='Einloggen' style="width:125px;height:50px;"/>
                     <br><br>
-                    ___________________________________<br><br>
+                    <hr>
                     <i>Du bist noch nicht registriert? Registriere dich <a href='register.php'><b>hier</b></a>.</i>
-
                 </fieldset>
             </form>
         </div>

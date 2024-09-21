@@ -24,11 +24,6 @@ const MIN_PASSWORD_LENGTH = 5;
 const MAX_PASSWORD_LENGTH = 65;
 const MAX_X = 100;
 const MAX_Y = 100;
-const FIELD_TYPE_MOUNTAINS = 1;
-const FIELD_TYPE_COAST = 2;
-const FIELD_TYPE_FOREST = 3;
-const FIELD_TYPE_DESERT = 4;
-const FIELD_TYPE_PLAINS = 5;
 const MAX_MAP_SEARCHES = 3;
 const ACTION_BUILD_BUILDING = 1;
 const ACTION_BUILD_TROOPS = 2;
@@ -43,14 +38,11 @@ const DEFAULT_WALL_HP = 200;
 const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
 const AFK_SECONDS = 300; // 5 Minutes
 const USER_UPDATE_TICK = 30; // 30 Seconds
-const MAX_USER_MESSAGES = 50;
-const MAX_GUILD_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 400;
 const MAX_LINE_BREAK_COUNT = 10;
 const MESSAGES_RATE_LIMIT = 60;
 const MAX_MESSAGES_PER_RATELIMIT = 10;
 const INACTIVITY_DELAY = 864000;
-const MAX_SOLDIERS = 4;
 const STARTING_FOOD = 1000;
 const STARTING_WOOD = 1000;
 const STARTING_STONE = 700;
@@ -66,7 +58,6 @@ const BASE_FOOD_GAIN = 20;
 const BASE_WOOD_GAIN = 20;
 const BASE_STONE_GAIN = 15;
 const BASE_GOLD_GAIN = 10;
-const STARTING_GAIN = 10;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 
 /*
@@ -139,21 +130,22 @@ $user = new User($db_instance);
 
 // Timeout Check
 if ($user->isLoggedIn()) {
+    $currentTimestamp = time();
+
     if (!isset($_SESSION["lastactivity"])) {
         // initiate value
-        $_SESSION["lastactivity"] = time();
+        $_SESSION["lastactivity"] = $currentTimestamp;
     }
 
     // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
-    if (time() - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
+    if ($currentTimestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
+        session_unset();
         session_destroy();
 
         changeLocation("login.php");
         exit;
     } else {
         // update last activity timestamp
-        $currentTimestamp = time();
-
         if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK) {
             $stmt = $db_instance->prepare("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?");
             $userID = $user->getUserID();
@@ -165,10 +157,7 @@ if ($user->isLoggedIn()) {
         $_SESSION["lastactivity"] = $currentTimestamp;
     }
 
-    /*$kingdom = new Kingdoms($db_instance);
-    $kingdom->getKingdomRessources($_SESSION["kingdomid"]);*/
-
-    // Process user events
+    // Process all events for the user
     $user->processUserEvents($user->getUserID());
 }
 
@@ -259,4 +248,27 @@ function getError(string $text, string $receiverid): string {
 
 function fnum($number): string {
     return number_format($number, 0, ",", ".");
+}
+
+function regex_pattern(): string {
+    return '/\b('
+        . '(a(bstract|nd|rray|s))|'
+        . '(c(a(llable|se|tch)|l(ass|one)|on(st|tinue)))|'
+        . '(d(e(clare|fault)|ie|o))|'
+        . '(e(cho|lse(if)?|mpty|nd(declare|for(each)?|if|switch|while)|val|x(it|tends)))|'
+        . '(f(inal|or(each)?|unction))|'
+        . '(g(lobal|goto))|'
+        . '(i(f|mplements|n(clude(_once)?|st(anceof|eadof)|terface)|sset))|'
+        . '(n(amespace|new))|'
+        . '(p(r(i(nt|vate)|otected)|ublic))|'
+        . '(re(quire(_once)?|turn))|'
+        . '(s(tatic|witch))|'
+        . '(t(hrow|r(ait|y)))|'
+        . '(u(nset|se))|'
+        . '(__halt_compiler|break|list|(x)?or|var|while)'
+        . ')\b/';
+}
+
+function get_bad_names(): array {
+    return ["server", "system", "hitler", "arsch", "arschloch"];
 }
