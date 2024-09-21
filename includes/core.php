@@ -169,6 +169,7 @@ if ($user->isLoggedIn()) {
 function makeSecure($data): string {
     $data = trim($data);
     $data = stripslashes($data);
+    $data = preg_replace('/\s+/', '', $data);
     return htmlspecialchars($data);
 }
 
@@ -270,5 +271,13 @@ function regex_pattern(): string {
 }
 
 function get_bad_names(): array {
-    return ["server", "system", "hitler", "arsch", "arschloch"];
+    $filename = __DIR__ . '/bad_names.txt';
+
+    if (!file_exists($filename)) {
+        echo "File for bad names not found!";
+        return [];
+    }
+
+    // Convert all names to lowercase to ensure case-insensitive comparison
+    return file($filename, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 }

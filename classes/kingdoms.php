@@ -30,52 +30,15 @@ class Kingdoms {
 
     // Function to create a new kingdom
     public function createKingdom($userid, $username): false|int {
-        // Count available fields with no kingdom on it
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = '-1'");
-        $rows = $result->fetch_row();
+        // Select a random map entry and deny registration, if no map entry was found
+        $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1;");
+        $row = $result->fetch_assoc();
 
-        echo "DEBUG: " . $rows[0] . "<br>";
-
-        // If there is no free row, cancel
-        if ($rows[0] == 0) {
-            echo "<p class='error'>Zurzeit gibt es keine freien Plätze auf der Karte!</p><br><br>";
-
-            $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$userid]);
+        if (!$row) {
             return false;
-        } else { // We found a free row
-            echo "DEBUG: free row gefunden<br>";
-
-            // Choose random x and y positions on map
-            $count = 0;
-
-            while ($count < MAX_MAP_SEARCHES) {
-                echo "DEBUG: iteration<br>";
-
-                $randx = rand(1, 100);
-                $randy = rand(1, 100);
-                $result = $this->mysqli->execute_query("SELECT kingdomid, fieldtype FROM map WHERE mapx = ? AND mapy = ? LIMIT 1", [$randx, $randy]);
-                $row = $result->fetch_assoc();
-
-                if ($row["kingdomid"] == -1) {
-                    // Field is empty, so we take it
-                    return $this->foundFreeField($row["fieldtype"], $randx, $randy, $userid, $username);
-                } else {
-                    // Found a kingdom on that spot on the map, search again
-                    $count++;
-                }
-            }
-
-            // Just go to the next available slot if no free slot found at random
-            $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = '-1' LIMIT 1");
-            $row = $result->fetch_assoc();
-            $mapx = $row["mapx"];
-            $mapy = $row["mapy"];
-
-            // Insert it into kingdoms table
-            $insertid = $this->foundFreeField($row->fieldtype, $mapx, $mapy, $userid, $username);
+        } else {
+            return $this->foundFreeField($row["fieldtype"], $row["mapx"], $row["mapy"], $userid, $username);
         }
-
-        return $insertid;
     }
 
     public function getKingdomInfo($kingdomid) {

@@ -23,29 +23,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // ME Schlüssel: 6Lf1Ok4UAAAAAG9oYNxP0_LDyUZfcie2XWhyZKBe
     //$data = json_decode($json);
 
-    // Retrieve and sanitize form inputs
-    $name = makeSecure($_POST["username"] ?? "");
-    $email = makeSecure($_POST["email"] ?? "");
-    $pass = makeSecure($_POST["password"] ?? "");
+    $name = $_POST["username"];
 
-    // Validate username
-    if (empty($name)) {
-        $error .= "Bitte einen Benutzernamen angeben!<br>";
+    if (preg_match('/\s/', $name)) {
+        $error .= "Benutzername darf keine Leerzeichen enthalten!<br>";
     } else {
-        $pattern = '/^' . preg_quote(strtolower($name), '/') . '$/i'; // Case-insensitive pattern
-        $bad_names_matches = preg_grep($pattern, get_bad_names());
+        $name = makeSecure($_POST["username"] ?? "");
+        $email = makeSecure($_POST["email"] ?? "");
+        $pass = makeSecure($_POST["password"] ?? "");
 
-        if (!preg_match("/^[a-zA-Z0-9 ]+$/", $name)) {
-            $error .= "Benutzername darf nur Buchstaben/Zahlen enthalten!<br>";
-        } else if (preg_match_all(regex_pattern(), $name, $matches) || !empty($bad_names_matches)) {
-            $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
-        } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
-            $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
+        // Validate username
+        if (empty($name)) {
+            $error .= "Bitte einen Benutzernamen angeben!<br>";
         } else {
-            // Check if username already exists
-            $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
-            if ($result->num_rows == 1) {
-                $error .= "Dieser Benutzername existiert bereits!<br>";
+            $pattern = '/^' . preg_quote(strtolower($name), '/') . '$/i'; // Case-insensitive pattern
+            $bad_names_matches = preg_grep($pattern, get_bad_names());
+
+            if (!preg_match("/^[a-zA-Z0-9 ]+$/", $name)) {
+                $error .= "Benutzername darf nur Buchstaben/Zahlen enthalten!<br>";
+            } else if (preg_match_all(regex_pattern(), $name, $matches) || !empty($bad_names_matches)) {
+                $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
+            } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
+                $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
             }
         }
     }
@@ -64,13 +63,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
     }
 
-    // Add additional space for error message
-    $error .= "<br>";
-
     // Register user if no errors
     if (empty($error)) {
-        $user->registerUser($name, $email, $pass);
+        // Check if username already exists
+        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
+
+        if ($result->num_rows == 1) {
+            $error .= "Dieser Benutzername existiert bereits!<br>";
+        } else {
+            unset($_POST);
+            $user->registerUser($name, $email, $pass);
+        }
     }
+
+    // Add additional space for error message
+    $error .= "<br>";
 }
 
 // Show register form

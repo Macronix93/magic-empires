@@ -23,11 +23,9 @@ if (isset($_GET["logout"])) {
     $pass = "";
 
     if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        // Check if user submitted the form
-        if (isset($_POST["login"])) {
-            $name = makeSecure($_POST["username"]);
-            $pass = makeSecure($_POST["password"]);
-        }
+        // Retrieve and sanitize form inputs
+        $name = makeSecure($_POST["username"] ?? "");
+        $pass = makeSecure($_POST["password"] ?? "");
 
         if (empty($name) || empty($pass)) {
             $error = "Bitte beide Felder ausfüllen!";

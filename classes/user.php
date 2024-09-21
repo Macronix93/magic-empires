@@ -4,6 +4,7 @@ class User {
     public string $error = "";
     private $mysqli;
     private $current_kingdom;
+    private $reg_status;
 
     // Constructor
     public function __construct($db_conn) {
@@ -23,25 +24,25 @@ class User {
         $kingdom = new Kingdoms($this->mysqli);
         $mainkingdom = $kingdom->createKingdom($insertid, $name);
 
-        // Update mainkingdom in user table
-        $this->mysqli->execute_query("UPDATE users SET mainkingdom = '$mainkingdom' WHERE id = ?", [$insertid]);
+        if ($mainkingdom) {
+            // Update mainkingdom in user table
+            $this->mysqli->execute_query("UPDATE users SET mainkingdom = '$mainkingdom' WHERE id = ?", [$insertid]);
 
-        // Create activation link to activate account
-        $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activationkey;
+            // Create activation link to activate account
+            $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activationkey;
 
-        $empfaenger = $email;
-        $betreff = 'Magic-Empires - Registration';
-        $nachricht = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
-        $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
-            'From: webmaster@magic-empires.de' . "\r\n" .
-            'X-Mailer: PHP/' . phpversion();
+            $empfaenger = $email;
+            $betreff = 'Magic-Empires - Registration';
+            $nachricht = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
+            $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
+                'From: webmaster@magic-empires.de' . "\r\n" .
+                'X-Mailer: PHP/' . phpversion();
 
-        if (mail($empfaenger, $betreff, $nachricht, $header)) echo "DEBUG: mail gesendet!";
+            if (mail($empfaenger, $betreff, $nachricht, $header)) {
+                $this->reg_status = "<span class='passed'>Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.</span><br>";
 
-        echo "<div style='text-align: center;'><b style='color: mediumseagreen;'>Du hast dich erfolgreich registriert! Ein Aktivierungslink wurde an deine E-Mail gesendet.</b><br><br><a href='login.php'>Hier einloggen</a></div>";
-
-        // Update lastrank
-        $query = "
+                // Update lastrank
+                $query = "
                     UPDATE users 
                         JOIN (
                             SELECT id, (@rank := @rank + 1) AS new_rank
@@ -50,9 +51,15 @@ class User {
                         ) AS ranked_users ON users.id = ranked_users.id
                     SET users.lastrank = ranked_users.new_rank
                     WHERE users.id = ?
-        ";
-        $this->mysqli->execute_query($query, [$insertid]);
-        $this->mysqli->close();
+                ";
+                $this->mysqli->execute_query($query, [$insertid]);
+            }
+        } else {
+            $this->reg_status = "<span class='error'>Es sind derzeit keine freien Plätze übrig!</span><br>";
+            $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$insertid]);
+        }
+
+        //TODO: Else block for deleting user and kingdom, if mail couldn't be sent?!
     }
 
     // Function to log in a user
@@ -73,61 +80,13 @@ class User {
         $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$userid]);
 
         changeLocation("index.php");
-
-        /*$result = $this->mysqli->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
-        $row = $result->fetch_assoc();
-        $found = $result->num_rows == 1;
-
-        // Check if user exists
-        if ($found) {
-            $userid = $row["id"];
-
-            // Fetch users data
-            $result = $this->mysqli->execute_query("SELECT username, status, password, email, lastlogin, score, mainkingdom, guildid, lastsentmsg FROM users WHERE id = ?", [$userid]);
-            $row = $result->fetch_assoc();
-            $name = $row["username"];
-            $status = $row["status"];
-            $password = $row["password"];
-            //$email = $row["email"];
-            $lastlogin = $row["lastlogin"];
-            $mainkingdom = $row["mainkingdom"];
-            //$guild = $row["guildid"];
-            $lastsentmsg = $row["lastsentmsg"];
-
-            if (password_verify($pass, $password)) {
-                if (!$status) {
-                    $this->error = "<b class='error'>Bitte aktiviere deinen Account mit dem Aktivierungslink, der an deine E-Mail-Adresse geschickt wurde!</b><br><br>";
-                } else {
-                    $timestamp = time();
-
-                    $stmt = $this->mysqli->prepare("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?");
-                    $stmt->bind_param('i', $userid);
-                    $stmt->execute();
-                    $stmt->close();
-
-                    $_SESSION["currlogin"] = time();
-                    $_SESSION["lastlogin"] = $lastlogin;
-                    $_SESSION["userid"] = $userid;
-                    $_SESSION["username"] = $name;
-                    $_SESSION["kingdomid"] = $mainkingdom;
-                    $_SESSION["lastsentmsg"] = $lastsentmsg;
-
-                    changeLocation("index.php");
-                }
-            } else {
-                $this->error = "<b class='error'>Falsches Passwort!</b><br><br>";
-            }
-        } else {
-            $this->error = "<b class='error'>Dieser Nickname existiert nicht!</b><br><br>";
-        }
-
-        $this->mysqli->close();*/
     }
 
     // Get the user ID by activation key
     public function getUserDatabaseID($activationkey) {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activationkey]);
         $data = "";
+
         if ($row = $result->fetch_assoc()) {
             $data = $row["id"];
         }
@@ -364,6 +323,7 @@ class User {
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
                 <fieldset>
                     <legend><b>Registrieren</b></legend>
+                    <?php echo $this->reg_status; ?>
                     <span class="error"><?php echo $error; ?></span>
                     <table class="table">
                         <tr>
