@@ -3,8 +3,8 @@ global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
-if (!($user->isLoggedIn())) {
-    changeLocation("login.php");
+if (!($user->is_logged_in())) {
+    change_location("login.php");
     exit;
 }
 ?>
@@ -23,12 +23,10 @@ include_once("layout/banner.html");
         include_once("layout/left.php");
         ?>
     </div>
-
     <div class="middle-container">
         <div class="big-box-container">
             <div class="big-box-header"><p>Landschaft</p></div>
             <div class="big-box-content">
-
                 <?php
                 $map = new Map($db_instance);
                 $fieldid = -1;
@@ -77,14 +75,14 @@ include_once("layout/banner.html");
 
                 // Show info about the fields
                 echo "<div style='padding-bottom: 5px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;'>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(5)};'></div><span>Hochland</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(2)};'></div><span>Küste</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(3)};'></div><span>Wald</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(4)};'></div><span>Wüste</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->getFieldTypeColor(1)};'></div><span>Gebirge</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></div><span>Hochland</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></div><span>Küste</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></div><span>Wald</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></div><span>Wüste</span></div>
+                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></div><span>Gebirge</span></div>
                         </div>";
                 echo "<div id='map-container'>";
-                $map->renderMap($map->startx, $map->starty);
+                $map->render_map($map->startx, $map->starty);
                 echo "</div>";
                 ?>
                 <div id='field-info'></div>
@@ -101,7 +99,6 @@ include_once("layout/banner.html");
             </div>
         </div>
     </div>
-
     <div class="right-container">
         <?php
         include_once("layout/right.php");

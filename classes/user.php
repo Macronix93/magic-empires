@@ -1,7 +1,6 @@
 <?php
 
 class User {
-    public string $error = "";
     private $mysqli;
     private $current_kingdom;
     private $reg_status;
@@ -13,7 +12,27 @@ class User {
     }
 
     // Function to register a new user
-    public function registerUser($name, $email, $pass): void {
+    public function register_user($name, $email, $pass): void {
+        /*
+        BETTER PASSWORD AND SALT ALGO:
+
+        $salt = bin2hex(random_bytes(16));
+        $combined_password = $salt . $pass;
+        $hashed_password = password_hash($combined_password, PASSWORD_BCRYPT);
+
+
+
+        LOGIN PAGE:
+
+        $combined_password = $passentered . $salt;
+        $isPasswordCorrect = password_verify($combined_password, $hashedPassword);
+
+        if ($isPasswordCorrect) {
+            // Password is correct, allow login
+        } else {
+            // Password is incorrect, deny login
+        }
+        */
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activationkey = md5($email . $name);
 
@@ -22,7 +41,7 @@ class User {
 
         // Try to create kingdom
         $kingdom = new Kingdoms($this->mysqli);
-        $mainkingdom = $kingdom->createKingdom($insertid, $name);
+        $mainkingdom = $kingdom->create_kingdom($insertid, $name);
 
         if ($mainkingdom) {
             // Update mainkingdom in user table
@@ -63,7 +82,7 @@ class User {
     }
 
     // Function to log in a user
-    public function loginUser($userid): void {
+    public function login_user($userid): void {
         $timestamp = time();
 
         // Fetch users data
@@ -79,11 +98,11 @@ class User {
         // Update login time
         $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$userid]);
 
-        changeLocation("index.php");
+        change_location("index.php");
     }
 
     // Get the user ID by activation key
-    public function getUserDatabaseID($activationkey) {
+    public function get_user_database_id($activationkey) {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activationkey]);
         $data = "";
 
@@ -95,29 +114,29 @@ class User {
     }
 
     // Check if user is logged in
-    public function isLoggedIn(): bool {
+    public function is_logged_in(): bool {
         if (isset($_SESSION["userid"])) return true;
         else return false;
     }
 
     // Get ID of the user
-    public function getUserID() {
+    public function get_user_id() {
         return $_SESSION["userid"] ?? "";
     }
 
     // Get the name of the user
-    public function getUserName(): string {
+    public function get_user_name(): string {
         return $_SESSION["username"] ?? "";
     }
 
-    public function getUserScore(): int {
+    public function get_user_score(): int {
         $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
         $row = $result->fetch_assoc();
 
         return $row["score"];
     }
 
-    public function setLastBuiltBuilding($buildingname, $buildinglevel): void {
+    public function set_last_built_building($buildingname, $buildinglevel): void {
         if (!isset($_SESSION["last_built_building"])) {
             $_SESSION["last_built_building"] = array();
         }
@@ -127,17 +146,17 @@ class User {
         ];
     }
 
-    public function clearLastBuiltBuilding(): void {
+    public function clear_last_built_building(): void {
         if (isset($_SESSION["last_built_building"][$this->current_kingdom])) {
             unset($_SESSION["last_built_building"][$this->current_kingdom]);
         }
     }
 
-    public function getLastBuiltBuilding(): ?array {
+    public function get_last_built_building(): ?array {
         return $_SESSION["last_built_building"][$this->current_kingdom] ?? null;
     }
 
-    public function setLastRecruitedSoldier($soldiername, $soldierdifference): void {
+    public function set_last_recruited_soldier($soldiername, $soldierdifference): void {
         if (!isset($_SESSION["last_recruited_soldier"])) {
             $_SESSION["last_recruited_soldier"] = array();
         }
@@ -147,18 +166,18 @@ class User {
         ];
     }
 
-    public function clearLastRecruitedSoldier(): void {
+    public function clear_last_recruited_soldier(): void {
         if (isset($_SESSION["last_recruited_soldier"][$this->current_kingdom])) {
             unset($_SESSION["last_recruited_soldier"][$this->current_kingdom]);
         }
     }
 
-    public function getLastRecruitedSoldier(): ?array {
+    public function get_last_recruited_soldier(): ?array {
         return $_SESSION["last_recruited_soldier"][$this->current_kingdom] ?? null;
     }
 
     // Get and execute events tied to the user
-    public function processUserEvents($userid): void {
+    public function process_user_events($userid): void {
         $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$userid]);
 
         foreach ($result as $row) {
@@ -187,7 +206,7 @@ class User {
                         } else { // Update current building
                             $this->mysqli->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = ? AND buildingid = ?", [$kingdomid, $buildingid]);
 
-                            $this->setLastBuiltBuilding($buildingname, $buildinglevel);
+                            $this->set_last_built_building($buildingname, $buildinglevel);
                         }
                         $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $userid]);
 
@@ -269,17 +288,16 @@ class User {
 
                     foreach ($result as $row2) {
                         $soldier = new Soldier();
-                        $soldier->setSoldierID($row2["id"]);
-                        $soldier->setSoldierName($row2["soldiername"]);
-                        $soldier->setSoldierVillagerCost($row2["villager"]);
-                        $soldier->setSoldierTime($row2["requiredtime"]);
-                        $soldier->setSoldierScoreGain($row2["scoregain"]);
+                        $soldier->set_soldier_id($row2["id"]);
+                        $soldier->set_soldier_name($row2["soldiername"]);
+                        $soldier->set_soldier_villager_cost($row2["villager"]);
+                        $soldier->set_soldier_time($row2["requiredtime"]);
+                        $soldier->set_soldier_score_gain($row2["scoregain"]);
 
                         $soldiers[] = $soldier;
                     }
-                    $result->close();
 
-                    $soldiertime = $soldiers[$soldierid]->getSoldierTime();
+                    $soldiertime = $soldiers[$soldierid]->get_soldier_time();
                     $currenttime = time();
                     $totaldifference = $recruittime - $currenttime;
                     $numberLeftToRecruit = max(0, ceil($totaldifference / $soldiertime));
@@ -289,21 +307,22 @@ class User {
                         $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE kingdomid = ? AND soldierid = ?", [$soldierdifference, $kingdomid, $soldierid]);
 
                         // Update soldiers for kingdom
-                        $soldierName = $soldiers[$soldierid]->getSoldierName();
+                        $soldierName = $soldiers[$soldierid]->get_soldier_name();
                         $query = "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
                                       VALUES (?, ?, ?, ?)
                                       ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?";
                         $this->mysqli->execute_query($query, [$kingdomid, $soldierid, $soldierName, $soldierdifference, $soldierdifference]);
-                        $villCost = $soldierdifference * $soldiers[$soldierid]->getSoldierVillagerCost();
+                        $villCost = $soldierdifference * $soldiers[$soldierid]->get_soldier_villager_cost();
 
                         // Set last recruited soldier
-                        $this->setLastRecruitedSoldier($soldierName, $soldierdifference);
+                        $this->set_last_recruited_soldier($soldierName, $soldierdifference);
 
-                        // Update kingdom villager count
+                        // Update kingdom villager count and get current villager count
                         $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - $villCost WHERE id = ?", [$kingdomid]);
+                        apply_villager_cap($kingdomid);
 
                         // Update user score
-                        $this->mysqli->execute_query("UPDATE users SET score = score + (? * ?) WHERE id = ?", [$soldierdifference, $soldiers[$soldierid]->getSoldierScoreGain(), $userid]);
+                        $this->mysqli->execute_query("UPDATE users SET score = score + (? * ?) WHERE id = ?", [$soldierdifference, $soldiers[$soldierid]->get_soldier_score_gain(), $userid]);
                     }
 
                     if ($numberLeftToRecruit == 0) {
@@ -317,7 +336,7 @@ class User {
     }
 
     // Show register and login forms
-    function showRegisterForm($error): void {
+    function show_register_form($error): void {
         ?>
         <div class="form">
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
@@ -341,7 +360,7 @@ class User {
                             </td>
                             <td>
                                 <label>
-                                    <input style="padding:3px" class="regis" type="text" name="email"
+                                    <input class="regis" type="text" name="email"
                                            value="<?php echo $_POST["email"] ?? ""; ?>">
                                 </label>
                             </td>
@@ -352,7 +371,7 @@ class User {
                             </td>
                             <td>
                                 <label>
-                                    <input style="padding:3px" class="regis" type="password" name="password"
+                                    <input class="regis" type="password" name="password"
                                 </label>
                             </td>
                         </tr>
@@ -371,7 +390,7 @@ class User {
         <?php
     }
 
-    function showLoginForm($error): void {
+    function show_login_form($error): void {
         ?>
         <div class="form">
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
@@ -383,7 +402,7 @@ class User {
                             <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
                             <td>
                                 <label>
-                                    <input style="padding: 3px" type="text" name="username"
+                                    <input type="text" name="username"
                                            value="<?php echo $_POST["username"] ?? ""; ?>">
                                 </label>
                             </td>
@@ -394,13 +413,13 @@ class User {
                             </td>
                             <td>
                                 <label>
-                                    <input style="padding: 3px" type="password" name="password">
+                                    <input type="password" name="password">
                                 </label>
                             </td>
                         </tr>
                     </table>
                     <br>
-                    <input type='submit' name='login' value='Einloggen' style="width:125px;height:50px;"/>
+                    <input type='submit' name='login' value='Einloggen' style="width:125px; height:50px;"/>
                     <br><br>
                     <hr>
                     <i>Du bist noch nicht registriert? Registriere dich <a href='register.php'><b>hier</b></a>.</i>

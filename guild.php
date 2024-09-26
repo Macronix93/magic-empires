@@ -3,8 +3,8 @@ global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
-if (!($user->isLoggedIn())) {
-    changeLocation("login.php");
+if (!($user->is_logged_in())) {
+    change_location("login.php");
     exit;
 }
 ?>

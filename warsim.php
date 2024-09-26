@@ -3,8 +3,8 @@ global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
-if (!($user->isLoggedIn())) {
-    changeLocation("login.php");
+if (!($user->is_logged_in())) {
+    change_location("login.php");
     exit;
 }
 ?>
@@ -23,7 +23,6 @@ include_once("layout/banner.html");
         include_once("layout/left.php");
         ?>
     </div>
-
     <div class="middle-container">
         <div class="big-box-container">
             <div class="big-box-header"><p>War Simulator</p></div>
@@ -36,10 +35,10 @@ include_once("layout/banner.html");
 
                 while ($row = $result->fetch_assoc()) {
                     $soldier = new Soldier();
-                    $soldier->setSoldierID($row["id"]);
-                    $soldier->setSoldierName($row["soldiername"]);
-                    $soldier->setSoldierAttack($row["attack"]);
-                    $soldier->setSoldierDefense($row["defense"]);
+                    $soldier->set_soldier_id($row["id"]);
+                    $soldier->set_soldier_name($row["soldiername"]);
+                    $soldier->set_soldier_attack($row["attack"]);
+                    $soldier->set_soldier_defense($row["defense"]);
 
                     $soldiers[] = $soldier;
                 }
@@ -155,7 +154,6 @@ include_once("layout/banner.html");
             </div>
         </div>
     </div>
-
     <div class="right-container">
         <?php
         include_once("layout/right.php");

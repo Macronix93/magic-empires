@@ -40,5 +40,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "hasNewMessages" => $hasNewMessages
     ]);
 } else {
-    changeLocation("Location: messages.php");
+    change_location("Location: messages.php");
 }

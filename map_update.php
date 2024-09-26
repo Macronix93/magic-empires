@@ -6,15 +6,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $map = new Map($db_instance);
 
     // Retrieve startx and starty parameters from GET request
-    $startx = clampValue($_GET["startx"] ?? 1);
-    $starty = clampValue($_GET["starty"] ?? 1);
+    $startx = clamp_value($_GET["startx"] ?? 1);
+    $starty = clamp_value($_GET["starty"] ?? 1);
 
     // Render the map table HTML
     ob_start();
-    $map->renderMap($startx, $starty);
+    $map->render_map($startx, $starty);
     $html = ob_get_clean();
 
     echo $html;
 } else {
-    changeLocation("Location: map.php");
+    change_location("Location: map.php");
 }

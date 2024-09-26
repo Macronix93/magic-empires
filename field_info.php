@@ -7,7 +7,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     // Render the field info table HTML
     ob_start();
-    $map->renderFieldInfo($_GET["clickedfield"] ?? -1);
+    $map->render_field_info($_GET["clickedfield"] ?? -1);
     $html = ob_get_clean();
 
     echo $html;

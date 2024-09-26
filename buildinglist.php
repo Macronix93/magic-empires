@@ -3,8 +3,8 @@ global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
-if (!($user->isLoggedIn())) {
-    changeLocation("login.php");
+if (!($user->is_logged_in())) {
+    change_location("login.php");
     exit;
 }
 
@@ -24,13 +24,13 @@ foreach ($result as $row) {
     // Check if building object already exists
     if (!isset($buildings[$buildingID])) {
         $building = new Building($db_instance);
-        $buildings = $building->createBuilding($building, $row, $buildings, $buildingID);
+        $buildings = $building->create_building($building, $row, $buildings, $buildingID);
 
     }
 
     // Check if there's a dependency and add it
     if ($row["dependencyid"] !== null) {
-        $buildings[$buildingID]->addBuildingDependency($row["dependencyid"], $row["dependencylevel"]);
+        $buildings[$buildingID]->add_building_dependency($row["dependencyid"], $row["dependencylevel"]);
     }
 }
 ?>
@@ -65,23 +65,23 @@ include_once("layout/banner.html");
                     $dependencyText = "";
 
                     for ($i = 0; $i < count($buildings); $i++) {
-                        $currentBuildingLevel = $buildings[$i]->getBuildingLevel();
-                        $buildingDependencies = $buildings[$i]->getBuildingDependencies();
+                        $currentBuildingLevel = $buildings[$i]->get_building_level();
+                        $buildingDependencies = $buildings[$i]->get_building_dependencies();
 
                         if (count($buildingDependencies) != 0) {
                             foreach ($buildingDependencies as $dependency) {
-                                $levelOfDependencyBuilding = $buildings[$dependency["dependencyid"]]->getBuildingLevel();
+                                $levelOfDependencyBuilding = $buildings[$dependency["dependencyid"]]->get_building_level();
 
                                 if ($dependency["dependencylevel"] > $levelOfDependencyBuilding) {
-                                    $dependencyText .= "<span class='error'>- " . $buildings[$dependency["dependencyid"]]->getBuildingName() . " (" . $dependency["dependencylevel"] . ")</span><br>";
+                                    $dependencyText .= "<span class='error'>- " . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span><br>";
                                 } else {
-                                    $dependencyText .= "<span class='passed'>- " . $buildings[$dependency["dependencyid"]]->getBuildingName() . " (" . $dependency["dependencylevel"] . ")</span><br>";
+                                    $dependencyText .= "<span class='passed'>- " . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span><br>";
                                 }
                             }
                         }
 
-                        echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->getBuildingIcon() . "</td>
-                                            <td style='width: 40%;'><b>" . $buildings[$i]->getBuildingName() . " ($currentBuildingLevel)</b></td>
+                        echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
+                                            <td style='width: 40%;'><b>" . $buildings[$i]->get_building_name() . " ($currentBuildingLevel)</b></td>
                                             <td>" . (!empty($dependencyText) ? $dependencyText : "-") . "</td></tr>";
 
                         $dependencyText = "";

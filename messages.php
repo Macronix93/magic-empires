@@ -3,15 +3,15 @@ global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
-if (!($user->isLoggedIn())) {
-    changeLocation("login.php");
+if (!($user->is_logged_in())) {
+    change_location("login.php");
     exit;
 }
 
 $error = null;
 $view = "";
 
-function showInbox($db_instance): string {
+function show_inbox($db_instance): string {
     $view = "";
 
     // Get all conversations for the user
@@ -65,7 +65,7 @@ function showInbox($db_instance): string {
             $old_conversation = time() - $row["latest_message_date"] > CONV_INACTIVITY_TIME ? " tr-inactive" : "";
 
             $view .= "<tr class='tr-hover$old_conversation'>
-                                    <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$senderName " . showNewMessagesIndicator($num_unread_messages) . "</td>
+                                    <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$senderName " . show_messages_indicator($num_unread_messages) . "</td>
                                     <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
                                     <td style='text-align: center'><a href='messages.php?action=delete&s=" . $senderName . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td>
                                 </tr>";
@@ -90,11 +90,11 @@ if (isset($_POST["sendpm"])) {
     $receiver = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
     $_SESSION["msgreceiver"] = $receiver;
     $text = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
-    $error = getError($text, $receiver);
+    $error = get_error($text, $receiver);
 
     if ($error == null) {
         // Prevent HTML Injection
-        $userid = $user->getUserID();
+        $userid = $user->get_user_id();
         $receiver = htmlspecialchars($receiver, ENT_QUOTES, "UTF-8");
         $textToOutput = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $text);
         $time = time();
@@ -136,7 +136,7 @@ if (isset($_POST["sendpm"])) {
 
                 unset($_POST["text"]);
 
-                changeLocation("messages.php?action=read&s=" . $receiverid);
+                change_location("messages.php?action=read&s=" . $receiverid);
             }
         }
     }
@@ -160,12 +160,12 @@ if (isset($_GET["action"])) {
         $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
 
         if (isset($_POST["text"]) && $error == null) {
-            $view .= showInbox($db_instance);
+            $view .= show_inbox($db_instance);
         } else {
             $view .= "
             <form name=\"newmessage\"
                   action=\"messages.php?action=new\"
-                  method=\"POST\" style=\"width: 100%;\">
+                  method=\"POST\">
                 <table class=\"table\">
                     <tr>
                         <td style=\"width: 25%;\">
@@ -181,7 +181,7 @@ if (isset($_GET["action"])) {
                             <label>
                                 <textarea name=\"text\" rows=\"8\"
                                           maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
-                                          style=\"width: 100%; resize: vertical;\">$message</textarea>
+                                          style=\"resize: vertical;\">$message</textarea>
                             </label>
                         </td>
                     </tr>
@@ -239,11 +239,11 @@ if (isset($_GET["action"])) {
                                     <form name=\"newmessage\"
                                           id='newmessage'
                                           action=\"messages.php?action=read&s=" . htmlspecialchars($_GET["s"]) . "\"
-                                          method=\"POST\" style=\"width: 100%;\">
+                                          method=\"POST\">
                                            <input type=\"hidden\" name=\"receiver\" value=\"" . $_SESSION["msgreceiver"] . "\">
                                             <textarea id=\"message-input\" name=\"text\" rows=\"5\"
                                                       maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
-                                                      style=\"width: 100%; resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
+                                                      style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
                                             <input type=\"submit\" name=\"sendpm\" value=\"Absenden\n[ENTER]\"/>
                                     </form>
                                 </div>";
@@ -257,7 +257,7 @@ if (isset($_GET["action"])) {
     } else if ($_GET["action"] == "delete") {
         if (isset($_GET["s"])) {
             if (empty($_GET["s"])) {
-                changeLocation("messages.php");
+                change_location("messages.php");
             } else {
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
                 $result = $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
@@ -268,7 +268,7 @@ if (isset($_GET["action"])) {
                     $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
                     $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
 
-                    changeLocation("messages.php");
+                    change_location("messages.php");
                 }
             }
         } else {
@@ -280,23 +280,23 @@ if (isset($_GET["action"])) {
                 if ($row["senderid"] != $_SESSION["userid"]) {
                     $error = "Diese Nachricht kannst du nicht löschen!";
 
-                    changeLocation("messages.php", 2);
+                    change_location("messages.php", 2);
                 } else {
                     $db_instance->execute_query("DELETE FROM messages WHERE id = ?", [$_GET["m_id"]]);
 
-                    changeLocation("messages.php?action=read&s={$row["receiverid"]}");
+                    change_location("messages.php?action=read&s={$row["receiverid"]}");
                 }
             } else {
                 $error = "Diese Nachricht existiert nicht!";
 
-                changeLocation("messages.php", 2);
+                change_location("messages.php", 2);
             }
         }
     } else {
-        changeLocation("messages.php");
+        change_location("messages.php");
     }
 } else {
-    $view = showInbox($db_instance);
+    $view = show_inbox($db_instance);
 }
 ?>
 <!DOCTYPE html>

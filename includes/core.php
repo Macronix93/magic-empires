@@ -45,8 +45,8 @@ const MAX_MESSAGES_PER_RATELIMIT = 10;
 const INACTIVITY_DELAY = 864000;
 const STARTING_FOOD = 1000;
 const STARTING_WOOD = 1000;
-const STARTING_STONE = 700;
-const STARTING_GOLD = 500;
+const STARTING_STONE = 1000;
+const STARTING_GOLD = 1000;
 const STORAGE_STARTING_VALUE = 1000;
 const MAX_STORAGE_VALUE = 50000;
 const BUILDING_MILL = 5;
@@ -63,7 +63,7 @@ const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds =
 /*
  * Global exception handlers
  */
-#[NoReturn] function globalExceptionHandler($e): void {
+#[NoReturn] function global_exception_handler($e): void {
     error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
     echo "<body style='
                         display: flex;
@@ -81,11 +81,11 @@ const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds =
 /**
  * @throws ErrorException
  */
-function globalErrorHandler($errno, $errstr, $errfile, $errline) {
+function global_error_handler($errno, $errstr, $errfile, $errline) {
     throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
 }
 
-function fatalErrorShutdownHandler(): void {
+function fatal_error_shutdown_handler(): void {
     $error = error_get_last();
     if ($error !== null) {
         error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
@@ -105,9 +105,9 @@ function fatalErrorShutdownHandler(): void {
 /*
  * PHP Options
  */
-/*set_exception_handler('globalExceptionHandler');
-set_error_handler('globalErrorHandler');
-register_shutdown_function('fatalErrorShutdownHandler');*/
+/*set_exception_handler('global_exception_handler');
+set_error_handler('global_error_handler');
+register_shutdown_function('fatal_error_shutdown_handler');*/
 ini_set('max_execution_time', 300);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -115,21 +115,21 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
  * AutoLoad classes
  */
 spl_autoload_register(function ($class_name) {
-    include("classes/" . strtolower($class_name) . ".php");
+    include('classes/' . strtolower($class_name) . '.php');
 });
 
 // Load .env file
 (new DotEnv(__DIR__ . "/.env"))->load();
 
 // Database instance for classes
-$db = Database::getInstance();
-$db_instance = $db->getConnection();
+$db = Database::get_instance();
+$db_instance = $db->get_connection();
 
 // Create User instance
 $user = new User($db_instance);
 
 // Timeout Check
-if ($user->isLoggedIn()) {
+if ($user->is_logged_in()) {
     $currentTimestamp = time();
 
     if (!isset($_SESSION["lastactivity"])) {
@@ -142,13 +142,13 @@ if ($user->isLoggedIn()) {
         session_unset();
         session_destroy();
 
-        changeLocation("login.php");
+        change_location("login.php");
         exit;
     } else {
         // update last activity timestamp
         if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK) {
             $stmt = $db_instance->prepare("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?");
-            $userID = $user->getUserID();
+            $userID = $user->get_user_id();
             $stmt->bind_param("i", $userID);
             $stmt->execute();
             $stmt->close();
@@ -158,15 +158,35 @@ if ($user->isLoggedIn()) {
     }
 
     // Process all events for the user
-    $user->processUserEvents($user->getUserID());
+    $user->process_user_events($user->get_user_id());
+
+    // Update villager count after events were processed (villager cap)
+    apply_villager_cap($_SESSION["kingdomid"]);
 }
 
 /*
     Useful functions
 */
 
+// Apply villager cap
+function apply_villager_cap($kingdom_id): void {
+    $db = Database::get_instance();
+    $db_instance = $db->get_connection();
+    $result = $db_instance->execute_query("SELECT villager, maxvillager FROM kingdoms WHERE id = ?", [$kingdom_id]);
+
+    // Fetch the villager count from the result and apply the cap if needed
+    $row = $result->fetch_assoc();
+    $villagerCount = $row["villager"];
+    $maxVillager = $row["maxvillager"];
+
+    if ($villagerCount > $maxVillager) {
+        $villDiff = $villagerCount - $maxVillager;
+        $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villDiff WHERE id = ?", [$kingdom_id]);
+    }
+}
+
 // Make Input data secure
-function makeSecure($data): string {
+function make_secure($data): string {
     $data = trim($data);
     $data = stripslashes($data);
     $data = preg_replace('/\s+/', '', $data);
@@ -174,12 +194,12 @@ function makeSecure($data): string {
 }
 
 // Show messages indicator
-function showNewMessagesIndicator($number): string {
+function show_messages_indicator($number): string {
     return ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
 }
 
 // Convert seconds to a string
-function convertSecToStr($secs): string {
+function convert_sec_to_str($secs): string {
     if ($secs == 0) {
         return '0s';
     }
@@ -211,7 +231,7 @@ function convertSecToStr($secs): string {
     return trim($output);
 }
 
-function changeLocation($url, $seconds = 0): void {
+function change_location($url, $seconds = 0): void {
     if ($seconds === 0) {
         header("Location: $url");
     } else {
@@ -219,7 +239,7 @@ function changeLocation($url, $seconds = 0): void {
     }
 }
 
-function clampValue($value) {
+function clamp_value($value) {
     if ($value > 91) {
         return 91;
     }
@@ -227,7 +247,7 @@ function clampValue($value) {
 }
 
 // Check for an error in a conversation
-function getError(string $text, string $receiverid): string {
+function get_error(string $text, string $receiverid): string {
     $error = "";
     $lineBreaksCount = substr_count($text, '<br />');
     $textWithoutLineBreaks = preg_replace('/<br\s*\/?>/i', '', $text);

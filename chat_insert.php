@@ -17,7 +17,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     ob_start();
 
     // Check for errors
-    $error = getError($message, $receiverid);
+    $error = get_error($message, $receiverid);
 
     // Check if receiver exists
     $result = $db_instance->execute_query("SELECT COUNT(*) AS userexists FROM users WHERE id = ?", [$receiverid]);
@@ -61,5 +61,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo json_encode($response);
 } else {
-    changeLocation("Location: messages.php");
+    change_location("Location: messages.php");
 }

@@ -28,9 +28,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (preg_match('/\s/', $name)) {
         $error .= "Benutzername darf keine Leerzeichen enthalten!<br>";
     } else {
-        $name = makeSecure($_POST["username"] ?? "");
-        $email = makeSecure($_POST["email"] ?? "");
-        $pass = makeSecure($_POST["password"] ?? "");
+        $name = make_secure($_POST["username"] ?? "");
+        $email = make_secure($_POST["email"] ?? "");
+        $pass = make_secure($_POST["password"] ?? "");
 
         // Validate username
         if (empty($name)) {
@@ -63,6 +63,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
     }
 
+    // Validate recaptcha
+    /*if(!$data->success) {
+        $error .= "Bitte den Botschutz akzeptieren!<br>";
+    }*/
+
     // Register user if no errors
     if (empty($error)) {
         // Check if username already exists
@@ -72,7 +77,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $error .= "Dieser Benutzername existiert bereits!<br>";
         } else {
             unset($_POST);
-            $user->registerUser($name, $email, $pass);
+            $user->register_user($name, $email, $pass);
         }
     }
 
@@ -81,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 // Show register form
-$user->showRegisterForm($error);
+$user->show_register_form($error);
 ?>
 <script src="https://www.google.com/recaptcha/api.js"></script>
 </body>

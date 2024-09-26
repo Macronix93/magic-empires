@@ -8,7 +8,7 @@ class Database {
     Get an instance of the Database
     @return Instance
     */
-    public static function getInstance(): Database {
+    public static function get_instance(): Database {
         if (!self::$_instance) // If no instance then make one
         {
             self::$_instance = new self();
@@ -30,7 +30,7 @@ class Database {
     }
 
     // Get mysqli connection
-    public function getConnection(): mysqli {
+    public function get_connection(): mysqli {
         return $this->_connection;
     }
 }

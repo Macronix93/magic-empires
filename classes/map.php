@@ -9,7 +9,7 @@ class Map {
         $this->mysqli = $db_conn;
     }
 
-    public function getFieldTypeColor($fieldtype): string {
+    public function get_field_type_color($fieldtype): string {
         return match ($fieldtype) {
             1 => "rgb(185, 122, 87)",
             2 => "rgb(0, 162, 232)",
@@ -19,7 +19,7 @@ class Map {
         };
     }
 
-    private function getKingdomIconByLevel($buildinglevel): string {
+    private function get_kingdom_icon_by_level($buildinglevel): string {
         return match (true) {
             $buildinglevel >= 3 && $buildinglevel < 6 => "images/icons/town.png",
             $buildinglevel >= 6 && $buildinglevel < 8 => "images/icons/tower2.png",
@@ -28,10 +28,10 @@ class Map {
         };
     }
 
-    public function calculatePath($startx, $starty, $endx, $endy): array {
+    public function calculate_path($startx, $starty, $endx, $endy): array {
         $start = ['x' => $startx, 'y' => $starty];
         $end = ['x' => $endx, 'y' => $endy];
-        $map = $this->fetchMapData();
+        $map = $this->fetch_map_data();
 
         $openList = [];
         $closedList = [];
@@ -48,13 +48,13 @@ class Map {
             $current = $this->decode($current);
 
             if ($current['x'] == $end['x'] && $current['y'] == $end['y']) {
-                return $this->reconstructPath($cameFrom, $current, $map);
+                return $this->reconstruct_path($cameFrom, $current, $map);
             }
 
             unset($openList[$this->encode($current)]);
             $closedList[$this->encode($current)] = true;
 
-            foreach ($this->getNeighbors($current, $map) as $neighbor) {
+            foreach ($this->get_neighbours($current, $map) as $neighbor) {
                 if (isset($closedList[$this->encode($neighbor)])) {
                     continue;
                 }
@@ -74,7 +74,7 @@ class Map {
         return []; // No path found
     }
 
-    private function fetchMapData(): array {
+    private function fetch_map_data(): array {
         $query = "
             SELECT m.mapx, m.mapy, f.traversaltime
             FROM map m
@@ -97,7 +97,7 @@ class Map {
         return abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']);
     }
 
-    private function getNeighbors($node, $map): array {
+    private function get_neighbours($node, $map): array {
         $neighbors = [];
         $moves = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 
@@ -113,7 +113,7 @@ class Map {
         return $neighbors;
     }
 
-    private function reconstructPath($cameFrom, $current, $map): array {
+    private function reconstruct_path($cameFrom, $current, $map): array {
         $path = [$current];
         $totalTime = 0;
 
@@ -143,8 +143,8 @@ class Map {
         return ['x' => (int)$x, 'y' => (int)$y];
     }
 
-    private function getArrivalTime($startx, $starty, $endx, $endy): int {
-        $result = $this->calculatePath($startx, $starty, $endx, $endy);
+    private function get_arrival_time($startx, $starty, $endx, $endy): int {
+        $result = $this->calculate_path($startx, $starty, $endx, $endy);
 
         // DEBUGGING: print the path
         /*$path = $result['path'];
@@ -165,7 +165,7 @@ class Map {
     }
 
     // Render and show the map
-    public function renderMap($startx, $starty): void {
+    public function render_map($startx, $starty): void {
         // Generate URL for each arrow button
         $arrowup = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
         $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
@@ -218,13 +218,13 @@ class Map {
                 foreach ($result as $row) {
                     $mycoords[$row["mapx"]][$row["mapy"]] = false;
                     $fieldImage = "";
-                    $fieldcolor[$row["mapx"]][$row["mapy"]] = $this->getFieldTypeColor($row["fieldtype"]);
+                    $fieldcolor[$row["mapx"]][$row["mapy"]] = $this->get_field_type_color($row["fieldtype"]);
 
                     if ($row["kingdomid"] != -1) {
                         $mycoords[$row["mapx"]][$row["mapy"]] = $row["kingdomid"];
 
                         $fieldImage = "<div class='cell-container'><a href='javascript:void(0);'>
-                            <img src='" . $this->getKingdomIconByLevel($row["buildinglevel"]) . "' class='kingdom-img' alt='Königreich'>
+                            <img src='" . $this->get_kingdom_icon_by_level($row["buildinglevel"]) . "' class='kingdom-img' alt='Königreich'>
                         </a></div>";
                     } else {
                         $mycoords[$row["mapx"]][$row["mapy"]] = -1;
@@ -257,7 +257,7 @@ class Map {
         <?php
     }
 
-    public function renderFieldInfo($field): void {
+    public function render_field_info($field): void {
         // Get the coords of the current kingdom of the user
         $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
         $row = $result->fetch_assoc();
@@ -293,7 +293,7 @@ class Map {
                 <tr>
                     <td class="td-mapinfo"><b>Ankunftszeit</b></td>
                     <?php
-                    echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $field_x, $field_y)) . "</td>";
+                    echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
                     ?>
                 </tr>
                 <tr>
@@ -344,7 +344,7 @@ class Map {
                     // Get the coords of the current kingdom of the user
                     if ($field != $_SESSION["kingdomid"]) {
                         echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
-                        echo "<td>" . convertSecToStr($this->getArrivalTime($x, $y, $field_x, $field_y)) . "</td>";
+                        echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
                     }
                     ?>
                 </tr>

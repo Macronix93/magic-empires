@@ -17,7 +17,7 @@ if (!empty($_GET["key"])) {
         $stmt->close();
 
         if (!$status) {
-            $userid = $user->getUserDatabaseID($_GET["key"]);
+            $userid = $user->get_user_database_id($_GET["key"]);
 
             $stmt = $db_instance->prepare("UPDATE users SET status = true, activationkey = '' WHERE id = ?");
             $stmt->bind_param('i', $userid);
@@ -37,5 +37,5 @@ if (!empty($_GET["key"])) {
         echo "Ungültiger Aktivierungsschlüssel!";
     }
 } else {
-    changeLocation("login.php");
+    change_location("login.php");
 }

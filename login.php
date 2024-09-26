@@ -6,15 +6,15 @@ require_once("includes/core.php");
 $error = "";
 
 if (isset($_GET["logout"])) {
-    if ($user->isLoggedIn()) {
+    if ($user->is_logged_in()) {
         session_unset();
         session_destroy();
     } else {
-        changeLocation("login.php");
+        change_location("login.php");
     }
 } else {
-    if ($user->isLoggedIn()) {
-        changeLocation("index.php");
+    if ($user->is_logged_in()) {
+        change_location("index.php");
         exit;
     }
 
@@ -24,8 +24,8 @@ if (isset($_GET["logout"])) {
 
     if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Retrieve and sanitize form inputs
-        $name = makeSecure($_POST["username"] ?? "");
-        $pass = makeSecure($_POST["password"] ?? "");
+        $name = make_secure($_POST["username"] ?? "");
+        $pass = make_secure($_POST["password"] ?? "");
 
         if (empty($name) || empty($pass)) {
             $error = "Bitte beide Felder ausfüllen!";
@@ -40,14 +40,14 @@ if (isset($_GET["logout"])) {
                 $password = $row["password"];
                 $status = $row["status"];
 
-                if (!password_verify($pass, $password)) {
+                if (!$status) {
+                    $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
+                } else if (!password_verify($pass, $password)) {
                     $error .= "Falsches Passwort!";
-                } else if (!$status) {
-                    $error .= "Account nicht aktiviert durch Aktivierungslink!";
                 } else {
                     if (empty($error)) {
                         unset($_POST);
-                        $user->loginUser($userid);
+                        $user->login_user($userid);
                     }
                 }
             } else {
@@ -70,7 +70,7 @@ include_once("layout/head.html");
 include_once("layout/banner.html");
 
 // Show login form
-$user->showLoginForm($error);
+$user->show_login_form($error);
 ?>
 </body>
 </html>

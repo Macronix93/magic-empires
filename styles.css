@@ -159,13 +159,21 @@ option[selected] {
     color: rgb(152, 152, 152);
 }
 
+textarea {
+    width: 100%;
+}
+
+input[type=text],
+input[type=password] {
+    padding: 3px;
+}
+
 input,
 textarea,
 button {
     font-size: 16px;
     border: 2px solid rgb(33, 33, 33);
     border-radius: 5px;
-    padding: 5px;
     background-color: var(--box-content-color);
 }
 
@@ -212,6 +220,14 @@ select:-webkit-autofill:hover,
 select:-webkit-autofill:focus {
     transition: background-color 5000s ease-in-out 0s !important;
     -webkit-text-fill-color: rgb(240, 240, 240) !important;
+}
+
+.over-limit {
+    color: rgb(255, 255, 127);
+}
+
+.under-limit {
+    color: rgb(255, 255, 255);
 }
 
 /* Wrapper for content (left, right, mid) */

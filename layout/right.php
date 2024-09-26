@@ -6,10 +6,10 @@ global $user, $db_instance;
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
         // Get all kingdoms of a player for him to change anytime
-        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->getUserID()]);
+        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);
         $row = $result->fetch_assoc();
         ?>
-        <form action="index.php" method="POST">
+        <form method="POST">
             <label>
                 <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom()"
                         style="width: 100%;">
@@ -23,20 +23,20 @@ global $user, $db_instance;
                 </select>
             </label>
         </form>
-        <br><br>
+        <br>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
             <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/><span
                     id='servertime'><script
                         type="text/javascript">updateTime(<?php echo time(); ?>)</script></span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
-             title='Punkte'/> <?= ($user->getUserScore() == 0 ? "0" : fnum($user->getUserScore())) ?>
+             title='Punkte'/> <?= ($user->get_user_score() == 0 ? "0" : fnum($user->get_user_score())) ?>
         <div id="kingdom-info">
             <?php
             // Get kingdom resources and show information
             $kingdom = new Kingdoms($db_instance);
-            $kingdom->getKingdomInfo($_SESSION["kingdomid"]);
-            $kingdom->renderKingdomInfo();
+            $kingdom->get_kingdom_info($_SESSION["kingdomid"]);
+            $kingdom->render_kingdom_info();
             ?>
         </div>
     </div>
@@ -47,7 +47,7 @@ global $user, $db_instance;
         <div id="kingdom-buildings">
             <?php
             // Show kingdom buildings
-            $kingdom->getKingdomBuildings($_SESSION["kingdomid"]);
+            $kingdom->get_kingdom_buildings($_SESSION["kingdomid"]);
             ?>
         </div>
     </div>

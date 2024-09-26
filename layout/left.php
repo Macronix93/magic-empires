@@ -4,7 +4,7 @@ global $user, $db_instance;
 $currentPage = basename($_SERVER["PHP_SELF"]);
 
 // Count unread messages for the user
-$result = $db_instance->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$user->getUserID()]);
+$result = $db_instance->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$user->get_user_id()]);
 $row = $result->fetch_assoc();
 $num_unread_messages = $row["unread_count"];
 ?>
@@ -13,7 +13,7 @@ $num_unread_messages = $row["unread_count"];
         <?php
         echo "<div style='width: 80%; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
         <div style='overflow: hidden; white-space: nowrap;' id='username'>";
-        echo $user->getUserName();
+        echo $user->get_user_name();
         echo "</div><a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout' title='Logout'/></a></div>";
 
         // Calculate and update the styling of the username dynamically
@@ -27,7 +27,7 @@ $num_unread_messages = $row["unread_count"];
         <div class="box<?= $currentPage === 'messages.php' ? ' active' : '' ?>"
              onclick="navigateTo('messages.php', this)">
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
-            Nachrichten&nbsp;<?php echo showNewMessagesIndicator($num_unread_messages); ?>
+            Nachrichten&nbsp;<?php echo show_messages_indicator($num_unread_messages); ?>
         </div>
         <div class="box<?= $currentPage === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde

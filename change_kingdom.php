@@ -12,7 +12,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $result = $db_instance->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$_POST['choosekingdom']]);
         $row = $result->fetch_assoc();
 
-        if ($row['userid'] == $user->getUserID()) {
+        if ($row['userid'] == $user->get_user_id()) {
             // Change current kingdom for the user
             $_SESSION["kingdomid"] = $_POST["choosekingdom"];
         }
@@ -20,5 +20,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit();
     }
 } else {
-    changeLocation("index.php");
+    change_location("index.php");
 }
