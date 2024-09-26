@@ -43,7 +43,7 @@ include_once("layout/banner.html");
                 <div id="test1_box" class="popupbox">Testbox hahaha <br>hahahah</a></div>
                 <br>
 
-                <a href="#" class="popup" id="test2">This is a test</a>
+                <a class="popup" id="test2">This is a test</a>
                 <div id="test2_box" class="popupbox"><?php echo "E-Mail: $email<br>"; ?></a></div>
                 <br><br>
 

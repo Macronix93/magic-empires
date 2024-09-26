@@ -49,6 +49,11 @@ const STARTING_STONE = 1000;
 const STARTING_GOLD = 1000;
 const STORAGE_STARTING_VALUE = 1000;
 const MAX_STORAGE_VALUE = 50000;
+const BUILDING_TOWNCENTER = 0;
+const BUILDING_UNIVERSITY = 1;
+const BUILDING_BARRACKS = 2;
+const BUILDING_WALL = 3;
+const BUILDING_SMITH = 4;
 const BUILDING_MILL = 5;
 const BUILDING_SAWMILL = 6;
 const BUILDING_STONEMINE = 7;
@@ -145,13 +150,9 @@ if ($user->is_logged_in()) {
         change_location("login.php");
         exit;
     } else {
-        // update last activity timestamp
-        if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK) {
-            $stmt = $db_instance->prepare("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?");
-            $userID = $user->get_user_id();
-            $stmt->bind_param("i", $userID);
-            $stmt->execute();
-            $stmt->close();
+        // update last activity timestamp, if not logging out
+        if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK && !(isset($_GET["logout"]) && $_GET["logout"] === "inactive")) {
+            $db_instance->execute_query("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?", [$user->get_user_id()]);
         }
 
         $_SESSION["lastactivity"] = $currentTimestamp;
@@ -183,6 +184,45 @@ function apply_villager_cap($kingdom_id): void {
         $villDiff = $villagerCount - $maxVillager;
         $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villDiff WHERE id = ?", [$kingdom_id]);
     }
+}
+
+function fetch_all_buildings($kingdom_id): array {
+    $db = Database::get_instance();
+    $db_instance = $db->get_connection();
+    $buildings = [];
+
+    // Query to fetch buildings and dependencies
+    $query = "
+        SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
+        FROM buildinglist b 
+        LEFT JOIN buildingdeps d ON b.id = d.buildingid 
+        LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
+        GROUP BY b.id
+    ";
+    $result = $db_instance->execute_query($query, [$kingdom_id]);
+
+    // Process each building and its dependencies
+    foreach ($result as $row) {
+        $buildingID = $row["id"];
+
+        // Check if building object already exists
+        if (!isset($buildings[$buildingID])) {
+            $building = new Building($db_instance);
+            $buildings = $building->create_building($building, $row, $buildings, $buildingID);
+        }
+
+        // Process dependencies if any exist
+        if (!empty($row["dependency_ids"])) {
+            $dependencyIDs = explode(',', $row["dependency_ids"]);
+            $dependencyLevels = explode(',', $row["dependency_levels"]);
+
+            foreach ($dependencyIDs as $index => $dependencyID) {
+                $buildings[$buildingID]->add_building_dependency($dependencyID, $dependencyLevels[$index]);
+            }
+        }
+    }
+
+    return $buildings;
 }
 
 // Make Input data secure

@@ -55,8 +55,6 @@ function getMouseLocation(e) {
     return [posx, posy];
 }
 
-window.onload = setup;
-
 function getElementsByClassName(className, tag, elm) {
     let testClass = new RegExp("(^|\\s)" + className + "(\\s|$)");
     tag = tag || "*";
@@ -165,10 +163,15 @@ function startCountup(initialSeconds) {
     return false;
 }
 
-function updateTime(initialSeconds) {
+function updateTime(initialSeconds, inactivitySeconds) {
     let serverTime = document.getElementById("servertime");
 
     updateDisplay();
+
+    // Inactivity check
+    window.onload = function () {
+        inactivityLogout(inactivitySeconds - 1);
+    };
 
     function updateDisplay() {
         let currentTime = new Date(initialSeconds * 1000);
@@ -433,6 +436,12 @@ function updateKingdom() {
     }
 }
 
+function inactivityLogout(seconds) {
+    setTimeout(() => {
+        window.location.href = 'login.php?logout=inactive';
+    }, seconds * 1000);
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const mobileNav = document.getElementById("mobile-nav");
     const hamburgerIcon = document.getElementById("hamburger-icon");
@@ -443,4 +452,7 @@ document.addEventListener("DOMContentLoaded", function () {
             hamburgerIcon.classList.toggle("open");
         });
     }
+
+    // Load popup box setup
+    setup();
 });

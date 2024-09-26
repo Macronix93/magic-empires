@@ -10,36 +10,20 @@ if (!($user->is_logged_in())) {
 
 $error = "";
 
-// Here PHP logic + GET/POST requests
-$kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($_SESSION["kingdomid"]);
+// Get current kingdom stuff
 $kID = $_SESSION["kingdomid"];
+$kingdom = new Kingdoms($db_instance);
+$kingdom->get_kingdom_info($kID);
+$kingdomWood = $kingdom->get_kingdom_wood();
+$kingdomFood = $kingdom->get_kingdom_food();
+$kingdomStone = $kingdom->get_kingdom_stone();
+$kingdomGold = $kingdom->get_kingdom_gold();
+$kingdomVillager = $kingdom->get_kingdom_villager();
+$kingdomIsBuilding = false;
+$kingdomBuildingID = -1;
 
 // Fetch all buildings and their dependencies
-$buildings = [];
-$query = "
-            SELECT b.*, d.dependencyid, d.dependencylevel, bl.buildinglevel 
-            FROM buildinglist b 
-            LEFT JOIN buildingdeps d ON b.id = d.buildingid 
-            LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
-";
-$result = $db_instance->execute_query($query, [$_SESSION["kingdomid"]]);
-
-foreach ($result as $row) {
-    $buildingID = $row["id"];
-
-    // Check if building object already exists
-    if (!isset($buildings[$buildingID])) {
-        $building = new Building($db_instance);
-        $buildings = $building->create_building($building, $row, $buildings, $buildingID);
-    }
-
-    // Check if there's a dependency and add it
-    if ($row["dependencyid"] !== null) {
-        $buildings[$buildingID]->add_building_dependency($row["dependencyid"], $row["dependencylevel"]);
-    }
-}
-
+$buildings = fetch_all_buildings($kID);
 $buildingcount = count($buildings);
 $bID = (empty($_GET["id"]) ? 0 : $_GET["id"]);
 $buildid = (empty($_GET["bid"]) ? 0 : $_GET["bid"]);
@@ -51,29 +35,20 @@ $soldiercount = 0;
 
 // Check if building is valid
 if (isset($_GET["id"]) && ($bID >= 0 && $bID < $buildingcount)) {
-    $buildingName = isset($_GET["action"]) ? $buildings[0]->get_building_name() . " (" . $buildings[0]->get_building_level() . ")" : $buildings[$bID]->get_building_name() . " (" . $buildings[$bID]->get_building_level() . ")";
+    $buildingName = $buildings[$bID]->get_building_name() . " (" . $buildings[$bID]->get_building_level() . ")";
 }
-
-// Get kingdoms current resources
-$kingdomWood = $kingdom->get_kingdom_wood();
-$kingdomFood = $kingdom->get_kingdom_food();
-$kingdomStone = $kingdom->get_kingdom_stone();
-$kingdomGold = $kingdom->get_kingdom_gold();
-$kingdomVillager = $kingdom->get_kingdom_villager();
-
-$kingdomIsBuilding = false;
-$kingdomBuildingID = -1;
 
 // An action is set via URL
 if (isset($_GET["action"])) {
     $kingdomIsBuilding = $kingdom->is_kingdom_building($kID);
+
     if ($kingdomIsBuilding) {
         $kingdomBuildingID = $kingdom->get_kingdom_building_id();
     }
 
     if ($buildid >= 0 && $buildid < $buildingcount) {
-        $buildingLevel = $buildings[$buildid]->getBuildingLevel();
-        $costs = $buildings[$buildid]->calculateBuildingCost();
+        $buildingLevel = $buildings[$buildid]->get_building_level();
+        $costs = $buildings[$buildid]->calculate_building_cost();
         $costWood = $costs["costWood"];
         $costFood = $costs["costFood"];
         $costStone = $costs["costStone"];
@@ -81,7 +56,9 @@ if (isset($_GET["action"])) {
 
         // The action that was set is "building"
         if ($_GET["action"] == "build") {
-            if ($buildingLevel >= MAX_BUILDING_LEVEL) {
+            if ($bID != BUILDING_TOWNCENTER) {
+                $error = "Du kannst nur im Dorfzentrum Gebäude bauen!";
+            } else if ($buildingLevel >= MAX_BUILDING_LEVEL) {
                 $error = "Das Gebäude ist schon maximal ausgebaut!";
             } else {
                 if ($kingdomIsBuilding) {
@@ -90,17 +67,17 @@ if (isset($_GET["action"])) {
                     if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
-                        $buildingDependencies = $buildings[$buildid]->getBuildingDependencies();
+                        $buildingDependencies = $buildings[$buildid]->get_building_dependencies();
 
                         foreach ($buildingDependencies as $dependency) {
-                            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->getBuildingLevel()) {
-                                $error .= $buildings[$buildid]->getBuildingName() . " setzt " . $buildings[$dependency["dependencyid"]]->getBuildingName() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
+                                $error .= $buildings[$buildid]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
                             }
                         }
 
                         // Dependency check passed - build/upgrade building!
                         if (empty($error)) {
-                            $buildingTime = time() + $buildings[$buildid]->getBuildingTime() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
+                            $buildingTime = time() + $buildings[$buildid]->get_building_time() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
 
                             // Subtract building costs from kingdom resources
                             $kingdom->give_kingdom_wood($kID, -$costWood);
@@ -109,9 +86,7 @@ if (isset($_GET["action"])) {
                             $kingdom->give_kingdom_gold($kID, -$costGold);
 
                             $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
-                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->getBuildingLevel()}', '{$buildings[$buildid]->getBuildingName()}');");
-
-                            $_SESSION["buildingID"] = $buildid;
+                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->get_building_level()}', '{$buildings[$buildid]->get_building_name()}');");
                         }
                     }
                 }
@@ -465,8 +440,6 @@ include_once("layout/banner.html");
                 // Show error if there is any
                 if (!empty($error)) {
                     echo $error . "<br>";
-
-                    //changeLocation("buildings.php?id=$lastid", 2);
                 } else {
                     if ($bID == 0 || (isset($_GET["action"]) && ($_GET["action"] == "build" || $_GET["action"] == "cancel"))) {
                         // Dorfzentrum
@@ -492,8 +465,19 @@ include_once("layout/banner.html");
                         if ($kingdomIsBuilding) {
                             $kingdomBuildingID = $kingdom->get_kingdom_building_id();
                         }
-                        ?>
-                        <table class="table">
+
+                        // Count max upgraded buildings
+                        $count_maxed_buildings = 0;
+                        for ($i = 0; $i < $buildingcount; $i++) {
+                            if ($buildings[$i]->get_building_level() >= MAX_BUILDING_LEVEL)
+                                $count_maxed_buildings++;
+                        }
+
+                        if ($count_maxed_buildings === $buildingcount) {
+                            echo "Es wurden alle Gebäude gebaut.";
+                        } else {
+                            ?>
+                            <table class="table">
                             <tr>
                                 <td class="td-center td-gradient" colspan="2">
                                     <b>Gebäude</b></td>
@@ -578,7 +562,8 @@ include_once("layout/banner.html");
                                     }
                                 }
                             }
-                            ?>
+                        }
+                        ?>
                         </table>
                         <?php
                     } else {
@@ -607,6 +592,7 @@ include_once("layout/banner.html");
                                         </tr>
                                         <?php
                                         $kingdomIsRecruiting = $kingdom->is_kingdom_recruiting($kID);
+
                                         if ($kingdomIsRecruiting) {
                                             $kingdomRecruitingID = $kingdom->get_kingdom_recruiting_id();
                                         }
@@ -719,7 +705,7 @@ include_once("layout/banner.html");
                                     break;
                                 case 3:
                                     // Mauer
-                                    $level = $buildings[3]->getBuildingLevel() * DEFAULT_WALL_HP;
+                                    $level = $buildings[3]->get_building_level() * DEFAULT_WALL_HP;
 
                                     echo "<p><b>Verteidigungswert:</b> " . fnum($level) . "</p>";
                                     break;

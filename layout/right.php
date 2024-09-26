@@ -8,6 +8,7 @@ global $user, $db_instance;
         // Get all kingdoms of a player for him to change anytime
         $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);
         $row = $result->fetch_assoc();
+        $current_timestamp = time();
         ?>
         <form method="POST">
             <label>
@@ -27,7 +28,7 @@ global $user, $db_instance;
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
             <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/><span
                     id='servertime'><script
-                        type="text/javascript">updateTime(<?php echo time(); ?>)</script></span>
+                        type="text/javascript">updateTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>)</script></span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
              title='Punkte'/> <?= ($user->get_user_score() == 0 ? "0" : fnum($user->get_user_score())) ?>

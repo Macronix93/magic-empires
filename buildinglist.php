@@ -9,12 +9,14 @@ if (!($user->is_logged_in())) {
 }
 
 // Fetch all buildings and their dependencies
-$buildings = [];
+$buildings = fetch_all_buildings($_SESSION["kingdomid"]);
+/*$buildings = [];
 $query = "
-            SELECT b.*, d.dependencyid, d.dependencylevel, bl.buildinglevel 
+            SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel
             FROM buildinglist b 
             LEFT JOIN buildingdeps d ON b.id = d.buildingid 
             LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
+            GROUP BY b.id
 ";
 $result = $db_instance->execute_query($query, [$_SESSION["kingdomid"]]);
 
@@ -25,14 +27,18 @@ foreach ($result as $row) {
     if (!isset($buildings[$buildingID])) {
         $building = new Building($db_instance);
         $buildings = $building->create_building($building, $row, $buildings, $buildingID);
-
     }
 
-    // Check if there's a dependency and add it
-    if ($row["dependencyid"] !== null) {
-        $buildings[$buildingID]->add_building_dependency($row["dependencyid"], $row["dependencylevel"]);
+    // Process dependencies if any exist
+    if (!empty($row["dependency_ids"])) {
+        $dependencyIDs = explode(',', $row["dependency_ids"]);
+        $dependencyLevels = explode(',', $row["dependency_levels"]);
+
+        foreach ($dependencyIDs as $index => $dependencyID) {
+            $buildings[$buildingID]->add_building_dependency($dependencyID, $dependencyLevels[$index]);
+        }
     }
-}
+}*/
 ?>
 <!DOCTYPE html>
 <html lang="de">

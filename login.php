@@ -7,9 +7,13 @@ $error = "";
 
 if (isset($_GET["logout"])) {
     if ($user->is_logged_in()) {
+        if ($_GET["logout"] === "inactive") {
+            $error = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!<br><br>";
+        }
         session_unset();
         session_destroy();
     } else {
+        echo "change loc";
         change_location("login.php");
     }
 } else {
