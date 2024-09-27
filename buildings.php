@@ -11,95 +11,95 @@ if (!($user->is_logged_in())) {
 $error = "";
 
 // Get current kingdom stuff
-$kID = $_SESSION["kingdomid"];
+$current_kingdom = $_SESSION["kingdomid"];
 $kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($kID);
-$kingdomWood = $kingdom->get_kingdom_wood();
-$kingdomFood = $kingdom->get_kingdom_food();
-$kingdomStone = $kingdom->get_kingdom_stone();
-$kingdomGold = $kingdom->get_kingdom_gold();
-$kingdomVillager = $kingdom->get_kingdom_villager();
-$kingdomIsBuilding = false;
-$kingdomBuildingID = -1;
+$kingdom->get_kingdom_info($current_kingdom);
+$kingdom_wood = $kingdom->get_kingdom_wood();
+$kingdom_food = $kingdom->get_kingdom_food();
+$kingdom_stone = $kingdom->get_kingdom_stone();
+$kingdom_gold = $kingdom->get_kingdom_gold();
+$kingdom_villager = $kingdom->get_kingdom_villager();
+$kingdom_is_building = false;
+$kingdom_building_id = -1;
 
 // Fetch all buildings and their dependencies
-$buildings = fetch_all_buildings($kID);
-$buildingcount = count($buildings);
-$bID = (empty($_GET["id"]) ? 0 : $_GET["id"]);
-$buildid = (empty($_GET["bid"]) ? 0 : $_GET["bid"]);
-$buildingName = "";
+$buildings = fetch_all_buildings($current_kingdom);
+$building_count = count($buildings);
+$current_building = (empty($_GET["id"]) ? 0 : $_GET["id"]);
+$build_id = (empty($_GET["bid"]) ? 0 : $_GET["bid"]);
+$building_name = "";
 
 // Soldier variables
 $soldiers = [];
-$soldiercount = 0;
+$soldiers_count = 0;
 
 // Check if building is valid
-if (isset($_GET["id"]) && ($bID >= 0 && $bID < $buildingcount)) {
-    $buildingName = $buildings[$bID]->get_building_name() . " (" . $buildings[$bID]->get_building_level() . ")";
+if (isset($_GET["id"]) && ($current_building >= 0 && $current_building < $building_count)) {
+    $building_name = $buildings[$current_building]->get_building_name() . " (" . $buildings[$current_building]->get_building_level() . ")";
 }
 
 // An action is set via URL
 if (isset($_GET["action"])) {
-    $kingdomIsBuilding = $kingdom->is_kingdom_building($kID);
+    $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
 
-    if ($kingdomIsBuilding) {
-        $kingdomBuildingID = $kingdom->get_kingdom_building_id();
+    if ($kingdom_is_building) {
+        $kingdom_building_id = $kingdom->get_kingdom_building_id();
     }
 
-    if ($buildid >= 0 && $buildid < $buildingcount) {
-        $buildingLevel = $buildings[$buildid]->get_building_level();
-        $costs = $buildings[$buildid]->calculate_building_cost();
-        $costWood = $costs["costWood"];
-        $costFood = $costs["costFood"];
-        $costStone = $costs["costStone"];
-        $costGold = $costs["costGold"];
+    if ($build_id >= 0 && $build_id < $building_count) {
+        $building_level = $buildings[$build_id]->get_building_level();
+        $costs = $buildings[$build_id]->calculate_building_cost();
+        $cost_wood = $costs["costWood"];
+        $cost_food = $costs["costFood"];
+        $cost_stone = $costs["costStone"];
+        $cost_gold = $costs["costGold"];
 
         // The action that was set is "building"
         if ($_GET["action"] == "build") {
-            if ($bID != BUILDING_TOWNCENTER) {
+            if ($current_building != BUILDING_TOWNCENTER) {
                 $error = "Du kannst nur im Dorfzentrum Gebäude bauen!";
-            } else if ($buildingLevel >= MAX_BUILDING_LEVEL) {
+            } else if ($building_level >= MAX_BUILDING_LEVEL) {
                 $error = "Das Gebäude ist schon maximal ausgebaut!";
             } else {
-                if ($kingdomIsBuilding) {
+                if ($kingdom_is_building) {
                     $error = "Du baust bereits!";
                 } else {
-                    if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
+                    if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
-                        $buildingDependencies = $buildings[$buildid]->get_building_dependencies();
+                        $building_dependencies = $buildings[$build_id]->get_building_dependencies();
 
-                        foreach ($buildingDependencies as $dependency) {
+                        foreach ($building_dependencies as $dependency) {
                             if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                                $error .= $buildings[$buildid]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                                $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
                             }
                         }
 
                         // Dependency check passed - build/upgrade building!
                         if (empty($error)) {
-                            $buildingTime = time() + $buildings[$buildid]->get_building_time() * ($buildingLevel == 0 ? 1 : $buildingLevel + 1);
+                            $building_time = time() + $buildings[$build_id]->get_building_time() * ($building_level == 0 ? 1 : $building_level + 1);
 
                             // Subtract building costs from kingdom resources
-                            $kingdom->give_kingdom_wood($kID, -$costWood);
-                            $kingdom->give_kingdom_food($kID, -$costFood);
-                            $kingdom->give_kingdom_stone($kID, -$costStone);
-                            $kingdom->give_kingdom_gold($kID, -$costGold);
+                            $kingdom->give_kingdom_wood($current_kingdom, -$cost_wood);
+                            $kingdom->give_kingdom_food($current_kingdom, -$cost_food);
+                            $kingdom->give_kingdom_stone($current_kingdom, -$cost_stone);
+                            $kingdom->give_kingdom_gold($current_kingdom, -$cost_gold);
 
                             $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
-                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$kID', '$buildid', '$buildingTime', '{$buildings[$buildid]->get_building_level()}', '{$buildings[$buildid]->get_building_name()}');");
+                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$current_kingdom', '$build_id', '$building_time', '{$buildings[$build_id]->get_building_level()}', '{$buildings[$build_id]->get_building_name()}');");
                         }
                     }
                 }
             }
         } else if ($_GET["action"] == "cancel") { // The action that was set is "cancel building"
-            if ($kingdomIsBuilding) {
-                $db_instance->query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$buildid'");
+            if ($kingdom_is_building) {
+                $db_instance->query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$build_id'");
 
                 // Refund the player
-                $kingdom->give_kingdom_wood($kID, $costWood);
-                $kingdom->give_kingdom_food($kID, $costFood);
-                $kingdom->give_kingdom_stone($kID, $costStone);
-                $kingdom->give_kingdom_gold($kID, $costGold);
+                $kingdom->give_kingdom_wood($current_kingdom, $cost_wood);
+                $kingdom->give_kingdom_food($current_kingdom, $cost_food);
+                $kingdom->give_kingdom_stone($current_kingdom, $cost_stone);
+                $kingdom->give_kingdom_gold($current_kingdom, $cost_gold);
             } else {
                 $error = "Du baust gerade nichts!";
             }
@@ -110,10 +110,10 @@ if (isset($_GET["action"])) {
         $error = "Dieses Gebäude existiert nicht!";
     }
 } else {
-    if ($bID >= 0 && $bID < $buildingcount) {
-        if ($buildings[$bID]->is_built()) {
+    if ($current_building >= 0 && $current_building < $building_count) {
+        if ($buildings[$current_building]->is_built()) {
             // PHP logic for buildings
-            switch ($bID) {
+            switch ($current_building) {
                 case 1:
                     // Universität
                     break;
@@ -138,71 +138,71 @@ if (isset($_GET["action"])) {
                         $soldiers[] = $soldier;
                     }
 
-                    $soldiercount = count($soldiers);
+                    $soldiers_count = count($soldiers);
 
-                    $kingdomFood = $kingdom->get_kingdom_food();
-                    $kingdomGold = $kingdom->get_kingdom_gold();
-                    $kingdomVillager = $kingdom->get_kingdom_villager();
+                    $kingdom_food = $kingdom->get_kingdom_food();
+                    $kingdom_gold = $kingdom->get_kingdom_gold();
+                    $kingdom_villager = $kingdom->get_kingdom_villager();
 
-                    $kID = $_SESSION["kingdomid"];
-                    $sID = (empty($_GET["recruit"]) ? 0 : $_GET["recruit"]);
+                    $current_kingdom = $_SESSION["kingdomid"];
+                    $s_id = (empty($_GET["recruit"]) ? 0 : $_GET["recruit"]);
 
-                    $kingdomRecruitingID = -1;
+                    $kingdom_recruiting_id = -1;
                     $error = null;
 
-                    $kingdomIsRecruiting = $kingdom->is_kingdom_recruiting($kID);
-                    if ($kingdomIsRecruiting) {
-                        $kingdomRecruitingID = $kingdom->get_kingdom_recruiting_id();
+                    $kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
+                    if ($kingdom_is_recruiting) {
+                        $kingdom_recruiting_id = $kingdom->get_kingdom_recruiting_id();
                     }
 
                     if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                         if ($_GET["count"] == "cancel") {
-                            if ($kingdomIsRecruiting) {
+                            if ($kingdom_is_recruiting) {
                                 // Calculate remaining soldiers to be recruited and resulting refunds
-                                $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$kID, ACTION_BUILD_TROOPS, $sID]);
+                                $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$current_kingdom, ACTION_BUILD_TROOPS, $s_id]);
                                 $row = $result->fetch_assoc();
-                                $soldiergoal = $row['soldiergoal'];
+                                $soldier_goal = $row['soldiergoal'];
 
                                 // Refund player
-                                $kingdom->give_kingdom_food($kID, $soldiergoal * $soldiers[$sID]->get_soldier_food_cost());
-                                $kingdom->give_kingdom_gold($kID, $soldiergoal * $soldiers[$sID]->get_soldier_gold_cost());
+                                $kingdom->give_kingdom_food($current_kingdom, $soldier_goal * $soldiers[$s_id]->get_soldier_food_cost());
+                                $kingdom->give_kingdom_gold($current_kingdom, $soldier_goal * $soldiers[$s_id]->get_soldier_gold_cost());
 
                                 // Delete the job
-                                $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?", [$user->get_user_id(), $sID, $kID]);
+                                $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?", [$user->get_user_id(), $s_id, $current_kingdom]);
                             } else {
                                 $error = "Du rekrutierst gerade nicht!";
                             }
                         } else {
-                            if ($kingdomIsRecruiting) {
+                            if ($kingdom_is_recruiting) {
                                 $error = "Du bist bereits am Rekrutieren!";
                             } else if (!is_numeric($_GET["count"]) || $_GET["count"] < 1) {
                                 $error = "Keine Angabe der Anzahl!";
                             } else if ($_GET["count"] > 99) {
                                 $error = "Maximale Anzahl beträgt 99!";
-                            } else if ($_GET["recruit"] < 0 || $_GET["recruit"] > $soldiercount) {
+                            } else if ($_GET["recruit"] < 0 || $_GET["recruit"] > $soldiers_count) {
                                 $error = "Diese Einheit existiert nicht!";
                             } else {
-                                $costFood = $soldiers[$sID]->get_soldier_food_cost() * $_GET["count"];
-                                $costGold = $soldiers[$sID]->get_soldier_gold_cost() * $_GET["count"];
-                                $costVillager = $soldiers[$sID]->get_soldier_villager_cost() * $_GET["count"];
+                                $cost_food = $soldiers[$s_id]->get_soldier_food_cost() * $_GET["count"];
+                                $cost_gold = $soldiers[$s_id]->get_soldier_gold_cost() * $_GET["count"];
+                                $cost_villager = $soldiers[$s_id]->get_soldier_villager_cost() * $_GET["count"];
 
-                                if ($costFood > $kingdomFood) {
+                                if ($cost_food > $kingdom_food) {
                                     $error = "Nicht genug Nahrung!";
-                                } else if ($costGold > $kingdomGold) {
+                                } else if ($cost_gold > $kingdom_gold) {
                                     $error = "Nicht genug Gold!";
-                                } else if ($costVillager > $kingdomVillager) {
+                                } else if ($cost_villager > $kingdom_villager) {
                                     $error = "Nicht genug Dorfbewohner!";
                                 } else {
-                                    $currenttime = time();
-                                    $recruitingtime = $currenttime + $soldiers[$sID]->get_soldier_time() * $_GET["count"];
+                                    $current_time = time();
+                                    $recruiting_time = $current_time + $soldiers[$s_id]->get_soldier_time() * $_GET["count"];
 
                                     $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
                                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                                    $db_instance->execute_query($query, [ACTION_BUILD_TROOPS, $user->get_user_id(), $kID, '0', $currenttime, '0', '-', $sID, $recruitingtime, $_GET["count"]]);
+                                    $db_instance->execute_query($query, [ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, '0', $current_time, '0', '-', $s_id, $recruiting_time, $_GET["count"]]);
 
                                     // Subtract values for food and gold
-                                    $kingdom->give_kingdom_food($kID, -$costFood);
-                                    $kingdom->give_kingdom_gold($kID, -$costGold);
+                                    $kingdom->give_kingdom_food($current_kingdom, -$cost_food);
+                                    $kingdom->give_kingdom_gold($current_kingdom, -$cost_gold);
                                 }
                             }
                         }
@@ -235,65 +235,65 @@ if (isset($_GET["action"])) {
                         $result = $db_instance->execute_query("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
                         $row = $result->fetch_assoc();
 
-                        if ($row && $kID != $row["kingdomid"]) {
+                        if ($row && $current_kingdom != $row["kingdomid"]) {
                             $supply = $row["supply"];
-                            $supplyvalue = $row["supplyvalue"];
+                            $supply_value = $row["supplyvalue"];
                             $demand = $row["demand"];
-                            $demandvalue = $row["demandvalue"];
+                            $demand_value = $row["demandvalue"];
 
-                            // Check if kingdom has enough ressources to handle the trade
-                            if ($demand == 0 && $kingdom->get_kingdom_food() < $demandvalue) {
+                            // Check if kingdom has enough resources to handle the trade
+                            if ($demand == 0 && $kingdom->get_kingdom_food() < $demand_value) {
                                 $error = "Soviel Nahrung kannst du nicht aufbringen!";
-                            } else if ($demand == 1 && $kingdom->get_kingdom_wood() < $demandvalue) {
+                            } else if ($demand == 1 && $kingdom->get_kingdom_wood() < $demand_value) {
                                 $error = "Soviel Holz kannst du nicht aufbringen!";
-                            } else if ($demand == 2 && $kingdom->get_kingdom_stone() < $demandvalue) {
+                            } else if ($demand == 2 && $kingdom->get_kingdom_stone() < $demand_value) {
                                 $error = "Soviel Stein kannst du nicht aufbringen!";
-                            } else if ($demand == 3 && $kingdom->get_kingdom_gold() < $demandvalue) {
+                            } else if ($demand == 3 && $kingdom->get_kingdom_gold() < $demand_value) {
                                 $error = "Soviel Gold kannst du nicht aufbringen!";
                             } else {
-                                $otherkingdom = $row["kingdomid"];
-                                $supplyressource = "";
-                                $demandressource = "";
+                                $other_kingdom = $row["kingdomid"];
+                                $supply_resource = "";
+                                $demand_resource = "";
 
-                                // Give both kingdoms the respective ressources
+                                // Give both kingdoms the respective resources
                                 switch ($supply) {
                                     case 0:
-                                        $kingdom->give_kingdom_food($kID, $supplyvalue);
-                                        $supplyressource = "Nahrung";
+                                        $kingdom->give_kingdom_food($current_kingdom, $supply_value);
+                                        $supply_resource = "Nahrung";
                                         break;
                                     case 1:
-                                        $kingdom->give_kingdom_wood($kID, $supplyvalue);
-                                        $supplyressource = "Holz";
+                                        $kingdom->give_kingdom_wood($current_kingdom, $supply_value);
+                                        $supply_resource = "Holz";
                                         break;
                                     case 2:
-                                        $kingdom->give_kingdom_stone($kID, $supplyvalue);
-                                        $supplyressource = "Stein";
+                                        $kingdom->give_kingdom_stone($current_kingdom, $supply_value);
+                                        $supply_resource = "Stein";
                                         break;
                                     case 3:
-                                        $kingdom->give_kingdom_gold($kID, $supplyvalue);
-                                        $supplyressource = "Gold";
+                                        $kingdom->give_kingdom_gold($current_kingdom, $supply_value);
+                                        $supply_resource = "Gold";
                                         break;
                                 }
                                 switch ($demand) {
                                     case 0:
-                                        $kingdom->give_kingdom_food($kID, -$demandvalue);
-                                        $kingdom->give_kingdom_food($otherkingdom, $demandvalue);
-                                        $demandressource = "Nahrung";
+                                        $kingdom->give_kingdom_food($current_kingdom, -$demand_value);
+                                        $kingdom->give_kingdom_food($other_kingdom, $demand_value);
+                                        $demand_resource = "Nahrung";
                                         break;
                                     case 1:
-                                        $kingdom->give_kingdom_wood($kID, -$demandvalue);
-                                        $kingdom->give_kingdom_wood($otherkingdom, $demandvalue);
-                                        $demandressource = "Holz";
+                                        $kingdom->give_kingdom_wood($current_kingdom, -$demand_value);
+                                        $kingdom->give_kingdom_wood($other_kingdom, $demand_value);
+                                        $demand_resource = "Holz";
                                         break;
                                     case 2:
-                                        $kingdom->give_kingdom_stone($kID, -$demandvalue);
-                                        $kingdom->give_kingdom_stone($otherkingdom, $demandvalue);
-                                        $demandressource = "Stein";
+                                        $kingdom->give_kingdom_stone($current_kingdom, -$demand_value);
+                                        $kingdom->give_kingdom_stone($other_kingdom, $demand_value);
+                                        $demand_resource = "Stein";
                                         break;
                                     case 3:
-                                        $kingdom->give_kingdom_gold($kID, -$demandvalue);
-                                        $kingdom->give_kingdom_gold($otherkingdom, $demandvalue);
-                                        $demandressource = "Gold";
+                                        $kingdom->give_kingdom_gold($current_kingdom, -$demand_value);
+                                        $kingdom->give_kingdom_gold($other_kingdom, $demand_value);
+                                        $demand_resource = "Gold";
                                         break;
                                 }
 
@@ -315,26 +315,26 @@ if (isset($_GET["action"])) {
                             $error = "Dieses Angebot existiert nicht oder ist von deinem Königreich!";
                         }
                     } else if (isset($_GET["delete"])) {
-                        $result = $db_instance->execute_query("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?", [$_GET["delete"], $kID]);
+                        $result = $db_instance->execute_query("SELECT supply, supplyvalue FROM marketplace WHERE offerid = ? AND kingdomid = ?", [$_GET["delete"], $current_kingdom]);
                         $row = $result->fetch_assoc();
 
                         if ($row) {
                             $supply = $row["supply"];
-                            $supplyvalue = $row["supplyvalue"];
+                            $supply_value = $row["supplyvalue"];
 
                             // Give supply ressources back to kingdom
                             switch ($supply) {
                                 case 0:
-                                    $kingdom->give_kingdom_food($kID, $supplyvalue);
+                                    $kingdom->give_kingdom_food($current_kingdom, $supply_value);
                                     break;
                                 case 1:
-                                    $kingdom->give_kingdom_wood($kID, $supplyvalue);
+                                    $kingdom->give_kingdom_wood($current_kingdom, $supply_value);
                                     break;
                                 case 2:
-                                    $kingdom->give_kingdom_stone($kID, $supplyvalue);
+                                    $kingdom->give_kingdom_stone($current_kingdom, $supply_value);
                                     break;
                                 case 3:
-                                    $kingdom->give_kingdom_gold($kID, $supplyvalue);
+                                    $kingdom->give_kingdom_gold($current_kingdom, $supply_value);
                                     break;
                             }
 
@@ -363,7 +363,7 @@ if (isset($_GET["action"])) {
                                     $error = "Soviel Gold kannst du nicht bieten!";
                                 } else {
                                     // Check if there is already an offer for this kingdom
-                                    $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$kID]);
+                                    $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$current_kingdom]);
                                     $row = $result->fetch_assoc();
                                     $offerid = $row['offerid'] ?? 0;
 
@@ -372,20 +372,20 @@ if (isset($_GET["action"])) {
                                     } else {
                                         // No offer found for the kingdom - insert to database
                                         $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue) VALUES(?, ?, ?, ?, ?, ?, ?);";
-                                        $result = $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $kID, $_GET["s"], $_GET["sv"], $_GET["d"], $_GET["dv"]]);
+                                        $result = $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $current_kingdom, $_GET["s"], $_GET["sv"], $_GET["d"], $_GET["dv"]]);
 
                                         switch ($_GET["s"]) {
                                             case 0:
-                                                $kingdom->give_kingdom_food($kID, -$_GET["sv"]);
+                                                $kingdom->give_kingdom_food($current_kingdom, -$_GET["sv"]);
                                                 break;
                                             case 1:
-                                                $kingdom->give_kingdom_wood($kID, -$_GET["sv"]);
+                                                $kingdom->give_kingdom_wood($current_kingdom, -$_GET["sv"]);
                                                 break;
                                             case 2:
-                                                $kingdom->give_kingdom_stone($kID, -$_GET["sv"]);
+                                                $kingdom->give_kingdom_stone($current_kingdom, -$_GET["sv"]);
                                                 break;
                                             case 3:
-                                                $kingdom->give_kingdom_gold($kID, -$_GET["sv"]);
+                                                $kingdom->give_kingdom_gold($current_kingdom, -$_GET["sv"]);
                                                 break;
                                         }
                                     }
@@ -428,7 +428,7 @@ include_once("layout/banner.html");
                     if (!empty($error)) {
                         echo "Fehler";
                     } else {
-                        echo $buildingName;
+                        echo $building_name;
                     }
                     ?>
                 </p>
@@ -441,39 +441,39 @@ include_once("layout/banner.html");
                 if (!empty($error)) {
                     echo $error . "<br>";
                 } else {
-                    if ($bID == 0 || (isset($_GET["action"]) && ($_GET["action"] == "build" || $_GET["action"] == "cancel"))) {
+                    if ($current_building == 0 || (isset($_GET["action"]) && ($_GET["action"] == "build" || $_GET["action"] == "cancel"))) {
                         // Dorfzentrum
-                        $last_built_building = $user->get_last_built_building();
+                        $last_built_building = $user->get_last_built_building($current_kingdom);
 
                         if (!empty($last_built_building)) {
-                            $buildingName = $last_built_building["buildingname"];
-                            $buildingLevel = $last_built_building["buildinglevel"];
+                            $building_name = $last_built_building["buildingname"];
+                            $building_level = $last_built_building["buildinglevel"];
 
-                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $buildingName (" . ($buildingLevel == 0 ? "0" : $buildingLevel) . " → " . ($buildingLevel + 1) . ")<br><br>";
+                            echo "<span class='event-finished'>Bau abgeschlossen:</span> $building_name (" . ($building_level == 0 ? "0" : $building_level) . " → " . ($building_level + 1) . ")<br><br>";
 
                             // Clear the last built building data after displaying it
-                            $user->clear_last_built_building();
+                            $user->clear_last_built_building($current_kingdom);
                         }
 
                         // Get current ressources
-                        $kingdomWood = $kingdom->get_kingdom_wood();
-                        $kingdomFood = $kingdom->get_kingdom_food();
-                        $kingdomStone = $kingdom->get_kingdom_stone();
-                        $kingdomGold = $kingdom->get_kingdom_gold();
-                        $kingdomIsBuilding = $kingdom->is_kingdom_building($kID);
+                        $kingdom_wood = $kingdom->get_kingdom_wood();
+                        $kingdom_food = $kingdom->get_kingdom_food();
+                        $kingdom_stone = $kingdom->get_kingdom_stone();
+                        $kingdom_gold = $kingdom->get_kingdom_gold();
+                        $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
 
-                        if ($kingdomIsBuilding) {
-                            $kingdomBuildingID = $kingdom->get_kingdom_building_id();
+                        if ($kingdom_is_building) {
+                            $kingdom_building_id = $kingdom->get_kingdom_building_id();
                         }
 
                         // Count max upgraded buildings
                         $count_maxed_buildings = 0;
-                        for ($i = 0; $i < $buildingcount; $i++) {
+                        for ($i = 0; $i < $building_count; $i++) {
                             if ($buildings[$i]->get_building_level() >= MAX_BUILDING_LEVEL)
                                 $count_maxed_buildings++;
                         }
 
-                        if ($count_maxed_buildings === $buildingcount) {
+                        if ($count_maxed_buildings === $building_count) {
                             echo "Es wurden alle Gebäude gebaut.";
                         } else {
                             ?>
@@ -485,49 +485,48 @@ include_once("layout/banner.html");
                                     <b>Aktion</b></td>
                             </tr>
                             <?php
-                            for ($i = 0; $i < $buildingcount; $i++) {
-                                $showBuilding = true;
-                                $buildingDependencies = $buildings[$i]->get_building_dependencies();
+                            for ($i = 0; $i < $building_count; $i++) {
+                                $show_building = true;
+                                $building_dependencies = $buildings[$i]->get_building_dependencies();
 
-                                foreach ($buildingDependencies as $dependency) {
-                                    if (!$showBuilding) {
+                                foreach ($building_dependencies as $dependency) {
+                                    if (!$show_building) {
                                         break;
                                     }
 
                                     if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                                        $showBuilding = false;
+                                        $show_building = false;
                                     }
                                 }
 
                                 $level = $buildings[$i]->get_building_level();
 
                                 if ($level < MAX_BUILDING_LEVEL) {
-                                    if ($showBuilding) {
+                                    if ($show_building) {
                                         if (!is_numeric($level)) {
                                             $level = "0";
                                         }
 
                                         $costs = $buildings[$i]->calculate_building_cost();
-                                        $costWood = $costs["costWood"];
-                                        $costFood = $costs["costFood"];
-                                        $costStone = $costs["costStone"];
-                                        $costGold = $costs["costGold"];
+                                        $cost_wood = $costs["costWood"];
+                                        $cost_food = $costs["costFood"];
+                                        $cost_stone = $costs["costStone"];
+                                        $cost_gold = $costs["costGold"];
 
-                                        $textWood = $buildings[$i]->get_resource_text($costWood, $kingdomWood);
-                                        $textFood = $buildings[$i]->get_resource_text($costFood, $kingdomFood);
-                                        $textStone = $buildings[$i]->get_resource_text($costStone, $kingdomStone);
-                                        $textGold = $buildings[$i]->get_resource_text($costGold, $kingdomGold);
-                                        $textBuild = "";
+                                        $text_wood = $buildings[$i]->get_resource_text($cost_wood, $kingdom_wood);
+                                        $text_food = $buildings[$i]->get_resource_text($cost_food, $kingdom_food);
+                                        $text_stone = $buildings[$i]->get_resource_text($cost_stone, $kingdom_stone);
+                                        $text_gold = $buildings[$i]->get_resource_text($cost_gold, $kingdom_gold);
+                                        $text_build = "";
 
-                                        if ($kingdomIsBuilding) {
-                                            if ($kingdomBuildingID == $i) {
-                                                $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?", [$kID, $i, ACTION_BUILD_BUILDING]);
+                                        if ($kingdom_is_building) {
+                                            if ($kingdom_building_id == $i) {
+                                                $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?", [$current_kingdom, $i, ACTION_BUILD_BUILDING]);
                                                 $row = $result->fetch_assoc();
-                                                $buildTime = $row["buildingtime"];
 
-                                                $differenceTime = $buildTime - time();
+                                                $differenceTime = $row["buildingtime"] - time();
 
-                                                $textBuild = "<b><span id='counter'></span></b><br>
+                                                $text_build = "<b><span id='counter'></span></b><br>
                                                                       <script type='text/javascript'>
                                                                         diff = " . json_encode($differenceTime) . "
                                                                         startCountdown(diff);
@@ -539,13 +538,13 @@ include_once("layout/banner.html");
                                                                         <input type='submit' value='Abbruch' style='margin-top: 5px;'>
                                                                       </form>";
                                             } else {
-                                                $textBuild = "-";
+                                                $text_build = "-";
                                             }
                                         } else {
-                                            if ($costWood > $kingdomWood || $costFood > $kingdomFood || $costStone > $kingdomStone || $costGold > $kingdomGold) {
-                                                $textBuild = "Nicht genug Rohstoffe!";
+                                            if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
+                                                $text_build = "Nicht genug Rohstoffe!";
                                             } else {
-                                                $textBuild = "<form action='buildings.php' method='GET'>
+                                                $text_build = "<form action='buildings.php' method='GET'>
                                                                             <input type='hidden' name='id' value='0'>
                                                                             <input type='hidden' name='action' value='build'>
                                                                             <input type='hidden' name='bid' value='" . $i . "'>
@@ -556,9 +555,9 @@ include_once("layout/banner.html");
 
                                         echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
                                             <td style='width: 40%;'><b>" . $buildings[$i]->get_building_name() . " ($level)</b><br><br>
-                                            <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> " . $textWood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $textFood . "<br>
-                                            <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> " . $textStone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $textGold . "<br>
-                                            <img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/> " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "<br></td><td class='td-center' style='width: 40%;'>" . $textBuild . "</td></tr>";
+                                            <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> " . $text_wood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $text_food . "<br>
+                                            <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> " . $text_stone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $text_gold . "<br>
+                                            <img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/> " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "<br></td><td class='td-center' style='width: 40%;'>" . $text_build . "</td></tr>";
                                     }
                                 }
                             }
@@ -567,20 +566,20 @@ include_once("layout/banner.html");
                         </table>
                         <?php
                     } else {
-                        if ($buildings[$bID]->is_built()) {
-                            switch ($bID) {
+                        if ($buildings[$current_building]->is_built()) {
+                            switch ($current_building) {
                                 case 1: // Universität
                                     break;
                                 case 2: // Kaserne
-                                    $last_recruited_soldier = $user->get_last_recruited_soldier();
+                                    $last_recruited_soldier = $user->get_last_recruited_soldier($current_kingdom);
 
                                     if (!empty($last_recruited_soldier)) {
-                                        $soldierName = $last_recruited_soldier["soldiername"];
-                                        $soldierCount = $last_recruited_soldier["soldiercount"];
+                                        $soldier_name = $last_recruited_soldier["soldiername"];
+                                        $soldier_count = $last_recruited_soldier["soldiercount"];
 
-                                        echo "<span class='event-finished'>Ausbildung abgeschlossen:</span> $soldierName (+$soldierCount)<br><br>";
+                                        echo "<span class='event-finished'>Ausbildung abgeschlossen:</span> $soldier_name (+$soldier_count)<br><br>";
 
-                                        $user->clear_last_recruited_soldier();
+                                        $user->clear_last_recruited_soldier($current_kingdom);
                                     }
                                     ?>
                                     <table class="table">
@@ -591,56 +590,50 @@ include_once("layout/banner.html");
                                                 <b>Aktion</b></td>
                                         </tr>
                                         <?php
-                                        $kingdomIsRecruiting = $kingdom->is_kingdom_recruiting($kID);
+                                        $kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
 
-                                        if ($kingdomIsRecruiting) {
-                                            $kingdomRecruitingID = $kingdom->get_kingdom_recruiting_id();
+                                        if ($kingdom_is_recruiting) {
+                                            $kingdom_recruiting_id = $kingdom->get_kingdom_recruiting_id();
                                         }
 
                                         // Get soldiers of kingdom
-                                        $result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$kID]);
+                                        $result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
 
                                         foreach ($result as $row) {
-                                            $soldierid = $row['soldierid'] ?? -1;
-                                            $solcount = $row['soldiercount'] ?? 0;
-                                            $kingdomSoldiers[$soldierid] = $solcount;
+                                            $soldier_id = $row['soldierid'] ?? -1;
+                                            $sol_count = $row['soldiercount'] ?? 0;
+                                            $kingdom_soldiers[$soldier_id] = $sol_count;
                                         }
 
-                                        for ($i = 0; $i < $soldiercount; $i++) {
-                                            $costFood = $soldiers[$i]->get_soldier_food_cost();
-                                            $costGold = $soldiers[$i]->get_soldier_gold_cost();
-                                            $costVillager = $soldiers[$i]->get_soldier_villager_cost();
+                                        for ($i = 0; $i < $soldiers_count; $i++) {
+                                            $cost_food = $soldiers[$i]->get_soldier_food_cost();
+                                            $cost_gold = $soldiers[$i]->get_soldier_gold_cost();
+                                            $cost_villager = $soldiers[$i]->get_soldier_villager_cost();
 
-                                            $textFood = ($costFood > $kingdomFood ? "<b class='error'>" . fnum($costFood) . "</b>" : fnum($costFood));
-                                            $textGold = ($costGold > $kingdomGold ? "<b class='error'>" . fnum($costGold) . "</b>" : fnum($costGold));
-                                            $textVillager = ($costVillager > $kingdomVillager ? "<b class='error'>" . fnum($costVillager) . "</b>" : fnum($costVillager));
+                                            $text_food = ($cost_food > $kingdom_food ? "<b class='error'>" . fnum($cost_food) . "</b>" : fnum($cost_food));
+                                            $text_gold = ($cost_gold > $kingdom_gold ? "<b class='error'>" . fnum($cost_gold) . "</b>" : fnum($cost_gold));
+                                            $text_villager = ($cost_villager > $kingdom_villager ? "<b class='error'>" . fnum($cost_villager) . "</b>" : fnum($cost_villager));
 
-                                            if ($kingdomIsRecruiting) {
-                                                if ($kingdomRecruitingID == $i) {
-                                                    $stmt = $db_instance->prepare("SELECT recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?");
-                                                    $action = ACTION_BUILD_TROOPS;
-                                                    $recruittime = 0;
-                                                    $soldiergoal = 0;
-                                                    $stmt->bind_param('iii', $kID, $action, $i);
-                                                    $stmt->execute();
-                                                    $stmt->bind_result($recruittime, $soldiergoal);
-                                                    $stmt->fetch();
-                                                    $stmt->close();
-
-                                                    $soldiertime = $soldiers[$i]->get_soldier_time();
-                                                    $currenttime = time();
-                                                    $totaldifference = $recruittime - $currenttime;
-                                                    $remainingTimeInSeconds = max(0, $totaldifference % $soldiertime);
+                                            if ($kingdom_is_recruiting) {
+                                                if ($kingdom_recruiting_id == $i) {
+                                                    $result = $db_instance->execute_query("SELECT recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$current_kingdom, ACTION_BUILD_TROOPS, $i]);
+                                                    $row = $result->fetch_assoc();
+                                                    $recruit_time = $row["recruittime"];
+                                                    $soldier_goal = $row["soldiergoal"];
+                                                    $soldier_time = $soldiers[$i]->get_soldier_time();
+                                                    $current_time = time();
+                                                    $total_difference = $recruit_time - $current_time;
+                                                    $remaining_time_in_seconds = max(0, $total_difference % $soldier_time);
 
                                                     // Job was just started
-                                                    if ($remainingTimeInSeconds == 0) {
-                                                        $remainingTimeInSeconds = $soldiers[$i]->get_soldier_time();
+                                                    if ($remaining_time_in_seconds == 0) {
+                                                        $remaining_time_in_seconds = $soldiers[$i]->get_soldier_time();
                                                     }
 
-                                                    $textBuild = "In Ausbildung: " . $soldiergoal . "<br><br><b>
+                                                    $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b>
                                                                       <span id='counter'>
                                                                       <script type='text/javascript'>
-                                                                          diff = " . json_encode($remainingTimeInSeconds) . "
+                                                                          diff = " . json_encode($remaining_time_in_seconds) . "
                                                                           startCountdown(diff);
                                                                       </script>
                                                                       </span></b><br> 
@@ -651,29 +644,29 @@ include_once("layout/banner.html");
                                                                         <input type='submit' value='Abbruch' style='margin-top: 5px;'>
                                                                       </form>";
                                                 } else {
-                                                    $textBuild = "-";
+                                                    $text_build = "-";
                                                 }
                                             } else {
-                                                if ($costFood > $kingdomFood || $costGold > $kingdomGold) {
-                                                    $textBuild = "Nicht genug Rohstoffe!";
-                                                } else if ($kingdomVillager < $costVillager) {
-                                                    $textBuild = "Nicht genug Dorfbewohner!";
+                                                if ($cost_food > $kingdom_food || $cost_gold > $kingdom_gold) {
+                                                    $text_build = "Nicht genug Rohstoffe!";
+                                                } else if ($kingdom_villager < $cost_villager) {
+                                                    $text_build = "Nicht genug Dorfbewohner!";
                                                 } else {
                                                     // Calculate the maximum soldiers recruitable based on each resource
-                                                    $foodCostPerSoldier = $soldiers[$i]->get_soldier_food_cost();
-                                                    $goldCostPerSoldier = $soldiers[$i]->get_soldier_gold_cost();
-                                                    $villagerCostPerSoldier = $soldiers[$i]->get_soldier_villager_cost();
-                                                    $maxSoldiersFood = floor($kingdomFood / $foodCostPerSoldier);
-                                                    $maxSoldiersGold = floor($kingdomGold / $goldCostPerSoldier);
-                                                    $maxSoldiersVillagers = floor($kingdomVillager / $villagerCostPerSoldier);
-                                                    $maxRecruitVal = min($maxSoldiersFood, $maxSoldiersGold, $maxSoldiersVillagers);
-                                                    $maxSoldiers = min($maxRecruitVal, 99);
+                                                    $food_cost_per_soldier = $soldiers[$i]->get_soldier_food_cost();
+                                                    $gold_cost_per_soldier = $soldiers[$i]->get_soldier_gold_cost();
+                                                    $villager_cost_per_soldier = $soldiers[$i]->get_soldier_villager_cost();
+                                                    $max_soldiers_food = floor($kingdom_food / $food_cost_per_soldier);
+                                                    $max_soldiers_gold = floor($kingdom_gold / $gold_cost_per_soldier);
+                                                    $max_soldiers_villagers = floor($kingdom_villager / $villager_cost_per_soldier);
+                                                    $max_recruit_val = min($max_soldiers_food, $max_soldiers_gold, $max_soldiers_villagers);
+                                                    $max_soldiers = min($max_recruit_val, 99);
 
-                                                    $textBuild = "<form action='buildings.php?' method='GET'>
+                                                    $text_build = "<form action='buildings.php?' method='GET'>
                                                                             <input type='hidden' name='id' value='2'>
                                                                             <input type='hidden' name='recruit' value='" . $i . "'>
                                                                             <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2'>
-                                                                            <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $maxSoldiers . "\")'><br>
+                                                                            <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $max_soldiers . "\")'><br>
                                                                             <input type='submit' value='Ausbilden' style='margin-top: 10px'>
                                                                         </form>
                                                                         <script>
@@ -688,15 +681,15 @@ include_once("layout/banner.html");
                                             echo "<tr>
                                                     <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->get_soldier_icon() . "</td>
                                                     <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
-                                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div>  (" . (isset($kingdomSoldiers[$i]) ? fnum($kingdomSoldiers[$i]) : 0) . ")</b><br><br>
-                                                        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $textFood . "
-                                                        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $textGold . "
-                                                        <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/> " . $textVillager . "<br>
+                                                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div>  (" . (isset($kingdom_soldiers[$i]) ? fnum($kingdom_soldiers[$i]) : 0) . ")</b><br><br>
+                                                        <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $text_food . "
+                                                        <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $text_gold . "
+                                                        <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/> " . $text_villager . "<br>
                                                         <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff' title='Angriff'/> " . $soldiers[$i]->get_soldier_attack() . " 
                                                         <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/> " . $soldiers[$i]->get_soldier_defense() . "<br>
                                                         <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/> " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
                                                         <br></td>
-                                                    <td class='td-center' style='width: 40%;'>$textBuild</td>
+                                                    <td class='td-center' style='width: 40%;'>$text_build</td>
                                                 </tr>";
                                         }
                                         ?>
@@ -826,11 +819,12 @@ include_once("layout/banner.html");
                                                 <b>Aktion</b></td>
                                         </tr>
                                         <?php
-                                        $ressourceicon = array();
-                                        $ressourceicon[0] = "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>";
-                                        $ressourceicon[1] = "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>";
-                                        $ressourceicon[2] = "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>";
-                                        $ressourceicon[3] = "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>";
+                                        $resource_icon = array(
+                                            "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
+                                            "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
+                                            "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
+                                            "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>"
+                                        );
 
                                         echo "<p>Aktuelle Angebote</p>";
 
@@ -843,22 +837,22 @@ include_once("layout/banner.html");
                                         $result = $db_instance->execute_query($query);
 
                                         foreach ($result as $row) {
-                                            $kingdomname = $row['kingdomname'];
+                                            $kingdom_name = $row['kingdomname'];
 
-                                            $action = ($row["kingdomid"] == $kID) ? "Löschen" : "Annehmen";
-                                            $param = ($row["kingdomid"] == $kID) ? "delete" : "accept";
+                                            $action = ($row["kingdomid"] == $current_kingdom) ? "Löschen" : "Annehmen";
+                                            $param = ($row["kingdomid"] == $current_kingdom) ? "delete" : "accept";
 
-                                            $textbuild = "<form action='buildings.php' method='GET'>
+                                            $text_build = "<form action='buildings.php' method='GET'>
                                                                     <input type='hidden' name='id' value='10'>
                                                                     <input type='hidden' name='$param' value='" . $row["offerid"] . "'>
                                                                     <input type='submit' value='$action'>
                                                                 </form>";
 
                                             echo "<tr><td>{$row["username"]}</td>
-                                                            <td>$kingdomname</td>
-                                                            <td class='td-center'>{$ressourceicon[$row["supply"]]} " . fnum($row["supplyvalue"]) . "</td>
-                                                            <td class='td-center'>{$ressourceicon[$row["demand"]]} " . fnum($row["demandvalue"]) . "</td>
-                                                            <td class='td-center'>$textbuild</td>";
+                                                            <td>$kingdom_name</td>
+                                                            <td class='td-center'>{$resource_icon[$row["supply"]]} " . fnum($row["supplyvalue"]) . "</td>
+                                                            <td class='td-center'>{$resource_icon[$row["demand"]]} " . fnum($row["demandvalue"]) . "</td>
+                                                            <td class='td-center'>$text_build</td>";
                                         }
                                         ?>
                                     </table>

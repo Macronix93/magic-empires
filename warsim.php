@@ -3,10 +3,10 @@ global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
-if (!($user->is_logged_in())) {
+/*if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
-}
+}*/
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -51,20 +51,18 @@ include_once("layout/banner.html");
                         <td class="td-center td-gradient">Gegner Truppen</td>
                     </tr>
                     <?php
-                    $soldierCount = count($soldiers);
-
-                    for ($i = 0; $i < $soldierCount; $i++) {
-                        $soldierName = $soldiers[$i]->getSoldierName();
+                    for ($i = 0; $i < count($soldiers); $i++) {
+                        $soldier_name = $soldiers[$i]->getSoldierName();
 
                         echo "<tr>
-                                        <td>" . $soldiers[$i]->getSoldierIcon() . " " . $soldierName . "<br>
+                                        <td>" . $soldiers[$i]->getSoldierIcon() . " " . $soldier_name . "<br>
                                         <div class='split-content' style='width: 104px;'>
-                                            <div id='" . $soldierName . "_atk' data-attack='" . $soldiers[$i]->getSoldierAttack() . "'><img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->getSoldierAttack() . "</div>
-                                            <div id='" . $soldierName . "_def' data-defense='" . $soldiers[$i]->getSoldierDefense() . "' style='margin-left: 15px;'><img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->getSoldierDefense() . "</div>
+                                            <div id='" . $soldier_name . "_atk' data-attack='" . $soldiers[$i]->getSoldierAttack() . "'><img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->getSoldierAttack() . "</div>
+                                            <div id='" . $soldier_name . "_def' data-defense='" . $soldiers[$i]->getSoldierDefense() . "' style='margin-left: 15px;'><img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->getSoldierDefense() . "</div>
                                         </div>
                                         </td>
-                                        <td class='td-center'><input type='text' id='" . $soldierName . "_own' name='" . $soldierName . "_own' size='2' maxlength='3' value='0'></td>
-                                        <td class='td-center'><input type='text' id='" . $soldierName . "_enemy' name='" . $soldierName . "_enemy' size='2' maxlength='3' value='0'></td>
+                                        <td class='td-center'><input type='text' id='" . $soldier_name . "_own' name='" . $soldier_name . "_own' size='2' maxlength='3' value='0'></td>
+                                        <td class='td-center'><input type='text' id='" . $soldier_name . "_enemy' name='" . $soldier_name . "_enemy' size='2' maxlength='3' value='0'></td>
                                         </tr>";
                     }
                     ?>

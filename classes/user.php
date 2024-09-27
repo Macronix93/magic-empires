@@ -1,18 +1,16 @@
 <?php
 
 class User {
-    private $mysqli;
-    private $current_kingdom;
-    private $reg_status;
+    private object $mysqli;
+    private int $reg_status;
 
     // Constructor
-    public function __construct($db_conn) {
+    public function __construct(object $db_conn) {
         $this->mysqli = $db_conn;
-        $this->current_kingdom = $_SESSION["kingdomid"] ?? null;
     }
 
     // Function to register a new user
-    public function register_user($name, $email, $pass): void {
+    public function register_user(string $name, string $email, string $pass): void {
         /*
         BETTER PASSWORD AND SALT ALGO:
 
@@ -34,30 +32,30 @@ class User {
         }
         */
         $password = password_hash($pass, PASSWORD_BCRYPT);
-        $activationkey = md5($email . $name);
+        $activation_key = md5($email . $name);
 
-        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))", [$name, $password, $activationkey, $email]);
-        $insertid = $this->mysqli->insert_id;
+        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))", [$name, $password, $activation_key, $email]);
+        $insert_id = $this->mysqli->insert_id;
 
         // Try to create kingdom
         $kingdom = new Kingdoms($this->mysqli);
-        $mainkingdom = $kingdom->create_kingdom($insertid, $name);
+        $main_kingdom = $kingdom->create_kingdom($insert_id, $name);
 
-        if ($mainkingdom) {
+        if ($main_kingdom) {
             // Update mainkingdom in user table
-            $this->mysqli->execute_query("UPDATE users SET mainkingdom = '$mainkingdom' WHERE id = ?", [$insertid]);
+            $this->mysqli->execute_query("UPDATE users SET mainkingdom = '$main_kingdom' WHERE id = ?", [$insert_id]);
 
             // Create activation link to activate account
-            $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activationkey;
+            $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activation_key;
 
-            $empfaenger = $email;
-            $betreff = 'Magic-Empires - Registration';
-            $nachricht = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
+            $receiver = $email;
+            $subject = 'Magic-Empires - Registration';
+            $message = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
             $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
                 'From: webmaster@magic-empires.de' . "\r\n" .
                 'X-Mailer: PHP/' . phpversion();
 
-            if (mail($empfaenger, $betreff, $nachricht, $header)) {
+            if (mail($receiver, $subject, $message, $header)) {
                 $this->reg_status = "<span class='passed'>Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.</span><br>";
 
                 // Update lastrank
@@ -71,39 +69,39 @@ class User {
                     SET users.lastrank = ranked_users.new_rank
                     WHERE users.id = ?
                 ";
-                $this->mysqli->execute_query($query, [$insertid]);
+                $this->mysqli->execute_query($query, [$insert_id]);
             }
         } else {
             $this->reg_status = "<span class='error'>Es sind derzeit keine freien Plätze übrig!</span><br>";
-            $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$insertid]);
+            $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$insert_id]);
         }
 
         //TODO: Else block for deleting user and kingdom, if mail couldn't be sent?!
     }
 
     // Function to log in a user
-    public function login_user($userid): void {
+    public function login_user(int $user_id): void {
         $timestamp = time();
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, lastsentmsg FROM users WHERE id = ?", [$userid]);
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, lastsentmsg FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
-        $_SESSION["userid"] = $userid;
+        $_SESSION["userid"] = $user_id;
         $_SESSION["lastlogin"] = $row["lastlogin"];
         $_SESSION["username"] = $row["username"];
         $_SESSION["kingdomid"] = $row["mainkingdom"];
         $_SESSION["lastsentmsg"] = $row["lastsentmsg"];
 
         // Update login time
-        $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$userid]);
+        $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$user_id]);
 
         change_location("index.php");
     }
 
     // Get the user ID by activation key
-    public function get_user_database_id($activationkey) {
-        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activationkey]);
+    public function get_user_database_id(string $activation_key) {
+        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
         $data = "";
 
         if ($row = $result->fetch_assoc()) {
@@ -136,92 +134,92 @@ class User {
         return $row["score"];
     }
 
-    public function set_last_built_building($buildingname, $buildinglevel): void {
+    public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void {
         if (!isset($_SESSION["last_built_building"])) {
             $_SESSION["last_built_building"] = array();
         }
-        $_SESSION["last_built_building"][$this->current_kingdom] = [
-            "buildingname" => $buildingname,
-            "buildinglevel" => $buildinglevel
+        $_SESSION["last_built_building"][$kingdom_id] = [
+            "buildingname" => $building_name,
+            "buildinglevel" => $building_level
         ];
     }
 
-    public function clear_last_built_building(): void {
-        if (isset($_SESSION["last_built_building"][$this->current_kingdom])) {
-            unset($_SESSION["last_built_building"][$this->current_kingdom]);
+    public function clear_last_built_building(int $kingdom_id): void {
+        if (isset($_SESSION["last_built_building"][$kingdom_id])) {
+            unset($_SESSION["last_built_building"][$kingdom_id]);
         }
     }
 
-    public function get_last_built_building(): ?array {
-        return $_SESSION["last_built_building"][$this->current_kingdom] ?? null;
+    public function get_last_built_building(int $kingdom_id): ?array {
+        return $_SESSION["last_built_building"][$kingdom_id] ?? null;
     }
 
-    public function set_last_recruited_soldier($soldiername, $soldierdifference): void {
+    public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count): void {
         if (!isset($_SESSION["last_recruited_soldier"])) {
             $_SESSION["last_recruited_soldier"] = array();
         }
-        $_SESSION["last_recruited_soldier"][$this->current_kingdom] = [
-            "soldiername" => $soldiername,
-            "soldiercount" => $soldierdifference
+        $_SESSION["last_recruited_soldier"][$kingdom_id] = [
+            "soldiername" => $soldier_name,
+            "soldiercount" => $soldier_count
         ];
     }
 
-    public function clear_last_recruited_soldier(): void {
-        if (isset($_SESSION["last_recruited_soldier"][$this->current_kingdom])) {
-            unset($_SESSION["last_recruited_soldier"][$this->current_kingdom]);
+    public function clear_last_recruited_soldier(int $kingdom_id): void {
+        if (isset($_SESSION["last_recruited_soldier"][$kingdom_id])) {
+            unset($_SESSION["last_recruited_soldier"][$kingdom_id]);
         }
     }
 
-    public function get_last_recruited_soldier(): ?array {
-        return $_SESSION["last_recruited_soldier"][$this->current_kingdom] ?? null;
+    public function get_last_recruited_soldier(int $kingdom_id): ?array {
+        return $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
     }
 
     // Get and execute events tied to the user
-    public function process_user_events($userid): void {
-        $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$userid]);
+    public function process_user_events(int $user_id): void {
+        $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$user_id]);
 
         foreach ($result as $row) {
-            $eventid = $row["eventid"];
-            $actionid = $row["actionid"];
-            $kingdomid = $row["kingdomid"];
-            $buildingid = $row["buildingid"];
-            $buildingtime = $row["buildingtime"];
-            $buildinglevel = $row["buildinglevel"];
-            $buildingname = $row["buildingname"];
-            $soldierid = $row["soldierid"];
-            $recruittime = $row["recruittime"];
-            $soldiergoal = $row["soldiergoal"];
+            $event_id = $row["eventid"];
+            $action_id = $row["actionid"];
+            $kingdom_id = $row["kingdomid"];
+            $building_id = $row["buildingid"];
+            $building_time = $row["buildingtime"];
+            $building_level = $row["buildinglevel"];
+            $building_name = $row["buildingname"];
+            $soldier_id = $row["soldierid"];
+            $recruit_time = $row["recruittime"];
+            $soldier_goal = $row["soldiergoal"];
 
-            switch ($actionid) {
+            switch ($action_id) {
                 case ACTION_BUILD_BUILDING:
-                    if ($buildingtime < time()) {
-                        $result = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$buildingid]);
+                    if ($building_time < time()) {
+                        $result = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$building_id]);
                         $row = $result->fetch_assoc();
-                        $score = $row["buildingscore"] * $buildinglevel + 1;
+                        $score = $row["buildingscore"] * $building_level + 1;
 
-                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$eventid]);
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
 
-                        if ($buildinglevel == 0) { // Insert new building
-                            $this->mysqli->execute_query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES (?, ?, ?, ?)", [$kingdomid, $buildingid, $buildingname, 1]);
+                        if ($building_level == 0) { // Insert new building
+                            $this->mysqli->execute_query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES (?, ?, ?, ?)", [$kingdom_id, $building_id, $building_name, 1]);
                         } else { // Update current building
-                            $this->mysqli->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = ? AND buildingid = ?", [$kingdomid, $buildingid]);
+                            $this->mysqli->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = ? AND buildingid = ?", [$kingdom_id, $building_id]);
 
-                            $this->set_last_built_building($buildingname, $buildinglevel);
+                            $this->set_last_built_building($kingdom_id, $building_name, $building_level);
                         }
-                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $userid]);
+                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $user_id]);
 
-                        switch ($buildingid) {
+                        switch ($building_id) {
                             case BUILDING_STORAGE:
                                 // Update storage values based on buildinglevel
-                                $maxval = MAX_STORAGE_VALUE;
-                                $updateval = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
+                                $max_val = MAX_STORAGE_VALUE;
+                                $update_val = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
 
-                                if ($buildinglevel + 1 == MAX_BUILDING_LEVEL) {
-                                    $query = "UPDATE kingdoms SET maxfood = $maxval, maxwood = $maxval, maxstone = $maxval, maxgold = $maxval  WHERE id = ?";
+                                if ($building_level + 1 == MAX_BUILDING_LEVEL) {
+                                    $query = "UPDATE kingdoms SET maxfood = $max_val, max_wood = $max_val, max_stone = $max_val, max_gold = $max_val  WHERE id = ?";
                                 } else {
-                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $updateval, maxwood = maxwood + $updateval, maxstone = maxstone + $updateval, maxgold = maxgold + $updateval  WHERE id = ?";
+                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $update_val, max_wood = max_wood + $update_val, max_stone = max_stone + $update_val, max_gold = max_gold + $update_val  WHERE id = ?";
                                 }
-                                $this->mysqli->execute_query($query, [$kingdomid]);
+                                $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_MILL:
                                 $query = "
@@ -230,12 +228,12 @@ class User {
                                             INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
                                             WHERE m.kingdomid = ?
                                 ";
-                                $result = $this->mysqli->execute_query($query, [$kingdomid]);
+                                $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $row = $result->fetch_assoc();
-                                $foodrate = $row["foodrate"];
+                                $food_rate = $row["foodrate"];
 
-                                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $foodrate . "  WHERE id = ?";
-                                $this->mysqli->execute_query($query, [$kingdomid]);
+                                $query = "UPDATE kingdoms SET food_per_hour = food_per_hour + " . BASE_FOOD_GAIN * $food_rate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_SAWMILL:
                                 $query = "
@@ -244,12 +242,12 @@ class User {
                                             INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
                                             WHERE m.kingdomid = ?
                                 ";
-                                $result = $this->mysqli->execute_query($query, [$kingdomid]);
+                                $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $row = $result->fetch_assoc();
-                                $woodrate = $row["woodrate"];
+                                $wood_rate = $row["woodrate"];
 
-                                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $woodrate . "  WHERE id = ?";
-                                $this->mysqli->execute_query($query, [$kingdomid]);
+                                $query = "UPDATE kingdoms SET wood_per_hour = wood_per_hour + " . BASE_WOOD_GAIN * $wood_rate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_STONEMINE:
                                 $query = "
@@ -258,12 +256,12 @@ class User {
                                             INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
                                             WHERE m.kingdomid = ?
                                 ";
-                                $result = $this->mysqli->execute_query($query, [$kingdomid]);
+                                $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $row = $result->fetch_assoc();
-                                $stonerate = $row["stonerate"];
+                                $stone_rate = $row["stonerate"];
 
-                                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stonerate . "  WHERE id = ?";
-                                $this->mysqli->execute_query($query, [$kingdomid]);
+                                $query = "UPDATE kingdoms SET stone_per_hour = stone_per_hour + " . BASE_STONE_GAIN * $stone_rate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_GOLDMINE:
                                 $query = "
@@ -272,12 +270,12 @@ class User {
                                             INNER JOIN fieldtypes AS ft ON m.fieldtype = ft.fieldid 
                                             WHERE m.kingdomid = ?
                                 ";
-                                $result = $this->mysqli->execute_query($query, [$kingdomid]);
+                                $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $row = $result->fetch_assoc();
-                                $goldrate = $row["goldrate"];
+                                $gold_rate = $row["goldrate"];
 
-                                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $goldrate . "  WHERE id = ?";
-                                $this->mysqli->execute_query($query, [$kingdomid]);
+                                $query = "UPDATE kingdoms SET gold_per_hour = gold_per_hour + " . BASE_GOLD_GAIN * $gold_rate . "  WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                         }
                     }
@@ -286,47 +284,47 @@ class User {
                     $soldiers = [];
                     $result = $this->mysqli->execute_query("SELECT id, requiredtime, soldiername, villager, scoregain FROM soldierlist");
 
-                    foreach ($result as $row2) {
+                    foreach ($result as $row_2) {
                         $soldier = new Soldier();
-                        $soldier->set_soldier_id($row2["id"]);
-                        $soldier->set_soldier_name($row2["soldiername"]);
-                        $soldier->set_soldier_villager_cost($row2["villager"]);
-                        $soldier->set_soldier_time($row2["requiredtime"]);
-                        $soldier->set_soldier_score_gain($row2["scoregain"]);
+                        $soldier->set_soldier_id($row_2["id"]);
+                        $soldier->set_soldier_name($row_2["soldiername"]);
+                        $soldier->set_soldier_villager_cost($row_2["villager"]);
+                        $soldier->set_soldier_time($row_2["requiredtime"]);
+                        $soldier->set_soldier_score_gain($row_2["scoregain"]);
 
                         $soldiers[] = $soldier;
                     }
 
-                    $soldiertime = $soldiers[$soldierid]->get_soldier_time();
-                    $currenttime = time();
-                    $totaldifference = $recruittime - $currenttime;
-                    $numberLeftToRecruit = max(0, ceil($totaldifference / $soldiertime));
-                    $soldierdifference = $soldiergoal - $numberLeftToRecruit;
+                    $soldier_time = $soldiers[$soldier_id]->get_soldier_time();
+                    $current_time = time();
+                    $total_difference = $recruit_time - $current_time;
+                    $number_left_to_recruit = max(0, ceil($total_difference / $soldier_time));
+                    $soldier_difference = $soldier_goal - $number_left_to_recruit;
 
-                    if ($soldierdifference != 0) {
-                        $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE kingdomid = ? AND soldierid = ?", [$soldierdifference, $kingdomid, $soldierid]);
+                    if ($soldier_difference != 0) {
+                        $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE kingdomid = ? AND soldierid = ?", [$soldier_difference, $kingdom_id, $soldier_id]);
 
                         // Update soldiers for kingdom
-                        $soldierName = $soldiers[$soldierid]->get_soldier_name();
+                        $soldier_name = $soldiers[$soldier_id]->get_soldier_name();
                         $query = "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
                                       VALUES (?, ?, ?, ?)
                                       ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?";
-                        $this->mysqli->execute_query($query, [$kingdomid, $soldierid, $soldierName, $soldierdifference, $soldierdifference]);
-                        $villCost = $soldierdifference * $soldiers[$soldierid]->get_soldier_villager_cost();
+                        $this->mysqli->execute_query($query, [$kingdom_id, $soldier_id, $soldier_name, $soldier_difference, $soldier_difference]);
+                        $vill_cost = $soldier_difference * $soldiers[$soldier_id]->get_soldier_villager_cost();
 
                         // Set last recruited soldier
-                        $this->set_last_recruited_soldier($soldierName, $soldierdifference);
+                        $this->set_last_recruited_soldier($kingdom_id, $soldier_name, $soldier_difference);
 
                         // Update kingdom villager count and get current villager count
-                        $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - $villCost WHERE id = ?", [$kingdomid]);
-                        apply_villager_cap($kingdomid);
+                        $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - $vill_cost WHERE id = ?", [$kingdom_id]);
+                        apply_villager_cap($kingdom_id);
 
                         // Update user score
-                        $this->mysqli->execute_query("UPDATE users SET score = score + (? * ?) WHERE id = ?", [$soldierdifference, $soldiers[$soldierid]->get_soldier_score_gain(), $userid]);
+                        $this->mysqli->execute_query("UPDATE users SET score = score + (? * ?) WHERE id = ?", [$soldier_difference, $soldiers[$soldier_id]->get_soldier_score_gain(), $user_id]);
                     }
 
-                    if ($numberLeftToRecruit == 0) {
-                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$eventid]);
+                    if ($number_left_to_recruit == 0) {
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
                     }
                     break;
                 case ACTION_TRADING:
@@ -336,7 +334,7 @@ class User {
     }
 
     // Show register and login forms
-    function show_register_form($error): void {
+    function show_register_form(string $error): void {
         ?>
         <div class="form">
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
@@ -390,7 +388,7 @@ class User {
         <?php
     }
 
-    function show_login_form($error): void {
+    function show_login_form(string $error): void {
         ?>
         <div class="form">
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">

@@ -13,7 +13,6 @@ change_location("login.php", 2);
 echo "<p style='text-align: center'>Du hast dich erfolgreich ausgeloggt!<br><br>Du wirst zum Login weitergeleitet.</p>";
 
 session_destroy();
-
 $_SESSION = [];
 
 ?>

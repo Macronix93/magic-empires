@@ -40,7 +40,7 @@ if (isset($_GET["logout"])) {
 
             // Check if user exists
             if ($found) {
-                $userid = $row["id"];
+                $user_id = $row["id"];
                 $password = $row["password"];
                 $status = $row["status"];
 
@@ -51,7 +51,7 @@ if (isset($_GET["logout"])) {
                 } else {
                     if (empty($error)) {
                         unset($_POST);
-                        $user->login_user($userid);
+                        $user->login_user($user_id);
                     }
                 }
             } else {

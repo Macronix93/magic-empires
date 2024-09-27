@@ -30,8 +30,8 @@ if (isset($_GET["userid"])) {
 
     // Get sorted list of players and calculate the rank
     $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC");
-    $sortedusers = $result->fetch_all(MYSQLI_ASSOC);
-    $userrank = array_search($_GET["userid"], array_column($sortedusers, "id")) + 1;
+    $sorted_users = $result->fetch_all(MYSQLI_ASSOC);
+    $user_rank = array_search($_GET["userid"], array_column($sorted_users, "id")) + 1;
 
     if (!$row) {
         echo "<div style='text-align: center;'>
@@ -66,7 +66,7 @@ if (isset($_GET["userid"])) {
         <tr>
             <td><b>Rang</b></td>
             <?php
-            echo "<td>" . $userrank . "</td>";
+            echo "<td>" . $user_rank . "</td>";
             ?>
         </tr>
         <?php

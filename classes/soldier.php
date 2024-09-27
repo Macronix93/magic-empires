@@ -1,100 +1,100 @@
 <?php
 
 class Soldier {
-    private int $sid;
-    private string $sname;
-    private string $sdesc;
-    private int $sattack;
-    private int $sdefense;
-    private int $sfood;
-    private int $sgold;
-    private int $svillager;
-    private int $sreqlevel;
-    private int $sreqtime;
-    private int $sscoregain;
+    private int $soldier_id;
+    private string $s_name;
+    private string $s_desc;
+    private int $s_attack;
+    private int $s_defense;
+    private int $s_food;
+    private int $s_gold;
+    private int $s_villager;
+    private int $s_req_level;
+    private int $s_req_time;
+    private int $s_score_gain;
 
     public function set_soldier_id($id): void {
-        $this->sid = $id;
+        $this->soldier_id = $id;
     }
 
     public function get_soldier_id(): int {
-        return $this->sid;
+        return $this->soldier_id;
     }
 
     public function get_soldier_required_level(): int {
-        return $this->sreqlevel;
+        return $this->s_req_level;
     }
 
     public function set_soldier_required_level($level): void {
-        $this->sreqlevel = $level;
+        $this->s_req_level = $level;
     }
 
     public function get_soldier_time(): int {
-        return $this->sreqtime;
+        return $this->s_req_time;
     }
 
     public function set_soldier_time($time): void {
-        $this->sreqtime = $time;
+        $this->s_req_time = $time;
     }
 
     public function get_soldier_name(): string {
-        return $this->sname;
+        return $this->s_name;
     }
 
     public function set_soldier_name($name): void {
-        $this->sname = $name;
+        $this->s_name = $name;
     }
 
     public function get_soldier_food_cost(): int {
-        return $this->sfood;
+        return $this->s_food;
     }
 
     public function set_soldier_food_cost($food): void {
-        $this->sfood = $food;
+        $this->s_food = $food;
     }
 
     public function get_soldier_gold_cost(): int {
-        return $this->sgold;
+        return $this->s_gold;
     }
 
     public function set_soldier_gold_cost($gold): void {
-        $this->sgold = $gold;
+        $this->s_gold = $gold;
     }
 
     public function get_soldier_villager_cost(): int {
-        return $this->svillager;
+        return $this->s_villager;
     }
 
     public function set_soldier_villager_cost($villager): void {
-        $this->svillager = $villager;
+        $this->s_villager = $villager;
     }
 
     public function get_soldier_attack(): int {
-        return $this->sattack;
+        return $this->s_attack;
     }
 
     public function set_soldier_attack($attack): void {
-        $this->sattack = $attack;
+        $this->s_attack = $attack;
     }
 
     public function get_soldier_defense(): int {
-        return $this->sdefense;
+        return $this->s_defense;
     }
 
     public function set_soldier_defense($defense): void {
-        $this->sdefense = $defense;
+        $this->s_defense = $defense;
     }
 
     public function get_soldier_score_gain(): int {
-        return $this->sscoregain;
+        return $this->s_score_gain;
     }
 
     public function set_soldier_score_gain($score): void {
-        $this->sscoregain = $score;
+        $this->s_score_gain = $score;
     }
 
     public function get_soldier_icon(): string {
-        return match ($this->sid) {
+        return match ($this->soldier_id) {
             0 => " <img src='images/icons/icon_militia.png' class='item-icons' alt='Milizsoldat'>",
             1 => " <img src='images/icons/icon_swordsman.png' class='item-icons' alt='Schwertkämpfer'>",
             2 => " <img src='images/icons/icon_thief.png' class='item-icons' alt='Dieb'>",
@@ -104,10 +104,10 @@ class Soldier {
     }
 
     public function get_soldier_description(): string {
-        return $this->sdesc;
+        return $this->s_desc;
     }
 
     public function set_soldier_description($description): void {
-        $this->sdesc = $description;
+        $this->s_desc = $description;
     }
 }

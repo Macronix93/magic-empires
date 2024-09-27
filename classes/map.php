@@ -1,16 +1,33 @@
 <?php
 
 class Map {
-    private $mysqli;
-    public $startx, $starty;
+    private object $mysqli;
+    private int $start_x;
+    private int $start_y;
 
     // Constructor
     public function __construct($db_conn) {
         $this->mysqli = $db_conn;
     }
 
-    public function get_field_type_color($fieldtype): string {
-        return match ($fieldtype) {
+    public function set_start_x($start_x): void {
+        $this->start_x = $start_x;
+    }
+
+    public function get_start_x(): int {
+        return $this->start_x;
+    }
+
+    public function set_start_y($start_y): void {
+        $this->start_y = $start_y;
+    }
+
+    public function get_start_y(): int {
+        return $this->start_y;
+    }
+
+    public function get_field_type_color($field_type): string {
+        return match ($field_type) {
             1 => "rgb(185, 122, 87)",
             2 => "rgb(0, 162, 232)",
             3 => "rgb(34, 177, 76)",
@@ -19,54 +36,54 @@ class Map {
         };
     }
 
-    private function get_kingdom_icon_by_level($buildinglevel): string {
+    private function get_kingdom_icon_by_level($building_level): string {
         return match (true) {
-            $buildinglevel >= 3 && $buildinglevel < 6 => "images/icons/town.png",
-            $buildinglevel >= 6 && $buildinglevel < 8 => "images/icons/tower2.png",
-            $buildinglevel >= 8 => "images/icons/castle.png",
+            $building_level >= 3 && $building_level < 6 => "images/icons/town.png",
+            $building_level >= 6 && $building_level < 8 => "images/icons/tower2.png",
+            $building_level >= 8 => "images/icons/castle.png",
             default => "images/icons/house.png",
         };
     }
 
-    public function calculate_path($startx, $starty, $endx, $endy): array {
-        $start = ['x' => $startx, 'y' => $starty];
-        $end = ['x' => $endx, 'y' => $endy];
+    public function calculate_path($start_x, $start_y, $end_x, $end_y): array {
+        $start = ['x' => $start_x, 'y' => $start_y];
+        $end = ['x' => $end_x, 'y' => $end_y];
         $map = $this->fetch_map_data();
 
-        $openList = [];
-        $closedList = [];
-        $gScores = [];
-        $fScores = [];
-        $cameFrom = [];
+        $open_list = [];
+        $closed_list = [];
+        $g_scores = [];
+        $f_scores = [];
+        $came_from = [];
 
-        $openList[$this->encode($start)] = 0;
-        $gScores[$this->encode($start)] = 0;
-        $fScores[$this->encode($start)] = $this->heuristic($start, $end);
+        $open_list[$this->encode($start)] = 0;
+        $g_scores[$this->encode($start)] = 0;
+        $f_scores[$this->encode($start)] = $this->heuristic($start, $end);
 
-        while (!empty($openList)) {
-            $current = array_search(min($openList), $openList);
+        while (!empty($open_list)) {
+            $current = array_search(min($open_list), $open_list);
             $current = $this->decode($current);
 
             if ($current['x'] == $end['x'] && $current['y'] == $end['y']) {
-                return $this->reconstruct_path($cameFrom, $current, $map);
+                return $this->reconstruct_path($came_from, $current, $map);
             }
 
-            unset($openList[$this->encode($current)]);
-            $closedList[$this->encode($current)] = true;
+            unset($open_list[$this->encode($current)]);
+            $closed_list[$this->encode($current)] = true;
 
             foreach ($this->get_neighbours($current, $map) as $neighbor) {
-                if (isset($closedList[$this->encode($neighbor)])) {
+                if (isset($closed_list[$this->encode($neighbor)])) {
                     continue;
                 }
 
-                $traversalTime = $map[$neighbor['x']][$neighbor['y']]['traversaltime'];
-                $tentativeGScore = $gScores[$this->encode($current)] + $traversalTime;
+                $traversal_time = $map[$neighbor['x']][$neighbor['y']]['traversaltime'];
+                $tentative_g_score = $g_scores[$this->encode($current)] + $traversal_time;
 
-                if (!isset($openList[$this->encode($neighbor)]) || $tentativeGScore < $gScores[$this->encode($neighbor)]) {
-                    $cameFrom[$this->encode($neighbor)] = $current;
-                    $gScores[$this->encode($neighbor)] = $tentativeGScore;
-                    $fScores[$this->encode($neighbor)] = $tentativeGScore + $this->heuristic($neighbor, $end);
-                    $openList[$this->encode($neighbor)] = $fScores[$this->encode($neighbor)];
+                if (!isset($open_list[$this->encode($neighbor)]) || $tentative_g_score < $g_scores[$this->encode($neighbor)]) {
+                    $came_from[$this->encode($neighbor)] = $current;
+                    $g_scores[$this->encode($neighbor)] = $tentative_g_score;
+                    $f_scores[$this->encode($neighbor)] = $tentative_g_score + $this->heuristic($neighbor, $end);
+                    $open_list[$this->encode($neighbor)] = $f_scores[$this->encode($neighbor)];
                 }
             }
         }
@@ -113,25 +130,25 @@ class Map {
         return $neighbors;
     }
 
-    private function reconstruct_path($cameFrom, $current, $map): array {
+    private function reconstruct_path($came_from, $current, $map): array {
         $path = [$current];
-        $totalTime = 0;
+        $total_time = 0;
 
-        while (isset($cameFrom[$this->encode($current)])) {
-            $current = $cameFrom[$this->encode($current)];
+        while (isset($came_from[$this->encode($current)])) {
+            $current = $came_from[$this->encode($current)];
             $path[] = $current;
         }
 
         // Add traversal time information to the path
         foreach ($path as &$coord) {
             $coord['traversalTime'] = $map[$coord['x']][$coord['y']]['traversaltime'];
-            $totalTime += $coord['traversalTime'];
+            $total_time += $coord['traversalTime'];
         }
 
         // Reverse the path to start from the beginning
         $path = array_reverse($path);
 
-        return ['path' => $path, 'totalTime' => $totalTime];
+        return ['path' => $path, 'totalTime' => $total_time];
     }
 
     private function encode($node): string {
@@ -143,8 +160,8 @@ class Map {
         return ['x' => (int)$x, 'y' => (int)$y];
     }
 
-    private function get_arrival_time($startx, $starty, $endx, $endy): int {
-        $result = $this->calculate_path($startx, $starty, $endx, $endy);
+    private function get_arrival_time($start_x, $start_y, $end_x, $end_y): int {
+        $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
         // DEBUGGING: print the path
         /*$path = $result['path'];
@@ -165,16 +182,16 @@ class Map {
     }
 
     // Render and show the map
-    public function render_map($startx, $starty): void {
+    public function render_map($start_x, $start_y): void {
         // Generate URL for each arrow button
-        $arrowup = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
-        $arrowup_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . max(1, $starty - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
-        $arrowleft = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 10) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(180deg);' alt='+10' title='+10'/></a>";
-        $arrowleft_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $startx - 1) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(180deg);' alt='+1' title='+1'/></a>";
-        $arrowright = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 10) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' alt='+10' title='+10'/></a>";
-        $arrowright_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $startx + 1) . "\", \"" . $starty . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' alt='+1' title='+1'/></a>";
-        $arrowdown = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(90deg);' alt='+10' title='+10'/></a>";
-        $arrowdown_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $startx . "\", \"" . min(91, $starty + 1) . "\")'><img  class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(90deg);' alt='+1' title='+1'/></a>";
+        $arrow_up = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
+        $arrow_up_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
+        $arrow_left = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $start_x - 10) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(180deg);' alt='+10' title='+10'/></a>";
+        $arrow_left_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $start_x - 1) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(180deg);' alt='+1' title='+1'/></a>";
+        $arrow_right = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $start_x + 10) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' alt='+10' title='+10'/></a>";
+        $arrow_right_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $start_x + 1) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' alt='+1' title='+1'/></a>";
+        $arrow_down = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . min(91, $start_y + 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(90deg);' alt='+10' title='+10'/></a>";
+        $arrow_down_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . min(91, $start_y + 1) . "\")'><img  class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(90deg);' alt='+1' title='+1'/></a>";
 
         // Coords Variable
         $coords = array();
@@ -186,10 +203,10 @@ class Map {
             }
         }
 
-        $xstart = $startx;
-        $xend = $startx + 9;
-        $ystart = $starty;
-        $yend = $starty + 9;
+        $x_start = $start_x;
+        $x_end = $start_x + 9;
+        $y_start = $start_y;
+        $y_end = $start_y + 9;
 
 
         $query = "
@@ -199,62 +216,60 @@ class Map {
                     ON m.kingdomid = b.kingdomid AND b.buildingid = 0 
                     WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?
         ";
-        $result = $this->mysqli->execute_query($query, [$xstart, $xend, $ystart, $yend]);
+        $result = $this->mysqli->execute_query($query, [$x_start, $x_end, $y_start, $y_end]);
         ?>
         <table class="table">
-            <tr>
-                <td colspan="13" class="top-bottom-cell td-gradient">
-                    <?php echo $arrowup . $arrowup_1 ?>
-                </td>
-            </tr>
-            <tr>
-                <td rowspan="12" class="td-gradient">
-                    <?php echo $arrowleft . $arrowleft_1 ?>
-                </td>
-                <?php
-                $fieldcolor = array(array());
-                $mycoords = array(array());
+        <tr>
+            <td colspan="13" class="top-bottom-cell td-gradient">
+                <?php echo $arrow_up . $arrow_up_1 ?>
+            </td>
+        </tr>
+        <tr>
+        <td rowspan="12" class="td-gradient">
+            <?php echo $arrow_left . $arrow_left_1 ?>
+        </td>
+        <?php
+        $field_color = array(array());
+        $my_coords = array(array());
 
-                foreach ($result as $row) {
-                    $mycoords[$row["mapx"]][$row["mapy"]] = false;
-                    $fieldImage = "";
-                    $fieldcolor[$row["mapx"]][$row["mapy"]] = $this->get_field_type_color($row["fieldtype"]);
+        foreach ($result as $row) {
+            $my_coords[$row["mapx"]][$row["mapy"]] = false;
+            $field_image = "";
+            $field_color[$row["mapx"]][$row["mapy"]] = $this->get_field_type_color($row["fieldtype"]);
 
-                    if ($row["kingdomid"] != -1) {
-                        $mycoords[$row["mapx"]][$row["mapy"]] = $row["kingdomid"];
+            if ($row["kingdomid"] != -1) {
+                $my_coords[$row["mapx"]][$row["mapy"]] = $row["kingdomid"];
 
-                        $fieldImage = "<div class='cell-container'><a href='javascript:void(0);'>
+                $field_image = "<div class='cell-container'><a href='javascript:void(0);'>
                             <img src='" . $this->get_kingdom_icon_by_level($row["buildinglevel"]) . "' class='kingdom-img' alt='Königreich'>
                         </a></div>";
-                    } else {
-                        $mycoords[$row["mapx"]][$row["mapy"]] = -1;
-                    }
+            } else {
+                $my_coords[$row["mapx"]][$row["mapy"]] = -1;
+            }
 
-                    $coords[$row["mapx"]][$row["mapy"]] = $fieldImage;
+            $coords[$row["mapx"]][$row["mapy"]] = $field_image;
+        }
+
+        for ($i = $start_y; $i <= $start_y + 9; $i++) {
+            echo "<tr>";
+            echo "<td>$i</td>";
+
+            for ($j = $start_x; $j <= $start_x + 9; $j++) {
+                echo "<td data-fieldid='" . $my_coords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $field_color[$j][$i] . "' 
+                            onclick='highlightField(parseInt(\"" . $my_coords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
+
+                if ($j == $x_end && $i == $y_start) {
+                    echo "<td rowspan='11' class='td-gradient'>$arrow_right$arrow_right_1</td>";
                 }
+            }
 
-                for ($i = $starty; $i <= $starty + 9; $i++) {
-                    echo "<tr>";
-                    echo "<td>$i</td>";
+            echo "</tr>";
+        }
 
-                    for ($j = $startx; $j <= $startx + 9; $j++) {
-                        echo "<td data-fieldid='" . $mycoords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $fieldcolor[$j][$i] . "' 
-                            onclick='highlightField(parseInt(\"" . $mycoords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
-
-                        if ($j == $xend && $i == $ystart) {
-                            echo "<td rowspan='11' class='td-gradient'>$arrowright$arrowright_1</td>";
-                        }
-                    }
-
-                    echo "</tr>";
-                }
-
-                echo "<tr><td>Y<br>X</td><td>$startx</td><td>" . $startx + 1 . "</td><td>" . $startx + 2 . "</td><td>" . $startx + 3 . "</td><td>" . $startx + 4 . "</td><td>" . $startx + 5 . "</td>
-                        <td>" . $startx + 6 . "</td><td>" . $startx + 7 . "</td><td>" . $startx + 8 . "</td><td>" . $startx + 9 . "</td></tr>
-                        <tr><td colspan='13' class='top-bottom-cell td-gradient'>$arrowdown$arrowdown_1</td></tr>";
-                ?>
-        </table>
-        <?php
+        echo "<tr><td>Y<br>X</td><td>$start_x</td><td>" . $start_x + 1 . "</td><td>" . $start_x + 2 . "</td><td>" . $start_x + 3 . "</td><td>" . $start_x + 4 . "</td><td>" . $start_x + 5 . "</td>
+                        <td>" . $start_x + 6 . "</td><td>" . $start_x + 7 . "</td><td>" . $start_x + 8 . "</td><td>" . $start_x + 9 . "</td></tr>
+                        <tr><td colspan='13' class='top-bottom-cell td-gradient'>$arrow_down$arrow_down_1</td></tr>
+              </table>";
     }
 
     public function render_field_info($field): void {
@@ -273,13 +288,13 @@ class Map {
         ";
         $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
         $row = $result->fetch_assoc();
-        $fieldName = $row["fieldname"];
+        $field_name = $row["fieldname"];
 
         if ($field == -1) {
             ?>
             <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
                 <?php
-                echo $fieldName;
+                echo $field_name;
                 ?>
             </div>
             <table class="table"
@@ -304,23 +319,23 @@ class Map {
             </table>
             <?php
         } else {
-            $result2 = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
-            $row2 = $result2->fetch_assoc();
-            $kingdomName = $row2["kingdomname"];
-            $username = $row2["username"];
-            $userid = $row2["userid"];
+            $result_2 = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
+            $row_2 = $result_2->fetch_assoc();
+            $kingdom_name = $row_2["kingdomname"];
+            $user_name = $row_2["username"];
+            $user_id = $row_2["userid"];
 
-            if ($result2->num_rows == 0) {
+            if ($result_2->num_rows == 0) {
                 echo "<br><br>Dieses Königreich existiert nicht!";
             } else {
                 ?>
                 <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
                     <?php
-                    echo "Königreich-Info ({$fieldName})";
+                    echo "Königreich-Info ({$field_name})";
                     ?>
                 </div>
                 <table class="table"
-                style="margin-top: 20px; max-width: 400px; text-align: left;">
+                       style="margin-top: 20px; max-width: 400px; text-align: left;">
                 <tr>
                     <td class="td-mapinfo"><b>Koordinaten</b></td>
                     <?php
@@ -330,13 +345,13 @@ class Map {
                 <tr>
                     <td class="td-mapinfo"><b>Königreich</b></td>
                     <?php
-                    echo "<td>" . $kingdomName . "</td>";
+                    echo "<td>" . $kingdom_name . "</td>";
                     ?>
                 </tr>
                 <tr>
                     <td class="td-mapinfo"><b>Besitzer</b></td>
                     <?php
-                    echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $userid . "\");'>$username</a></td>";
+                    echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $user_id . "\");'>$user_name</a></td>";
                     ?>
                 </tr>
                 <tr>
@@ -349,7 +364,7 @@ class Map {
                     ?>
                 </tr>
                 <?php
-                if ($username != $_SESSION["username"]) {
+                if ($user_name != $_SESSION["username"]) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                             <button type='submit' style='margin-right: 15px;'>Angreifen</button>
                                             <button type='submit' style='margin-left: 15px;'>Handeln</button>
@@ -358,8 +373,6 @@ class Map {
                 }
             }
         }
-        ?>
-        </table>
-        <?php
+        echo "</table>";
     }
 }

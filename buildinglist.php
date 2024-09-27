@@ -10,35 +10,6 @@ if (!($user->is_logged_in())) {
 
 // Fetch all buildings and their dependencies
 $buildings = fetch_all_buildings($_SESSION["kingdomid"]);
-/*$buildings = [];
-$query = "
-            SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel
-            FROM buildinglist b 
-            LEFT JOIN buildingdeps d ON b.id = d.buildingid 
-            LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
-            GROUP BY b.id
-";
-$result = $db_instance->execute_query($query, [$_SESSION["kingdomid"]]);
-
-foreach ($result as $row) {
-    $buildingID = $row["id"];
-
-    // Check if building object already exists
-    if (!isset($buildings[$buildingID])) {
-        $building = new Building($db_instance);
-        $buildings = $building->create_building($building, $row, $buildings, $buildingID);
-    }
-
-    // Process dependencies if any exist
-    if (!empty($row["dependency_ids"])) {
-        $dependencyIDs = explode(',', $row["dependency_ids"]);
-        $dependencyLevels = explode(',', $row["dependency_levels"]);
-
-        foreach ($dependencyIDs as $index => $dependencyID) {
-            $buildings[$buildingID]->add_building_dependency($dependencyID, $dependencyLevels[$index]);
-        }
-    }
-}*/
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -68,29 +39,29 @@ include_once("layout/banner.html");
                             <b>Voraussetzungen</b></td>
                     </tr>
                     <?php
-                    $dependencyText = "";
+                    $dependency_text = "";
 
                     for ($i = 0; $i < count($buildings); $i++) {
-                        $currentBuildingLevel = $buildings[$i]->get_building_level();
-                        $buildingDependencies = $buildings[$i]->get_building_dependencies();
+                        $current_building_level = $buildings[$i]->get_building_level();
+                        $building_dependencies = $buildings[$i]->get_building_dependencies();
 
-                        if (count($buildingDependencies) != 0) {
-                            foreach ($buildingDependencies as $dependency) {
-                                $levelOfDependencyBuilding = $buildings[$dependency["dependencyid"]]->get_building_level();
+                        if (count($building_dependencies) != 0) {
+                            foreach ($building_dependencies as $dependency) {
+                                $level_of_dependency_building = $buildings[$dependency["dependencyid"]]->get_building_level();
 
-                                if ($dependency["dependencylevel"] > $levelOfDependencyBuilding) {
-                                    $dependencyText .= "<span class='error'>- " . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span><br>";
+                                if ($dependency["dependencylevel"] > $level_of_dependency_building) {
+                                    $dependency_text .= "<span class='error'>- " . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span><br>";
                                 } else {
-                                    $dependencyText .= "<span class='passed'>- " . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span><br>";
+                                    $dependency_text .= "<span class='passed'>- " . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span><br>";
                                 }
                             }
                         }
 
                         echo "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                                            <td style='width: 40%;'><b>" . $buildings[$i]->get_building_name() . " ($currentBuildingLevel)</b></td>
-                                            <td>" . (!empty($dependencyText) ? $dependencyText : "-") . "</td></tr>";
+                                            <td style='width: 40%;'><b>" . $buildings[$i]->get_building_name() . " ($current_building_level)</b></td>
+                                            <td>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td></tr>";
 
-                        $dependencyText = "";
+                        $dependency_text = "";
                     }
                     ?>
                 </table>

@@ -29,29 +29,22 @@ include_once("layout/banner.html");
             <div class="big-box-content">
                 <?php
                 $mysqli = $db_instance;
-                $rowsperpage = 10;
+                $rows_per_page = 10;
 
                 // Get the current page or set a default
-                $currentpage = isset($_GET["currentpage"]) ? max(1, $_GET["currentpage"]) : 1;
+                $current_page = isset($_GET["currentpage"]) ? max(1, $_GET["currentpage"]) : 1;
 
                 // Get the total number of rows
                 $result = $db_instance->execute_query("SELECT COUNT(*) FROM users");
-                $row = $result->fetch_row();
-                $numrows = $row[0];
-                $totalpages = ceil($numrows / $rowsperpage);
+                $num_rows = $result->fetch_row()[0];
+                $total_pages = ceil($num_rows / $rows_per_page);
 
                 // Calculate the offset
-                $offset = ($currentpage - 1) * $rowsperpage;
+                $offset = ($current_page - 1) * $rows_per_page;
 
                 // Get the data for the current page
-                $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rowsperpage]);
-
-                /*$stmt = $mysqli->prepare("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?");
-                $stmt->bind_param('ii', $offset, $rowsperpage);
-                $stmt->execute();
-                $result = $stmt->get_result();*/
+                $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
                 ?>
-
                 <table class="table">
                     <tr>
                         <td class="td-center td-gradient"
@@ -66,13 +59,13 @@ include_once("layout/banner.html");
                             <b>Punkte</b></td>
                     </tr>
                     <?php
-                    $position = ($currentpage - 1) * $rowsperpage + 1;
+                    $position = ($current_page - 1) * $rows_per_page + 1;
 
                     foreach ($result as $row) {
                         $icon = "";
                         $change = "";
                         $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $row["lastactivity"] > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
-                        $lastactivity = ($row["lastactivity"] == 0) ? "Nicht verfügbar" : (date('d.m.Y', $row['lastactivity']) . " um " . date('H:i:s', $row['lastactivity']));
+                        $last_activity = ($row["lastactivity"] == 0) ? "Nicht verfügbar" : (date('d.m.Y', $row['lastactivity']) . " um " . date('H:i:s', $row['lastactivity']));
                         $diff = $row['lastrank'] - $position; // Check last rank (since 00:00) and compare with current rank
 
                         if ($position < $row["lastrank"]) {
@@ -92,7 +85,7 @@ include_once("layout/banner.html");
                                         <td>
                                             <div>
                                                 <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>{$row["username"]}</a>
-                                                <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $lastactivity</div>
+                                                <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                                             </div>
                                         </td>
                                         <td class='td-center'>" . fnum($row["score"]) . "</td>
@@ -102,29 +95,27 @@ include_once("layout/banner.html");
                     }
                     ?>
                 </table>
-
                 <br>
-
                 <!-- Build the pagination links -->
                 <?php
-                if ($currentpage > 1) {
+                if ($current_page > 1) {
                     echo "<a href='ranking.php?currentpage=1'> Erste </a>";
-                    $prevpage = $currentpage - 1;
-                    echo "<a href='ranking.php?currentpage=$prevpage'> Zurück </a>";
+                    $previous_page = $current_page - 1;
+                    echo "<a href='ranking.php?currentpage=$previous_page'> Zurück </a>";
                 }
 
-                for ($x = max(1, $currentpage - 3); $x <= min($totalpages, $currentpage + 3); $x++) {
-                    if ($x == $currentpage) {
+                for ($x = max(1, $current_page - 3); $x <= min($total_pages, $current_page + 3); $x++) {
+                    if ($x == $current_page) {
                         echo "<span class='current'> [$x] </span>";
                     } else {
                         echo "<a href='ranking.php?currentpage=$x'> $x </a>";
                     }
                 }
 
-                if ($currentpage < $totalpages) {
-                    $nextpage = $currentpage + 1;
-                    echo "<a href='ranking.php?currentpage=$nextpage'> Vor </a>";
-                    echo "<a href='ranking.php?currentpage=$totalpages'> Letzte </a>";
+                if ($current_page < $total_pages) {
+                    $next_page = $current_page + 1;
+                    echo "<a href='ranking.php?currentpage=$next_page'> Vor </a>";
+                    echo "<a href='ranking.php?currentpage=$total_pages'> Letzte </a>";
                 }
                 ?>
             </div>

@@ -5,7 +5,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     $map = new Map($db_instance);
 
-    // Retrieve startx and starty parameters from GET request
+    // Retrieve start_x and start_y parameters from GET request
     $startx = clamp_value($_GET["startx"] ?? 1);
     $starty = clamp_value($_GET["starty"] ?? 1);
 

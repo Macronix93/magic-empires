@@ -1,149 +1,149 @@
 <?php
 
 class Building {
-    private $mysqli;
-    private int $bid; // ID of the building
-    private int $kid; // ID of the kingdom that the building is connected to
-    private int $blevel; // Current level of the building for the kingdom
-    private int $btime; // Time to build
-    private float $bmult; // Multiplier for cost?
-    private string $bname; // Name of the building
-    private int $bscore; // The score that is gained when building was built/upgraded
-    private int $bfoodcost;
-    private int $bwoodcost;
-    private int $bstonecost;
-    private int $bgoldcost;
-    private array $bdependencies = [];
+    private object $mysqli;
+    private int $building_id; // ID of the building
+    private int $kingdom_id; // ID of the kingdom that the building is connected to
+    private int $b_level; // Current level of the building for the kingdom
+    private int $b_time; // Time to build
+    private float $b_mult; // Multiplier for cost?
+    private string $b_name; // Name of the building
+    private int $b_score; // The score that is gained when building was built/upgraded
+    private int $b_foodcost;
+    private int $b_woodcost;
+    private int $b_stonecost;
+    private int $b_goldcost;
+    private array $b_dependencies = [];
 
-    public function __construct($db_conn) {
+    public function __construct(object $db_conn) {
         $this->mysqli = $db_conn;
     }
 
     public function get_building_kingdom_id(): int {
-        return $this->kid;
+        return $this->kingdom_id;
     }
 
-    public function set_building_kingdom_id($id): void {
-        $this->kid = $id;
+    public function set_building_kingdom_id(int $id): void {
+        $this->kingdom_id = $id;
     }
 
     public function get_building_id(): int {
-        return $this->bid;
+        return $this->building_id;
     }
 
-    public function set_building_id($id): void {
-        $this->bid = $id;
+    public function set_building_id(int $id): void {
+        $this->building_id = $id;
     }
 
     public function get_building_time(): int {
-        return $this->btime;
+        return $this->b_time;
     }
 
-    public function set_building_time($time): void {
-        $this->btime = $time;
+    public function set_building_time(int $time): void {
+        $this->b_time = $time;
     }
 
     public function get_building_mult(): float {
-        return $this->bmult;
+        return $this->b_mult;
     }
 
-    public function set_building_mult($mult): void {
-        $this->bmult = $mult;
+    public function set_building_mult(float $mult): void {
+        $this->b_mult = $mult;
     }
 
     public function get_building_name(): string {
-        return $this->bname;
+        return $this->b_name;
     }
 
-    public function set_building_name($name): void {
-        $this->bname = $name;
+    public function set_building_name(string $name): void {
+        $this->b_name = $name;
     }
 
     public function get_building_score(): int {
-        return $this->bscore;
+        return $this->b_score;
     }
 
-    public function set_building_score($score): void {
-        $this->bscore = $score;
+    public function set_building_score(int $score): void {
+        $this->b_score = $score;
     }
 
     public function get_building_level(): int {
-        return $this->blevel;
+        return $this->b_level;
     }
 
-    public function set_building_level($level): void {
-        $this->blevel = $level;
+    public function set_building_level(int $level): void {
+        $this->b_level = $level;
     }
 
-    public function get_building_cost($type): int {
+    public function get_building_cost(int $type): int {
         return match ($type) {
-            1 => $this->bwoodcost,
-            2 => $this->bfoodcost,
-            3 => $this->bstonecost,
-            4 => $this->bgoldcost,
+            1 => $this->b_woodcost,
+            2 => $this->b_foodcost,
+            3 => $this->b_stonecost,
+            4 => $this->b_goldcost,
             default => 0,
         };
     }
 
-    public function set_building_food_cost($cost): void {
-        $this->bfoodcost = $cost;
+    public function set_building_food_cost(int $cost): void {
+        $this->b_foodcost = $cost;
     }
 
-    public function set_building_wood_cost($cost): void {
-        $this->bwoodcost = $cost;
+    public function set_building_wood_cost(int $cost): void {
+        $this->b_woodcost = $cost;
     }
 
-    public function set_building_stone_cost($cost): void {
-        $this->bstonecost = $cost;
+    public function set_building_stone_cost(int $cost): void {
+        $this->b_stonecost = $cost;
     }
 
-    public function set_building_gold_cost($cost): void {
-        $this->bgoldcost = $cost;
+    public function set_building_gold_cost(int $cost): void {
+        $this->b_goldcost = $cost;
     }
 
-    public function add_building_dependency($dependencyid, $dependencylevel): void {
-        $this->bdependencies[] = [
-            "dependencyid" => $dependencyid,
-            "dependencylevel" => $dependencylevel
+    public function add_building_dependency(int $dependency_id, int $dependency_level): void {
+        $this->b_dependencies[] = [
+            "dependencyid" => $dependency_id,
+            "dependencylevel" => $dependency_level
         ];
     }
 
     public function get_building_dependencies(): array {
-        return $this->bdependencies;
+        return $this->b_dependencies;
     }
 
     function calculate_building_cost(): array {
-        $mult = $this->bmult;
-        $level = $this->blevel;
+        $mult = $this->b_mult;
+        $level = $this->b_level;
 
-        $costWood = round($this->get_building_cost(BUILDING_COST_WOOD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
-        $costFood = round($this->get_building_cost(BUILDING_COST_FOOD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
-        $costStone = round($this->get_building_cost(BUILDING_COST_STONE) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
-        $costGold = round($this->get_building_cost(BUILDING_COST_GOLD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
+        $cost_wood = round($this->get_building_cost(BUILDING_COST_WOOD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
+        $cost_food = round($this->get_building_cost(BUILDING_COST_FOOD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
+        $cost_stone = round($this->get_building_cost(BUILDING_COST_STONE) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
+        $cost_gold = round($this->get_building_cost(BUILDING_COST_GOLD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
 
         return array(
-            "costWood" => $costWood,
-            "costFood" => $costFood,
-            "costStone" => $costStone,
-            "costGold" => $costGold,
+            "costWood" => $cost_wood,
+            "costFood" => $cost_food,
+            "costStone" => $cost_stone,
+            "costGold" => $cost_gold,
         );
     }
 
     public function get_building_icon(): string {
-        if (isset($this->bid)) {
-            return "<img src='images/icons/icon_building$this->bid.png' class='item-icons' alt='$this->bname' title='$this->bname'/>";
+        if (isset($this->building_id)) {
+            return "<img src='images/icons/icon_building$this->building_id.png' class='item-icons' alt='$this->b_name' title='$this->b_name'/>";
         } else {
             return "ERROR: ICON NOT FOUND";
         }
     }
 
-    public function get_resource_text($cost, $currentVal): string {
-        return ($cost > $currentVal ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
+    public function get_resource_text(int $cost, int $current_val): string {
+        return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
     }
 
     public function is_built(): bool {
         $query = "SELECT * FROM buildings WHERE kingdomid = ? AND buildingid = ?";
-        $result = $this->mysqli->execute_query($query, [$this->kid, $this->bid]);
+        $result = $this->mysqli->execute_query($query, [$this->kingdom_id, $this->building_id]);
 
         if ($result->num_rows > 0) {
             return true;
@@ -152,8 +152,8 @@ class Building {
         }
     }
 
-    public function create_building(Building $building, array $row, array $buildings, mixed $buildingID): array {
-        $building->set_building_id($buildingID);
+    public function create_building(Building $building, array $row, array $buildings, mixed $building_id): array {
+        $building->set_building_id($building_id);
         $building->set_building_kingdom_id($_SESSION["kingdomid"]);
         $building->set_building_name($row["buildingname"]);
         $building->set_building_score($row["buildingscore"]);
@@ -165,7 +165,7 @@ class Building {
         $building->set_building_time($row["timetobuild"]);
         $building->set_building_level($row["buildinglevel"] ?? 0);
 
-        $buildings[$buildingID] = $building;
+        $buildings[$building_id] = $building;
         return $buildings;
     }
 }

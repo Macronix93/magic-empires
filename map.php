@@ -34,8 +34,8 @@ include_once("layout/banner.html");
                 $y = 1;
 
                 if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
-                    if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) $map->startx = 1;
-                    if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->starty = 1;
+                    if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) $map->set_start_x(1);
+                    if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->set_start_y(1);
 
                     // If there is a kingdom on the field - get the data
                     $x = $_GET["startx"];
@@ -48,8 +48,8 @@ include_once("layout/banner.html");
                     }
 
                     // Calculate start coordinates
-                    $map->startx = max(1, min($x - 5, 91));
-                    $map->starty = max(1, min($y - 5, 91));
+                    $map->set_start_x(max(1, min($x - 5, 91)));
+                    $map->set_start_y(max(1, min($y - 5, 91)));
                 } else {
                     // Get the coords of the current kingdom
                     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
@@ -58,8 +58,8 @@ include_once("layout/banner.html");
                     $y = $row["mapy"];
 
                     // Calculate start coordinates
-                    $map->startx = max(1, min($x - 5, 91));
-                    $map->starty = max(1, min($y - 5, 91));
+                    $map->set_start_x(max(1, min($x - 5, 91)));
+                    $map->set_start_y(max(1, min($y - 5, 91)));
                     $fieldid = $_SESSION["kingdomid"];
                 }
 
@@ -82,7 +82,7 @@ include_once("layout/banner.html");
                             <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></div><span>Gebirge</span></div>
                         </div>";
                 echo "<div id='map-container'>";
-                $map->render_map($map->startx, $map->starty);
+                $map->render_map($map->get_start_x(), $map->get_start_y());
                 echo "</div>";
                 ?>
                 <div id='field-info'></div>

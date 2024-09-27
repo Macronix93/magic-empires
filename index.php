@@ -34,9 +34,9 @@ include_once("layout/banner.html");
                 $ip = $row["ip"];
                 $email = $row["email"];
                 $score = $row["score"];
-                $guildid = $row["guildid"];
-                $registerdate = $row["registerdate"];
-                $mainkingdom = $row["mainkingdom"];
+                $guild_id = $row["guildid"];
+                $register_date = $row["registerdate"];
+                $main_kingdom = $row["mainkingdom"];
                 ?>
 
                 <img src='images/icons/icon_right_slow.png' class="popup" id="test1" alt="" style="width:24px;"/>
@@ -48,7 +48,7 @@ include_once("layout/banner.html");
                 <br><br>
 
                 <?php
-                $timediff = time() - $_SESSION["currlogin"];
+                $time_diff = time() - $_SESSION["currlogin"];
 
                 /* Check for existing IP
                 $ipPattern = explode('.', $_SERVER["REMOTE_ADDR"]);
@@ -70,13 +70,13 @@ include_once("layout/banner.html");
                     echo 'IP not found.';
                 }*/
 
-                echo "Login-Zeit: <span id='counter'><script type='text/javascript'>startCountup($timediff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
-                echo "Haupt-KönigreichID: $mainkingdom<br>";
+                echo "Login-Zeit: <span id='counter'><script type='text/javascript'>startCountup($time_diff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
+                echo "Haupt-KönigreichID: $main_kingdom<br>";
                 echo "E-Mail: $email<br>";
-                echo "Registriert seit: " . date('d.m.Y H:i:s', $registerdate) . "<br>";
+                echo "Registriert seit: " . date('d.m.Y H:i:s', $register_date) . "<br>";
                 echo "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>";
                 echo "Score: $score<br>";
-                echo "Gilde: $guildid<br><br>";
+                echo "Gilde: $guild_id<br><br>";
                 ?>
             </div>
         </div>

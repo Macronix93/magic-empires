@@ -86,8 +86,8 @@ const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds =
 /**
  * @throws ErrorException
  */
-function global_error_handler($errno, $errstr, $errfile, $errline) {
-    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+function global_error_handler($err_no, $err_str, $err_file, $err_line) {
+    throw new ErrorException($err_str, 0, $err_no, $err_file, $err_line);
 }
 
 function fatal_error_shutdown_handler(): void {
@@ -135,15 +135,15 @@ $user = new User($db_instance);
 
 // Timeout Check
 if ($user->is_logged_in()) {
-    $currentTimestamp = time();
+    $timestamp = time();
 
     if (!isset($_SESSION["lastactivity"])) {
         // initiate value
-        $_SESSION["lastactivity"] = $currentTimestamp;
+        $_SESSION["lastactivity"] = $timestamp;
     }
 
     // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
-    if ($currentTimestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
+    if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
         session_unset();
         session_destroy();
 
@@ -151,11 +151,11 @@ if ($user->is_logged_in()) {
         exit;
     } else {
         // update last activity timestamp, if not logging out
-        if ($currentTimestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK && !(isset($_GET["logout"]) && $_GET["logout"] === "inactive")) {
-            $db_instance->execute_query("UPDATE users SET lastactivity = $currentTimestamp WHERE id = ?", [$user->get_user_id()]);
+        if ($timestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK && !(isset($_GET["logout"]) && $_GET["logout"] === "inactive")) {
+            $db_instance->execute_query("UPDATE users SET lastactivity = $timestamp WHERE id = ?", [$user->get_user_id()]);
         }
 
-        $_SESSION["lastactivity"] = $currentTimestamp;
+        $_SESSION["lastactivity"] = $timestamp;
     }
 
     // Process all events for the user
@@ -177,11 +177,11 @@ function apply_villager_cap($kingdom_id): void {
 
     // Fetch the villager count from the result and apply the cap if needed
     $row = $result->fetch_assoc();
-    $villagerCount = $row["villager"];
-    $maxVillager = $row["maxvillager"];
+    $villager_count = $row["villager"];
+    $max_villager = $row["maxvillager"];
 
-    if ($villagerCount > $maxVillager) {
-        $villDiff = $villagerCount - $maxVillager;
+    if ($villager_count > $max_villager) {
+        $villDiff = $villager_count - $max_villager;
         $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villDiff WHERE id = ?", [$kingdom_id]);
     }
 }
@@ -203,21 +203,21 @@ function fetch_all_buildings($kingdom_id): array {
 
     // Process each building and its dependencies
     foreach ($result as $row) {
-        $buildingID = $row["id"];
+        $building_id = $row["id"];
 
         // Check if building object already exists
-        if (!isset($buildings[$buildingID])) {
+        if (!isset($buildings[$building_id])) {
             $building = new Building($db_instance);
-            $buildings = $building->create_building($building, $row, $buildings, $buildingID);
+            $buildings = $building->create_building($building, $row, $buildings, $building_id);
         }
 
         // Process dependencies if any exist
         if (!empty($row["dependency_ids"])) {
-            $dependencyIDs = explode(',', $row["dependency_ids"]);
-            $dependencyLevels = explode(',', $row["dependency_levels"]);
+            $dependency_ids = explode(',', $row["dependency_ids"]);
+            $dependency_levels = explode(',', $row["dependency_levels"]);
 
-            foreach ($dependencyIDs as $index => $dependencyID) {
-                $buildings[$buildingID]->add_building_dependency($dependencyID, $dependencyLevels[$index]);
+            foreach ($dependency_ids as $index => $dependency_id) {
+                $buildings[$building_id]->add_building_dependency($dependency_id, $dependency_levels[$index]);
             }
         }
     }
@@ -271,7 +271,7 @@ function convert_sec_to_str($secs): string {
     return trim($output);
 }
 
-function change_location($url, $seconds = 0): void {
+function change_location(string $url, int $seconds = 0): void {
     if ($seconds === 0) {
         header("Location: $url");
     } else {
@@ -279,7 +279,7 @@ function change_location($url, $seconds = 0): void {
     }
 }
 
-function clamp_value($value) {
+function clamp_value(int $value) {
     if ($value > 91) {
         return 91;
     }
@@ -287,27 +287,27 @@ function clamp_value($value) {
 }
 
 // Check for an error in a conversation
-function get_error(string $text, string $receiverid): string {
+function get_error(string $text, string $receiver_id): string {
     $error = "";
-    $lineBreaksCount = substr_count($text, '<br />');
-    $textWithoutLineBreaks = preg_replace('/<br\s*\/?>/i', '', $text);
+    $line_breaks_count = substr_count($text, '<br />');
+    $text_without_line_breaks = preg_replace('/<br\s*\/?>/i', '', $text);
 
     // Check different errors
-    if ($receiverid == $_SESSION["userid"]) {
+    if ($receiver_id == $_SESSION["userid"]) {
         $error = "Du kannst keine Nachrichten an dich selbst senden!";
-    } else if ($_SESSION["msgreceiver"] != $receiverid) {
+    } else if ($_SESSION["msgreceiver"] != $receiver_id) {
         $error = "Bitte nutze nur einen Tab für Konversationen!";
     } else if (strlen(trim(strip_tags($text))) === 0) {
         $error = "Bitte alle Felder ausfüllen!";
-    } else if (strlen($textWithoutLineBreaks) > MAX_MESSAGE_LENGTH) {
+    } else if (strlen($text_without_line_breaks) > MAX_MESSAGE_LENGTH) {
         $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
-    } else if ($lineBreaksCount > MAX_LINE_BREAK_COUNT) {
+    } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
         $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
     }
     return $error;
 }
 
-function fnum($number): string {
+function fnum(int $number): string {
     return number_format($number, 0, ",", ".");
 }
 
