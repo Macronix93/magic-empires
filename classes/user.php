@@ -214,9 +214,9 @@ class User {
                                 $update_val = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
 
                                 if ($building_level + 1 == MAX_BUILDING_LEVEL) {
-                                    $query = "UPDATE kingdoms SET maxfood = $max_val, max_wood = $max_val, max_stone = $max_val, max_gold = $max_val  WHERE id = ?";
+                                    $query = "UPDATE kingdoms SET maxfood = $max_val, maxwood = $max_val, maxstone = $max_val, maxgold = $max_val  WHERE id = ?";
                                 } else {
-                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $update_val, max_wood = max_wood + $update_val, max_stone = max_stone + $update_val, max_gold = max_gold + $update_val  WHERE id = ?";
+                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $update_val, maxwood = maxwood + $update_val, maxstone = maxstone + $update_val, maxgold = maxgold + $update_val  WHERE id = ?";
                                 }
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
@@ -230,7 +230,7 @@ class User {
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $food_rate = $result->fetch_assoc()["foodrate"];
 
-                                $query = "UPDATE kingdoms SET food_per_hour = food_per_hour + " . BASE_FOOD_GAIN * $food_rate . "  WHERE id = ?";
+                                $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $food_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_SAWMILL:
@@ -243,7 +243,7 @@ class User {
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $wood_rate = $result->fetch_assoc()["woodrate"];
 
-                                $query = "UPDATE kingdoms SET wood_per_hour = wood_per_hour + " . BASE_WOOD_GAIN * $wood_rate . "  WHERE id = ?";
+                                $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $wood_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_STONEMINE:
@@ -256,7 +256,7 @@ class User {
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $stone_rate = $result->fetch_assoc()["stonerate"];
 
-                                $query = "UPDATE kingdoms SET stone_per_hour = stone_per_hour + " . BASE_STONE_GAIN * $stone_rate . "  WHERE id = ?";
+                                $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stone_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                             case BUILDING_GOLDMINE:
@@ -269,7 +269,7 @@ class User {
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
                                 $gold_rate = $result->fetch_assoc()["goldrate"];
 
-                                $query = "UPDATE kingdoms SET gold_per_hour = gold_per_hour + " . BASE_GOLD_GAIN * $gold_rate . "  WHERE id = ?";
+                                $query = "UPDATE kingdoms SET goldperhour = goldperhour + " . BASE_GOLD_GAIN * $gold_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
                         }

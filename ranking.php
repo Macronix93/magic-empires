@@ -44,6 +44,12 @@ include_once("layout/banner.html");
 
                 // Get the data for the current page
                 $result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
+
+                /*if ($result_2->num_rows > 0) {
+                    while ($row = $result_2->fetch_assoc()) {
+                        echo '<img src="' . $row['image_path'] . '" alt="Uploaded Image" style="width: 200px;">';
+                    }
+                }*/
                 ?>
                 <table class="table">
                     <tr>
@@ -68,6 +74,21 @@ include_once("layout/banner.html");
                         $last_activity = ($row["lastactivity"] == 0) ? "Nicht verfügbar" : (date('d.m.Y', $row['lastactivity']) . " um " . date('H:i:s', $row['lastactivity']));
                         $diff = $row['lastrank'] - $position; // Check last rank (since 00:00) and compare with current rank
 
+                        // Get user image
+                        /*$result_2 = $db_instance->execute_query("SELECT imagepath FROM uploads WHERE userid = ?", [$row['id']]);
+
+                        if ($result_2->num_rows > 0) {
+                            $image_path = htmlspecialchars($result_2->fetch_assoc()['imagepath']);
+                        } else {
+                            $image_path = "images/default_avatar.jpg";
+                        }*/
+
+                        if (file_exists(UPLOADS_FILE_PATH . $row["username"])) {
+                            $image_path = UPLOADS_FILE_PATH . $row["username"];
+                        } else {
+                            $image_path = "images/default_avatar.jpg";
+                        }
+
                         if ($position < $row["lastrank"]) {
                             $icon = "<img src='images/icons/icon_arrow_up.png' class='ressource-icons' alt=''>";
                             $change = "+" . $diff;
@@ -77,16 +98,17 @@ include_once("layout/banner.html");
                         }
 
                         echo "<tr>
-                                        <td class='td-center' style='min-width: 12%; text-align: right; border-right: none;'>$position</td>
+                                        <td class='td-center' style='min-width: 13%; text-align: right; border-right: none;'>$position</td>
                                         <td style='border-left: none; padding: 0; margin:0;'>
                                             <div class='popup' id='description" . $position . "'>$icon</div>
                                             <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row['lastrank']} ($change)</div>
                                         </td>
                                         <td>
-                                            <div>
+                                            <div style='display: flex; align-items: center; gap: 10px;'>
+                                                <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
                                                 <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>{$row["username"]}</a>
-                                                <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                                             </div>
+                                            <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                                         </td>
                                         <td class='td-center'>" . fnum($row["score"]) . "</td>
                                     </tr>";

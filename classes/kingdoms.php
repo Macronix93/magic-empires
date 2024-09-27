@@ -80,7 +80,10 @@ class Kingdoms {
 
     public function is_kingdom_recruiting(int $kingdom_id): bool {
         $result = $this->mysqli->execute_query("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1", [$kingdom_id, ACTION_BUILD_TROOPS]);
-        $this->recruiting_id = $result->fetch_assoc()["soldierid"];
+        $row = $result->fetch_assoc();
+        if ($row) {
+            $this->recruiting_id = $row["soldierid"];
+        }
         return $result->num_rows == 1;
     }
 
@@ -90,7 +93,10 @@ class Kingdoms {
 
     public function is_kingdom_building(int $kingdom_id): bool {
         $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1", [$kingdom_id, ACTION_BUILD_BUILDING]);
-        $this->building_id = $result->fetch_assoc()["buildingid"];
+        $row = $result->fetch_assoc();
+        if ($row) {
+            $this->building_id = $row["buildingid"];
+        }
         return $result->num_rows == 1;
     }
 

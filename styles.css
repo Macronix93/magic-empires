@@ -230,6 +230,11 @@ select:-webkit-autofill:focus {
     color: rgb(255, 255, 255);
 }
 
+.user-image {
+    width: 32px;
+    height: 32px;
+}
+
 /* Wrapper for content (left, right, mid) */
 .content-box {
     display: flex;
