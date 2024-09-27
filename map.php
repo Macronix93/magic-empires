@@ -29,7 +29,7 @@ include_once("layout/banner.html");
             <div class="big-box-content">
                 <?php
                 $map = new Map($db_instance);
-                $fieldid = -1;
+                $field_id = -1;
                 $x = 1;
                 $y = 1;
 
@@ -43,8 +43,7 @@ include_once("layout/banner.html");
                     $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
 
                     if ($result->num_rows != 0) {
-                        $row = $result->fetch_assoc();
-                        $fieldid = $row["kingdomid"];
+                        $field_id = $result->fetch_assoc()["kingdomid"];
                     }
 
                     // Calculate start coordinates
@@ -60,13 +59,13 @@ include_once("layout/banner.html");
                     // Calculate start coordinates
                     $map->set_start_x(max(1, min($x - 5, 91)));
                     $map->set_start_y(max(1, min($y - 5, 91)));
-                    $fieldid = $_SESSION["kingdomid"];
+                    $field_id = $_SESSION["kingdomid"];
                 }
 
                 echo "<input type='hidden' id='highlightedfield'>
                             <script type='text/javascript'>
                                 document.addEventListener('DOMContentLoaded', function() {
-                                    let kingdomid = " . json_encode($fieldid) . ";
+                                    let kingdomid = " . json_encode($field_id) . ";
                                     let x = " . json_encode($x) . ";
                                     let y = " . json_encode($y) . ";
                                     highlightField(kingdomid || -1, x || 0, y || 0);

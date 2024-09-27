@@ -162,7 +162,7 @@ if ($user->is_logged_in()) {
     $user->process_user_events($user->get_user_id());
 
     // Update villager count after events were processed (villager cap)
-    apply_villager_cap($_SESSION["kingdomid"]);
+    apply_villager_cap($user->get_current_kingdom());
 }
 
 /*

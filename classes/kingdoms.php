@@ -17,7 +17,7 @@ class Kingdoms {
     private int $villager;
     private int $max_villager;
     private int $villager_per_hour;
-    private int $buildingid;
+    private int $building_id;
     private int $recruiting_id;
 
     // Constructor
@@ -30,12 +30,7 @@ class Kingdoms {
         // Select a random map entry and deny registration, if no map entry was found
         $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1;");
         $row = $result->fetch_assoc();
-
-        if (!$row) {
-            return false;
-        } else {
-            return $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
-        }
+        return (!$row) ? false : $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
     }
 
     public function get_kingdom_info(int $kingdom_id) {
@@ -85,10 +80,7 @@ class Kingdoms {
 
     public function is_kingdom_recruiting(int $kingdom_id): bool {
         $result = $this->mysqli->execute_query("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1", [$kingdom_id, ACTION_BUILD_TROOPS]);
-        $row = $result->fetch_assoc();
-        if ($row) {
-            $this->recruiting_id = $row["soldierid"];
-        }
+        $this->recruiting_id = $result->fetch_assoc()["soldierid"];
         return $result->num_rows == 1;
     }
 
@@ -98,15 +90,12 @@ class Kingdoms {
 
     public function is_kingdom_building(int $kingdom_id): bool {
         $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1", [$kingdom_id, ACTION_BUILD_BUILDING]);
-        $row = $result->fetch_assoc();
-        if ($row) {
-            $this->buildingid = $row["buildingid"];
-        }
+        $this->building_id = $result->fetch_assoc()["buildingid"];
         return $result->num_rows == 1;
     }
 
     public function get_kingdom_building_id(): int {
-        return $this->buildingid;
+        return $this->building_id;
     }
 
     public function get_kingdom_wood(): int {

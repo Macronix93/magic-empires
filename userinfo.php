@@ -18,20 +18,22 @@ include_once("layout/head.html");
 include_once("layout/banner.html");
 ?>
 <?php
-if (isset($_GET["userid"])) {
+$user_id = $_GET['userid'];
+
+if (isset($user_id)) {
     $query = "
             SELECT users.*, kingdoms.mapx, kingdoms.mapy
             FROM users
             INNER JOIN kingdoms ON users.mainkingdom = kingdoms.id
             WHERE users.id = ?
     ";
-    $result = $db_instance->execute_query($query, [$_GET["userid"]]);
+    $result = $db_instance->execute_query($query, [$user_id]);
     $row = $result->fetch_assoc();
 
     // Get sorted list of players and calculate the rank
-    $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC");
+    $result = $db_instance->execute_query("SELECT id, username, lastactivity, score, guildid FROM users ORDER BY score DESC");
     $sorted_users = $result->fetch_all(MYSQLI_ASSOC);
-    $user_rank = array_search($_GET["userid"], array_column($sorted_users, "id")) + 1;
+    $user_rank = array_search($user_id, array_column($sorted_users, "id")) + 1;
 
     if (!$row) {
         echo "<div style='text-align: center;'>
@@ -39,28 +41,35 @@ if (isset($_GET["userid"])) {
         </p></div>";
         return;
     }
+
+    $user_name = $row['username'];
+    $last_activity = $row['lastactivity'];
+    $score = $row['score'];
+    $guild_id = $row['guildid'];
+    $x = $row['mapx'];
+    $y = $row['mapy'];
     ?>
     <table class="table" style="">
         <tr>
             <td style="width: 200px;"><b>Benutzer</b></td>
             <?php
             if (time() - $row["lastactivity"] > INACTIVITY_DELAY) {
-                echo "<td style='width: 300px;'>" . $row["username"] . " (Inaktiv)</td>";
+                echo "<td style='width: 300px;'>" . $user_name . " (Inaktiv)</td>";
             } else {
-                echo "<td style='width: 300px;'>" . $row["username"] . "</td>";
+                echo "<td style='width: 300px;'>" . $user_name . "</td>";
             }
             ?>
         </tr>
         <tr>
             <td><b>Letzte Aktivität</b></td>
             <?php
-            echo "<td>" . ($row["lastactivity"] == 0 ? "Nicht verfügbar" : date("d.m.Y", $row["lastactivity"]) . " um " . date("H:i:s", $row["lastactivity"])) . "</td>";
+            echo "<td>" . ($last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y", $last_activity) . " um " . date("H:i:s", $last_activity)) . "</td>";
             ?>
         </tr>
         <tr>
             <td><b>Punkte</b></td>
             <?php
-            echo "<td>" . $row["score"] . "</td>";
+            echo "<td>" . $score . "</td>";
             ?>
         </tr>
         <tr>
@@ -70,12 +79,12 @@ if (isset($_GET["userid"])) {
             ?>
         </tr>
         <?php
-        if ($row["guildid"]) {
+        if ($guild_id) {
             ?>
             <tr>
                 <td><b>Gilde</b></td>
                 <?php
-                echo "<td>" . $row["guildid"] . "</td>";
+                echo "<td>" . $guild_id . "</td>";
                 ?>
             </tr>
             <?php
@@ -84,13 +93,10 @@ if (isset($_GET["userid"])) {
         <tr>
             <td><b>Haupt-Königreich</b></td>
             <?php
-            $x = $row['mapx'];
-            $y = $row['mapy'];
-
             echo "<td><a href='javascript:void(0);' onclick='redirectToMap(\"$x\", \"$y\")'>" . $x . ":" . $y . "</a></td>";
             ?>
             <script>
-                let mainWindow = null;
+                let mainWindow = window.opener;
 
                 function redirectToMap(x, y) {
                     if (mainWindow === null || mainWindow.closed) {
@@ -98,10 +104,14 @@ if (isset($_GET["userid"])) {
                     } else {
                         let url = mainWindow.location.href;
 
-                        if (url.includes("map.php")) {
-                            mainWindow.document.getElementById('startx').value = x;
-                            mainWindow.document.getElementById('starty').value = y;
-                            mainWindow.sendUpdateMapRequest();
+                        if (url.includes("magic-empires")) {
+                            if (url.includes("map.php")) {
+                                mainWindow.document.getElementById('startx').value = x;
+                                mainWindow.document.getElementById('starty').value = y;
+                                mainWindow.sendUpdateMapRequest();
+                            } else {
+                                mainWindow.location.href = "map.php?startx=" + x + "&starty=" + y;
+                            }
                         } else {
                             mainWindow.location.href = "map.php?startx=" + x + "&starty=" + y;
                         }

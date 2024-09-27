@@ -10,14 +10,13 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
         // Check if kingdom belongs to the player
         $result = $db_instance->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$_POST['choosekingdom']]);
-        $row = $result->fetch_assoc();
+        $user_id = $result->fetch_assoc()['userid'];
 
-        if ($row['userid'] == $user->get_user_id()) {
-            // Change current kingdom for the user
-            $_SESSION["kingdomid"] = $_POST["choosekingdom"];
+        // Change current kingdom for the user
+        if ($user_id == $user->get_user_id()) {
+            $user->set_current_kingdom($_POST['choosekingdom']);
         }
-
-        exit();
+        exit;
     }
 } else {
     change_location("index.php");

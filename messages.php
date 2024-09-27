@@ -12,6 +12,7 @@ $error = null;
 $view = "";
 
 function show_inbox($db_instance): string {
+    $user = new User($db_instance);
     $view = "";
 
     // Get all conversations for the user
@@ -30,7 +31,7 @@ function show_inbox($db_instance): string {
                 GROUP BY participant
                 ORDER BY latest_message_date DESC
     ";
-    $result = $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["userid"]]);
+    $result = $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_id()]);
 
     if ($result->num_rows > 0) {
         $view .= '<table class="table">
@@ -58,7 +59,7 @@ function show_inbox($db_instance): string {
         ";
 
         foreach ($result as $row) {
-            $result_2 = $db_instance->execute_query($query, [$_SESSION["userid"], $row["participant"]]);
+            $result_2 = $db_instance->execute_query($query, [$user->get_user_id(), $row["participant"]]);
             $row_2 = $result_2->fetch_assoc();
             $num_unread_messages = $row_2["unreadcount"];
             $sender_name = $row_2["sendername"];
@@ -115,8 +116,7 @@ if (isset($_POST["sendpm"])) {
         } else {
             // Query to count messages sent in the last 5 minutes
             $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$user_id, $rate_limit]);
-            $row = $result->fetch_assoc();
-            $message_count = $row["messagecount"];
+            $message_count = $result->fetch_assoc()["messagecount"];
             $remaining_time_in_seconds = MESSAGES_RATE_LIMIT - ($time - $last_sent);
 
             if ($message_count >= MAX_MESSAGES_PER_RATELIMIT) {
@@ -127,12 +127,11 @@ if (isset($_POST["sendpm"])) {
 
                 // Get receiverid based on receiver name
                 $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ?", [$receiver]);
-                $row = $result->fetch_assoc();
-                $receiver_id = $row["id"];
+                $receiver_id = $result->fetch_assoc()["id"];
 
                 // Insert message
                 $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)";
-                $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $time, 0, $text_to_output]);
+                $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $receiver_id, $receiver, $time, 0, $text_to_output]);
 
                 unset($_POST["text"]);
 
@@ -194,27 +193,25 @@ if (isset($_GET["action"])) {
             </form>";
         }
     } else if ($_GET["action"] == "read") {
-        if (isset($_GET["s"]) && htmlspecialchars($_GET["s"]) != null) {
-            $_SESSION["msgreceiver"] = htmlspecialchars($_GET["s"]);
+        $sender_id = $_GET['s'];
+
+        if (isset($sender_id) && htmlspecialchars($sender_id) != null) {
+            $_SESSION["msgreceiver"] = htmlspecialchars($sender_id);
 
             // Get chat partner name based on id
             $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$_SESSION["msgreceiver"]]);
-            $row = $result->fetch_assoc();
-            /*$chatPartner = $row["username"];
-            echo $row["username"];*/
+            $chat_partner = $result->fetch_assoc()["username"];
 
             if ($result->num_rows == 0) {
                 $error = "Du hast keine Konversation mit diesem Nutzer!";
             } else {
-                $chat_partner = $row["username"];
-
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
-                $result = $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
+                $result = $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
 
                 $view = '<div style=""><button onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
                 $view .= '<h3>Konversation mit 
                                         <a href="javascript:void(0);" 
-                                         onclick="openUserDetails(\'userinfo.php?userid=' . htmlspecialchars($_GET["s"]) . '\');" 
+                                         onclick="openUserDetails(\'userinfo.php?userid=' . $_SESSION['msgreceiver'] . '\');" 
                                          class="popup" 
                                          style="cursor: pointer;">
                                          ' . $chat_partner . '
@@ -224,23 +221,23 @@ if (isset($_GET["action"])) {
 
                 foreach ($result as $row) {
                     // The other side has written
-                    if ($row["senderid"] == $_GET["s"]) {
+                    if ($row["senderid"] == $sender_id) {
                         $view .= "<div class='sender-bubble'><u>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</u>" . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "<br>" . $row["message"] . "</div>";
                     } else { // You have written
                         $view .= "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
                                             <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $row["message"] . "</div>";
                     }
 
-                    if ($row["hasread"] == 0 && $row["receiverid"] == $_SESSION["userid"]) {
+                    if ($row["hasread"] == 0 && $row["receiverid"] == $user->get_user_id()) {
                         $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
                     }
                 }
                 $view .= "</div><div id='newmessage-section'>
                                     <form name=\"newmessage\"
                                           id='newmessage'
-                                          action=\"messages.php?action=read&s=" . htmlspecialchars($_GET["s"]) . "\"
+                                          action=\"messages.php?action=read&s=" . $_SESSION['msgreceiver'] . "\"
                                           method=\"POST\">
-                                           <input type=\"hidden\" name=\"receiver\" value=\"" . $_SESSION["msgreceiver"] . "\">
+                                           <input type=\"hidden\" name=\"receiver\" value=\"" . $_SESSION['msgreceiver'] . "\">
                                             <textarea id=\"message-input\" name=\"text\" rows=\"5\"
                                                       maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
                                                       style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
@@ -255,29 +252,31 @@ if (isset($_GET["action"])) {
             $error = "Der Benutzer existiert nicht!";
         }
     } else if ($_GET["action"] == "delete") {
-        if (isset($_GET["s"])) {
-            if (empty($_GET["s"])) {
+        $sender_id = $_GET['s'];
+
+        if (isset($sender_id)) {
+            if (empty($sender_id)) {
                 change_location("messages.php");
             } else {
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
-                $result = $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
+                $result = $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
 
                 if ($result->num_rows == 0) {
                     $error = "Du hast keine Konversation mit " . htmlspecialchars($_GET["s"]) . "!";
                 } else {
                     $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
-                    $db_instance->execute_query($query, [$_GET["s"], $_SESSION["userid"], $_SESSION["userid"], $_GET["s"]]);
+                    $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
 
                     change_location("messages.php");
                 }
             }
         } else {
-            $result = $db_instance->execute_query("SELECT * FROM messages WHERE id = ?", [$_GET["m_id"]]);
+            $result = $db_instance->execute_query("SELECT senderid, receiverid FROM messages WHERE id = ?", [$_GET["m_id"]]);
 
             if ($result->num_rows > 0) {
                 $row = $result->fetch_assoc();
 
-                if ($row["senderid"] != $_SESSION["userid"]) {
+                if ($row["senderid"] != $user->get_user_id()) {
                     $error = "Diese Nachricht kannst du nicht löschen!";
 
                     change_location("messages.php", 2);

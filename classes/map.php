@@ -274,7 +274,8 @@ class Map {
 
     public function render_field_info($field): void {
         // Get the coords of the current kingdom of the user
-        $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
+        $user = new User($this->mysqli);
+        $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
         $row = $result->fetch_assoc();
         $x = $row["mapx"];
         $y = $row["mapy"];
@@ -287,8 +288,7 @@ class Map {
                     WHERE mapx = ? AND mapy = ?
         ";
         $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
-        $row = $result->fetch_assoc();
-        $field_name = $row["fieldname"];
+        $field_name = $result->fetch_assoc()["fieldname"];
 
         if ($field == -1) {
             ?>
@@ -357,14 +357,14 @@ class Map {
                 <tr>
                     <?php
                     // Get the coords of the current kingdom of the user
-                    if ($field != $_SESSION["kingdomid"]) {
+                    if ($field != $user->get_current_kingdom()) {
                         echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
                         echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
                     }
                     ?>
                 </tr>
                 <?php
-                if ($user_name != $_SESSION["username"]) {
+                if ($user_name != $user->get_user_name()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                             <button type='submit' style='margin-right: 15px;'>Angreifen</button>
                                             <button type='submit' style='margin-left: 15px;'>Handeln</button>

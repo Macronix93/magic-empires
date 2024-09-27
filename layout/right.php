@@ -16,7 +16,7 @@ global $user, $db_instance;
                         style="width: 100%;">
                     <?php
                     foreach ($result as $row) {
-                        $selected = ($row["id"] == $_SESSION["kingdomid"]) ? "selected='selected'" : "";
+                        $selected = ($row["id"] == $user->get_current_kingdom()) ? "selected='selected'" : "";
 
                         echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                     }
@@ -36,7 +36,7 @@ global $user, $db_instance;
             <?php
             // Get kingdom resources and show information
             $kingdom = new Kingdoms($db_instance);
-            $kingdom->get_kingdom_info($_SESSION["kingdomid"]);
+            $kingdom->get_kingdom_info($user->get_current_kingdom());
             $kingdom->render_kingdom_info();
             ?>
         </div>
@@ -48,7 +48,7 @@ global $user, $db_instance;
         <div id="kingdom-buildings">
             <?php
             // Show kingdom buildings
-            $kingdom->get_kingdom_buildings($_SESSION["kingdomid"]);
+            $kingdom->get_kingdom_buildings($user->get_current_kingdom());
             ?>
         </div>
     </div>

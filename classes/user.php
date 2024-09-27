@@ -102,24 +102,25 @@ class User {
     // Get the user ID by activation key
     public function get_user_database_id(string $activation_key) {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
-        $data = "";
-
-        if ($row = $result->fetch_assoc()) {
-            $data = $row["id"];
-        }
-
-        return $data;
+        return $result->fetch_assoc()["id"] ?? "";
     }
 
     // Check if user is logged in
     public function is_logged_in(): bool {
-        if (isset($_SESSION["userid"])) return true;
-        else return false;
+        return isset($_SESSION["userid"]);
     }
 
     // Get ID of the user
     public function get_user_id() {
         return $_SESSION["userid"] ?? "";
+    }
+
+    public function get_current_kingdom(): int {
+        return $_SESSION["kingdomid"] ?? "";
+    }
+
+    public function set_current_kingdom($kingdom_id): void {
+        $_SESSION["kingdomid"] = $kingdom_id;
     }
 
     // Get the name of the user
@@ -129,9 +130,7 @@ class User {
 
     public function get_user_score(): int {
         $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
-        $row = $result->fetch_assoc();
-
-        return $row["score"];
+        return $result->fetch_assoc()["score"];
     }
 
     public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void {
@@ -194,9 +193,9 @@ class User {
                 case ACTION_BUILD_BUILDING:
                     if ($building_time < time()) {
                         $result = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$building_id]);
-                        $row = $result->fetch_assoc();
-                        $score = $row["buildingscore"] * $building_level + 1;
+                        $score = $result->fetch_assoc()["buildingscore"] * $building_level + 1;
 
+                        // Delete the event from the event table
                         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
 
                         if ($building_level == 0) { // Insert new building
@@ -229,8 +228,7 @@ class User {
                                             WHERE m.kingdomid = ?
                                 ";
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
-                                $row = $result->fetch_assoc();
-                                $food_rate = $row["foodrate"];
+                                $food_rate = $result->fetch_assoc()["foodrate"];
 
                                 $query = "UPDATE kingdoms SET food_per_hour = food_per_hour + " . BASE_FOOD_GAIN * $food_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
@@ -243,8 +241,7 @@ class User {
                                             WHERE m.kingdomid = ?
                                 ";
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
-                                $row = $result->fetch_assoc();
-                                $wood_rate = $row["woodrate"];
+                                $wood_rate = $result->fetch_assoc()["woodrate"];
 
                                 $query = "UPDATE kingdoms SET wood_per_hour = wood_per_hour + " . BASE_WOOD_GAIN * $wood_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
@@ -257,8 +254,7 @@ class User {
                                             WHERE m.kingdomid = ?
                                 ";
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
-                                $row = $result->fetch_assoc();
-                                $stone_rate = $row["stonerate"];
+                                $stone_rate = $result->fetch_assoc()["stonerate"];
 
                                 $query = "UPDATE kingdoms SET stone_per_hour = stone_per_hour + " . BASE_STONE_GAIN * $stone_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
@@ -271,8 +267,7 @@ class User {
                                             WHERE m.kingdomid = ?
                                 ";
                                 $result = $this->mysqli->execute_query($query, [$kingdom_id]);
-                                $row = $result->fetch_assoc();
-                                $gold_rate = $row["goldrate"];
+                                $gold_rate = $result->fetch_assoc()["goldrate"];
 
                                 $query = "UPDATE kingdoms SET gold_per_hour = gold_per_hour + " . BASE_GOLD_GAIN * $gold_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);

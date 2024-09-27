@@ -71,7 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Register user if no errors
     if (empty($error)) {
         // Check if username already exists
-        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$name]);
+        $result = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE username = ? LIMIT 1", [$name]);
 
         if ($result->num_rows == 1) {
             $error .= "Dieser Benutzername existiert bereits!<br>";

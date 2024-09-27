@@ -21,17 +21,16 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     // Check if receiver exists
     $result = $db_instance->execute_query("SELECT COUNT(*) AS userexists FROM users WHERE id = ?", [$receiver_id]);
-    $row = $result->fetch_assoc();
+    $user_exists = $result->fetch_assoc()["userexists"];
 
-    if (!$row["userexists"]) {
+    if (!$user_exists) {
         $error = "Dieser Benutzer existiert nicht!";
     }
 
     if ($error == null) {
         // Check for rate limit
         $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$_SESSION["userid"], $rate_limit]);
-        $row = $result->fetch_assoc();
-        $message_count = $row["messagecount"];
+        $message_count = $result->fetch_assoc()["messagecount"];
 
         if ($message_count >= MAX_MESSAGES_PER_RATELIMIT) {
             $remaining_time_in_seconds = MESSAGES_RATE_LIMIT - ($time - $_SESSION["lastsentmsg"]);
@@ -42,8 +41,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
             // Get receiverid based on receiver name
             $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiver_id]);
-            $row = $result->fetch_assoc();
-            $receiver = $row["username"];
+            $receiver = $result->fetch_assoc()["username"];
 
             // Insert message into database
             $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)";

@@ -43,7 +43,7 @@ include_once("layout/banner.html");
                 $offset = ($current_page - 1) * $rows_per_page;
 
                 // Get the data for the current page
-                $result = $db_instance->execute_query("SELECT * FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
+                $result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
                 ?>
                 <table class="table">
                     <tr>

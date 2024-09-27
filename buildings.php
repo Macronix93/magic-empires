@@ -11,7 +11,7 @@ if (!($user->is_logged_in())) {
 $error = "";
 
 // Get current kingdom stuff
-$current_kingdom = $_SESSION["kingdomid"];
+$current_kingdom = $user->get_current_kingdom();
 $kingdom = new Kingdoms($db_instance);
 $kingdom->get_kingdom_info($current_kingdom);
 $kingdom_wood = $kingdom->get_kingdom_wood();
@@ -144,7 +144,7 @@ if (isset($_GET["action"])) {
                     $kingdom_gold = $kingdom->get_kingdom_gold();
                     $kingdom_villager = $kingdom->get_kingdom_villager();
 
-                    $current_kingdom = $_SESSION["kingdomid"];
+                    $current_kingdom = $user->get_current_kingdom();
                     $s_id = (empty($_GET["recruit"]) ? 0 : $_GET["recruit"]);
 
                     $kingdom_recruiting_id = -1;
@@ -160,8 +160,7 @@ if (isset($_GET["action"])) {
                             if ($kingdom_is_recruiting) {
                                 // Calculate remaining soldiers to be recruited and resulting refunds
                                 $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$current_kingdom, ACTION_BUILD_TROOPS, $s_id]);
-                                $row = $result->fetch_assoc();
-                                $soldier_goal = $row['soldiergoal'];
+                                $soldier_goal = $result->fetch_assoc()['soldiergoal'];
 
                                 // Refund player
                                 $kingdom->give_kingdom_food($current_kingdom, $soldier_goal * $soldiers[$s_id]->get_soldier_food_cost());
@@ -364,10 +363,9 @@ if (isset($_GET["action"])) {
                                 } else {
                                     // Check if there is already an offer for this kingdom
                                     $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$current_kingdom]);
-                                    $row = $result->fetch_assoc();
-                                    $offerid = $row['offerid'] ?? 0;
+                                    $offer_id = $result->fetch_assoc()['offerid'] ?? 0;
 
-                                    if ($offerid != 0) {
+                                    if ($offer_id != 0) {
                                         $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
                                     } else {
                                         // No offer found for the kingdom - insert to database

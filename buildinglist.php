@@ -9,7 +9,7 @@ if (!($user->is_logged_in())) {
 }
 
 // Fetch all buildings and their dependencies
-$buildings = fetch_all_buildings($_SESSION["kingdomid"]);
+$buildings = fetch_all_buildings($user->get_current_kingdom());
 ?>
 <!DOCTYPE html>
 <html lang="de">
