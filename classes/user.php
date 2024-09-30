@@ -84,7 +84,7 @@ class User {
         $timestamp = time();
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, lastsentmsg FROM users WHERE id = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, lastsentmsg, adminlevel FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
@@ -92,6 +92,8 @@ class User {
         $_SESSION["username"] = $row["username"];
         $_SESSION["kingdomid"] = $row["mainkingdom"];
         $_SESSION["lastsentmsg"] = $row["lastsentmsg"];
+        $_SESSION["adminlevel"] = $row["adminlevel"];
+        $_SESSION["score"] = $row["score"];
 
         // Update login time
         $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$user_id]);
@@ -111,15 +113,15 @@ class User {
     }
 
     // Get ID of the user
-    public function get_user_id() {
-        return $_SESSION["userid"] ?? "";
+    public function get_user_id(): int {
+        return $_SESSION["userid"] ?? -1;
     }
 
     public function get_current_kingdom(): int {
-        return $_SESSION["kingdomid"] ?? "";
+        return $_SESSION["kingdomid"] ?? 0;
     }
 
-    public function set_current_kingdom($kingdom_id): void {
+    public function set_current_kingdom(int $kingdom_id): void {
         $_SESSION["kingdomid"] = $kingdom_id;
     }
 
@@ -128,9 +130,18 @@ class User {
         return $_SESSION["username"] ?? "";
     }
 
+    public function set_user_score(int $score): void {
+        $_SESSION["score"] = $score;
+    }
+
     public function get_user_score(): int {
-        $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
-        return $result->fetch_assoc()["score"];
+        //$result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
+        //return $result->fetch_assoc()["score"];
+        return $_SESSION["score"] ?? 0;
+    }
+
+    public function get_user_admin_level(): int {
+        return $_SESSION["adminlevel"] ?? 0;
     }
 
     public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void {
@@ -210,10 +221,12 @@ class User {
 
                             $this->set_last_built_building($kingdom_id, $building_name, $building_level);
                         }
+
                         $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $user_id]);
+                        $this->set_user_score($this->get_user_score() + $score);
 
                         switch ($building_id) {
-                            case BUILDING_STORAGE:
+                            case BuildingTypes::BUILDING_STORAGE:
                                 // Update storage values based on buildinglevel
                                 $max_val = MAX_STORAGE_VALUE;
                                 $update_val = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
@@ -225,7 +238,7 @@ class User {
                                 }
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
-                            case BUILDING_MILL:
+                            case BuildingTypes::BUILDING_MILL:
                                 $query = "
                                             SELECT ft.foodrate
                                             FROM map AS m 
@@ -238,7 +251,7 @@ class User {
                                 $query = "UPDATE kingdoms SET foodperhour = foodperhour + " . BASE_FOOD_GAIN * $food_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
-                            case BUILDING_SAWMILL:
+                            case BuildingTypes::BUILDING_SAWMILL:
                                 $query = "
                                             SELECT ft.woodrate
                                             FROM map AS m 
@@ -251,7 +264,7 @@ class User {
                                 $query = "UPDATE kingdoms SET woodperhour = woodperhour + " . BASE_WOOD_GAIN * $wood_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
-                            case BUILDING_STONEMINE:
+                            case BuildingTypes::BUILDING_STONEMINE:
                                 $query = "
                                             SELECT ft.stonerate
                                             FROM map AS m 
@@ -264,7 +277,7 @@ class User {
                                 $query = "UPDATE kingdoms SET stoneperhour = stoneperhour + " . BASE_STONE_GAIN * $stone_rate . "  WHERE id = ?";
                                 $this->mysqli->execute_query($query, [$kingdom_id]);
                                 break;
-                            case BUILDING_GOLDMINE:
+                            case BuildingTypes::BUILDING_GOLDMINE:
                                 $query = "
                                             SELECT ft.goldrate
                                             FROM map AS m 
@@ -320,7 +333,9 @@ class User {
                         apply_villager_cap($kingdom_id);
 
                         // Update user score
-                        $this->mysqli->execute_query("UPDATE users SET score = score + (? * ?) WHERE id = ?", [$soldier_difference, $soldiers[$soldier_id]->get_soldier_score_gain(), $user_id]);
+                        $score = $soldier_difference * $soldiers[$soldier_id]->get_soldier_score_gain();
+                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $user_id]);
+                        $this->set_user_score($this->get_user_score() + $score);
                     }
 
                     if ($number_left_to_recruit == 0) {

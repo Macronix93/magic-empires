@@ -31,7 +31,7 @@ global $user, $db_instance;
                         type="text/javascript">updateTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>)</script></span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
-             title='Punkte'/> <?= ($user->get_user_score() == 0 ? "0" : fnum($user->get_user_score())) ?>
+             title='Punkte'/> <?php echo fnum($user->get_user_score()); ?>
         <div id="kingdom-info">
             <?php
             // Get kingdom resources and show information

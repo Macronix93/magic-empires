@@ -13,7 +13,6 @@ if (isset($_GET["logout"])) {
         session_unset();
         session_destroy();
     } else {
-        echo "change loc";
         change_location("login.php");
     }
 } else {
@@ -31,31 +30,36 @@ if (isset($_GET["logout"])) {
         $name = make_secure($_POST["username"] ?? "");
         $pass = make_secure($_POST["password"] ?? "");
 
-        if (empty($name) || empty($pass)) {
-            $error = "Bitte beide Felder ausfüllen!";
+        if (MAINTENANCE_MODE && $name !== "test") {
+            $error .= "Der Server befindet sich im Wartungsmodus!";
         } else {
-            $result = $db_instance->execute_query("SELECT id, password, status FROM users WHERE username = ? LIMIT 1", [$name]);
-            $row = $result->fetch_assoc();
-            $found = $result->num_rows == 1;
 
-            // Check if user exists
-            if ($found) {
-                $user_id = $row["id"];
-                $password = $row["password"];
-                $status = $row["status"];
-
-                if (!$status) {
-                    $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
-                } else if (!password_verify($pass, $password)) {
-                    $error .= "Falsches Passwort!";
-                } else {
-                    if (empty($error)) {
-                        unset($_POST);
-                        $user->login_user($user_id);
-                    }
-                }
+            if (empty($name) || empty($pass)) {
+                $error .= "Bitte beide Felder ausfüllen!";
             } else {
-                $error .= "Dieser Nickname existiert nicht!";
+                $result = $db_instance->execute_query("SELECT id, password, status FROM users WHERE username = ? LIMIT 1", [$name]);
+                $row = $result->fetch_assoc();
+                $found = $result->num_rows == 1;
+
+                // Check if user exists
+                if ($found) {
+                    $user_id = $row["id"];
+                    $password = $row["password"];
+                    $status = $row["status"];
+
+                    if (!$status) {
+                        $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
+                    } else if (!password_verify($pass, $password)) {
+                        $error .= "Falsches Passwort!";
+                    } else {
+                        if (empty($error)) {
+                            unset($_POST);
+                            $user->login_user($user_id);
+                        }
+                    }
+                } else {
+                    $error .= "Dieser Nickname existiert nicht!";
+                }
             }
         }
 

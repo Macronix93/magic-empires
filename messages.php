@@ -8,7 +8,7 @@ if (!($user->is_logged_in())) {
     exit;
 }
 
-$error = null;
+$error = "";
 $view = "";
 
 function show_inbox($db_instance): string {
@@ -161,8 +161,7 @@ if (isset($_GET["action"])) {
         if (isset($_POST["text"]) && $error == null) {
             $view .= show_inbox($db_instance);
         } else {
-            $view .= "
-            <form name=\"newmessage\"
+            $view .= "<form name=\"newmessage\"
                   action=\"messages.php?action=new\"
                   method=\"POST\">
                 <table class=\"table\">
@@ -208,15 +207,15 @@ if (isset($_GET["action"])) {
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
                 $result = $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
 
-                $view = '<div style=""><button onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
-                $view .= '<h3>Konversation mit 
-                                        <a href="javascript:void(0);" 
-                                         onclick="openUserDetails(\'userinfo.php?userid=' . $_SESSION['msgreceiver'] . '\');" 
-                                         class="popup" 
-                                         style="cursor: pointer;">
-                                         ' . $chat_partner . '
-                                        </a>
-                                    </h3>';
+                $view = '<div style="display: flex; margin: 10px 0;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button>
+                            <h3 style="width: 85%; margin: 0;">Konversation mit 
+                                <a href="javascript:void(0);" 
+                                 onclick="openUserDetails(\'userinfo.php?userid=' . $_SESSION['msgreceiver'] . '\');" 
+                                 class="popup" 
+                                 style="cursor: pointer;">
+                                 ' . $chat_partner . '
+                                </a>
+                            </h3></div>';
                 $view .= '<br><div id="messages-section">';
 
                 foreach ($result as $row) {
@@ -318,11 +317,12 @@ include_once("layout/banner.html");
         <div class="middle-container">
             <div class="big-box-container">
                 <div class="big-box-header">
-                    <p>Nachrichten</p>
+                    Nachrichten
                 </div>
                 <div class="big-box-content">
+                    <div class="info-box" style="display: none;"></div>
                     <?php
-                    if ($error != null) {
+                    if (!empty($error)) {
                         echo $error . "<br><br>";
                     }
 

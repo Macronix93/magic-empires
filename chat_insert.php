@@ -27,7 +27,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $error = "Dieser Benutzer existiert nicht!";
     }
 
-    if ($error == null) {
+    if (empty($error)) {
         // Check for rate limit
         $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$_SESSION["userid"], $rate_limit]);
         $message_count = $result->fetch_assoc()["messagecount"];

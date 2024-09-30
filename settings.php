@@ -84,7 +84,9 @@ include_once("layout/banner.html");
     </div>
     <div class="middle-container">
         <div class="big-box-container">
-            <div class="big-box-header"><p>Einstellungen</p></div>
+            <div class="big-box-header">
+                Einstellungen
+            </div>
             <div class="big-box-content">
                 <?php
                 if (!empty($error)) {

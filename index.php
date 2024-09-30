@@ -7,6 +7,56 @@ if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
+
+$view = "";
+
+// Get some user data to show...
+$result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
+$row = $result->fetch_assoc();
+$ip = $row["ip"];
+$email = $row["email"];
+$score = $row["score"];
+$guild_id = $row["guildid"];
+$register_date = $row["registerdate"];
+$main_kingdom = $row["mainkingdom"];
+
+$view .= '<img src="images/icons/icon_right_slow.png" class="popup" id="test1" alt="" style="width:24px;"/>
+            <div id="test1_box" class="popupbox">Testbox hahaha <br>hahahah</div>
+            <br>
+            <a class="popup" id="test2">This is a test</a>
+            <div id="test2_box" class="popupbox"><?php echo "E-Mail: ' . htmlspecialchars($email) . '<br>"; ?></div>
+            <br><br>';
+
+$time_diff = time() - $_SESSION["currlogin"];
+
+/* Check for existing IP
+$ipPattern = explode('.', $_SERVER["REMOTE_ADDR"]);
+$ipToCheck = $ipPattern[0] . "." . $ipPattern[1] . ".%";
+
+$sql = "SELECT COUNT(*) FROM users WHERE ip LIKE ?";
+$stmt = $db_instance->prepare($sql);
+$stmt->bind_param('s', $ipToCheck);
+$stmt->execute();
+$stmt->bind_result($count);
+$stmt->fetch();
+$stmt->close();
+
+if ($count > 0) {
+    // The database contains at least one IP address matching the pattern xxx.xxx.*.*
+    echo 'IP found.';
+} else {
+    // No matching IP address found
+    echo 'IP not found.';
+}*/
+
+$view .= "Login-Zeit: <span id='counter'><script type='text/javascript'>startCountup($time_diff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
+$view .= "Haupt-KönigreichID: $main_kingdom<br>";
+$view .= "E-Mail: $email<br>";
+$view .= "Registriert seit: " . date('d.m.Y H:i:s', $register_date) . "<br>";
+$view .= "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>";
+$view .= "Score: $score<br>";
+$view .= "Gilde: $guild_id<br>";
+$view .= "Admin-Level: " . $user->get_user_admin_level() . "<br><br>";
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -25,58 +75,12 @@ include_once("layout/banner.html");
     </div>
     <div class="middle-container">
         <div class="big-box-container">
-            <div class="big-box-header"><p>Übersicht</p></div>
+            <div class="big-box-header">
+                Übersicht
+            </div>
             <div class="big-box-content">
                 <?php
-                // Get some user data to show...
-                $result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
-                $row = $result->fetch_assoc();
-                $ip = $row["ip"];
-                $email = $row["email"];
-                $score = $row["score"];
-                $guild_id = $row["guildid"];
-                $register_date = $row["registerdate"];
-                $main_kingdom = $row["mainkingdom"];
-                ?>
-
-                <img src='images/icons/icon_right_slow.png' class="popup" id="test1" alt="" style="width:24px;"/>
-                <div id="test1_box" class="popupbox">Testbox hahaha <br>hahahah</a></div>
-                <br>
-
-                <a class="popup" id="test2">This is a test</a>
-                <div id="test2_box" class="popupbox"><?php echo "E-Mail: $email<br>"; ?></a></div>
-                <br><br>
-
-                <?php
-                $time_diff = time() - $_SESSION["currlogin"];
-
-                /* Check for existing IP
-                $ipPattern = explode('.', $_SERVER["REMOTE_ADDR"]);
-                $ipToCheck = $ipPattern[0] . "." . $ipPattern[1] . ".%";
-
-                $sql = "SELECT COUNT(*) FROM users WHERE ip LIKE ?";
-                $stmt = $db_instance->prepare($sql);
-                $stmt->bind_param('s', $ipToCheck);
-                $stmt->execute();
-                $stmt->bind_result($count);
-                $stmt->fetch();
-                $stmt->close();
-
-                if ($count > 0) {
-                    // The database contains at least one IP address matching the pattern xxx.xxx.*.*
-                    echo 'IP found.';
-                } else {
-                    // No matching IP address found
-                    echo 'IP not found.';
-                }*/
-
-                echo "Login-Zeit: <span id='counter'><script type='text/javascript'>startCountup($time_diff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
-                echo "Haupt-KönigreichID: $main_kingdom<br>";
-                echo "E-Mail: $email<br>";
-                echo "Registriert seit: " . date('d.m.Y H:i:s', $register_date) . "<br>";
-                echo "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>";
-                echo "Score: $score<br>";
-                echo "Gilde: $guild_id<br><br>";
+                echo $view;
                 ?>
             </div>
         </div>

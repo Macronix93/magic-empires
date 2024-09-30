@@ -258,7 +258,7 @@ select:-webkit-autofill:focus {
 .big-box-header {
     border-bottom: 2px solid rgba(0, 0, 0, 0.5);
     text-align: center;
-    margin: 20px 50px 20px 50px;
+    margin: 30px 50px 10px 50px;
     font-size: 32px;
     height: 50px;
 }
@@ -370,7 +370,18 @@ td {
 
 .error {
     color: rgb(245, 83, 83);
-    /*font-weight: bold;*/
+}
+
+.info-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 90%;
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgb(128, 128, 128);
+    border-radius: 10px;
+    height: 40px;
+    margin: 0 auto 15px auto;
 }
 
 .passed {

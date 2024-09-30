@@ -25,7 +25,9 @@ include_once("layout/banner.html");
     </div>
     <div class="middle-container">
         <div class="big-box-container">
-            <div class="big-box-header"><p>Spenden</p></div>
+            <div class="big-box-header">
+                Spenden
+            </div>
             <div class="big-box-content">
             </div>
         </div>

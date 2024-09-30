@@ -16,6 +16,7 @@ if (session_status() == PHP_SESSION_NONE) {
 /*
     Constants (defines)
 */
+const MAINTENANCE_MODE = true;
 const ERROR_PATH = "D:/xampp/htdocs/magic-empires/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MIN_USERNAME_LENGTH = 4;
@@ -49,22 +50,30 @@ const STARTING_STONE = 1000;
 const STARTING_GOLD = 1000;
 const STORAGE_STARTING_VALUE = 1000;
 const MAX_STORAGE_VALUE = 50000;
-const BUILDING_TOWNCENTER = 0;
-const BUILDING_UNIVERSITY = 1;
-const BUILDING_BARRACKS = 2;
-const BUILDING_WALL = 3;
-const BUILDING_SMITH = 4;
-const BUILDING_MILL = 5;
-const BUILDING_SAWMILL = 6;
-const BUILDING_STONEMINE = 7;
-const BUILDING_GOLDMINE = 8;
-const BUILDING_STORAGE = 9;
 const BASE_FOOD_GAIN = 20;
 const BASE_WOOD_GAIN = 20;
 const BASE_STONE_GAIN = 15;
 const BASE_GOLD_GAIN = 10;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = "uploads/";
+
+/*
+ * Enum of buildings
+ */
+
+interface BuildingTypes {
+    const BUILDING_TOWNCENTER = 0;
+    const BUILDING_UNIVERSITY = 1;
+    const BUILDING_BARRACKS = 2;
+    const BUILDING_WALL = 3;
+    const BUILDING_SMITHY = 4;
+    const BUILDING_MILL = 5;
+    const BUILDING_SAWMILL = 6;
+    const BUILDING_STONEMINE = 7;
+    const BUILDING_GOLDMINE = 8;
+    const BUILDING_STORAGE = 9;
+    const BUILDING_MARKETPLACE = 10;
+}
 
 /*
  * Global exception handlers

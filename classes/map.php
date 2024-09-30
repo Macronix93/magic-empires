@@ -271,7 +271,7 @@ class Map {
               </table>";
     }
 
-    public function render_field_info($field) {
+    public function render_field_info($field): void {
         // Get the coords of the current kingdom of the user
         $user = new User($this->mysqli);
         $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
@@ -290,33 +290,22 @@ class Map {
         $field_name = $result->fetch_assoc()["fieldname"];
 
         if ($field == -1) {
-            ?>
-            <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
-                <?php
-                echo $field_name;
-                ?>
-            </div>
-            <table class="table"
-                   style="margin-top: 20px; max-width: 400px; text-align: left;">
-                <tr>
-                    <td class="td-mapinfo"><b>Koordinaten</b></td>
-                    <?php
-                    echo "<td>" . $field_x . ":" . $field_y . "</td>";
-                    ?>
-                </tr>
-                <tr>
-                    <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                    <?php
-                    echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
-                    ?>
-                </tr>
-                <tr>
-                    <td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                        <button type='submit'>Erobern</button>
-                    </td>
-                </tr>
-            </table>
-            <?php
+            echo '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">' . $field_name . '</div>
+                  <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                      <tr>
+                          <td class="td-mapinfo"><b>Koordinaten</b></td>
+                          <td>' . $field_x . ':' . $field_y . '</td>
+                      </tr>
+                      <tr>
+                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                          <td>' . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . '</td>
+                      </tr>
+                      <tr>
+                          <td colspan="2" class="td-mapinfo" style="text-align: center;">
+                              <button type="submit">Erobern</button>
+                          </td>
+                      </tr>
+                  </table>';
         } else {
             $result_2 = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
             $row_2 = $result_2->fetch_assoc();
@@ -325,44 +314,32 @@ class Map {
             $user_id = $row_2["userid"];
 
             if ($result_2->num_rows == 0) {
-                echo "<br><br>Dieses Königreich existiert nicht!";
+                echo "<div class='info-box'>Dieses Königreich existiert nicht!</div>";
             } else {
-                ?>
-                <div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px">
-                    <?php
-                    echo "Königreich-Info ({$field_name})";
-                    ?>
-                </div>
-                <table class="table"
-                       style="margin-top: 20px; max-width: 400px; text-align: left;">
-                <tr>
-                    <td class="td-mapinfo"><b>Koordinaten</b></td>
-                    <?php
-                    echo "<td>" . $field_x . ":" . $field_y . "</td>";
-                    ?>
-                </tr>
-                <tr>
-                    <td class="td-mapinfo"><b>Königreich</b></td>
-                    <?php
-                    echo "<td>" . $kingdom_name . "</td>";
-                    ?>
-                </tr>
-                <tr>
-                    <td class="td-mapinfo"><b>Besitzer</b></td>
-                    <?php
-                    echo "<td><a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $user_id . "\");'>$user_name</a></td>";
-                    ?>
-                </tr>
-                <tr>
-                    <?php
-                    // Get the coords of the current kingdom of the user
-                    if ($field != $user->get_current_kingdom()) {
-                        echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
-                        echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
-                    }
-                    ?>
-                </tr>
-                <?php
+                echo '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">Königreich-Info (' . $field_name . ')</div>
+                      <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                          <tr>
+                              <td class="td-mapinfo"><b>Koordinaten</b></td>
+                              <td>' . $field_x . ':' . $field_y . '</td>
+                          </tr>
+                          <tr>
+                              <td class="td-mapinfo"><b>Königreich</b></td>
+                              <td>' . $kingdom_name . '</td>
+                          </tr>
+                          <tr>
+                              <td class="td-mapinfo"><b>Besitzer</b></td>
+                              <td><a href="javascript:void(0);" onclick="openUserDetails(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a></td>
+                          </tr>
+                      ';
+
+                // Get the coords of the current kingdom of the user
+                if ($field != $user->get_current_kingdom()) {
+                    echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
+                    echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
+                }
+
+                echo '</tr>';
+
                 if ($user_name != $user->get_user_name()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                             <button type='submit' style='margin-right: 15px;'>Angreifen</button>

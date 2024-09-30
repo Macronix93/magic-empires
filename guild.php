@@ -26,7 +26,9 @@ include_once("layout/banner.html");
 
     <div class="middle-container">
         <div class="big-box-container">
-            <div class="big-box-header"><p>Gilde</p></div>
+            <div class="big-box-header">
+                Gilde
+            </div>
             <div class="big-box-content">
             </div>
         </div>

@@ -363,12 +363,18 @@ function insertNewChatMessage(e) {
         if (this.readyState === 4 && this.status === 200) {
             try {
                 let response = JSON.parse(this.responseText);
+                const infoBox = document.querySelector(".info-box");
 
                 if (response.error) {
-                    alert(response.error);
+                    infoBox.innerText = response.error;
+                    infoBox.style.display = "flex";
                 } else if (response.html) {
                     document.getElementById("messages-section").innerHTML += response.html;
                     messageInput.value = "";
+
+                    if (infoBox) {
+                        infoBox.style.display = "none";
+                    }
 
                     scrollToLatestMessage();
                 }
