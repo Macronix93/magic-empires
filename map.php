@@ -12,6 +12,7 @@ if (!($user->is_logged_in())) {
 <html lang="de">
 <?php
 include_once("layout/head.html");
+echo '<meta data-max-map-size=\'{"maxMapSize":' . MAX_X . '}\'>';
 ?>
 <body>
 <?php
@@ -63,14 +64,16 @@ include_once("layout/banner.html");
                 }
 
                 echo "<input type='hidden' id='highlightedfield'>
-                            <script type='text/javascript'>
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    let kingdomid = " . json_encode($field_id) . ";
-                                    let x = " . json_encode($x) . ";
-                                    let y = " . json_encode($y) . ";
-                                    highlightField(kingdomid || -1, x || 0, y || 0);
-                                });
-                            </script>";
+                        <script type='text/javascript'>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                let x = '" . json_encode($x) . "';
+                                let y = '" . json_encode($y) . "';
+                                let fieldID = document.getElementById('highlightedfield');
+                                fieldID.setAttribute('data-x', x);
+                                fieldID.setAttribute('data-y', y);
+                                highlightEnteredCoordinates(x, y);
+                            });
+                        </script>";
 
                 // Show info about the fields
                 echo "<div style='padding-bottom: 5px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;'>
@@ -84,7 +87,9 @@ include_once("layout/banner.html");
                 $map->render_map($map->get_start_x(), $map->get_start_y());
                 echo "</div>";
                 ?>
-                <div id='field-info'></div>
+                <div id='field-info'>
+                    <?php $map->render_field_info($user->get_current_kingdom()); ?>
+                </div>
                 <br>
                 <form id="update-map">
                     X: <label>

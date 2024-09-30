@@ -284,7 +284,7 @@ function clamp_value(int $value) {
     if ($value > 91) {
         return 91;
     }
-    return max(min($value, 100), 1);
+    return max(min($value, MAX_X), 1);
 }
 
 // Check for an error in a conversation

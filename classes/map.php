@@ -208,7 +208,6 @@ class Map {
         $y_start = $start_y;
         $y_end = $start_y + 9;
 
-
         $query = "
                     SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel 
                     FROM map m 
@@ -255,7 +254,7 @@ class Map {
             echo "<td>$i</td>";
 
             for ($j = $start_x; $j <= $start_x + 9; $j++) {
-                echo "<td data-fieldid='" . $my_coords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $field_color[$j][$i] . "' 
+                echo "<td data-fieldid='" . $my_coords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $field_color[$j][$i] . "'
                             onclick='highlightField(parseInt(\"" . $my_coords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
 
                 if ($j == $x_end && $i == $y_start) {
@@ -272,15 +271,15 @@ class Map {
               </table>";
     }
 
-    public function render_field_info($field): void {
+    public function render_field_info($field) {
         // Get the coords of the current kingdom of the user
         $user = new User($this->mysqli);
         $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
         $row = $result->fetch_assoc();
         $x = $row["mapx"];
         $y = $row["mapy"];
-        $field_x = isset($_GET["x"]) && $_GET["x"] != -1 ? $_GET["x"] : 1;
-        $field_y = isset($_GET["y"]) && $_GET["y"] != -1 ? $_GET["y"] : 1;
+        $field_x = isset($_GET["x"]) && $_GET["x"] != -1 ? $_GET["x"] : $x;
+        $field_y = isset($_GET["y"]) && $_GET["y"] != -1 ? $_GET["y"] : $y;
 
         $query = "
                     SELECT m.fieldtype, f.fieldname FROM map m

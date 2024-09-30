@@ -2,10 +2,6 @@
 global $user, $db_instance;
 
 $current_page = basename($_SERVER["PHP_SELF"]);
-
-// Count unread messages for the user
-$result = $db_instance->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$user->get_user_id()]);
-$num_unread_messages = $result->fetch_assoc()["unread_count"];
 ?>
 <div class="box-container">
     <div class="box-header">
@@ -26,7 +22,7 @@ $num_unread_messages = $result->fetch_assoc()["unread_count"];
         <div class="box<?= $current_page === 'messages.php' ? ' active' : '' ?>"
              onclick="navigateTo('messages.php', this)">
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
-            Nachrichten&nbsp;<?php echo show_messages_indicator($num_unread_messages); ?>
+            Nachrichten&nbsp;<?php echo show_messages_indicator($user->get_unread_messages()); ?>
         </div>
         <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde

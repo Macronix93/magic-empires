@@ -190,6 +190,9 @@ function sendUpdateMapRequest() {
     let startX, startY, inputX, inputY;
     let startXField = document.getElementById("startx");
     let startYField = document.getElementById("starty");
+    const metaTag = document.querySelector('meta[data-max-map-size]');
+    const data = metaTag.getAttribute('data-max-map-size');
+    const jsonData = JSON.parse(data);
 
     if (startXField && startXField.value) {
         startX = inputX = startXField.value;
@@ -198,11 +201,15 @@ function sendUpdateMapRequest() {
         startY = inputY = startYField.value;
     }
 
+    // Check if input values are out of bounds
+    if (startX <= 0 || startX > jsonData.maxMapSize || startY <= 0 || startY > jsonData.maxMapSize) {
+        return;
+    }
+
     if (startX !== undefined && startY !== undefined) {
         startX = Math.max(1, Math.min(parseInt(startX) - 5, 91));
         startY = Math.max(1, Math.min(parseInt(startY) - 5, 91));
 
-        //clearFieldHighlighting();
         updateMap(startX, startY, inputX, inputY);
     }
 }
@@ -229,6 +236,8 @@ function updateMap(newStartX, newStartY, inputX, inputY) {
             } else {
                 let highlightedCell = document.querySelector('td.highlight');
 
+                console.log(highlightedCell)
+
                 if (highlightedCell) {
                     let fieldID = highlightedCell.getAttribute('data-fieldid');
                     let x = highlightedCell.getAttribute('data-x');
@@ -250,7 +259,7 @@ function updateMap(newStartX, newStartY, inputX, inputY) {
     xhttp.send();
 }
 
-function highlightField(clickedfield = -1, x = -1, y = -1) {
+function highlightField(clickedField = -1, x = -1, y = -1) {
     // If the clicked td is already highlighted, stop executing the rest
     /*if (field.classList.contains("highlight")) {
         return;
@@ -272,7 +281,7 @@ function highlightField(clickedfield = -1, x = -1, y = -1) {
             document.getElementById("field-info").innerHTML = this.responseText;
         }
     };
-    xhttp.open("GET", "field_info.php?clickedfield=" + clickedfield + "&x=" + x + "&y=" + y, true);
+    xhttp.open("GET", "field_info.php?clickedfield=" + clickedField + "&x=" + x + "&y=" + y, true);
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhttp.send();
 }

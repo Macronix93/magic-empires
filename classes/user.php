@@ -173,6 +173,11 @@ class User {
         return $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
     }
 
+    public function get_unread_messages(): int {
+        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$this->get_user_id()]);
+        return $result->fetch_assoc()["unread_count"];
+    }
+
     // Get and execute events tied to the user
     public function process_user_events(int $user_id): void {
         $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$user_id]);
