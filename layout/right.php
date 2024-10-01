@@ -26,9 +26,12 @@ global $user, $db_instance;
         </form>
         <br>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
-            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/><span
-                    id='servertime'><script
-                        type="text/javascript">updateTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>)</script></span>
+            <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/>
+            <span class='servertime'>
+                <script type="text/javascript">
+                    updateTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>);
+                </script>
+            </span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
              title='Punkte'/> <?php echo fnum($user->get_user_score()); ?>

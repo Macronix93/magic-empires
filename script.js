@@ -164,8 +164,6 @@ function startCountup(initialSeconds) {
 }
 
 function updateTime(initialSeconds, inactivitySeconds) {
-    let serverTime = document.getElementById("servertime");
-
     updateDisplay();
 
     // Inactivity check
@@ -174,9 +172,18 @@ function updateTime(initialSeconds, inactivitySeconds) {
     };
 
     function updateDisplay() {
-        let currentTime = new Date(initialSeconds * 1000);
-        serverTime.innerHTML = " " + currentTime.toTimeString().split(' ')[0];
+        let serverTimeElements = document.getElementsByClassName("servertime");
 
+        // Iterate through each "servertime" element
+        for (let serverTime of serverTimeElements) {
+            // Visibility check for server time element
+            if (serverTime.offsetParent !== null) {
+                let currentTime = new Date(initialSeconds * 1000);
+                serverTime.innerHTML = " " + currentTime.toTimeString().split(' ')[0];
+            }
+        }
+
+        // Update every second
         setTimeout(() => {
             initialSeconds++;
             updateDisplay();

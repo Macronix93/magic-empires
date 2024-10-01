@@ -650,6 +650,8 @@ td {
     }
 
     .box-container {
-        width: 80%;
+        min-width: 100%;
+        border-radius: 0;
+        margin: 0;
     }
 }
