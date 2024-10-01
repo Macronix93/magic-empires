@@ -7,39 +7,12 @@ if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                Spenden
-            </div>
-            <div class="big-box-content">
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+
+/*
+ * HTML Section
+ */
+$title = "Spenden";
+$header = "Spenden";
+$view = "";
+
+include('layout/base.php');

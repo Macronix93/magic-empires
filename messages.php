@@ -296,54 +296,17 @@ if (isset($_GET["action"])) {
 } else {
     $view = show_inbox($db_instance);
 }
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content">
-    <div class="content-box">
-        <div class="left-container">
-            <?php
-            include_once("layout/left.php");
-            ?>
-        </div>
 
-        <div class="middle-container">
-            <div class="big-box-container">
-                <div class="big-box-header">
-                    Nachrichten
-                </div>
-                <div class="big-box-content">
-                    <div class="info-box" style="display: none;"></div>
-                    <?php
-                    if (!empty($error)) {
-                        echo $error . "<br><br>";
-                    }
+/*
+ * HTML Section
+ */
+$title = "Nachrichten";
+$header = "Nachrichten";
+$view = '<div class="info-box" style="display: none;"></div>' . $view;
+$view .= '<script type="text/javascript">scrollToLatestMessage();</script>';
 
-                    echo $view;
-                    ?>
-                    <script type="text/javascript">
-                        scrollToLatestMessage();
-                    </script>
-                </div>
-            </div>
-        </div>
+if (!empty($error)) {
+    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+}
 
-        <div class="right-container">
-            <?php
-            include_once("layout/right.php");
-            ?>
-        </div>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+include('layout/base.php');

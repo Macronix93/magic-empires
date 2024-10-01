@@ -787,50 +787,15 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
             break;
     }
 }
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
 
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                <?php
-                echo empty($building_name) ? "Fehler" : $building_name;
-                ?>
-            </div>
-            <div class="big-box-content">
-                <?php
-                // Show error if there is any
-                if (!empty($error)) {
-                    echo "<div class='info-box'>" . $error . "</div>";
-                }
+/*
+ * HTML Section
+ */
+$title = $building_name;
+$header = empty($building_name) ? "Fehler" : $building_name;
 
-                echo $view;
-                ?>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+if (!empty($error)) {
+    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+}
+
+include('layout/base.php');

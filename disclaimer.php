@@ -7,41 +7,13 @@ if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                Credits
-            </div>
-            <div class="big-box-content">
-                Icons © by <a href="https://www.flaticon.com/">Flaticon</a> and many artists<br>
-                Banner & Background Image © by <a href="https://github.com/Naseband">Naseband</a>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+
+/*
+ * HTML Section
+ */
+$title = "Credits";
+$header = "Credits";
+$view = 'Icons © by <a href="https://www.flaticon.com/">Flaticon</a> and many artists<br>
+        Banner & Background Image © by <a href="https://github.com/Naseband">Naseband</a>';
+
+include('layout/base.php');

@@ -82,7 +82,6 @@ foreach ($result as $row) {
 $view .= '</table>
 <br>
 <!-- Build the pagination links -->';
-
 if ($current_page > 1) {
     $view .= "<a href='ranking.php?currentpage=1'> Erste </a>";
     $previous_page = $current_page - 1;
@@ -102,42 +101,11 @@ if ($current_page < $total_pages) {
     $view .= "<a href='ranking.php?currentpage=$next_page'> Vor </a>";
     $view .= "<a href='ranking.php?currentpage=$total_pages'> Letzte </a>";
 }
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                Rangliste
-            </div>
-            <div class="big-box-content">
-                <?php
-                echo $view;
-                ?>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+
+/*
+ * HTML Section
+ */
+$title = "Rangliste";
+$header = "Rangliste";
+
+include('layout/base.php');

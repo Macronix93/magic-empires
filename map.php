@@ -84,43 +84,11 @@ echo '</div>
         </form>';
 
 $view = ob_get_clean();
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-echo '<meta data-max-map-size=\'{"maxMapSize":' . MAX_X . '}\'>';
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                Landschaft
-            </div>
-            <div class="big-box-content">
-                <?php
-                echo $view;
-                ?>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+
+/*
+ * HTML Section
+ */
+$title = "Landschaft";
+$header = "Landschaft";
+
+include('layout/base.php');

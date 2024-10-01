@@ -20,10 +20,9 @@ $error = "";
 $view = "";
 
 if (isset($_POST['submit'])) {
-
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $error = "Ungültiger CSRF-Token!";
+        $error = "Ungültiger Token!";
     } else {
         if (isset($_FILES['image'])) {
             // Image file information
@@ -68,50 +67,22 @@ if (isset($_POST['submit'])) {
         }
     }
 }
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php include_once("layout/left.php"); ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                Einstellungen
-            </div>
-            <div class="big-box-content">
-                <?php
-                if (!empty($error)) {
-                    echo $error . "<br><br>";
-                }
 
-                echo $view;
-                ?>
-                <form action="settings.php" method="POST" enctype="multipart/form-data">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                    <p>Benutzerbild hochladen:</p>
-                    <input type="file" name="image" id="image" required>
-                    <input type="submit" name="submit" value="Hochladen">
-                </form>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+/*
+ * HTML Section
+ */
+$title = "Einstellungen";
+$header = "Einstellungen";
+
+if (!empty($error)) {
+    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+}
+
+$view .= '<form action="settings.php" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <p>Benutzerbild hochladen:</p>
+            <input type="file" name="image" id="image" required>
+            <input type="submit" name="submit" value="Hochladen">
+        </form>';
+
+include('layout/base.php');

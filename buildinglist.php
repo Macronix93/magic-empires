@@ -46,42 +46,11 @@ for ($i = 0; $i < count($buildings); $i++) {
 }
 
 $view .= '</table>';
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
 
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">Gebäudeliste</div>
-            <div class="big-box-content">
-                <?php
-                echo $view;
-                ?>
-            </div>
-        </div>
-    </div>
+/*
+ * HTML Section
+ */
+$title = "Gebäudeliste";
+$header = "Gebäudeliste";
 
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+include('layout/base.php');

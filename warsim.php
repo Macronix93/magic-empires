@@ -30,8 +30,8 @@ $soldiers_array = json_encode(array_map(function ($soldier) {
 $view .= '<table class="table">
     <tr>
         <td class="td-center td-gradient">Soldat</td>
-        <td class="td-center td-gradient">Eigene Truppen</td>
-        <td class="td-center td-gradient">Gegner Truppen</td>
+        <td class="td-center td-gradient">Spieler</td>
+        <td class="td-center td-gradient">Gegner</td>
     </tr>';
 
 for ($i = 0; $i < count($soldiers); $i++) {
@@ -134,42 +134,11 @@ $view .= '<script type="text/javascript">
         });
     }
 </script>';
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                War Simulator
-            </div>
-            <div class="big-box-content">
-                <?php
-                echo $view;
-                ?>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+
+/*
+ * HTML Section
+ */
+$title = "War Simulator";
+$header = "War Simulator";
+
+include('layout/base.php');

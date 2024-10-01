@@ -56,43 +56,12 @@ $view .= "Registriert seit: " . date('d.m.Y H:i:s', $register_date) . "<br>";
 $view .= "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>";
 $view .= "Score: $score<br>";
 $view .= "Gilde: $guild_id<br>";
-$view .= "Admin-Level: " . $user->get_user_admin_level() . "<br><br>";
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-include_once("layout/head.html");
-?>
-<body>
-<?php
-include_once("layout/banner.html");
-?>
-<div class="content-box">
-    <div class="left-container">
-        <?php
-        include_once("layout/left.php");
-        ?>
-    </div>
-    <div class="middle-container">
-        <div class="big-box-container">
-            <div class="big-box-header">
-                Übersicht
-            </div>
-            <div class="big-box-content">
-                <?php
-                echo $view;
-                ?>
-            </div>
-        </div>
-    </div>
-    <div class="right-container">
-        <?php
-        include_once("layout/right.php");
-        ?>
-    </div>
-</div>
-<?php
-include_once("layout/footer.php");
-?>
-</body>
-</html>
+$view .= "Admin-Level: " . $user->get_user_admin_level();
+
+/*
+ * HTML Section
+ */
+$title = "Übersicht";
+$header = "Übersicht";
+
+include('layout/base.php');
