@@ -55,6 +55,7 @@ const BASE_STONE_GAIN = 15;
 const BASE_GOLD_GAIN = 10;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = "uploads/";
+const MAX_UPLOAD_FILE_SIZE = 64; // In KB
 
 /*
  * Enum of buildings

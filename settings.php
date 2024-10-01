@@ -34,8 +34,8 @@ if (isset($_POST['submit'])) {
             // Allowed file types (only images)
             $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
 
-            // Max file size in bytes (16 KB)
-            $max_file_size = 16 * 1024; // 16 KB
+            // Max file size in bytes
+            $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes to KB: 1024 * KB number
 
             // Extract file extension
             $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
@@ -44,7 +44,7 @@ if (isset($_POST['submit'])) {
             if (!in_array($file_ext, $allowed_extensions)) {
                 $error = "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.";
             } elseif ($file_size > $max_file_size) {
-                $error = "Datei-Größe überschreitet die maximal erlaubte Größe von 16 KB!";
+                $error = "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!";
             } elseif ($file_error !== 0) {
                 $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
             } else {

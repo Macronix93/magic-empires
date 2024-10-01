@@ -50,7 +50,7 @@ if (isset($user_id)) {
     $x = $row['mapx'];
     $y = $row['mapy'];
     ?>
-    <table class="table" style="">
+    <table class="table">
         <tr>
             <td style="width: 200px;"><b>Benutzer</b></td>
             <?php
