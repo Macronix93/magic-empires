@@ -1,29 +1,32 @@
 function setup() {
-    let el = getElementsByClassName('popup');
+    const popups = getElementsByClassName('popup');
 
-    for (let i = 0; i < el.length; i++) {
-        let box = document.getElementById(el[i].id + '_box');
+    for (let i = 0; i < popups.length; i++) {
+        let box = document.getElementById(popups[i].id + '_box');
         if (box) {
             box.style.display = 'none';
 
-            el[i].onmouseover = function (e) {
-                let mousePos = getMouseLocation(e);
-                let box = document.getElementById(this.id + '_box');
-
-                box.style.display = 'block';
-                box.style.top = (mousePos[1]) + 'px';
-                box.style.left = (mousePos[0] + 20) + 'px';
+            popups[i].onmouseover = function (e) {
+                if (box) {
+                    let mousePos = getMouseLocation(e);
+                    box.style.display = 'block';
+                    box.style.top = (mousePos[1]) + 'px';
+                    box.style.left = (mousePos[0] + 20) + 'px';
+                }
             };
-            el[i].onmousemove = function (e) {
-                let mousePos = getMouseLocation(e);
-                let box = document.getElementById(this.id + '_box');
 
-                box.style.top = (mousePos[1]) + 'px';
-                box.style.left = (mousePos[0] + 20) + 'px';
+            popups[i].onmousemove = function (e) {
+                if (box) {
+                    let mousePos = getMouseLocation(e);
+                    box.style.top = (mousePos[1]) + 'px';
+                    box.style.left = (mousePos[0] + 20) + 'px';
+                }
             };
-            el[i].onmouseout = function () {
-                let box = document.getElementById(this.id + '_box');
-                box.style.display = 'none';
+
+            popups[i].onmouseout = function () {
+                if (box) {
+                    box.style.display = 'none';
+                }
             };
         }
     }
@@ -54,20 +57,9 @@ function getMouseLocation(e) {
 }
 
 function getElementsByClassName(className, tag, elm) {
-    let testClass = new RegExp("(^|\\s)" + className + "(\\s|$)");
     tag = tag || "*";
     elm = elm || document;
-    let elements = (tag === "*") ? elm.querySelectorAll("." + className) : elm.querySelectorAll(tag + "." + className);
-    let returnElements = [];
-    let current;
-    let length = elements.length;
-    for (let i = 0; i < length; i++) {
-        current = elements[i];
-        if (testClass.test(current.className)) {
-            returnElements.push(current);
-        }
-    }
-    return returnElements;
+    return Array.from(elm.querySelectorAll(tag + "." + className));
 }
 
 function adjustUsernameDisplay() {
@@ -79,14 +71,7 @@ function adjustUsernameDisplay() {
     }
 }
 
-function updateServerTime(initialSeconds, inactivitySeconds) {
-    updateDisplay();
-
-    // Inactivity check
-    window.onload = function () {
-        inactivityLogout(inactivitySeconds - 1);
-    };
-
+function updateServerTime(initialSeconds) {
     function updateDisplay() {
         let serverTimeElements = document.getElementsByClassName("servertime");
 
@@ -106,6 +91,8 @@ function updateServerTime(initialSeconds, inactivitySeconds) {
         }, 1000);
     }
 
+    updateDisplay();
+
     return false;
 }
 
@@ -122,9 +109,6 @@ function updateKingdom() {
         let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4 && this.status === 200) {
-                const response = JSON.parse(this.responseText);
-                console.log("Response:", response);
-
                 // Construct the new URL based on the current page
                 let currentUrl = new URL(window.location.href);
                 let pathname = currentUrl.pathname;
@@ -151,13 +135,60 @@ function updateKingdom() {
     }
 }
 
-function inactivityLogout(seconds) {
-    setTimeout(() => {
-        window.location.href = 'login.php?logout=inactive';
-    }, seconds * 1000);
+function startCountdown(initialSeconds, timerType = 0) {
+    let seconds = initialSeconds;
+    let countdownInterval;
+
+    function countDown() {
+        let minutes = Math.floor(seconds / 60);
+        let remainingSeconds = seconds % 60;
+
+        minutes = (minutes < 10) ? "0" + minutes : minutes;
+        remainingSeconds = (remainingSeconds < 10) ? "0" + remainingSeconds : remainingSeconds;
+
+        document.getElementById("counter").innerHTML = minutes + ":" + remainingSeconds;
+
+        if (seconds <= 0) {
+            clearInterval(countdownInterval);
+            if (timerType === 0) {
+                document.getElementById("counter").innerHTML = "Fertig!";
+            }
+        } else {
+            seconds--;
+        }
+    }
+
+    // Initial call to set up the countdown
+    countDown();
+
+    countdownInterval = setInterval(countDown, 1000);
+    return false;
 }
 
-document.addEventListener("DOMContentLoaded", function () {
+function startCountup(initialSeconds) {
+    let seconds = initialSeconds;
+
+    function countUp() {
+        let hours = Math.floor(seconds / 3600);
+        let minutes = Math.floor((seconds % 3600) / 60);
+        let remainingSeconds = seconds % 60;
+
+        hours = (hours < 10) ? "0" + hours : hours;
+        minutes = (minutes < 10) ? "0" + minutes : minutes;
+        remainingSeconds = (remainingSeconds < 10) ? "0" + remainingSeconds : remainingSeconds;
+
+        document.getElementById("counter").innerHTML = hours + ":" + minutes + ":" + remainingSeconds;
+
+        seconds++;
+    }
+
+    // Initial call to set up the countup
+    countUp();
+    setInterval(countUp, 1000);
+    return false;
+}
+
+window.addEventListener("DOMContentLoaded", function () {
     const mobileNav = document.getElementById("mobile-nav");
     const hamburgerIcon = document.getElementById("hamburger-icon");
 
@@ -168,6 +199,14 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Load popup box setup
+    // Inactivity check
+    setTimeout(() => {
+        window.location.href = 'login.php?logout=inactive';
+    }, 1799 * 1000);
+
+    // Setup for popup boxes
     setup();
+
+    // Calculate and update the styling of the username dynamically
+    adjustUsernameDisplay();
 });

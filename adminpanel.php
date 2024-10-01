@@ -16,7 +16,7 @@ if ($user->get_user_admin_level() == 0) {
 } else {
     $result = $db_instance->execute_query("SELECT * FROM users");
 
-    $view .= '<div class="box-container" style="height: 300px; width: 50%; overflow: auto;">';
+    $view .= '<div class="box-container" style="height: 200px; width: 50%; overflow: auto;">';
 
     foreach ($result as $row) {
         $view .= '<div class="box' . (isset($_GET["userid"]) && $_GET["userid"] == $row["id"] ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $row["id"] . '\', this)">
@@ -111,8 +111,9 @@ if ($user->get_user_admin_level() == 0) {
         $view .= '<h3>Benutzer-Info</h3>';
         $view .= '<table class="table">
             <tr>
-                <td class="td-adminpanel">Name:</td>
-                <td>' . $userInfo['username'] . ' [ID: ' . $user_id . ']</td>
+                <td>Name:</td>
+                <td>' . $userInfo['username'] . ' [ID: ' . $user_id . '] <button onclick="confirmAndRedirect(\'adminpanel.php?deleteuser=' . $user_id . '\')">Delete User</button></td>
+
             </tr>
             <tr>
                 <td>Account-Status:</td>
@@ -178,8 +179,8 @@ if ($user->get_user_admin_level() == 0) {
 
         foreach ($kingdoms as $kingdom_id => $kingdom_data) {
             $view .= '<tr>
-                        <td class="td-adminpanel">Königreich:</td>
-                        <td class="td-adminpanel" style="word-break: break-all;">' . $kingdom_data['kingdomname'] . ' [ID: ' . $kingdom_id . ']</td>
+                        <td>Königreich:</td>
+                        <td>' . $kingdom_data['kingdomname'] . ' [ID: ' . $kingdom_id . ']</td>
                       </tr>';
 
             if (!empty($kingdom_data['events'])) {
@@ -189,7 +190,7 @@ if ($user->get_user_admin_level() == 0) {
 
                 foreach ($kingdom_data['events'] as $event) {
                     $view .= '<tr>
-                                <td class="td-adminpanel">Event:</td>
+                                <td>Event:</td>
                                 <td>Aktion: ' . $event['action_id'] . ' [ID: ' . $event['event_id'] . ']</td>
                               </tr>';
                 }
@@ -203,6 +204,8 @@ if ($user->get_user_admin_level() == 0) {
         }
 
         $view .= '</table>';
+    } else if (isset($_GET["deleteuser"])) {
+        $view .= "<h3>Delete User</h3>";
     }
 }
 
@@ -218,3 +221,15 @@ if (!empty($error)) {
 }
 
 include('layout/base.php');
+?>
+<script>
+    function confirmAndRedirect(url) {
+        // Show confirmation dialog
+        const confirmed = confirm("Are you sure you want to proceed?");
+
+        // If user confirms, redirect to the URL
+        if (confirmed) {
+            window.location.href = url; // Redirect to the specified URL
+        }
+    }
+</script>

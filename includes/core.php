@@ -16,7 +16,7 @@ if (session_status() == PHP_SESSION_NONE) {
 /*
     Constants (defines)
 */
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 const ERROR_PATH = "D:/xampp/htdocs/magic-empires/logs/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MIN_USERNAME_LENGTH = 4;

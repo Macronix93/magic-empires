@@ -200,12 +200,14 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                                     $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?", [$current_kingdom, $i, ACTION_BUILD_BUILDING]);
                                     $row = $result->fetch_assoc();
 
-                                    $differenceTime = $row["buildingtime"] - time();
+                                    $difference_time = $row["buildingtime"] - time();
 
-                                    $text_build = "<b><span id='counter'></span></b><br>
+                                    $text_build = "<b><span id='counter'>00:00</span></b><br>
                                                                       <script type='text/javascript'>
-                                                                        diff = " . json_encode($differenceTime) . "
-                                                                        startCountdown(diff);
+                                                                            document.addEventListener('DOMContentLoaded', function () {
+                                                                                  diff = " . json_encode($difference_time) . "
+                                                                                  startCountdown(diff);
+                                                                            });
                                                                       </script>
                                                                       <form action='buildings.php' method='GET'>
                                                                         <input type='hidden' name='id' value='0'>
@@ -391,13 +393,13 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                             $remaining_time_in_seconds = $soldiers[$i]->get_soldier_time();
                         }
 
-                        $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b>
-                                                                      <span id='counter'>
+                        $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b><span id='counter'>00:00</span></b><br> 
                                                                       <script type='text/javascript'>
-                                                                          diff = " . json_encode($remaining_time_in_seconds) . "
-                                                                          startCountdown(diff);
+                                                                            document.addEventListener('DOMContentLoaded', function () {
+                                                                                  diff = " . json_encode($remaining_time_in_seconds) . "
+                                                                                  startCountdown(diff);
+                                                                            });
                                                                       </script>
-                                                                      </span></b><br> 
                                                                       <form action='buildings.php' method='GET'>
                                                                         <input type='hidden' name='id' value='2'>
                                                                         <input type='hidden' name='recruit' value='" . $i . "'>

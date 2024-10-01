@@ -244,8 +244,10 @@ if (isset($_GET["action"])) {
                                     </form>
                                 </div>";
                 $view .= "<script type='text/javascript'>
-                                        initializeChat();
-                                    </script>";
+                            document.addEventListener('DOMContentLoaded', function () {
+                                initializeChat();
+                            });
+                        </script>";
             }
         } else {
             $error = "Der Benutzer existiert nicht!";
@@ -302,9 +304,8 @@ if (isset($_GET["action"])) {
  */
 $title = "Nachrichten";
 $header = "Nachrichten";
-$script_files = ["chat"];
+$script_files = ["chat", "userinfo"];
 $view = '<div class="info-box" style="display: none;"></div>' . $view;
-$view .= '<script type="text/javascript">scrollToLatestMessage();</script>';
 
 if (!empty($error)) {
     $view = "<div class='info-box'>" . $error . "</div>" . $view;

@@ -24,7 +24,7 @@ $view .= '<img src="images/icons/icon_right_slow.png" class="popup" id="test1" a
             <div id="test1_box" class="popupbox">Testbox hahaha <br>hahahah</div>
             <br>
             <a class="popup" id="test2">This is a test</a>
-            <div id="test2_box" class="popupbox"><?php echo "E-Mail: ' . htmlspecialchars($email) . '<br>"; ?></div>
+            <div id="test2_box" class="popupbox">E-Mail: ' . htmlspecialchars($email) . '</div>
             <br><br>';
 
 $time_diff = time() - $_SESSION["currlogin"];
@@ -49,7 +49,7 @@ if ($count > 0) {
     echo 'IP not found.';
 }*/
 
-$view .= "Login-Zeit: <span id='counter'><script type='text/javascript'>startCountup($time_diff)</script></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
+$view .= "Login-Zeit: <span id='counter'>00:00:00</span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
 $view .= "Haupt-KönigreichID: $main_kingdom<br>";
 $view .= "E-Mail: $email<br>";
 $view .= "Registriert seit: " . date('d.m.Y H:i:s', $register_date) . "<br>";
@@ -64,5 +64,13 @@ $view .= "Admin-Level: " . $user->get_user_admin_level();
 $title = "Übersicht";
 $header = "Übersicht";
 $script_files = ["counter"];
+
+$view .= "
+    <script type='text/javascript'>
+        document.addEventListener('DOMContentLoaded', function() {
+            startCountup(\"$time_diff\");
+        });
+    </script>
+";
 
 include('layout/base.php');

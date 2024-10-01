@@ -27,11 +27,7 @@ global $user, $db_instance;
         <br>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
             <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/>
-            <span class='servertime'>
-                <script type="text/javascript">
-                    updateServerTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>);
-                </script>
-            </span>
+            <span class='servertime'><?= date("H:i:s", $current_timestamp); ?></span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
              title='Punkte'/> <?php echo fnum($user->get_user_score()); ?>
@@ -56,3 +52,8 @@ global $user, $db_instance;
         </div>
     </div>
 </div>
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        updateServerTime(<?= $current_timestamp; ?>);
+    });
+</script>

@@ -101,4 +101,7 @@ function initializeChat() {
     setInterval(() => {
         sendUpdateChatRequest();
     }, CHAT_UPDATE_INTERVAL);
+
+    // Scroll to latest message at the bottom
+    scrollToLatestMessage();
 }

@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE-edge">
     <meta name="viewport" content="width=device-width, initial-scale:1.0">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
+    <link rel="stylesheet" type="text/css" href="styles.css">
     <title><?php echo (!empty($title)) ? "Magic Empires - $title" : "Magic Empires"; ?></title>
-    <script type="text/javascript" src="js/main.js"></script>
+    <script type="text/javascript" src="js/main.js" defer></script>
     <?php
     if (!empty($script_files)) {
         foreach ($script_files as $script_file) {
-            echo '<script type="text/javascript" src="js/' . $script_file . '.js"></script>';
+            echo '<script type="text/javascript" src="js/' . $script_file . '.js" defer></script>';
         }
     }
     echo $head_extra ?? '';
@@ -29,7 +28,7 @@
     <div class="middle-container">
         <div class="big-box-container">
             <div class="big-box-header">
-                <p><?php echo $header ?? 'Default Header'; ?></p>
+                <?php echo $header ?? 'Default Header'; ?>
             </div>
             <div class="big-box-content">
                 <?php echo $view ?? 'Default Content'; ?>
