@@ -130,7 +130,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
  * AutoLoad classes
  */
 spl_autoload_register(function ($class_name) {
-    include('classes/' . strtolower($class_name) . '.php');
+    include(__DIR__ . '/../classes/' . strtolower($class_name) . '.php');
 });
 
 // Load .env file
@@ -282,10 +282,16 @@ function convert_sec_to_str($secs): string {
 }
 
 function change_location(string $url, int $seconds = 0): void {
+    // Assuming your site is hosted at the root domain, adjust if necessary
+    $rootUrl = '/magic-empires/'; // This points to the root of your website
+
+    // Prepend the root URL to the given URL
+    $fullUrl = rtrim($rootUrl, '/') . '/' . ltrim($url, '/'); // Ensures no double slashes
+
     if ($seconds === 0) {
-        header("Location: $url");
+        header("Location: $fullUrl");
     } else {
-        header("refresh:$seconds; url=$url");
+        header("refresh:$seconds; url=$fullUrl");
     }
 }
 

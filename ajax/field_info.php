@@ -1,8 +1,8 @@
 <?php
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    global $db_instance;
-    require_once("includes/core.php");
+global $db_instance;
+require_once("../includes/core.php");
 
+if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $map = new Map($db_instance);
 
     // Render the field info table HTML
@@ -12,5 +12,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo $html;
 } else {
-    header("Location: map.php");
+    change_location("map.php");
 }

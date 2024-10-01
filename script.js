@@ -261,7 +261,7 @@ function updateMap(newStartX, newStartY, inputX, inputY) {
             }
         }
     };
-    xhttp.open("GET", "map_update.php?startx=" + newStartX + "&starty=" + newStartY, false);
+    xhttp.open("GET", "ajax/map_update.php?startx=" + newStartX + "&starty=" + newStartY, false);
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhttp.send();
 }
@@ -288,7 +288,7 @@ function highlightField(clickedField = -1, x = -1, y = -1) {
             document.getElementById("field-info").innerHTML = this.responseText;
         }
     };
-    xhttp.open("GET", "field_info.php?clickedfield=" + clickedField + "&x=" + x + "&y=" + y, true);
+    xhttp.open("GET", "ajax/field_info.php?clickedfield=" + clickedField + "&x=" + x + "&y=" + y, true);
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhttp.send();
 }
@@ -351,7 +351,7 @@ function updateChat(chatPartner) {
             }
         }
     };
-    xhttp.open("GET", "chat_update.php?action=read&s=" + chatPartner, true);
+    xhttp.open("GET", "ajax/chat_update.php?action=read&s=" + chatPartner, true);
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhttp.send();
 
@@ -390,7 +390,7 @@ function insertNewChatMessage(e) {
             }
         }
     };
-    xhttp.open("POST", "chat_insert.php", true);
+    xhttp.open("POST", "ajax/chat_insert.php", true);
     xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
@@ -432,6 +432,9 @@ function updateKingdom() {
         let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4 && this.status === 200) {
+                const response = JSON.parse(this.responseText);
+                console.log("Response:", response);
+
                 // Construct the new URL based on the current page
                 let currentUrl = new URL(window.location.href);
                 let pathname = currentUrl.pathname;
@@ -452,7 +455,7 @@ function updateKingdom() {
                 window.location.href = newUrl;
             }
         };
-        xhttp.open("POST", "change_kingdom.php", true);
+        xhttp.open("POST", "ajax/change_kingdom.php", true);
         xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         xhttp.send(formData);
     }

@@ -1,8 +1,8 @@
 <?php
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    global $db_instance;
-    require_once("includes/core.php");
+global $db_instance;
+require_once("../includes/core.php");
 
+if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     // Get chat partner
     $chat_partner = htmlspecialchars($_GET["s"]);
     $has_new_messages = false;

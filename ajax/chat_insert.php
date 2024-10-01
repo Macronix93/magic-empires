@@ -1,11 +1,9 @@
 <?php
-session_start();
-require_once("includes/core.php");
+global $db_instance;
+require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    global $db_instance;
-    $response = array();
-
+    $response = [];
     $receiver_id = $_SESSION["msgreceiver"];
     $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
 
@@ -44,8 +42,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $receiver = $result->fetch_assoc()["username"];
 
             // Insert message into database
-            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $time, 0, $message]);
+            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, '0', ?)";
+            $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $time, $message]);
 
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
@@ -59,5 +57,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo json_encode($response);
 } else {
-    change_location("Location: messages.php");
+    change_location("messages.php");
 }

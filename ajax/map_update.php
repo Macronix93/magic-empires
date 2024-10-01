@@ -1,8 +1,8 @@
 <?php
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    global $db_instance;
-    require_once("includes/core.php");
+global $db_instance;
+require_once("../includes/core.php");
 
+if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $map = new Map($db_instance);
 
     // Retrieve start_x and start_y parameters from GET request
@@ -16,5 +16,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo $html;
 } else {
-    change_location("Location: map.php");
+    change_location("map.php");
 }
