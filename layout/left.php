@@ -46,6 +46,14 @@ $current_page = basename($_SERVER["PHP_SELF"]);
 <div class="box-container">
     <div class="box-header">Allgemeines</div>
     <div class="box-content">
+        <?php
+        if ($user->get_user_admin_level() > 0) {
+            echo '<div class="box' . ($current_page === "adminpanel.php" ? ' active' : '') . '" 
+                onclick="navigateTo(\'adminpanel.php\', this)">
+                <img src="images/icons/icon_adminpanel.png" class="menu-icons" alt="Admin-Bereich"/> Admin-Bereich
+              </div>';
+        }
+        ?>
         <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
              onclick="navigateTo('settings.php', this)">
             <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen
