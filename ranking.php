@@ -107,5 +107,6 @@ if ($current_page < $total_pages) {
  */
 $title = "Rangliste";
 $header = "Rangliste";
+$script_files = ["userinfo"];
 
 include('layout/base.php');

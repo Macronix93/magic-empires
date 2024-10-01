@@ -30,19 +30,18 @@ if (isset($_GET["logout"])) {
         $name = make_secure($_POST["username"] ?? "");
         $pass = make_secure($_POST["password"] ?? "");
 
-        if (MAINTENANCE_MODE && $name !== "test") {
-            $error .= "Der Server befindet sich im Wartungsmodus!";
+        if (empty($name) || empty($pass)) {
+            $error .= "Bitte beide Felder ausfüllen!";
         } else {
+            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel FROM users WHERE username = ? LIMIT 1", [$name]);
+            $row = $result->fetch_assoc();
+            $found = $result->num_rows == 1;
 
-            if (empty($name) || empty($pass)) {
-                $error .= "Bitte beide Felder ausfüllen!";
-            } else {
-                $result = $db_instance->execute_query("SELECT id, password, status FROM users WHERE username = ? LIMIT 1", [$name]);
-                $row = $result->fetch_assoc();
-                $found = $result->num_rows == 1;
-
-                // Check if user exists
-                if ($found) {
+            // Check if user exists
+            if ($found) {
+                if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
+                    $error .= "Der Server befindet sich im Wartungsmodus!";
+                } else {
                     $user_id = $row["id"];
                     $password = $row["password"];
                     $status = $row["status"];
@@ -57,9 +56,9 @@ if (isset($_GET["logout"])) {
                             $user->login_user($user_id);
                         }
                     }
-                } else {
-                    $error .= "Dieser Nickname existiert nicht!";
                 }
+            } else {
+                $error .= "Dieser Nickname existiert nicht!";
             }
         }
 

@@ -1,6 +1,6 @@
 <?php
 /************************************
- * Functions file
+ * Core file
  ************************************/
 
 /*
@@ -17,7 +17,7 @@ if (session_status() == PHP_SESSION_NONE) {
     Constants (defines)
 */
 const MAINTENANCE_MODE = true;
-const ERROR_PATH = "D:/xampp/htdocs/magic-empires/errors.log";
+const ERROR_PATH = "D:/xampp/htdocs/magic-empires/logs/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 16;
@@ -25,7 +25,6 @@ const MIN_PASSWORD_LENGTH = 5;
 const MAX_PASSWORD_LENGTH = 65;
 const MAX_X = 100;
 const MAX_Y = 100;
-const MAX_MAP_SEARCHES = 3;
 const ACTION_BUILD_BUILDING = 1;
 const ACTION_BUILD_TROOPS = 2;
 const ACTION_SEND_TROOPS = 3;

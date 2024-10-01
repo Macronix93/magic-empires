@@ -63,5 +63,6 @@ $view .= "Admin-Level: " . $user->get_user_admin_level();
  */
 $title = "Übersicht";
 $header = "Übersicht";
+$script_files = ["counter"];
 
 include('layout/base.php');

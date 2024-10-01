@@ -302,6 +302,7 @@ if (isset($_GET["action"])) {
  */
 $title = "Nachrichten";
 $header = "Nachrichten";
+$script_files = ["chat"];
 $view = '<div class="info-box" style="display: none;"></div>' . $view;
 $view .= '<script type="text/javascript">scrollToLatestMessage();</script>';
 

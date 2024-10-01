@@ -382,6 +382,7 @@ td {
     border-radius: 10px;
     height: 40px;
     margin: 0 auto 15px auto;
+    gap: 5px;
 }
 
 .passed {

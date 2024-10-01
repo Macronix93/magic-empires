@@ -36,7 +36,7 @@ $soldiers_count = 0;
 
 // Check if building is valid
 if (isset($_GET["id"]) && ($current_building >= 0 && $current_building < $building_count)) {
-    $building_name = $buildings[$current_building]->get_building_name() . " (" . $buildings[$current_building]->get_building_level() . ")";
+    $building_name = $buildings[$current_building]->get_building_name();
 }
 
 // Handle current building logic and view
@@ -792,7 +792,8 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
  * HTML Section
  */
 $title = $building_name;
-$header = empty($building_name) ? "Fehler" : $building_name;
+$header = empty($building_name) ? "Fehler" : $building_name . " (" . $buildings[$current_building]->get_building_level() . ")";
+$script_files = ["counter"];
 
 if (!empty($error)) {
     $view = "<div class='info-box'>" . $error . "</div>" . $view;

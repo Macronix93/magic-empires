@@ -10,6 +10,7 @@ if (!($user->is_logged_in())) {
 ?>
 <!DOCTYPE html>
 <html lang="de">
+<script type="text/javascript" src="js/userinfo.js"></script>
 <?php
 include_once("layout/head.html");
 ?>
@@ -69,7 +70,7 @@ if (isset($user_id)) {
         <tr>
             <td><b>Punkte</b></td>
             <?php
-            echo "<td>" . $score . "</td>";
+            echo "<td>" . fnum($score) . "</td>";
             ?>
         </tr>
         <tr>
@@ -82,7 +83,9 @@ if (isset($user_id)) {
         if ($guild_id) {
             ?>
             <tr>
-                <td><b>Gilde</b></td>
+                <td>
+                    <b>Gilde</b>
+                </td>
                 <?php
                 echo "<td>" . $guild_id . "</td>";
                 ?>
@@ -91,39 +94,25 @@ if (isset($user_id)) {
         }
         ?>
         <tr>
-            <td><b>Haupt-Königreich</b></td>
+            <td>
+                <b>Haupt-Königreich</b>
+            </td>
+            <td>
+                <a href='javascript:void(0);' onclick='redirectToMap(<?php echo $x; ?>, <?php echo $y; ?>)'>
+                    <?php echo $x . ":" . $y; ?>
+                </a>
+            </td>
             <?php
-            echo "<td><a href='javascript:void(0);' onclick='redirectToMap(\"$x\", \"$y\")'>" . $x . ":" . $y . "</a></td>";
+            //echo "<td><a href='javascript:void(0);' onclick='redirectToMap(\"$x\", \"$y\")'>" . $x . ":" . $y . "</a></td>";
             ?>
-            <script>
-                let mainWindow = window.opener;
-
-                function redirectToMap(x, y) {
-                    if (mainWindow === null || mainWindow.closed) {
-                        mainWindow = window.open("map.php?startx=" + x + "&starty=" + y, "mainWindow");
-                    } else {
-                        let url = mainWindow.location.href;
-
-                        if (url.includes("magic-empires")) {
-                            if (url.includes("map.php")) {
-                                mainWindow.document.getElementById('startx').value = x;
-                                mainWindow.document.getElementById('starty').value = y;
-                                mainWindow.sendUpdateMapRequest();
-                            } else {
-                                mainWindow.location.href = "map.php?startx=" + x + "&starty=" + y;
-                            }
-                        } else {
-                            mainWindow.location.href = "map.php?startx=" + x + "&starty=" + y;
-                        }
-                    }
-                }
-            </script>
         </tr>
     </table>
     <br>
     <div style="text-align:center">
         <a href="javascript:window.close()"
-           style="background-color: rgba(0, 0, 0, 0.7); display: inline-block;">[Schließen]</a>
+           style="background-color: rgba(0, 0, 0, 0.7); display: inline-block;">
+            [Schließen]
+        </a>
     </div>
     <title>Magic Empires - <?php echo $row["username"]; ?></title>
     <?php

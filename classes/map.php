@@ -312,6 +312,16 @@ class Map {
             $kingdom_name = $row_2["kingdomname"];
             $user_name = $row_2["username"];
             $user_id = $row_2["userid"];
+            $field_x = $row_2["mapx"];
+            $field_y = $row_2["mapy"];
+
+            $query = "
+                    SELECT m.fieldtype, f.fieldname FROM map m
+                    JOIN fieldtypes f ON m.fieldtype = f.fieldid
+                    WHERE mapx = ? AND mapy = ?
+            ";
+            $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
+            $field_name = $result->fetch_assoc()["fieldname"];
 
             if ($result_2->num_rows == 0) {
                 echo "<div class='info-box'>Dieses Königreich existiert nicht!</div>";

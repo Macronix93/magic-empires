@@ -18,8 +18,17 @@ $x = 1;
 $y = 1;
 
 if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
-    if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) $map->set_start_x(1);
-    if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) $map->set_start_y(1);
+    if (!is_numeric($_GET["startx"]) || $_GET["startx"] < 0 || $_GET["startx"] > MAX_X) {
+        $map->set_start_x(1);
+    } else {
+        $map->set_start_x($_GET["startx"]);
+    }
+
+    if (!is_numeric($_GET["starty"]) || $_GET["starty"] < 0 || $_GET["starty"] > MAX_Y) {
+        $map->set_start_y(1);
+    } else {
+        $map->set_start_y($_GET["starty"]);
+    }
 
     // If there is a kingdom on the field - get the data
     $x = $_GET["startx"];
@@ -33,6 +42,8 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
     // Calculate start coordinates
     $map->set_start_x(max(1, min($x - 5, 91)));
     $map->set_start_y(max(1, min($y - 5, 91)));
+
+    echo "gesetzt: " . $field_id;
 } else {
     // Get the coords of the current kingdom
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
@@ -43,20 +54,18 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
     // Calculate start coordinates
     $map->set_start_x(max(1, min($x - 5, 91)));
     $map->set_start_y(max(1, min($y - 5, 91)));
-    $field_id = $_SESSION["kingdomid"];
+    $field_id = $user->get_current_kingdom();
 }
 
+// Pass x and y directly as numbers
 echo "<input type='hidden' id='highlightedfield'>
-                        <script type='text/javascript'>
-                            document.addEventListener('DOMContentLoaded', function() {
-                                let x = '" . json_encode($x) . "';
-                                let y = '" . json_encode($y) . "';
-                                let fieldID = document.getElementById('highlightedfield');
-                                fieldID.setAttribute('data-x', x);
-                                fieldID.setAttribute('data-y', y);
-                                highlightEnteredCoordinates(x, y);
-                            });
-                        </script>";
+      <script type='text/javascript'>
+          document.addEventListener('DOMContentLoaded', function() {
+              let x = " . json_encode($x) . ";
+              let y = " . json_encode($y) . ";
+              highlightEnteredCoordinates(x || 0, y || 0);
+          });
+      </script>";
 
 // Show info about the fields
 echo "<div style='padding-bottom: 5px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;'>
@@ -70,7 +79,7 @@ echo "<div id='map-container'>";
 $map->render_map($map->get_start_x(), $map->get_start_y());
 echo "</div>";
 echo '<div id="field-info">';
-$map->render_field_info($user->get_current_kingdom());
+$map->render_field_info($field_id);
 echo '</div>
         <br>
         <form id="update-map">
@@ -90,5 +99,7 @@ $view = ob_get_clean();
  */
 $title = "Landschaft";
 $header = "Landschaft";
+$head_extra = '<meta data-max-map-size=\'{"maxMapSize": ' . MAX_X . '}\' />';
+$script_files = ["map", "userinfo"];
 
 include('layout/base.php');

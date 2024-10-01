@@ -8,7 +8,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title><?php echo (!empty($title)) ? "Magic Empires - $title" : "Magic Empires"; ?></title>
-    <script type="text/javascript" src="script.js"></script>
+    <script type="text/javascript" src="js/main.js"></script>
+    <?php
+    if (!empty($script_files)) {
+        foreach ($script_files as $script_file) {
+            echo '<script type="text/javascript" src="js/' . $script_file . '.js"></script>';
+        }
+    }
+    echo $head_extra ?? '';
+    ?>
 </head>
 <body>
 <div class="header img">

@@ -29,7 +29,7 @@ global $user, $db_instance;
             <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/>
             <span class='servertime'>
                 <script type="text/javascript">
-                    updateTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>);
+                    updateServerTime(<?php echo $current_timestamp; ?>, <?php echo TIMEOUT_MAX_SECONDS; ?>);
                 </script>
             </span>
         </div>
