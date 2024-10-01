@@ -123,9 +123,8 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                 $building_name = $last_built_building["buildingname"];
                 $building_level = $last_built_building["buildinglevel"];
 
-                $view .= "<div class='info-box'><span class='event-finished'>Bau abgeschlossen:</span> $building_name (" . ($building_level == 0 ? "0" : $building_level) . " → " . ($building_level + 1) . ")</div>";
+                $view .= "<div class='info-box'><p><span class='event-finished'>Bau abgeschlossen:</span> $building_name (" . ($building_level == 0 ? "0" : $building_level) . " → " . ($building_level + 1) . ")</p></div>";
 
-                // Clear the last built building data after displaying it
                 $user->clear_last_built_building($current_kingdom);
             }
 
@@ -205,8 +204,8 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                                     $text_build = "<b><span id='counter'>00:00</span></b><br>
                                                                       <script type='text/javascript'>
                                                                             document.addEventListener('DOMContentLoaded', function () {
-                                                                                  diff = " . json_encode($difference_time) . "
-                                                                                  startCountdown(diff);
+                                                                                  let diff = $difference_time;
+                                                                                  startCountdown(diff || 0);
                                                                             });
                                                                       </script>
                                                                       <form action='buildings.php' method='GET'>
@@ -265,11 +264,6 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
             }
 
             $soldiers_count = count($soldiers);
-
-            $kingdom_food = $kingdom->get_kingdom_food();
-            $kingdom_gold = $kingdom->get_kingdom_gold();
-            $kingdom_villager = $kingdom->get_kingdom_villager();
-
             $current_kingdom = $user->get_current_kingdom();
             $s_id = (empty($_GET["recruit"]) ? 0 : $_GET["recruit"]);
 
@@ -336,13 +330,16 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
             /*
              * HTML Content Part
              */
+            $kingdom_food = $kingdom->get_kingdom_food();
+            $kingdom_gold = $kingdom->get_kingdom_gold();
+            $kingdom_villager = $kingdom->get_kingdom_villager();
             $last_recruited_soldier = $user->get_last_recruited_soldier($current_kingdom);
 
             if (!empty($last_recruited_soldier)) {
                 $soldier_name = $last_recruited_soldier["soldiername"];
                 $soldier_count = $last_recruited_soldier["soldiercount"];
 
-                $view .= "<div class='info-box'><span class='event-finished'>Ausbildung abgeschlossen:</span> $soldier_name (+$soldier_count)</div>";
+                $view .= "<div class='info-box'><p><span class='event-finished'>Ausbildung abgeschlossen:</span> $soldier_name (+$soldier_count)</p></div>";
 
                 $user->clear_last_recruited_soldier($current_kingdom);
             }
@@ -396,8 +393,8 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                         $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b><span id='counter'>00:00</span></b><br> 
                                                                       <script type='text/javascript'>
                                                                             document.addEventListener('DOMContentLoaded', function () {
-                                                                                  diff = " . json_encode($remaining_time_in_seconds) . "
-                                                                                  startCountdown(diff);
+                                                                                  let diff = $remaining_time_in_seconds;
+                                                                                  startCountdown(diff || 0);
                                                                             });
                                                                       </script>
                                                                       <form action='buildings.php' method='GET'>

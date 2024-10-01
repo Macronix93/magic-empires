@@ -382,7 +382,6 @@ td {
     border-radius: 10px;
     height: 40px;
     margin: 0 auto 15px auto;
-    gap: 5px;
 }
 
 .passed {
@@ -391,6 +390,7 @@ td {
 
 .event-finished {
     color: rgb(243, 231, 159);
+    font-weight: bold;
 }
 
 .popupbox {
