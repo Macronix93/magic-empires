@@ -32,7 +32,7 @@ body {
 #messages-section {
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 570px);
+    max-height: calc(100vh - 500px);
     overflow-x: hidden;
     word-break: break-word;
     padding: 10px;
@@ -628,7 +628,7 @@ td {
     }
 
     #messages-section {
-        max-height: calc(100vh - 420px);
+        max-height: calc(100vh - 370px);
     }
 }
 
