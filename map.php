@@ -61,9 +61,12 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
 echo "<input type='hidden' id='highlightedfield'>
       <script type='text/javascript'>
           document.addEventListener('DOMContentLoaded', function() {
-              let x = " . json_encode($x) . ";
-              let y = " . json_encode($y) . ";
-              highlightEnteredCoordinates(x || 0, y || 0);
+                let x = " . $x . ";
+                let y = " . $y . ";
+                let fieldToHighlight = document.getElementById('highlightedfield');
+                fieldToHighlight.setAttribute('data-x', x || '0');
+                fieldToHighlight.setAttribute('data-y', y || '0');
+                highlightEnteredCoordinates(x || 0, y || 0);
           });
       </script>";
 

@@ -130,7 +130,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
  * AutoLoad classes
  */
 spl_autoload_register(function ($class_name) {
-    include(__DIR__ . '/../classes/' . strtolower($class_name) . '.php');
+    include(__DIR__ . '/../classes/' . $class_name . '.php');
 });
 
 // Load .env file

@@ -97,6 +97,7 @@ function highlightEnteredCoordinates(x, y) {
     if (cell) {
         cell.classList.add("highlight");
     }
+    return cell;
 }
 
 function clearFieldHighlighting() {

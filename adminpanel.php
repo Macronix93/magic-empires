@@ -14,10 +14,23 @@ $error = "";
 if ($user->get_user_admin_level() == 0) {
     $error = "Du bist kein Administrator!";
 } else {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['field'])) {
+        $field = $_POST['field'];
+        $new_value = $_POST['new_value'];
+        $user_id = $_POST['user_id'];
+
+        $result = $db_instance->execute_query("UPDATE users SET $field = ? WHERE id = ?", [$new_value, $user_id]);
+
+        if ($result) {
+            $view .= '<div class="info-box">Daten erfolgreich aktualisiert! Field: ' . $field . ' Value: ' . $new_value . '</div><br>';
+        } else {
+            $view .= '<div class="info-box">Fehler beim Aktualisieren! Field: ' . $field . ' Value: ' . $new_value . '</div><br>';
+        }
+    }
+
     $result = $db_instance->execute_query("SELECT * FROM users");
 
-    $view .= '<div class="box-container" style="height: 200px; width: 50%; overflow: auto;">';
-
+    $view .= '<div class="box-container" style="max-height: 200px; width: 70%; overflow: auto;">';
     foreach ($result as $row) {
         $view .= '<div class="box' . (isset($_GET["userid"]) && $_GET["userid"] == $row["id"] ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $row["id"] . '\', this)">
                     <div style="width: 50px; text-align: center;">
@@ -28,7 +41,6 @@ if ($user->get_user_admin_level() == 0) {
                     </div>
                   </div>';
     }
-
     $view .= '</div>';
 
     // Show user related info
@@ -36,21 +48,7 @@ if ($user->get_user_admin_level() == 0) {
         $user_id = $_GET['userid'];
 
         $query = "SELECT 
-                    users.id AS user_id, 
-                    users.username, 
-                    users.registerdate, 
-                    users.lastlogin, 
-                    users.lastactivity, 
-                    users.lastsentmsg, 
-                    users.status, 
-                    users.adminlevel, 
-                    users.email, 
-                    users.ip, 
-                    users.lastrank, 
-                    users.score, 
-                    users.mainkingdom, 
-                    users.guildid, 
-                    users.gems, 
+                    users.*, 
                     kingdoms.id AS kingdom_id, 
                     kingdoms.kingdomname, 
                     events.eventid AS event_id, 
@@ -66,144 +64,149 @@ if ($user->get_user_admin_level() == 0) {
         $result = $db_instance->execute_query($query, [$user_id]);
 
         $kingdoms = [];
-        $userInfo = [];
+        $events = [];
+        $user_info = [];
+        $found_kingdom = -1;
 
         foreach ($result as $row) {
             $kingdom_id = $row['kingdom_id'];
+            $event_id = $row['event_id'];
 
             // Process user information only once (for display purposes)
-            if (empty($userInfo)) {
-                $userInfo = [
-                    'username' => $row['username'],
-                    'registerdate' => $row['registerdate'],
-                    'lastlogin' => $row['lastlogin'],
-                    'lastactivity' => $row['lastactivity'],
-                    'lastsentmsg' => $row['lastsentmsg'],
-                    'status' => $row['status'],
-                    'adminlevel' => $row['adminlevel'],
-                    'email' => $row['email'],
-                    'ip' => $row['ip'],
-                    'lastrank' => $row['lastrank'],
-                    'score' => $row['score'],
-                    'mainkingdom' => $row['mainkingdom'],
-                    'guildid' => $row['guildid'],
-                    'gems' => $row['gems']
+            if (empty($user_info)) {
+                $user_info = [
+                    'Name' => ['field' => 'username', 'value' => $row['username']],
+                    'Account-Status' => ['field' => 'status', 'value' => $row['status']],
+                    'IP' => ['field' => 'ip', 'value' => $row['ip']],
+                    'Admin-Level' => ['field' => 'adminlevel', 'value' => $row['adminlevel']],
+                    'Registriert am' => ['field' => 'registerdate', 'value' => $row['registerdate']],
+                    'E-Mail' => ['field' => 'email', 'value' => $row['email']],
+                    'Letzter Login' => ['field' => 'lastlogin', 'value' => $row['lastlogin']],
+                    'Letzte Aktivität' => ['field' => 'lastactivity', 'value' => $row['lastactivity']],
+                    'Rang um 0 Uhr' => ['field' => 'lastrank', 'value' => $row['lastrank']],
+                    'Punkte' => ['field' => 'score', 'value' => $row['score']],
+                    'Haupt-Königreich' => ['field' => 'mainkingdom', 'value' => $row['mainkingdom']],
+                    'Gilde' => ['field' => 'guildid', 'value' => $row['guildid']],
+                    'Münzen' => ['field' => 'gems', 'value' => $row['gems']],
+                    'Letzte Nachricht' => ['field' => 'lastsentmsg', 'value' => $row['lastsentmsg']]
                 ];
             }
 
             // Add the kingdom data if not already added
-            if (!isset($kingdoms[$kingdom_id])) {
-                $kingdoms[$kingdom_id] = [
-                    'kingdomname' => $row['kingdomname'],
-                    'events' => []
-                ];
-            }
+            if ($kingdom_id !== null) {
+                if (!isset($kingdoms[$kingdom_id])) {
+                    $kingdoms[$kingdom_id] = [
+                        'kingdomname' => $row['kingdomname'],
+                        'events' => []
+                    ];
+                }
 
-            // Add events if they exist
-            if (!empty($row['event_id'])) {
-                $kingdoms[$kingdom_id]['events'][] = [
-                    'event_id' => $row['event_id'],
-                    'action_id' => $row['action_id']
-                ];
+                // Add event data to the kingdom's events array if event exists
+                if ($event_id !== null) {
+                    $kingdoms[$kingdom_id]['events'][] = [
+                        'event_id' => $row['event_id'],
+                        'action_id' => $row['action_id']
+                    ];
+                }
             }
         }
 
+        // Display user info using a loop
         $view .= '<h3>Benutzer-Info</h3>';
-        $view .= '<table class="table">
-            <tr>
-                <td>Name:</td>
-                <td>' . $userInfo['username'] . ' [ID: ' . $user_id . '] <button onclick="confirmAndRedirect(\'adminpanel.php?deleteuser=' . $user_id . '\')">Delete User</button></td>
-
-            </tr>
-            <tr>
-                <td>Account-Status:</td>
-                <td>' . ($userInfo["status"] == 1 ? '<span class="passed">Aktiviert!</span>' : '<span class="error">Nicht aktiviert!</span>') . '</td>
-            </tr>
-            <tr>
-                <td>Passwort:</td>
-                <td>******</td>
-            </tr>
-            <tr>
-                <td>IP:</td>
-                <td>' . $userInfo['ip'] . '</td>
-            </tr>
-            <tr>
-                <td>Admin-Level:</td>
-                <td>' . $userInfo['adminlevel'] . '</td>
-            </tr>
-            <tr>
-                <td>Registriert am:</td>
-                <td>' . date("d.m.Y", $userInfo['registerdate']) . ' um ' . date("H:i:s", $userInfo['registerdate']) . '</td>
-            </tr>
-            <tr>
-                <td>E-Mail:</td>
-                <td>' . $userInfo['email'] . '</td>
-            </tr>
-            <tr>
-                <td>Letzter Login:</td>
-                <td>' . date("d.m.Y", $userInfo['lastlogin']) . ' um ' . date("H:i:s", $userInfo['lastlogin']) . '</td>
-            </tr>
-            <tr>
-                <td>Letzte Aktivität:</td>
-                <td>' . date("d.m.Y", $userInfo['lastactivity']) . ' um ' . date("H:i:s", $userInfo['lastactivity']) . '</td>
-            </tr>
-            <tr>
-                <td>Rang um 0 Uhr:</td>
-                <td>' . $userInfo['lastrank'] . '</td>
-            </tr>
-            <tr>
-                <td>Punkte:</td>
-                <td>' . fnum($userInfo['score']) . '</td>
-            </tr>
-            <tr>
-                <td>Haupt-Königreich:</td>
-                <td>' . $userInfo['mainkingdom'] . '</td>
-            </tr>
-            <tr>
-                <td>Gilde:</td>
-                <td>' . $userInfo['guildid'] . '</td>
-            </tr>
-            <tr>
-                <td>Münzen:</td>
-                <td>' . $userInfo['gems'] . '</td>
-            </tr>
-            <tr>
-                <td>Letzte Nachricht:</td>
-                <td>' . date("d.m.Y", $userInfo['lastsentmsg']) . ' um ' . date("H:i:s", $userInfo['lastsentmsg']) . '</td>
-            </tr>
-        </table>';
-
-        // Display kingdoms and their events
-        $view .= '<h3>Königreich-Info</h3>';
         $view .= '<table class="table">';
 
-        foreach ($kingdoms as $kingdom_id => $kingdom_data) {
-            $view .= '<tr>
-                        <td>Königreich:</td>
-                        <td>' . $kingdom_data['kingdomname'] . ' [ID: ' . $kingdom_id . ']</td>
-                      </tr>';
+        foreach ($user_info as $label => $data) {
+            $field_id = $data['field']; // This gives you the field name (e.g., "username")
+            $value = $data['value'];
 
-            if (!empty($kingdom_data['events'])) {
-                $view .= '</table>
-                            <h3>Events:</h3>
-                            <table class="table">';
-
-                foreach ($kingdom_data['events'] as $event) {
-                    $view .= '<tr>
-                                <td>Event:</td>
-                                <td>Aktion: ' . $event['action_id'] . ' [ID: ' . $event['event_id'] . ']</td>
-                              </tr>';
-                }
-
-                $view .= '</table>';
-            } else {
-                $view .= '<tr>
-                    <td colspan="2">Keine Events für dieses Königreich vorhanden.</td>
-                  </tr>';
+            if ($label === "Name") {
+                $value = ' ' . $value . ' [ID: ' . $user_id . ']';
+            } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Letzte Nachricht"])) {
+                $value = date("d.m.Y", $value) . ' um ' . date("H:i:s", $value);
+            } else if ($label === "Punkte") {
+                $value = fnum($value);
             }
+
+            $view .= '<tr>
+                        <td style="width: 30%;">' . $label . ':</td>
+                        <td id="td_' . $field_id . '">
+                            ' . $value . '
+                        </td>
+                        <td class="td-center">
+                            <a onclick="editField(\'' . $field_id . '\', \'' . htmlspecialchars($data['value']) . '\', \'' . htmlspecialchars($value) . '\')">
+                                <img src="images/icons/icon_edit.png" class="ressource-icons" alt="Editieren">
+                            </a>
+                            ' . ($label === "Name" ? '
+                            <a onclick="confirmAndRedirect(\'adminpanel.php?deleteuser=' . $user_id . '\')">
+                                <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen">
+                            </a>
+                            ' : '') . '
+                        </td>
+                      </tr>';
         }
 
         $view .= '</table>';
+
+        // Display kingdoms
+        $view .= '<h3>Königreiche</h3>';
+
+        if (!empty($kingdoms)) {
+            $view .= '<div class="box-container" style="max-height: 200px; width: 70%; overflow: auto;">';
+
+            foreach ($kingdoms as $kingdom_id => $kingdom_data) {
+                $view .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $user_id . '&kingdomid=' . $kingdom_id . '\', this)">
+                    <div style="width: 50px; text-align: center;">
+                        ' . $kingdom_id . '
+                    </div>
+                    <div>
+                        ' . $kingdom_data['kingdomname'] . '
+                    </div>
+                  </div>';
+            }
+
+            $view .= '</div>';
+        } else {
+            $view .= 'Keine Königreiche gefunden.';
+        }
+
+        // Show kingdom data and event data for kingdom
+        if (isset($_GET['kingdomid'])) {
+            $found_kingdom = null;
+
+            foreach ($kingdoms as $kingdom_id => $kingdom_data) {
+                if ($kingdom_id == $_GET['kingdomid']) {
+                    $view .= '<h3>Königreich-Info</h3>';
+                    $view .= '<table class="table">
+                                <tr>
+                                    <td>Königreich:</td>
+                                    <td>' . $kingdom_data['kingdomname'] . ' [ID: ' . $kingdom_id . ']</td>
+                                </tr>
+                              </table>';
+
+                    $found_kingdom = $kingdom_data;
+                    break;
+                }
+            }
+
+            if ($found_kingdom !== null) {
+                $view .= '<h3>Event-Info</h3>';
+
+                if (!empty($found_kingdom['events'])) {
+                    $view .= '<table class="table">';
+
+                    foreach ($found_kingdom['events'] as $event) {
+                        $view .= '<tr>
+                                        <td>Aktion:</td>
+                                        <td>' . $event['action_id'] . ' [ID: ' . $event['event_id'] . ']</td>
+                                    </tr>';
+                    }
+
+                    $view .= '</table>';
+                } else {
+                    $view .= 'Keine Events für das Königreich gefunden.';
+                }
+            }
+        }
     } else if (isset($_GET["deleteuser"])) {
         $view .= "<h3>Delete User</h3>";
     }
@@ -223,13 +226,72 @@ if (!empty($error)) {
 include('layout/base.php');
 ?>
 <script>
+    function editField(fieldId, currentValue, formattedValue) {
+        // Get the table cell by ID
+        const td = document.getElementById('td_' + fieldId);
+
+        // Create a new input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentValue;
+
+        // Create a hidden form to submit the new value
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '';
+
+        // Create hidden inputs for the field and user ID
+        const hiddenField = document.createElement('input');
+        hiddenField.type = 'hidden';
+        hiddenField.name = 'field';
+        hiddenField.value = fieldId;
+
+        const hiddenUserId = document.createElement('input');
+        hiddenUserId.type = 'hidden';
+        hiddenUserId.name = 'user_id';
+        hiddenUserId.value = '<?= htmlspecialchars($user_id); ?>';
+
+        const hiddenNewValue = document.createElement('input');
+        hiddenNewValue.type = 'hidden';
+        hiddenNewValue.name = 'new_value';
+        hiddenNewValue.value = currentValue;
+
+        form.appendChild(hiddenField);
+        form.appendChild(hiddenUserId);
+        form.appendChild(hiddenNewValue);
+        form.appendChild(input);
+
+        // Clear the current cell and append the form
+        td.innerHTML = '';
+        td.appendChild(form);
+
+        // Add event listeners for the input field
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                hiddenNewValue.value = input.value;
+                form.submit();
+            } else if (event.key === 'Escape') {
+                cancelEdit(td, formattedValue);
+            }
+        });
+
+        // When focus is lost: cancel the edit
+        input.addEventListener('blur', function () {
+            cancelEdit(td, formattedValue);
+        });
+
+        input.focus();
+    }
+
+    function cancelEdit(td, originalValue) {
+        td.innerHTML = originalValue;
+    }
+
     function confirmAndRedirect(url) {
-        // Show confirmation dialog
         const confirmed = confirm("Are you sure you want to proceed?");
 
-        // If user confirms, redirect to the URL
         if (confirmed) {
-            window.location.href = url; // Redirect to the specified URL
+            window.location.href = url;
         }
     }
 </script>

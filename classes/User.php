@@ -355,7 +355,7 @@ class User {
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
                 <fieldset>
                     <legend><b>Registrieren</b></legend>
-                    <?php echo $this->reg_status; ?>
+                    <?php echo(!empty($this->reg_status) ? $this->reg_status : ''); ?>
                     <span class="error"><?php echo $error; ?></span>
                     <table class="table">
                         <tr>
