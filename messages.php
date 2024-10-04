@@ -64,9 +64,10 @@ function show_inbox($db_instance): string {
             $num_unread_messages = $row_2["unreadcount"];
             $sender_name = $row_2["sendername"];
             $old_conversation = time() - $row["latest_message_date"] > CONV_INACTIVITY_TIME ? " tr-inactive" : "";
+            $image_path = $user->get_avatar($sender_name);
 
             $view .= "<tr class='tr-hover$old_conversation'>
-                                    <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>$sender_name " . show_messages_indicator($num_unread_messages) . "</td>
+                                    <td class='td-cursor image-and-user' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'><img class='user-image' src='$image_path' alt='Nutzerbild'> $sender_name " . show_messages_indicator($num_unread_messages) . "</td>
                                     <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
                                     <td style='text-align: center'><a href='messages.php?action=delete&s=" . $sender_name . "'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td>
                                 </tr>";
@@ -206,6 +207,8 @@ if (isset($_GET["action"])) {
             } else {
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
                 $result = $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
+                $chat_partner_image = "";
+                $my_chat_image = $user->get_avatar($user->get_user_name());
 
                 $view = '<div style="display: flex; margin: 10px 0;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button>
                             <h3 style="width: 85%; margin: 0;">Konversation mit 
@@ -221,10 +224,25 @@ if (isset($_GET["action"])) {
                 foreach ($result as $row) {
                     // The other side has written
                     if ($row["senderid"] == $sender_id) {
-                        $view .= "<div class='sender-bubble'><u>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</u>" . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "<br>" . $row["message"] . "</div>";
+                        if (empty($chat_partner_image)) {
+                            $chat_partner_image = $user->get_avatar($chat_partner) ?? "";
+                        }
+
+                        $view .= "<div class='sender-bubble'>
+                            <div class='image-and-user message-border'>
+                                <img class='user-image' src='$chat_partner_image' alt='Nutzerbild'> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
+                                " . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "
+                            </div>
+                            " . $row["message"] . "
+                        </div>";
                     } else { // You have written
-                        $view .= "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
-                                            <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $row["message"] . "</div>";
+                        $view .= "<div class='receiver-bubble'>
+                            <div class='image-and-user message-border'>
+                                <img class='user-image' src='$my_chat_image' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
+                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a>
+                            </div>
+                            " . $row["message"] . "
+                        </div>";
                     }
 
                     if ($row["hasread"] == 0 && $row["receiverid"] == $user->get_user_id()) {

@@ -8,6 +8,7 @@ if (!($user->is_logged_in())) {
     exit;
 }
 
+
 /*
  * HTML Section
  */

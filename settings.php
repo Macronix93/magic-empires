@@ -30,14 +30,12 @@ if (isset($_POST['submit'])) {
             $file_tmp = $_FILES['image']['tmp_name'];
             $file_size = $_FILES['image']['size'];
             $file_error = $_FILES['image']['error'];
-
-            // Allowed file types (only images)
             $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
 
             // Max file size in bytes
             $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes to KB: 1024 * KB number
 
-            // Extract file extension
+            // Get file extension
             $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
             // Validation
@@ -48,15 +46,12 @@ if (isset($_POST['submit'])) {
             } elseif ($file_error !== 0) {
                 $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
             } else {
-                // Generate a unique name for the file
-                $file_name = $user->get_user_name();
-                $file_path = UPLOADS_FILE_PATH . $user->get_user_name();
+                $file_path = UPLOADS_FILE_PATH . $user->get_user_name() . "." . $file_ext;
 
                 // Move the file from temp location to the uploads directory
                 if (move_uploaded_file($file_tmp, $file_path)) {
                     $view = "Nutzerbild wurde erfolgreich hochgeladen!";
 
-                    // Unset the token after a successful submission to avoid reuse
                     unset($_SESSION['csrf_token']);
                 } else {
                     $error = "Fehler beim Verschieben der Datei!";
@@ -65,6 +60,17 @@ if (isset($_POST['submit'])) {
         } else {
             $error = "Keine Datei ausgewählt!";
         }
+    }
+}
+
+$files = glob(UPLOADS_FILE_PATH . $user->get_user_name()); // Will find 2.txt, 2.php, 2.gif
+
+// Process through each file in the list
+// and output its extension
+if (count($files) > 0) {
+    foreach ($files as $file) {
+        $info = pathinfo($file);
+        echo "File found: extension " . $info["extension"] . "<br>";
     }
 }
 

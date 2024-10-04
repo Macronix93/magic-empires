@@ -120,10 +120,10 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
             $last_built_building = $user->get_last_built_building($current_kingdom);
 
             if (!empty($last_built_building)) {
-                $building_name = $last_built_building["buildingname"];
-                $building_level = $last_built_building["buildinglevel"];
+                $built_building_name = $last_built_building["buildingname"];
+                $built_building_level = $last_built_building["buildinglevel"];
 
-                $view .= "<div class='info-box'><p><span class='event-finished'>Bau abgeschlossen:</span> $building_name (" . ($building_level == 0 ? "0" : $building_level) . " → " . ($building_level + 1) . ")</p></div>";
+                $view .= "<div class='info-box'><p><span class='event-finished'>Bau abgeschlossen:</span> $built_building_name (" . $built_building_level . " → " . ($built_building_level + 1) . ")</p></div>";
 
                 $user->clear_last_built_building($current_kingdom);
             }

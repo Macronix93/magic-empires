@@ -232,14 +232,17 @@ class Kingdoms {
         $gold_rate = BASE_GOLD_GAIN * $row->goldrate;
 
         // Insert kingdom
-        $kingdom_name = "Königreich_$user_name";
-
+        $placeholder = "Königreich";
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, wood, stone, gold, foodperhour, woodperhour, stoneperhour, goldperhour) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ";
-        $this->mysqli->execute_query($query, [$kingdom_name, $user_id, $user_name, $rand_x, $rand_y, $food, $wood, $stone, $gold, $food_rate, $wood_rate, $stone_rate, $gold_rate]);
+        $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, $food, $wood, $stone, $gold, $food_rate, $wood_rate, $stone_rate, $gold_rate]);
         $insert_id = $this->mysqli->insert_id;
+        $kingdom_name = $placeholder . $insert_id;
+
+        // Update kingdom name with insert id
+        $this->mysqli->execute_query("UPDATE kingdoms SET kingdomname = ? WHERE id = ?", [$kingdom_name, $insert_id]);
 
         // Update map properties of x and y
         $this->mysqli->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [$insert_id, $rand_x, $rand_y]);

@@ -66,12 +66,17 @@ function adjustUsernameDisplay() {
     let usernameContainer = document.getElementById("usernameContainer");
     let usernameDiv = document.getElementById("username");
 
-    if (usernameDiv.scrollWidth > usernameContainer.clientWidth) {
+    if (usernameDiv && usernameDiv.scrollWidth > usernameContainer.clientWidth) {
         usernameDiv.style.textOverflow = "ellipsis";
     }
 }
 
 function updateServerTime(initialSeconds) {
+    // Inactivity check
+    setTimeout(() => {
+        window.location.href = 'login.php?logout=inactive';
+    }, 1799 * 1000);
+
     function updateDisplay() {
         let serverTimeElements = document.getElementsByClassName("servertime");
 
@@ -96,12 +101,13 @@ function updateServerTime(initialSeconds) {
     return false;
 }
 
-function updateKingdom() {
+function updateKingdom(selectElement) {
     // Get the selected kingdom ID from the dropdown
-    let kingdomID = document.getElementById("choosekingdom").value;
+    const chosenKingdom = selectElement;
 
-    if (kingdomID) {
-        // Prepare the form data
+    if (chosenKingdom) {
+        const kingdomID = chosenKingdom.value;
+
         let formData = new FormData();
         formData.append("choosekingdom", kingdomID);
 
@@ -135,59 +141,6 @@ function updateKingdom() {
     }
 }
 
-function startCountdown(initialSeconds, timerType = 0) {
-    let seconds = initialSeconds;
-    let countdownInterval;
-
-    function countDown() {
-        let minutes = Math.floor(seconds / 60);
-        let remainingSeconds = seconds % 60;
-
-        minutes = (minutes < 10) ? "0" + minutes : minutes;
-        remainingSeconds = (remainingSeconds < 10) ? "0" + remainingSeconds : remainingSeconds;
-
-        document.getElementById("counter").innerHTML = minutes + ":" + remainingSeconds;
-
-        if (seconds <= 0) {
-            clearInterval(countdownInterval);
-            if (timerType === 0) {
-                document.getElementById("counter").innerHTML = "Fertig!";
-            }
-        } else {
-            seconds--;
-        }
-    }
-
-    // Initial call to set up the countdown
-    countDown();
-
-    countdownInterval = setInterval(countDown, 1000);
-    return false;
-}
-
-function startCountup(initialSeconds) {
-    let seconds = initialSeconds;
-
-    function countUp() {
-        let hours = Math.floor(seconds / 3600);
-        let minutes = Math.floor((seconds % 3600) / 60);
-        let remainingSeconds = seconds % 60;
-
-        hours = (hours < 10) ? "0" + hours : hours;
-        minutes = (minutes < 10) ? "0" + minutes : minutes;
-        remainingSeconds = (remainingSeconds < 10) ? "0" + remainingSeconds : remainingSeconds;
-
-        document.getElementById("counter").innerHTML = hours + ":" + minutes + ":" + remainingSeconds;
-
-        seconds++;
-    }
-
-    // Initial call to set up the countup
-    countUp();
-    setInterval(countUp, 1000);
-    return false;
-}
-
 window.addEventListener("DOMContentLoaded", function () {
     const mobileNav = document.getElementById("mobile-nav");
     const hamburgerIcon = document.getElementById("hamburger-icon");
@@ -198,11 +151,6 @@ window.addEventListener("DOMContentLoaded", function () {
             hamburgerIcon.classList.toggle("open");
         });
     }
-
-    // Inactivity check
-    setTimeout(() => {
-        window.location.href = 'login.php?logout=inactive';
-    }, 1799 * 1000);
 
     // Setup for popup boxes
     setup();

@@ -1,5 +1,5 @@
 <?php
-global $db_instance;
+global $db_instance, $user;
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
@@ -14,6 +14,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
     } else {
         $result = $db_instance->execute_query("SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)", [$chat_partner, $_SESSION["userid"], $_SESSION["userid"], $chat_partner]);
+        $chat_partner_image = "";
+        $my_chat_image = $user->get_avatar($user->get_user_name());
 
         foreach ($result as $row) {
             if ($row["senderid"] == $chat_partner) {
@@ -21,10 +23,25 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     $has_new_messages = true;
                 }
 
-                echo "<div class='sender-bubble'><u>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</u>" . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "<br>" . $row["message"] . "</div>";
+                if (empty($chat_partner_image)) {
+                    $chat_partner_image = $user->get_avatar($row["sender"]) ?? "";
+                }
+
+                echo "<div class='sender-bubble'>
+                            <div class='image-and-user message-border'>
+                                <img class='user-image' src='$chat_partner_image' alt='Nutzerbild'> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
+                                " . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "
+                            </div>
+                            " . $row["message"] . "
+                        </div>";
             } else { // You have written
-                echo "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
-                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $row["message"] . "</div>";
+                echo "<div class='receiver-bubble'>
+                            <div class='image-and-user message-border'>
+                                <img class='user-image' src='$my_chat_image' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
+                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a>
+                            </div>
+                            " . $row["message"] . "
+                        </div>";
             }
 
             if ($row["hasread"] == 0 && $row["receiverid"] == $_SESSION["userid"]) {

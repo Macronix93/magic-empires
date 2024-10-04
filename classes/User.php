@@ -101,6 +101,18 @@ class User {
         change_location("index.php");
     }
 
+    // Get user avatar
+    public function get_avatar(string $user_name): string {
+        $files = glob(__DIR__ . '/../' . UPLOADS_FILE_PATH . $user_name . ".*");
+
+        if (!empty($files)) {
+            $info = pathinfo($files[0]);
+            return UPLOADS_FILE_PATH . $user_name . "." . $info["extension"];
+        } else {
+            return DEFAULT_AVATAR;
+        }
+    }
+
     // Get the user ID by activation key
     public function get_user_database_id(string $activation_key) {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);

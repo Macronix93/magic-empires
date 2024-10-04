@@ -1,5 +1,5 @@
 <?php
-global $db_instance;
+global $db_instance, $user;
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
@@ -46,8 +46,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $time, $message]);
 
             // Return the new message bubble HTML
-            $response["html"] = "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
-                                    <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $message . "</div>";
+            /*$response["html"] = "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
+                                    <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $message . "</div>";*/
+            $response["html"] = "<div class='receiver-bubble'>
+                                    <div class='image-and-user message-border'>
+                                        <img class='user-image' src='" . $user->get_avatar($user->get_user_name()) . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
+                                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a>
+                                    </div>
+                                    " . $message . "
+                                </div>";
         }
     } else {
         $response["error"] = $error;

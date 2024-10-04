@@ -12,7 +12,7 @@ global $user, $db_instance;
         ?>
         <form method="POST">
             <label>
-                <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom()"
+                <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom(this)"
                         style="width: 100%;">
                     <?php
                     foreach ($result as $row) {

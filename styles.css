@@ -57,6 +57,12 @@ body {
     padding: 15px;
 }
 
+.message-border {
+    border-bottom: 1px solid rgba(75, 77, 86, 0.8);
+    padding: 5px;
+    margin-bottom: 10px;
+}
+
 #newmessage-section form {
     display: flex;
     flex-direction: row;
@@ -233,6 +239,12 @@ select:-webkit-autofill:focus {
 .user-image {
     width: 32px;
     height: 32px;
+}
+
+.image-and-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 /* Wrapper for content (left, right, mid) */
@@ -648,11 +660,5 @@ td {
 
     .middle-container {
         width: 95%;
-    }
-
-    .box-container {
-        min-width: 100%;
-        border-radius: 0;
-        margin: 0;
     }
 }

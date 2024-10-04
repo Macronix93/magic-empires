@@ -10,30 +10,45 @@ if (!($user->is_logged_in())) {
 
 $view = "";
 $error = "";
+$user_id = -1;
 
 if ($user->get_user_admin_level() == 0) {
     $error = "Du bist kein Administrator!";
 } else {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['field'])) {
         $field = $_POST['field'];
+        $old_value = $_POST['old_value'];
         $new_value = $_POST['new_value'];
         $user_id = $_POST['user_id'];
 
         $result = $db_instance->execute_query("UPDATE users SET $field = ? WHERE id = ?", [$new_value, $user_id]);
 
+        // Update avatar file
+        if ($field == "username") {
+            $file_path = UPLOADS_FILE_PATH . $old_value;
+            $new_file_path = UPLOADS_FILE_PATH . $new_value;
+
+            if (file_exists($file_path)) {
+                if (!rename($file_path, $new_file_path)) {
+                    $view .= '<div class="info-box">Fehler beim Aktualisieren des Avatars!</div>';
+                }
+            }
+        }
+
         if ($result) {
-            $view .= '<div class="info-box">Daten erfolgreich aktualisiert! Field: ' . $field . ' Value: ' . $new_value . '</div><br>';
+            $view .= '<div class="info-box">Daten erfolgreich aktualisiert! Field: ' . $field . ' Value: ' . $new_value . '</div>';
         } else {
-            $view .= '<div class="info-box">Fehler beim Aktualisieren! Field: ' . $field . ' Value: ' . $new_value . '</div><br>';
+            $view .= '<div class="info-box">Fehler beim Aktualisieren! Field: ' . $field . ' Value: ' . $new_value . '</div>';
         }
     }
 
+    // Display all users
     $result = $db_instance->execute_query("SELECT * FROM users");
 
-    $view .= '<div class="box-container" style="max-height: 200px; width: 70%; overflow: auto;">';
+    $view .= '<div class="box-container" style="max-height: 250px; width: 300px; overflow: auto;">';
     foreach ($result as $row) {
         $view .= '<div class="box' . (isset($_GET["userid"]) && $_GET["userid"] == $row["id"] ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $row["id"] . '\', this)">
-                    <div style="width: 50px; text-align: center;">
+                    <div style="width: 50px;">
                         ' . $row["id"] . '
                     </div>
                     <div>
@@ -43,7 +58,7 @@ if ($user->get_user_admin_level() == 0) {
     }
     $view .= '</div>';
 
-    // Show user related info
+    // Show user related info if clicked on a user
     if (isset($_GET['userid'])) {
         $user_id = $_GET['userid'];
 
@@ -151,7 +166,7 @@ if ($user->get_user_admin_level() == 0) {
         $view .= '<h3>Königreiche</h3>';
 
         if (!empty($kingdoms)) {
-            $view .= '<div class="box-container" style="max-height: 200px; width: 70%; overflow: auto;">';
+            $view .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto;">';
 
             foreach ($kingdoms as $kingdom_id => $kingdom_data) {
                 $view .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $user_id . '&kingdomid=' . $kingdom_id . '\', this)">
@@ -169,7 +184,7 @@ if ($user->get_user_admin_level() == 0) {
             $view .= 'Keine Königreiche gefunden.';
         }
 
-        // Show kingdom data and event data for kingdom
+        // Display kingdom data and event data for kingdom
         if (isset($_GET['kingdomid'])) {
             $found_kingdom = null;
 
@@ -256,9 +271,15 @@ include('layout/base.php');
         hiddenNewValue.name = 'new_value';
         hiddenNewValue.value = currentValue;
 
+        const hiddenCurrentValue = document.createElement('input');
+        hiddenCurrentValue.type = 'hidden';
+        hiddenCurrentValue.name = 'old_value';
+        hiddenCurrentValue.value = currentValue;
+
         form.appendChild(hiddenField);
         form.appendChild(hiddenUserId);
         form.appendChild(hiddenNewValue);
+        form.appendChild(hiddenCurrentValue);
         form.appendChild(input);
 
         // Clear the current cell and append the form
