@@ -2,13 +2,23 @@
 
 class User
 {
+    private static User $instance;
     private object $mysqli;
     private int $reg_status;
 
     // Constructor
-    public function __construct(object $db_conn)
+    private function __construct()
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
+    }
+
+    public static function get_instance(): User
+    {
+        if (!isset(self::$instance)) {
+            self::$instance = new self;
+        }
+
+        return self::$instance;
     }
 
     // Function to register a new user

@@ -35,7 +35,12 @@ class Database
     }
 
     // Get mysqli connection
+
+    /**
+     * @throws Exception
+     */
     private function __clone()
     {
+        throw new Exception("Can't clone a singleton");
     }
 }

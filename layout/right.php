@@ -1,7 +1,4 @@
-﻿<?php
-global $user, $db_instance;
-?>
-<div class="box-container" id="ressource-box">
+﻿<div class="box-container" id="ressource-box">
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php

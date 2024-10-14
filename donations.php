@@ -1,5 +1,4 @@
 <?php
-global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page

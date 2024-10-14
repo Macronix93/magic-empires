@@ -24,5 +24,8 @@
     <inspection_tool class="PhpStatementHasEmptyBodyInspection" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myCommentsCountAsContent" value="true" />
     </inspection_tool>
+    <inspection_tool class="PhpUndefinedVariableInspection" enabled="true" level="ERROR" enabled_by_default="true">
+      <option name="IGNORE_INCLUDE" value="true" />
+    </inspection_tool>
   </profile>
 </component>

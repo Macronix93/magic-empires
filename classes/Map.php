@@ -146,7 +146,7 @@ class Map
     public function render_field_info($field): void
     {
         // Get the coords of the current kingdom of the user
-        $user = new User($this->mysqli);
+        $user = User::get_instance();
         $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
         $row = $result->fetch_assoc();
         $x = $row["mapx"];

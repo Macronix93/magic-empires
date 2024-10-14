@@ -1,6 +1,4 @@
 ﻿<?php
-global $user, $db_instance;
-
 $current_page = basename($_SERVER["PHP_SELF"]);
 ?>
 <div class="box-container">

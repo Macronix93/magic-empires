@@ -1,5 +1,7 @@
 <?php
-global $db_instance, $user;
+
+use Random\RandomException;
+
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
@@ -10,7 +12,10 @@ if (!($user->is_logged_in())) {
 
 // Generate a random token
 if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    try {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    } catch (RandomException $e) {
+    }
 }
 
 // Add the token as a hidden input in the form

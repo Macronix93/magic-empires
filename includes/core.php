@@ -62,7 +62,8 @@ const MAX_UPLOAD_FILE_SIZE = 64; // In KB
  * Enum of buildings
  */
 
-interface BuildingTypes {
+interface BuildingTypes
+{
     const BUILDING_TOWNCENTER = 0;
     const BUILDING_UNIVERSITY = 1;
     const BUILDING_BARRACKS = 2;
@@ -79,7 +80,8 @@ interface BuildingTypes {
 /*
  * Global exception handlers
  */
-#[NoReturn] function global_exception_handler($e): void {
+#[NoReturn] function global_exception_handler($e): void
+{
     error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
     echo "<body style='
                         display: flex;
@@ -97,11 +99,13 @@ interface BuildingTypes {
 /**
  * @throws ErrorException
  */
-function global_error_handler($err_no, $err_str, $err_file, $err_line) {
+function global_error_handler($err_no, $err_str, $err_file, $err_line)
+{
     throw new ErrorException($err_str, 0, $err_no, $err_file, $err_line);
 }
 
-function fatal_error_shutdown_handler(): void {
+function fatal_error_shutdown_handler(): void
+{
     $error = error_get_last();
     if ($error !== null) {
         error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
@@ -142,7 +146,7 @@ $db = Database::get_instance();
 $db_instance = $db->get_connection();
 
 // Create User instance
-$user = new User($db_instance);
+$user = User::get_instance();
 
 // Timeout Check
 if ($user->is_logged_in()) {
@@ -181,7 +185,8 @@ if ($user->is_logged_in()) {
 */
 
 // Apply villager cap
-function apply_villager_cap($kingdom_id): void {
+function apply_villager_cap($kingdom_id): void
+{
     $db = Database::get_instance();
     $db_instance = $db->get_connection();
     $result = $db_instance->execute_query("SELECT villager, maxvillager FROM kingdoms WHERE id = ?", [$kingdom_id]);
@@ -197,7 +202,8 @@ function apply_villager_cap($kingdom_id): void {
     }
 }
 
-function fetch_all_buildings($kingdom_id): array {
+function fetch_all_buildings($kingdom_id): array
+{
     $db = Database::get_instance();
     $db_instance = $db->get_connection();
     $buildings = [];
@@ -237,7 +243,8 @@ function fetch_all_buildings($kingdom_id): array {
 }
 
 // Make Input data secure
-function make_secure($data): string {
+function make_secure($data): string
+{
     $data = trim($data);
     $data = stripslashes($data);
     $data = preg_replace('/\s+/', '', $data);
@@ -245,12 +252,14 @@ function make_secure($data): string {
 }
 
 // Show messages indicator
-function show_messages_indicator($number): string {
+function show_messages_indicator($number): string
+{
     return ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
 }
 
 // Convert seconds to a string
-function convert_sec_to_str($secs): string {
+function convert_sec_to_str($secs): string
+{
     if ($secs == 0) {
         return '0s';
     }
@@ -282,7 +291,8 @@ function convert_sec_to_str($secs): string {
     return trim($output);
 }
 
-function change_location(string $url, int $seconds = 0): void {
+function change_location(string $url, int $seconds = 0): void
+{
     // Assuming your site is hosted at the root domain, adjust if necessary
     $rootUrl = '/magic-empires/'; // This points to the root of your website
 
@@ -296,7 +306,8 @@ function change_location(string $url, int $seconds = 0): void {
     }
 }
 
-function clamp_value(int $value) {
+function clamp_value(int $value)
+{
     if ($value > 91) {
         return 91;
     }
@@ -304,7 +315,8 @@ function clamp_value(int $value) {
 }
 
 // Check for an error in a conversation
-function get_error(string $text, string $receiver_id): string {
+function get_error(string $text, string $receiver_id): string
+{
     $error = "";
     $line_breaks_count = substr_count($text, '<br />');
     $text_without_line_breaks = preg_replace('/<br\s*\/?>/i', '', $text);
@@ -324,11 +336,13 @@ function get_error(string $text, string $receiver_id): string {
     return $error;
 }
 
-function fnum(int $number): string {
+function fnum(int $number): string
+{
     return number_format($number, 0, ",", ".");
 }
 
-function regex_pattern(): string {
+function regex_pattern(): string
+{
     return '/\b('
         . '(a(bstract|nd|rray|s))|'
         . '(c(a(llable|se|tch)|l(ass|one)|on(st|tinue)))|'
@@ -347,7 +361,8 @@ function regex_pattern(): string {
         . ')\b/';
 }
 
-function get_bad_names(): array {
+function get_bad_names(): array
+{
     $filename = __DIR__ . '/bad_names.txt';
 
     if (!file_exists($filename)) {

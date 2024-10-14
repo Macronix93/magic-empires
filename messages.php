@@ -1,5 +1,4 @@
 <?php
-global $db_instance, $user;
 require_once("includes/core.php");
 
 // Check if user is not logged in, and if so, redirect him to login page
@@ -13,7 +12,7 @@ $view = "";
 
 function show_inbox($db_instance): string
 {
-    $user = new User($db_instance);
+    $user = User::get_instance();
     $view = "";
 
     // Get all conversations for the user

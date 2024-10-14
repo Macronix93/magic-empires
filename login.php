@@ -1,5 +1,4 @@
 <?php
-global $db_instance, $user;
 require_once("includes/core.php");
 
 // Set error variable to empty string
