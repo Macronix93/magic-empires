@@ -54,90 +54,20 @@ for ($i = 0; $i < count($soldiers); $i++) {
 }
 
 $view .= '</table>
-    <button type="button" style="margin-top: 10px;" onclick="calculateWarOutcome();">Berechnen</button>
-    <button type="button" onclick="resetFields();">Reset</button>';
-
-$view .= '<script type="text/javascript">
-    // Define soldier types
-    let soldierTypes = ' . json_encode(array_map(function ($soldier) {
+    <script type="text/javascript">
+        let soldierTypes = ' . json_encode(array_map(function ($soldier) {
         return $soldier->get_soldier_name();
     }, $soldiers)) . ';
+    </script>
+    <button type="button" style="margin-top: 10px;" onclick="calculateWarOutcome(soldierTypes)">Berechnen</button>
+    <button type="button" onclick="resetFields(soldierTypes)">Reset</button>';
 
-    function resetFields() {
-        soldierTypes.forEach(type => {
-            document.getElementById(type + "_own").value = 0;
-            document.getElementById(type + "_own").style.color = "inherit";
-            document.getElementById(type + "_enemy").value = 0;
-            document.getElementById(type + "_enemy").style.color = "inherit";
-        });
-    }
-
-    function calculateWarOutcome() {
-        let mySoldiers = {};
-        let enemySoldiers = {};
-        let myTotalATK = {};
-        let myTotalDEF = {};
-        let enemyTotalATK = {};
-        let enemyTotalDEF = {};
-        let soldierTypeATK = {};
-        let soldierTypeDEF = {};
-
-        // Initialize totals for each soldier type
-        soldierTypes.forEach(type => {
-            mySoldiers[type] = [];
-            enemySoldiers[type] = [];
-            myTotalATK[type] = 0;
-            myTotalDEF[type] = 0;
-            enemyTotalATK[type] = 0;
-            enemyTotalDEF[type] = 0;
-            soldierTypeATK[type] = 0;
-            soldierTypeDEF[type] = 0;
-        });
-
-        // Collect input values and calculate total ATK and DEF for each soldier type
-        soldierTypes.forEach(type => {
-            mySoldiers[type] = parseInt(document.getElementById(`${type}_own`).value);
-            enemySoldiers[type] = parseInt(document.getElementById(`${type}_enemy`).value);
-
-            myTotalATK[type] += mySoldiers[type] * parseInt(document.getElementById(`${type}_atk`).getAttribute("data-attack"));
-            myTotalDEF[type] += mySoldiers[type] * parseInt(document.getElementById(`${type}_def`).getAttribute("data-defense"));
-            enemyTotalATK[type] += enemySoldiers[type] * parseInt(document.getElementById(`${type}_atk`).getAttribute("data-attack"));
-            enemyTotalDEF[type] += enemySoldiers[type] * parseInt(document.getElementById(`${type}_def`).getAttribute("data-defense"));
-
-            soldierTypeATK[type] = document.getElementById(`${type}_atk`).getAttribute("data-attack");
-            soldierTypeDEF[type] = document.getElementById(`${type}_def`).getAttribute("data-defense");
-        });
-
-        soldierTypes.forEach(attackerType => {
-            if (mySoldiers[attackerType] > 0) {
-                soldierTypes.forEach(defenderType => {
-                    if (enemySoldiers[defenderType] > 0) {
-                        const outcomeForMe = Math.ceil(Math.max(myTotalATK[attackerType] - enemyTotalDEF[defenderType], 0) / soldierTypeATK[attackerType]);
-                        const outcomeForEnemy = Math.ceil(Math.max(enemyTotalDEF[defenderType] - myTotalATK[attackerType], 0) / soldierTypeDEF[defenderType]);
-
-                        // Update the input fields with the new values for each soldier type
-                        mySoldiers[attackerType] = outcomeForMe;
-                        enemySoldiers[defenderType] = outcomeForEnemy;
-                        document.getElementById(`${attackerType}_own`).value = mySoldiers[attackerType];
-                        document.getElementById(`${defenderType}_enemy`).value = enemySoldiers[defenderType];
-
-                        // Recalculate total ATK for type
-                        myTotalATK[attackerType] = mySoldiers[attackerType] * parseInt(document.getElementById(`${attackerType}_atk`).getAttribute("data-attack"));
-
-                        // Change text color based on losses
-                        document.getElementById(`${attackerType}_own`).style.color = outcomeForMe > 0 ? "#F55353" : "inherit";
-                        document.getElementById(`${defenderType}_enemy`).style.color = outcomeForEnemy > 0 ? "#F55353" : "inherit";
-                    }
-                });
-            }
-        });
-    }
-</script>';
 
 /*
  * HTML Section
  */
 $title = "War Simulator";
 $header = "War Simulator";
+$script_files = ["warsim"];
 
 include('layout/base.php');

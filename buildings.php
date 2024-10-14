@@ -40,9 +40,6 @@ if (isset($_GET["id"]) && ($current_building >= 0 && $current_building < $buildi
 
 // Handle current building logic and view
 if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building >= $building_count || !$buildings[$current_building]->is_built()) {
-    //$error = "Das Gebäude existiert nicht!";
-    /*} else if (!$buildings[$current_building]->is_built()) {
-        $error = "Das Gebäude wurde noch nicht gebaut!";*/
     change_location("buildings.php?id=0");
 } else {
     switch ($current_building) {
