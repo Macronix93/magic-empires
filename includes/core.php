@@ -35,7 +35,7 @@ const BUILDING_COST_STONE = 3;
 const BUILDING_COST_GOLD = 4;
 const MAX_BUILDING_LEVEL = 10;
 const DEFAULT_WALL_HP = 200;
-const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
+const TIMEOUT_MAX_SECONDS = 5; // 1800 30 Minutes
 const AFK_SECONDS = 300; // 5 Minutes
 const USER_UPDATE_TICK = 30; // 30 Seconds
 const MAX_MESSAGE_LENGTH = 400;
@@ -184,8 +184,21 @@ if ($user->is_logged_in()) {
     Useful functions
 */
 
+// Start inactivity counter
+function startInactivityCheck(int $seconds): void
+{
+    echo '<script type="text/javascript">
+            seconds = ' . $seconds . ';
+
+            // Inactivity check
+            setTimeout(() => {
+                window.location.href = "login.php?logout=inactive";
+            }, seconds * 1000);
+        </script>';
+}
+
 // Apply villager cap
-function apply_villager_cap($kingdom_id): void
+function apply_villager_cap(int $kingdom_id): void
 {
     $db = Database::get_instance();
     $db_instance = $db->get_connection();
@@ -202,7 +215,7 @@ function apply_villager_cap($kingdom_id): void
     }
 }
 
-function fetch_all_buildings($kingdom_id): array
+function fetch_all_buildings(int $kingdom_id): array
 {
     $db = Database::get_instance();
     $db_instance = $db->get_connection();
@@ -243,7 +256,7 @@ function fetch_all_buildings($kingdom_id): array
 }
 
 // Make Input data secure
-function make_secure($data): string
+function make_secure(string $data): string
 {
     $data = trim($data);
     $data = stripslashes($data);
@@ -252,13 +265,13 @@ function make_secure($data): string
 }
 
 // Show messages indicator
-function show_messages_indicator($number): string
+function show_messages_indicator(int $number): string
 {
     return ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
 }
 
 // Convert seconds to a string
-function convert_sec_to_str($secs): string
+function convert_sec_to_str(int $secs): string
 {
     if ($secs == 0) {
         return '0s';

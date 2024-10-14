@@ -38,7 +38,7 @@ function redirectToMap(x, y) {
             if (url.includes("map.php")) {
                 mainWindow.document.getElementById('startx').value = x;
                 mainWindow.document.getElementById('starty').value = y;
-                mainWindow.sendUpdateMapRequest();
+                sendUpdateMapRequest();
             } else {
                 mainWindow.location.href = "map.php?startx=" + x + "&starty=" + y;
             }

@@ -22,6 +22,7 @@ function updateChat(chatPartner) {
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
+            /** @type {{ html: string, hasNewMessages: boolean }} */
             const response = JSON.parse(xhttp.responseText);
 
             document.getElementById("messages-section").innerHTML = response.html;
@@ -83,7 +84,15 @@ function insertNewChatMessage(e) {
 
 function initializeChat() {
     // Focus on the message input field
-    document.getElementById("message-input").focus();
+    /** @type {HTMLInputElement} */
+    const messageInput = document.getElementById("message-input");
+    messageInput.focus();
+
+    messageInput.addEventListener("keypress", e => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            insertNewChatMessage(e);
+        }
+    });
 
     //
     document.getElementById("message-input").addEventListener("keypress", e => {

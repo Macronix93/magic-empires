@@ -1,10 +1,12 @@
 function sendUpdateMapRequest() {
     let startX, startY, inputX, inputY;
+    /** @type {HTMLInputElement} */
     let startXField = document.getElementById("startx");
+    /** @type {HTMLInputElement} */
     let startYField = document.getElementById("starty");
     const metaTag = document.querySelector('meta[data-max-map-size]');
-    const data = metaTag.getAttribute('data-max-map-size');
-    const jsonData = JSON.parse(data);
+    /** @type {{ maxMapSize: number }} */
+    const jsonData = metaTag ? JSON.parse(metaTag.getAttribute('data-max-map-size')) : {maxMapSize: 0};
 
     if (startXField && startXField.value) {
         startX = inputX = startXField.value;

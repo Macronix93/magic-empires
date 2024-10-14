@@ -15,6 +15,9 @@
         }
     }
     echo $head_extra ?? '';
+
+    // Start inactivity check
+    startInactivityCheck(TIMEOUT_MAX_SECONDS);
     ?>
 </head>
 <body>

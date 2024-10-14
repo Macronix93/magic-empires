@@ -41,8 +41,6 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
     // Calculate start coordinates
     $map->set_start_x(max(1, min($x - 5, 91)));
     $map->set_start_y(max(1, min($y - 5, 91)));
-
-    echo "gesetzt: " . $field_id;
 } else {
     // Get the coords of the current kingdom
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);

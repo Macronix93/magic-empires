@@ -2,6 +2,7 @@ function setup() {
     const popups = getElementsByClassName('popup');
 
     for (let i = 0; i < popups.length; i++) {
+        /** @type {HTMLElement} */
         let box = document.getElementById(popups[i].id + '_box');
         if (box) {
             box.style.display = 'none';
@@ -64,6 +65,8 @@ function getElementsByClassName(className, tag, elm) {
 
 function adjustUsernameDisplay() {
     let usernameContainer = document.getElementById("usernameContainer");
+
+    /** @type {HTMLElement} */
     let usernameDiv = document.getElementById("username");
 
     if (usernameDiv && usernameDiv.scrollWidth > usernameContainer.clientWidth) {
@@ -72,19 +75,16 @@ function adjustUsernameDisplay() {
 }
 
 function updateServerTime(initialSeconds) {
-    // Inactivity check
-    setTimeout(() => {
-        window.location.href = 'login.php?logout=inactive';
-    }, 1799 * 1000);
-
     function updateDisplay() {
         let serverTimeElements = document.getElementsByClassName("servertime");
 
         // Iterate through each "servertime" element
-        for (let serverTime of serverTimeElements) {
-            // Visibility check for server time element
+        for (let i = 0; i < serverTimeElements.length; i++) {
+            /** @type {HTMLElement} */
+            const serverTime = serverTimeElements[i];
+
             if (serverTime.offsetParent !== null) {
-                let currentTime = new Date(initialSeconds * 1000);
+                const currentTime = new Date(initialSeconds * 1000);
                 serverTime.innerHTML = " " + currentTime.toTimeString().split(' ')[0];
             }
         }
@@ -97,8 +97,6 @@ function updateServerTime(initialSeconds) {
     }
 
     updateDisplay();
-
-    return false;
 }
 
 function updateKingdom(selectElement) {
