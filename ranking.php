@@ -32,7 +32,7 @@ $view .= '<table class="table">
             <b>Rang</b></td>
         <td class="td-center td-gradient"
             style="width: 50%;">
-            <b>Benutzer</b></td>
+            <b>Spieler</b></td>
         <td class="td-center td-gradient"
             style="width: 20%;">
             <b>Punkte</b></td>

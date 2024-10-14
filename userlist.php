@@ -24,7 +24,7 @@ include_once("layout/head.html");
 </script>
 <table class="table" style="margin-top: 20px; min-width: 300px;">
     <tr>
-        <td class="td-center td-gradient"><b>Benutzerliste</b></td>
+        <td class="td-center td-gradient"><b>Spielerliste</b></td>
     </tr>
     <?php
     foreach ($result as $row) {

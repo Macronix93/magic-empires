@@ -38,7 +38,7 @@ if (isset($user_id)) {
 
     if (!$row) {
         echo "<div style='text-align: center;'>
-        <p style='background-color: rgba(0, 0, 0, 0.7); display: inline-block;'>Dieser Benutzer existiert nicht!
+        <p style='background-color: rgba(0, 0, 0, 0.7); display: inline-block;'>Dieser Spieler existiert nicht!
         </p></div>";
         return;
     }
@@ -52,7 +52,7 @@ if (isset($user_id)) {
     ?>
     <table class="table">
         <tr>
-            <td style="width: 200px;"><b>Benutzer</b></td>
+            <td style="width: 200px;"><b>Spieler</b></td>
             <?php
             if (time() - $row["lastactivity"] > INACTIVITY_DELAY) {
                 echo "<td style='width: 300px;'>" . $user_name . " (Inaktiv)</td>";

@@ -127,11 +127,11 @@ if ($user->get_user_admin_level() == 0) {
         }
 
         // Display user info using a loop
-        $view .= '<h3>Benutzer-Info</h3>';
+        $view .= '<h3>Spieler-Info</h3>';
         $view .= '<table class="table">';
 
         foreach ($user_info as $label => $data) {
-            $field_id = $data['field']; // This gives you the field name (e.g., "username")
+            $field_id = $data['field'];
             $value = $data['value'];
 
             if ($label === "Name") {

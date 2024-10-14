@@ -21,7 +21,7 @@ if (!empty($_GET["key"])) {
                 echo "Bei der Aktivierung ist ein Problem aufgetreten!";
             }
         } else {
-            echo "Dieser Benutzer ist bereits aktiviert!";
+            echo "Dieser Spieler ist bereits aktiviert!";
         }
     } else {
         echo "Ungültiger Aktivierungsschlüssel!";

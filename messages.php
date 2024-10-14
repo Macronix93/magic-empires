@@ -11,7 +11,8 @@ if (!($user->is_logged_in())) {
 $error = "";
 $view = "";
 
-function show_inbox($db_instance): string {
+function show_inbox($db_instance): string
+{
     $user = new User($db_instance);
     $view = "";
 
@@ -113,7 +114,7 @@ if (isset($_POST["sendpm"])) {
         $last_sent = $row["lastsent"];
 
         if ($user_exists == 0) {
-            $error = "Dieser Benutzer existiert nicht!";
+            $error = "Dieser Spieler existiert nicht!";
         } else {
             // Query to count messages sent in the last 5 minutes
             $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$user_id, $rate_limit]);
@@ -155,7 +156,7 @@ if (isset($_GET["action"])) {
                   value="' . (isset($_POST["receiver"]) ? htmlspecialchars($_POST["receiver"]) : '') . '">
        </label> 
        <a href="javascript:userList()">
-           <input type="button" value="Benutzerliste">
+           <input type="button" value="Spielerliste">
        </a>';
         $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
 
@@ -268,7 +269,7 @@ if (isset($_GET["action"])) {
                         </script>";
             }
         } else {
-            $error = "Der Benutzer existiert nicht!";
+            $error = "Der Spieler existiert nicht!";
         }
     } else if ($_GET["action"] == "delete") {
         $sender_id = $_GET['s'];

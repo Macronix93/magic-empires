@@ -22,7 +22,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $user_exists = $result->fetch_assoc()["userexists"];
 
     if (!$user_exists) {
-        $error = "Dieser Benutzer existiert nicht!";
+        $error = "Dieser Spieler existiert nicht!";
     }
 
     if (empty($error)) {

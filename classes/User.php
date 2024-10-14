@@ -1,16 +1,19 @@
 <?php
 
-class User {
+class User
+{
     private object $mysqli;
     private int $reg_status;
 
     // Constructor
-    public function __construct(object $db_conn) {
+    public function __construct(object $db_conn)
+    {
         $this->mysqli = $db_conn;
     }
 
     // Function to register a new user
-    public function register_user(string $name, string $email, string $pass): void {
+    public function register_user(string $name, string $email, string $pass): void
+    {
         /*
         BETTER PASSWORD AND SALT ALGO:
 
@@ -80,7 +83,8 @@ class User {
     }
 
     // Function to log in a user
-    public function login_user(int $user_id): void {
+    public function login_user(int $user_id): void
+    {
         $timestamp = time();
 
         // Fetch users data
@@ -102,7 +106,8 @@ class User {
     }
 
     // Get user avatar
-    public function get_avatar(string $user_name): string {
+    public function get_avatar(string $user_name): string
+    {
         $files = glob(__DIR__ . '/../' . UPLOADS_FILE_PATH . $user_name . ".*");
 
         if (!empty($files)) {
@@ -114,95 +119,79 @@ class User {
     }
 
     // Get the user ID by activation key
-    public function get_user_database_id(string $activation_key) {
+    public function get_user_database_id(string $activation_key)
+    {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
         return $result->fetch_assoc()["id"] ?? "";
     }
 
     // Check if user is logged in
-    public function is_logged_in(): bool {
+    public function is_logged_in(): bool
+    {
         return isset($_SESSION["userid"]);
     }
 
     // Get ID of the user
-    public function get_user_id(): int {
-        return $_SESSION["userid"] ?? -1;
-    }
 
-    public function get_current_kingdom(): int {
+    public function get_current_kingdom(): int
+    {
         return $_SESSION["kingdomid"] ?? 0;
     }
 
-    public function set_current_kingdom(int $kingdom_id): void {
+    public function set_current_kingdom(int $kingdom_id): void
+    {
         $_SESSION["kingdomid"] = $kingdom_id;
     }
 
-    // Get the name of the user
-    public function get_user_name(): string {
+    public function get_user_name(): string
+    {
         return $_SESSION["username"] ?? "";
     }
 
-    public function set_user_score(int $score): void {
-        $_SESSION["score"] = $score;
-    }
+    // Get the name of the user
 
-    public function get_user_score(): int {
-        //$result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
-        //return $result->fetch_assoc()["score"];
-        return $_SESSION["score"] ?? 0;
-    }
-
-    public function get_user_admin_level(): int {
+    public function get_user_admin_level(): int
+    {
         return $_SESSION["adminlevel"] ?? 0;
     }
 
-    public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void {
-        if (!isset($_SESSION["last_built_building"])) {
-            $_SESSION["last_built_building"] = array();
-        }
-        $_SESSION["last_built_building"][$kingdom_id] = [
-            "buildingname" => $building_name,
-            "buildinglevel" => $building_level
-        ];
-    }
-
-    public function clear_last_built_building(int $kingdom_id): void {
+    public function clear_last_built_building(int $kingdom_id): void
+    {
         if (isset($_SESSION["last_built_building"][$kingdom_id])) {
             unset($_SESSION["last_built_building"][$kingdom_id]);
         }
     }
 
-    public function get_last_built_building(int $kingdom_id): ?array {
+    public function get_last_built_building(int $kingdom_id): ?array
+    {
         return $_SESSION["last_built_building"][$kingdom_id] ?? null;
     }
 
-    public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count): void {
-        if (!isset($_SESSION["last_recruited_soldier"])) {
-            $_SESSION["last_recruited_soldier"] = array();
-        }
-        $_SESSION["last_recruited_soldier"][$kingdom_id] = [
-            "soldiername" => $soldier_name,
-            "soldiercount" => $soldier_count
-        ];
-    }
-
-    public function clear_last_recruited_soldier(int $kingdom_id): void {
+    public function clear_last_recruited_soldier(int $kingdom_id): void
+    {
         if (isset($_SESSION["last_recruited_soldier"][$kingdom_id])) {
             unset($_SESSION["last_recruited_soldier"][$kingdom_id]);
         }
     }
 
-    public function get_last_recruited_soldier(int $kingdom_id): ?array {
+    public function get_last_recruited_soldier(int $kingdom_id): ?array
+    {
         return $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
     }
 
-    public function get_unread_messages(): int {
+    public function get_unread_messages(): int
+    {
         $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$this->get_user_id()]);
         return $result->fetch_assoc()["unread_count"];
     }
 
-    // Get and execute events tied to the user
-    public function process_user_events(int $user_id): void {
+    public function get_user_id(): int
+    {
+        return $_SESSION["userid"] ?? -1;
+    }
+
+    public function process_user_events(int $user_id): void
+    {
         $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$user_id]);
 
         foreach ($result as $row) {
@@ -360,8 +349,46 @@ class User {
         }
     }
 
+    public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void
+    {
+        if (!isset($_SESSION["last_built_building"])) {
+            $_SESSION["last_built_building"] = array();
+        }
+        $_SESSION["last_built_building"][$kingdom_id] = [
+            "buildingname" => $building_name,
+            "buildinglevel" => $building_level
+        ];
+    }
+
+    public function set_user_score(int $score): void
+    {
+        $_SESSION["score"] = $score;
+    }
+
+    public function get_user_score(): int
+    {
+        //$result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$_SESSION["userid"]]);
+        //return $result->fetch_assoc()["score"];
+        return $_SESSION["score"] ?? 0;
+    }
+
+    // Get and execute events tied to the user
+
+    public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count): void
+    {
+        if (!isset($_SESSION["last_recruited_soldier"])) {
+            $_SESSION["last_recruited_soldier"] = array();
+        }
+        $_SESSION["last_recruited_soldier"][$kingdom_id] = [
+            "soldiername" => $soldier_name,
+            "soldiercount" => $soldier_count
+        ];
+    }
+
     // Show register and login forms
-    function show_register_form(string $error): void {
+
+    function show_register_form(string $error): void
+    {
         ?>
         <div class="form">
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
@@ -415,7 +442,8 @@ class User {
         <?php
     }
 
-    function show_login_form(string $error): void {
+    function show_login_form(string $error): void
+    {
         ?>
         <div class="form">
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">

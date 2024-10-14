@@ -731,7 +731,7 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                     <table class="table" style="word-break: break-word">
                         <tr>
                             <td class="td-center td-gradient">
-                                <b>Benutzer</b>
+                                <b>Spieler</b>
                             </td>
                             <td class="td-center td-gradient">
                                 <b>Königreich</b>

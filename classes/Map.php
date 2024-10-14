@@ -1,188 +1,39 @@
 <?php
 
-class Map {
+class Map
+{
     private object $mysqli;
     private int $start_x;
     private int $start_y;
 
     // Constructor
-    public function __construct($db_conn) {
+    public function __construct($db_conn)
+    {
         $this->mysqli = $db_conn;
     }
 
-    public function set_start_x($start_x): void {
-        $this->start_x = $start_x;
-    }
-
-    public function get_start_x(): int {
+    public function get_start_x(): int
+    {
         return $this->start_x;
     }
 
-    public function set_start_y($start_y): void {
-        $this->start_y = $start_y;
+    public function set_start_x($start_x): void
+    {
+        $this->start_x = $start_x;
     }
 
-    public function get_start_y(): int {
+    public function get_start_y(): int
+    {
         return $this->start_y;
     }
 
-    public function get_field_type_color($field_type): string {
-        return match ($field_type) {
-            1 => "rgb(185, 122, 87)",
-            2 => "rgb(0, 162, 232)",
-            3 => "rgb(34, 177, 76)",
-            4 => "rgb(255, 201, 14)",
-            default => "rgb(181, 230, 29)",
-        };
+    public function set_start_y($start_y): void
+    {
+        $this->start_y = $start_y;
     }
 
-    private function get_kingdom_icon_by_level($building_level): string {
-        return match (true) {
-            $building_level >= 3 && $building_level < 6 => "images/icons/town.png",
-            $building_level >= 6 && $building_level < 8 => "images/icons/tower2.png",
-            $building_level >= 8 => "images/icons/castle.png",
-            default => "images/icons/house.png",
-        };
-    }
-
-    public function calculate_path($start_x, $start_y, $end_x, $end_y): array {
-        $start = ['x' => $start_x, 'y' => $start_y];
-        $end = ['x' => $end_x, 'y' => $end_y];
-        $map = $this->fetch_map_data();
-
-        $open_list = [];
-        $closed_list = [];
-        $g_scores = [];
-        $f_scores = [];
-        $came_from = [];
-
-        $open_list[$this->encode($start)] = 0;
-        $g_scores[$this->encode($start)] = 0;
-        $f_scores[$this->encode($start)] = $this->heuristic($start, $end);
-
-        while (!empty($open_list)) {
-            $current = array_search(min($open_list), $open_list);
-            $current = $this->decode($current);
-
-            if ($current['x'] == $end['x'] && $current['y'] == $end['y']) {
-                return $this->reconstruct_path($came_from, $current, $map);
-            }
-
-            unset($open_list[$this->encode($current)]);
-            $closed_list[$this->encode($current)] = true;
-
-            foreach ($this->get_neighbours($current, $map) as $neighbor) {
-                if (isset($closed_list[$this->encode($neighbor)])) {
-                    continue;
-                }
-
-                $traversal_time = $map[$neighbor['x']][$neighbor['y']]['traversaltime'];
-                $tentative_g_score = $g_scores[$this->encode($current)] + $traversal_time;
-
-                if (!isset($open_list[$this->encode($neighbor)]) || $tentative_g_score < $g_scores[$this->encode($neighbor)]) {
-                    $came_from[$this->encode($neighbor)] = $current;
-                    $g_scores[$this->encode($neighbor)] = $tentative_g_score;
-                    $f_scores[$this->encode($neighbor)] = $tentative_g_score + $this->heuristic($neighbor, $end);
-                    $open_list[$this->encode($neighbor)] = $f_scores[$this->encode($neighbor)];
-                }
-            }
-        }
-
-        return []; // No path found
-    }
-
-    private function fetch_map_data(): array {
-        $query = "
-            SELECT m.mapx, m.mapy, f.traversaltime
-            FROM map m
-            JOIN fieldtypes f ON m.fieldtype = f.fieldid
-        ";
-
-        $result = $this->mysqli->execute_query($query);
-        $map = [];
-
-        foreach ($result as $row) {
-            $map[$row['mapx']][$row['mapy']] = [
-                'traversaltime' => $row['traversaltime']
-            ];
-        }
-
-        return $map;
-    }
-
-    private function heuristic($a, $b): int {
-        return abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']);
-    }
-
-    private function get_neighbours($node, $map): array {
-        $neighbors = [];
-        $moves = [[0, 1], [1, 0], [0, -1], [-1, 0]];
-
-        foreach ($moves as $move) {
-            $x = $node['x'] + $move[0];
-            $y = $node['y'] + $move[1];
-
-            if (isset($map[$x][$y])) {
-                $neighbors[] = ['x' => $x, 'y' => $y];
-            }
-        }
-
-        return $neighbors;
-    }
-
-    private function reconstruct_path($came_from, $current, $map): array {
-        $path = [$current];
-        $total_time = 0;
-
-        while (isset($came_from[$this->encode($current)])) {
-            $current = $came_from[$this->encode($current)];
-            $path[] = $current;
-        }
-
-        // Add traversal time information to the path
-        foreach ($path as &$coord) {
-            $coord['traversalTime'] = $map[$coord['x']][$coord['y']]['traversaltime'];
-            $total_time += $coord['traversalTime'];
-        }
-
-        // Reverse the path to start from the beginning
-        $path = array_reverse($path);
-
-        return ['path' => $path, 'totalTime' => $total_time];
-    }
-
-    private function encode($node): string {
-        return $node['x'] . ',' . $node['y'];
-    }
-
-    private function decode($encoded): array {
-        list($x, $y) = explode(',', $encoded);
-        return ['x' => (int)$x, 'y' => (int)$y];
-    }
-
-    private function get_arrival_time($start_x, $start_y, $end_x, $end_y): int {
-        $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
-
-        // DEBUGGING: print the path
-        /*$path = $result['path'];
-
-        echo "Path:<br>";
-        array_map(function ($coord) {
-            return "{x: {$coord['x']}, 
-                    y: {$coord['y']},
-                    traversalTime: {$coord['traversalTime']}
-                    }";
-        }, $path);
-
-        foreach ($path as $coord) {
-            echo "x: {$coord['x']}, y: {$coord['y']}, time: {$coord['traversalTime']}<br>";
-        }*/
-
-        return $result['totalTime'];
-    }
-
-    // Render and show the map
-    public function render_map($start_x, $start_y): void {
+    public function render_map($start_x, $start_y): void
+    {
         // Generate URL for each arrow button
         $arrow_up = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
         $arrow_up_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
@@ -271,7 +122,29 @@ class Map {
               </table>";
     }
 
-    public function render_field_info($field): void {
+    public function get_field_type_color($field_type): string
+    {
+        return match ($field_type) {
+            1 => "rgb(185, 122, 87)",
+            2 => "rgb(0, 162, 232)",
+            3 => "rgb(34, 177, 76)",
+            4 => "rgb(255, 201, 14)",
+            default => "rgb(181, 230, 29)",
+        };
+    }
+
+    private function get_kingdom_icon_by_level($building_level): string
+    {
+        return match (true) {
+            $building_level >= 3 && $building_level < 6 => "images/icons/town.png",
+            $building_level >= 6 && $building_level < 8 => "images/icons/tower2.png",
+            $building_level >= 8 => "images/icons/castle.png",
+            default => "images/icons/house.png",
+        };
+    }
+
+    public function render_field_info($field): void
+    {
         // Get the coords of the current kingdom of the user
         $user = new User($this->mysqli);
         $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
@@ -360,5 +233,151 @@ class Map {
             }
         }
         echo "</table>";
+    }
+
+    private function get_arrival_time($start_x, $start_y, $end_x, $end_y): int
+    {
+        $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
+
+        // DEBUGGING: print the path
+        /*$path = $result['path'];
+
+        echo "Path:<br>";
+        array_map(function ($coord) {
+            return "{x: {$coord['x']},
+                    y: {$coord['y']},
+                    traversalTime: {$coord['traversalTime']}
+                    }";
+        }, $path);
+
+        foreach ($path as $coord) {
+            echo "x: {$coord['x']}, y: {$coord['y']}, time: {$coord['traversalTime']}<br>";
+        }*/
+
+        return $result['totalTime'];
+    }
+
+    public function calculate_path($start_x, $start_y, $end_x, $end_y): array
+    {
+        $start = ['x' => $start_x, 'y' => $start_y];
+        $end = ['x' => $end_x, 'y' => $end_y];
+        $map = $this->fetch_map_data();
+
+        $open_list = [];
+        $closed_list = [];
+        $g_scores = [];
+        $f_scores = [];
+        $came_from = [];
+
+        $open_list[$this->encode($start)] = 0;
+        $g_scores[$this->encode($start)] = 0;
+        $f_scores[$this->encode($start)] = $this->heuristic($start, $end);
+
+        while (!empty($open_list)) {
+            $current = array_search(min($open_list), $open_list);
+            $current = $this->decode($current);
+
+            if ($current['x'] == $end['x'] && $current['y'] == $end['y']) {
+                return $this->reconstruct_path($came_from, $current, $map);
+            }
+
+            unset($open_list[$this->encode($current)]);
+            $closed_list[$this->encode($current)] = true;
+
+            foreach ($this->get_neighbours($current, $map) as $neighbor) {
+                if (isset($closed_list[$this->encode($neighbor)])) {
+                    continue;
+                }
+
+                $traversal_time = $map[$neighbor['x']][$neighbor['y']]['traversaltime'];
+                $tentative_g_score = $g_scores[$this->encode($current)] + $traversal_time;
+
+                if (!isset($open_list[$this->encode($neighbor)]) || $tentative_g_score < $g_scores[$this->encode($neighbor)]) {
+                    $came_from[$this->encode($neighbor)] = $current;
+                    $g_scores[$this->encode($neighbor)] = $tentative_g_score;
+                    $f_scores[$this->encode($neighbor)] = $tentative_g_score + $this->heuristic($neighbor, $end);
+                    $open_list[$this->encode($neighbor)] = $f_scores[$this->encode($neighbor)];
+                }
+            }
+        }
+
+        return []; // No path found
+    }
+
+    private function fetch_map_data(): array
+    {
+        $query = "
+            SELECT m.mapx, m.mapy, f.traversaltime
+            FROM map m
+            JOIN fieldtypes f ON m.fieldtype = f.fieldid
+        ";
+
+        $result = $this->mysqli->execute_query($query);
+        $map = [];
+
+        foreach ($result as $row) {
+            $map[$row['mapx']][$row['mapy']] = [
+                'traversaltime' => $row['traversaltime']
+            ];
+        }
+
+        return $map;
+    }
+
+    private function encode($node): string
+    {
+        return $node['x'] . ',' . $node['y'];
+    }
+
+    private function heuristic($a, $b): int
+    {
+        return abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']);
+    }
+
+    private function decode($encoded): array
+    {
+        list($x, $y) = explode(',', $encoded);
+        return ['x' => (int)$x, 'y' => (int)$y];
+    }
+
+    // Render and show the map
+
+    private function reconstruct_path($came_from, $current, $map): array
+    {
+        $path = [$current];
+        $total_time = 0;
+
+        while (isset($came_from[$this->encode($current)])) {
+            $current = $came_from[$this->encode($current)];
+            $path[] = $current;
+        }
+
+        // Add traversal time information to the path
+        foreach ($path as &$coord) {
+            $coord['traversalTime'] = $map[$coord['x']][$coord['y']]['traversaltime'];
+            $total_time += $coord['traversalTime'];
+        }
+
+        // Reverse the path to start from the beginning
+        $path = array_reverse($path);
+
+        return ['path' => $path, 'totalTime' => $total_time];
+    }
+
+    private function get_neighbours($node, $map): array
+    {
+        $neighbors = [];
+        $moves = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+
+        foreach ($moves as $move) {
+            $x = $node['x'] + $move[0];
+            $y = $node['y'] + $move[1];
+
+            if (isset($map[$x][$y])) {
+                $neighbors[] = ['x' => $x, 'y' => $y];
+            }
+        }
+
+        return $neighbors;
     }
 }
