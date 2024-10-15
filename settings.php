@@ -68,15 +68,17 @@ if (isset($_POST['submit'])) {
     }
 }
 
-$files = glob(UPLOADS_FILE_PATH . $user->get_user_name()); // Will find 2.txt, 2.php, 2.gif
+$files = glob(UPLOADS_FILE_PATH . $user->get_user_name() . '*'); // Will find 2.txt, 2.php, 2.gif
 
 // Process through each file in the list
 // and output its extension
 if (count($files) > 0) {
     foreach ($files as $file) {
         $info = pathinfo($file);
-        echo "File found: extension " . $info["extension"] . "<br>";
+        echo "File found: extension: " . $info["extension"] . "<br>";
     }
+} else {
+    echo "nothing found";
 }
 
 /*

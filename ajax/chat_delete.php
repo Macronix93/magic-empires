@@ -8,8 +8,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     // Get message to delete
     $result = $db_instance->execute_query("SELECT senderid, receiverid FROM messages WHERE id = ?", [$message_to_delete]);
 
-    ob_start();
-
     if ($result->num_rows > 0) {
         $row = $result->fetch_assoc();
 

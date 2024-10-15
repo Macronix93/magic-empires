@@ -85,7 +85,6 @@ body {
     clip-path: polygon(100% 0, 0 50%, 100% 100%);
 }
 
-
 .message-border {
     border-bottom: 1px solid rgba(75, 77, 86, 0.8);
     padding: 5px;
@@ -411,7 +410,7 @@ a:hover b {
 }
 
 .table {
-    min-width: 70%;
+    width: 90%;
     margin: 0 auto;
     border-spacing: 0;
     border-collapse: separate;
@@ -436,6 +435,44 @@ td {
 
 .error {
     color: rgb(245, 83, 83);
+}
+
+.info-box-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+.info-box-overlay {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    flex-direction: row;
+    gap: 20px;
+    width: 250px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgb(128, 128, 128);
+    border-radius: 10px;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    text-align: center;
+}
+
+.info-box-overlay button {
+    min-width: 100px;
+}
+
+.info-box-overlay p {
+    text-align: center;
+    width: 100%;
 }
 
 .info-box {

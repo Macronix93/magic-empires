@@ -57,6 +57,7 @@ $view .= "Score: $score<br>";
 $view .= "Gilde: $guild_id<br>";
 $view .= "Admin-Level: " . $user->get_user_admin_level();
 
+
 /*
  * HTML Section
  */

@@ -139,6 +139,35 @@ function updateKingdom(selectElement) {
     }
 }
 
+function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonYesAction) {
+    const infoBoxBg = document.createElement("div");
+    const infoBoxOverlay = document.createElement("div");
+    const infoBoxTextBox = document.createElement("p");
+    const buttonYes = document.createElement("button");
+    const buttonNo = document.createElement("button");
+
+    buttonYes.onclick = buttonYesAction;
+    buttonYes.innerText = buttonYesText;
+    buttonNo.onclick = cancelDialog;
+    buttonNo.innerText = buttonNoText;
+
+    infoBoxTextBox.innerText = dialogText;
+
+    infoBoxBg.id = "info-box-bg";
+    infoBoxBg.classList.add("info-box-bg");
+
+    infoBoxOverlay.id = "info-box-overlay";
+    infoBoxOverlay.classList.add("info-box-overlay");
+    infoBoxOverlay.append(infoBoxTextBox, buttonYes, buttonNo);
+
+    document.body.append(infoBoxBg, infoBoxOverlay);
+}
+
+function cancelDialog() {
+    document.getElementById('info-box-bg').remove();
+    document.getElementById('info-box-overlay').remove();
+}
+
 window.addEventListener("DOMContentLoaded", function () {
     const mobileNav = document.getElementById("mobile-nav");
     const hamburgerIcon = document.getElementById("hamburger-icon");

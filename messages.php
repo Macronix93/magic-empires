@@ -52,9 +52,9 @@ function show_inbox($db_instance): string
                         u.username AS sendername,
                         COUNT(CASE WHEN m.hasread = 0 AND m.deleted = 0 THEN 1 END) AS unreadcount
                     FROM users u
-                    LEFT JOIN messages m 
-                        ON u.id = m.senderid 
-                        AND m.receiverid = ? 
+                    LEFT JOIN messages m
+                        ON u.id = m.senderid
+                        AND m.receiverid = ?
                     WHERE u.id = ?
         ";
 
@@ -69,7 +69,7 @@ function show_inbox($db_instance): string
             $view .= "<tr class='tr-hover$old_conversation'>
                                     <td class='td-cursor image-and-user' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'><img class='user-image' src='$image_path' alt='Nutzerbild'> $sender_name " . show_messages_indicator($num_unread_messages) . "</td>
                                     <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
-                                    <td style='text-align: center'><a href='messages.php?action=delete&s={$row["participant"]}'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></td>
+                                    <td style='text-align: center'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='conversationDeletionDialog(\"{$row["participant"]}\", \"$sender_name\")' style='cursor: pointer;'></td>
                                 </tr>";
         }
 
@@ -99,23 +99,19 @@ if (isset($_POST["sendpm"])) {
         $user_id = $user->get_user_id();
         $receiver = htmlspecialchars($receiver, ENT_QUOTES, "UTF-8");
         $text_to_output = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $text);
-        $time = time();
-        $rate_limit = $time - MESSAGES_RATE_INTERVAL;
+        $current_time = time();
 
-        $query = "SELECT
-                    (SELECT COUNT(*) FROM users WHERE username = ?) AS userexists,
-                    (SELECT lastsentmsgend FROM users WHERE id = ?) AS lastsent
-        ";
-        $result = $db_instance->execute_query($query, [$receiver, $user_id]);
+        // Query to check if the user exists
+        $query = "SELECT COUNT(*) AS userexists FROM users WHERE username = ?";
+        $result = $db_instance->execute_query($query, [$receiver]);
         $row = $result->fetch_assoc();
         $user_exists = $row["userexists"];
-        $last_sent = $row["lastsent"];
 
         if ($user_exists == 0) {
             $error = "Dieser Spieler existiert nicht!";
         } else {
             // Query to count messages sent in the last 5 minutes
-            $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$user_id, $rate_limit]);
+            /*$result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$user_id, $rate_limit]);
             $message_count = $result->fetch_assoc()["messagecount"];
             $remaining_time_in_seconds = MESSAGES_RATE_INTERVAL - ($time - $last_sent);
 
@@ -132,6 +128,36 @@ if (isset($_POST["sendpm"])) {
                 // Insert message
                 $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)";
                 $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $receiver_id, $receiver, $time, 0, $text_to_output]);
+
+                change_location("messages.php?action=read&s=$receiver_id");
+            }*/
+
+            $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
+            $message_count = $_SESSION["message_count"] ?? 0;
+
+            if ($current_time > $message_timeframe_end) {
+                $_SESSION["message_count"] = 0;
+                $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+                $message_count = 0;
+            }
+
+            // Check if we can send a new message
+            if ($message_count >= MAX_MESSAGES_RATELIMIT) {
+                // Calculate remaining time to wait
+                $remaining_time_in_seconds = $message_timeframe_end - $current_time;
+                $response["counter"] = $remaining_time_in_seconds;
+                $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte: ";
+            } else {
+                $_SESSION["message_count"] = ++$message_count;
+                $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+
+                // Get receiver's ID based on receiver name
+                $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ?", [$receiver]);
+                $receiver_id = $result->fetch_assoc()["id"];
+
+                // Insert message into the database
+                $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?)";
+                $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $receiver_id, $receiver, $current_time, $text_to_output]);
 
                 change_location("messages.php?action=read&s=$receiver_id");
             }
@@ -236,7 +262,7 @@ if (isset($_GET["action"])) {
                                  ' . $chat_partner . '
                                 </a>
                             </h3></div>';
-                $view .= '<br><div id="messages-section">';
+                $view .= '<div id="messages-section">';
 
                 foreach ($result as $row) {
                     // The other side has written

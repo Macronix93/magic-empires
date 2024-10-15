@@ -142,8 +142,6 @@ class User
         return isset($_SESSION["userid"]);
     }
 
-    // Get ID of the user
-
     public function get_current_kingdom(): int
     {
         return $_SESSION["kingdomid"] ?? 0;
@@ -407,9 +405,9 @@ class User
                     <legend><b>Registrieren</b></legend>
                     <?php echo(!empty($this->reg_status) ? $this->reg_status : ''); ?>
                     <span class="error"><?php echo $error; ?></span>
-                    <table class="table">
+                    <table class="table" style="width: 50%;">
                         <tr>
-                            <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
+                            <td><b>Benutzername:</b></td>
                             <td>
                                 <label>
                                     <input style="padding:3px" class="regis" type="text" name="username"
@@ -418,7 +416,7 @@ class User
                             </td>
                         </tr>
                         <tr>
-                            <td style="color:#ffffff">
+                            <td>
                                 <b>E-Mail:</b>
                             </td>
                             <td>
@@ -429,7 +427,7 @@ class User
                             </td>
                         </tr>
                         <tr>
-                            <td style="color:#ffffff">
+                            <td>
                                 <b>Passwort:</b>
                             </td>
                             <td>
@@ -461,9 +459,9 @@ class User
                 <fieldset>
                     <legend><b>Login</b></legend>
                     <span class="error"><?php echo $error; ?></span>
-                    <table class="table">
+                    <table class="table" style="width: 50%;">
                         <tr>
-                            <td style="color:#ffffff; padding-right:40px;"><b>Benutzername:</b></td>
+                            <td><b>Benutzername:</b></td>
                             <td>
                                 <label>
                                     <input type="text" name="username"
@@ -472,7 +470,7 @@ class User
                             </td>
                         </tr>
                         <tr>
-                            <td style="color:#ffffff">
+                            <td>
                                 <b>Passwort:</b>
                             </td>
                             <td>

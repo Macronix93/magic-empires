@@ -1,10 +1,10 @@
 const CHAT_UPDATE_INTERVAL = 5000;
 
 function scrollToLatestMessage() {
+    /** @type {HTMLDivElement} */
     let newMessageLine = document.getElementById("new-message-line");
 
     if (newMessageLine) {
-        // Get the parent container that has the scroll
         let parentContainer = document.getElementById("messages-section");
 
         // Scroll the parent container to the bottom of the new message line
@@ -63,6 +63,11 @@ function updateChat(chatPartner) {
                     document.getElementById("messages-section").innerHTML += response.html;
 
                     scrollToLatestMessage();
+                }
+
+                if (messageSection.innerText === "") {
+                    infoBox.innerText = "Die Konversation enthält keine Nachrichten!";
+                    infoBox.style.display = "flex";
                 }
             }
         }
@@ -135,13 +140,15 @@ function insertNewChatMessage(e) {
                 infoBox.innerText = response.error;
                 infoBox.style.display = "flex";
 
-                // Create a new span element for the counter
-                /** @type {HTMLElement} */
-                const counterElement = document.createElement("span");
-                infoBox.appendChild(counterElement);
-                counterElement.id = "counter";
-                counterElement.innerText = startCountdown(response.counter);
-                counterElement.style.marginLeft = "5px";
+                // Create a new span element for the counter, if ratelimit was reached
+                if (response.counter >= response.messageLimit) {
+                    /** @type {HTMLElement} */
+                    const counterElement = document.createElement("span");
+                    infoBox.appendChild(counterElement);
+                    counterElement.id = "counter";
+                    counterElement.innerText = startCountdown(response.counter);
+                    counterElement.style.marginLeft = "5px";
+                }
             } else if (response.html) {
                 document.getElementById("messages-section").innerHTML += response.html;
                 messageInput.value = "";
@@ -156,6 +163,21 @@ function insertNewChatMessage(e) {
         .catch(error => {
             console.error("Error:", error);
         });
+}
+
+function conversationDeletionDialog(chatPartnerID, chatPartner) {
+    showConfirmationDialog(
+        'Willst du die Konversation mit ' + chatPartner + ' wirklich löschen?',
+        'Ja',
+        'Nein',
+        () => {
+            deleteConversation('messages.php?action=delete&s=' + chatPartnerID);
+        }
+    );
+}
+
+function deleteConversation(url) {
+    window.location.href = url;
 }
 
 function initializeChat() {

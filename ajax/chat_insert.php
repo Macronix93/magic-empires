@@ -37,6 +37,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             // Calculate remaining time to wait
             $remaining_time_in_seconds = $message_timeframe_end - $current_time;
             $response["counter"] = $remaining_time_in_seconds;
+            $response["messageLimit"] = MAX_MESSAGES_RATELIMIT;
             $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte: ";
         } else {
             $_SESSION["message_count"] = ++$message_count;
@@ -47,7 +48,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $receiver = $result->fetch_assoc()["username"];
 
             // Insert message into the database
-            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, '0', ?)";
+            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?)";
             $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $current_time, $message]);
             $message_id = $db_instance->insert_id;
 
