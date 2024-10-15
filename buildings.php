@@ -197,7 +197,7 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
 
                                     $difference_time = $row["buildingtime"] - time();
 
-                                    $text_build = "<b><span id='counter'>00:00</span></b><br>
+                                    $text_build = "<b><span id='counter'></b><br>
                                                                       <script type='text/javascript'>
                                                                             document.addEventListener('DOMContentLoaded', function () {
                                                                                   let diff = $difference_time;
@@ -386,7 +386,7 @@ if ($current_building < BuildingTypes::BUILDING_TOWNCENTER || $current_building 
                             $remaining_time_in_seconds = $soldiers[$i]->get_soldier_time();
                         }
 
-                        $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b><span id='counter'>00:00</span></b><br> 
+                        $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b><span id='counter'></span></b><br> 
                                                                       <script type='text/javascript'>
                                                                             document.addEventListener('DOMContentLoaded', function () {
                                                                                   let diff = $remaining_time_in_seconds;

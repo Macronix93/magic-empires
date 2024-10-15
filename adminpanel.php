@@ -254,7 +254,7 @@ include('layout/base.php');
         form.method = 'POST';
         form.action = '';
 
-        // Create hidden inputs for the field and user ID
+        // Create hidden inputs for the field, user ID and current/new values for the fields
         const hiddenField = document.createElement('input');
         hiddenField.type = 'hidden';
         hiddenField.name = 'field';

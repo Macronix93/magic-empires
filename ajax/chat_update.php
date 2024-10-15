@@ -4,7 +4,8 @@ require_once("../includes/core.php");
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     // Get chat partner
     $chat_partner = htmlspecialchars($_GET["s"]);
-    $has_new_messages = false;
+    $messages_to_delete = [];
+    $error = "";
 
     // Render the conversation HTML
     ob_start();
@@ -12,40 +13,38 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     if ($_SESSION["msgreceiver"] != $chat_partner) {
         echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
     } else {
-        $result = $db_instance->execute_query("SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)", [$chat_partner, $_SESSION["userid"], $_SESSION["userid"], $chat_partner]);
+        $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner, $user->get_user_id()]);
         $chat_partner_image = "";
         $my_chat_image = $user->get_avatar($user->get_user_name());
+        $row = $result->fetch_assoc();
+
+        if ($result->num_rows > 0) {
+            echo "<div id='new-message-line' class='error'>Neue Nachrichten seit dem " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</div>";
+        }
 
         foreach ($result as $row) {
-            if ($row["senderid"] == $chat_partner) {
-                if ($row["hasread"] === 0) {
-                    $has_new_messages = true;
-                }
+            if (empty($chat_partner_image)) {
+                $chat_partner_image = $user->get_avatar($row["sender"]) ?? "";
+            }
 
-                if (empty($chat_partner_image)) {
-                    $chat_partner_image = $user->get_avatar($row["sender"]) ?? "";
-                }
-
-                echo "<div class='sender-bubble'>
+            echo "<div class='sender-bubble' id='msg-" . $row["id"] . "'>
                             <div class='image-and-user message-border'>
                                 <img class='user-image' src='$chat_partner_image' alt='Nutzerbild'> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
-                                " . ($row["hasread"] == 0 ? " <span class='error'>(neu!)</span>" : "") . "
                             </div>
                             " . $row["message"] . "
                         </div>";
-            } else { // You have written
-                echo "<div class='receiver-bubble'>
-                            <div class='image-and-user message-border'>
-                                <img class='user-image' src='$my_chat_image' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " <a href='messages.php?action=delete&m_id=" . $row["id"] . "'>
-                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a>
-                            </div>
-                            " . $row["message"] . "
-                        </div>";
-            }
 
-            if ($row["hasread"] == 0 && $row["receiverid"] == $_SESSION["userid"]) {
-                $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
-            }
+            // Set message as read
+            $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
+        }
+
+        // Get messages to delete
+        $result = $db_instance->execute_query("SELECT id FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1", [$chat_partner, $user->get_user_id()]);
+
+        foreach ($result as $row) {
+            $messages_to_delete[] = $row["id"];
+
+            $db_instance->execute_query("DELETE FROM messages WHERE id = ?", [$row["id"]]);
         }
     }
 
@@ -53,7 +52,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo json_encode([
         "html" => $html,
-        "hasNewMessages" => $has_new_messages
+        "messagesToDelete" => $messages_to_delete,
+        "error" => $error
     ]);
 } else {
     change_location("Location: messages.php");

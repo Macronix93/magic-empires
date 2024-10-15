@@ -16,14 +16,11 @@ $result = $db_instance->execute_query("SELECT username FROM users WHERE username
 include_once("layout/head.html");
 ?>
 <body>
-<script type="text/javascript">
-    function selectUser(id) {
-        opener.newmessage.receiver.value = id;
-    }
-</script>
 <table class="table" style="margin-top: 20px; min-width: 300px;">
     <tr>
-        <td class="td-center td-gradient"><b>Spielerliste</b></td>
+        <td class="td-center td-gradient">
+            <b>Spielerliste</b>
+        </td>
     </tr>
     <?php
     foreach ($result as $row) {
@@ -36,5 +33,15 @@ include_once("layout/head.html");
     <a href="javascript:window.close()"
        style="background-color: rgba(0, 0, 0, 0.7); display: inline-block; padding: 10px;">[Schließen]</a>
 </div>
+
+<script type="text/javascript">
+    function selectUser(id) {
+        const form = opener.document.forms['newmessage'];
+
+        if (form) {
+            form.receiver.value = id;
+        }
+    }
+</script>
 </body>
 </html>

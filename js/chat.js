@@ -1,6 +1,18 @@
 const CHAT_UPDATE_INTERVAL = 5000;
 
 function scrollToLatestMessage() {
+    let newMessageLine = document.getElementById("new-message-line");
+
+    if (newMessageLine) {
+        // Get the parent container that has the scroll
+        let parentContainer = document.getElementById("messages-section");
+
+        // Scroll the parent container to the bottom of the new message line
+        parentContainer.scrollTop = newMessageLine.offsetTop - parentContainer.clientHeight + newMessageLine.clientHeight;
+    }
+}
+
+function scrollDown() {
     let messagesSection = document.getElementById("messages-section");
     if (messagesSection) {
         messagesSection.scrollTop = messagesSection.scrollHeight - messagesSection.clientHeight;
@@ -22,64 +34,128 @@ function updateChat(chatPartner) {
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
-            /** @type {{ html: string, hasNewMessages: boolean }} */
+            /** @type {{ html: string, messagesToDelete: array, error: string }} */
             const response = JSON.parse(xhttp.responseText);
 
-            document.getElementById("messages-section").innerHTML = response.html;
+            /** @type {HTMLElement} */
+            const infoBox = document.querySelector(".info-box");
 
-            if (response.hasNewMessages) {
-                scrollToLatestMessage();
+            if (response.error) {
+                infoBox.innerText = response.error;
+                infoBox.style.display = "flex";
+            } else {
+                /** @type {HTMLElement} */
+                let newMessageLine = document.getElementById("new-message-line");
+                /** @type {HTMLElement} */
+                const messageSection = document.getElementById("messages-section");
+
+                if (response.messagesToDelete) {
+                    response.messagesToDelete.forEach((item) => {
+                        removeChatBubble(item);
+                    })
+                }
+
+                if (response.html === "") {
+                    if (newMessageLine) {
+                        messageSection.removeChild(newMessageLine);
+                    }
+                } else {
+                    document.getElementById("messages-section").innerHTML += response.html;
+
+                    scrollToLatestMessage();
+                }
             }
         }
     };
     xhttp.open("GET", "ajax/chat_update.php?action=read&s=" + chatPartner, true);
     xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
     xhttp.send();
+}
 
-    return undefined;
+function removeChatBubble(bubbleID) {
+    document.getElementById("msg-" + bubbleID).remove();
+}
+
+function deleteChatMessage(messageID) {
+    fetch(`ajax/chat_delete.php?m_id=${messageID}`, {
+        method: "GET",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+    })
+        .then(response => response.json())
+        .then(response => {
+            const infoBox = document.querySelector(".info-box");
+
+            if (response.error) {
+                infoBox.innerText = response.error;
+                infoBox.style.display = "flex";
+            } else {
+                const chatBubble = document.getElementById("msg-" + messageID);
+
+                if (chatBubble) {
+                    chatBubble.remove();
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
 }
 
 function insertNewChatMessage(e) {
     e.preventDefault();
 
-    let messageInput = document.getElementById("message-input");
+    const messageInput = document.getElementById("message-input");
     let receiver = document.querySelector('input[name="receiver"]').value;
-    let text = messageInput.value;
+    const text = messageInput.value;
 
     if (text === "") {
         return;
     }
 
-    let xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function () {
-        if (this.readyState === 4 && this.status === 200) {
-            try {
-                let response = JSON.parse(this.responseText);
-                const infoBox = document.querySelector(".info-box");
+    const formData = new URLSearchParams();
+    formData.append("receiver", receiver);
+    formData.append("text", text);
 
-                if (response.error) {
-                    infoBox.innerText = response.error;
-                    infoBox.style.display = "flex";
-                } else if (response.html) {
-                    document.getElementById("messages-section").innerHTML += response.html;
-                    messageInput.value = "";
+    fetch("ajax/chat_insert.php", {
+        method: "POST",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: formData
+    })
+        .then(response => response.json())
+        .then(response => {
+            const infoBox = document.querySelector(".info-box");
 
-                    if (infoBox) {
-                        infoBox.style.display = "none";
-                    }
+            if (response.error) {
+                infoBox.innerText = response.error;
+                infoBox.style.display = "flex";
 
-                    scrollToLatestMessage();
+                // Create a new span element for the counter
+                /** @type {HTMLElement} */
+                const counterElement = document.createElement("span");
+                infoBox.appendChild(counterElement);
+                counterElement.id = "counter";
+                counterElement.innerText = startCountdown(response.counter);
+                counterElement.style.marginLeft = "5px";
+            } else if (response.html) {
+                document.getElementById("messages-section").innerHTML += response.html;
+                messageInput.value = "";
+
+                if (infoBox) {
+                    infoBox.style.display = "none";
                 }
-            } catch (e) {
-                console.error("Error parsing JSON:", e);
-            }
-        }
-    };
-    xhttp.open("POST", "ajax/chat_insert.php", true);
-    xhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
-    xhttp.send("receiver=" + encodeURIComponent(receiver) + "&text=" + encodeURIComponent(text));
+                scrollDown();
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
 }
 
 function initializeChat() {
@@ -89,13 +165,6 @@ function initializeChat() {
     messageInput.focus();
 
     messageInput.addEventListener("keypress", e => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            insertNewChatMessage(e);
-        }
-    });
-
-    //
-    document.getElementById("message-input").addEventListener("keypress", e => {
         if (e.key === "Enter" && !e.shiftKey) {
             insertNewChatMessage(e);
         }
@@ -112,5 +181,5 @@ function initializeChat() {
     }, CHAT_UPDATE_INTERVAL);
 
     // Scroll to latest message at the bottom
-    scrollToLatestMessage();
+    scrollDown();
 }

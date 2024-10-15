@@ -35,13 +35,13 @@ const BUILDING_COST_STONE = 3;
 const BUILDING_COST_GOLD = 4;
 const MAX_BUILDING_LEVEL = 10;
 const DEFAULT_WALL_HP = 200;
-const TIMEOUT_MAX_SECONDS = 5; // 1800 30 Minutes
+const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
 const AFK_SECONDS = 300; // 5 Minutes
 const USER_UPDATE_TICK = 30; // 30 Seconds
 const MAX_MESSAGE_LENGTH = 400;
 const MAX_LINE_BREAK_COUNT = 10;
-const MESSAGES_RATE_LIMIT = 60;
-const MAX_MESSAGES_PER_RATELIMIT = 10;
+const MESSAGES_RATE_INTERVAL = 60;
+const MAX_MESSAGES_RATELIMIT = 10;
 const INACTIVITY_DELAY = 864000;
 const STARTING_FOOD = 1000;
 const STARTING_WOOD = 1000;
@@ -162,7 +162,7 @@ if ($user->is_logged_in()) {
         session_unset();
         session_destroy();
 
-        change_location("login.php");
+        change_location("login.php?logout");
         exit;
     } else {
         // update last activity timestamp, if not logging out

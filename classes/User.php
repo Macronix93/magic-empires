@@ -98,16 +98,17 @@ class User
         $timestamp = time();
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, lastsentmsg, adminlevel FROM users WHERE id = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, msgcount, lastsentmsgend, adminlevel FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
         $_SESSION["lastlogin"] = $row["lastlogin"];
         $_SESSION["username"] = $row["username"];
         $_SESSION["kingdomid"] = $row["mainkingdom"];
-        $_SESSION["lastsentmsg"] = $row["lastsentmsg"];
         $_SESSION["adminlevel"] = $row["adminlevel"];
         $_SESSION["score"] = $row["score"];
+        $_SESSION["message_count"] = $row["msgcount"];
+        $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
 
         // Update login time
         $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$user_id]);
@@ -191,7 +192,7 @@ class User
 
     public function get_unread_messages(): int
     {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0", [$this->get_user_id()]);
+        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0", [$this->get_user_id()]);
         return $result->fetch_assoc()["unread_count"];
     }
 

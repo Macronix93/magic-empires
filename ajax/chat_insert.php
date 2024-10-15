@@ -6,10 +6,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $receiver_id = $_SESSION["msgreceiver"];
     $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
 
-    // Anti-spam settings
-    $time = time();
-    $rate_limit = $time - MESSAGES_RATE_LIMIT;
-
     // Render the conversation HTML
     ob_start();
 
@@ -25,32 +21,41 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     if (empty($error)) {
-        // Check for rate limit
-        $result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$_SESSION["userid"], $rate_limit]);
-        $message_count = $result->fetch_assoc()["messagecount"];
+        // Current time for rate limit check
+        $current_time = time();
+        $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
+        $message_count = $_SESSION["message_count"] ?? 0;
 
-        if ($message_count >= MAX_MESSAGES_PER_RATELIMIT) {
-            $remaining_time_in_seconds = MESSAGES_RATE_LIMIT - ($time - $_SESSION["lastsentmsg"]);
-            $response["error"] = "Du schickst zuviele Nachrichten! Warte bitte.";
+        if ($current_time > $message_timeframe_end) {
+            $_SESSION["message_count"] = 0;
+            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+            $message_count = 0;
+        }
+
+        // Check if we can send a new message
+        if ($message_count >= MAX_MESSAGES_RATELIMIT) {
+            // Calculate remaining time to wait
+            $remaining_time_in_seconds = $message_timeframe_end - $current_time;
+            $response["counter"] = $remaining_time_in_seconds;
+            $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte: ";
         } else {
-            // Update last sent message time
-            $_SESSION["lastsentmsg"] = $time;
+            $_SESSION["message_count"] = ++$message_count;
+            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
 
-            // Get receiverid based on receiver name
+            // Get receiver's username based on receiver ID
             $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiver_id]);
             $receiver = $result->fetch_assoc()["username"];
 
-            // Insert message into database
+            // Insert message into the database
             $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, '0', ?)";
-            $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $time, $message]);
+            $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $current_time, $message]);
+            $message_id = $db_instance->insert_id;
 
             // Return the new message bubble HTML
-            /*$response["html"] = "<div class='receiver-bubble'><u>Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
-                                    <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a></u><br>" . $message . "</div>";*/
-            $response["html"] = "<div class='receiver-bubble'>
+            $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                                     <div class='image-and-user message-border'>
-                                        <img class='user-image' src='" . $user->get_avatar($user->get_user_name()) . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $time) . " <a href='messages.php?action=delete&m_id=" . $db_instance->insert_id . "'>
-                                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'></a>
+                                        <img class='user-image' src='" . $user->get_avatar($user->get_user_name()) . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $current_time) . " 
+                                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteChatMessage(\"$message_id\")' style='cursor: pointer;'>
                                     </div>
                                     " . $message . "
                                 </div>";
@@ -59,7 +64,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $response["error"] = $error;
     }
 
-    $html = ob_get_clean();
+    ob_get_clean();
 
     echo json_encode($response);
 } else {

@@ -48,7 +48,7 @@ if ($count > 0) {
     echo 'IP not found.';
 }*/
 
-$view .= "Login-Zeit: <span id='counter'>00:00:00</span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
+$view .= "Login-Zeit: <span id='counter'></span><br>Current IP Address: " . $_SERVER["REMOTE_ADDR"] . "<br>Stored IP Adress: " . $ip . "<br><br>";
 $view .= "Haupt-KönigreichID: $main_kingdom<br>";
 $view .= "E-Mail: $email<br>";
 $view .= "Registriert seit: " . date('d.m.Y H:i:s', $register_date) . "<br>";

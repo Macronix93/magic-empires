@@ -10,6 +10,9 @@ if (isset($_GET["logout"])) {
             $error = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!<br><br>";
         }
 
+        // Update anti spam
+        $db_instance->execute_query("UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?", [$_SESSION["message_count"], $_SESSION["message_timeframe_end"], $user->get_user_id()]);
+
         session_unset();
         session_destroy();
     }

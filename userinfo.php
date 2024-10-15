@@ -52,58 +52,40 @@ if (isset($user_id)) {
     <table class="table">
         <tr>
             <td style="width: 200px;"><b>Spieler</b></td>
-            <?php
-            if (time() - $row["lastactivity"] > INACTIVITY_DELAY) {
-                echo "<td style='width: 300px;'>" . $user_name . " (Inaktiv)</td>";
-            } else {
-                echo "<td style='width: 300px;'>" . $user_name . "</td>";
-            }
-            ?>
+            <td style="width: 300px;">
+                <?= $user_name ?>
+                <?php if (time() - $row["lastactivity"] > INACTIVITY_DELAY): ?>
+                    (Inaktiv)
+                <?php endif; ?>
+            </td>
         </tr>
         <tr>
             <td><b>Letzte Aktivität</b></td>
-            <?php
-            echo "<td>" . ($last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y", $last_activity) . " um " . date("H:i:s", $last_activity)) . "</td>";
-            ?>
+            <td><?= $last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y", $last_activity) . " um " . date("H:i:s", $last_activity) ?></td>
         </tr>
         <tr>
             <td><b>Punkte</b></td>
-            <?php
-            echo "<td>" . fnum($score) . "</td>";
-            ?>
+            <?= "<td>" . fnum($score) . "</td>" ?>
         </tr>
         <tr>
             <td><b>Rang</b></td>
-            <?php
-            echo "<td>" . $user_rank . "</td>";
-            ?>
+            <?= "<td>" . $user_rank . "</td>" ?>
         </tr>
-        <?php
-        if ($guild_id) {
-            ?>
-            <tr>
-                <td>
-                    <b>Gilde</b>
-                </td>
-                <?php
-                echo "<td>" . $guild_id . "</td>";
-                ?>
-            </tr>
-            <?php
-        }
-        ?>
+        <tr>
+            <td>
+                <b>Gilde</b>
+            </td>
+            <?= "<td>" . $guild_id . "</td>" ?>
+        </tr>
         <tr>
             <td>
                 <b>Haupt-Königreich</b>
             </td>
             <td>
-                <a href='javascript:void(0);' onclick='redirectToMap(<?php echo $x; ?>, <?php echo $y; ?>)'>
-                    <?php echo $x . ":" . $y; ?>
+                <a href='javascript:void(0);' onclick='redirectToMap(<?= $x ?>, <?= $y ?>)'>
+                    <?= $x . ":" . $y ?>
                 </a>
             </td>
-            <?php
-            //echo "<td><a href='javascript:void(0);' onclick='redirectToMap(\"$x\", \"$y\")'>" . $x . ":" . $y . "</a></td>";
-            ?>
         </tr>
     </table>
     <br>
@@ -113,7 +95,7 @@ if (isset($user_id)) {
             [Schließen]
         </a>
     </div>
-    <title>Magic Empires - <?php echo $row["username"]; ?></title>
+    <title>Magic Empires - <?= $user_name ?></title>
     <?php
 }
 ?>
