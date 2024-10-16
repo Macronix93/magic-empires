@@ -404,14 +404,14 @@ class User
                 <fieldset>
                     <legend><b>Registrieren</b></legend>
                     <?php echo(!empty($this->reg_status) ? $this->reg_status : ''); ?>
-                    <span class="error"><?php echo $error; ?></span>
+                    <span class="error"><?= !empty($error) ? $error . "<br>" : ""; ?></span>
                     <table class="table" style="width: 50%;">
                         <tr>
                             <td><b>Benutzername:</b></td>
                             <td>
                                 <label>
                                     <input style="padding:3px" class="regis" type="text" name="username"
-                                           value="<?php echo $_POST["username"] ?? ""; ?>">
+                                           value="<?= $_POST["username"] ?? ""; ?>">
                                 </label>
                             </td>
                         </tr>
@@ -422,7 +422,7 @@ class User
                             <td>
                                 <label>
                                     <input class="regis" type="text" name="email"
-                                           value="<?php echo $_POST["email"] ?? ""; ?>">
+                                           value="<?= $_POST["email"] ?? ""; ?>">
                                 </label>
                             </td>
                         </tr>
@@ -458,14 +458,14 @@ class User
             <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
                 <fieldset>
                     <legend><b>Login</b></legend>
-                    <span class="error"><?php echo $error; ?></span>
+                    <span class="error"><?= !empty($error) ? $error . "<br><br>" : ""; ?></span>
                     <table class="table" style="width: 50%;">
                         <tr>
                             <td><b>Benutzername:</b></td>
                             <td>
                                 <label>
                                     <input type="text" name="username"
-                                           value="<?php echo $_POST["username"] ?? ""; ?>">
+                                           value="<?= $_POST["username"] ?? ""; ?>">
                                 </label>
                             </td>
                         </tr>

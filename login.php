@@ -1,13 +1,12 @@
 <?php
 require_once("includes/core.php");
 
-// Set error variable to empty string
-$error = "";
-
 if (isset($_GET["logout"])) {
     if ($user->is_logged_in()) {
         if ($_GET["logout"] === "inactive") {
-            $error = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!<br><br>";
+            $error .= "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
+        } else if ($_GET["logout"] === "session") {
+            $error .= "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
         }
 
         // Update anti spam
@@ -62,9 +61,6 @@ if (isset($_GET["logout"])) {
                 $error .= "Dieser Nickname existiert nicht!";
             }
         }
-
-        // Add additional space for error message
-        $error .= "<br><br>";
     }
 }
 ?>

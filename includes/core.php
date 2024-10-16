@@ -78,109 +78,6 @@ interface BuildingTypes
 }
 
 /*
- * Global exception handlers
- */
-#[NoReturn] function global_exception_handler($e): void
-{
-    error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
-    echo "<body style='
-                        display: flex;
-                        justify-content: center;
-                        background: rgb(0, 0, 0) url(../images/background.png);     
-                        color: rgb(240, 240, 240);
-                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
-                        font-family: Arial, Helvetica, sans-serif;
-                        font-size: 24px;'>
-                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>An unexpected error occurred! Please stand by.</p>
-          </body>";
-    exit;
-}
-
-/**
- * @throws ErrorException
- */
-function global_error_handler($err_no, $err_str, $err_file, $err_line)
-{
-    throw new ErrorException($err_str, 0, $err_no, $err_file, $err_line);
-}
-
-function fatal_error_shutdown_handler(): void
-{
-    $error = error_get_last();
-    if ($error !== null) {
-        error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
-        echo "<body style='
-                        display: flex;
-                        justify-content: center;
-                        background: rgb(0, 0, 0) url(../images/background.png);     
-                        color: rgb(240, 240, 240);
-                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
-                        font-family: Arial, Helvetica, sans-serif;
-                        font-size: 24px;'>
-                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>A fatal error occurred! Please stand by.</p>
-          </body>";
-    }
-}
-
-/*
- * PHP Options
- */
-/*set_exception_handler('global_exception_handler');
-set_error_handler('global_error_handler');
-register_shutdown_function('fatal_error_shutdown_handler');*/
-ini_set('max_execution_time', 300);
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
-/*
- * AutoLoad classes
- */
-spl_autoload_register(function ($class_name) {
-    include(__DIR__ . '/../classes/' . $class_name . '.php');
-});
-
-// Load .env file
-(new DotEnv(__DIR__ . "/.env"))->load();
-
-// Database instance for classes
-$db = Database::get_instance();
-$db_instance = $db->get_connection();
-
-// Create User instance
-$user = User::get_instance();
-
-// Timeout Check
-if ($user->is_logged_in()) {
-    $timestamp = time();
-
-    if (!isset($_SESSION["lastactivity"])) {
-        // initiate value
-        $_SESSION["lastactivity"] = $timestamp;
-    }
-
-    // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
-    if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
-        session_unset();
-        session_destroy();
-
-        change_location("login.php?logout");
-        exit;
-    } else {
-        // update last activity timestamp, if not logging out
-        if ($timestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK && !(isset($_GET["logout"]) && $_GET["logout"] === "inactive")) {
-            $db_instance->execute_query("UPDATE users SET lastactivity = $timestamp WHERE id = ?", [$user->get_user_id()]);
-        }
-
-        $_SESSION["lastactivity"] = $timestamp;
-    }
-
-    // Process all events for the user
-    $user->process_user_events($user->get_user_id());
-
-    // Update villager count after events were processed (villager cap)
-    apply_villager_cap($user->get_current_kingdom());
-}
-
-/*
     Useful functions
 */
 
@@ -385,4 +282,106 @@ function get_bad_names(): array
 
     // Convert all names to lowercase to ensure case-insensitive comparison
     return file($filename, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+}
+
+/*
+ * Global exception handlers
+ */
+#[NoReturn] function global_exception_handler($e): void
+{
+    error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
+    echo "<body style='
+                        display: flex;
+                        justify-content: center;
+                        background: rgb(0, 0, 0) url(../images/background.png);     
+                        color: rgb(240, 240, 240);
+                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
+                        font-family: Arial, Helvetica, sans-serif;
+                        font-size: 24px;'>
+                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>An unexpected error occurred! Please stand by.</p>
+          </body>";
+    exit;
+}
+
+/**
+ * @throws ErrorException
+ */
+function global_error_handler($err_no, $err_str, $err_file, $err_line)
+{
+    throw new ErrorException($err_str, 0, $err_no, $err_file, $err_line);
+}
+
+function fatal_error_shutdown_handler(): void
+{
+    $error = error_get_last();
+    if ($error !== null) {
+        error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
+        echo "<body style='
+                        display: flex;
+                        justify-content: center;
+                        background: rgb(0, 0, 0) url(../images/background.png);     
+                        color: rgb(240, 240, 240);
+                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
+                        font-family: Arial, Helvetica, sans-serif;
+                        font-size: 24px;'>
+                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>A fatal error occurred! Please stand by.</p>
+          </body>";
+    }
+}
+
+/*
+ * PHP Options
+ */
+/*set_exception_handler('global_exception_handler');
+set_error_handler('global_error_handler');
+register_shutdown_function('fatal_error_shutdown_handler');*/
+ini_set('max_execution_time', 300);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+/*
+ * AutoLoad classes
+ */
+spl_autoload_register(function ($class_name) {
+    include(__DIR__ . '/../classes/' . $class_name . '.php');
+});
+
+// Load .env file
+(new DotEnv(__DIR__ . "/.env"))->load();
+
+// Database instance for classes
+$db = Database::get_instance();
+$db_instance = $db->get_connection();
+
+// Create User instance
+$user = User::get_instance();
+$error = "";
+
+// Timeout Check
+if ($user->is_logged_in()) {
+    $timestamp = time();
+
+    if (!isset($_SESSION["lastactivity"])) {
+        // initiate value
+        $_SESSION["lastactivity"] = $timestamp;
+    }
+
+    // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
+    if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
+        if (basename($_SERVER["PHP_SELF"]) !== "login.php") {
+            change_location("login.php?logout=session");
+        }
+    } else {
+        // update last activity timestamp, if not logging out
+        if ($timestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK && !(isset($_GET["logout"]) && $_GET["logout"] === "inactive")) {
+            $db_instance->execute_query("UPDATE users SET lastactivity = $timestamp WHERE id = ?", [$user->get_user_id()]);
+        }
+
+        $_SESSION["lastactivity"] = $timestamp;
+
+        // Process all events for the user
+        $user->process_user_events($user->get_user_id());
+
+        // Update villager count after events were processed (villager cap)
+        apply_villager_cap($user->get_current_kingdom());
+    }
 }

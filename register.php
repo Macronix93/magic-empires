@@ -14,9 +14,6 @@ $name = "";
 $email = "";
 $pass = "";
 
-// Set error variable to empty string
-$error = "";
-
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     //$json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=6LeaqbQpAAAAAIu70IunagW0rddoRkewvP27wRb2&response=' . $_POST['g-recaptcha-response']);
     // ME Schlüssel: 6Lf1Ok4UAAAAAG9oYNxP0_LDyUZfcie2XWhyZKBe
@@ -79,9 +76,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user->register_user($name, $email, $pass);
         }
     }
-
-    // Add additional space for error message
-    $error .= "<br>";
 }
 
 // Show register form
