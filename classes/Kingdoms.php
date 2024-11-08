@@ -108,22 +108,26 @@ class Kingdoms
         return $row["id"];
     }
 
-    public function get_kingdom_buildings(int $kingdom_id): void
+    public function get_kingdom_buildings(int $kingdom_id): array
     {
+        $kingdom_buildings = [];
         $result = $this->mysqli->execute_query("SELECT buildingid, buildingname FROM buildings WHERE kingdomid = ?", [$kingdom_id]);
 
-        if ($result->num_rows === 0) {
-            echo "Es wurden alle Gebäude gebaut.";
-        } else {
-
+        if ($result->num_rows != 0) {
             foreach ($result as $row) {
                 $building_id = $row["buildingid"];
-                $b_name = $row["buildingname"];
 
-                echo "<div class='box" . (isset($_GET["id"]) && $_GET["id"] == $building_id ? ' active' : '') . "' onclick=\"navigateTo('buildings.php?id=$building_id', this)\">" . $this->get_icon($building_id, $b_name) . " $b_name</div>";
+                $kingdom_buildings[] = [
+                    'buildingid' => $building_id,
+                    'buildingname' => $row["buildingname"],
+                    'buildingfile' => get_building_file($building_id),
+                ];
             }
         }
+
+        return $kingdom_buildings;
     }
+
 
     public function get_icon(int $building_id, string $b_name): string
     {

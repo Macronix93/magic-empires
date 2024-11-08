@@ -1,14 +1,11 @@
 <?php
 require_once("includes/core.php");
 
-// Check if user is not logged in, and if so, redirect him to login page
 if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
 
-$view = "";
-$error = "";
 $user_list = "";
 $user_id = -1;
 
@@ -33,9 +30,13 @@ if ($user->get_user_admin_level() == 0) {
                 }
             }
         } else {
+            if ($field == "password") {
+                $new_value = make_secure($new_value ?? "");
+                $new_value = password_hash($new_value, PASSWORD_BCRYPT);
+            }
+
             $result = $db_instance->execute_query("UPDATE users SET $field = ? WHERE id = ?", [$new_value, $user_id]);
         }
-
 
         if ($result) {
             $view .= '<div class="info-box">Daten erfolgreich aktualisiert! Field: ' . $field . ' Value: ' . $new_value . '</div>';
@@ -80,6 +81,7 @@ if ($user->get_user_admin_level() == 0) {
                 if (empty($user_info)) {
                     $user_info = [
                         'Name' => ['field' => 'username', 'value' => $row['username']],
+                        'Passwort' => ['field' => 'password', 'value' => "Passwort"],
                         'Avatar' => ['field' => 'avatar', 'value' => $user->get_avatar($row['username'])],
                         'Account-Status' => ['field' => 'status', 'value' => $row['status']],
                         'IP' => ['field' => 'ip', 'value' => $row['ip']],

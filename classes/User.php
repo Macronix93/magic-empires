@@ -110,13 +110,36 @@ class User
         $_SESSION["message_count"] = $row["msgcount"];
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
 
-        // Update login time
-        $this->mysqli->execute_query("UPDATE users SET ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [$user_id]);
+        echo "set session id";
+
+        // Update login time and session id
+        $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [session_id(), $user_id]);
 
         change_location("index.php");
     }
 
+    // Get current users session ID
+    public function check_session_id(): void
+    {
+        $result = $this->mysqli->execute_query("SELECT sessionid FROM users WHERE id = ?", [$this->get_user_id()]);
+        $dbSessionID = $result->fetch_assoc()["sessionid"];
+
+        if ($dbSessionID !== session_id()) {
+            session_destroy();
+            change_location("login.php?logout");
+            exit;
+        }
+    }
+
     // Get user avatar
+
+    public function get_user_id(): int
+    {
+        return $_SESSION["userid"] ?? -1;
+    }
+
+    // Get the user ID by activation key
+
     public function get_avatar(string $user_name): string
     {
         $files = glob(__DIR__ . '/../' . UPLOADS_FILE_PATH . $user_name . ".*");
@@ -129,14 +152,14 @@ class User
         }
     }
 
-    // Get the user ID by activation key
+    // Check if user is logged in
+
     public function get_user_database_id(string $activation_key)
     {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
         return $result->fetch_assoc()["id"] ?? "";
     }
 
-    // Check if user is logged in
     public function is_logged_in(): bool
     {
         return isset($_SESSION["userid"]);
@@ -152,12 +175,12 @@ class User
         $_SESSION["kingdomid"] = $kingdom_id;
     }
 
+    // Get the name of the user
+
     public function get_user_name(): string
     {
         return $_SESSION["username"] ?? "";
     }
-
-    // Get the name of the user
 
     public function get_user_admin_level(): int
     {
@@ -192,11 +215,6 @@ class User
     {
         $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0", [$this->get_user_id()]);
         return $result->fetch_assoc()["unread_count"];
-    }
-
-    public function get_user_id(): int
-    {
-        return $_SESSION["userid"] ?? -1;
     }
 
     public function process_user_events(int $user_id): void

@@ -573,6 +573,14 @@ td {
     height: 100%;
 }
 
+#map-legend {
+    padding-bottom: 5px;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
 #map-container {
     -webkit-user-select: none; /* Safari */
     -ms-user-select: none; /* IE 10 and IE 11 */
@@ -678,7 +686,7 @@ td {
 
 
 /* Smartphone Ansicht */
-@media screen and (max-width: 700px) {
+@media screen and (max-width: 600px) {
     html {
         width: 100%;
     }
@@ -686,6 +694,7 @@ td {
     #map-container td {
         width: 35px;
         height: 35px;
+        font-size: 14px;
     }
 
     body {
@@ -733,6 +742,21 @@ td {
 
     #messages-section {
         max-height: calc(100vh - 370px);
+    }
+
+    .map-arrows {
+        width: 20px;
+        height: 20px;
+        margin: 3px;
+    }
+
+    #map-legend {
+        justify-content: space-evenly;
+    }
+
+    .legend-inner-item {
+        width: 24px;
+        height: 24px;
     }
 }
 

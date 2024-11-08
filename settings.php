@@ -4,7 +4,6 @@ use Random\RandomException;
 
 require_once("includes/core.php");
 
-// Check if user is not logged in, and if so, redirect him to login page
 if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
@@ -51,15 +50,22 @@ if (isset($_POST['submit'])) {
             } elseif ($file_error !== 0) {
                 $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
             } else {
-                $file_path = UPLOADS_FILE_PATH . $user->get_user_name() . "." . $file_ext;
+                $file_path = UPLOADS_FILE_PATH . $user->get_user_name();
+                $files = glob(UPLOADS_FILE_PATH . $user->get_user_name() . '*');
+
+                if (count($files) > 0) {
+                    $info = pathinfo($files[0]);
+
+                    unlink($file_path . "." . $info['extension']);
+                }
 
                 // Move the file from temp location to the uploads directory
-                if (move_uploaded_file($file_tmp, $file_path)) {
+                if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
                     $view = "Nutzerbild wurde erfolgreich hochgeladen!";
 
                     unset($_SESSION['csrf_token']);
                 } else {
-                    $error = "Fehler beim Verschieben der Datei!";
+                    $error = "Fehler beim Hochladen des Nutzerbildes!";
                 }
             }
         } else {
@@ -68,7 +74,7 @@ if (isset($_POST['submit'])) {
     }
 }
 
-$files = glob(UPLOADS_FILE_PATH . $user->get_user_name() . '*'); // Will find 2.txt, 2.php, 2.gif
+/*$files = glob(UPLOADS_FILE_PATH . $user->get_user_name() . '*'); // Will find 2.txt, 2.php, 2.gif
 
 // Process through each file in the list
 // and output its extension
@@ -79,7 +85,7 @@ if (count($files) > 0) {
     }
 } else {
     echo "nothing found";
-}
+}*/
 
 /*
  * HTML Section

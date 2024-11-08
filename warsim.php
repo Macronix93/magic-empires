@@ -1,7 +1,6 @@
 <?php
 require_once("includes/core.php");
 
-// Check if user is not logged in, and if so, redirect him to login page
 if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
@@ -36,7 +35,6 @@ $view .= '<table class="table">
 for ($i = 0; $i < count($soldiers); $i++) {
     $soldier_name = $soldiers[$i]->get_soldier_name();
 
-    // Concatenate each soldier row to $view
     $view .= "<tr>
                 <td>" . $soldiers[$i]->get_soldier_icon() . " " . $soldier_name . "<br>
                     <div class='split-content' style='width: 104px;'>

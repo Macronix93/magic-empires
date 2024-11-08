@@ -1,13 +1,10 @@
 <?php
 require_once("includes/core.php");
 
-// Check if user is not logged in, and if so, redirect him to login page
 if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
-
-$view = "";
 
 ob_start();
 
@@ -68,7 +65,7 @@ echo "<input type='hidden' id='highlightedfield'>
       </script>";
 
 // Show info about the fields
-echo "<div style='padding-bottom: 5px; display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;'>
+echo "<div id='map-legend'>
                             <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></div><span>Hochland</span></div>
                             <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></div><span>Küste</span></div>
                             <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></div><span>Wald</span></div>

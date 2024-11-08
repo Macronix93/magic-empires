@@ -46,10 +46,10 @@ class Map
 
         // Coords Variable
         $coords = array();
-        for ($c = 1; $c <= 100; $c++) {
+        for ($c = 1; $c <= MAX_X; $c++) {
             $coords[$c] = array();
 
-            for ($r = 1; $r <= 100; $r++) {
+            for ($r = 1; $r <= MAX_Y; $r++) {
                 $coords[$c][$r] = "";
             }
         }
@@ -68,7 +68,7 @@ class Map
         ";
         $result = $this->mysqli->execute_query($query, [$x_start, $x_end, $y_start, $y_end]);
         ?>
-        <table class="table">
+        <table class="table" style="width: auto;">
         <tr>
             <td colspan="13" class="top-bottom-cell td-gradient">
                 <?php echo $arrow_up . $arrow_up_1 ?>

@@ -15,8 +15,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         if ($user_id == $user->get_user_id()) {
             $user->set_current_kingdom($_POST['choosekingdom']);
         }
-
-        echo json_encode(['success' => true, 'message' => 'Kingdom updated successfully']);
     }
 } else {
     change_location("index.php");

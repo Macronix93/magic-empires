@@ -44,7 +44,15 @@
         <div id="kingdom-buildings">
             <?php
             // Show kingdom buildings
-            $kingdom->get_kingdom_buildings($user->get_current_kingdom());
+            $kingdom_buildings = $kingdom->get_kingdom_buildings($user->get_current_kingdom());
+            $current_page = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+
+            foreach ($kingdom_buildings as $building) {
+                $building_file = $building['buildingfile'] . ".php";
+
+                echo "<div class='box" . ($current_page === $building_file ? ' active' : '') . "' onclick=\"navigateTo('" . $building_file . "', this)\">" .
+                    $kingdom->get_icon($building['buildingid'], $building['buildingname']) . " {$building['buildingname']}</div>";
+            }
             ?>
         </div>
     </div>

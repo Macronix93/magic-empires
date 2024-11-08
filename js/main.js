@@ -114,7 +114,7 @@ function updateKingdom(selectElement) {
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4 && this.status === 200) {
                 // Construct the new URL based on the current page
-                let currentUrl = new URL(window.location.href);
+                /*let currentUrl = new URL(window.location.href);
                 let pathname = currentUrl.pathname;
                 let params = new URLSearchParams(currentUrl.search);
                 let newUrl;
@@ -129,8 +129,9 @@ function updateKingdom(selectElement) {
                     }
                 }
 
-                newUrl = `${pathname}?${params.toString()}`;
-                window.location.href = newUrl;
+                newUrl = `${pathname}?${params.toString()}`;*/
+
+                window.location.href = new URL(window.location.href).pathname;
             }
         };
         xhttp.open("POST", "ajax/change_kingdom.php", true);

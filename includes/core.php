@@ -17,7 +17,8 @@ if (session_status() == PHP_SESSION_NONE) {
     Constants (defines)
 */
 const MAINTENANCE_MODE = false;
-const ERROR_PATH = "D:/xampp/htdocs/magic-empires/logs/errors.log";
+const BACKGROUND_IMAGE = "images/background.png";
+const ERROR_LOG_FILE = "logs/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 16;
@@ -58,6 +59,7 @@ const UPLOADS_FILE_PATH = 'uploads/';
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . 'default_avatar.jpg';
 const MAX_UPLOAD_FILE_SIZE = 64; // In KB
 
+
 /*
  * Enum of buildings
  */
@@ -75,6 +77,24 @@ interface BuildingTypes
     const BUILDING_GOLDMINE = 8;
     const BUILDING_STORAGE = 9;
     const BUILDING_MARKETPLACE = 10;
+}
+
+function get_building_file(int $building_id): string
+{
+    return match ($building_id) {
+        BuildingTypes::BUILDING_TOWNCENTER => "towncenter",
+        BuildingTypes::BUILDING_UNIVERSITY => "university",
+        BuildingTypes::BUILDING_BARRACKS => "barracks",
+        BuildingTypes::BUILDING_WALL => "wall",
+        BuildingTypes::BUILDING_SMITHY => "blacksmith",
+        BuildingTypes::BUILDING_MILL => "mill",
+        BuildingTypes::BUILDING_SAWMILL => "sawmill",
+        BuildingTypes::BUILDING_STONEMINE => "stonemine",
+        BuildingTypes::BUILDING_GOLDMINE => "goldmine",
+        BuildingTypes::BUILDING_STORAGE => "storage",
+        BuildingTypes::BUILDING_MARKETPLACE => "marketplace",
+        default => "index",
+    };
 }
 
 /*
@@ -110,6 +130,24 @@ function apply_villager_cap(int $kingdom_id): void
         $villDiff = $villager_count - $max_villager;
         $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villDiff WHERE id = ?", [$kingdom_id]);
     }
+}
+
+function fetch_kingdom_building(int $kingdom_id, int $building_id): Building
+{
+    $db = Database::get_instance();
+    $db_instance = $db->get_connection();
+    $building = new Building($db_instance);
+    $result = $db_instance->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?", [$kingdom_id, $building_id]);
+
+    foreach ($result as $row) {
+        $building->set_building_name($row['buildingname']);
+        $building->set_building_level($row['buildinglevel']);
+    }
+
+    $building->set_building_id($building_id);
+    $building->set_building_kingdom_id($_SESSION["kingdomid"]);
+
+    return $building;
 }
 
 function fetch_all_buildings(int $kingdom_id): array
@@ -289,16 +327,16 @@ function get_bad_names(): array
  */
 #[NoReturn] function global_exception_handler($e): void
 {
-    error_log("[" . date("D M d H:i:s") . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_PATH);
+    error_log("[" . date(ERROR_DATE_FORMAT) . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_LOG_FILE);
     echo "<body style='
                         display: flex;
                         justify-content: center;
-                        background: rgb(0, 0, 0) url(../images/background.png);     
+                        background: rgb(0, 0, 0) url(" . BACKGROUND_IMAGE . ");     
                         color: rgb(240, 240, 240);
                         text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
                         font-family: Arial, Helvetica, sans-serif;
                         font-size: 24px;'>
-                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>An unexpected error occurred! Please stand by.</p>
+                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>Ein unerwarteter Fehler ist aufgetreten!</p>
           </body>";
     exit;
 }
@@ -315,16 +353,16 @@ function fatal_error_shutdown_handler(): void
 {
     $error = error_get_last();
     if ($error !== null) {
-        error_log("[" . date("D M d H:i:s") . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_PATH);
+        error_log("[" . date(ERROR_DATE_FORMAT) . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_LOG_FILE);
         echo "<body style='
                         display: flex;
                         justify-content: center;
-                        background: rgb(0, 0, 0) url(../images/background.png);     
+                        background: rgb(0, 0, 0) url(" . BACKGROUND_IMAGE . ");     
                         color: rgb(240, 240, 240);
                         text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
                         font-family: Arial, Helvetica, sans-serif;
                         font-size: 24px;'>
-                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>A fatal error occurred! Please stand by.</p>
+                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>Ein fataler Fehler ist aufgetreten!</p>
           </body>";
     }
 }
@@ -355,9 +393,12 @@ $db_instance = $db->get_connection();
 // Create User instance
 $user = User::get_instance();
 $error = "";
+$view = "";
 
-// Timeout Check
+// Timeout and session ID check
 if ($user->is_logged_in()) {
+    $user->check_session_id();
+
     $timestamp = time();
 
     if (!isset($_SESSION["lastactivity"])) {

@@ -1,13 +1,10 @@
 <?php
 require_once("includes/core.php");
 
-// Check if user is not logged in, and if so, redirect him to login page
 if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
-
-$view = "";
 
 // Get some user data to show...
 $result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
@@ -56,6 +53,18 @@ $view .= "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>
 $view .= "Score: $score<br>";
 $view .= "Gilde: $guild_id<br>";
 $view .= "Admin-Level: " . $user->get_user_admin_level();
+
+/*$view .= "<a href='towncenter.php'>Dorfzentrum</a><br>";
+$view .= "<a href='university.php'>Universität</a><br>";
+$view .= "<a href='barracks.php'>Kaserne</a><br>";
+$view .= "<a href='wall.php'>Mauer</a><br>";
+$view .= "<a href='blacksmith.php'>Schmiede</a><br>";
+$view .= "<a href='mill.php'>Mühle</a><br>";
+$view .= "<a href='sawmill.php'>Sägewerk</a><br>";
+$view .= "<a href='stonemine.php'>Steinmine</a><br>";
+$view .= "<a href='goldmine.php'>Goldmine</a><br>";
+$view .= "<a href='storage.php'>Lager</a><br>";
+$view .= "<a href='marketplace.php'>Marktplatz</a><br>";*/
 
 
 /*

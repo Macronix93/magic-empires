@@ -1,14 +1,10 @@
 <?php
 require_once("includes/core.php");
 
-// Check if user is not logged in, and if so, redirect him to login page
 if (!($user->is_logged_in())) {
     change_location("login.php");
     exit;
 }
-
-$error = "";
-$view = "";
 
 function show_inbox($db_instance): string
 {
@@ -37,7 +33,7 @@ function show_inbox($db_instance): string
         $view .= '<table class="table">
                      <tr>
                          <td class="td-center td-gradient" style="word-break: break-word">
-                             <b>Konversation mit</b>
+                             <b>Chatpartner</b>
                          </td>
                          <td class="td-center td-gradient" style="word-break: break-word">
                              <b>Letzte Nachricht</b>
@@ -67,10 +63,10 @@ function show_inbox($db_instance): string
             $image_path = $user->get_avatar($sender_name);
 
             $view .= "<tr class='tr-hover$old_conversation'>
-                                    <td class='td-cursor image-and-user' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'><img class='user-image' src='$image_path' alt='Nutzerbild'> $sender_name " . show_messages_indicator($num_unread_messages) . "</td>
-                                    <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
-                                    <td style='text-align: center'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='conversationDeletionDialog(\"{$row["participant"]}\", \"$sender_name\")' style='cursor: pointer;'></td>
-                                </tr>";
+                <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'><div class='image-and-user'><img class='user-image' src='$image_path' alt='Nutzerbild'> $sender_name</div> " . show_messages_indicator($num_unread_messages) . "</td>
+                <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
+                <td class='td-center'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='conversationDeletionDialog(\"{$row["participant"]}\", \"$sender_name\")' style='cursor: pointer;'></td>
+            </tr>";
         }
 
         $view .= "</table>";
@@ -110,28 +106,6 @@ if (isset($_POST["sendpm"])) {
         if ($user_exists == 0) {
             $error = "Dieser Spieler existiert nicht!";
         } else {
-            // Query to count messages sent in the last 5 minutes
-            /*$result = $db_instance->execute_query("SELECT COUNT(*) AS messagecount FROM messages WHERE senderid = ? AND date > ?", [$user_id, $rate_limit]);
-            $message_count = $result->fetch_assoc()["messagecount"];
-            $remaining_time_in_seconds = MESSAGES_RATE_INTERVAL - ($time - $last_sent);
-
-            if ($message_count >= MAX_MESSAGES_RATELIMIT) {
-                $error = "Du schickst zu viele Nachrichten! Warte bitte: " . convert_sec_to_str($remaining_time_in_seconds);
-            } else {
-                // Anti spam
-                $db_instance->execute_query("UPDATE users SET lastsentmsgend = $time WHERE id = ?", [$user_id]);
-
-                // Get receiverid based on receiver name
-                $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ?", [$receiver]);
-                $receiver_id = $result->fetch_assoc()["id"];
-
-                // Insert message
-                $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, hasread, message) VALUES (?, ?, ?, ?, ?, ?, ?)";
-                $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $receiver_id, $receiver, $time, 0, $text_to_output]);
-
-                change_location("messages.php?action=read&s=$receiver_id");
-            }*/
-
             $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
             $message_count = $_SESSION["message_count"] ?? 0;
 
