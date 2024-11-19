@@ -94,7 +94,7 @@ $title = "Einstellungen";
 $header = "Einstellungen";
 
 if (!empty($error)) {
-    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+    $view = show_error_box($error) . $view;
 }
 
 $view .= '<form action="settings.php" method="POST" enctype="multipart/form-data">

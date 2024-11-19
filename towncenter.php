@@ -106,7 +106,7 @@ if (!empty($last_built_building)) {
     $built_building_name = $last_built_building["buildingname"];
     $built_building_level = $last_built_building["buildinglevel"];
 
-    $view .= "<div class='info-box'><p><span class='event-finished'>Bau abgeschlossen:</span> $built_building_name (" . $built_building_level . " → " . ($built_building_level + 1) . ")</p></div>";
+    $view .= show_weighted_box("$built_building_name (" . $built_building_level . " → " . ($built_building_level + 1) . ")", "Bau abgeschlossen:");
 
     $user->clear_last_built_building($current_kingdom);
 }
@@ -230,7 +230,7 @@ $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["counter"];
 
 if (!empty($error)) {
-    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+    $view = show_error_box($error) . $view;
 }
 
 include('layout/base.php');

@@ -26,7 +26,7 @@ if ($user->get_user_admin_level() == 0) {
 
             if (file_exists($file_path)) {
                 if (!rename($file_path, $new_file_path)) {
-                    $view .= '<div class="info-box">Fehler beim Aktualisieren des Avatars!</div>';
+                    $view .= show_error_box("Fehler beim Aktualisieren des Avatars!");
                 }
             }
         } else {
@@ -39,9 +39,9 @@ if ($user->get_user_admin_level() == 0) {
         }
 
         if ($result) {
-            $view .= '<div class="info-box">Daten erfolgreich aktualisiert! Field: ' . $field . ' Value: ' . $new_value . '</div>';
+            $view .= show_passed_box("Daten erfolgreich aktualisiert! Field: $field Value: $new_value");
         } else {
-            $view .= '<div class="info-box">Fehler beim Aktualisieren! Field: ' . $field . ' Value: ' . $new_value . '</div>';
+            $view .= show_error_box("Fehler beim Aktualisieren! Field: $field Value: $new_value");
         }
     }
 
@@ -244,7 +244,7 @@ if ($user->get_user_admin_level() == 0) {
                 }
             }
 
-            $view .= "<div class='info-box'>Benutzer erfolgreich gelöscht!</div>";
+            $view .= show_passed_box("Benutzer erfolgreich gelöscht!");
         } else {
             $error .= "Der Benutzer existiert nicht!";
         }
@@ -276,7 +276,7 @@ $header = "Admin-Bereich";
 $script_files = ["adminpanel"];
 
 if (!empty($error)) {
-    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+    $view = show_error_box($error) . $view;
 } else {
     $view = $user_list . $view;
 }

@@ -54,18 +54,6 @@ $view .= "Score: $score<br>";
 $view .= "Gilde: $guild_id<br>";
 $view .= "Admin-Level: " . $user->get_user_admin_level();
 
-/*$view .= "<a href='towncenter.php'>Dorfzentrum</a><br>";
-$view .= "<a href='university.php'>Universität</a><br>";
-$view .= "<a href='barracks.php'>Kaserne</a><br>";
-$view .= "<a href='wall.php'>Mauer</a><br>";
-$view .= "<a href='blacksmith.php'>Schmiede</a><br>";
-$view .= "<a href='mill.php'>Mühle</a><br>";
-$view .= "<a href='sawmill.php'>Sägewerk</a><br>";
-$view .= "<a href='stonemine.php'>Steinmine</a><br>";
-$view .= "<a href='goldmine.php'>Goldmine</a><br>";
-$view .= "<a href='storage.php'>Lager</a><br>";
-$view .= "<a href='marketplace.php'>Marktplatz</a><br>";*/
-
 
 /*
  * HTML Section

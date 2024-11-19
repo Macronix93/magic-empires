@@ -31,17 +31,17 @@ function show_inbox($db_instance): string
 
     if ($result->num_rows > 0) {
         $view .= '<table class="table">
-                     <tr>
-                         <td class="td-center td-gradient" style="word-break: break-word">
-                             <b>Chatpartner</b>
-                         </td>
-                         <td class="td-center td-gradient" style="word-break: break-word">
-                             <b>Letzte Nachricht</b>
-                         </td>
-                         <td class="td-center td-gradient" style="word-break: break-word">
-                             <b>Aktion</b>
-                         </td>
-                     </tr>';
+         <tr>
+             <td class="td-center td-gradient" style="word-break: break-word">
+                 <b>Chatpartner</b>
+             </td>
+             <td class="td-center td-gradient" style="word-break: break-word">
+                 <b>Letzte Nachricht</b>
+             </td>
+             <td class="td-center td-gradient" style="word-break: break-word">
+                 <b>Aktion</b>
+             </td>
+         </tr>';
 
         $query = "
                     SELECT 
@@ -63,7 +63,7 @@ function show_inbox($db_instance): string
             $image_path = $user->get_avatar($sender_name);
 
             $view .= "<tr class='tr-hover$old_conversation'>
-                <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'><div class='image-and-user'><img class='user-image' src='$image_path' alt='Nutzerbild'> $sender_name</div> " . show_messages_indicator($num_unread_messages) . "</td>
+                <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'><div class='image-and-user'><img class='user-image' src='$image_path' alt='Nutzerbild'>$sender_name " . show_messages_indicator($num_unread_messages) . "</div></td>
                 <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
                 <td class='td-center'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='conversationDeletionDialog(\"{$row["participant"]}\", \"$sender_name\")' style='cursor: pointer;'></td>
             </tr>";
@@ -75,10 +75,10 @@ function show_inbox($db_instance): string
     }
 
     $view .= "<br>
-                        <form action='messages.php' method='GET'>
-                            <input type='hidden' name='action' value='new'>
-                            <input type='submit' value='Neue Konversation' style='margin-top: 5px;'>
-                        </form>";
+    <form action='messages.php' method='GET'>
+        <input type='hidden' name='action' value='new'>
+        <input type='submit' value='Neue Konversation' style='margin-top: 5px;'>
+    </form>";
 
     return $view;
 }
@@ -323,10 +323,10 @@ if (isset($_GET["action"])) {
 $title = "Nachrichten";
 $header = "Nachrichten";
 $script_files = ["counter", "chat", "userinfo"];
-$view = '<div class="info-box" style="display: none;"></div>' . $view;
+$view = show_error_box($error, false) . $view;
 
 if (!empty($error)) {
-    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+    $view = show_error_box($error) . $view;
 }
 
 include('layout/base.php');

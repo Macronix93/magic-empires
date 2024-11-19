@@ -116,7 +116,7 @@ if (!empty($last_recruited_soldier)) {
     $soldier_name = $last_recruited_soldier["soldiername"];
     $soldier_count = $last_recruited_soldier["soldiercount"];
 
-    $view .= "<div class='info-box'><p><span class='event-finished'>Ausbildung abgeschlossen:</span> $soldier_name (+$soldier_count)</p></div>";
+    $view .= show_weighted_box("$soldier_name (+$soldier_count)", "Ausbildung abgeschlossen:");
 
     $user->clear_last_recruited_soldier($current_kingdom);
 }
@@ -237,7 +237,7 @@ $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["counter"];
 
 if (!empty($error)) {
-    $view = "<div class='info-box'>" . $error . "</div>" . $view;
+    $view = show_error_box($error) . $view;
 }
 
 include('layout/base.php');

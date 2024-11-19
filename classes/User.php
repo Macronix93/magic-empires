@@ -4,7 +4,7 @@ class User
 {
     private static User $instance;
     private object $mysqli;
-    private int $reg_status;
+    private string $reg_status;
 
     // Constructor
     private function __construct()
@@ -47,7 +47,7 @@ class User
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activation_key = md5($email . $name);
 
-        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))", [$name, $password, $activation_key, $email]);
+        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)", [$name, $password, $activation_key, $email, session_id()]);
         $insert_id = $this->mysqli->insert_id;
 
         // Try to create kingdom

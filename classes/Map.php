@@ -197,7 +197,7 @@ class Map
             $field_name = $result->fetch_assoc()["fieldname"];
 
             if ($result_2->num_rows == 0) {
-                echo "<div class='info-box'>Dieses Königreich existiert nicht!</div>";
+                echo show_error_box("Dieses Königreich existiert nicht!");
             } else {
                 echo '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">Königreich-Info (' . $field_name . ')</div>
                       <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">

@@ -21,20 +21,20 @@ $offset = ($current_page - 1) * $rows_per_page;
 // Get the data for the current page
 $result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
 $view .= '<table class="table">
-<tr>
-    <td class="td-center td-gradient"
-        style="width: 20%;">
-        <b>Rang</b>
-    </td>
-    <td class="td-center td-gradient"
-        style="width: 50%;">
-        <b>Spieler</b>
-    </td>
-    <td class="td-center td-gradient"
-        style="width: 20%;">
-        <b>Punkte</b>
-    </td>
-</tr>';
+            <tr>
+                <td class="td-center td-gradient"
+                    style="width: 20%;" colspan="2">
+                    <b>Rang</b>
+                </td>
+                <td class="td-center td-gradient"
+                    style="width: 50%;">
+                    <b>Spieler</b>
+                </td>
+                <td class="td-center td-gradient"
+                    style="width: 20%;">
+                    <b>Punkte</b>
+                </td>
+            </tr>';
 $position = ($current_page - 1) * $rows_per_page + 1;
 
 foreach ($result as $row) {
@@ -57,8 +57,11 @@ foreach ($result as $row) {
     }
 
     $view .= "<tr>
-                <td class='td-center' style='min-width: 13%;'>$position</td>
-
+                <td class='td-center' style='min-width: 13%; text-align: right; border-right: none;'>$position</td>
+                <td style='border-left: none; padding: 0; margin:0;'>
+                    <div class='popup' id='description" . $position . "'>$icon</div>
+                    <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row['lastrank']} ($change)</div>
+                </td>
                 <td>
                     <div class='image-and-user'>
                         <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>

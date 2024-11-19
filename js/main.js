@@ -113,24 +113,6 @@ function updateKingdom(selectElement) {
         let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4 && this.status === 200) {
-                // Construct the new URL based on the current page
-                /*let currentUrl = new URL(window.location.href);
-                let pathname = currentUrl.pathname;
-                let params = new URLSearchParams(currentUrl.search);
-                let newUrl;
-
-                if (pathname.includes('buildings.php')) {
-                    // When on buildings.php, keep only the id parameter
-                    let id = params.get('id');
-
-                    params = new URLSearchParams();
-                    if (id) {
-                        params.set('id', id);
-                    }
-                }
-
-                newUrl = `${pathname}?${params.toString()}`;*/
-
                 window.location.href = new URL(window.location.href).pathname;
             }
         };

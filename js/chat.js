@@ -135,10 +135,15 @@ function insertNewChatMessage(e) {
         .then(response => response.json())
         .then(response => {
             const infoBox = document.querySelector(".info-box");
+            const currentTextBlock = document.querySelector(".info-box p");
+            currentTextBlock.remove();
 
             if (response.error) {
-                infoBox.innerText = response.error;
+                const textBlock = document.createElement("p");
+                textBlock.innerText = response.error;
+
                 infoBox.style.display = "flex";
+                infoBox.append(textBlock);
 
                 // Create a new span element for the counter, if ratelimit was reached
                 if (response.counter >= response.messageLimit) {

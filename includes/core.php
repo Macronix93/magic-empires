@@ -241,17 +241,29 @@ function convert_sec_to_str(int $secs): string
 
 function change_location(string $url, int $seconds = 0): void
 {
-    // Assuming your site is hosted at the root domain, adjust if necessary
-    $rootUrl = '/magic-empires/'; // This points to the root of your website
-
-    // Prepend the root URL to the given URL
-    $fullUrl = rtrim($rootUrl, '/') . '/' . ltrim($url, '/'); // Ensures no double slashes
+    $rootUrl = '/magic-empires/';
+    $fullUrl = rtrim($rootUrl, '/') . '/' . ltrim($url, '/');
 
     if ($seconds === 0) {
         header("Location: $fullUrl");
     } else {
         header("refresh:$seconds; url=$fullUrl");
     }
+}
+
+function show_passed_box(string $info_text): string
+{
+    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'>$info_text</div>";
+}
+
+function show_error_box(string $info_text, bool $display = true): string
+{
+    return "<div class='info-box event-error' style='" . ($display ? "" : "display: none;") . "'><img src='images/icons/icon_error.png' alt='Fehler'><p>$info_text</p></div>";
+}
+
+function show_weighted_box(string $info_text, string $weighted_text): string
+{
+    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><p><span class='weighted'>$weighted_text</span> $info_text</p></div>";
 }
 
 function clamp_value(int $value)

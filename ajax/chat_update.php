@@ -2,6 +2,7 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    //if (isset($_SESSION["msgreceiver"])) {
     // Get chat partner
     $chat_partner = htmlspecialchars($_GET["s"]);
     $messages_to_delete = [];
@@ -9,6 +10,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     // Render the conversation HTML
     ob_start();
+
+    $user->check_session_id();
 
     if ($_SESSION["msgreceiver"] != $chat_partner) {
         echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
@@ -55,6 +58,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "messagesToDelete" => $messages_to_delete,
         "error" => $error
     ]);
+    //}
 } else {
     change_location("Location: messages.php");
 }
