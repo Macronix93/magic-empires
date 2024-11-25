@@ -5,6 +5,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $response = [];
     $receiver_id = $_SESSION["msgreceiver"];
     $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
+    $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
 
     // Render the conversation HTML
     ob_start();
@@ -38,7 +39,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $remaining_time_in_seconds = $message_timeframe_end - $current_time;
             $response["counter"] = $remaining_time_in_seconds;
             $response["messageLimit"] = MAX_MESSAGES_RATELIMIT;
-            $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte: ";
+            $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte:";
         } else {
             $_SESSION["message_count"] = ++$message_count;
             $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;

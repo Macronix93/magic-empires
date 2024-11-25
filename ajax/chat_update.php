@@ -21,9 +21,9 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $my_chat_image = $user->get_avatar($user->get_user_name());
         $row = $result->fetch_assoc();
 
-        if ($result->num_rows > 0) {
+        /*if ($result->num_rows > 0) {
             echo "<div id='new-message-line' class='error'>Neue Nachrichten seit dem " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</div>";
-        }
+        }*/
 
         foreach ($result as $row) {
             if (empty($chat_partner_image)) {

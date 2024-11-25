@@ -1,31 +1,16 @@
 let mainWindow = window.opener;
+const popupWidth = 740;
+const popupHeight = 400;
 
-function openUserDetails(url) {
-    const width = 740;
-    const height = 400;
-
+function openPopup(url) {
     // Calculate the monitor where the browser is located
     const currentMonitor = screen.width * window.screenLeft / screen.width;
 
     // Calculate left position to open the popup on the same monitor
-    const left = currentMonitor + (screen.width / 2) - (width / 2);
-    const top = (screen.height - height) / 2;
+    const left = currentMonitor + (screen.width / 2) - (popupWidth / 2);
+    const top = (screen.height - popupHeight) / 2;
 
-    window.open(url, "popup", `scrollbars=yes, width=${width}, height=${height}, left=${left}, top=${top}`);
-}
-
-function userList() {
-    const width = 740;
-    const height = 400;
-
-    // Calculate the monitor where the browser is located
-    const currentMonitor = screen.width * window.screenLeft / screen.width;
-
-    // Calculate left position to open the popup on the same monitor
-    const left = currentMonitor + (screen.width / 2) - (width / 2);
-    const top = (screen.height - height) / 2;
-
-    window.open("userlist.php", "popup", `scrollbars=yes, width=${width}, height=${height}, left=${left}, top=${top}`);
+    window.open(url, "popup", `scrollbars=yes, width=${popupWidth}, height=${popupHeight}, left=${left}, top=${top}`);
 }
 
 function redirectToMap(x, y) {

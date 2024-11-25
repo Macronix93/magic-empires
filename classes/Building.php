@@ -79,10 +79,10 @@ class Building
         $mult = $this->b_mult;
         $level = $this->b_level;
 
-        $cost_wood = round($this->get_building_cost(BUILDING_COST_WOOD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
-        $cost_food = round($this->get_building_cost(BUILDING_COST_FOOD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
-        $cost_stone = round($this->get_building_cost(BUILDING_COST_STONE) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
-        $cost_gold = round($this->get_building_cost(BUILDING_COST_GOLD) + $this->get_building_cost(BUILDING_COST_WOOD) * $mult * $level);
+        $cost_wood = round($this->get_building_cost(BUILDING_COST_TYPE_WOOD) + $this->get_building_cost(BUILDING_COST_TYPE_WOOD) * $mult * $level);
+        $cost_food = round($this->get_building_cost(BUILDING_COST_TYPE_FOOD) + $this->get_building_cost(BUILDING_COST_TYPE_FOOD) * $mult * $level);
+        $cost_stone = round($this->get_building_cost(BUILDING_COST_TYPE_STONE) + $this->get_building_cost(BUILDING_COST_TYPE_STONE) * $mult * $level);
+        $cost_gold = round($this->get_building_cost(BUILDING_COST_TYPE_GOLD) + $this->get_building_cost(BUILDING_COST_TYPE_GOLD) * $mult * $level);
 
         return array(
             "costWood" => $cost_wood,

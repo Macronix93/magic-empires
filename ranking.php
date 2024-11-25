@@ -65,7 +65,7 @@ foreach ($result as $row) {
                 <td>
                     <div class='image-and-user'>
                         <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
-                        <a href='javascript:void(0);' onclick='openUserDetails(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>{$row["username"]}</a>
+                        <a href='javascript:void(0);' onclick='openPopup(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>{$row["username"]}</a>
                     </div>
                     <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                 </td>

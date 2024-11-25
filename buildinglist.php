@@ -36,7 +36,7 @@ for ($i = 0; $i < count($buildings); $i++) {
     }
 
     $view .= "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                                            <td style='width: 40%;'><b>" . $buildings[$i]->get_building_name() . " ($current_building_level)</b></td>
+                                            <td style='width: 40%;'><a href='javascript:void(0);' onclick='openPopup(\"buildinginfo.php?bid=" . $i . "\");'>" . $buildings[$i]->get_building_name() . " ($current_building_level)</a></td>
                                             <td>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td></tr>";
 
     $dependency_text = "";
@@ -49,5 +49,6 @@ $view .= '</table>';
  */
 $title = "Gebäudeliste";
 $header = "Gebäudeliste";
+$script_files = ["userinfo"];
 
 include('layout/base.php');

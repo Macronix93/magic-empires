@@ -62,7 +62,7 @@ function updateChat(chatPartner) {
                 } else {
                     document.getElementById("messages-section").innerHTML += response.html;
 
-                    scrollToLatestMessage();
+                    scrollDown();
                 }
 
                 if (messageSection.innerText === "") {
@@ -136,7 +136,10 @@ function insertNewChatMessage(e) {
         .then(response => {
             const infoBox = document.querySelector(".info-box");
             const currentTextBlock = document.querySelector(".info-box p");
-            currentTextBlock.remove();
+
+            if (currentTextBlock) {
+                currentTextBlock.remove();
+            }
 
             if (response.error) {
                 const textBlock = document.createElement("p");
@@ -147,12 +150,15 @@ function insertNewChatMessage(e) {
 
                 // Create a new span element for the counter, if ratelimit was reached
                 if (response.counter >= response.messageLimit) {
-                    /** @type {HTMLElement} */
-                    const counterElement = document.createElement("span");
-                    infoBox.appendChild(counterElement);
-                    counterElement.id = "counter";
-                    counterElement.innerText = startCountdown(response.counter);
-                    counterElement.style.marginLeft = "5px";
+                    if (!infoBox.querySelector("#counter")) {
+                        /** @type {HTMLElement} */
+                        const counterElement = document.createElement("span");
+                        textBlock.append(counterElement);
+                        
+                        counterElement.id = "counter";
+                        counterElement.innerText = startCountdown(response.counter);
+                        counterElement.style.marginLeft = "5px";
+                    }
                 }
             } else if (response.html) {
                 document.getElementById("messages-section").innerHTML += response.html;

@@ -40,7 +40,7 @@ body {
 
 .sender-bubble {
     align-self: flex-start;
-    max-width: 500px;
+    max-width: 400px;
     background-color: var(--sender-bubble);
     border-radius: 30px;
     margin: 5px 0;
@@ -61,8 +61,10 @@ body {
 }
 
 .receiver-bubble {
+    display: flex;
+    flex-direction: column;
     align-self: flex-end;
-    max-width: 500px;
+    max-width: 400px;
     background-color: var(--receiver-bubble);
     border-radius: 30px;
     margin: 5px 0;
@@ -80,6 +82,10 @@ body {
     transform: rotate(-15deg);
     background-color: var(--receiver-bubble);
     clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+
+.receiver-bubble > :first-child {
+    justify-content: flex-end;
 }
 
 .message-border {
@@ -496,6 +502,8 @@ td {
 
 .info-box p {
     flex: 1;
+    text-align: center;
+    margin-right: 30px;
 }
 
 .info-box .weighted {

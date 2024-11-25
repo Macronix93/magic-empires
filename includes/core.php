@@ -30,10 +30,11 @@ const ACTION_BUILD_BUILDING = 1;
 const ACTION_BUILD_TROOPS = 2;
 const ACTION_SEND_TROOPS = 3;
 const ACTION_TRADING = 4;
-const BUILDING_COST_WOOD = 1;
-const BUILDING_COST_FOOD = 2;
-const BUILDING_COST_STONE = 3;
-const BUILDING_COST_GOLD = 4;
+const BUILDING_COST_TYPE_WOOD = 1;
+const BUILDING_COST_TYPE_FOOD = 2;
+const BUILDING_COST_TYPE_STONE = 3;
+const BUILDING_COST_TYPE_GOLD = 4;
+const BUILDING_COST_TYPE_TIME = 5;
 const MAX_BUILDING_LEVEL = 10;
 const DEFAULT_WALL_HP = 200;
 const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
@@ -100,6 +101,18 @@ function get_building_file(int $building_id): string
 /*
     Useful functions
 */
+
+function get_resource_icon(int $resource_type): string
+{
+    return match ($resource_type) {
+        BUILDING_COST_TYPE_WOOD => "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
+        BUILDING_COST_TYPE_FOOD => "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
+        BUILDING_COST_TYPE_STONE => "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
+        BUILDING_COST_TYPE_GOLD => "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>",
+        BUILDING_COST_TYPE_TIME => "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/>",
+        default => 0,
+    };
+}
 
 // Start inactivity counter
 function startInactivityCheck(int $seconds): void
