@@ -9,13 +9,14 @@ if (!($user->is_logged_in())) {
 $current_kingdom = $user->get_current_kingdom();
 $building = fetch_kingdom_building($current_kingdom, BuildingTypes::BUILDING_MARKETPLACE);
 $building_name = $building->get_building_name();
-$kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($current_kingdom);
 
 if (!$building->is_built()) {
     change_location("towncenter.php");
     exit;
 }
+
+$kingdom = new Kingdoms($db_instance);
+$kingdom->get_kingdom_info($current_kingdom);
 
 if (isset($_GET["accept"])) {
     $result = $db_instance->execute_query("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
@@ -37,7 +38,10 @@ if (isset($_GET["accept"])) {
         } else if ($demand == 3 && $kingdom->get_kingdom_gold() < $demand_value) {
             $error = "Soviel Gold kannst du nicht aufbringen!";
         } else {
-            $other_kingdom = $row["kingdomid"];
+            $other_kingdom_id = $row["kingdomid"];
+            $other_kingdom = new Kingdoms($db_instance);
+            $other_kingdom->get_kingdom_info($other_kingdom_id);
+
             $supply_resource = "";
             $demand_resource = "";
 
@@ -63,22 +67,22 @@ if (isset($_GET["accept"])) {
             switch ($demand) {
                 case 0:
                     $kingdom->give_kingdom_food($current_kingdom, -$demand_value);
-                    $kingdom->give_kingdom_food($other_kingdom, $demand_value);
+                    $other_kingdom->give_kingdom_food($other_kingdom_id, $demand_value);
                     $demand_resource = "Nahrung";
                     break;
                 case 1:
                     $kingdom->give_kingdom_wood($current_kingdom, -$demand_value);
-                    $kingdom->give_kingdom_wood($other_kingdom, $demand_value);
+                    $other_kingdom->give_kingdom_wood($other_kingdom_id, $demand_value);
                     $demand_resource = "Holz";
                     break;
                 case 2:
                     $kingdom->give_kingdom_stone($current_kingdom, -$demand_value);
-                    $kingdom->give_kingdom_stone($other_kingdom, $demand_value);
+                    $other_kingdom->give_kingdom_stone($other_kingdom_id, $demand_value);
                     $demand_resource = "Stein";
                     break;
                 case 3:
                     $kingdom->give_kingdom_gold($current_kingdom, -$demand_value);
-                    $kingdom->give_kingdom_gold($other_kingdom, $demand_value);
+                    $other_kingdom->give_kingdom_gold($other_kingdom_id, $demand_value);
                     $demand_resource = "Gold";
                     break;
             }
@@ -259,7 +263,6 @@ foreach ($result as $row) {
     $param = ($row["kingdomid"] == $current_kingdom) ? "delete" : "accept";
 
     $text_build = "<form action='marketplace.php' method='GET'>
-                    <input type='hidden' name='id' value='10'>
                     <input type='hidden' name='$param' value='" . $row["offerid"] . "'>
                     <input type='submit' value='$action'>
                 </form>";

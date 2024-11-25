@@ -1,17 +1,13 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+$result = checkUserLoginAndKingdom($user, $db_instance, BuildingTypes::BUILDING_TOWNCENTER);
 
-$current_kingdom = $user->get_current_kingdom();
-$building = fetch_kingdom_building($current_kingdom, BuildingTypes::BUILDING_TOWNCENTER);
+$current_kingdom = $result['current_kingdom'];
+$building = $result['building'];
 $building_name = $building->get_building_name();
+$kingdom = $result['kingdom'];
 
-$kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($current_kingdom);
 $kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_stone = $kingdom->get_kingdom_stone();

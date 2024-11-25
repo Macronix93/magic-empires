@@ -9,13 +9,14 @@ if (!($user->is_logged_in())) {
 $current_kingdom = $user->get_current_kingdom();
 $building = fetch_kingdom_building($current_kingdom, BuildingTypes::BUILDING_MILL);
 $building_name = $building->get_building_name();
-$kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($current_kingdom);
 
 if (!$building->is_built()) {
     change_location("towncenter.php");
     exit;
 }
+
+$kingdom = new Kingdoms($db_instance);
+$kingdom->get_kingdom_info($current_kingdom);
 
 /*
  * HTML Content Part

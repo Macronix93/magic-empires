@@ -154,7 +154,7 @@ function insertNewChatMessage(e) {
                         /** @type {HTMLElement} */
                         const counterElement = document.createElement("span");
                         textBlock.append(counterElement);
-                        
+
                         counterElement.id = "counter";
                         counterElement.innerText = startCountdown(response.counter);
                         counterElement.style.marginLeft = "5px";

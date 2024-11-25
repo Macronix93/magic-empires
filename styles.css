@@ -40,7 +40,7 @@ body {
 
 .sender-bubble {
     align-self: flex-start;
-    max-width: 400px;
+    max-width: 420px;
     background-color: var(--sender-bubble);
     border-radius: 30px;
     margin: 5px 0;
@@ -64,7 +64,7 @@ body {
     display: flex;
     flex-direction: column;
     align-self: flex-end;
-    max-width: 400px;
+    max-width: 420px;
     background-color: var(--receiver-bubble);
     border-radius: 30px;
     margin: 5px 0;

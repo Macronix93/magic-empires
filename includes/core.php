@@ -451,3 +451,38 @@ if ($user->is_logged_in()) {
         apply_villager_cap($user->get_current_kingdom());
     }
 }
+
+
+/*
+ * Check if user is logged in and get kingdom and building relevant infos
+ */
+function checkUserLoginAndKingdom($user, $db_instance, $building_type)
+{
+    // Check if user is logged in
+    if (!($user->is_logged_in())) {
+        change_location("login.php");
+        exit;
+    }
+
+    // Get the current kingdom
+    $current_kingdom = $user->get_current_kingdom();
+
+    // Get building info
+    $building = fetch_kingdom_building($current_kingdom, $building_type);
+
+    // Check if building is built
+    if (!$building->is_built()) {
+        change_location("towncenter.php");
+        exit;
+    }
+
+    // Get kingdom info
+    $kingdom = new Kingdoms($db_instance);
+    $kingdom->get_kingdom_info($current_kingdom);
+
+    return [
+        'current_kingdom' => $current_kingdom,
+        'building' => $building,
+        'kingdom' => $kingdom
+    ];
+}

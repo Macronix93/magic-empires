@@ -1,31 +1,20 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+$result = checkUserLoginAndKingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
 
-$current_kingdom = $user->get_current_kingdom();
-$building = fetch_kingdom_building($current_kingdom, BuildingTypes::BUILDING_BARRACKS);
+$current_kingdom = $result['current_kingdom'];
+$building = $result['building'];
 $building_name = $building->get_building_name();
+$kingdom = $result['kingdom'];
 
-if (!$building->is_built()) {
-    change_location("towncenter.php");
-    exit;
-}
-
-// Get building and kingdom stats
-$kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($current_kingdom);
-$kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_food = $kingdom->get_kingdom_food();
-$kingdom_stone = $kingdom->get_kingdom_stone();
 $kingdom_gold = $kingdom->get_kingdom_gold();
 $kingdom_villager = $kingdom->get_kingdom_villager();
 $s_id = (empty($_GET["recruit"]) ? 0 : $_GET["recruit"]);
 $kingdom_recruiting_id = -1;
 $kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
+
 if ($kingdom_is_recruiting) {
     $kingdom_recruiting_id = $kingdom->get_kingdom_recruiting_id();
 }
