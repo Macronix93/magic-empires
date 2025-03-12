@@ -4,10 +4,7 @@ use Random\RandomException;
 
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+check_user_login($user);
 
 // Generate a random token
 if (!isset($_SESSION['csrf_token'])) {

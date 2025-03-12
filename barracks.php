@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = checkUserLoginAndKingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
+$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];
@@ -49,8 +49,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
             $soldier_goal = $result->fetch_assoc()['soldiergoal'];
 
             // Refund player
-            $kingdom->give_kingdom_food($current_kingdom, $soldier_goal * $soldiers[$s_id]->get_soldier_food_cost());
-            $kingdom->give_kingdom_gold($current_kingdom, $soldier_goal * $soldiers[$s_id]->get_soldier_gold_cost());
+            $kingdom->give_kingdom_food($soldier_goal * $soldiers[$s_id]->get_soldier_food_cost());
+            $kingdom->give_kingdom_gold($soldier_goal * $soldiers[$s_id]->get_soldier_gold_cost());
 
             // Delete the job
             $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?", [$user->get_user_id(), $s_id, $current_kingdom]);
@@ -86,8 +86,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                 $db_instance->execute_query($query, [ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, '0', $current_time, '0', '-', $s_id, $recruiting_time, $_GET["count"]]);
 
                 // Subtract values for food and gold
-                $kingdom->give_kingdom_food($current_kingdom, -$cost_food);
-                $kingdom->give_kingdom_gold($current_kingdom, -$cost_gold);
+                $kingdom->give_kingdom_food(-$cost_food);
+                $kingdom->give_kingdom_gold(-$cost_gold);
             }
         }
     }

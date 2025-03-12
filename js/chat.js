@@ -34,15 +34,19 @@ function updateChat(chatPartner) {
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
-            /** @type {{ html: string, messagesToDelete: array, error: string }} */
+            /** @type {{ html: string, messagesToDelete: array, error: string, chatPartner: string }} */
             const response = JSON.parse(xhttp.responseText);
 
             /** @type {HTMLElement} */
             const infoBox = document.querySelector(".info-box");
 
             if (response.error) {
-                infoBox.innerText = response.error;
-                infoBox.style.display = "flex";
+                if (response.error === "redirect") {
+                    location.href = "messages.php?action=read&s=" + response.chatPartner;
+                } else {
+                    infoBox.innerText = response.error;
+                    infoBox.style.display = "flex";
+                }
             } else {
                 /** @type {HTMLElement} */
                 let newMessageLine = document.getElementById("new-message-line");

@@ -3,6 +3,7 @@
 class Kingdoms
 {
     private object $mysqli;
+    private int $kingdom_id;
     private int $food;
     private int $max_food;
     private int $food_per_hour;
@@ -89,6 +90,7 @@ class Kingdoms
         $result = $this->mysqli->execute_query($query, [$kingdom_id]);
         $row = $result->fetch_assoc();
 
+        $this->kingdom_id = $row["id"];
         $this->food = $row["food"];
         $this->max_food = $row["maxfood"];
         $this->food_per_hour = $row["foodperhour"];
@@ -105,7 +107,7 @@ class Kingdoms
         $this->max_villager = $row["maxvillager"];
         $this->villager_per_hour = $row["villagerperhour"];
 
-        return $row["id"];
+        return $this->kingdom_id;
     }
 
     public function get_kingdom_buildings(int $kingdom_id): array
@@ -164,13 +166,13 @@ class Kingdoms
         return $this->building_id;
     }
 
-    public function give_kingdom_wood(int $kingdom_id, int $amount): void
+    public function give_kingdom_wood(int $amount): void
     {
         if ($this->wood + $amount > $this->get_kingdom_max_wood()) {
             $amount = $this->get_kingdom_max_wood() - $this->get_kingdom_wood();
         }
         $this->wood += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET wood = wood + ? WHERE id = ?", [$amount, $kingdom_id]);
+        $this->mysqli->execute_query("UPDATE kingdoms SET wood = wood + ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function get_kingdom_max_wood(): int
@@ -189,13 +191,13 @@ class Kingdoms
         $this->mysqli->execute_query("UPDATE kingdoms SET wood = ? WHERE id = ?", [$this->wood, $kingdom_id]);
     }
 
-    public function give_kingdom_food(int $kingdom_id, int $amount): void
+    public function give_kingdom_food(int $amount): void
     {
         if ($this->food + $amount > $this->get_kingdom_max_food()) {
             $amount = $this->get_kingdom_max_food() - $this->get_kingdom_food();
         }
         $this->food += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET food = food + ? WHERE id = ?", [$amount, $kingdom_id]);
+        $this->mysqli->execute_query("UPDATE kingdoms SET food = food + ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function get_kingdom_max_food(): int
@@ -214,13 +216,13 @@ class Kingdoms
         $this->mysqli->execute_query("UPDATE kingdoms SET food = ? WHERE id = ?", [$this->food, $kingdom_id]);
     }
 
-    public function give_kingdom_stone(int $kingdom_id, int $amount): void
+    public function give_kingdom_stone(int $amount): void
     {
         if ($this->stone + $amount > $this->get_kingdom_max_stone()) {
             $amount = $this->get_kingdom_max_stone() - $this->get_kingdom_stone();
         }
         $this->stone += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET stone = stone + ? WHERE id = ?", [$amount, $kingdom_id]);
+        $this->mysqli->execute_query("UPDATE kingdoms SET stone = stone + ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function get_kingdom_max_stone(): int
@@ -239,13 +241,13 @@ class Kingdoms
         $this->mysqli->execute_query("UPDATE kingdoms SET stone = ? WHERE id = ?", [$this->stone, $kingdom_id]);
     }
 
-    public function give_kingdom_gold(int $kingdom_id, int $amount): void
+    public function give_kingdom_gold(int $amount): void
     {
         if ($this->gold + $amount > $this->get_kingdom_max_gold()) {
             $amount = $this->get_kingdom_max_gold() - $this->get_kingdom_gold();
         }
         $this->gold += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET gold = gold + ? WHERE id = ?", [$amount, $kingdom_id]);
+        $this->mysqli->execute_query("UPDATE kingdoms SET gold = gold + ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function get_kingdom_max_gold(): int
@@ -288,7 +290,8 @@ class Kingdoms
                     </div>
                     <div class='split-content'>
                         <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/>
-                        <span class='" . ($this->get_kingdom_villager() >= $this->get_kingdom_max_villager() ? "over-limit" : "under-limit") . "'>" . fnum($this->get_kingdom_villager()) . "</span></div>
+                        <span class='" . ($this->get_kingdom_villager() >= $this->get_kingdom_max_villager() ? "over-limit" : "under-limit") . "'>
+                        " . fnum($this->get_kingdom_villager()) . " / " . fnum($this->get_kingdom_max_villager()) . "</span></div>
                         (" . fnum($this->get_kingdom_villager_per_hour()) . "/h)
                     </div>";
     }

@@ -2,7 +2,6 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    //if (isset($_SESSION["msgreceiver"])) {
     // Get chat partner
     $chat_partner = htmlspecialchars($_GET["s"]);
     $messages_to_delete = [];
@@ -14,7 +13,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $user->check_session_id();
 
     if ($_SESSION["msgreceiver"] != $chat_partner) {
-        echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
+        //echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
+        $error = "redirect";
     } else {
         $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner, $user->get_user_id()]);
         $chat_partner_image = "";
@@ -56,9 +56,9 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     echo json_encode([
         "html" => $html,
         "messagesToDelete" => $messages_to_delete,
-        "error" => $error
+        "error" => $error,
+        "chatPartner" => $_SESSION["msgreceiver"]
     ]);
-    //}
 } else {
-    change_location("Location: messages.php");
+    change_location("messages.php");
 }

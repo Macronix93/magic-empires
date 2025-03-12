@@ -452,11 +452,20 @@ if ($user->is_logged_in()) {
     }
 }
 
+// Login Check
+function check_user_login($user): void
+{
+    if (!($user->is_logged_in())) {
+        change_location("login.php");
+        exit;
+    }
+}
+
 
 /*
  * Check if user is logged in and get kingdom and building relevant infos
  */
-function checkUserLoginAndKingdom($user, $db_instance, $building_type)
+function check_user_login_and_kingdom($user, $db_instance, $building_type): array
 {
     // Check if user is logged in
     if (!($user->is_logged_in())) {

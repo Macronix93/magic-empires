@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = checkUserLoginAndKingdom($user, $db_instance, BuildingTypes::BUILDING_TOWNCENTER);
+$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_TOWNCENTER);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];
@@ -66,10 +66,10 @@ if (isset($_GET["action"])) {
                             $building_time = time() + $buildings[$build_id]->get_building_time() * ($building_level == 0 ? 1 : $building_level + 1);
 
                             // Subtract building costs from kingdom resources
-                            $kingdom->give_kingdom_wood($current_kingdom, -$cost_wood);
-                            $kingdom->give_kingdom_food($current_kingdom, -$cost_food);
-                            $kingdom->give_kingdom_stone($current_kingdom, -$cost_stone);
-                            $kingdom->give_kingdom_gold($current_kingdom, -$cost_gold);
+                            $kingdom->give_kingdom_wood(-$cost_wood);
+                            $kingdom->give_kingdom_food(-$cost_food);
+                            $kingdom->give_kingdom_stone(-$cost_stone);
+                            $kingdom->give_kingdom_gold(-$cost_gold);
 
                             $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
                                                     VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$current_kingdom', '$build_id', '$building_time', '{$buildings[$build_id]->get_building_level()}', '{$buildings[$build_id]->get_building_name()}');");
@@ -82,10 +82,10 @@ if (isset($_GET["action"])) {
                 $db_instance->query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$build_id'");
 
                 // Refund the player
-                $kingdom->give_kingdom_wood($current_kingdom, $cost_wood);
-                $kingdom->give_kingdom_food($current_kingdom, $cost_food);
-                $kingdom->give_kingdom_stone($current_kingdom, $cost_stone);
-                $kingdom->give_kingdom_gold($current_kingdom, $cost_gold);
+                $kingdom->give_kingdom_wood($cost_wood);
+                $kingdom->give_kingdom_food($cost_food);
+                $kingdom->give_kingdom_stone($cost_stone);
+                $kingdom->give_kingdom_gold($cost_gold);
             } else {
                 $error = "Du baust gerade nichts!";
             }

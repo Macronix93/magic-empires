@@ -2,10 +2,7 @@
 require_once("includes/core.php");
 
 // Check if user is not logged in
-if (!isset($_SESSION["userid"])) {
-    change_location("login.php");
-    die;
-}
+check_user_login($user);
 
 // Logout successful
 change_location("login.php", 2);

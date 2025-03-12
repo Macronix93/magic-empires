@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = checkUserLoginAndKingdom($user, $db_instance, BuildingTypes::BUILDING_STORAGE);
+$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_STORAGE);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];

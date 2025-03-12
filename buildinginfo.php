@@ -1,10 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+check_user_login($user);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -31,7 +28,12 @@ if (isset($building_id)) {
     $row = $result->fetch_assoc();
 
     if ($building_id >= BuildingTypes::BUILDING_TOWNCENTER && $building_id < $row["total_buildings"]) {
-        $view .= "<br><table class='table'>
+        $building = fetch_kingdom_building($user->get_current_kingdom(), $building_id);
+
+        $view .= "<div class='big-box-container'>
+                    <div class='big-box-header'>{$row["buildingname"]}</div>";
+        $view .= "<div class='big-box-content'>
+                <table class='table'>
                 <tr>
                     <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>
                     <td class='td-center td-gradient'>" . get_resource_icon(BUILDING_COST_TYPE_WOOD) . "</td>
@@ -48,9 +50,12 @@ if (isset($building_id)) {
             $stone_cost = fnum($row["stonecost"] + round($row["stonecost"] * $row["multiplicator"] * $i));
             $gold_cost = fnum($row["goldcost"] + round($row["goldcost"] * $row["multiplicator"] * $i));
             $time_to_build = convert_sec_to_str($row["timetobuild"] + round($row["timetobuild"] * $i));
+            $current_level = ($i == ($building->is_built() ? $building->get_building_level() : 0))
+                ? "<span class='passed'>$i → " . ($i + 1) . "</span>"
+                : "$i → " . ($i + 1);
 
             $view .= "<tr>
-                    <td class='td-center'>$i → " . $i + 1 . "</td>
+                    <td class='td-center'>$current_level</td>
                     <td class='td-center'>$wood_cost</td>
                     <td class='td-center'>$food_cost</td>
                     <td class='td-center'>$stone_cost</td>
@@ -59,7 +64,7 @@ if (isset($building_id)) {
                 </tr>";
         }
 
-        $view .= "</table>";
+        $view .= "</table></div></div>";
     } else {
         $view .= show_error_box("Dieses Gebäude existiert nicht!");
     }

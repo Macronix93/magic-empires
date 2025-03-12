@@ -1,10 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+check_user_login($user);
 
 // Get the complete userlist
 $result = $db_instance->execute_query("SELECT username FROM users WHERE username != ? ORDER BY username", [$user->get_user_name()]);

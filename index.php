@@ -1,10 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+check_user_login($user);
 
 // Get some user data to show...
 $result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);

@@ -1,10 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+check_user_login($user);
 
 $current_kingdom = $user->get_current_kingdom();
 $building = fetch_kingdom_building($current_kingdom, BuildingTypes::BUILDING_MILL);

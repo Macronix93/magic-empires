@@ -64,7 +64,7 @@ function show_inbox($db_instance): string
 
             $view .= "<tr class='tr-hover$old_conversation'>
                 <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'><div class='image-and-user'><img class='user-image' src='$image_path' alt='Nutzerbild'>$sender_name " . show_messages_indicator($num_unread_messages) . "</div></td>
-                <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s=" . $row["participant"] . "\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
+                <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant"]}\";'>am " . date("d.m.Y \u\m H:i:s", $row["latest_message_date"]) . "</td>
                 <td class='td-center'><img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='conversationDeletionDialog(\"{$row["participant"]}\", \"$sender_name\")' style='cursor: pointer;'></td>
             </tr>";
         }
