@@ -38,6 +38,15 @@ body {
     text-align: start;
 }
 
+.server-bubble {
+    align-self: flex-start;
+    background-color: var(--sender-bubble);
+    border-radius: 30px;
+    margin: 5px 0;
+    padding: 15px;
+    position: relative;
+}
+
 .sender-bubble {
     align-self: flex-start;
     max-width: 420px;

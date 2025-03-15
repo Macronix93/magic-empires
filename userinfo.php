@@ -6,6 +6,7 @@ check_user_login($user);
 <!DOCTYPE html>
 <html lang="de">
 <script type="text/javascript" src="js/userinfo.js"></script>
+<script type="text/javascript" src="js/map.js"></script>
 <?php
 include_once("layout/head.html");
 ?>

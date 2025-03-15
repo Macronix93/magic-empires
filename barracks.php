@@ -3,10 +3,10 @@ require_once("includes/core.php");
 
 $result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
 
-$current_kingdom = $result['current_kingdom'];
-$building = $result['building'];
+$current_kingdom = $result["current_kingdom"];
+$building = $result["building"];
 $building_name = $building->get_building_name();
-$kingdom = $result['kingdom'];
+$kingdom = $result["kingdom"];
 
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();

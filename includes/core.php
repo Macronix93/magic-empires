@@ -17,6 +17,8 @@ if (session_status() == PHP_SESSION_NONE) {
     Constants (defines)
 */
 const MAINTENANCE_MODE = false;
+const BASE_CONQUEST_CHANCE = 0.2;
+const MAX_CONQUEST_CHANCE = 0.9;
 const BACKGROUND_IMAGE = "images/background.png";
 const ERROR_LOG_FILE = "logs/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
@@ -29,7 +31,8 @@ const MAX_Y = 100;
 const ACTION_BUILD_BUILDING = 1;
 const ACTION_BUILD_TROOPS = 2;
 const ACTION_SEND_TROOPS = 3;
-const ACTION_TRADING = 4;
+const ACTION_RETURN_TROOPS = 4;
+const ACTION_TRADING = 5;
 const BUILDING_COST_TYPE_WOOD = 1;
 const BUILDING_COST_TYPE_FOOD = 2;
 const BUILDING_COST_TYPE_STONE = 3;
@@ -266,7 +269,7 @@ function change_location(string $url, int $seconds = 0): void
 
 function show_passed_box(string $info_text): string
 {
-    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'>$info_text</div>";
+    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><p>$info_text</p></div>";
 }
 
 function show_error_box(string $info_text, bool $display = true): string
@@ -494,4 +497,11 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
         'building' => $building,
         'kingdom' => $kingdom
     ];
+}
+
+function send_server_message(int $user_id, string $user_name, string $message): void
+{
+    $db = Database::get_instance();
+    $db->get_connection()->execute_query("INSERT INTO servermessages (receiverid, receiver, date, message) VALUES (?, ?, ?, ?)",
+        [$user_id, $user_name, time(), $message]);
 }

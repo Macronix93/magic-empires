@@ -35,6 +35,17 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
     // Calculate start coordinates
     $map->set_start_x(max(1, min($x - 5, 91)));
     $map->set_start_y(max(1, min($y - 5, 91)));
+
+    echo "execute script";
+    echo "<script type='text/javascript'>
+              document.addEventListener('DOMContentLoaded', function() {
+                    let x = " . $x . ";
+                    let y = " . $y . ";
+                    document.getElementById('startx').value = x || 0;
+                    document.getElementById('starty').value = y || 0;
+                    document.getElementById('send-map-request').click();
+              });
+          </script>";
 } else {
     // Get the coords of the current kingdom
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);

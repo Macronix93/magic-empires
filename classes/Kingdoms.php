@@ -21,6 +21,8 @@ class Kingdoms
     private int $villager_per_hour;
     private int $building_id;
     private int $recruiting_id;
+    private int $map_x;
+    private int $map_y;
 
     // Constructor
     public function __construct(object $db_conn)
@@ -29,12 +31,26 @@ class Kingdoms
     }
 
     // Function to create a new kingdom
-    public function create_kingdom(int $user_id, string $user_name): false|int
+    public function create_kingdom(int $user_id, string $user_name, bool $is_conquest = false, int $map_x = -1, int $map_y = -1): false|int
     {
-        // Select a random map entry and deny registration, if no map entry was found
-        $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1;");
-        $row = $result->fetch_assoc();
-        return (!$row) ? false : $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
+        //return (!$row) ? false : $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
+
+        if ($is_conquest) {
+            $result = $this->mysqli->execute_query("SELECT fieldtype FROM map WHERE mapx = ? AND mapy = ?;", [$map_x, $map_y]);
+            $row = $result->fetch_assoc();
+            
+            return $this->found_free_field($row["fieldtype"], $map_x, $map_y, $user_id, $user_name);;
+        } else {
+            // Select a random map entry and deny registration, if no map entry was found
+            $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1;");
+            $row = $result->fetch_assoc();
+
+            if (!$row) {
+                return false;
+            } else {
+                return $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
+            }
+        }
     }
 
     public function found_free_field(int $field_type, int $rand_x, int $rand_y, int $user_id, string $user_name): int
@@ -83,7 +99,7 @@ class Kingdoms
         return $insert_id;
     }
 
-    public function get_kingdom_info(int $kingdom_id)
+    public function get_kingdom_info(int $kingdom_id): int
     {
         // Fetch kingdom data
         $query = "SELECT * FROM kingdoms WHERE id = ?";
@@ -91,6 +107,8 @@ class Kingdoms
         $row = $result->fetch_assoc();
 
         $this->kingdom_id = $row["id"];
+        $this->map_y = $row["mapy"];
+        $this->map_x = $row["mapx"];
         $this->food = $row["food"];
         $this->max_food = $row["maxfood"];
         $this->food_per_hour = $row["foodperhour"];
@@ -108,6 +126,16 @@ class Kingdoms
         $this->villager_per_hour = $row["villagerperhour"];
 
         return $this->kingdom_id;
+    }
+
+    public function get_kingdom_map_x(): int
+    {
+        return $this->map_x;
+    }
+
+    public function get_kingdom_map_y(): int
+    {
+        return $this->map_y;
     }
 
     public function get_kingdom_buildings(int $kingdom_id): array

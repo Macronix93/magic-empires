@@ -7,7 +7,7 @@ class Map
     private int $start_y;
 
     // Constructor
-    public function __construct($db_conn)
+    public function __construct(object $db_conn)
     {
         $this->mysqli = $db_conn;
     }
@@ -17,7 +17,7 @@ class Map
         return $this->start_x;
     }
 
-    public function set_start_x($start_x): void
+    public function set_start_x(int $start_x): void
     {
         $this->start_x = $start_x;
     }
@@ -27,12 +27,12 @@ class Map
         return $this->start_y;
     }
 
-    public function set_start_y($start_y): void
+    public function set_start_y(int $start_y): void
     {
         $this->start_y = $start_y;
     }
 
-    public function render_map($start_x, $start_y): void
+    public function render_map(int $start_x, int $start_y): void
     {
         // Generate URL for each arrow button
         $arrow_up = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
@@ -122,7 +122,7 @@ class Map
               </table>";
     }
 
-    public function get_field_type_color($field_type): string
+    public function get_field_type_color(int $field_type): string
     {
         return match ($field_type) {
             1 => "rgb(185, 122, 87)",
@@ -133,7 +133,7 @@ class Map
         };
     }
 
-    private function get_kingdom_icon_by_level($building_level): string
+    private function get_kingdom_icon_by_level(int $building_level): string
     {
         return match (true) {
             $building_level >= 3 && $building_level < 6 => "images/icons/town.png",
@@ -143,7 +143,7 @@ class Map
         };
     }
 
-    public function render_field_info($field): void
+    public function render_field_info(int $field): void
     {
         // Get the coords of the current kingdom of the user
         $user = User::get_instance();
@@ -153,6 +153,7 @@ class Map
         $y = $row["mapy"];
         $field_x = isset($_GET["x"]) && $_GET["x"] != -1 ? $_GET["x"] : $x;
         $field_y = isset($_GET["y"]) && $_GET["y"] != -1 ? $_GET["y"] : $y;
+        $url = "window.location.href='sendtroops.php?x=" . $field_x . "&y=" . $field_y . "'";
 
         $query = "
                     SELECT m.fieldtype, f.fieldname FROM map m
@@ -175,7 +176,7 @@ class Map
                       </tr>
                       <tr>
                           <td colspan="2" class="td-mapinfo" style="text-align: center;">
-                              <button type="submit">Erobern</button>
+                              <button onclick="' . $url . '">Erobern</button>
                           </td>
                       </tr>
                   </table>';
@@ -211,31 +212,43 @@ class Map
                           </tr>
                           <tr>
                               <td class="td-mapinfo"><b>Besitzer</b></td>
-                              <td><a href="javascript:void(0);" onclick="openUserDetails(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a></td>
+                              <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a></td>
                           </tr>
                       ';
 
                 // Get the coords of the current kingdom of the user
-                if ($field != $user->get_current_kingdom()) {
+                /*if ($field != $user->get_current_kingdom()) {
                     echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
                     echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
-                }
-
-                echo '</tr>';
+                    echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
+                                <button style='margin-right: 15px;' onclick=\"" . $url . "\">Truppen stationieren</button>
+                            </td>
+                            </tr>";
+                }*/
+                //echo '</tr>';
 
                 if ($user_name != $user->get_user_name()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                            <button type='submit' style='margin-right: 15px;'>Angreifen</button>
-                                            <button type='submit' style='margin-left: 15px;'>Handeln</button>
-                                        </td>
-                                        </tr>";
+                                <button style='margin-right: 15px;' onclick=\"" . $url . "\">Angreifen</button>
+                                <button style='margin-left: 15px;'>Handeln</button>
+                            </td>
+                            </tr>";
+                } else {
+                    if ($field != $user->get_current_kingdom()) {
+                        echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
+                        echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
+                        echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
+                                <button style='margin-right: 15px;' onclick=\"" . $url . "\">Truppen stationieren</button>
+                            </td>
+                            </tr>";
+                    }
                 }
             }
         }
         echo "</table>";
     }
 
-    private function get_arrival_time($start_x, $start_y, $end_x, $end_y): int
+    public function get_arrival_time(int $start_x, int $start_y, int $end_x, int $end_y): int
     {
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
@@ -254,10 +267,10 @@ class Map
             echo "x: {$coord['x']}, y: {$coord['y']}, time: {$coord['traversalTime']}<br>";
         }*/
 
-        return $result['totalTime'];
+        return $result["totalTime"];
     }
 
-    public function calculate_path($start_x, $start_y, $end_x, $end_y): array
+    public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
     {
         $start = ['x' => $start_x, 'y' => $start_y];
         $end = ['x' => $end_x, 'y' => $end_y];
@@ -379,5 +392,11 @@ class Map
         }
 
         return $neighbors;
+    }
+
+    public function get_field_kingdom_id(int $map_x, int $map_y): int
+    {
+        $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
+        return $result->fetch_column();
     }
 }

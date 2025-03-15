@@ -113,6 +113,50 @@ function deleteChatMessage(messageID) {
         });
 }
 
+function deleteServerMessage(messageID) {
+    fetch(`ajax/chat_srv_delete.php?m_id=${messageID}`, {
+        method: "GET",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+    })
+        .then(response => response.json())
+        .then(response => {
+            const infoBox = document.querySelector(".info-box");
+
+            if (response.error) {
+                infoBox.innerText = response.error;
+                infoBox.style.display = "flex";
+            } else {
+                const newMessagesLine = document.getElementById("new-message-line");
+                const chatBubble = document.getElementById("msg-" + messageID);
+
+                if (newMessagesLine) {
+                    newMessagesLine.remove();
+                }
+
+                if (chatBubble) {
+                    chatBubble.remove();
+                }
+
+                // Count remaining chat bubbles
+                /** @type {HTMLElement} */
+                const messageSection = document.getElementById("messages-section");
+                const remainingBubbles = messageSection.querySelectorAll(".server-bubble").length;
+
+                if (remainingBubbles === 0) {
+                    messageSection.innerText = "Du hast keine Servernachrichten!";
+                    messageSection.style.display = "flex";
+                    messageSection.style.alignItems = "center";
+                }
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
+}
+
 function insertNewChatMessage(e) {
     e.preventDefault();
 

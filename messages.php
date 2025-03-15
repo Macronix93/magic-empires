@@ -1,13 +1,12 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("login.php");
-    exit;
-}
+check_user_login($user);
 
-function show_inbox($db_instance): string
+function show_private_inbox(): string
 {
+    $db = Database::get_instance();
+    $db_instance = $db->get_connection();
     $user = User::get_instance();
     $view = "";
 
@@ -23,11 +22,14 @@ function show_inbox($db_instance): string
                         SELECT receiverid AS participant, date
                         FROM messages
                         WHERE senderid = ?
+                        AND deleted = 0
                     ) AS combined
                 GROUP BY participant
                 ORDER BY latest_message_date DESC
     ";
     $result = $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_id()]);
+
+    $view .= '<div style="display: flex; margin: 10px 0; align-items: center;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
 
     if ($result->num_rows > 0) {
         $view .= '<table class="table">
@@ -81,6 +83,70 @@ function show_inbox($db_instance): string
     </form>";
 
     return $view;
+}
+
+function show_server_inbox(): string
+{
+    $db = Database::get_instance();
+    $db_instance = $db->get_connection();
+    $user = User::get_instance();
+    $view = "";
+
+    // Get all server messages for the user
+    $query = "SELECT * FROM servermessages WHERE receiverid = ?";
+    $result = $db_instance->execute_query($query, [$user->get_user_id()]);
+
+    $view .= '<div style="display: flex; margin: 10px 0; align-items: center;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
+
+    if ($result->num_rows > 0) {
+        $firstSenderMessageDisplayed = false;
+
+        $view .= '<div id="messages-section">';
+
+        foreach ($result as $row) {
+            if ($row["hasread"] == 0 && !$firstSenderMessageDisplayed) {
+                $view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit dem " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</div>";
+                $firstSenderMessageDisplayed = true;
+            }
+
+            $view .= "<div class='server-bubble' id='msg-" . $row["id"] . "'>
+                            <div class='image-and-user message-border'>
+                                Server am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
+                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteServerMessage(\"{$row['id']}\")' style='cursor: pointer;'>
+                            </div>
+                            " . $row["message"] . "
+                        </div>";
+
+            $db_instance->execute_query("UPDATE servermessages SET hasread = 1 WHERE id = ?", [$row["id"]]);
+        }
+
+        $view .= '</div>';
+        $view .= "<script type='text/javascript'>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        scrollDown();
+                    });
+                </script>";
+    } else {
+        $view .= "Du hast keine Servernachrichten!";
+    }
+
+    return $view;
+}
+
+function get_unread_server_messages(): int
+{
+    $user = User::get_instance();
+    $result = Database::get_instance()->get_connection()->execute_query("SELECT COUNT(*) AS unreadcount FROM servermessages WHERE receiverid = ? AND hasread = 0",
+        [$user->get_user_id()]);
+    return $result->fetch_assoc()["unreadcount"];
+}
+
+function get_unread_private_messages(): int
+{
+    $user = User::get_instance();
+    $result = Database::get_instance()->get_connection()->execute_query("SELECT COUNT(*) AS unreadcount FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0",
+        [$user->get_user_id()]);
+    return $result->fetch_assoc()["unreadcount"];
 }
 
 // Starting a new conversation (or insert message in existing conversation)
@@ -149,7 +215,7 @@ if (isset($_GET["action"])) {
         $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
 
         if (isset($_POST["text"]) && $error == null) {
-            $view .= show_inbox($db_instance);
+            $view .= show_private_inbox();
         } else {
             $view .= "<form id=\"newmessage\"
                   action=\"messages.php?action=new\"
@@ -187,6 +253,7 @@ if (isset($_GET["action"])) {
             </form>";
         }
     } else if ($_GET["action"] == "read") {
+        $inbox_header = "Privatnachrichten";
         $current_time = time();
         $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
         $message_count = $_SESSION["message_count"] ?? 0;
@@ -227,7 +294,7 @@ if (isset($_GET["action"])) {
                 $my_chat_image = $user->get_avatar($user->get_user_name());
                 $firstSenderMessageDisplayed = false;
 
-                $view = '<div style="display: flex; margin: 10px 0;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button>
+                $view = '<div style="display: flex; margin: 10px 0; align-items: center;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php?privmsgs\';">Zurück</button>
                             <h3 style="width: 85%; margin: 0;">Konversation mit 
                                 <a href="javascript:void(0);" 
                                  onclick="openPopup(\'userinfo.php?userid=' . $_SESSION['msgreceiver'] . '\');" 
@@ -293,7 +360,7 @@ if (isset($_GET["action"])) {
             $error = "Der Spieler existiert nicht!";
         }
     } else if ($_GET["action"] == "delete") {
-        $sender_id = htmlspecialchars($_GET['s']);
+        /*$sender_id = htmlspecialchars($_GET["s"]);
 
         if (empty($sender_id)) {
             change_location("messages.php");
@@ -309,19 +376,65 @@ if (isset($_GET["action"])) {
 
                 change_location("messages.php");
             }
-        }
+        }*/
     } else {
         change_location("messages.php");
     }
 } else {
-    $view = show_inbox($db_instance);
+    if (isset($_GET["servermsgs"])) {
+        $view = show_server_inbox();
+
+        $inbox_header = "Servernachrichten";
+    } else if (isset($_GET["privmsgs"])) {
+        $view = show_private_inbox();
+
+        $inbox_header = "Privatnachrichten";
+    } else {
+        $view .= "<div style='
+                display: flex; 
+                flex-direction: column; 
+                align-items: center;
+                text-align: left;
+                margin: 0 10px 0 10px;
+                padding: 0 10px 0 10px;
+                border-radius: 10px;
+            '>
+            <a href='messages.php?privmsgs' style='
+                    background: #2c3440; 
+                    padding: 12px 15px; 
+                    color: #fff; 
+                    border-radius: 5px; 
+                    transition: background 0.3s;
+                    width: 220px;
+                ' 
+                onmouseover='this.style.background=\"#4a5565\"' 
+                onmouseout='this.style.background=\"#2c3440\"'>
+                <span>📩 Privatnachrichten</span>
+                <span>" . show_messages_indicator(get_unread_private_messages()) . "</span>
+            </a>
+            <a href='messages.php?servermsgs' style='
+                    background: #2c3440; 
+                    padding: 12px 15px; 
+                    color: #fff; 
+                    border-radius: 5px; 
+                    margin-top: 10px;
+                    transition: background 0.3s;
+                    width: 220px;
+                '
+                onmouseover='this.style.background=\"#4a5565\"' 
+                onmouseout='this.style.background=\"#2c3440\"'>
+                <span>🖥️ Servernachrichten</span>
+                <span>" . show_messages_indicator(get_unread_server_messages()) . "</span>
+            </a>
+          </div>";
+    }
 }
 
 /*
  * HTML Section
  */
 $title = "Nachrichten";
-$header = "Nachrichten";
+$header = $inbox_header ?? "Nachrichten";
 $script_files = ["counter", "chat", "userinfo"];
 $view = show_error_box($error, false) . $view;
 

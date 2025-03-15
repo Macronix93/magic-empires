@@ -17,9 +17,6 @@ if (!isset($_SESSION['csrf_token'])) {
 // Add the token as a hidden input in the form
 $csrf_token = $_SESSION['csrf_token'];
 
-$error = "";
-$view = "";
-
 if (isset($_POST['submit'])) {
     // Validate CSRF token
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {

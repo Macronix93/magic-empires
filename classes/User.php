@@ -165,27 +165,17 @@ class User
         return isset($_SESSION["userid"]);
     }
 
-    public function get_current_kingdom(): int
-    {
-        return $_SESSION["kingdomid"] ?? 0;
-    }
-
     public function set_current_kingdom(int $kingdom_id): void
     {
         $_SESSION["kingdomid"] = $kingdom_id;
-    }
-
-    // Get the name of the user
-
-    public function get_user_name(): string
-    {
-        return $_SESSION["username"] ?? "";
     }
 
     public function get_user_admin_level(): int
     {
         return $_SESSION["adminlevel"] ?? 0;
     }
+
+    // Get the name of the user
 
     public function clear_last_built_building(int $kingdom_id): void
     {
@@ -213,7 +203,17 @@ class User
 
     public function get_unread_messages(): int
     {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unread_count FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0", [$this->get_user_id()]);
+        $query = "
+            SELECT COUNT(*) AS unread_count FROM (
+                SELECT id FROM messages 
+                WHERE receiverid = ? AND hasread = 0 AND deleted = 0
+                UNION ALL
+                SELECT id FROM servermessages 
+                WHERE receiverid = ? AND hasread = 0
+            ) AS combined_messages
+        ";
+
+        $result = $this->mysqli->execute_query($query, [$this->get_user_id(), $this->get_user_id()]);
         return $result->fetch_assoc()["unread_count"];
     }
 
@@ -232,6 +232,10 @@ class User
             $soldier_id = $row["soldierid"];
             $recruit_time = $row["recruittime"];
             $soldier_goal = $row["soldiergoal"];
+            $target_id = $row["targetid"];
+            $target_x = $row["targetx"];
+            $target_y = $row["targety"];
+            $arrival_time = $row["arrivaltime"];
 
             switch ($action_id) {
                 case ACTION_BUILD_BUILDING:
@@ -370,6 +374,120 @@ class User
                         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
                     }
                     break;
+                case ACTION_SEND_TROOPS:
+                    if ($arrival_time < time()) {
+                        $message = "Truppen sind angekommen bei Feld/königreich: $target_id ($target_x:$target_y)</br>";
+
+                        // Fetch only the sent troops with their names in one query
+                        $query = "
+                            SELECT s.id, s.soldiername, st.soldiercount 
+                            FROM senttroops st
+                            JOIN soldierlist s ON st.soldierid = s.id
+                            WHERE st.eventid = ?
+                        ";
+                        $result = $this->mysqli->execute_query($query, [$event_id]);
+
+                        $soldiers = [];
+                        $conquerer_count = 0;
+
+                        foreach ($result as $row2) {
+                            $soldier_id = $row2["id"];
+                            $soldier_name = $row2["soldiername"];
+                            $soldier_count = $row2["soldiercount"];
+
+                            $soldiers[$soldier_id] = [
+                                "name" => $soldier_name,
+                                "count" => $soldier_count
+                            ];
+
+                            $message .= "$soldier_name: $soldier_count</br>";
+
+                            // Check if there is a conqueror and count them
+                            if ($soldier_name === "Eroberer") {
+                                $conquerer_count = $soldier_count;
+                            }
+                        }
+
+                        // Check if there are conquerors
+                        $conquerer = $conquerer_count > 0;
+
+                        if ($conquerer) {
+                            if ($target_id == -1) {
+                                $message .= "Angriff auf leeres Feld.</br>Versuche Feld einzunehmen...</br>";
+
+                                // Calculate success rate
+                                $success_rate = min(BASE_CONQUEST_CHANCE + ($conquerer_count * 0.05), MAX_CONQUEST_CHANCE);
+
+                                if (mt_rand(0, 100) / 100 < $success_rate) {
+                                    $message .= "Eroberung erfolgreich mit " . ($success_rate * 100) . " % Erfolgsrate!</br>";
+
+                                    $conquerer_id = null;
+                                    foreach ($soldiers as $soldier_id => $soldier_data) {
+                                        if ($soldier_data["name"] === "Eroberer") {
+                                            $conquerer_id = $soldier_id;
+                                            break;
+                                        }
+                                    }
+
+                                    // Reduce conqueror count by 1
+                                    $conquerer_count--;
+
+                                    if ($conquerer_count == 0) {
+                                        $query = "DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?";
+                                    } else {
+                                        $query = "UPDATE senttroops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?";
+                                    }
+                                    $this->mysqli->execute_query($query, [$event_id, $conquerer_id]);
+
+                                    // Create new kingdom
+                                    $kingdom = new Kingdoms($this->mysqli);
+                                    $new_kingdom = $kingdom->create_kingdom($this->get_user_id(), $this->get_user_name(), true, $target_x, $target_y);
+
+                                    $message .= "Neues Königreich erstellt: $new_kingdom</br>";
+                                } else {
+                                    $message .= "Eroberung gescheitert mit " . (100 - $success_rate * 100) . " % ...</br>";
+                                }
+                            } else {
+                                echo "Angriff auf anderen Spieler.<br>";
+                            }
+                        } else {
+                            // TODO: Implement logic for other soldier types (e.g. thief = stealing stuff)
+                            $message .= "Kein Eroberer dabei. Schicke Truppen zurück.</br>";
+                        }
+
+                        // Send server message to the player
+                        send_server_message($this->get_user_id(), $this->get_user_name(), $message);
+
+                        // Send troops back to users kingdom
+                        $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?  WHERE eventid = ?", [ACTION_RETURN_TROOPS, time() + 10, $event_id]);
+                    }
+                    break;
+                case ACTION_RETURN_TROOPS:
+                    if ($arrival_time < time()) {
+                        $message = "Deine Truppen sind vom Eroberungszug auf $target_id ($target_x:$target_y) zurückgekehrt!";
+
+                        // Send server message to the player
+                        send_server_message($this->get_user_id(), $this->get_user_name(), $message);
+
+                        $result = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM senttroops WHERE eventid = ?", [$event_id]);
+
+                        $soldiers = [];
+                        foreach ($result as $row2) {
+                            $soldier_id = $row2["soldierid"];
+                            $soldiers[$soldier_id]["soldierid"] = $soldier_id;
+                            $soldiers[$soldier_id]["soldiercount"] = $row2["soldiercount"];
+                        }
+
+                        foreach ($soldiers as $soldier) {
+                            $query = "UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?";
+                            $this->mysqli->execute_query($query, [$soldier["soldiercount"], $kingdom_id, $soldier["soldierid"]]);
+                        }
+
+                        // Delete the event and senttroops
+                        $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$event_id]);
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+                    }
+                    break;
                 case ACTION_TRADING:
                     break;
             }
@@ -399,8 +517,6 @@ class User
         return $_SESSION["score"] ?? 0;
     }
 
-    // Get and execute events tied to the user
-
     public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count): void
     {
         if (!isset($_SESSION["last_recruited_soldier"])) {
@@ -410,6 +526,18 @@ class User
             "soldiername" => $soldier_name,
             "soldiercount" => $soldier_count
         ];
+    }
+
+    public function get_user_name(): string
+    {
+        return $_SESSION["username"] ?? "";
+    }
+
+    // Get and execute events tied to the user
+
+    public function get_current_kingdom(): int
+    {
+        return $_SESSION["kingdomid"] ?? 0;
     }
 
     // Show register and login forms
