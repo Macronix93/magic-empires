@@ -113,7 +113,14 @@ function updateKingdom(selectElement) {
         let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4 && this.status === 200) {
-                window.location.href = new URL(window.location.href).pathname;
+                let currentUrl = new URL(window.location.href);
+
+                // Check if we are on conquest page and keep x and y coordinates
+                if (currentUrl.pathname.includes("sendtroops.php")) {
+                    window.location.href = currentUrl.pathname + currentUrl.search;
+                } else {
+                    window.location.href = currentUrl.pathname;
+                }
             }
         };
         xhttp.open("POST", "ajax/change_kingdom.php", true);

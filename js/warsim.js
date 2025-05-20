@@ -16,19 +16,15 @@ function calculateWarOutcome(soldierTypes) {
     let mySoldiers = {};
     let enemySoldiers = {};
     let myTotalATK = {};
-    let myTotalDEF = {};
-    let enemyTotalATK = {};
     let enemyTotalDEF = {};
     let soldierTypeATK = {};
     let soldierTypeDEF = {};
 
     // Initialize totals for each soldier type
     soldierTypes.forEach(type => {
-        mySoldiers[type] = [];
-        enemySoldiers[type] = [];
+        mySoldiers[type] = 0;
+        enemySoldiers[type] = 0;
         myTotalATK[type] = 0;
-        myTotalDEF[type] = 0;
-        enemyTotalATK[type] = 0;
         enemyTotalDEF[type] = 0;
         soldierTypeATK[type] = 0;
         soldierTypeDEF[type] = 0;
@@ -50,8 +46,6 @@ function calculateWarOutcome(soldierTypes) {
         enemySoldiers[type] = parseInt(enemySoldierCount.value);
 
         myTotalATK[type] += mySoldiers[type] * parseInt(soldierAtk.getAttribute("data-attack"));
-        myTotalDEF[type] += mySoldiers[type] * parseInt(soldierDef.getAttribute("data-defense"));
-        enemyTotalATK[type] += enemySoldiers[type] * parseInt(soldierAtk.getAttribute("data-attack"));
         enemyTotalDEF[type] += enemySoldiers[type] * parseInt(soldierDef.getAttribute("data-defense"));
 
         soldierTypeATK[type] = soldierAtk.getAttribute("data-attack");
@@ -81,9 +75,12 @@ function calculateWarOutcome(soldierTypes) {
                     mySoldierInput.value = mySoldiers[attackerType];
                     enemySoldierInput.value = enemySoldiers[defenderType];
 
-                    // Recalculate total ATK for type
+                    // Recalculate total ATK for type and DEF for enemy type
                     myTotalATK[attackerType] = mySoldiers[attackerType] * parseInt(
                         document.getElementById(`${attackerType}_atk`).getAttribute("data-attack")
+                    );
+                    enemyTotalDEF[defenderType] = enemySoldiers[defenderType] * parseInt(
+                        document.getElementById(`${defenderType}_def`).getAttribute("data-defense")
                     );
 
                     // Change text color based on losses

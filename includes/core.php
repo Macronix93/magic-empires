@@ -33,13 +33,22 @@ const ACTION_BUILD_TROOPS = 2;
 const ACTION_SEND_TROOPS = 3;
 const ACTION_RETURN_TROOPS = 4;
 const ACTION_TRADING = 5;
-const BUILDING_COST_TYPE_WOOD = 1;
-const BUILDING_COST_TYPE_FOOD = 2;
-const BUILDING_COST_TYPE_STONE = 3;
-const BUILDING_COST_TYPE_GOLD = 4;
-const BUILDING_COST_TYPE_TIME = 5;
+const RESOURCE_TYPE_FOOD = 0;
+const RESOURCE_TYPE_WOOD = 1;
+const RESOURCE_TYPE_STONE = 2;
+const RESOURCE_TYPE_GOLD = 3;
+const RESOURCE_TYPE_TIME = 4;
+const RESOURCE_TYPE_VILLAGER = 5;
+const RESOURCE_TYPE_ATTACK = 6;
+const RESOURCE_TYPE_DEFENSE = 7;
+const RESOURCE_TYPE_RECRUIT_TIME = 8;
+const RESOURCE_TYPE_HEALTH = 9;
 const MAX_BUILDING_LEVEL = 10;
-const DEFAULT_WALL_HP = 200;
+const DEFAULT_WALL_HP = 100;
+const MIN_WALL_DEFENSE = 1;
+const MAX_WALL_DEFENSE = 5;
+const WALL_DEFENSE_FACTOR = 0.6;
+const BASE_WALL_REPAIR_COST = 50;
 const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
 const AFK_SECONDS = 300; // 5 Minutes
 const USER_UPDATE_TICK = 30; // 30 Seconds
@@ -62,25 +71,29 @@ const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds =
 const UPLOADS_FILE_PATH = 'uploads/';
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . 'default_avatar.jpg';
 const MAX_UPLOAD_FILE_SIZE = 64; // In KB
+const NOOB_PROTECTION_MULT = 0.5;
+const CATEGORY_DEFAULT = "Default";
+const CATEGORY_WAR = "Krieg";
+const CATEGORY_TRADE = "Handel";
 
 
 /*
- * Enum of buildings
+ * Enums
  */
 
 interface BuildingTypes
 {
-    const BUILDING_TOWNCENTER = 0;
-    const BUILDING_UNIVERSITY = 1;
-    const BUILDING_BARRACKS = 2;
-    const BUILDING_WALL = 3;
-    const BUILDING_SMITHY = 4;
-    const BUILDING_MILL = 5;
-    const BUILDING_SAWMILL = 6;
-    const BUILDING_STONEMINE = 7;
-    const BUILDING_GOLDMINE = 8;
-    const BUILDING_STORAGE = 9;
-    const BUILDING_MARKETPLACE = 10;
+    const int BUILDING_TOWNCENTER = 0;
+    const int BUILDING_UNIVERSITY = 1;
+    const int BUILDING_BARRACKS = 2;
+    const int BUILDING_WALL = 3;
+    const int BUILDING_SMITHY = 4;
+    const int BUILDING_MILL = 5;
+    const int BUILDING_SAWMILL = 6;
+    const int BUILDING_STONEMINE = 7;
+    const int BUILDING_GOLDMINE = 8;
+    const int BUILDING_STORAGE = 9;
+    const int BUILDING_MARKETPLACE = 10;
 }
 
 function get_building_file(int $building_id): string
@@ -108,11 +121,16 @@ function get_building_file(int $building_id): string
 function get_resource_icon(int $resource_type): string
 {
     return match ($resource_type) {
-        BUILDING_COST_TYPE_WOOD => "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
-        BUILDING_COST_TYPE_FOOD => "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
-        BUILDING_COST_TYPE_STONE => "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
-        BUILDING_COST_TYPE_GOLD => "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>",
-        BUILDING_COST_TYPE_TIME => "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/>",
+        RESOURCE_TYPE_WOOD => "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
+        RESOURCE_TYPE_FOOD => "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
+        RESOURCE_TYPE_STONE => "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
+        RESOURCE_TYPE_GOLD => "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>",
+        RESOURCE_TYPE_TIME => "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/>",
+        RESOURCE_TYPE_VILLAGER => "<img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/>",
+        RESOURCE_TYPE_ATTACK => "<img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff' title='Angriff'/>",
+        RESOURCE_TYPE_DEFENSE => "<img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/>",
+        RESOURCE_TYPE_RECRUIT_TIME => "<img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/>",
+        RESOURCE_TYPE_HEALTH => "<img src='images/icons/icon_health.png' class='ressource-icons' alt='Lebenspunkte' title='Lebenspunkte'/>",
         default => 0,
     };
 }
@@ -493,15 +511,15 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     $kingdom->get_kingdom_info($current_kingdom);
 
     return [
-        'current_kingdom' => $current_kingdom,
-        'building' => $building,
-        'kingdom' => $kingdom
+        "current_kingdom" => $current_kingdom,
+        "building" => $building,
+        "kingdom" => $kingdom
     ];
 }
 
-function send_server_message(int $user_id, string $user_name, string $message): void
+function send_server_message(int $user_id, string $user_name, string $message, string $category = CATEGORY_DEFAULT): void
 {
     $db = Database::get_instance();
-    $db->get_connection()->execute_query("INSERT INTO servermessages (receiverid, receiver, date, message) VALUES (?, ?, ?, ?)",
-        [$user_id, $user_name, time(), $message]);
+    $db->get_connection()->execute_query("INSERT INTO servermessages (receiverid, receiver, date, message, category) VALUES (?, ?, ?, ?, ?)",
+        [$user_id, $user_name, time(), $message, $category]);
 }

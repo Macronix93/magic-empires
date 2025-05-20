@@ -55,7 +55,7 @@
 </div>
 <footer>
     <div id="footerwrapper">
-        © Magic Empires - 2024
+        © Magic Empires - 2025
     </div>
 </footer>
 </body>

@@ -8,6 +8,9 @@ $building = $result['building'];
 $building_name = $building->get_building_name();
 $kingdom = $result['kingdom'];
 
+$default_supply = RESOURCE_TYPE_FOOD; // Nahrung
+$default_demand = RESOURCE_TYPE_WOOD; // Holz
+
 if (isset($_GET["accept"])) {
     $result = $db_instance->execute_query("SELECT username, kingdomid, supply, supplyvalue, demand, demandvalue FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
     $row = $result->fetch_assoc();
@@ -19,67 +22,60 @@ if (isset($_GET["accept"])) {
         $demand_value = $row["demandvalue"];
 
         // Check if kingdom has enough resources to handle the trade
-        if ($demand == 0 && $kingdom->get_kingdom_food() < $demand_value) {
+        if ($demand == RESOURCE_TYPE_FOOD && $kingdom->get_kingdom_food() < $demand_value) {
             $error = "Soviel Nahrung kannst du nicht aufbringen!";
-        } else if ($demand == 1 && $kingdom->get_kingdom_wood() < $demand_value) {
+        } else if ($demand == RESOURCE_TYPE_WOOD && $kingdom->get_kingdom_wood() < $demand_value) {
             $error = "Soviel Holz kannst du nicht aufbringen!";
-        } else if ($demand == 2 && $kingdom->get_kingdom_stone() < $demand_value) {
+        } else if ($demand == RESOURCE_TYPE_STONE && $kingdom->get_kingdom_stone() < $demand_value) {
             $error = "Soviel Stein kannst du nicht aufbringen!";
-        } else if ($demand == 3 && $kingdom->get_kingdom_gold() < $demand_value) {
+        } else if ($demand == RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $demand_value) {
             $error = "Soviel Gold kannst du nicht aufbringen!";
         } else {
             $other_kingdom = new Kingdoms($db_instance);
             $other_kingdom->get_kingdom_info($row["kingdomid"]);
 
-            $supply_resource = "";
-            $demand_resource = "";
-
             // Give both kingdoms the respective resources
             switch ($supply) {
-                case 0:
+                case RESOURCE_TYPE_FOOD:
                     $kingdom->give_kingdom_food($supply_value);
-                    $supply_resource = "Nahrung";
                     break;
-                case 1:
+                case RESOURCE_TYPE_WOOD:
                     $kingdom->give_kingdom_wood($supply_value);
-                    $supply_resource = "Holz";
                     break;
-                case 2:
+                case RESOURCE_TYPE_STONE:
                     $kingdom->give_kingdom_stone($supply_value);
-                    $supply_resource = "Stein";
                     break;
-                case 3:
+                case RESOURCE_TYPE_GOLD:
                     $kingdom->give_kingdom_gold($supply_value);
-                    $supply_resource = "Gold";
                     break;
             }
             switch ($demand) {
-                case 0:
+                case RESOURCE_TYPE_FOOD:
                     $kingdom->give_kingdom_food(-$demand_value);
                     $other_kingdom->give_kingdom_food($demand_value);
-                    $demand_resource = "Nahrung";
                     break;
-                case 1:
+                case RESOURCE_TYPE_WOOD:
                     $kingdom->give_kingdom_wood(-$demand_value);
                     $other_kingdom->give_kingdom_wood($demand_value);
-                    $demand_resource = "Holz";
                     break;
-                case 2:
+                case RESOURCE_TYPE_STONE:
                     $kingdom->give_kingdom_stone(-$demand_value);
                     $other_kingdom->give_kingdom_stone($demand_value);
-                    $demand_resource = "Stein";
                     break;
-                case 3:
+                case RESOURCE_TYPE_GOLD:
                     $kingdom->give_kingdom_gold(-$demand_value);
                     $other_kingdom->give_kingdom_gold($demand_value);
-                    $demand_resource = "Gold";
                     break;
             }
 
             // Delete the marketplace offer
             $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
 
-            //TODO: Send a message to the other kingdom that the offer has been accepted
+            // Send a message to the other user that the offer has been accepted
+            $message = "Dein Angebot</br></br>" . get_resource_icon($supply) . " $supply_value  gegen " . get_resource_icon($demand) . " $demand_value </br></br>
+                        wurde vom Spieler " . $kingdom->get_kingdom_owner_name() . " (Königreich: " . $kingdom->get_kingdom_name() . ") 
+                        angenommen!";
+            send_server_message($other_kingdom->get_kingdom_owner_id(), $other_kingdom->get_kingdom_owner_name(), $message, CATEGORY_TRADE);
         }
     } else {
         $error = "Dieses Angebot existiert nicht oder ist von deinem Königreich!";
@@ -92,18 +88,18 @@ if (isset($_GET["accept"])) {
         $supply = $row["supply"];
         $supply_value = $row["supplyvalue"];
 
-        // Give supply ressources back to kingdom
+        // Give supply resources back to kingdom
         switch ($supply) {
-            case 0:
+            case RESOURCE_TYPE_FOOD:
                 $kingdom->give_kingdom_food($supply_value);
                 break;
-            case 1:
+            case RESOURCE_TYPE_WOOD:
                 $kingdom->give_kingdom_wood($supply_value);
                 break;
-            case 2:
+            case RESOURCE_TYPE_STONE:
                 $kingdom->give_kingdom_stone($supply_value);
                 break;
-            case 3:
+            case RESOURCE_TYPE_GOLD:
                 $kingdom->give_kingdom_gold($supply_value);
                 break;
         }
@@ -128,13 +124,13 @@ if (isset($_GET["accept"])) {
             $error = "Die Werte müssen zwischen 1 und 99999 liegen!";
         } else {
             // Check if kingdom has enough ressources to handle the trade
-            if ($supply == 0 && $kingdom->get_kingdom_food() < $supply_value) {
+            if ($supply == RESOURCE_TYPE_FOOD && $kingdom->get_kingdom_food() < $supply_value) {
                 $error = "Soviel Nahrung kannst du nicht bieten!";
-            } else if ($supply == 1 && $kingdom->get_kingdom_wood() < $supply_value) {
+            } else if ($supply == RESOURCE_TYPE_WOOD && $kingdom->get_kingdom_wood() < $supply_value) {
                 $error = "Soviel Holz kannst du nicht bieten!";
-            } else if ($supply == 2 && $kingdom->get_kingdom_stone() < $supply_value) {
+            } else if ($supply == RESOURCE_TYPE_STONE && $kingdom->get_kingdom_stone() < $supply_value) {
                 $error = "Soviel Stein kannst du nicht bieten!";
-            } else if ($supply == 3 && $kingdom->get_kingdom_gold() < $supply_value) {
+            } else if ($supply == RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $supply_value) {
                 $error = "Soviel Gold kannst du nicht bieten!";
             } else {
                 // Check if there is already an offer for this kingdom
@@ -149,16 +145,16 @@ if (isset($_GET["accept"])) {
                     $result = $db_instance->execute_query($query, [$user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value]);
 
                     switch ($supply) {
-                        case 0:
+                        case RESOURCE_TYPE_FOOD:
                             $kingdom->give_kingdom_food(-$supply_value);
                             break;
-                        case 1:
+                        case RESOURCE_TYPE_WOOD:
                             $kingdom->give_kingdom_wood(-$supply_value);
                             break;
-                        case 2:
+                        case RESOURCE_TYPE_STONE:
                             $kingdom->give_kingdom_stone(-$supply_value);
                             break;
-                        case 3:
+                        case RESOURCE_TYPE_GOLD:
                             $kingdom->give_kingdom_gold(-$supply_value);
                             break;
                     }
@@ -182,11 +178,11 @@ $view .= '<table class="table">
                    size="5"
                    maxlength="5">
             <label>
-                <select name="s">
-                    <option value="0">Nahrung</option>
-                    <option value="1">Holz</option>
-                    <option value="2">Stein</option>
-                    <option value="3">Gold</option>
+                <select name="s" id="s">
+                    <option value="' . RESOURCE_TYPE_FOOD . '">Nahrung</option>
+                    <option value="' . RESOURCE_TYPE_WOOD . '">Holz</option>
+                    <option value="' . RESOURCE_TYPE_STONE . '">Stein</option>
+                    <option value="' . RESOURCE_TYPE_GOLD . '">Gold</option>
                 </select>
             </label>
         </td>
@@ -198,11 +194,11 @@ $view .= '<table class="table">
                    size="5"
                    maxlength="5">
             <label>
-                <select name="d">
-                    <option value="0">Nahrung</option>
-                    <option value="1">Holz</option>
-                    <option value="2">Stein</option>
-                    <option value="3">Gold</option>
+                <select name="d" id="d">
+                    <option value="' . RESOURCE_TYPE_FOOD . '">Nahrung</option>
+                    <option value="' . RESOURCE_TYPE_WOOD . '" selected>Holz</option>
+                    <option value="' . RESOURCE_TYPE_STONE . '">Stein</option>
+                    <option value="' . RESOURCE_TYPE_GOLD . '">Gold</option>
                 </select>
             </label>
         </td>
@@ -233,13 +229,6 @@ $view .= '<table class="table">
     </td>
 </tr>';
 
-$resource_icon = array(
-    "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
-    "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
-    "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
-    "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>"
-);
-
 $view .= "<p>Aktuelle Angebote</p>";
 
 $query = "
@@ -263,8 +252,8 @@ foreach ($result as $row) {
 
     $view .= "<tr><td>{$row["username"]}</td>
                 <td>$kingdom_name</td>
-                <td class='td-center'>{$resource_icon[$row["supply"]]} " . fnum($row["supplyvalue"]) . "</td>
-                <td class='td-center'>{$resource_icon[$row["demand"]]} " . fnum($row["demandvalue"]) . "</td>
+                <td class='td-center'>" . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . "</td>
+                <td class='td-center'>" . get_resource_icon($row["demand"]) . " " . fnum($row["demandvalue"]) . "</td>
                 <td class='td-center'>$text_build</td>
                 </tr>";
 }
@@ -276,7 +265,7 @@ $view .= '</table>';
  */
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
-$script_files = [];
+$script_files = ["marketplace"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

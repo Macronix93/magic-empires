@@ -36,7 +36,6 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
     $map->set_start_x(max(1, min($x - 5, 91)));
     $map->set_start_y(max(1, min($y - 5, 91)));
 
-    echo "execute script";
     echo "<script type='text/javascript'>
               document.addEventListener('DOMContentLoaded', function() {
                     let x = " . $x . ";
@@ -74,12 +73,12 @@ echo "<input type='hidden' id='highlightedfield'>
 
 // Show info about the fields
 echo "<div id='map-legend'>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></div><span>Hochland</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></div><span>Küste</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></div><span>Wald</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></div><span>Wüste</span></div>
-                            <div class='legend-item'><div class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></div><span>Gebirge</span></div>
-                        </div>";
+        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
+        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
+        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>
+        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></span> Wüste</div>
+        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></span> Gebirge</div>
+    </div>";
 echo "<div id='map-container'>";
 $map->render_map($map->get_start_x(), $map->get_start_y());
 echo "</div>";

@@ -14,28 +14,28 @@ $kingdom = $result['kingdom'];
 $view .= "<div style='margin: auto; width: 200px;'>
         <div class='split-content'>
             <div>
-                <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>
+                " . get_resource_icon(RESOURCE_TYPE_FOOD) . "
                 " . fnum($kingdom->get_kingdom_food()) . "
             </div>
             <div>von " . fnum($kingdom->get_kingdom_max_food()) . "</div>
         </div>
         <div class='split-content'>
             <div>
-                <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>
+                " . get_resource_icon(RESOURCE_TYPE_WOOD) . "
                 " . fnum($kingdom->get_kingdom_wood()) . "
             </div>
             <div>von " . fnum($kingdom->get_kingdom_max_wood()) . "</div>
         </div>
         <div class='split-content'>
             <div>
-                <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>
+                " . get_resource_icon(RESOURCE_TYPE_STONE) . "
                 " . fnum($kingdom->get_kingdom_stone()) . "
             </div>
             <div>von " . fnum($kingdom->get_kingdom_max_stone()) . "</div>
         </div>
         <div class='split-content'>
             <div>
-                <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>
+                " . get_resource_icon(RESOURCE_TYPE_GOLD) . "
                 " . fnum($kingdom->get_kingdom_gold()) . "
             </div>
             <div>von " . fnum($kingdom->get_kingdom_max_gold()) . "</div>

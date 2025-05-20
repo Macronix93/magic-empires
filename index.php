@@ -3,6 +3,12 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
+function calculateWarOutcome(): void
+{
+
+}
+
+
 // Get some user data to show...
 $result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
 $row = $result->fetch_assoc();
@@ -50,6 +56,8 @@ $view .= "Letzter Login: " . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "<br>
 $view .= "Score: $score<br>";
 $view .= "Gilde: $guild_id<br>";
 $view .= "Admin-Level: " . $user->get_user_admin_level();
+
+//$user->set_current_kingdom(999);
 
 
 /*

@@ -24,7 +24,7 @@ $soldiers_array = json_encode(array_map(function ($soldier) {
 
 $view .= '<table class="table">
     <tr>
-        <td class="td-center td-gradient">Soldat</td>
+        <td class="td-center td-gradient">Einheit</td>
         <td class="td-center td-gradient">Spieler</td>
         <td class="td-center td-gradient">Gegner</td>
     </tr>';
@@ -43,16 +43,14 @@ for ($i = 0; $i < count($soldiers); $i++) {
                         </div>
                     </div>
                 </td>
-                <td class='td-center'><input type='text' id='" . $soldier_name . "_own' name='" . $soldier_name . "_own' size='2' maxlength='3' value='0'></td>
-                <td class='td-center'><input type='text' id='" . $soldier_name . "_enemy' name='" . $soldier_name . "_enemy' size='2' maxlength='3' value='0'></td>
+                <td class='td-center'><input type='text' id='" . $soldier_name . "_own' name='" . $soldier_name . "_own' size='4' maxlength='5' value='0'></td>
+                <td class='td-center'><input type='text' id='" . $soldier_name . "_enemy' name='" . $soldier_name . "_enemy' size='4' maxlength='5' value='0'></td>
               </tr>";
 }
 
 $view .= '</table>
     <script type="text/javascript">
-        let soldierTypes = ' . json_encode(array_map(function ($soldier) {
-        return $soldier->get_soldier_name();
-    }, $soldiers)) . ';
+        let soldierTypes = ' . $soldiers_array . ';
     </script>
     <button type="button" style="margin-top: 10px;" onclick="calculateWarOutcome(soldierTypes)">Berechnen</button>
     <button type="button" onclick="resetFields(soldierTypes)">Reset</button>';

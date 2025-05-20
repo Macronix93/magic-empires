@@ -96,11 +96,19 @@ function show_server_inbox(): string
     $query = "SELECT * FROM servermessages WHERE receiverid = ?";
     $result = $db_instance->execute_query($query, [$user->get_user_id()]);
 
-    $view .= '<div style="display: flex; margin: 10px 0; align-items: center;"><button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button></div>';
+    $view .= '<div style="display: flex; margin: 10px 0; align-items: center;">
+                <button style="min-width: 8%;" onclick="window.location.href=\'messages.php\';">Zurück</button>
+              </div>';
+
+    // Category Tabs
+    $view .= '<div class="tab">
+                <div class="tablinks active" onclick="filterServerMessages(this)">Alle</div>
+                <div class="tablinks" onclick="filterServerMessages(this)">Krieg</div>
+                <div class="tablinks" onclick="filterServerMessages(this)">Handel</div>
+              </div>';
 
     if ($result->num_rows > 0) {
         $firstSenderMessageDisplayed = false;
-
         $view .= '<div id="messages-section">';
 
         foreach ($result as $row) {
@@ -109,29 +117,32 @@ function show_server_inbox(): string
                 $firstSenderMessageDisplayed = true;
             }
 
-            $view .= "<div class='server-bubble' id='msg-" . $row["id"] . "'>
-                            <div class='image-and-user message-border'>
-                                Server am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
-                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteServerMessage(\"{$row['id']}\")' style='cursor: pointer;'>
-                            </div>
-                            " . $row["message"] . "
-                        </div>";
+            $message_id = $row["id"];
+
+            $view .= "<div class='server-bubble' data-category='{$row["category"]}' id='msg-$message_id'>
+                        <div class='message-border'>
+                            Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
+                            <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteServerMessage(\"$message_id\")' style='cursor: pointer;'>
+                        </div>
+                        " . $row["message"] . "
+                      </div>";
 
             $db_instance->execute_query("UPDATE servermessages SET hasread = 1 WHERE id = ?", [$row["id"]]);
         }
 
         $view .= '</div>';
-        $view .= "<script type='text/javascript'>
+        $view .= "<script>
                     document.addEventListener('DOMContentLoaded', function () {
                         scrollDown();
                     });
-                </script>";
+                  </script>";
     } else {
         $view .= "Du hast keine Servernachrichten!";
     }
 
     return $view;
 }
+
 
 function get_unread_server_messages(): int
 {

@@ -37,6 +37,7 @@ foreach ($result as $row) {
     $soldier->set_soldier_score_gain($row["scoregain"]);
 
     $soldiers[] = $soldier;
+    $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
 }
 
 $soldiers_count = count($soldiers);
@@ -172,26 +173,22 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $text_build = "-";
         }
     } else {
-        if ($cost_food > $kingdom_food || $cost_gold > $kingdom_gold) {
-            $text_build = "Nicht genug Rohstoffe!";
-        } else if ($kingdom_villager < $cost_villager) {
-            $text_build = "Nicht genug Dorfbewohner!";
-        } else {
-            // Calculate the maximum soldiers recruitable based on each resource
-            $food_cost_per_soldier = $soldiers[$i]->get_soldier_food_cost();
-            $gold_cost_per_soldier = $soldiers[$i]->get_soldier_gold_cost();
-            $villager_cost_per_soldier = $soldiers[$i]->get_soldier_villager_cost();
-            $max_soldiers_food = floor($kingdom_food / $food_cost_per_soldier);
-            $max_soldiers_gold = floor($kingdom_gold / $gold_cost_per_soldier);
-            $max_soldiers_villagers = floor($kingdom_villager / $villager_cost_per_soldier);
-            $max_recruit_val = min($max_soldiers_food, $max_soldiers_gold, $max_soldiers_villagers);
-            $max_soldiers = min($max_recruit_val, 99);
+        // Calculate the maximum soldiers recruitable based on each resource
+        $food_cost_per_soldier = $soldiers[$i]->get_soldier_food_cost();
+        $gold_cost_per_soldier = $soldiers[$i]->get_soldier_gold_cost();
+        $villager_cost_per_soldier = $soldiers[$i]->get_soldier_villager_cost();
+        $max_soldiers_food = floor($kingdom_food / $food_cost_per_soldier);
+        $max_soldiers_gold = floor($kingdom_gold / $gold_cost_per_soldier);
+        $max_soldiers_villagers = floor($kingdom_villager / $villager_cost_per_soldier);
+        $max_recruit_val = min($max_soldiers_food, $max_soldiers_gold, $max_soldiers_villagers);
+        $max_soldiers = min($max_recruit_val, 99);
 
-            $text_build = "<form action='barracks.php?' method='GET'>
+        $disabled = $cost_food > $kingdom_food || $cost_gold > $kingdom_gold || $cost_villager > $kingdom_villager ? "disabled" : "";
+        $text_build = "<form action='barracks.php?' method='GET'>
                             <input type='hidden' name='recruit' value='" . $i . "'>
-                            <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2'>
-                            <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $max_soldiers . "\")'><br>
-                            <input type='submit' value='Ausbilden' style='margin-top: 10px'>
+                            <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2' $disabled>
+                            <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $max_soldiers . "\")' $disabled><br>
+                            <input type='submit' value='Ausbilden' style='margin-top: 10px' $disabled>
                         </form>
                         <script>
                             function fillMax(i, maxValue) {
@@ -199,22 +196,24 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                 return false;
                             }
                         </script>";
-        }
     }
 
     $view .= "<tr>
-                <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->get_soldier_icon() . "</td>
-                <td style='width: 40%;'><b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
-                    <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div>  (" . (isset($kingdom_soldiers[$i]) ? fnum($kingdom_soldiers[$i]) : 0) . ")</b><br><br>
-                    <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $text_food . "
-                    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $text_gold . "
-                    <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/> " . $text_villager . "<br>
-                    <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff' title='Angriff'/> " . $soldiers[$i]->get_soldier_attack() . " 
-                    <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/> " . $soldiers[$i]->get_soldier_defense() . "<br>
-                    <img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/> " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
-                    <br></td>
-                <td class='td-center' style='width: 40%;'>$text_build</td>
-            </tr>";
+                    <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->get_soldier_icon() . "</td>
+                    <td style='width: 50%;'>
+                        <b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
+                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div> (" . $kingdom_soldiers[$i] . ")</b>
+                        <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_VILLAGER) . " " . $text_villager . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_ATTACK) . " " . $soldiers[$i]->get_soldier_attack() . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_DEFENSE) . " " . $soldiers[$i]->get_soldier_defense() . "</div>
+                        </div>
+                        " . get_resource_icon(RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
+                    </td>
+                    <td class='td-center' style='width: 25%;'>$text_build</td>
+              </tr>";
 }
 $view .= '</table>';
 

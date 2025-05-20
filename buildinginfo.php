@@ -36,11 +36,11 @@ if (isset($building_id)) {
                 <table class='table'>
                 <tr>
                     <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(BUILDING_COST_TYPE_WOOD) . "</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(BUILDING_COST_TYPE_FOOD) . "</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(BUILDING_COST_TYPE_STONE) . "</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(BUILDING_COST_TYPE_GOLD) . "</td>
-                    <td class='td-center td-gradient' style='width: 20%;'>" . get_resource_icon(BUILDING_COST_TYPE_TIME) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_WOOD) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_FOOD) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_STONE) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_GOLD) . "</td>
+                    <td class='td-center td-gradient' style='width: 20%;'>" . get_resource_icon(RESOURCE_TYPE_TIME) . "</td>
                 </tr>
         ";
 

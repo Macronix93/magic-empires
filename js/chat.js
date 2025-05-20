@@ -264,3 +264,24 @@ function initializeChat() {
     // Scroll to latest message at the bottom
     scrollDown();
 }
+
+// Filter server log messages
+function filterServerMessages(element) {
+    let category = element.textContent.trim();
+    let messages = document.querySelectorAll('.server-bubble');
+
+    messages.forEach(msg => {
+        if (category === "Alle" || msg.dataset.category === category) {
+            msg.style.display = "block";
+        } else {
+            msg.style.display = "none";
+        }
+    });
+
+    // Update active tab
+    document.querySelectorAll('.tablinks').forEach(tab => tab.classList.remove("active"));
+    element.classList.add("active");
+
+    // Scroll to latest message
+    scrollDown();
+}

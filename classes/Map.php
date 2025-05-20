@@ -216,21 +216,9 @@ class Map
                           </tr>
                       ';
 
-                // Get the coords of the current kingdom of the user
-                /*if ($field != $user->get_current_kingdom()) {
-                    echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
-                    echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
-                    echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                <button style='margin-right: 15px;' onclick=\"" . $url . "\">Truppen stationieren</button>
-                            </td>
-                            </tr>";
-                }*/
-                //echo '</tr>';
-
                 if ($user_name != $user->get_user_name()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                 <button style='margin-right: 15px;' onclick=\"" . $url . "\">Angreifen</button>
-                                <button style='margin-left: 15px;'>Handeln</button>
                             </td>
                             </tr>";
                 } else {
@@ -272,8 +260,8 @@ class Map
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
     {
-        $start = ['x' => $start_x, 'y' => $start_y];
-        $end = ['x' => $end_x, 'y' => $end_y];
+        $start = ["x" => $start_x, "y" => $start_y];
+        $end = ["x" => $end_x, "y" => $end_y];
         $map = $this->fetch_map_data();
 
         $open_list = [];
@@ -302,7 +290,7 @@ class Map
                     continue;
                 }
 
-                $traversal_time = $map[$neighbor['x']][$neighbor['y']]['traversaltime'];
+                $traversal_time = $map[$neighbor["x"]][$neighbor["y"]]["traversaltime"];
                 $tentative_g_score = $g_scores[$this->encode($current)] + $traversal_time;
 
                 if (!isset($open_list[$this->encode($neighbor)]) || $tentative_g_score < $g_scores[$this->encode($neighbor)]) {
@@ -329,8 +317,8 @@ class Map
         $map = [];
 
         foreach ($result as $row) {
-            $map[$row['mapx']][$row['mapy']] = [
-                'traversaltime' => $row['traversaltime']
+            $map[$row["mapx"]][$row["mapy"]] = [
+                "traversaltime" => $row["traversaltime"]
             ];
         }
 
@@ -339,12 +327,12 @@ class Map
 
     private function encode($node): string
     {
-        return $node['x'] . ',' . $node['y'];
+        return $node["x"] . ',' . $node["y"];
     }
 
     private function heuristic($a, $b): int
     {
-        return abs($a['x'] - $b['x']) + abs($a['y'] - $b['y']);
+        return abs($a["x"] - $b["x"]) + abs($a["y"] - $b["y"]);
     }
 
     private function decode($encoded): array
@@ -367,14 +355,14 @@ class Map
 
         // Add traversal time information to the path
         foreach ($path as &$coord) {
-            $coord['traversalTime'] = $map[$coord['x']][$coord['y']]['traversaltime'];
-            $total_time += $coord['traversalTime'];
+            $coord["traversalTime"] = $map[$coord["x"]][$coord["y"]]["traversaltime"];
+            $total_time += $coord["traversalTime"];
         }
 
         // Reverse the path to start from the beginning
         $path = array_reverse($path);
 
-        return ['path' => $path, 'totalTime' => $total_time];
+        return ["path" => $path, "totalTime" => $total_time];
     }
 
     private function get_neighbours($node, $map): array

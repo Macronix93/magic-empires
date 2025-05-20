@@ -2,15 +2,15 @@
 require_once("includes/core.php");
 
 // Barracks required for sending troops
-check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
+//check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
+check_user_login($user);
 
 $map = new Map($db_instance);
 $kingdom = new Kingdoms($db_instance);
 $kingdom->get_kingdom_info($user->get_current_kingdom());
-$target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : 1;
-$target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : 1;
+$target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : -1;
+$target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : -1;
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
-$arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y);
 $send_title = "Erobern";
 
 if (!str_contains($user->get_user_name(), "Macronix")) {
@@ -25,7 +25,7 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
         $already_sent = $result->fetch_assoc()["alreadysent"];
 
         if ($already_sent > 0) {
-            $error = "Du hast bereits Truppen zu diesem Feld/Königreich geschickt!";
+            $error = "Du hast bereits Truppen zu diesen Koordinaten geschickt!";
         } else {
             // Get soldier data
             $soldiers = [];
@@ -39,6 +39,7 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                 $soldier->set_soldier_defense($row["defense"]);
 
                 $soldiers[] = $soldier;
+                $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
             }
 
             // Get soldiers from kingdom
@@ -49,6 +50,22 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                 $sol_count = $row['soldiercount'] ?? 0;
                 $kingdom_soldiers[$soldier_id] = $sol_count;
             }
+
+            // Get target kingdom
+            $result = $db_instance->execute_query("SELECT * FROM kingdoms WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+            $row = $result->fetch_assoc();
+            $enemy_user_id = $row["userid"];
+
+            // Get field info
+            $query = "
+                    SELECT m.fieldtype, f.fieldname FROM map m
+                    JOIN fieldtypes f ON m.fieldtype = f.fieldid
+                    WHERE mapx = ? AND mapy = ?
+            ";
+            $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);
+            $field_name = $result2->fetch_assoc()["fieldname"];
+            //$arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y);
+            $arrival_time = 3;
 
             // Check if sent troop was clicked
             if (!empty($_POST["soldiers"])) {
@@ -74,7 +91,7 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                 } else if (empty($error)) {
                     $db_instance->execute_query(
                         "INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        [ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $kingdom_id, $target_x, $target_y, time() + 10]
+                        [ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $kingdom_id, $target_x, $target_y, time() + $arrival_time]
                     );
                     $event_id = $db_instance->insert_id;
 
@@ -104,103 +121,108 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                 }
             }
 
-            // Get target kingdom
-            $result = $db_instance->execute_query("SELECT * FROM kingdoms WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
-            $row = $result->fetch_assoc();
-
-            // Get field info
-            $query = "
-                    SELECT m.fieldtype, f.fieldname FROM map m
-                    JOIN fieldtypes f ON m.fieldtype = f.fieldid
-                    WHERE mapx = ? AND mapy = ?
-            ";
-            $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);
-            $field_name = $result2->fetch_assoc()["fieldname"];
-
-            // Get users kingdom
-            $result3 = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
+            // Get users kingdom and score
+            $result3 = $db_instance->execute_query("
+                SELECT 
+                    kingdoms.mapx, 
+                    kingdoms.mapy, 
+                    kingdoms.userid, 
+                    users.username, 
+                    users.score 
+                FROM kingdoms 
+                JOIN users ON kingdoms.userid = users.id 
+                WHERE kingdoms.mapx = ? AND kingdoms.mapy = ?",
+                [$target_x, $target_y]);
             $row2 = $result3->fetch_assoc();
             $x = $row2["mapx"];
             $y = $row2["mapy"];
+            $score = $row2["score"];
 
             if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
                 $error = "Das ist dein aktuelles Königreich!";
             } else {
-                if ($row) {
-                    if ($row["userid"] == $user->get_user_id()) {
-                        $send_title = "Truppen stationieren";
-                    } else {
-                        $send_title = "Königreich angreifen";
-                    }
-                    $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">Königreich-Info (' . $field_name . ')</div>
-                      <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
-                          <tr>
-                              <td class="td-mapinfo"><b>Koordinaten</b></td>
-                              <td>' . $target_x . ':' . $target_y . '</td>
-                          </tr>
-                          <tr>
-                              <td class="td-mapinfo"><b>Königreich</b></td>
-                              <td>' . $row["kingdomname"] . '</td>
-                          </tr>
-                          <tr>
-                              <td class="td-mapinfo"><b>Besitzer</b></td>
-                              <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $row["userid"] . '\');">' . $row["username"] . '</a></td>
-                          </tr>
-                          <tr>
-                              <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                              <td>' . convert_sec_to_str($arrival_time) . '</td>
-                          </tr>
-                      ';
+                if ($user->has_noob_protection($user->get_user_score(), $score)) {
+                    $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
+
+                    change_location("map.php?startx=$x&starty=$y", 2);
                 } else {
-                    $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">' . $field_name . '</div>
-                      <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
-                          <tr>
-                              <td class="td-mapinfo"><b>Koordinaten</b></td>
-                              <td>' . $target_x . ':' . $target_y . '</td>
-                          </tr>
-                          <tr>
-                              <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                              <td>' . convert_sec_to_str($arrival_time) . '</td>
-                          </tr>
-                    ';
+                    if ($row) {
+                        // Noob protection message
+                        if ($enemy_user_id == $user->get_user_id()) {
+                            $send_title = "Truppen stationieren";
+                        } else {
+                            $send_title = "Königreich angreifen";
+                        }
+                        $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">Königreich-Info (' . $field_name . ')</div>
+                                  <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                                      <tr>
+                                          <td class="td-mapinfo"><b>Koordinaten</b></td>
+                                          <td>' . $target_x . ':' . $target_y . '</td>
+                                      </tr>
+                                      <tr>
+                                          <td class="td-mapinfo"><b>Königreich</b></td>
+                                          <td>' . $row["kingdomname"] . '</td>
+                                      </tr>
+                                      <tr>
+                                          <td class="td-mapinfo"><b>Besitzer</b></td>
+                                          <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $enemy_user_id . '\');">' . $row["username"] . '</a></td>
+                                      </tr>
+                                      <tr>
+                                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                                          <td>' . convert_sec_to_str($arrival_time) . '</td>
+                                      </tr>
+                                  ';
+                    } else {
+                        $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">' . $field_name . '</div>
+                                  <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                                      <tr>
+                                          <td class="td-mapinfo"><b>Koordinaten</b></td>
+                                          <td>' . $target_x . ':' . $target_y . '</td>
+                                      </tr>
+                                      <tr>
+                                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                                          <td>' . convert_sec_to_str($arrival_time) . '</td>
+                                      </tr>
+                                ';
 
-                    $send_title = "Erobern";
-                }
-                $view .= "</table><br>";
+                        $send_title = "Erobern";
+                    }
+                    $view .= "</table><br>";
 
-                // Show users soldiers
-                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
-                <table class="table" style="max-width: 400px;">
-                <tr>
-                    <td class="td-center td-gradient">Soldat</td>
-                    <td class="td-center td-gradient">Anzahl</td>
-                </tr>';
+                    // Show users soldiers
+                    $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
+                            <table class="table" style="max-width: 400px;">
+                            <tr>
+                                <td class="td-center td-gradient">Soldat</td>
+                                <td class="td-center td-gradient">Anzahl</td>
+                            </tr>';
 
-                for ($i = 0; $i < count($soldiers); $i++) {
-                    $soldier_name = $soldiers[$i]->get_soldier_name();
+                    for ($i = 0; $i < count($soldiers); $i++) {
+                        $soldier_name = $soldiers[$i]->get_soldier_name();
 
-                    $view .= "<tr>
-                <td>
-                    <div class='image-and-user' style='margin-bottom: 5px;'>" . $soldiers[$i]->get_soldier_icon() . " <b>" . $soldier_name . " (" . (isset($kingdom_soldiers[$i]) ? fnum($kingdom_soldiers[$i]) : 0) . ")</b>
-                    </div>
-                    <div class='split-content' style='width: 104px;'>
-                        <div>
-                            <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->get_soldier_attack() . "
-                        </div>
-                        <div style='margin-left: 15px;'>
-                            <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->get_soldier_defense() . "
-                        </div>
-                    </div>
-                </td>
-                <td class='td-center'>
-                    <input type='text' id='" . $i . "' name='soldiers[" . $i . "]' size='5' maxlength='6'>
-                </td>
-              </tr>";
-                }
+                        $view .= "<tr>
+                            <td>
+                                <div class='image-and-user' style='margin-bottom: 5px;'>" . $soldiers[$i]->get_soldier_icon() . " <b>" . $soldier_name . " (" . $kingdom_soldiers[$i] . ")</b>
+                                </div>
+                                <div class='split-content' style='width: 104px;'>
+                                    <div>
+                                        <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->get_soldier_attack() . "
+                                    </div>
+                                    <div style='margin-left: 15px;'>
+                                        <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->get_soldier_defense() . "
+                                    </div>
+                                </div>
+                            </td>
+                            <td class='td-center'>
+                                <input type='text' id='" . $i . "' name='soldiers[" . $i . "]' size='5' maxlength='6'>
+                            </td>
+                          </tr>";
+                    }
 
-                $view .= '</table>
+                    $view .= '</table>
                     <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
                 </form>';
+                }
             }
         }
     }

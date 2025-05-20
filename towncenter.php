@@ -22,11 +22,6 @@ $building_count = count($buildings);
 $current_building = (empty($_GET["id"]) ? 0 : (int)$_GET["id"]);
 $build_id = (empty($_GET["bid"]) ? 0 : (int)$_GET["bid"]);
 
-// Check if building is valid
-/*if (isset($_GET["id"]) && ($current_building >= 0 && $current_building < $building_count)) {
-    $building_name = $buildings[$current_building]->get_building_name();
-}*/
-
 if (isset($_GET["action"])) {
     $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
 
@@ -196,22 +191,28 @@ if ($count_maxed_buildings === $building_count) {
                         $text_build = "-";
                     }
                 } else {
-                    if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
-                        $text_build = "Nicht genug Rohstoffe!";
-                    } else {
-                        $text_build = "<form action='towncenter.php' method='GET'>
-                                        <input type='hidden' name='action' value='build'>
-                                        <input type='hidden' name='bid' value='" . $i . "'>
-                                        <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "'>
-                                      </form>";
-                    }
+                    $disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold ? "disabled" : "";
+                    $text_build = "<form action='towncenter.php' method='GET'>
+                                    <input type='hidden' name='action' value='build'>
+                                    <input type='hidden' name='bid' value='" . $i . "'>
+                                    <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "' $disabled>
+                                  </form>";
                 }
 
-                $view .= "<tr><td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                                            <td style='width: 40%;'><b>" . $buildings[$i]->get_building_name() . " ($level)</b><br><br>
-                                            <img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/> " . $text_wood . "   <img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/> " . $text_food . "<br>
-                                            <img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/> " . $text_stone . "    <img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/> " . $text_gold . "<br>
-                                            <img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/> " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "<br></td><td class='td-center' style='width: 40%;'>" . $text_build . "</td></tr>";
+                $view .= "<tr>
+                    <td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
+                    <td style='width: 50%;'>
+                        <b>" . $buildings[$i]->get_building_name() . " ($level)</b>
+                        <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>
+                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                        </div>
+                        " . get_resource_icon(RESOURCE_TYPE_TIME) . " " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "
+                    </td>
+                    <td class='td-center' style='width: 25%;'>" . $text_build . "</td>
+                </tr>";
             }
         }
     }
