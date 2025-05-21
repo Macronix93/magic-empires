@@ -380,7 +380,6 @@ class User
                     }
                     break;
                 case ACTION_SEND_TROOPS:
-                    // TODO: Create seperate classes for the battle action (e.g. Conquest)
                     $map = new Map($this->mysqli);
                     $kingdom = new Kingdoms($this->mysqli);
                     $kingdom->get_kingdom_info($this->get_current_kingdom());
@@ -388,43 +387,16 @@ class User
                     $my_kingdom_y = $kingdom->get_kingdom_map_y();
 
                     if ($arrival_time < time()) {
-                        //$return_time = $map->get_arrival_time($target_x, $target_y, $my_kingdom_x, $my_kingdom_y);
-                        $return_time = 3;
                         $message = "";
                         $enemy_message = "";
+                        $return_time = $map->get_arrival_time($target_x, $target_y, $my_kingdom_x, $my_kingdom_y);
 
-                        // Fetch only the sent troops with their names in one query
-                        $query = "
-                            SELECT s.id, s.soldiername, st.soldiercount 
-                            FROM senttroops st
-                            JOIN soldierlist s ON st.soldierid = s.id
-                            WHERE st.eventid = ?
-                        ";
-                        $result = $this->mysqli->execute_query($query, [$event_id]);
+                        $conquest = new Conquest($this->mysqli);
+                        $conquest->set_event_id($event_id);
+                        $conquest->fetch_sent_troops();
+                        $has_conquerer = $conquest->has_conquerer();
+                        $conquerer_count = $conquest->get_conquerer_count();
 
-                        $soldiers = [];
-                        $conquerer_count = 0;
-
-                        foreach ($result as $row2) {
-                            $soldier_id = $row2["id"];
-                            $soldier_name = $row2["soldiername"];
-                            $soldier_count = $row2["soldiercount"];
-
-                            $soldiers[$soldier_id] = [
-                                "name" => $soldier_name,
-                                "count" => $soldier_count
-                            ];
-
-                            // Check if there is a conqueror and count them
-                            if ($soldier_name === "Eroberer") {
-                                $conquerer_count = $soldier_count;
-                            }
-                        }
-
-                        // Check if there are conquerors
-                        $has_conquerer = $conquerer_count > 0;
-
-                        // Is it a free map field?
                         if ($target_id == -1) {
                             $field_query = "
                                 SELECT ft.fieldname
@@ -442,18 +414,13 @@ class User
                                 $message .= "Es wird versucht, das Gebiet zu erobern...<br>";
 
                                 // Calculate success rate
-                                $success_rate = $this->get_conquering_rate($conquerer_count) * 100;
+                                $success_rate = $conquest->get_conquering_rate($conquerer_count) * 100;
 
-                                if ($this->is_conquered($success_rate)) {
+                                if ($conquest->is_conquered($success_rate)) {
                                     $message .= "Die Eroberung war erfolgreich ($success_rate %)!<br>";
 
-                                    $conquerer_id = null;
-                                    foreach ($soldiers as $soldier_id => $soldier_data) {
-                                        if ($soldier_data["name"] === "Eroberer") {
-                                            $conquerer_id = $soldier_id;
-                                            break;
-                                        }
-                                    }
+                                    // Fetch conquerer id from soldiers array
+                                    $conquerer_id = $conquest->fetch_conquerer_id();
 
                                     // Reduce conqueror count by 1
                                     $conquerer_count--;
@@ -476,7 +443,6 @@ class User
                                 }
                             } else {
                                 // TODO: Implement logic for other soldier types (e.g. thief = stealing stuff)
-
                                 $message .= "Kein Eroberer dabei. Die Truppen machen sich auf den Heimweg.<br>";
                             }
 
@@ -492,41 +458,18 @@ class User
                             $enemy_kingdom_name = $enemy_kingdom->get_kingdom_name();
                             $enemy_kingdom_id = $enemy_kingdom->get_kingdom_id();
 
+                            $conquest->set_target_id($target_id);
+                            $conquest->set_enemy_kingdom($enemy_kingdom);
+
                             if ($user_id == $enemy_user_id) {
                                 $message .= "Deine Truppen sind erfolgreich bei deinem Königreich $enemy_kingdom_name ($target_x:$target_y) angekommen.<br><br>";
-                                $message .= "<table class='table'>
-                                            <tr>
-                                                <td class='td-center td-gradient'>Einheit</td>
-                                                <td class='td-center td-gradient'>Anzahl</td>
-                                            </tr>";
-
-                                // Update/Insert troops to new kingdom
-                                foreach ($soldiers as $soldier_id => $soldier_data) {
-                                    $message .= "<tr>
-                                                <td class='td-center'>{$soldier_data["name"]}</td>
-                                                <td class='td-center'>{$soldier_data["count"]}</td>
-                                              </tr>";
-
-                                    $query = "
-                                            INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
-                                            VALUES (?, ?, ?, ?)
-                                            ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount);
-                                    ";
-                                    $this->mysqli->execute_query($query, [$target_id, $soldier_id, $soldier_data["name"], $soldier_data["count"]]);
-                                }
-                                $message .= "</table>";
-
-                                // Delete the event and senttroops
-                                $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$event_id]);
-                                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+                                $conquest->deploy_soldiers_to_kingdom();
+                                $message .= $conquest->get_my_message();
                             } else {
-                                $initial_soldier_count = 0;
-                                $initial_enemy_count = 0;
-
                                 $enemy_score = $this->get_user_score($enemy_user_id);
                                 $my_score = $this->get_user_score();
 
-                                if ($this->has_noob_protection($my_score, $enemy_score)) {
+                                if ($conquest->has_noob_protection($my_score, $enemy_score)) {
                                     // Enemy is protected, return troops
                                     $this->mysqli->execute_query(
                                         "UPDATE events SET actionid = ?, arrivaltime = ? WHERE eventid = ?",
@@ -540,121 +483,22 @@ class User
                                     $enemy_message .= "Du wurdest vom Spieler {$kingdom->get_kingdom_owner_name()} ({$kingdom->get_kingdom_name()}) angegriffen!
                                          <br>Kampfergebnis:<br><br>";
 
-                                    $enemy_soldiers = [];
-                                    $my_total_atk = [];
-                                    $enemy_total_def = [];
-                                    $soldier_type_atk = [];
-                                    $soldier_type_def = [];
+                                    $conquest->initialize_soldier_types();
+                                    $conquest->initialize_soldier_values();
+                                    $conquest->get_enemy_soldiers();
+                                    $conquest->set_initial_soldiers();
+                                    $conquest->calculate_wall_bonus();
+                                    $conquest->set_soldier_stats();
+                                    $conquest->calculate_battle_outcome();
+                                    $conquest->calculate_wall_damage();
+                                    $conquest->calculate_loss_counts();
 
-                                    // Get all soldier types
-                                    $soldier_types = [];
-                                    $result_all_soldiers = $this->mysqli->execute_query("SELECT * FROM soldierlist");
-                                    foreach ($result_all_soldiers as $row_all_soldiers) {
-                                        $soldier_types[$row_all_soldiers["id"]] = [
-                                            "soldierid" => $row_all_soldiers["id"],
-                                            "soldiername" => $row_all_soldiers["soldiername"],
-                                            "attack" => $row_all_soldiers["attack"],
-                                            "defense" => $row_all_soldiers["defense"],
-                                            "score" => $row_all_soldiers["scoregain"]
-                                        ];
-                                    }
-
-                                    // Initialize everything to zero
-                                    foreach ($soldier_types as $id => $soldier) {
-                                        if (!isset($soldiers[$id])) {
-                                            $soldiers[$id]["count"] = 0;
-                                        }
-                                        $my_total_atk[$id] = 0;
-                                        $enemy_total_def[$id] = 0;
-                                        $soldier_type_atk[$id] = 0;
-                                        $soldier_type_def[$id] = 0;
-                                    }
-
-                                    // Get enemy soldiers
-                                    $result_enemy_soldiers = $this->mysqli->execute_query("SELECT * FROM soldiers WHERE kingdomid = ?", [$target_id]);
-                                    foreach ($result_enemy_soldiers as $row_enemy_soldiers) {
-                                        $enemy_soldiers[$row_enemy_soldiers["soldierid"]] = $row_enemy_soldiers["soldiercount"];
-                                    }
-
-                                    // Save initial number of soldiers for attacker and enemy
-                                    $initial_soldiers = [];
-                                    foreach ($soldier_types as $id => $soldier) {
-                                        $initial_soldiers[$id] = array(
-                                            "initial_my_soldiers" => $soldiers[$id]["count"] ?? 0,
-                                            "initial_enemy_soldiers" => $enemy_soldiers[$id] ?? 0,
-                                            "my_losses" => 0,
-                                            "enemy_losses" => 0
-                                        );
-                                    }
-
-                                    // Calculate defense bonus from enemy wall
-                                    $wall = fetch_kingdom_building($enemy_kingdom_id, BuildingTypes::BUILDING_WALL);
-                                    $current_wall_hp = $enemy_kingdom->get_wall_hp();
-                                    $bonus_defense = $enemy_kingdom->calculate_wall_defense($enemy_kingdom->get_wall_hp(),
-                                        $wall->get_building_level());
-
-                                    foreach ($soldier_types as $id => $soldier) {
-                                        $my_soldier_count = $initial_soldiers[$id]["initial_my_soldiers"];
-                                        $enemy_soldier_count = $initial_soldiers[$id]["initial_enemy_soldiers"];
-                                        $soldier_atk = $soldier["attack"];
-                                        $soldier_def = $soldier["defense"] + $bonus_defense;
-
-                                        $enemy_soldiers[$id] = $enemy_soldier_count;
-                                        $initial_soldier_count += $my_soldier_count;
-                                        $initial_enemy_count += $enemy_soldier_count;
-
-                                        $my_total_atk[$id] += $my_soldier_count * $soldier_atk;
-                                        $enemy_total_def[$id] += $enemy_soldier_count * $soldier_def;
-
-                                        $soldier_type_atk[$id] = $soldier_atk;
-                                        $soldier_type_def[$id] = $soldier_def;
-                                    }
-
-                                    $accumulated_damage = 0;
-                                    foreach ($soldier_types as $attacker_id => $attacker_soldier) {
-                                        if ($soldiers[$attacker_id]["count"] > 0) {
-                                            foreach ($soldier_types as $defender_id => $defender_soldier) {
-                                                if ($enemy_soldiers[$defender_id] > 0) {
-
-                                                    // Calculate damage done (for wall hp)
-                                                    $damage_done = min($my_total_atk[$attacker_id], $enemy_total_def[$defender_id]);
-                                                    $accumulated_damage += $damage_done;
-
-                                                    $outcome_for_me = ceil(
-                                                        max($my_total_atk[$attacker_id] - $enemy_total_def[$defender_id], 0) / $soldier_type_atk[$attacker_id]
-                                                    );
-                                                    $outcome_for_enemy = ceil(
-                                                        max($enemy_total_def[$defender_id] - $my_total_atk[$attacker_id], 0) / $soldier_type_def[$defender_id]
-                                                    );
-
-                                                    $soldiers[$attacker_id]["count"] = $outcome_for_me;
-                                                    $enemy_soldiers[$defender_id] = $outcome_for_enemy;
-
-                                                    // Calculate unit loss
-                                                    $initial_soldiers[$attacker_id]["my_losses"] = $initial_soldiers[$attacker_id]["initial_my_soldiers"] - $soldiers[$attacker_id]["count"];
-                                                    $initial_soldiers[$defender_id]["enemy_losses"] = $initial_soldiers[$defender_id]["initial_enemy_soldiers"] - $enemy_soldiers[$defender_id];
-
-                                                    // Recalculate total ATK for type and DEF for enemy type
-                                                    $my_total_atk[$attacker_id] = $soldiers[$attacker_id]["count"] * $soldier_type_atk[$attacker_id];
-                                                    $enemy_total_def[$defender_id] = $enemy_soldiers[$defender_id] * $soldier_type_def[$defender_id];
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Calculate the wall damage
-                                    $enemy_defense_without_wall = 0;
-                                    foreach ($soldier_types as $id => $soldier) {
-                                        $enemy_defense_without_wall += $enemy_soldiers[$id] * $soldier["defense"];
-                                    }
-
-                                    $damage_diff = $accumulated_damage - $enemy_defense_without_wall;
-
-                                    // Even if leftover is zero or negative, deal some minimal damage proportional to attack power
-                                    $damage_to_wall = $damage_diff > 0
-                                        ? (int)round(min($current_wall_hp, $damage_diff * 0.4))
-                                        : (int)max(1, min($current_wall_hp, $accumulated_damage * 0.05)); // 5% of accumulated damage minimum
-                                    $new_wall_hp = max(0, $current_wall_hp - $damage_to_wall);
+                                    $my_loss_count = $conquest->get_my_loss_count();
+                                    $my_score_loss = $conquest->get_my_score_loss();
+                                    $initial_soldier_count = $conquest->get_initial_soldier_count();
+                                    $enemy_loss_count = $conquest->get_enemy_loss_count();
+                                    $enemy_score_loss = $conquest->get_enemy_score_loss();
+                                    $initial_enemy_count = $conquest->get_initial_enemy_count();
 
                                     $message .= "<table class='table' style='width: 100%;'>
                                             <tr>
@@ -664,6 +508,7 @@ class User
                                                 <td class='td-center td-gradient'>Gegn. Truppen</td>
                                                 <td class='td-center td-gradient'>Gegn. Verluste</td>
                                             </tr>";
+                                    $message .= $conquest->get_my_message();
                                     $enemy_message .= "<table class='table' style='width: 100%;'>
                                             <tr>
                                                 <td class='td-center td-gradient'>Einheit</td>
@@ -672,89 +517,7 @@ class User
                                                 <td class='td-center td-gradient'>Gegn. Truppen</td>
                                                 <td class='td-center td-gradient'>Gegn. Verluste</td>
                                             </tr>";
-
-                                    $my_loss_count = 0;
-                                    $my_score_loss = 0;
-                                    $enemy_loss_count = 0;
-                                    $enemy_score_loss = 0;
-
-                                    foreach ($soldier_types as $id => $soldier) {
-                                        if ($initial_soldiers[$id]["initial_enemy_soldiers"] == 0 && $initial_soldiers[$id]["initial_my_soldiers"] == 0) {
-                                            continue;
-                                        }
-
-                                        $enemy_count = $initial_soldiers[$id]["initial_enemy_soldiers"] == 0 ? "?" : $initial_soldiers[$id]["initial_enemy_soldiers"];
-                                        $enemy_loss = $initial_soldiers[$id]["initial_enemy_soldiers"] == 0 ? "?" : $initial_soldiers[$id]["enemy_losses"];
-                                        $message .= "<tr>
-                                                <td class='td-center'>{$soldier["soldiername"]}</td>
-                                                <td class='td-center'>{$initial_soldiers[$id]["initial_my_soldiers"]}</td>
-                                                <td class='td-center'>{$initial_soldiers[$id]["my_losses"]}</td>
-                                                <td class='td-center'>$enemy_count</td>
-                                                <td class='td-center'>$enemy_loss</td>
-                                              </tr>";
-                                        $enemy_message .= "<tr>
-                                                <td class='td-center'>{$soldier["soldiername"]}</td>
-                                                <td class='td-center'>{$initial_soldiers[$id]["initial_enemy_soldiers"]}</td>
-                                                <td class='td-center'>{$initial_soldiers[$id]["enemy_losses"]}</td>
-                                                <td class='td-center'>{$initial_soldiers[$id]["initial_my_soldiers"]}</td>
-                                                <td class='td-center'>{$initial_soldiers[$id]["my_losses"]}</td>
-                                              </tr>";
-
-                                        if ($initial_soldiers[$id]["initial_my_soldiers"] > 0) {
-                                            if ($initial_soldiers[$id]["my_losses"] >= $initial_soldiers[$id]["initial_my_soldiers"]) {
-                                                $message .= "Lösche my {$soldier["soldiername"]} von Event Table von Spieler {$this->get_user_name()}<br>";
-
-                                                $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?", [$event_id, $id]);
-                                            } else {
-                                                $my_survivors = $initial_soldiers[$id]["initial_my_soldiers"] - $initial_soldiers[$id]["my_losses"];
-
-                                                if ($my_survivors != $initial_soldiers[$id]["initial_my_soldiers"]) {
-                                                    $message .= "Update my {$soldier["soldiername"]} in Event Table auf $my_survivors von Spieler {$this->get_user_name()}<br>";
-
-                                                    $this->mysqli->execute_query("UPDATE senttroops SET soldiercount = ? WHERE eventid = ? AND soldierid = ?",
-                                                        [$my_survivors, $event_id, $id]);
-                                                }
-                                            }
-
-                                            if ($soldier["soldiername"] == "Eroberer") {
-                                                $message .= "Conqueror before: " . $conquerer_count;
-
-                                                $conquerer_count -= $initial_soldiers[$id]["my_losses"];
-
-                                                $message .= "Conqueror neukalkulieren... Survivors: " . $conquerer_count;
-
-                                                $has_conquerer = $conquerer_count > 0;
-                                            }
-
-                                            $my_score_loss += $initial_soldiers[$id]["my_losses"] * $soldier["score"];
-
-                                            $message .= "<br>Score lose for my {$soldier["soldiername"]}: " . ($initial_soldiers[$id]["my_losses"] * $soldier["score"]) . "<br>";
-                                        }
-
-                                        if ($initial_soldiers[$id]["initial_enemy_soldiers"] > 0) {
-                                            if ($initial_soldiers[$id]["enemy_losses"] >= $initial_soldiers[$id]["initial_enemy_soldiers"]) {
-                                                $message .= "Lösche enemy {$soldier["soldiername"]} in soldiers table von Gegner<br>";
-
-                                                $this->mysqli->execute_query("DELETE FROM soldiers WHERE kingdomid = ? AND soldierid = ?", [$enemy_kingdom_id, $id]);
-                                            } else {
-                                                $enemy_survivors = $initial_soldiers[$id]["initial_enemy_soldiers"] - $initial_soldiers[$id]["enemy_losses"];
-
-                                                if ($enemy_survivors != $initial_soldiers[$id]["initial_enemy_soldiers"]) {
-                                                    $message .= "Update enemy {$soldier["soldiername"]} in soldiers Table auf $enemy_survivors<br>";
-
-                                                    $this->mysqli->execute_query("UPDATE soldiers SET soldiercount = ? WHERE kingdomid = ? AND soldierid = ?",
-                                                        [$enemy_survivors, $enemy_kingdom_id, $id]);
-                                                }
-                                            }
-
-                                            $enemy_score_loss += $initial_soldiers[$id]["enemy_losses"] * $soldier["score"];
-
-                                            $message .= "<br>Score lose for enemy {$soldier["soldiername"]}: " . ($initial_soldiers[$id]["enemy_losses"] * $soldier["score"]) . "<br>";
-                                        }
-
-                                        $my_loss_count += $initial_soldiers[$id]["my_losses"];
-                                        $enemy_loss_count += $initial_soldiers[$id]["enemy_losses"];
-                                    }
+                                    $enemy_message .= $conquest->get_enemy_message();
 
                                     $message .= "<tr>
                                             <td class='td-center'><b>Summe</b></td>
@@ -774,47 +537,24 @@ class User
                                     $enemy_message .= "</table><br>";
 
                                     // After-battle message
-                                    if ($my_loss_count == 0) {
-                                        $message .= "Wir haben den Kampf unbeschadet überstanden!<br>";
-                                    } else if (($my_loss_count / $initial_soldier_count) >= 0.5 && ($my_loss_count / $initial_soldier_count) < 1) {
-                                        $message .= "Wir haben mehr als die Hälfte unserer Truppen verloren...<br>";
-                                    } else if (($my_loss_count / $initial_soldier_count) > 0 && ($my_loss_count / $initial_soldier_count) < 0.5) {
-                                        $message .= "Wir haben ein paar unserer Truppen verloren.<br>";
-                                    } else {
-                                        $message .= "Wir wurden komplett vom Gegner aufgerieben...<br>";
-                                    }
-
-                                    if ($enemy_loss_count == 0) {
-                                        $enemy_message .= "Wir haben den Kampf unbeschadet überstanden!<br>";
-                                    } else if (($enemy_loss_count / $initial_enemy_count) >= 0.5 && ($enemy_loss_count / $initial_enemy_count) < 1) {
-                                        $enemy_message .= "Wir haben mehr als die Hälfte unserer Truppen verloren...<br>";
-                                    } else if (($enemy_loss_count / $initial_enemy_count) > 0 && ($enemy_loss_count / $initial_enemy_count) < 0.5) {
-                                        $enemy_message .= "Wir haben ein paar unserer Truppen verloren.<br>";
-                                    } else {
-                                        $enemy_message .= "Wir wurden komplett vom Gegner aufgerieben...<br>";
-                                    }
+                                    $message .= $conquest->append_my_after_battle_message();
+                                    $enemy_message .= $conquest->append_enemy_after_battle_message();
 
                                     if ($enemy_loss_count == $initial_enemy_count) {
                                         if ($has_conquerer) {
                                             $message .= "Es wird versucht, das Königreich zu erobern...<br>";
 
-                                            $success_rate = $this->get_conquering_rate($conquerer_count) * 100;
+                                            $success_rate = $conquest->get_conquering_rate($conquerer_count) * 100;
 
-                                            if ($this->is_conquered($success_rate)) {
+                                            if ($conquest->is_conquered($success_rate)) {
                                                 $message .= "Die Eroberung war zu $success_rate % erfolgreich!<br>";
 
-                                                $conquerer_id = null;
-                                                foreach ($soldiers as $soldier_id => $soldier_data) {
-                                                    if ($soldier_data["name"] === "Eroberer") {
-                                                        $conquerer_id = $soldier_id;
-                                                        break;
-                                                    }
-                                                }
+                                                $conquerer_id = $conquest->fetch_conquerer_id();
 
                                                 // Reduce conqueror count and loss count by 1
                                                 $conquerer_count--;
                                                 $my_loss_count++;
-                                                $my_score_loss += $soldier_types[$conquerer_id]["score"];
+                                                $my_score_loss += $conquest->get_soldier_types()[$conquerer_id]["score"];
 
                                                 if ($conquerer_count == 0) {
                                                     $query = "DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?";
@@ -829,11 +569,8 @@ class User
 
                                                 // Does the enemy still have a kingdom?
                                                 if ($kingdom_count > 1) {
-                                                    // Set new main kingdom for the enemy (is done via get_kingdom_info ?)
+                                                    // Set new main kingdom for the enemy
                                                     // If there are still events for that kingdom, delete them
-
-                                                    $this->mysqli->execute_query("UPDATE kingdoms SET userid = ?, username = ? WHERE id = ?",
-                                                        [$this->get_user_id(), $this->get_user_name(), $enemy_kingdom_id]);
                                                     $this->mysqli->execute_query("DELETE FROM events WHERE kingdomid = ? AND userid = ?",
                                                         [$target_id, $enemy_user_id]);
 
@@ -849,11 +586,8 @@ class User
                                                     $message .= "<br>total score loss for enemy: " . $total_score_loss . "<br>";
                                                     $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$total_score_loss, $enemy_user_id]);
 
-                                                    $message .= "[DEBUG] Der Spieler $enemy_user_name hat noch weitere Kingdoms<br>";
-
                                                     // Get all remaining kingdoms of the player and choose one randomly, set it as new mainkingdom if the attacked kingdom was the mainkingdom
                                                     if ($target_id == $this->get_main_kingdom($enemy_user_id)) {
-                                                        // Step 1: Get all eligible kingdom IDs
                                                         $result = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE userid = ? AND id != ?",
                                                             [$enemy_user_id, $target_id]);
                                                         $kingdom_ids = [];
@@ -861,26 +595,17 @@ class User
                                                             $kingdom_ids[] = $row["id"];
                                                         }
 
-                                                        // Step 2: Pick one random ID
+                                                        // Pick one random ID
                                                         if (!empty($kingdom_ids)) {
                                                             $new_main_kingdom = $kingdom_ids[array_rand($kingdom_ids)];
-
-                                                            // Now $new_main_kingdom contains the selected random kingdom
-                                                            $message .= "[DEBUG] Neues Hauptkingdom für Enemy: " . $new_main_kingdom . "<br>";
                                                             $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_main_kingdom, $enemy_user_id]);
                                                         }
                                                     }
                                                 } else {
-                                                    // TODO: Give player a new kingdom after complete defeat
                                                     // Set players score back to 2 and give him a new kingdom [check if free field?]
                                                     // If there are still events for that user, delete them
-
-                                                    $this->mysqli->execute_query("UPDATE kingdoms SET userid = ?, username = ? WHERE id = ?",
-                                                        [$this->get_user_id(), $this->get_user_name(), $enemy_kingdom_id]);
                                                     $this->mysqli->execute_query("UPDATE users SET score = 2 WHERE id = ?", [$enemy_user_id]);
                                                     $this->mysqli->execute_query("DELETE FROM events WHERE userid = ?", [$enemy_user_id]);
-
-                                                    $message .= "[DEBUG] Der Spieler $enemy_user_name wäre jetzt vernichtet (Neustart -> Neues Königreich generieren?)<br>";
 
                                                     $main_kingdom = $kingdom->create_kingdom($enemy_user_id, $enemy_user_name);
 
@@ -893,18 +618,18 @@ class User
                                                     }
                                                 }
 
+                                                // Update kingdom to new owner
+                                                $this->mysqli->execute_query("UPDATE kingdoms SET userid = ?, username = ? WHERE id = ?",
+                                                    [$this->get_user_id(), $this->get_user_name(), $enemy_kingdom_id]);
+
                                                 $message .= "Für die Eroberung hat sich ein Eroberer geopfert.<br>";
                                                 $enemy_message .= "Unser Königreich wurde vom Gegner eingenommen...";
-
-                                                if ($initial_soldier_count != $my_loss_count) {
-                                                    $message .= "Die verbleibenden Truppen machen sich auf den Rückweg.";
-                                                }
                                             } else {
-                                                $message .= "[DEBUG] Die Eroberung ist zu " . (100 - $success_rate) . " % gescheitert...<br>";
+                                                $message .= "Die Eroberung ist zu " . (100 - $success_rate) . " % gescheitert...<br>";
                                             }
                                         } else {
                                             // TODO: Implement logic for other soldier types (e.g. thief = stealing stuff)
-                                            $message .= "[DEBUG] Kein Eroberer dabei.<br>";
+                                            //$message .= "[DEBUG] Kein Eroberer dabei.<br>";
                                         }
                                     }
 
@@ -913,31 +638,27 @@ class User
                                         [$my_score_loss, $this->get_user_id()]);
 
                                     // Update enemy score based on units lost
-                                    $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$enemy_score_loss, $enemy_user_id]);
+                                    $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?",
+                                        [$enemy_score_loss, $enemy_user_id]);
 
                                     // Update Wall HP for kingdom
                                     $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?",
-                                        [$new_wall_hp, $enemy_kingdom_id]);
+                                        [$conquest->calculate_wall_damage(), $enemy_kingdom_id]);
 
                                     // Send troops back to users kingdom if there are still any left
                                     if ($initial_soldier_count == $my_loss_count) {
-                                        $message .= "all units lost, do not send troops back, delete event";
-
-                                        // TODO: Delete send troops event for the player (all troops lost)
                                         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
                                     } else {
-                                        $message .= "send alive troops back";
-
-                                        // TODO: Send troops back (alive ones, change event type to ACTION_RETURN_TROOPS)
                                         $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?  WHERE eventid = ?",
                                             [ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+
+                                        $message .= "Die verbleibenden Truppen machen sich auf den Heimweg.";
                                     }
 
-                                    $message .= "my score loss: " . $my_score_loss . " enemy score loss: " . $enemy_score_loss;
-
-                                    // DEBUG: SENDING TROOPS ALWAYS BACK
+                                    //////////////// DEBUG: Send Troops always back
                                     /*$this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?  WHERE eventid = ?",
-                                        [ACTION_RETURN_TROOPS, time() + 2, $event_id]);*/
+                                        [ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);*/
+                                    /////////////////////////////////
                                 }
 
                                 // Send server message to the enemy
@@ -1041,28 +762,9 @@ class User
         return $_SESSION["kingdomid"] ?? -1;
     }
 
-    private function get_conquering_rate(int $conquerer_count): float
-    {
-        return min(BASE_CONQUEST_CHANCE + ($conquerer_count * 0.95), MAX_CONQUEST_CHANCE); // * 0.05
-    }
-
-    private function is_conquered(int $success_rate): bool
-    {
-        return mt_rand(0, 100) < $success_rate;
-    }
-
     public function get_user_name(): string
     {
         return $_SESSION["username"] ?? "";
-    }
-
-    public function has_noob_protection(int $attacker_score, int $defender_score): bool
-    {
-        $noob_mult = NOOB_PROTECTION_MULT;
-        $min_score = $attacker_score * $noob_mult;
-        $max_score = $attacker_score / $noob_mult;
-
-        return $defender_score < $min_score || $defender_score > $max_score;
     }
 
     public function get_main_kingdom(int $user_id = -1): int

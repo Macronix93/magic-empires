@@ -19,6 +19,7 @@ if (session_status() == PHP_SESSION_NONE) {
 const MAINTENANCE_MODE = false;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MAX_CONQUEST_CHANCE = 0.9;
+const MIN_CONQUEST_CHANCE = 0.05;
 const BACKGROUND_IMAGE = "images/background.png";
 const ERROR_LOG_FILE = "logs/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
@@ -184,46 +185,6 @@ function fetch_kingdom_building(int $kingdom_id, int $building_id): Building
     return $building;
 }
 
-function fetch_all_buildings(int $kingdom_id): array
-{
-    $db = Database::get_instance();
-    $db_instance = $db->get_connection();
-    $buildings = [];
-
-    // Query to fetch buildings and dependencies
-    $query = "
-        SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
-        FROM buildinglist b 
-        LEFT JOIN buildingdeps d ON b.id = d.buildingid 
-        LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
-        GROUP BY b.id
-    ";
-    $result = $db_instance->execute_query($query, [$kingdom_id]);
-
-    // Process each building and its dependencies
-    foreach ($result as $row) {
-        $building_id = $row["id"];
-
-        // Check if building object already exists
-        if (!isset($buildings[$building_id])) {
-            $building = new Building($db_instance);
-            $buildings = $building->create_building($building, $row, $buildings, $building_id);
-        }
-
-        // Process dependencies if any exist
-        if (!empty($row["dependency_ids"])) {
-            $dependency_ids = explode(',', $row["dependency_ids"]);
-            $dependency_levels = explode(',', $row["dependency_levels"]);
-
-            foreach ($dependency_ids as $index => $dependency_id) {
-                $buildings[$building_id]->add_building_dependency($dependency_id, $dependency_levels[$index]);
-            }
-        }
-    }
-
-    return $buildings;
-}
-
 // Make Input data secure
 function make_secure(string $data): string
 {
@@ -298,14 +259,6 @@ function show_error_box(string $info_text, bool $display = true): string
 function show_weighted_box(string $info_text, string $weighted_text): string
 {
     return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><p><span class='weighted'>$weighted_text</span> $info_text</p></div>";
-}
-
-function clamp_value(int $value)
-{
-    if ($value > 91) {
-        return 91;
-    }
-    return max(min($value, MAX_X), 1);
 }
 
 // Check for an error in a conversation

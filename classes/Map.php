@@ -387,4 +387,12 @@ class Map
         $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
         return $result->fetch_column();
     }
+
+    function clamp_value(int $value)
+    {
+        if ($value > 91) {
+            return 91;
+        }
+        return max(min($value, MAX_X), 1);
+    }
 }

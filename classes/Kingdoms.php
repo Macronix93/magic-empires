@@ -418,4 +418,44 @@ class Kingdoms
         return max(MIN_WALL_DEFENSE, (int)$defense);
     }
 
+    function fetch_all_kingdom_buildings(): array
+    {
+        $db = Database::get_instance();
+        $db_instance = $db->get_connection();
+        $buildings = [];
+
+        // Query to fetch buildings and dependencies
+        $query = "
+        SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
+        FROM buildinglist b 
+        LEFT JOIN buildingdeps d ON b.id = d.buildingid 
+        LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
+        GROUP BY b.id
+    ";
+        $result = $db_instance->execute_query($query, [$this->kingdom_id]);
+
+        // Process each building and its dependencies
+        foreach ($result as $row) {
+            $building_id = $row["id"];
+
+            // Check if building object already exists
+            if (!isset($buildings[$building_id])) {
+                $building = new Building($db_instance);
+                $buildings = $building->create_building($building, $row, $buildings, $building_id);
+            }
+
+            // Process dependencies if any exist
+            if (!empty($row["dependency_ids"])) {
+                $dependency_ids = explode(',', $row["dependency_ids"]);
+                $dependency_levels = explode(',', $row["dependency_levels"]);
+
+                foreach ($dependency_ids as $index => $dependency_id) {
+                    $buildings[$building_id]->add_building_dependency($dependency_id, $dependency_levels[$index]);
+                }
+            }
+        }
+
+        return $buildings;
+    }
+
 }

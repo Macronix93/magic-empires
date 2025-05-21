@@ -11,12 +11,12 @@ function formatNumber(seconds) {
     return formattedHours + ":" + formattedMinutes + ":" + formattedSeconds;
 }
 
-function startCountdown(initialSeconds, timerType = 0) {
+function startCountdown(counterID = "counter", initialSeconds, timerType = 0) {
     let seconds = initialSeconds;
     let countdownInterval;
 
     function countDown() {
-        const counterElement = document.getElementById("counter");
+        const counterElement = document.getElementById(counterID);
         counterElement.innerHTML = formatNumber(seconds);
 
         if (seconds <= 0) {

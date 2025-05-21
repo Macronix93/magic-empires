@@ -54,7 +54,6 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
             // Get target kingdom
             $result = $db_instance->execute_query("SELECT * FROM kingdoms WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
             $row = $result->fetch_assoc();
-            $enemy_user_id = $row["userid"];
 
             // Get field info
             $query = "
@@ -64,8 +63,7 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
             ";
             $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);
             $field_name = $result2->fetch_assoc()["fieldname"];
-            //$arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y);
-            $arrival_time = 3;
+            $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y);
 
             // Check if sent troop was clicked
             if (!empty($_POST["soldiers"])) {
@@ -122,37 +120,38 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
             }
 
             // Get users kingdom and score
+            $score = 0;
+            $enemy_user_id = null;
             $result3 = $db_instance->execute_query("
                 SELECT 
-                    kingdoms.mapx, 
-                    kingdoms.mapy, 
-                    kingdoms.userid, 
-                    users.username, 
-                    users.score 
-                FROM kingdoms 
-                JOIN users ON kingdoms.userid = users.id 
-                WHERE kingdoms.mapx = ? AND kingdoms.mapy = ?",
+                    k.userid, 
+                    u.score 
+                FROM kingdoms k
+                JOIN users u ON k.userid = u.id 
+                WHERE k.mapx = ? AND k.mapy = ?",
                 [$target_x, $target_y]);
-            $row2 = $result3->fetch_assoc();
-            $x = $row2["mapx"];
-            $y = $row2["mapy"];
-            $score = $row2["score"];
+            $row3 = $result3->fetch_assoc();
+            if ($row3) {
+                $score = $row3["score"];
+                $enemy_user_id = $row3["userid"];
+            }
 
             if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
                 $error = "Das ist dein aktuelles Königreich!";
             } else {
-                if ($user->has_noob_protection($user->get_user_score(), $score)) {
-                    $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
+                if ($row) {
+                    // Noob protection message
+                    if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score)) {
+                        $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
 
-                    change_location("map.php?startx=$x&starty=$y", 2);
-                } else {
-                    if ($row) {
-                        // Noob protection message
+                        change_location("map.php?startx=$target_x&starty=$target_y", 2);
+                    } else {
                         if ($enemy_user_id == $user->get_user_id()) {
                             $send_title = "Truppen stationieren";
                         } else {
                             $send_title = "Königreich angreifen";
                         }
+
                         $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">Königreich-Info (' . $field_name . ')</div>
                                   <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
                                       <tr>
@@ -172,8 +171,9 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                                           <td>' . convert_sec_to_str($arrival_time) . '</td>
                                       </tr>
                                   ';
-                    } else {
-                        $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">' . $field_name . '</div>
+                    }
+                } else {
+                    $view .= '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">' . $field_name . '</div>
                                   <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
                                       <tr>
                                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -185,22 +185,22 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                                       </tr>
                                 ';
 
-                        $send_title = "Erobern";
-                    }
-                    $view .= "</table><br>";
+                    $send_title = "Erobern";
+                }
+                $view .= "</table><br>";
 
-                    // Show users soldiers
-                    $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
+                // Show users soldiers
+                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
                             <table class="table" style="max-width: 400px;">
                             <tr>
                                 <td class="td-center td-gradient">Soldat</td>
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
 
-                    for ($i = 0; $i < count($soldiers); $i++) {
-                        $soldier_name = $soldiers[$i]->get_soldier_name();
+                for ($i = 0; $i < count($soldiers); $i++) {
+                    $soldier_name = $soldiers[$i]->get_soldier_name();
 
-                        $view .= "<tr>
+                    $view .= "<tr>
                             <td>
                                 <div class='image-and-user' style='margin-bottom: 5px;'>" . $soldiers[$i]->get_soldier_icon() . " <b>" . $soldier_name . " (" . $kingdom_soldiers[$i] . ")</b>
                                 </div>
@@ -217,12 +217,11 @@ if (!str_contains($user->get_user_name(), "Macronix")) {
                                 <input type='text' id='" . $i . "' name='soldiers[" . $i . "]' size='5' maxlength='6'>
                             </td>
                           </tr>";
-                    }
+                }
 
-                    $view .= '</table>
+                $view .= '</table>
                     <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
                 </form>';
-                }
             }
         }
     }
