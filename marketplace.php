@@ -31,8 +31,8 @@ if (isset($_GET["accept"])) {
         } else if ($demand == RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $demand_value) {
             $error = "Soviel Gold kannst du nicht aufbringen!";
         } else {
-            $other_kingdom = new Kingdoms($db_instance);
-            $other_kingdom->get_kingdom_info($row["kingdomid"]);
+            $other_kingdom = new Kingdoms($db_instance, $row["kingdomid"]);
+            //$other_kingdom->get_kingdom_info($row["kingdomid"]);
 
             // Give both kingdoms the respective resources
             switch ($supply) {

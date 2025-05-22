@@ -460,8 +460,8 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     }
 
     // Get kingdom info
-    $kingdom = new Kingdoms($db_instance);
-    $kingdom->get_kingdom_info($current_kingdom);
+    $kingdom = new Kingdoms($db_instance, $current_kingdom);
+    //$kingdom->get_kingdom_info($current_kingdom);
 
     return [
         "current_kingdom" => $current_kingdom,

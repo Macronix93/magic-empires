@@ -29,9 +29,44 @@ class Kingdoms
     private int $wall_hp;
 
     // Constructor
-    public function __construct(object $db_conn)
+    public function __construct(object $db_conn, int $kingdom_id = -1)
     {
         $this->mysqli = $db_conn;
+        $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
+        $row = $result->fetch_assoc();
+
+        /*if (!$row) {
+            // If kingdom is invalid, search for a valid kingdom from the player
+            $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [User::get_instance()->get_user_id()]);
+            $row = $result->fetch_assoc();
+            $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$row["id"], User::get_instance()->get_user_id()]);
+
+            $_SESSION["kingdomid"] = $row["id"];
+        }*/
+        if ($row && $row->num_rows > 0) {
+            $this->kingdom_id = $row["id"];
+            $this->kingdom_owner_id = $row["userid"];
+            $this->kingdom_owner = $row["username"];
+            $this->kingdom_name = $row["kingdomname"];
+            $this->map_y = $row["mapy"];
+            $this->map_x = $row["mapx"];
+            $this->food = $row["food"];
+            $this->max_food = $row["maxfood"];
+            $this->food_per_hour = $row["foodperhour"];
+            $this->wood = $row["wood"];
+            $this->max_wood = $row["maxwood"];
+            $this->wood_per_hour = $row["woodperhour"];
+            $this->stone = $row["stone"];
+            $this->max_stone = $row["maxstone"];
+            $this->stone_per_hour = $row["stoneperhour"];
+            $this->gold = $row["gold"];
+            $this->max_gold = $row["maxgold"];
+            $this->gold_per_hour = $row["goldperhour"];
+            $this->villager = $row["villager"];
+            $this->max_villager = $row["maxvillager"];
+            $this->villager_per_hour = $row["villagerperhour"];
+            $this->wall_hp = $row["wallhp"];
+        }
     }
 
     // Function to create a new kingdom

@@ -179,7 +179,7 @@ if ($count_maxed_buildings === $building_count) {
                                       <script type='text/javascript'>
                                             document.addEventListener('DOMContentLoaded', function () {
                                                   let diff = $difference_time;
-                                                  startCountdown(diff || 0);
+                                                  startCountdown(undefined, diff || 0);
                                             });
                                       </script>
                                       <form action='towncenter.php' method='GET'>

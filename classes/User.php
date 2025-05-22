@@ -381,8 +381,8 @@ class User
                     break;
                 case ACTION_SEND_TROOPS:
                     $map = new Map($this->mysqli);
-                    $kingdom = new Kingdoms($this->mysqli);
-                    $kingdom->get_kingdom_info($this->get_current_kingdom());
+                    $kingdom = new Kingdoms($this->mysqli, $this->get_current_kingdom());
+                    //$kingdom->get_kingdom_info($this->get_current_kingdom());
                     $my_kingdom_x = $kingdom->get_kingdom_map_x();
                     $my_kingdom_y = $kingdom->get_kingdom_map_y();
 
@@ -451,8 +451,8 @@ class User
                                     time() + $return_time,
                                     $event_id]);
                         } else {
-                            $enemy_kingdom = new Kingdoms($this->mysqli);
-                            $enemy_kingdom->get_kingdom_info($target_id);
+                            $enemy_kingdom = new Kingdoms($this->mysqli, $target_id);
+                            //$enemy_kingdom->get_kingdom_info($target_id);
                             $enemy_user_id = $enemy_kingdom->get_kingdom_owner_id();
                             $enemy_user_name = $enemy_kingdom->get_kingdom_owner_name();
                             $enemy_kingdom_name = $enemy_kingdom->get_kingdom_name();
@@ -672,7 +672,7 @@ class User
                     break;
                 case ACTION_RETURN_TROOPS:
                     if ($arrival_time < time()) {
-                        $enemy_kingdom = new Kingdoms($this->mysqli);
+                        $enemy_kingdom = new Kingdoms($this->mysqli, $target_id);
 
                         if ($target_id == -1) {
                             $field_query = "SELECT ft.fieldname
@@ -684,7 +684,7 @@ class User
 
                             $field_name = $field_result->fetch_assoc()["fieldname"];
                         } else {
-                            $enemy_kingdom->get_kingdom_info($target_id);
+                            //$enemy_kingdom->get_kingdom_info($target_id);
 
                             $field_name = " {$enemy_kingdom->get_kingdom_owner_name()} ({$enemy_kingdom->get_kingdom_name()})";
                         }

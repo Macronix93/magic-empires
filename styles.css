@@ -23,6 +23,12 @@ body {
     overflow-x: hidden;
 }
 
+.title-border {
+    border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+    width: 50%;
+    line-height: 40px;
+    margin: 0 auto 15px auto;
+}
 
 ::selection {
     background-color: rgb(112, 115, 124);
@@ -617,9 +623,10 @@ td {
 
 /* Map styles */
 .legend-item {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 5px;
+    width: max-content;
 }
 
 .legend-inner-item {

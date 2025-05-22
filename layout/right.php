@@ -2,8 +2,8 @@
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
-        $kingdom = new Kingdoms($db_instance);
-        $kingdom->get_kingdom_info($user->get_current_kingdom());
+        $kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
+        //$kingdom->get_kingdom_info($user->get_current_kingdom());
 
         // Get all kingdoms of a player for him to change anytime
         $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);

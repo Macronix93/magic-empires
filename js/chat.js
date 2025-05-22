@@ -204,7 +204,7 @@ function insertNewChatMessage(e) {
                         textBlock.append(counterElement);
 
                         counterElement.id = "counter";
-                        counterElement.innerText = startCountdown(response.counter);
+                        counterElement.innerText = startCountdown(undefined, response.counter);
                         counterElement.style.marginLeft = "5px";
                     }
                 }

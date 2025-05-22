@@ -157,11 +157,11 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                 $remaining_time_in_seconds = $soldiers[$i]->get_soldier_time();
             }
 
-            $text_build = "In Ausbildung: " . $soldier_goal . "<br><br><b><span id='counter'></span></b><br> 
+            $text_build = "In Ausbildung: " . $soldier_goal . "<br><b><span id='counter'></span></b><br> 
                           <script type='text/javascript'>
                                 document.addEventListener('DOMContentLoaded', function () {
                                       let diff = $remaining_time_in_seconds;
-                                      startCountdown(diff || 0);
+                                      startCountdown(undefined, diff || 0);
                                 });
                           </script>
                           <form action='barracks.php' method='GET'>

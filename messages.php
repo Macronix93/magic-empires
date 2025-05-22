@@ -93,7 +93,7 @@ function show_server_inbox(): string
     $view = "";
 
     // Get all server messages for the user
-    $query = "SELECT * FROM servermessages WHERE receiverid = ?";
+    $query = "SELECT * FROM servermessages WHERE receiverid = ? ORDER BY date";
     $result = $db_instance->execute_query($query, [$user->get_user_id()]);
 
     $view .= '<div style="display: flex; margin: 10px 0; align-items: center;">

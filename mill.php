@@ -12,8 +12,8 @@ if (!$building->is_built()) {
     exit;
 }
 
-$kingdom = new Kingdoms($db_instance);
-$kingdom->get_kingdom_info($current_kingdom);
+$kingdom = new Kingdoms($db_instance, $current_kingdom);
+//$kingdom->get_kingdom_info($current_kingdom);
 
 /*
  * HTML Content Part

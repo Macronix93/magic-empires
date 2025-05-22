@@ -164,7 +164,7 @@ class Map
         $field_name = $result->fetch_assoc()["fieldname"];
 
         if ($field == -1) {
-            echo '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">' . $field_name . '</div>
+            echo '<div class="title-border">' . $field_name . '</div>
                   <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
                       <tr>
                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -200,7 +200,7 @@ class Map
             if ($result_2->num_rows == 0) {
                 echo show_error_box("Dieses Königreich existiert nicht!");
             } else {
-                echo '<div style="border-bottom: 2px solid rgba(0, 0, 0, 0.5); width: 50%; margin: auto; line-height: 40px;">Königreich-Info (' . $field_name . ')</div>
+                echo '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
                       <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
                           <tr>
                               <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -341,8 +341,6 @@ class Map
         return ['x' => (int)$x, 'y' => (int)$y];
     }
 
-    // Render and show the map
-
     private function reconstruct_path($came_from, $current, $map): array
     {
         $path = [$current];
@@ -364,6 +362,8 @@ class Map
 
         return ["path" => $path, "totalTime" => $total_time];
     }
+
+    // Render and show the map
 
     private function get_neighbours($node, $map): array
     {
