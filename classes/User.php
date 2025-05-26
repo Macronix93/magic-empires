@@ -4,7 +4,7 @@ class User
 {
     private static User $instance;
     private object $mysqli;
-    private string $reg_status;
+    private string $reg_status = "";
 
     // Constructor
     private function __construct()
@@ -47,32 +47,25 @@ class User
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activation_key = md5($email . $name);
 
-        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)", [$name, $password, $activation_key, $email, session_id()]);
+        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
+            [$name, $password, $activation_key, $email, session_id()]);
         $insert_id = $this->mysqli->insert_id;
 
-        // Try to create kingdom
-        $kingdom = new Kingdoms($this->mysqli);
-        $main_kingdom = $kingdom->create_kingdom($insert_id, $name);
+        // Create activation link to activate account
+        $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activation_key;
 
-        if ($main_kingdom) {
-            // Update mainkingdom in user table
-            $this->mysqli->execute_query("UPDATE users SET mainkingdom = '$main_kingdom' WHERE id = ?", [$insert_id]);
+        $receiver = $email;
+        $subject = 'Magic-Empires - Registration';
+        $message = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
+        $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
+            'From: webmaster@magic-empires.de' . "\r\n" .
+            'X-Mailer: PHP/' . phpversion();
 
-            // Create activation link to activate account
-            $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activation_key;
+        if (mail($receiver, $subject, $message, $header)) {
+            $this->reg_status = "<span class='passed'>Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.</span><br>";
 
-            $receiver = $email;
-            $subject = 'Magic-Empires - Registration';
-            $message = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
-            $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
-                'From: webmaster@magic-empires.de' . "\r\n" .
-                'X-Mailer: PHP/' . phpversion();
-
-            if (mail($receiver, $subject, $message, $header)) {
-                $this->reg_status = "<span class='passed'>Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.</span><br>";
-
-                // Update lastrank
-                $query = "
+            // Update lastrank
+            $query = "
                     UPDATE users 
                         JOIN (
                             SELECT id, (@rank := @rank + 1) AS new_rank
@@ -82,14 +75,20 @@ class User
                     SET users.lastrank = ranked_users.new_rank
                     WHERE users.id = ?
                 ";
-                $this->mysqli->execute_query($query, [$insert_id]);
-            }
-        } else {
-            $this->reg_status = "<span class='error'>Es sind derzeit keine freien Plätze übrig!</span><br>";
-            $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$insert_id]);
-        }
+            $this->mysqli->execute_query($query, [$insert_id]);
 
-        //TODO: Else block for deleting user and kingdom, if mail couldn't be sent?!
+            // Try to create kingdom
+            $kingdom = new Kingdoms($this->mysqli);
+            $main_kingdom = $kingdom->create_kingdom($insert_id, $name);
+
+            if ($main_kingdom) {
+                // Update mainkingdom in user table
+                $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $insert_id]);
+            } else {
+                $this->reg_status = "<span class='error'>Es sind derzeit keine freien Kartenplätze übrig!</span><br>";
+                $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$insert_id]);
+            }
+        }
     }
 
     // Function to log in a user
@@ -111,7 +110,8 @@ class User
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
 
         // Update login time and session id
-        $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = '{$_SERVER['REMOTE_ADDR']}', lastlogin = $timestamp, lastactivity = $timestamp WHERE id = ?", [session_id(), $user_id]);
+        $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ? WHERE id = ?",
+            [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $user_id]);
 
         change_location("index.php");
     }
@@ -235,7 +235,7 @@ class User
             $arrival_time = $row["arrivaltime"];
 
             switch ($action_id) {
-                case ACTION_BUILD_BUILDING:
+                case ActionTypes::ACTION_BUILD_BUILDING:
                     if ($building_time < time()) {
                         $result = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$building_id]);
                         $score = $result->fetch_assoc()["buildingscore"] * $building_level + 1;
@@ -330,7 +330,7 @@ class User
                         }
                     }
                     break;
-                case ACTION_BUILD_TROOPS:
+                case ActionTypes::ACTION_BUILD_TROOPS:
                     $soldiers = [];
                     $result = $this->mysqli->execute_query("SELECT id, requiredtime, soldiername, villager, scoregain FROM soldierlist");
 
@@ -379,10 +379,9 @@ class User
                         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
                     }
                     break;
-                case ACTION_SEND_TROOPS:
+                case ActionTypes::ACTION_SEND_TROOPS:
                     $map = new Map($this->mysqli);
                     $kingdom = new Kingdoms($this->mysqli, $this->get_current_kingdom());
-                    //$kingdom->get_kingdom_info($this->get_current_kingdom());
                     $my_kingdom_x = $kingdom->get_kingdom_map_x();
                     $my_kingdom_y = $kingdom->get_kingdom_map_y();
 
@@ -447,12 +446,11 @@ class User
                             }
 
                             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?  WHERE eventid = ?",
-                                [ACTION_RETURN_TROOPS,
+                                [ActionTypes::ACTION_RETURN_TROOPS,
                                     time() + $return_time,
                                     $event_id]);
                         } else {
                             $enemy_kingdom = new Kingdoms($this->mysqli, $target_id);
-                            //$enemy_kingdom->get_kingdom_info($target_id);
                             $enemy_user_id = $enemy_kingdom->get_kingdom_owner_id();
                             $enemy_user_name = $enemy_kingdom->get_kingdom_owner_name();
                             $enemy_kingdom_name = $enemy_kingdom->get_kingdom_name();
@@ -473,7 +471,7 @@ class User
                                     // Enemy is protected, return troops
                                     $this->mysqli->execute_query(
                                         "UPDATE events SET actionid = ?, arrivaltime = ? WHERE eventid = ?",
-                                        [ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
+                                        [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
                                     );
 
                                     $message .= "Der Gegner steht unter Noob-Schutz! Die Truppen machen sich auf den Heimweg.";
@@ -629,7 +627,7 @@ class User
                                             }
                                         } else {
                                             // TODO: Implement logic for other soldier types (e.g. thief = stealing stuff)
-                                            //$message .= "[DEBUG] Kein Eroberer dabei.<br>";
+                                            $message .= "Kein Eroberer dabei.<br>";
                                         }
                                     }
 
@@ -650,27 +648,22 @@ class User
                                         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
                                     } else {
                                         $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?  WHERE eventid = ?",
-                                            [ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+                                            [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
 
                                         $message .= "Die verbleibenden Truppen machen sich auf den Heimweg.";
                                     }
-
-                                    //////////////// DEBUG: Send Troops always back
-                                    /*$this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?  WHERE eventid = ?",
-                                        [ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);*/
-                                    /////////////////////////////////
                                 }
 
                                 // Send server message to the enemy
-                                send_server_message($enemy_user_id, $enemy_user_name, $enemy_message, CATEGORY_WAR);
+                                send_server_message($enemy_user_id, $enemy_user_name, $enemy_message, MessageCategories::CATEGORY_WAR);
                             }
                         }
 
                         // Send server message to the player
-                        send_server_message($this->get_user_id(), $this->get_user_name(), $message, CATEGORY_WAR);
+                        send_server_message($this->get_user_id(), $this->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
                     }
                     break;
-                case ACTION_RETURN_TROOPS:
+                case ActionTypes::ACTION_RETURN_TROOPS:
                     if ($arrival_time < time()) {
                         $enemy_kingdom = new Kingdoms($this->mysqli, $target_id);
 
@@ -684,15 +677,13 @@ class User
 
                             $field_name = $field_result->fetch_assoc()["fieldname"];
                         } else {
-                            //$enemy_kingdom->get_kingdom_info($target_id);
-
                             $field_name = " {$enemy_kingdom->get_kingdom_owner_name()} ({$enemy_kingdom->get_kingdom_name()})";
                         }
 
                         $message = "Deine Truppen sind vom Feldzug zu $field_name ($target_x:$target_y) zurückgekehrt!";
 
                         // Send server message to the player
-                        send_server_message($this->get_user_id(), $this->get_user_name(), $message, CATEGORY_WAR);
+                        send_server_message($this->get_user_id(), $this->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
 
                         $result = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM senttroops WHERE eventid = ?", [$event_id]);
 
@@ -778,100 +769,19 @@ class User
         return $main_kingdom;
     }
 
-    function show_register_form(string $error): void
+    public function get_user_coins(int $user_id = -1): int
     {
-        ?>
-        <div class="form">
-            <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
-                <fieldset>
-                    <legend><b>Registrieren</b></legend>
-                    <?php echo(!empty($this->reg_status) ? $this->reg_status : ''); ?>
-                    <span class="error"><?= !empty($error) ? $error . "<br>" : ""; ?></span>
-                    <table class="table" style="width: 50%;">
-                        <tr>
-                            <td><b>Benutzername:</b></td>
-                            <td>
-                                <label>
-                                    <input style="padding:3px" class="regis" type="text" name="username"
-                                           value="<?= $_POST["username"] ?? ""; ?>">
-                                </label>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <b>E-Mail:</b>
-                            </td>
-                            <td>
-                                <label>
-                                    <input class="regis" type="text" name="email"
-                                           value="<?= $_POST["email"] ?? ""; ?>">
-                                </label>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <b>Passwort:</b>
-                            </td>
-                            <td>
-                                <label>
-                                    <input class="regis" type="password" name="password"
-                                </label>
-                            </td>
-                        </tr>
-                    </table>
-                    <br>
-                    <div class="g-recaptcha" data-sitekey="6LeaqbQpAAAAABWbpK1bAEJ4FCAFjqbuPkNHtDzk"></div>
-                    <!-- ME Schlüssel: 6Lf1Ok4UAAAAANS2-TikRjXo-SDdelHVkGKj1PQT-->
-                    <br><br>
-                    <input type='submit' name='submit' value='Registrieren' style="width:125px; height:50px;"/>
-                    <br><br>
-                    <hr>
-                    <i>Du bist bereits registriert? Logge dich <a href='login.php'><b>hier</b></a> ein.</i>
-                </fieldset>
-            </form>
-        </div>
-        <?php
+        if ($user_id == -1) {
+            $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->get_user_id()]);
+        } else {
+            $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$user_id]);
+        }
+
+        return $result->fetch_assoc()["coins"];
     }
 
-    function show_login_form(string $error): void
+    public function get_reg_status(): string
     {
-        ?>
-        <div class="form">
-            <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
-                <fieldset>
-                    <legend><b>Login</b></legend>
-                    <span class="error"><?= !empty($error) ? $error . "<br><br>" : ""; ?></span>
-                    <table class="table" style="width: 50%;">
-                        <tr>
-                            <td><b>Benutzername:</b></td>
-                            <td>
-                                <label>
-                                    <input type="text" name="username"
-                                           value="<?= $_POST["username"] ?? ""; ?>">
-                                </label>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <b>Passwort:</b>
-                            </td>
-                            <td>
-                                <label>
-                                    <input type="password" name="password">
-                                </label>
-                            </td>
-                        </tr>
-                    </table>
-                    <br>
-                    <input type='submit' name='login' value='Einloggen' style="width:125px; height:50px;"/>
-                    <br><br>
-                    <hr>
-                    <i>Du bist noch nicht registriert? Registriere dich <a href='register.php'><b>hier</b></a>.</i>
-                </fieldset>
-            </form>
-        </div>
-        <?php
+        return $this->reg_status;
     }
 }
-
-?>

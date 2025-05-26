@@ -46,7 +46,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
     if ($_GET["count"] == "cancel") {
         if ($kingdom_is_recruiting) {
             // Calculate remaining soldiers to be recruited and resulting refunds
-            $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$current_kingdom, ACTION_BUILD_TROOPS, $s_id]);
+            $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
+                [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $s_id]);
             $soldier_goal = $result->fetch_assoc()['soldiergoal'];
 
             // Refund player
@@ -54,7 +55,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
             $kingdom->give_kingdom_gold($soldier_goal * $soldiers[$s_id]->get_soldier_gold_cost());
 
             // Delete the job
-            $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?", [$user->get_user_id(), $s_id, $current_kingdom]);
+            $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?",
+                [$user->get_user_id(), $s_id, $current_kingdom]);
         } else {
             $error = "Du rekrutierst gerade nicht!";
         }
@@ -84,7 +86,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
 
                 $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
                                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                $db_instance->execute_query($query, [ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, '0', $current_time, '0', '-', $s_id, $recruiting_time, $_GET["count"]]);
+                $db_instance->execute_query($query,
+                    [ActionTypes::ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, '0', $current_time, '0', '-', $s_id, $recruiting_time, $_GET["count"]]);
 
                 // Subtract values for food and gold
                 $kingdom->give_kingdom_food(-$cost_food);
@@ -143,7 +146,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
     if ($kingdom_is_recruiting) {
         if ($kingdom_recruiting_id == $i) {
-            $result = $db_instance->execute_query("SELECT recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?", [$current_kingdom, ACTION_BUILD_TROOPS, $i]);
+            $result = $db_instance->execute_query("SELECT recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
+                [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $i]);
             $row = $result->fetch_assoc();
             $recruit_time = $row["recruittime"];
             $soldier_goal = $row["soldiergoal"];
@@ -204,13 +208,13 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                         <b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
                         <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div> (" . $kingdom_soldiers[$i] . ")</b>
                         <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_VILLAGER) . " " . $text_villager . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_ATTACK) . " " . $soldiers[$i]->get_soldier_attack() . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_DEFENSE) . " " . $soldiers[$i]->get_soldier_defense() . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " " . $text_villager . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . $soldiers[$i]->get_soldier_attack() . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . $soldiers[$i]->get_soldier_defense() . "</div>
                         </div>
-                        " . get_resource_icon(RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
+                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
                     </td>
                     <td class='td-center' style='width: 25%;'>$text_build</td>
               </tr>";

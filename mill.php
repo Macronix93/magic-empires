@@ -1,19 +1,12 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_MILL);
 
-$current_kingdom = $user->get_current_kingdom();
-$building = fetch_kingdom_building($current_kingdom, BuildingTypes::BUILDING_MILL);
+$current_kingdom = $result['current_kingdom'];
+$building = $result['building'];
 $building_name = $building->get_building_name();
-
-if (!$building->is_built()) {
-    change_location("towncenter.php");
-    exit;
-}
-
-$kingdom = new Kingdoms($db_instance, $current_kingdom);
-//$kingdom->get_kingdom_info($current_kingdom);
+$kingdom = $result['kingdom'];
 
 /*
  * HTML Content Part

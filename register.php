@@ -15,9 +15,8 @@ $email = "";
 $pass = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    //$json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=6LeaqbQpAAAAAIu70IunagW0rddoRkewvP27wRb2&response=' . $_POST['g-recaptcha-response']);
-    // ME Schlüssel: 6Lf1Ok4UAAAAAG9oYNxP0_LDyUZfcie2XWhyZKBe
-    //$data = json_decode($json);
+    $json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=' . getenv("LOCALHOST_SERVER_KEY") . '&response=' . $_POST["g-recaptcha-response"]);
+    $data = json_decode($json);
 
     $name = $_POST["username"];
 
@@ -60,9 +59,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Validate recaptcha
-    /*if(!$data->success) {
+    if (!$data->success) {
         $error .= "Bitte den Botschutz akzeptieren!<br>";
-    }*/
+    }
 
     // Register user if no errors
     if (empty($error)) {
@@ -79,8 +78,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 // Show register form
-$user->show_register_form($error);
 ?>
+<div class="form">
+    <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
+        <fieldset>
+            <legend><b>Registrieren</b></legend>
+            <?php echo(!empty($user->get_reg_status()) ? $user->get_reg_status() : ''); ?>
+            <span class="error"><?= !empty($error) ? $error . "<br>" : ""; ?></span>
+            <table class="table" style="width: 50%;">
+                <tr>
+                    <td><b>Benutzername:</b></td>
+                    <td>
+                        <label>
+                            <input style="padding:3px" class="regis" type="text" name="username"
+                                   value="<?= $_POST["username"] ?? ""; ?>">
+                        </label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <b>E-Mail:</b>
+                    </td>
+                    <td>
+                        <label>
+                            <input class="regis" type="text" name="email"
+                                   value="<?= $_POST["email"] ?? ""; ?>">
+                        </label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <b>Passwort:</b>
+                    </td>
+                    <td>
+                        <label>
+                            <input class="regis" type="password" name="password"
+                        </label>
+                    </td>
+                </tr>
+            </table>
+            <br>
+            <div class="g-recaptcha"
+                 data-sitekey="<?= getenv('LOCALHOST_CLIENT_KEY') ?>"
+                 data-callback="onSubmit"></div>
+            <br><br>
+            <input type='submit' name='submit' value='Registrieren' style="width:125px; height:50px;"/>
+            <br><br>
+            <hr>
+            <i>Du bist bereits registriert? Logge dich <a href='login.php'><b>hier</b></a> ein.</i>
+        </fieldset>
+    </form>
+</div>
+
 <script src="https://www.google.com/recaptcha/api.js"></script>
+
 </body>
 </html>

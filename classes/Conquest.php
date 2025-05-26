@@ -185,7 +185,7 @@ class Conquest
 
     public function calculate_wall_bonus(): int
     {
-        $wall = fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
+        $wall = (new Kingdoms($this->mysqli))->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
 
         return $this->enemy_kingdom->calculate_wall_defense($this->enemy_kingdom->get_wall_hp(),
             $wall->get_building_level());

@@ -30,6 +30,12 @@ body {
     margin: 0 auto 15px auto;
 }
 
+hr {
+    background-color: rgba(0, 0, 0, 0.5);
+    height: 2px;
+    border: 0;
+}
+
 ::selection {
     background-color: rgb(112, 115, 124);
     color: rgb(255, 255, 255);
@@ -75,7 +81,7 @@ body {
     overflow-x: hidden;
     word-break: break-word;
     padding: 10px;
-    text-align: start;
+    text-align: center;
 }
 
 .server-bubble {
@@ -95,6 +101,7 @@ body {
     margin: 5px 0;
     padding: 15px;
     position: relative;
+    text-align: start;
 }
 
 .sender-bubble::before {
@@ -119,6 +126,7 @@ body {
     margin: 5px 0;
     padding: 15px;
     position: relative;
+    text-align: start;
 }
 
 .receiver-bubble::before {
@@ -138,8 +146,8 @@ body {
 }
 
 .message-border {
-    border-bottom: 1px solid rgba(75, 77, 86, 0.8);
-    padding: 5px;
+    border-bottom: 1px solid rgb(75, 77, 86);
+    padding-bottom: 5px;
     margin-bottom: 10px;
 }
 
@@ -361,6 +369,16 @@ select:-webkit-autofill:focus {
     width: fit-content;
 }
 
+.msg-back-button {
+    min-width: 8%;
+}
+
+.msg-back-button-container {
+    display: flex;
+    margin: 10px 0;
+    align-items: center;
+}
+
 /* Wrapper for content (left, right, mid) */
 .content-box {
     display: flex;
@@ -402,8 +420,8 @@ select:-webkit-autofill:focus {
     outline: 1px solid rgb(0, 0, 0);
     margin-bottom: 15px;
     overflow: hidden;
-    -webkit-box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
-    box-shadow: 0 5px 7px 6px rgba(42, 42, 42, 0.8);
+    -webkit-box-shadow: 0 3px 6px 3px rgba(42, 42, 42, 0.8);
+    box-shadow: 0 3px 6px 3px rgba(42, 42, 42, 0.8);
 }
 
 .box-header {
@@ -412,7 +430,8 @@ select:-webkit-autofill:focus {
     align-items: center;
     height: 40px;
     background: var(--box-header) linear-gradient(0deg, rgba(23, 27, 34, 1) 0%, rgba(43, 47, 54, 1) 39%);
-    border-bottom: 2px solid rgb(0, 0, 0);
+    background-size: contain;
+    border-bottom: 1px solid rgb(0, 0, 0);
 }
 
 .box {
@@ -680,9 +699,8 @@ td {
     font-size: 18px;
     padding: 5px 10px;
     text-align: left;
-    width: 50%;
     height: 50px;
-    margin: 0;
+    width: 33%;
     box-sizing: border-box;
 }
 

@@ -5,11 +5,13 @@ class Map
     private object $mysqli;
     private int $start_x;
     private int $start_y;
+    private User $user;
 
     // Constructor
     public function __construct(object $db_conn)
     {
         $this->mysqli = $db_conn;
+        $this->user = User::get_instance();
     }
 
     public function get_start_x(): int
@@ -146,8 +148,7 @@ class Map
     public function render_field_info(int $field): void
     {
         // Get the coords of the current kingdom of the user
-        $user = User::get_instance();
-        $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
+        $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$this->user->get_current_kingdom()]);
         $row = $result->fetch_assoc();
         $x = $row["mapx"];
         $y = $row["mapy"];
@@ -181,11 +182,18 @@ class Map
                       </tr>
                   </table>';
         } else {
-            $result_2 = $this->mysqli->execute_query("SELECT userid, username, kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$field]);
+            $query = "
+                    SELECT k.userid, k.username, k.kingdomname, k.mapx, k.mapy, u.score
+                    FROM kingdoms k
+                    JOIN users u ON k.userid = u.id
+                    WHERE k.id = ?
+            ";
+            $result_2 = $this->mysqli->execute_query($query, [$field]);
             $row_2 = $result_2->fetch_assoc();
             $kingdom_name = $row_2["kingdomname"];
             $user_name = $row_2["username"];
             $user_id = $row_2["userid"];
+            $user_score = "<img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte' title='Punkte'/>" . fnum($row_2["score"]);
             $field_x = $row_2["mapx"];
             $field_y = $row_2["mapy"];
 
@@ -212,19 +220,24 @@ class Map
                           </tr>
                           <tr>
                               <td class="td-mapinfo"><b>Besitzer</b></td>
-                              <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a></td>
+                              <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a> ' . $user_score . '</td>
                           </tr>
-                      ';
 
-                if ($user_name != $user->get_user_name()) {
+                      ';
+                if ($kingdom_name == "" || $field != $this->user->get_current_kingdom()) {
+                    echo '<tr>
+                            <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                            <td>' . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . '</td>
+                        </tr>';
+                }
+
+                if ($user_name != $this->user->get_user_name()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                 <button style='margin-right: 15px;' onclick=\"" . $url . "\">Angreifen</button>
                             </td>
                             </tr>";
                 } else {
-                    if ($field != $user->get_current_kingdom()) {
-                        echo "<td class='td-mapinfo'><b>Ankunftszeit</b></td>";
-                        echo "<td>" . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . "</td>";
+                    if ($field != $this->user->get_current_kingdom()) {
                         echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
                                 <button style='margin-right: 15px;' onclick=\"" . $url . "\">Truppen stationieren</button>
                             </td>

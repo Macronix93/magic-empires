@@ -28,7 +28,7 @@ if (isset($building_id)) {
     $row = $result->fetch_assoc();
 
     if ($building_id >= BuildingTypes::BUILDING_TOWNCENTER && $building_id < $row["total_buildings"]) {
-        $building = fetch_kingdom_building($user->get_current_kingdom(), $building_id);
+        $building = (new Kingdoms($db_instance))->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
 
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>{$row["buildingname"]}</div>";
@@ -36,11 +36,11 @@ if (isset($building_id)) {
                 <table class='table'>
                 <tr>
                     <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_WOOD) . "</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_FOOD) . "</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_STONE) . "</td>
-                    <td class='td-center td-gradient'>" . get_resource_icon(RESOURCE_TYPE_GOLD) . "</td>
-                    <td class='td-center td-gradient' style='width: 20%;'>" . get_resource_icon(RESOURCE_TYPE_TIME) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . "</td>
+                    <td class='td-center td-gradient'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . "</td>
+                    <td class='td-center td-gradient' style='width: 20%;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . "</td>
                 </tr>
         ";
 
@@ -50,17 +50,19 @@ if (isset($building_id)) {
             $stone_cost = fnum($row["stonecost"] + round($row["stonecost"] * $row["multiplicator"] * $i));
             $gold_cost = fnum($row["goldcost"] + round($row["goldcost"] * $row["multiplicator"] * $i));
             $time_to_build = convert_sec_to_str($row["timetobuild"] + round($row["timetobuild"] * $i));
-            $current_level = ($i == ($building->is_built() ? $building->get_building_level() : 0))
-                ? "<span class='passed'>$i → " . ($i + 1) . "</span>"
-                : "$i → " . ($i + 1);
+
+            $style = ($i == ($building->is_built() ? $building->get_building_level() : 0))
+                ? "style='background-color: green;'"
+                : "";
+            $current_level = "$i → " . ($i + 1);
 
             $view .= "<tr>
-                    <td class='td-center'>$current_level</td>
-                    <td class='td-center'>$wood_cost</td>
-                    <td class='td-center'>$food_cost</td>
-                    <td class='td-center'>$stone_cost</td>
-                    <td class='td-center'>$gold_cost</td>
-                    <td class='td-center'>$time_to_build</td>
+                    <td class='td-center' $style>$current_level</td>
+                    <td class='td-center' $style>$wood_cost</td>
+                    <td class='td-center' $style>$food_cost</td>
+                    <td class='td-center' $style>$stone_cost</td>
+                    <td class='td-center' $style>$gold_cost</td>
+                    <td class='td-center' $style>$time_to_build</td>
                 </tr>";
         }
 

@@ -79,10 +79,10 @@ class Building
         $mult = $this->b_mult;
         $level = $this->b_level;
 
-        $cost_wood = round($this->get_building_cost(RESOURCE_TYPE_WOOD) + $this->get_building_cost(RESOURCE_TYPE_WOOD) * $mult * $level);
-        $cost_food = round($this->get_building_cost(RESOURCE_TYPE_FOOD) + $this->get_building_cost(RESOURCE_TYPE_FOOD) * $mult * $level);
-        $cost_stone = round($this->get_building_cost(RESOURCE_TYPE_STONE) + $this->get_building_cost(RESOURCE_TYPE_STONE) * $mult * $level);
-        $cost_gold = round($this->get_building_cost(RESOURCE_TYPE_GOLD) + $this->get_building_cost(RESOURCE_TYPE_GOLD) * $mult * $level);
+        $cost_wood = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_WOOD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_WOOD) * $mult * $level);
+        $cost_food = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_FOOD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_FOOD) * $mult * $level);
+        $cost_stone = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_STONE) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_STONE) * $mult * $level);
+        $cost_gold = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_GOLD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_GOLD) * $mult * $level);
 
         return array(
             "costWood" => $cost_wood,
@@ -95,10 +95,10 @@ class Building
     public function get_building_cost(int $type): int
     {
         return match ($type) {
-            RESOURCE_TYPE_WOOD => $this->b_woodcost,
-            RESOURCE_TYPE_FOOD => $this->b_foodcost,
-            RESOURCE_TYPE_STONE => $this->b_stonecost,
-            RESOURCE_TYPE_GOLD => $this->b_goldcost,
+            ResourceTypes::RESOURCE_TYPE_WOOD => $this->b_woodcost,
+            ResourceTypes::RESOURCE_TYPE_FOOD => $this->b_foodcost,
+            ResourceTypes::RESOURCE_TYPE_STONE => $this->b_stonecost,
+            ResourceTypes::RESOURCE_TYPE_GOLD => $this->b_goldcost,
             default => 0,
         };
     }

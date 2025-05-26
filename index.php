@@ -14,7 +14,7 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
     if ($result && $result->num_rows > 0) {
         $event = $result->fetch_assoc();
 
-        if ($event["actionid"] != ACTION_SEND_TROOPS) {
+        if ($event["actionid"] != ActionTypes::ACTION_SEND_TROOPS) {
             $error = "Diese Aktion ist ungültig!";
         } else {
             $now = time();
@@ -23,7 +23,7 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
             $new_arrival_time = $now + $already_marched;
 
             $update = $db_instance->execute_query("UPDATE events SET actionid = ?, arrivaltime = ? WHERE eventid = ?",
-                [ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
+                [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
             );
         }
     } else {
@@ -45,7 +45,7 @@ $query = "
     WHERE e.userid = ? AND (e.actionid = ? OR e.actionid = ?)
 ";
 
-$result = $db_instance->execute_query($query, [$user->get_user_id(), ACTION_SEND_TROOPS, ACTION_RETURN_TROOPS]);
+$result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]);
 
 if ($result && $result->num_rows > 0) {
     $view .= "<table class='table' style='width: 100%;'>";
@@ -102,7 +102,7 @@ if ($result && $result->num_rows > 0) {
                     startCountdown('$counter_id', diff || 0);
                 });
             </script>";
-        if ($action_id != ACTION_RETURN_TROOPS) {
+        if ($action_id != ActionTypes::ACTION_RETURN_TROOPS) {
             $action_button .= "<form action='index.php' method='GET'>
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>
@@ -110,12 +110,12 @@ if ($result && $result->num_rows > 0) {
                                 </form>";
         }
 
-        if ($action_id == ACTION_SEND_TROOPS && $event_data["targetid"] == -1) {
+        if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $event_data["targetid"] == -1) {
             $action_type = "Eroberung";
-        } else if ($action_id == ACTION_RETURN_TROOPS) {
+        } else if ($action_id == ActionTypes::ACTION_RETURN_TROOPS) {
             $action_type = "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
-        } else if ($action_id == ACTION_SEND_TROOPS && $is_target_my_kingdom) {
+        } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $is_target_my_kingdom) {
             $action_type = "Truppen stationieren";
         }
 

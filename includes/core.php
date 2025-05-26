@@ -29,21 +29,7 @@ const MIN_PASSWORD_LENGTH = 5;
 const MAX_PASSWORD_LENGTH = 65;
 const MAX_X = 100;
 const MAX_Y = 100;
-const ACTION_BUILD_BUILDING = 1;
-const ACTION_BUILD_TROOPS = 2;
-const ACTION_SEND_TROOPS = 3;
-const ACTION_RETURN_TROOPS = 4;
 const ACTION_TRADING = 5;
-const RESOURCE_TYPE_FOOD = 0;
-const RESOURCE_TYPE_WOOD = 1;
-const RESOURCE_TYPE_STONE = 2;
-const RESOURCE_TYPE_GOLD = 3;
-const RESOURCE_TYPE_TIME = 4;
-const RESOURCE_TYPE_VILLAGER = 5;
-const RESOURCE_TYPE_ATTACK = 6;
-const RESOURCE_TYPE_DEFENSE = 7;
-const RESOURCE_TYPE_RECRUIT_TIME = 8;
-const RESOURCE_TYPE_HEALTH = 9;
 const MAX_BUILDING_LEVEL = 10;
 const DEFAULT_WALL_HP = 100;
 const MIN_WALL_DEFENSE = 1;
@@ -58,29 +44,33 @@ const MAX_LINE_BREAK_COUNT = 10;
 const MESSAGES_RATE_INTERVAL = 60;
 const MAX_MESSAGES_RATELIMIT = 10;
 const INACTIVITY_DELAY = 864000;
-const STARTING_FOOD = 1000;
-const STARTING_WOOD = 1000;
-const STARTING_STONE = 1000;
-const STARTING_GOLD = 1000;
-const STORAGE_STARTING_VALUE = 1000;
+const STARTING_FOOD = 2000;
+const STARTING_WOOD = 2000;
+const STARTING_STONE = 2000;
+const STARTING_GOLD = 2000;
+const STORAGE_STARTING_VALUE = 2000;
 const MAX_STORAGE_VALUE = 50000;
-const BASE_FOOD_GAIN = 20;
-const BASE_WOOD_GAIN = 20;
-const BASE_STONE_GAIN = 15;
-const BASE_GOLD_GAIN = 10;
+const BASE_FOOD_GAIN = 40;
+const BASE_WOOD_GAIN = 40;
+const BASE_STONE_GAIN = 30;
+const BASE_GOLD_GAIN = 20;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = 'uploads/';
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . 'default_avatar.jpg';
 const MAX_UPLOAD_FILE_SIZE = 64; // In KB
 const NOOB_PROTECTION_MULT = 0.5;
-const CATEGORY_DEFAULT = "Default";
-const CATEGORY_WAR = "Krieg";
-const CATEGORY_TRADE = "Handel";
 
 
 /*
- * Enums
+ * Interfaces
  */
+
+interface MessageCategories
+{
+    const string CATEGORY_DEFAULT = "Default";
+    const string CATEGORY_WAR = "Krieg";
+    const string CATEGORY_TRADE = "Handel";
+}
 
 interface BuildingTypes
 {
@@ -96,6 +86,32 @@ interface BuildingTypes
     const int BUILDING_STORAGE = 9;
     const int BUILDING_MARKETPLACE = 10;
 }
+
+interface ResourceTypes
+{
+    const int RESOURCE_TYPE_FOOD = 0;
+    const int RESOURCE_TYPE_WOOD = 1;
+    const int RESOURCE_TYPE_STONE = 2;
+    const int RESOURCE_TYPE_GOLD = 3;
+    const int RESOURCE_TYPE_TIME = 4;
+    const int RESOURCE_TYPE_VILLAGER = 5;
+    const int RESOURCE_TYPE_ATTACK = 6;
+    const int RESOURCE_TYPE_DEFENSE = 7;
+    const int RESOURCE_TYPE_RECRUIT_TIME = 8;
+    const int RESOURCE_TYPE_HEALTH = 9;
+}
+
+interface ActionTypes
+{
+    const int ACTION_BUILD_BUILDING = 0;
+    const int ACTION_BUILD_TROOPS = 1;
+    const int ACTION_SEND_TROOPS = 2;
+    const int ACTION_RETURN_TROOPS = 3;
+}
+
+/*
+ * Interfaces end
+ */
 
 function get_building_file(int $building_id): string
 {
@@ -122,22 +138,22 @@ function get_building_file(int $building_id): string
 function get_resource_icon(int $resource_type): string
 {
     return match ($resource_type) {
-        RESOURCE_TYPE_WOOD => "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
-        RESOURCE_TYPE_FOOD => "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
-        RESOURCE_TYPE_STONE => "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
-        RESOURCE_TYPE_GOLD => "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>",
-        RESOURCE_TYPE_TIME => "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/>",
-        RESOURCE_TYPE_VILLAGER => "<img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/>",
-        RESOURCE_TYPE_ATTACK => "<img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff' title='Angriff'/>",
-        RESOURCE_TYPE_DEFENSE => "<img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/>",
-        RESOURCE_TYPE_RECRUIT_TIME => "<img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/>",
-        RESOURCE_TYPE_HEALTH => "<img src='images/icons/icon_health.png' class='ressource-icons' alt='Lebenspunkte' title='Lebenspunkte'/>",
+        ResourceTypes::RESOURCE_TYPE_WOOD => "<img src='images/icons/icon_wood.png' class='ressource-icons' alt='Holz' title='Holz'/>",
+        ResourceTypes::RESOURCE_TYPE_FOOD => "<img src='images/icons/icon_meat.png' class='ressource-icons' alt='Nahrung' title='Nahrung'/>",
+        ResourceTypes::RESOURCE_TYPE_STONE => "<img src='images/icons/icon_stone.png' class='ressource-icons' alt='Stein' title='Stein'/>",
+        ResourceTypes::RESOURCE_TYPE_GOLD => "<img src='images/icons/icon_gold.png' class='ressource-icons' alt='Gold' title='Gold'/>",
+        ResourceTypes::RESOURCE_TYPE_TIME => "<img src='images/icons/icon_hammer.png' class='ressource-icons' alt='Bauzeit' title='Bauzeit'/>",
+        ResourceTypes::RESOURCE_TYPE_VILLAGER => "<img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/>",
+        ResourceTypes::RESOURCE_TYPE_ATTACK => "<img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff' title='Angriff'/>",
+        ResourceTypes::RESOURCE_TYPE_DEFENSE => "<img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/>",
+        ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME => "<img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/>",
+        ResourceTypes::RESOURCE_TYPE_HEALTH => "<img src='images/icons/icon_health.png' class='ressource-icons' alt='Lebenspunkte' title='Lebenspunkte'/>",
         default => 0,
     };
 }
 
 // Start inactivity counter
-function startInactivityCheck(int $seconds): void
+function start_inactivity_check(int $seconds): void
 {
     echo '<script type="text/javascript">
             seconds = ' . $seconds . ';
@@ -165,24 +181,6 @@ function apply_villager_cap(int $kingdom_id): void
         $villDiff = $villager_count - $max_villager;
         $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villDiff WHERE id = ?", [$kingdom_id]);
     }
-}
-
-function fetch_kingdom_building(int $kingdom_id, int $building_id): Building
-{
-    $db = Database::get_instance();
-    $db_instance = $db->get_connection();
-    $building = new Building($db_instance);
-    $result = $db_instance->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?", [$kingdom_id, $building_id]);
-
-    foreach ($result as $row) {
-        $building->set_building_name($row['buildingname']);
-        $building->set_building_level($row['buildinglevel']);
-    }
-
-    $building->set_building_id($building_id);
-    $building->set_building_kingdom_id($_SESSION["kingdomid"]);
-
-    return $building;
 }
 
 // Make Input data secure
@@ -450,18 +448,17 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     // Get the current kingdom
     $current_kingdom = $user->get_current_kingdom();
 
+    // Get kingdom info
+    $kingdom = new Kingdoms($db_instance, $current_kingdom);
+
     // Get building info
-    $building = fetch_kingdom_building($current_kingdom, $building_type);
+    $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
 
     // Check if building is built
     if (!$building->is_built()) {
         change_location("towncenter.php");
         exit;
     }
-
-    // Get kingdom info
-    $kingdom = new Kingdoms($db_instance, $current_kingdom);
-    //$kingdom->get_kingdom_info($current_kingdom);
 
     return [
         "current_kingdom" => $current_kingdom,
@@ -470,7 +467,7 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     ];
 }
 
-function send_server_message(int $user_id, string $user_name, string $message, string $category = CATEGORY_DEFAULT): void
+function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT): void
 {
     $db = Database::get_instance();
     $db->get_connection()->execute_query("INSERT INTO servermessages (receiverid, receiver, date, message, category) VALUES (?, ?, ?, ?, ?)",

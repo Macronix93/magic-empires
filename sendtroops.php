@@ -7,7 +7,6 @@ check_user_login($user);
 
 $map = new Map($db_instance);
 $kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
-//$kingdom->get_kingdom_info($user->get_current_kingdom());
 $target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : -1;
 $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : -1;
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
@@ -19,7 +18,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 } else {
     // Check if the user already sent troops to that kingdom
     $result = $db_instance->execute_query("SELECT COUNT(*) AS alreadysent FROM events WHERE actionid = ? AND userid = ? AND targetx = ? AND targety = ?",
-        [ACTION_SEND_TROOPS, $user->get_user_id(), $target_x, $target_y]);
+        [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $target_x, $target_y]);
     $already_sent = $result->fetch_assoc()["alreadysent"];
 
     if ($already_sent > 0) {
@@ -89,7 +88,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                 $db_instance->execute_query(
                     "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    [ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
+                    [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
                 );
                 $event_id = $db_instance->insert_id;
 
@@ -139,13 +138,14 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
         if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
             $error = "Das ist dein aktuelles Königreich!";
         } else {
-            if ($row) {
-                // Noob protection message
-                if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score)) {
-                    $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
+            if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score)) {
+                $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
 
-                    change_location("map.php?startx=$target_x&starty=$target_y", 2);
-                } else {
+                change_location("map.php?startx=$target_x&starty=$target_y", 2);
+            } else {
+                if ($row) {
+                    // Noob protection message
+
                     if ($enemy_user_id == $user->get_user_id()) {
                         $send_title = "Truppen stationieren";
                     } else {
@@ -171,9 +171,9 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                           <td>' . convert_sec_to_str($arrival_time) . '</td>
                                       </tr>
                                   ';
-                }
-            } else {
-                $view .= '<div class="title-border">' . $field_name . '</div>
+
+                } else {
+                    $view .= '<div class="title-border">' . $field_name . '</div>
                                   <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
                                       <tr>
                                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -185,22 +185,22 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                       </tr>
                                 ';
 
-                $send_title = "Erobern";
-            }
-            $view .= "</table><br>";
+                    $send_title = "Erobern";
+                }
+                $view .= "</table><br>";
 
-            // Show users soldiers
-            $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
+                // Show users soldiers
+                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
                             <table class="table" style="max-width: 400px;">
                             <tr>
                                 <td class="td-center td-gradient">Soldat</td>
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
 
-            for ($i = 0; $i < count($soldiers); $i++) {
-                $soldier_name = $soldiers[$i]->get_soldier_name();
+                for ($i = 0; $i < count($soldiers); $i++) {
+                    $soldier_name = $soldiers[$i]->get_soldier_name();
 
-                $view .= "<tr>
+                    $view .= "<tr>
                             <td>
                                 <div class='image-and-user' style='margin-bottom: 5px;'>" . $soldiers[$i]->get_soldier_icon() . " <b>" . $soldier_name . " (" . $kingdom_soldiers[$i] . ")</b>
                                 </div>
@@ -217,11 +217,12 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                 <input type='text' id='" . $i . "' name='soldiers[" . $i . "]' size='5' maxlength='6'>
                             </td>
                           </tr>";
-            }
+                }
 
-            $view .= '</table>
+                $view .= '</table>
                     <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
                 </form>';
+            }
         }
     }
 }

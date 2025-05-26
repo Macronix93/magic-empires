@@ -49,7 +49,7 @@ if (isset($_GET["logout"])) {
                     if (!$status) {
                         $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
                     } else if (!password_verify($pass, $password)) {
-                        $error .= "Falsches Passwort!";
+                        $error .= "Nutzername oder Passwort ist falsch!";
                     } else {
                         if (empty($error)) {
                             unset($_POST);
@@ -58,7 +58,7 @@ if (isset($_GET["logout"])) {
                     }
                 }
             } else {
-                $error .= "Dieser Nickname existiert nicht!";
+                $error .= "Nutzername oder Passwort ist falsch!";
             }
         }
     }
@@ -74,7 +74,40 @@ include_once("layout/head.html");
 include_once("layout/banner.html");
 
 // Show login form
-$user->show_login_form($error);
 ?>
+<div class="form">
+    <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
+        <fieldset>
+            <legend><b>Login</b></legend>
+            <span class="error"><?= !empty($error) ? $error . "<br><br>" : ""; ?></span>
+            <table class="table" style="width: 50%;">
+                <tr>
+                    <td><b>Benutzername:</b></td>
+                    <td>
+                        <label>
+                            <input type="text" name="username"
+                                   value="<?= $_POST["username"] ?? ""; ?>">
+                        </label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <b>Passwort:</b>
+                    </td>
+                    <td>
+                        <label>
+                            <input type="password" name="password">
+                        </label>
+                    </td>
+                </tr>
+            </table>
+            <br>
+            <input type='submit' name='login' value='Einloggen' style="width:125px; height:50px;"/>
+            <br><br>
+            <hr>
+            <i>Du bist noch nicht registriert? Registriere dich <a href='register.php'><b>hier</b></a>.</i>
+        </fieldset>
+    </form>
+</div>
 </body>
 </html>

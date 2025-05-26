@@ -52,7 +52,8 @@ if (isset($_GET["action"])) {
 
                         foreach ($building_dependencies as $dependency) {
                             if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                                $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                                $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " 
+                                            Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
                             }
                         }
 
@@ -67,7 +68,8 @@ if (isset($_GET["action"])) {
                             $kingdom->give_kingdom_gold(-$cost_gold);
 
                             $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
-                                                    VALUES('" . ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$current_kingdom', '$build_id', '$building_time', '{$buildings[$build_id]->get_building_level()}', '{$buildings[$build_id]->get_building_name()}');");
+                                                    VALUES('" . ActionTypes::ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$current_kingdom', 
+                                                    '$build_id', '$building_time', '{$buildings[$build_id]->get_building_level()}', '{$buildings[$build_id]->get_building_name()}');");
                         }
                     }
                 }
@@ -170,7 +172,8 @@ if ($count_maxed_buildings === $building_count) {
 
                 if ($kingdom_is_building) {
                     if ($kingdom_building_id == $i) {
-                        $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?", [$current_kingdom, $i, ACTION_BUILD_BUILDING]);
+                        $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?",
+                            [$current_kingdom, $i, ActionTypes::ACTION_BUILD_BUILDING]);
                         $row = $result->fetch_assoc();
 
                         $difference_time = $row["buildingtime"] - time();
@@ -204,12 +207,13 @@ if ($count_maxed_buildings === $building_count) {
                     <td style='width: 50%;'>
                         <b>" . $buildings[$i]->get_building_name() . " ($level)</b>
                         <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>
-                            <div class='legend-item'>" . get_resource_icon(RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
                         </div>
-                        " . get_resource_icon(RESOURCE_TYPE_TIME) . " " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "
+                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " 
+                        " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "
                     </td>
                     <td class='td-center' style='width: 25%;'>" . $text_build . "</td>
                 </tr>";

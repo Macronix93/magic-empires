@@ -28,44 +28,46 @@ class Kingdoms
     private string $kingdom_name;
     private int $wall_hp;
 
-    // Constructor
     public function __construct(object $db_conn, int $kingdom_id = -1)
     {
         $this->mysqli = $db_conn;
-        $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
-        $row = $result->fetch_assoc();
 
-        /*if (!$row) {
-            // If kingdom is invalid, search for a valid kingdom from the player
-            $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [User::get_instance()->get_user_id()]);
-            $row = $result->fetch_assoc();
-            $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$row["id"], User::get_instance()->get_user_id()]);
+        if ($kingdom_id != -1) {
+            $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
 
-            $_SESSION["kingdomid"] = $row["id"];
-        }*/
-        if ($row && $row->num_rows > 0) {
-            $this->kingdom_id = $row["id"];
-            $this->kingdom_owner_id = $row["userid"];
-            $this->kingdom_owner = $row["username"];
-            $this->kingdom_name = $row["kingdomname"];
-            $this->map_y = $row["mapy"];
-            $this->map_x = $row["mapx"];
-            $this->food = $row["food"];
-            $this->max_food = $row["maxfood"];
-            $this->food_per_hour = $row["foodperhour"];
-            $this->wood = $row["wood"];
-            $this->max_wood = $row["maxwood"];
-            $this->wood_per_hour = $row["woodperhour"];
-            $this->stone = $row["stone"];
-            $this->max_stone = $row["maxstone"];
-            $this->stone_per_hour = $row["stoneperhour"];
-            $this->gold = $row["gold"];
-            $this->max_gold = $row["maxgold"];
-            $this->gold_per_hour = $row["goldperhour"];
-            $this->villager = $row["villager"];
-            $this->max_villager = $row["maxvillager"];
-            $this->villager_per_hour = $row["villagerperhour"];
-            $this->wall_hp = $row["wallhp"];
+            /*if (!$row) {
+                // If kingdom is invalid, search for a valid kingdom from the player
+                $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [User::get_instance()->get_user_id()]);
+                $row = $result->fetch_assoc();
+                $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$row["id"], User::get_instance()->get_user_id()]);
+
+                $_SESSION["kingdomid"] = $row["id"];
+            }*/
+            if ($result && $result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                $this->kingdom_id = $row["id"];
+                $this->kingdom_owner_id = $row["userid"];
+                $this->kingdom_owner = $row["username"];
+                $this->kingdom_name = $row["kingdomname"];
+                $this->map_y = $row["mapy"];
+                $this->map_x = $row["mapx"];
+                $this->food = $row["food"];
+                $this->max_food = $row["maxfood"];
+                $this->food_per_hour = $row["foodperhour"];
+                $this->wood = $row["wood"];
+                $this->max_wood = $row["maxwood"];
+                $this->wood_per_hour = $row["woodperhour"];
+                $this->stone = $row["stone"];
+                $this->max_stone = $row["maxstone"];
+                $this->stone_per_hour = $row["stoneperhour"];
+                $this->gold = $row["gold"];
+                $this->max_gold = $row["maxgold"];
+                $this->gold_per_hour = $row["goldperhour"];
+                $this->villager = $row["villager"];
+                $this->max_villager = $row["maxvillager"];
+                $this->villager_per_hour = $row["villagerperhour"];
+                $this->wall_hp = $row["wallhp"];
+            }
         }
     }
 
@@ -135,46 +137,6 @@ class Kingdoms
         return $insert_id;
     }
 
-    // Fetch kingdom data
-    public function get_kingdom_info(int $kingdom_id): int
-    {
-        $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
-        $row = $result->fetch_assoc();
-
-        if (!$row) {
-            // If kingdom is invalid, search for a valid kingdom from the player
-            $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [User::get_instance()->get_user_id()]);
-            $row = $result->fetch_assoc();
-            $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$row["id"], User::get_instance()->get_user_id()]);
-
-            $_SESSION["kingdomid"] = $row["id"];
-        }
-        $this->kingdom_id = $row["id"];
-        $this->kingdom_owner_id = $row["userid"];
-        $this->kingdom_owner = $row["username"];
-        $this->kingdom_name = $row["kingdomname"];
-        $this->map_y = $row["mapy"];
-        $this->map_x = $row["mapx"];
-        $this->food = $row["food"];
-        $this->max_food = $row["maxfood"];
-        $this->food_per_hour = $row["foodperhour"];
-        $this->wood = $row["wood"];
-        $this->max_wood = $row["maxwood"];
-        $this->wood_per_hour = $row["woodperhour"];
-        $this->stone = $row["stone"];
-        $this->max_stone = $row["maxstone"];
-        $this->stone_per_hour = $row["stoneperhour"];
-        $this->gold = $row["gold"];
-        $this->max_gold = $row["maxgold"];
-        $this->gold_per_hour = $row["goldperhour"];
-        $this->villager = $row["villager"];
-        $this->max_villager = $row["maxvillager"];
-        $this->villager_per_hour = $row["villagerperhour"];
-        $this->wall_hp = $row["wallhp"];
-
-        return $this->kingdom_id;
-    }
-
     public function get_kingdom_name(): string
     {
         return $this->kingdom_name;
@@ -225,6 +187,23 @@ class Kingdoms
         return $kingdom_buildings;
     }
 
+    function fetch_kingdom_building(int $kingdom_id, int $building_id): Building
+    {
+        $db = Database::get_instance();
+        $db_instance = $db->get_connection();
+        $building = new Building($db_instance);
+        $result = $db_instance->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?", [$kingdom_id, $building_id]);
+
+        foreach ($result as $row) {
+            $building->set_building_name($row['buildingname']);
+            $building->set_building_level($row['buildinglevel']);
+        }
+
+        $building->set_building_id($building_id);
+        $building->set_building_kingdom_id($_SESSION["kingdomid"]);
+
+        return $building;
+    }
 
     public function get_icon(int $building_id, string $b_name): string
     {
@@ -233,7 +212,8 @@ class Kingdoms
 
     public function is_kingdom_recruiting(int $kingdom_id): bool
     {
-        $result = $this->mysqli->execute_query("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1", [$kingdom_id, ACTION_BUILD_TROOPS]);
+        $result = $this->mysqli->execute_query("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$kingdom_id, ActionTypes::ACTION_BUILD_TROOPS]);
         $row = $result->fetch_assoc();
         if ($row) {
             $this->recruiting_id = $row["soldierid"];
@@ -248,7 +228,8 @@ class Kingdoms
 
     public function is_kingdom_building(int $kingdom_id): bool
     {
-        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1", [$kingdom_id, ACTION_BUILD_BUILDING]);
+        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$kingdom_id, ActionTypes::ACTION_BUILD_BUILDING]);
         $row = $result->fetch_assoc();
         if ($row) {
             $this->building_id = $row["buildingid"];
@@ -359,36 +340,6 @@ class Kingdoms
     {
         $this->gold = $amount;
         $this->mysqli->execute_query("UPDATE kingdoms SET gold = ? WHERE id = ?", [$this->gold, $kingdom_id]);
-    }
-
-    public function render_kingdom_info(): void
-    {
-        echo "<div class='split-content'>
-                <div>" . get_resource_icon(RESOURCE_TYPE_FOOD) . "
-                <span class='" . ($this->get_kingdom_food() >= $this->get_kingdom_max_food() ? "over-limit" : "under-limit") . "'>" . fnum($this->get_kingdom_food()) . "</span></div>
-                (" . fnum($this->get_kingdom_food_per_hour()) . "/h)
-            </div>
-            <div class='split-content'>
-                <div>" . get_resource_icon(RESOURCE_TYPE_WOOD) . "
-                <span class='" . ($this->get_kingdom_wood() >= $this->get_kingdom_max_wood() ? "over-limit" : "under-limit") . "'>" . fnum($this->get_kingdom_wood()) . "</span></div>
-                (" . fnum($this->get_kingdom_wood_per_hour()) . "/h)
-            </div>
-            <div class='split-content'>
-                <div>" . get_resource_icon(RESOURCE_TYPE_STONE) . "
-                <span class='" . ($this->get_kingdom_stone() >= $this->get_kingdom_max_stone() ? "over-limit" : "under-limit") . "'>" . fnum($this->get_kingdom_stone()) . "</span></div>
-                (" . fnum($this->get_kingdom_stone_per_hour()) . "/h)
-            </div>
-            <div class='split-content'>
-                <div>" . get_resource_icon(RESOURCE_TYPE_GOLD) . "
-                <span class='" . ($this->get_kingdom_gold() >= $this->get_kingdom_max_gold() ? "over-limit" : "under-limit") . "'>" . fnum($this->get_kingdom_gold()) . "</span></div>
-                (" . fnum($this->get_kingdom_gold_per_hour()) . "/h)
-            </div>
-            <div class='split-content'>
-                <div><img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner' title='Dorfbewohner'/>
-                <span class='" . ($this->get_kingdom_villager() >= $this->get_kingdom_max_villager() ? "over-limit" : "under-limit") . "'>
-                " . fnum($this->get_kingdom_villager()) . " / " . fnum($this->get_kingdom_max_villager()) . "</span></div>
-                (" . fnum($this->get_kingdom_villager_per_hour()) . "/h)
-            </div>";
     }
 
     public function get_kingdom_food_per_hour(): int

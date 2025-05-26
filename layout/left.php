@@ -1,5 +1,6 @@
 ﻿<?php
 $current_page = basename($_SERVER["PHP_SELF"]);
+$messages = new Messages($db_instance);
 ?>
 <div class="box-container">
     <div class="box-header">
@@ -17,7 +18,7 @@ $current_page = basename($_SERVER["PHP_SELF"]);
         <div class="box<?= $current_page === 'messages.php' ? ' active' : '' ?>"
              onclick="navigateTo('messages.php', this)">
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
-            Nachrichten&nbsp;<?php echo show_messages_indicator($user->get_unread_messages()); ?>
+            Nachrichten&nbsp;<?= $messages->show_messages_indicator($user->get_unread_messages()); ?>
         </div>
         <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde
@@ -49,6 +50,9 @@ $current_page = basename($_SERVER["PHP_SELF"]);
               </div>';
         }
         ?>
+        <div class="box<?= $current_page === 'news.php' ? ' active' : '' ?>" onclick="navigateTo('news.php', this)">
+            <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/> Neuigkeiten
+        </div>
         <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
              onclick="navigateTo('settings.php', this)">
             <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen

@@ -3,7 +3,6 @@
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
         $kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
-        //$kingdom->get_kingdom_info($user->get_current_kingdom());
 
         // Get all kingdoms of a player for him to change anytime
         $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);
@@ -30,12 +29,52 @@
             <span class='servertime'><?= date("H:i:s", $current_timestamp); ?></span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
-             title='Punkte'/> <?php echo fnum($user->get_user_score()); ?>
+             title='Punkte'/> <?= fnum($user->get_user_score()); ?>
         <div id="kingdom-info">
-            <?php
-            // Get kingdom resources and show information
-            $kingdom->render_kingdom_info();
-            ?>
+            <div class='split-content'>
+                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) ?>
+                    <span class='<?= $kingdom->get_kingdom_food() >= $kingdom->get_kingdom_max_food() ? "over-limit" : "under-limit" ?>'>
+                        <?= fnum($kingdom->get_kingdom_food()) ?>
+                    </span>
+                </div>
+                (<?= fnum($kingdom->get_kingdom_food_per_hour()) ?>/h)
+            </div>
+            <div class='split-content'>
+                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) ?>
+                    <span class='<?= $kingdom->get_kingdom_wood() >= $kingdom->get_kingdom_max_wood() ? "over-limit" : "under-limit" ?>'>
+                        <?= fnum($kingdom->get_kingdom_wood()) ?>
+                    </span>
+                </div>
+                (<?= fnum($kingdom->get_kingdom_wood_per_hour()) ?>/h)
+            </div>
+            <div class='split-content'>
+                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) ?>
+                    <span class='<?= $kingdom->get_kingdom_stone() >= $kingdom->get_kingdom_max_stone() ? "over-limit" : "under-limit" ?>'>
+                        <?= fnum($kingdom->get_kingdom_stone()) ?>
+                    </span>
+                </div>
+                (<?= fnum($kingdom->get_kingdom_stone_per_hour()) ?>/h)
+            </div>
+            <div class='split-content'>
+                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) ?>
+                    <span class='<?= $kingdom->get_kingdom_gold() >= $kingdom->get_kingdom_max_gold() ? "over-limit" : "under-limit" ?>'>
+                        <?= fnum($kingdom->get_kingdom_gold()) ?>
+                    </span>
+                </div>
+                (<?= fnum($kingdom->get_kingdom_gold_per_hour()) ?>/h)
+            </div>
+            <div class='split-content'>
+                <div>
+                    <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'
+                         title='Dorfbewohner'/>
+                    <span class='<?= $kingdom->get_kingdom_villager() >= $kingdom->get_kingdom_max_villager() ? "over-limit" : "under-limit" ?>'>
+                        <?= fnum($kingdom->get_kingdom_villager()) ?> / <?= fnum($kingdom->get_kingdom_max_villager()) ?>
+                    </span>
+                </div>
+                (<?= fnum($kingdom->get_kingdom_villager_per_hour()) ?>/h)
+            </div>
+            <img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen'
+                 title='Münzen'/> <?= fnum($user->get_user_coins()); ?>
         </div>
     </div>
 </div>

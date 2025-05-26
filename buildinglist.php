@@ -9,7 +9,7 @@ if (!($user->is_logged_in())) {
 $dependency_text = "";
 
 // Fetch all buildings and their dependencies
-$buildings = (new Kingdoms($db_instance))->fetch_all_kingdom_buildings();
+$buildings = (new Kingdoms($db_instance, $user->get_current_kingdom()))->fetch_all_kingdom_buildings();
 
 $view .= '<table class="table">
     <tr>

@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair"])) {
 $view .= "<div style='display: flex; flex-direction: column; gap: 10px;'>
                     <div><b>Verteidigungswert:</b> $bonus_defense_text</div>
                     <div>
-                        <span class='resource-icons'>" . get_resource_icon(RESOURCE_TYPE_HEALTH) . "
+                        <span class='resource-icons'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH) . "
                             <span class='" . ($wall_hp >= DEFAULT_WALL_HP * $wall_level ? "over-limit" : "under-limit") . "'>
                                 " . fnum($wall_hp) . " / " . fnum(DEFAULT_WALL_HP * $wall_level) . "
                             </span>
@@ -44,7 +44,7 @@ $view .= "<div style='display: flex; flex-direction: column; gap: 10px;'>
                     <form method='POST'>
                         <button type='submit' name='repair' style='margin: auto;' $disabled>
                             Reparieren für
-                            <span class='ressource-icons'>" . get_resource_icon(RESOURCE_TYPE_STONE) . " " . fnum($repair_cost) . "</span>
+                            <span class='ressource-icons'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($repair_cost) . "</span>
                         </button>
                     </form>
             </div>";
