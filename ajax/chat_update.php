@@ -13,17 +13,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $user->check_session_id();
 
     if ($_SESSION["msgreceiver"] != $chat_partner) {
-        //echo "<div style='text-align: center;'>Bitte nutze nur einen Tab für Konversationen!<br>Gesendete Nachrichten gehen an " . $_SESSION["msgreceiver"] . "</div>";
         $error = "redirect";
     } else {
         $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner, $user->get_user_id()]);
         $chat_partner_image = "";
         $my_chat_image = $user->get_avatar($user->get_user_name());
         $row = $result->fetch_assoc();
-
-        /*if ($result->num_rows > 0) {
-            echo "<div id='new-message-line' class='error'>Neue Nachrichten seit dem " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</div>";
-        }*/
 
         foreach ($result as $row) {
             if (empty($chat_partner_image)) {
@@ -42,12 +37,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         }
 
         // Get messages to delete
-        $result = $db_instance->execute_query("SELECT id FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1", [$chat_partner, $user->get_user_id()]);
+        $query = "
+                    DELETE FROM messages 
+                    WHERE senderid = ? AND receiverid = ? AND deleted = 1 
+                    RETURNING id
+        ";
+        $result = $db_instance->execute_query($query, [$chat_partner, $user->get_user_id()]);
 
         foreach ($result as $row) {
-            $messages_to_delete[] = $row["id"];
-
-            $db_instance->execute_query("DELETE FROM messages WHERE id = ?", [$row["id"]]);
+            $messages_to_delete[] = $row['id'];
         }
     }
 

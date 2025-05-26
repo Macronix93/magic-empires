@@ -178,8 +178,9 @@ function apply_villager_cap(int $kingdom_id): void
     $max_villager = $row["maxvillager"];
 
     if ($villager_count > $max_villager) {
-        $villDiff = $villager_count - $max_villager;
-        $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villDiff WHERE id = ?", [$kingdom_id]);
+        $villager_difference = $villager_count - $max_villager;
+        $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villager_difference WHERE id = ?",
+            [$kingdom_id]);
     }
 }
 
@@ -192,41 +193,35 @@ function make_secure(string $data): string
     return htmlspecialchars($data);
 }
 
-// Show messages indicator
-function show_messages_indicator(int $number): string
-{
-    return ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
-}
-
 // Convert seconds to a string
 function convert_sec_to_str(int $secs): string
 {
     if ($secs == 0) {
-        return '0s';
+        return "0s";
     }
 
-    $output = '';
+    $output = "";
 
     if ($secs >= 86400) {
         $days = floor($secs / 86400);
         $secs = $secs % 86400;
-        $output .= $days . 'd ';
+        $output .= $days . "d ";
     }
 
     if ($secs >= 3600) {
         $hours = floor($secs / 3600);
         $secs = $secs % 3600;
-        $output .= $hours . 'h ';
+        $output .= $hours . "h ";
     }
 
     if ($secs >= 60) {
         $minutes = floor($secs / 60);
         $secs = $secs % 60;
-        $output .= $minutes . 'm ';
+        $output .= $minutes . "m ";
     }
 
     if ($secs > 0) {
-        $output .= $secs . 's';
+        $output .= $secs . "s";
     }
 
     return trim($output);
@@ -234,13 +229,13 @@ function convert_sec_to_str(int $secs): string
 
 function change_location(string $url, int $seconds = 0): void
 {
-    $rootUrl = '/magic-empires/';
-    $fullUrl = rtrim($rootUrl, '/') . '/' . ltrim($url, '/');
+    $root_url = "/magic-empires/";
+    $full_url = rtrim($root_url, "/") . "/" . ltrim($url, "/");
 
     if ($seconds === 0) {
-        header("Location: $fullUrl");
+        header("Location: $full_url");
     } else {
-        header("refresh:$seconds; url=$fullUrl");
+        header("refresh:$seconds; url=$full_url");
     }
 }
 

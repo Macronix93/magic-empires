@@ -190,9 +190,11 @@ class Messages
         $query = "SELECT * FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND deleted = 0";
         $result = $this->mysqli->execute_query($query,
             [$sender_id, $this->user->get_user_id(), $this->user->get_user_id(), $sender_id]);
+
         $chat_partner_image = "";
         $my_chat_image = $this->user->get_avatar($this->user->get_user_name());
         $first_sender_message_displayed = false;
+        $unread_message_ids = [];
 
         foreach ($result as $row) {
             $message_id = $row["id"];
@@ -234,8 +236,14 @@ class Messages
             }
 
             if (!$has_read && $row["receiverid"] == $this->user->get_user_id()) {
-                $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$message_id]);
+                $unread_message_ids[] = $message_id;
             }
+        }
+
+        if (!empty($unread_message_ids)) {
+            $placeholders = implode(",", array_fill(0, count($unread_message_ids), "?"));
+
+            $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
         }
 
         return $this->view;

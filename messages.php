@@ -25,6 +25,8 @@ if (isset($_POST["sendpm"])) {
         if ($result->num_rows == 0) {
             $error = "Dieser Spieler existiert nicht!";
         } else {
+            $receiver_id = $result->fetch_assoc()["id"];
+
             if ($receiver_id == $sender_id) {
                 $error = "Du kannst dir selbst keine Nachricht schicken!";
             } else {
@@ -46,7 +48,6 @@ if (isset($_POST["sendpm"])) {
                 } else {
                     $_SESSION["message_count"] = ++$message_count;
                     $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-                    $receiver_id = $result->fetch_assoc()["id"];
 
                     // Send message to the receiver
                     $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_name, $current_time, $message);
@@ -141,7 +142,8 @@ if (isset($_GET["action"])) {
                     // Delete messages that are marked for deletion
                     $messages->delete_marked_messages($sender_id);
 
-                    $view = "<div class='msg-back-button-container'><button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>Zurück</button>
+                    $view .= "<div class='info-box event-error' style='display: none;'></div>";
+                    $view .= "<div class='msg-back-button-container'><button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>Zurück</button>
                             <h3 style='width: 85%; margin: 0;'>Konversation mit 
                                 <a href='javascript:void(0);' 
                                  onclick='openPopup(\"userinfo.php?userid=$sender_id\");' 
@@ -152,9 +154,10 @@ if (isset($_GET["action"])) {
                             </h3></div>";
 
                     // Show messages between chatpartner and user
-                    $view .= '<div id="messages-section">';
+                    $view .= "<div id='messages-section'>";
                     $view .= $messages->show_messages_with_chatpartner($sender_id, $chat_partner);
-                    $view .= "</div>
+                    $view .= "</div>";
+                    $view .= "
                             <div id='newmessage-section'>
                                 <form name=\"newmessage\"
                                       id='newmessage'
@@ -169,14 +172,14 @@ if (isset($_GET["action"])) {
                                         <input type=\"submit\" name=\"sendpm\" value=\"Absenden\n[ENTER]\"/>
                                 </form>
                             </div>
-                ";
+                    ";
 
                     $view .= "<script type='text/javascript'>
                                 document.addEventListener('DOMContentLoaded', function () {
                                     initializeChat();
                                 });
                             </script>
-                ";
+                    ";
                 }
             }
         }
@@ -187,7 +190,7 @@ if (isset($_GET["action"])) {
         if (empty($chat_partner_id)) {
             change_location("messages.php?privmsgs");
         } else {
-            $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
+            $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?) LIMIT 1";
             $result = $db_instance->execute_query($query, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
 
             if ($result->num_rows == 0) {

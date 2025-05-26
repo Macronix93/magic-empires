@@ -120,7 +120,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
         // Get users kingdom and score
         $score = 0;
-        $enemy_user_id = null;
+        $enemy_user_id = -1;
         $result3 = $db_instance->execute_query("
                 SELECT 
                     k.userid, 
@@ -138,7 +138,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
         if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
             $error = "Das ist dein aktuelles Königreich!";
         } else {
-            if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score)) {
+            if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score) && $enemy_user_id != -1) {
                 $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
 
                 change_location("map.php?startx=$target_x&starty=$target_y", 2);

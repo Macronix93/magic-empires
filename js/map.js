@@ -29,68 +29,72 @@ function sendUpdateMapRequest() {
 }
 
 function updateMap(newStartX, newStartY, inputX, inputY) {
-    // Make an AJAX request to update the map
-    let xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function () {
-        if (this.readyState === 4 && this.status === 200) {
-            document.getElementById("map-container").innerHTML = this.responseText;
+    fetch(`ajax/map_update.php?startx=${newStartX}&starty=${newStartY}`, {
+        method: "GET",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
+        }
+    })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById("map-container").innerHTML = html;
 
-            // Check if update map was requested via the input fields or the map arrows
+            // Update input fields and highlight
             if (inputX !== undefined && inputY !== undefined) {
                 document.getElementById('startx').value = inputX;
                 document.getElementById('starty').value = inputY;
 
-                let cell = document.querySelector(`td[data-x="${inputX}"][data-y="${inputY}"]`);
+                const cell = document.querySelector(`td[data-x="${inputX}"][data-y="${inputY}"]`);
 
                 if (cell) {
-                    let fieldID = cell.getAttribute('data-fieldid');
-
+                    const fieldID = cell.getAttribute('data-fieldid');
                     highlightField(parseInt(fieldID), inputX, inputY);
                 }
             } else {
-                let highlightedCell = document.querySelector('td.highlight');
+                const highlightedCell = document.querySelector('td.highlight');
 
                 if (highlightedCell) {
-                    let fieldID = highlightedCell.getAttribute('data-fieldid');
-                    let x = highlightedCell.getAttribute('data-x');
-                    let y = highlightedCell.getAttribute('data-y');
+                    const fieldID = highlightedCell.getAttribute('data-fieldid');
+                    const x = highlightedCell.getAttribute('data-x');
+                    const y = highlightedCell.getAttribute('data-y');
 
                     highlightField(parseInt(fieldID), parseInt(x), parseInt(y));
                 } else {
-                    let oldField = document.getElementById("highlightedfield");
-                    let x = oldField.getAttribute("data-x");
-                    let y = oldField.getAttribute("data-y");
+                    const oldField = document.getElementById("highlightedfield");
+                    const x = oldField.getAttribute("data-x");
+                    const y = oldField.getAttribute("data-y");
 
                     highlightEnteredCoordinates(x, y);
                 }
             }
-        }
-    };
-    xhttp.open("GET", "ajax/map_update.php?startx=" + newStartX + "&starty=" + newStartY, true);
-    xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhttp.send();
+        })
+        .catch(error => {
+            console.error("Map update error:", error);
+        });
 }
 
+
 function highlightField(clickedField = -1, x = -1, y = -1) {
-    let fieldToHighlight = document.getElementById("highlightedfield");
+    const fieldToHighlight = document.getElementById("highlightedfield");
     fieldToHighlight.setAttribute("data-x", x.toString());
     fieldToHighlight.setAttribute("data-y", y.toString());
 
-    // Remove every other td's highlighting
     clearFieldHighlighting();
     highlightEnteredCoordinates(x, y);
 
-    // Make an AJAX request to update map and show field info
-    let xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function () {
-        if (this.readyState === 4 && this.status === 200) {
-            // Update the map HTML with the response
-            document.getElementById("field-info").innerHTML = this.responseText;
+    fetch(`ajax/field_info.php?clickedfield=${clickedField}&x=${x}&y=${y}`, {
+        method: "GET",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
         }
-    };
-    xhttp.open("GET", "ajax/field_info.php?clickedfield=" + clickedField + "&x=" + x + "&y=" + y, true);
-    xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhttp.send();
+    })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById("field-info").innerHTML = html;
+        })
+        .catch(error => {
+            console.error("Field info error:", error);
+        });
 }
 
 function highlightEnteredCoordinates(x, y) {

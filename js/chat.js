@@ -1,4 +1,5 @@
 const CHAT_UPDATE_INTERVAL = 5000;
+const ERROR_IMAGE_PATH = "images/icons/icon_error.png";
 
 function scrollToLatestMessage() {
     /** @type {HTMLDivElement} */
@@ -30,55 +31,56 @@ function sendUpdateChatRequest() {
 }
 
 function updateChat(chatPartner) {
-    // Make an AJAX request to update the chat
-    let xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function () {
-        if (this.readyState === 4 && this.status === 200) {
+    fetch("ajax/chat_update.php?action=read&s=" + encodeURIComponent(chatPartner), {
+        method: "GET",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
             /** @type {{ html: string, messagesToDelete: array, error: string, chatPartner: string }} */
-            const response = JSON.parse(xhttp.responseText);
-
+            const response = data;
             /** @type {HTMLElement} */
+            const messageSection = document.getElementById("messages-section");
+            const newMessageLine = document.getElementById("new-message-line");
             const infoBox = document.querySelector(".info-box");
 
             if (response.error) {
                 if (response.error === "redirect") {
                     location.href = "messages.php?action=read&s=" + response.chatPartner;
                 } else {
-                    infoBox.innerText = response.error;
+                    infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler"> ${response.error}`;
                     infoBox.style.display = "flex";
+                }
+                return;
+            }
+
+            if (response.messagesToDelete) {
+                response.messagesToDelete.forEach(item => {
+                    removeChatBubble(item);
+                });
+            }
+
+            if (response.html === "") {
+                if (newMessageLine) {
+                    messageSection.removeChild(newMessageLine);
                 }
             } else {
-                /** @type {HTMLElement} */
-                let newMessageLine = document.getElementById("new-message-line");
-                /** @type {HTMLElement} */
-                const messageSection = document.getElementById("messages-section");
+                messageSection.innerHTML += response.html;
 
-                if (response.messagesToDelete) {
-                    response.messagesToDelete.forEach((item) => {
-                        removeChatBubble(item);
-                    })
-                }
-
-                if (response.html === "") {
-                    if (newMessageLine) {
-                        messageSection.removeChild(newMessageLine);
-                    }
-                } else {
-                    document.getElementById("messages-section").innerHTML += response.html;
-
-                    scrollDown();
-                }
-
-                if (messageSection.innerText === "") {
-                    infoBox.innerText = "Die Konversation enthält keine Nachrichten!";
-                    infoBox.style.display = "flex";
-                }
+                scrollDown();
             }
-        }
-    };
-    xhttp.open("GET", "ajax/chat_update.php?action=read&s=" + chatPartner, true);
-    xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhttp.send();
+
+            if (messageSection.innerText.trim() === "") {
+                infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler"><p>Die Konversation enthält keine Nachrichten!</p>`;
+                infoBox.style.display = "flex";
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
 }
 
 function removeChatBubble(bubbleID) {
@@ -98,7 +100,7 @@ function deleteChatMessage(messageID) {
             const infoBox = document.querySelector(".info-box");
 
             if (response.error) {
-                infoBox.innerText = response.error;
+                infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler"> <p>${response.error}</p>`;
                 infoBox.style.display = "flex";
             } else {
                 const chatBubble = document.getElementById("msg-" + messageID);
@@ -194,6 +196,7 @@ function insertNewChatMessage(e) {
                 textBlock.innerText = response.error;
 
                 infoBox.style.display = "flex";
+                infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler">`;
                 infoBox.append(textBlock);
 
                 // Create a new span element for the counter, if ratelimit was reached

@@ -17,7 +17,10 @@ function startCountdown(counterID = "counter", initialSeconds, timerType = 0) {
 
     function countDown() {
         const counterElement = document.getElementById(counterID);
-        counterElement.innerHTML = formatNumber(seconds);
+
+        if (counterElement) {
+            counterElement.innerHTML = formatNumber(seconds);
+        }
 
         if (seconds <= 0) {
             clearInterval(countdownInterval);
