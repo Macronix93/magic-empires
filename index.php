@@ -88,7 +88,7 @@ if ($result && $result->num_rows > 0) {
     foreach ($grouped_events as $event_id => $event_data) {
         $action_id = $event_data["actionid"];
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
-        $arrival_time = (new Map($db_instance))->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
+        $arrival_time = (new Map($db_instance, $user))->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
         $difference_time = max(0, $event_data["arrivaltime"] - time());
         $counter_id = "counter_" . $event_id;
         $my_coords = "<a href='javascript:void(0);' onclick='redirectToMap(\"{$event_data["mapx"]}\", \"{$event_data["mapy"]}\")'>{$event_data["mapx"]}:{$event_data["mapy"]}</a>";

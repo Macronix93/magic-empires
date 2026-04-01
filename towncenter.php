@@ -76,7 +76,8 @@ if (isset($_GET["action"])) {
             }
         } else if ($_GET["action"] == "cancel") { // The action that was set is "cancel building"
             if ($kingdom_is_building) {
-                $db_instance->query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$build_id'");
+                $db_instance->execute_query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$build_id' AND kingdomid = ?",
+                    [$user->get_current_kingdom()]);
 
                 // Refund the player
                 $kingdom->give_kingdom_wood($cost_wood);
@@ -164,10 +165,10 @@ if ($count_maxed_buildings === $building_count) {
                 $cost_stone = $costs["costStone"];
                 $cost_gold = $costs["costGold"];
 
-                $text_wood = $buildings[$i]->get_resource_text($cost_wood, $kingdom_wood);
-                $text_food = $buildings[$i]->get_resource_text($cost_food, $kingdom_food);
-                $text_stone = $buildings[$i]->get_resource_text($cost_stone, $kingdom_stone);
-                $text_gold = $buildings[$i]->get_resource_text($cost_gold, $kingdom_gold);
+                $text_wood = get_resource_text($cost_wood, $kingdom_wood);
+                $text_food = get_resource_text($cost_food, $kingdom_food);
+                $text_stone = get_resource_text($cost_stone, $kingdom_stone);
+                $text_gold = get_resource_text($cost_gold, $kingdom_gold);
                 $text_build = "";
 
                 if ($kingdom_is_building) {
@@ -203,8 +204,8 @@ if ($count_maxed_buildings === $building_count) {
                 }
 
                 $view .= "<tr>
-                    <td class='td-center' style='width: 10%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                    <td style='width: 50%;'>
+                    <td class='td-center' style='max-width: 60px;'>" . $buildings[$i]->get_building_icon() . "</td>
+                    <td>
                         <b>" . $buildings[$i]->get_building_name() . " ($level)</b>
                         <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
@@ -215,7 +216,7 @@ if ($count_maxed_buildings === $building_count) {
                         " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " 
                         " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "
                     </td>
-                    <td class='td-center' style='width: 25%;'>" . $text_build . "</td>
+                    <td class='td-center' style='width: 140px;'>" . $text_build . "</td>
                 </tr>";
             }
         }

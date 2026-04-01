@@ -2,7 +2,7 @@
 require_once("includes/core.php");
 
 check_user_login($user);
-$messages = new Messages($db_instance);
+$messages = new Messages($db_instance, $user);
 
 // Starting a new conversation (or insert message in existing conversation)
 if (isset($_POST["sendpm"])) {
@@ -235,44 +235,34 @@ if (isset($_GET["servermsgs"])) {
     $view = $messages->show_private_inbox();
     $inbox_header = "Privatnachrichten";
 } else if (!isset($_GET["action"])) {
-    $view .= "<div style='
-                display: flex; 
-                flex-direction: column; 
-                align-items: center;
-                text-align: left;
-                margin: 0 10px 0 10px;
-                padding: 0 10px 0 10px;
-                border-radius: 10px;
-            '>
-            <a href='messages.php?privmsgs' style='
-                    background: #2c3440; 
-                    padding: 12px 15px; 
-                    color: #fff; 
-                    border-radius: 5px; 
-                    transition: background 0.3s;
-                    width: 220px;
-                ' 
-                onmouseover='this.style.background=\"#4a5565\"' 
-                onmouseout='this.style.background=\"#2c3440\"'>
-                <span>📩 Privatnachrichten</span>
-                <span>" . $messages->show_messages_indicator($messages->get_unread_private_count()) . "</span>
-            </a>
-            <a href='messages.php?servermsgs' style='
-                    background: #2c3440; 
-                    padding: 12px 15px; 
-                    color: #fff; 
-                    border-radius: 5px; 
-                    margin-top: 10px;
-                    transition: background 0.3s;
-                    width: 220px;
-                '
-                onmouseover='this.style.background=\"#4a5565\"' 
-                onmouseout='this.style.background=\"#2c3440\"'>
-                <span>🖥️ Servernachrichten</span>
-                <span>" . $messages->show_messages_indicator($messages->get_unread_server_count()) . "</span>
-            </a>
-          </div>
-    ";
+    $private = $messages->get_unread_private_count();
+    $server = $messages->get_unread_server_count();
+
+    $view .= "<div class='msg-button-container'>";
+
+    $view .= "<a href='messages.php?privmsgs' class='msg-button'>
+    <div class='msg-left'>
+        <span>📩</span>
+        <span>Privatnachrichten</span>
+    </div>";
+
+    if ($private > 0) {
+        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($private) . "</span>";
+    }
+
+    $view .= "</a>";
+
+    $view .= "<a href='messages.php?servermsgs' class='msg-button'>
+    <div class='msg-left'>
+        <span>🖥️</span>
+        <span>Servernachrichten</span>
+    </div>";
+
+    if ($server > 0) {
+        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($server) . "</span>";
+    }
+
+    $view .= "</a></div>";
 }
 
 

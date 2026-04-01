@@ -5,7 +5,7 @@ check_user_login($user);
 
 ob_start();
 
-$map = new Map($db_instance);
+$map = new Map($db_instance, $user);
 $field_id = -1;
 $x = 1;
 $y = 1;
@@ -47,7 +47,8 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
           </script>";
 } else {
     // Get the coords of the current kingdom
-    $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$_SESSION["kingdomid"]]);
+    $field_id = $user->get_current_kingdom();
+    $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$field_id]);
     $row = $result->fetch_assoc();
     $x = $row["mapx"];
     $y = $row["mapy"];
@@ -55,7 +56,6 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"])) {
     // Calculate start coordinates
     $map->set_start_x(max(1, min($x - 5, 91)));
     $map->set_start_y(max(1, min($y - 5, 91)));
-    $field_id = $user->get_current_kingdom();
 }
 
 // Pass x and y directly as numbers

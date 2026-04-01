@@ -363,7 +363,7 @@ class Conquest
 
     public function get_conquering_rate(int $conquerer_count): float
     {
-        return min(BASE_CONQUEST_CHANCE + ($conquerer_count * MIN_CONQUEST_CHANCE), MAX_CONQUEST_CHANCE);
+        return min(BASE_CONQUEST_CHANCE + ($conquerer_count * MIN_CONQUEST_CHANCE), MAX_CONQUEST_CHANCE) * 100;
     }
 
     public function is_conquered(int $success_rate): bool

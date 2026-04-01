@@ -1,6 +1,7 @@
-﻿<?php
+<?php
 $current_page = basename($_SERVER["PHP_SELF"]);
-$messages = new Messages($db_instance);
+$messages = new Messages($db_instance, $user);
+$unread = $user->get_unread_messages();
 ?>
 <div class="box-container">
     <div class="box-header">
@@ -18,7 +19,12 @@ $messages = new Messages($db_instance);
         <div class="box<?= $current_page === 'messages.php' ? ' active' : '' ?>"
              onclick="navigateTo('messages.php', this)">
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
-            Nachrichten&nbsp;<?= $messages->show_messages_indicator($user->get_unread_messages()); ?>
+            <span>Nachrichten</span>
+            <?php if ($unread > 0): ?>
+                <span class="msg-badge">
+                <?= $messages->show_messages_indicator($unread) ?>
+            </span>
+            <?php endif; ?>
         </div>
         <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde
@@ -30,9 +36,9 @@ $messages = new Messages($db_instance);
         <div class="box<?= $current_page === 'map.php' ? ' active' : '' ?>" onclick="navigateTo('map.php', this)">
             <img src="images/icons/icon_map.png" class="menu-icons" alt="Karte"/> Karte
         </div>
-        <div class="box<?= $current_page === 'buildinglist.php' ? ' active' : '' ?>"
-             onclick="navigateTo('buildinglist.php', this)">
-            <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Gebäude"/> Gebäude
+        <div class="box<?= $current_page === 'techtree.php' ? ' active' : '' ?>"
+             onclick="navigateTo('techtree.php', this)">
+            <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Gebäude"/> Techtree
         </div>
         <div class="box<?= $current_page === 'warsim.php' ? ' active' : '' ?>" onclick="navigateTo('warsim.php', this)">
             <img src="images/icons/icon_warsim.png" class="menu-icons" alt=""/> War Simulator

@@ -35,6 +35,8 @@ $view .= '<table class="table">
 $position = ($current_page - 1) * $rows_per_page + 1;
 
 foreach ($result as $row) {
+    $user_id = $row["id"];
+    $user_name = $row["username"];
     $icon = "";
     $change = "";
     $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $row["lastactivity"] > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
@@ -42,7 +44,12 @@ foreach ($result as $row) {
     $diff = $row['lastrank'] - $position; // Check last rank (since 00:00) and compare with current rank
 
     // Get user image
-    $image_path = $user->get_avatar($row["username"]);
+    if ($user_id !== $user->get_user_id()) {
+        $player = new User($user_id, $user_name);
+        $image_path = $player->get_avatar();
+    } else {
+        $image_path = $user->get_avatar();
+    }
 
     // Check if user rank went up or down since last update
     if ($position < $row["lastrank"]) {
@@ -62,7 +69,7 @@ foreach ($result as $row) {
                 <td>
                     <div class='image-and-user'>
                         <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
-                        <a href='javascript:void(0);' onclick='openPopup(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>{$row["username"]}</a>
+                        <a href='javascript:void(0);' onclick='openPopup(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>$user_name</a>
                     </div>
                     <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                 </td>

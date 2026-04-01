@@ -79,7 +79,7 @@ include_once("layout/banner.html");
     <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
         <fieldset>
             <legend><b>Login</b></legend>
-            <span class="error"><?= !empty($error) ? $error . "<br><br>" : ""; ?></span>
+            <?= !empty($error) ? show_error_box($error) : ""; ?>
             <table class="table" style="width: 50%;">
                 <tr>
                     <td><b>Benutzername:</b></td>

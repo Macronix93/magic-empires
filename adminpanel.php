@@ -36,6 +36,10 @@ if ($user->get_user_admin_level() == 0) {
         }
 
         if ($result) {
+            if ($field == "password") {
+                $new_value = $_POST['new_value'];
+            }
+
             $view .= show_passed_box("Daten erfolgreich aktualisiert! Field: $field Value: $new_value");
         } else {
             $view .= show_error_box("Fehler beim Aktualisieren! Field: $field Value: $new_value");
@@ -73,13 +77,14 @@ if ($user->get_user_admin_level() == 0) {
             foreach ($result as $row) {
                 $kingdom_id = $row['kingdom_id'];
                 $event_id = $row['event_id'];
+                $adm_user = new User($row['id'], $row['username']);
 
                 // Process user information only once (for display purposes)
                 if (empty($user_info)) {
                     $user_info = [
                         'Name' => ['field' => 'username', 'value' => $row['username']],
                         'Passwort' => ['field' => 'password', 'value' => "Passwort"],
-                        'Avatar' => ['field' => 'avatar', 'value' => $user->get_avatar($row['username'])],
+                        'Avatar' => ['field' => 'avatar', 'value' => $adm_user->get_avatar()],
                         'Account-Status' => ['field' => 'status', 'value' => $row['status']],
                         'IP' => ['field' => 'ip', 'value' => $row['ip']],
                         'Admin-Level' => ['field' => 'adminlevel', 'value' => $row['adminlevel']],
@@ -91,7 +96,7 @@ if ($user->get_user_admin_level() == 0) {
                         'Punkte' => ['field' => 'score', 'value' => $row['score']],
                         'Haupt-Königreich' => ['field' => 'mainkingdom', 'value' => $row['mainkingdom']],
                         'Gilde' => ['field' => 'guildid', 'value' => $row['guildid']],
-                        'Münzen' => ['field' => 'gems', 'value' => $row['gems']],
+                        'Münzen' => ['field' => 'coins', 'value' => $row['coins']],
                         'Nachrichten-Zähler' => ['field' => 'msgcount', 'value' => $row['msgcount']],
                         'Rate-Limit Ende' => ['field' => 'lastsentmsgend', 'value' => $row['lastsentmsgend']]
                     ];

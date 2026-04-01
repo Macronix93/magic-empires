@@ -17,12 +17,13 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     } else {
         $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner, $user->get_user_id()]);
         $chat_partner_image = "";
-        $my_chat_image = $user->get_avatar($user->get_user_name());
+        $my_chat_image = $user->get_avatar();
         $row = $result->fetch_assoc();
+        $partner = new User($row["senderid"], $row["sender"]);
 
         foreach ($result as $row) {
             if (empty($chat_partner_image)) {
-                $chat_partner_image = $user->get_avatar($row["sender"]) ?? "";
+                $chat_partner_image = $partner->get_avatar() ?? "";
             }
 
             echo "<div class='sender-bubble' id='msg-" . $row["id"] . "'>

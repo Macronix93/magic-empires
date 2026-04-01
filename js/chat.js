@@ -15,6 +15,7 @@ function scrollToLatestMessage() {
 
 function scrollDown() {
     let messagesSection = document.getElementById("messages-section");
+
     if (messagesSection) {
         messagesSection.scrollTop = messagesSection.scrollHeight - messagesSection.clientHeight;
     }
@@ -185,14 +186,14 @@ function insertNewChatMessage(e) {
         .then(response => response.json())
         .then(response => {
             const infoBox = document.querySelector(".info-box");
-            const currentTextBlock = document.querySelector(".info-box p");
+            const currentTextBlock = document.querySelector(".info-box span");
 
             if (currentTextBlock) {
                 currentTextBlock.remove();
             }
 
             if (response.error) {
-                const textBlock = document.createElement("p");
+                const textBlock = document.createElement("span");
                 textBlock.innerText = response.error;
 
                 infoBox.style.display = "flex";
@@ -284,7 +285,4 @@ function filterServerMessages(element) {
     // Update active tab
     document.querySelectorAll('.tablinks').forEach(tab => tab.classList.remove("active"));
     element.classList.add("active");
-
-    // Scroll to latest message
-    scrollDown();
 }

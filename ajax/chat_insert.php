@@ -56,7 +56,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                                     <div class='image-and-user message-border'>
-                                        <img class='user-image' src='" . $user->get_avatar($user->get_user_name()) . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $current_time) . " 
+                                        <img class='user-image' src='" . $user->get_avatar() . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $current_time) . " 
                                         <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteChatMessage(\"$message_id\")' style='cursor: pointer;'>
                                     </div>
                                     " . $message . "

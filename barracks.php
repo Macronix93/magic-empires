@@ -203,10 +203,11 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     }
 
     $view .= "<tr>
-                    <td class='td-center' style='width: 10%;'>" . $soldiers[$i]->get_soldier_icon() . "</td>
-                    <td style='width: 50%;'>
+                    <td class='td-center' style='max-width: 60px;'>" . $soldiers[$i]->get_soldier_icon() . "</td>
+                    <td>
                         <b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
-                        <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div> (" . $kingdom_soldiers[$i] . ")</b>
+                            <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div> (" . $kingdom_soldiers[$i] . ")
+                        </b>
                         <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
@@ -216,7 +217,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                         </div>
                         " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
                     </td>
-                    <td class='td-center' style='width: 25%;'>$text_build</td>
+                    <td class='td-center' style='width: 140px;'>$text_build</td>
               </tr>";
 }
 $view .= '</table>';

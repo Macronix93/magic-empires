@@ -83,8 +83,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <form class="login-register" method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
         <fieldset>
             <legend><b>Registrieren</b></legend>
-            <?php echo(!empty($user->get_reg_status()) ? $user->get_reg_status() : ''); ?>
-            <span class="error"><?= !empty($error) ? $error . "<br>" : ""; ?></span>
+            <?php
+            echo(!empty($user->get_reg_status()) ? $user->get_reg_status() : '');
+            if (!empty($error)) {
+                $error_messages = explode("<br>", $error);
+                foreach ($error_messages as $e) {
+                    if (trim($e) !== "") {
+                        echo show_error_box($e);
+                    }
+                }
+            }
+            ?>
             <table class="table" style="width: 50%;">
                 <tr>
                     <td><b>Benutzername:</b></td>
@@ -119,7 +128,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </table>
             <br>
             <div class="g-recaptcha"
-                 data-sitekey="<?= getenv('LOCALHOST_CLIENT_KEY') ?>"
+                 data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"
                  data-callback="onSubmit"></div>
             <br><br>
             <input type='submit' name='submit' value='Registrieren' style="width:125px; height:50px;"/>

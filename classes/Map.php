@@ -8,10 +8,10 @@ class Map
     private User $user;
 
     // Constructor
-    public function __construct(object $db_conn)
+    public function __construct(object $db_conn, User $user)
     {
         $this->mysqli = $db_conn;
-        $this->user = User::get_instance();
+        $this->user = $user;
     }
 
     public function get_start_x(): int
@@ -233,13 +233,13 @@ class Map
 
                 if ($user_name != $this->user->get_user_name()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                <button style='margin-right: 15px;' onclick=\"" . $url . "\">Angreifen</button>
+                                <button onclick=\"" . $url . "\">Angreifen</button>
                             </td>
                             </tr>";
                 } else {
                     if ($field != $this->user->get_current_kingdom()) {
                         echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                <button style='margin-right: 15px;' onclick=\"" . $url . "\">Truppen stationieren</button>
+                                <button onclick=\"" . $url . "\">Truppen stationieren</button>
                             </td>
                             </tr>";
                     }
@@ -331,7 +331,7 @@ class Map
 
         foreach ($result as $row) {
             $map[$row["mapx"]][$row["mapy"]] = [
-                "traversaltime" => $row["traversaltime"]
+                    "traversaltime" => $row["traversaltime"]
             ];
         }
 

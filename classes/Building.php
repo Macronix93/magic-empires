@@ -14,6 +14,7 @@ class Building
     private int $b_woodcost;
     private int $b_stonecost;
     private int $b_goldcost;
+    private string $b_description;
     private array $b_dependencies = [];
 
     public function __construct(object $db_conn)
@@ -74,6 +75,11 @@ class Building
         return $this->b_dependencies;
     }
 
+    public function get_building_description(): string
+    {
+        return $this->b_description;
+    }
+
     function calculate_building_cost(): array
     {
         $mult = $this->b_mult;
@@ -103,29 +109,14 @@ class Building
         };
     }
 
-    public function get_building_icon(): string
+    public function get_building_icon(string $class = "item-icons"): string
     {
-        if (isset($this->building_id)) {
-            return "<img src='images/icons/icon_building$this->building_id.png' class='item-icons' alt='$this->b_name' title='$this->b_name'/>";
+        $icon_path = "images/icons/icon_building$this->building_id.png";
+
+        if (isset($this->building_id) && file_exists($icon_path)) {
+            return "<img src='$icon_path' class='$class' alt='$this->b_name' title='$this->b_name'/>";
         } else {
-            return "ERROR: ICON NOT FOUND";
-        }
-    }
-
-    public function get_resource_text(int $cost, int $current_val): string
-    {
-        return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
-    }
-
-    public function is_built(): bool
-    {
-        $query = "SELECT * FROM buildings WHERE kingdomid = ? AND buildingid = ?";
-        $result = $this->mysqli->execute_query($query, [$this->kingdom_id, $this->building_id]);
-
-        if ($result->num_rows > 0) {
-            return true;
-        } else {
-            return false;
+            return "<img src='images/icons/icon_error.png' class='item-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
         }
     }
 
@@ -142,6 +133,7 @@ class Building
         $building->set_building_mult($row["multiplicator"]);
         $building->set_building_time($row["timetobuild"]);
         $building->set_building_level($row["buildinglevel"] ?? 0);
+        $building->set_building_description($row["description"]);
 
         $buildings[$building_id] = $building;
         return $buildings;
@@ -195,5 +187,10 @@ class Building
     public function set_building_level(int $level): void
     {
         $this->b_level = $level;
+    }
+
+    public function set_building_description(string $description): void
+    {
+        $this->b_description = $description;
     }
 }

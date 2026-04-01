@@ -2,7 +2,7 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $map = new Map($db_instance);
+    $map = new Map($db_instance, $user);
 
     // Render the field info table HTML
     ob_start();

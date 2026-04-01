@@ -2,48 +2,23 @@
 
 class User
 {
-    private static User $instance;
     private object $mysqli;
     private string $reg_status = "";
+    private int $user_id;
+    private string $user_name;
+    private int $current_kingdom;
 
-    // Constructor
-    private function __construct()
+
+    public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
         $this->mysqli = Database::get_instance()->get_connection();
+        $this->user_id = $user_id;
+        $this->user_name = $user_name;
+        $this->current_kingdom = $current_kingdom;
     }
 
-    public static function get_instance(): User
-    {
-        if (!isset(self::$instance)) {
-            self::$instance = new self;
-        }
-
-        return self::$instance;
-    }
-
-    // Function to register a new user
     public function register_user(string $name, string $email, string $pass): void
     {
-        /*
-        BETTER PASSWORD AND SALT ALGO:
-
-        $salt = bin2hex(random_bytes(16));
-        $combined_password = $salt . $pass;
-        $hashed_password = password_hash($combined_password, PASSWORD_BCRYPT);
-
-
-
-        LOGIN PAGE:
-
-        $combined_password = $passentered . $salt;
-        $isPasswordCorrect = password_verify($combined_password, $hashedPassword);
-
-        if ($isPasswordCorrect) {
-            // Password is correct, allow login
-        } else {
-            // Password is incorrect, deny login
-        }
-        */
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activation_key = md5($email . $name);
 
@@ -91,7 +66,6 @@ class User
         }
     }
 
-    // Function to log in a user
     public function login_user(int $user_id): void
     {
         $timestamp = time();
@@ -116,107 +90,9 @@ class User
         change_location("index.php");
     }
 
-    // Get current users session ID
-    public function check_session_id(): void
+    public function process_user_events(): void
     {
-        $result = $this->mysqli->execute_query("SELECT sessionid FROM users WHERE id = ?", [$this->get_user_id()]);
-
-        if ($result->fetch_assoc()["sessionid"] !== session_id()) {
-            session_destroy();
-            change_location("login.php?logout");
-            exit;
-        }
-    }
-
-    // Get user avatar
-
-    public function get_user_id(): int
-    {
-        return $_SESSION["userid"] ?? -1;
-    }
-
-    // Get the user ID by activation key
-
-    public function get_avatar(string $user_name): string
-    {
-        $files = glob(__DIR__ . '/../' . UPLOADS_FILE_PATH . $user_name . ".*");
-
-        if (!empty($files)) {
-            $info = pathinfo($files[0]);
-            return UPLOADS_FILE_PATH . $user_name . "." . $info["extension"];
-        } else {
-            return DEFAULT_AVATAR;
-        }
-    }
-
-    // Check if user is logged in
-
-    public function get_user_database_id(string $activation_key)
-    {
-        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
-        return $result->fetch_assoc()["id"] ?? "";
-    }
-
-    public function is_logged_in(): bool
-    {
-        return isset($_SESSION["userid"]);
-    }
-
-    public function set_current_kingdom(int $kingdom_id): void
-    {
-        $_SESSION["kingdomid"] = $kingdom_id;
-    }
-
-    public function get_user_admin_level(): int
-    {
-        return $_SESSION["adminlevel"] ?? 0;
-    }
-
-    // Get the name of the user
-
-    public function clear_last_built_building(int $kingdom_id): void
-    {
-        if (isset($_SESSION["last_built_building"][$kingdom_id])) {
-            unset($_SESSION["last_built_building"][$kingdom_id]);
-        }
-    }
-
-    public function get_last_built_building(int $kingdom_id): ?array
-    {
-        return $_SESSION["last_built_building"][$kingdom_id] ?? null;
-    }
-
-    public function clear_last_recruited_soldier(int $kingdom_id): void
-    {
-        if (isset($_SESSION["last_recruited_soldier"][$kingdom_id])) {
-            unset($_SESSION["last_recruited_soldier"][$kingdom_id]);
-        }
-    }
-
-    public function get_last_recruited_soldier(int $kingdom_id): ?array
-    {
-        return $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
-    }
-
-    public function get_unread_messages(): int
-    {
-        $query = "
-            SELECT COUNT(*) AS unread_count FROM (
-                SELECT id FROM messages 
-                WHERE receiverid = ? AND hasread = 0 AND deleted = 0
-                UNION ALL
-                SELECT id FROM servermessages 
-                WHERE receiverid = ? AND hasread = 0
-            ) AS combined_messages
-        ";
-
-        $result = $this->mysqli->execute_query($query, [$this->get_user_id(), $this->get_user_id()]);
-        return $result->fetch_assoc()["unread_count"];
-    }
-
-    public function process_user_events(int $user_id): void
-    {
-        $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$this->user_id]);
 
         foreach ($result as $row) {
             $event_id = $row["eventid"];
@@ -235,6 +111,55 @@ class User
             $arrival_time = $row["arrivaltime"];
 
             switch ($action_id) {
+                case ActionTypes::ACTION_RESEARCH_TECH:
+                    if ($building_time < time()) {
+                        $kingdom = new Kingdoms($this->mysqli, $kingdom_id);
+
+                        switch ($building_id) {
+                            case TechTypes::TECH_TYPE_WOOD_INC:
+                                $kingdom->set_kingdom_wood_per_hour($kingdom->get_kingdom_wood_per_hour() + RESEARCH_WOOD_INC);
+                                break;
+                            case TechTypes::TECH_TYPE_FOOD_INC:
+                                $kingdom->set_kingdom_food_per_hour($kingdom->get_kingdom_food_per_hour() + RESEARCH_FOOD_INC);
+                                break;
+                            case TechTypes::TECH_TYPE_STONE_INC:
+                                $kingdom->set_kingdom_stone_per_hour($kingdom->get_kingdom_stone_per_hour() + RESEARCH_STONE_INC);
+                                break;
+                            case TechTypes::TECH_TYPE_GOLD_INC:
+                                $kingdom->set_kingdom_gold_per_hour($kingdom->get_kingdom_gold_per_hour() + RESEARCH_GOLD_INC);
+                                break;
+                            case TechTypes::TECH_TYPE_STORAGE_INC:
+                                $kingdom->set_kingdom_max_food($kingdom->get_kingdom_max_food() + RESEARCH_STORAGE_INC);
+                                $kingdom->set_kingdom_max_wood($kingdom->get_kingdom_max_wood() + RESEARCH_STORAGE_INC);
+                                $kingdom->set_kingdom_max_stone($kingdom->get_kingdom_max_stone() + RESEARCH_STORAGE_INC);
+                                $kingdom->set_kingdom_max_gold($kingdom->get_kingdom_max_gold() + RESEARCH_STORAGE_INC);
+                                break;
+                            case TechTypes::TECH_TYPE_WALL_HP_INC:
+                                if ($kingdom->get_wall_hp() == $kingdom->get_wall_max_hp()) {
+                                    $kingdom->set_wall_hp($kingdom->get_wall_hp() + RESEARCH_WALL_HP_INC);
+                                }
+                                break;
+                        }
+
+                        $result = $this->mysqli->execute_query("SELECT techscore FROM techlist WHERE id = ?", [$building_id]);
+                        $score = $result->fetch_assoc()["techscore"] * $building_level + 1;
+
+                        // Delete the event from the event table
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+
+                        if ($building_level == 0) { // Insert new tech
+                            $this->mysqli->execute_query("INSERT INTO techs (kingdomid, techid, techname, techlevel)
+                                 VALUES (?, ?, ?, ?)", [$kingdom_id, $building_id, $building_name, 1]);
+                        } else { // Update current tech
+                            $this->mysqli->execute_query("UPDATE techs SET techlevel = techlevel + 1
+                                 WHERE kingdomid = ? AND techid = ?", [$kingdom_id, $building_id]);
+                        }
+                        $this->set_last_researched_tech($kingdom_id, $building_name, $building_level);
+
+                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $this->user_id]);
+                        $this->set_user_score($this->get_user_score() + $score);
+                    }
+                    break;
                 case ActionTypes::ACTION_BUILD_BUILDING:
                     if ($building_time < time()) {
                         $result = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$building_id]);
@@ -249,11 +174,10 @@ class User
                         } else { // Update current building
                             $this->mysqli->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 
                                 WHERE kingdomid = ? AND buildingid = ?", [$kingdom_id, $building_id]);
-
-                            $this->set_last_built_building($kingdom_id, $building_name, $building_level);
                         }
+                        $this->set_last_built_building($kingdom_id, $building_name, $building_level);
 
-                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $user_id]);
+                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $this->user_id]);
                         $this->set_user_score($this->get_user_score() + $score);
 
                         switch ($building_id) {
@@ -371,7 +295,7 @@ class User
 
                         // Update user score
                         $score = $soldier_difference * $soldiers[$soldier_id]->get_soldier_score_gain();
-                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $user_id]);
+                        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score, $this->user_id]);
                         $this->set_user_score($this->get_user_score() + $score);
                     }
 
@@ -380,7 +304,7 @@ class User
                     }
                     break;
                 case ActionTypes::ACTION_SEND_TROOPS:
-                    $map = new Map($this->mysqli);
+                    $map = new Map($this->mysqli, $this);
                     $kingdom = new Kingdoms($this->mysqli, $this->get_current_kingdom());
                     $my_kingdom_x = $kingdom->get_kingdom_map_x();
                     $my_kingdom_y = $kingdom->get_kingdom_map_y();
@@ -410,13 +334,12 @@ class User
                             $message .= "Truppen sind angekommen bei $field_name ($target_x:$target_y).</br><br>";
 
                             if ($has_conquerer) {
-                                $message .= "Es wird versucht, das Gebiet zu erobern...<br>";
-
                                 // Calculate success rate
-                                $success_rate = $conquest->get_conquering_rate($conquerer_count) * 100;
+                                $success_rate = $conquest->get_conquering_rate($conquerer_count);
+                                $message .= "Es wird versucht, das Gebiet zu erobern... (Chance: $success_rate %)<br>";
 
                                 if ($conquest->is_conquered($success_rate)) {
-                                    $message .= "Die Eroberung war erfolgreich ($success_rate %)!<br>";
+                                    $message .= "Die Eroberung war erfolgreich!<br>";
 
                                     // Fetch conquerer id from soldiers array
                                     $conquerer_id = $conquest->fetch_conquerer_id();
@@ -438,7 +361,7 @@ class User
                                     $message .= "Für die Eroberung hat sich ein Eroberer geopfert.<br>Ein neues Königreich ist entstanden: $new_kingdom<br>";
                                     $message .= "Die restlichen Truppen machen sich auf den Heimweg.";
                                 } else {
-                                    $message .= "Die Eroberung ist zu " . (100 - $success_rate) . " % gescheitert...<br>";
+                                    $message .= "Die Eroberung ist gescheitert...<br>";
                                 }
                             } else {
                                 // TODO: Implement logic for other soldier types (e.g. thief = stealing stuff)
@@ -455,16 +378,17 @@ class User
                             $enemy_user_name = $enemy_kingdom->get_kingdom_owner_name();
                             $enemy_kingdom_name = $enemy_kingdom->get_kingdom_name();
                             $enemy_kingdom_id = $enemy_kingdom->get_kingdom_id();
+                            $enemy_user = new User($enemy_user_id, $enemy_user_name);
 
                             $conquest->set_target_id($target_id);
                             $conquest->set_enemy_kingdom($enemy_kingdom);
 
-                            if ($user_id == $enemy_user_id) {
+                            if ($this->user_id == $enemy_user_id) {
                                 $message .= "Deine Truppen sind erfolgreich bei deinem Königreich $enemy_kingdom_name ($target_x:$target_y) angekommen.<br><br>";
                                 $conquest->deploy_soldiers_to_kingdom();
                                 $message .= $conquest->get_my_message();
                             } else {
-                                $enemy_score = $this->get_user_score($enemy_user_id);
+                                $enemy_score = $enemy_user->get_user_score();
                                 $my_score = $this->get_user_score();
 
                                 if ($conquest->has_noob_protection($my_score, $enemy_score)) {
@@ -540,12 +464,11 @@ class User
 
                                     if ($enemy_loss_count == $initial_enemy_count) {
                                         if ($has_conquerer) {
-                                            $message .= "Es wird versucht, das Königreich zu erobern...<br>";
-
-                                            $success_rate = $conquest->get_conquering_rate($conquerer_count) * 100;
+                                            $success_rate = $conquest->get_conquering_rate($conquerer_count);
+                                            $message .= "Es wird versucht, das Königreich zu erobern... (Chance: $success_rate %)<br>";
 
                                             if ($conquest->is_conquered($success_rate)) {
-                                                $message .= "Die Eroberung war zu $success_rate % erfolgreich!<br>";
+                                                $message .= "Die Eroberung war erfolgreich!<br>";
 
                                                 $conquerer_id = $conquest->fetch_conquerer_id();
 
@@ -585,7 +508,7 @@ class User
                                                     $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$total_score_loss, $enemy_user_id]);
 
                                                     // Get all remaining kingdoms of the player and choose one randomly, set it as new mainkingdom if the attacked kingdom was the mainkingdom
-                                                    if ($target_id == $this->get_main_kingdom($enemy_user_id)) {
+                                                    if ($target_id == $enemy_user->get_main_kingdom()) {
                                                         $result = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE userid = ? AND id != ?",
                                                             [$enemy_user_id, $target_id]);
                                                         $kingdom_ids = [];
@@ -623,7 +546,7 @@ class User
                                                 $message .= "Für die Eroberung hat sich ein Eroberer geopfert.<br>";
                                                 $enemy_message .= "Unser Königreich wurde vom Gegner eingenommen...";
                                             } else {
-                                                $message .= "Die Eroberung ist zu " . (100 - $success_rate) . " % gescheitert...<br>";
+                                                $message .= "Die Eroberung ist gescheitert...<br>";
                                             }
                                         } else {
                                             // TODO: Implement logic for other soldier types (e.g. thief = stealing stuff)
@@ -710,6 +633,68 @@ class User
         }
     }
 
+    public function check_session_id(): void
+    {
+        $result = $this->mysqli->execute_query("SELECT sessionid FROM users WHERE id = ?", [$this->get_user_id()]);
+
+        if ($result->fetch_assoc()["sessionid"] !== session_id()) {
+            session_destroy();
+            change_location("login.php?logout");
+            exit;
+        }
+    }
+
+    public function get_user_id(): int
+    {
+        return $this->user_id;
+    }
+
+    public function set_user_id(int $user_id): void
+    {
+        $this->user_id = $user_id;
+    }
+
+    public function get_avatar(): string
+    {
+        $files = glob(__DIR__ . '/../' . UPLOADS_FILE_PATH . $this->user_name . ".*");
+
+        if (!empty($files)) {
+            $info = pathinfo($files[0]);
+            return UPLOADS_FILE_PATH . $this->user_name . "." . $info["extension"];
+        } else {
+            return DEFAULT_AVATAR;
+        }
+    }
+
+    public function get_user_database_id(string $activation_key)
+    {
+        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
+        return $result->fetch_assoc()["id"] ?? -1;
+    }
+
+    public function is_logged_in(): bool
+    {
+        return isset($_SESSION["userid"]);
+    }
+
+    public function get_user_admin_level(): int
+    {
+        $result = $this->mysqli->execute_query("SELECT adminlevel FROM users WHERE id = ?", [$this->user_id]);
+        return $result->fetch_assoc()["adminlevel"] ?? 0;
+    }
+
+    public function clear_last_built_building(int $kingdom_id): void
+    {
+        if (isset($_SESSION["last_built_building"][$kingdom_id])) {
+            unset($_SESSION["last_built_building"][$kingdom_id]);
+        }
+    }
+
+    public function get_last_built_building(int $kingdom_id): ?array
+    {
+        return $_SESSION["last_built_building"][$kingdom_id] ?? null;
+    }
+
     public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void
     {
         if (!isset($_SESSION["last_built_building"])) {
@@ -721,20 +706,39 @@ class User
         ];
     }
 
-    public function set_user_score(int $score): void
+    public function clear_last_researched_tech(int $kingdom_id): void
     {
-        $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [$score, $this->get_user_id()]);
+        if (isset($_SESSION["last_researched_tech"][$kingdom_id])) {
+            unset($_SESSION["last_researched_tech"][$kingdom_id]);
+        }
     }
 
-    public function get_user_score(int $user_id = -1): int
+    public function get_last_researched_tech(int $kingdom_id): ?array
     {
-        if ($user_id == -1) {
-            $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$this->get_user_id()]);
-        } else {
-            $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$user_id]);
-        }
+        return $_SESSION["last_researched_tech"][$kingdom_id] ?? null;
+    }
 
-        return $result->fetch_assoc()["score"];
+    public function set_last_researched_tech(int $kingdom_id, string $tech_name, int $tech_level): void
+    {
+        if (!isset($_SESSION["last_researched_tech"])) {
+            $_SESSION["last_researched_tech"] = array();
+        }
+        $_SESSION["last_researched_tech"][$kingdom_id] = [
+            "techname" => $tech_name,
+            "techlevel" => $tech_level
+        ];
+    }
+
+    public function clear_last_recruited_soldier(int $kingdom_id): void
+    {
+        if (isset($_SESSION["last_recruited_soldier"][$kingdom_id])) {
+            unset($_SESSION["last_recruited_soldier"][$kingdom_id]);
+        }
+    }
+
+    public function get_last_recruited_soldier(int $kingdom_id): ?array
+    {
+        return $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
     }
 
     public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count): void
@@ -748,35 +752,62 @@ class User
         ];
     }
 
+    public function get_unread_messages(): int
+    {
+        $query = "
+            SELECT COUNT(*) AS unread_count FROM (
+                SELECT id FROM messages 
+                WHERE receiverid = ? AND hasread = 0 AND deleted = 0
+                UNION ALL
+                SELECT id FROM servermessages 
+                WHERE receiverid = ? AND hasread = 0
+            ) AS combined_messages
+        ";
+
+        $result = $this->mysqli->execute_query($query, [$this->get_user_id(), $this->get_user_id()]);
+        return $result->fetch_assoc()["unread_count"];
+    }
+
+    public function set_user_score(int $score): void
+    {
+        $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [$score, $this->get_user_id()]);
+    }
+
+    public function get_user_score(): int
+    {
+        $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$this->user_id]);
+        return $result->fetch_assoc()["score"];
+    }
+
     public function get_current_kingdom(): int
     {
-        return $_SESSION["kingdomid"] ?? -1;
+        return $this->current_kingdom;
+    }
+
+    public function set_current_kingdom(int $kingdom_id): void
+    {
+        $this->current_kingdom = $kingdom_id;
     }
 
     public function get_user_name(): string
     {
-        return $_SESSION["username"] ?? "";
+        return $this->user_name;
     }
 
-    public function get_main_kingdom(int $user_id = -1): int
+    public function set_user_name(string $user_name): void
     {
-        if ($user_id == -1) {
-            $main_kingdom = $_SESSION["main_kingdomid"];
-        } else {
-            $result = $this->mysqli->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$user_id]);
-            $main_kingdom = $result->fetch_assoc()["mainkingdom"];
-        }
-        return $main_kingdom;
+        $this->user_name = $user_name;
     }
 
-    public function get_user_coins(int $user_id = -1): int
+    public function get_main_kingdom(): int
     {
-        if ($user_id == -1) {
-            $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->get_user_id()]);
-        } else {
-            $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$user_id]);
-        }
+        $result = $this->mysqli->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$this->user_id]);
+        return $result->fetch_assoc()["mainkingdom"];
+    }
 
+    public function get_user_coins(): int
+    {
+        $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->user_id]);
         return $result->fetch_assoc()["coins"];
     }
 

@@ -71,10 +71,12 @@ if (isset($_GET["accept"])) {
             $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
 
             // Send a message to the other user that the offer has been accepted
-            $message = "Dein Angebot</br></br>" . get_resource_icon($supply) . " $supply_value  gegen " . get_resource_icon($demand) . " $demand_value </br></br>
+            if ($other_kingdom->get_kingdom_owner_id() != $kingdom->get_kingdom_owner_id()) {
+                $message = "Dein Angebot</br></br>" . get_resource_icon($supply) . " $supply_value  gegen " . get_resource_icon($demand) . " $demand_value </br></br>
                         wurde vom Spieler " . $kingdom->get_kingdom_owner_name() . " (Königreich: " . $kingdom->get_kingdom_name() . ") 
                         angenommen!";
-            send_server_message($other_kingdom->get_kingdom_owner_id(), $other_kingdom->get_kingdom_owner_name(), $message, MessageCategories::CATEGORY_TRADE);
+                send_server_message($other_kingdom->get_kingdom_owner_id(), $other_kingdom->get_kingdom_owner_name(), $message, MessageCategories::CATEGORY_TRADE);
+            }
         }
     } else {
         $error = "Dieses Angebot existiert nicht oder ist von deinem Königreich!";

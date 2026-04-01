@@ -1,4 +1,4 @@
-﻿<div class="box-container" id="ressource-box">
+<div class="box-container" id="ressource-box">
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
@@ -89,9 +89,12 @@
 
             foreach ($kingdom_buildings as $building) {
                 $building_file = $building['buildingfile'] . ".php";
+                $building_obj = new Building($db_instance);
+                $building_obj->set_building_id($building["buildingid"]);
+                $building_obj->set_building_name($building["buildingname"]);
 
                 echo "<div class='box" . ($current_page === $building_file ? ' active' : '') . "' onclick=\"navigateTo('" . $building_file . "', this)\">" .
-                    $kingdom->get_icon($building['buildingid'], $building['buildingname']) . " {$building['buildingname']}</div>";
+                    $building_obj->get_building_icon("menu-icons") . " {$building['buildingname']}</div>";
             }
             ?>
         </div>

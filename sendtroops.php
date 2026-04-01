@@ -5,7 +5,7 @@ require_once("includes/core.php");
 //check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
 check_user_login($user);
 
-$map = new Map($db_instance);
+$map = new Map($db_instance, $user);
 $kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
 $target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : -1;
 $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : -1;
@@ -17,8 +17,9 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     $error = "Diese Koordinaten gibt es nicht!";
 } else {
     // Check if the user already sent troops to that kingdom
-    $result = $db_instance->execute_query("SELECT COUNT(*) AS alreadysent FROM events WHERE actionid = ? AND userid = ? AND targetx = ? AND targety = ?",
-        [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $target_x, $target_y]);
+    $result = $db_instance->execute_query("SELECT COUNT(*) AS alreadysent FROM events 
+                               WHERE actionid = ? AND userid = ? AND targetx = ? AND targety = ? AND kingdomid = ?",
+        [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $target_x, $target_y, $user->get_current_kingdom()]);
     $already_sent = $result->fetch_assoc()["alreadysent"];
 
     if ($already_sent > 0) {

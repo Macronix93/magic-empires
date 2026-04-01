@@ -6,10 +6,10 @@ class Messages
     private User $user;
     private string $view = "";
 
-    public function __construct(object $db_conn)
+    public function __construct(object $db_conn, User $user)
     {
         $this->mysqli = $db_conn;
-        $this->user = User::get_instance();
+        $this->user = $user;
     }
 
     public function send_message(
@@ -60,13 +60,13 @@ class Messages
             $this->view .= "
                         <table class='table'>
                             <tr>
-                                <td class='td-center td-gradient' style='word-break: break-word'>
+                                <td class='td-center td-gradient'>
                                     <b>Chatpartner</b>
                                 </td>
-                                <td class='td-center td-gradient' style='word-break: break-word'>
+                                <td class='td-center td-gradient'>
                                     <b>Letzte Nachricht</b>
                                 </td>
-                                <td class='td-center td-gradient' style='word-break: break-word'>
+                                <td class='td-center td-gradient' style='width: 50px;'>
                                     <b>Aktion</b>
                                 </td>
                             </tr>
@@ -77,13 +77,19 @@ class Messages
                 $sender_name = $row["sendername"];
                 $latest_timestamp = $row["latest_message_date"];
                 $old_conversation = time() - $latest_timestamp > CONV_INACTIVITY_TIME ? " tr-inactive" : "";
-                $image_path = $this->user->get_avatar($sender_name);
+                $chat_partner = new User($row["participant_id"], $sender_name);
+                $image_path = $chat_partner->get_avatar();
 
                 $this->view .= "
                     <tr class='tr-hover$old_conversation'>
                         <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant_id"]}\";'>
                             <div class='image-and-user'>
-                                <img class='user-image' src='$image_path' alt='Nutzerbild'>$sender_name " . $this->show_messages_indicator($num_unread_messages) . "
+                                <img class='user-image' src='$image_path' alt='Nutzerbild'>
+                                <span>$sender_name</span>
+                                " . ($num_unread_messages > 0
+                        ? "<span class='msg-badge'>{$this->show_messages_indicator($num_unread_messages)}</span>"
+                        : ""
+                    ) . "
                             </div>
                         </td>
                         <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant_id"]}\";'>
@@ -116,13 +122,17 @@ class Messages
 
     function show_messages_indicator(int $number): string
     {
-        return ($number == 0) ? "" : "<img src='images/icons/icon_" . ($number > 5 ? "more_than_5" : $number) . ".png' class='menu-icons' style='width: 16px; height: 16px;' alt='' />";
+        if ($number <= 0) {
+            return "";
+        }
+
+        return ($number > 5) ? "5+" : (string)$number;
     }
 
     function show_server_inbox(): string
     {
         // Get all server messages for the user
-        $query = "SELECT * FROM servermessages WHERE receiverid = ? ORDER BY date";
+        $query = "SELECT * FROM servermessages WHERE receiverid = ? ORDER BY date DESC";
         $result = $this->mysqli->execute_query($query, [$this->user->get_user_id()]);
 
         if ($result->num_rows == 0) {
@@ -192,7 +202,8 @@ class Messages
             [$sender_id, $this->user->get_user_id(), $this->user->get_user_id(), $sender_id]);
 
         $chat_partner_image = "";
-        $my_chat_image = $this->user->get_avatar($this->user->get_user_name());
+        $my_chat_image = $this->user->get_avatar();
+        $partner = new User($sender_id, $chat_partner);
         $first_sender_message_displayed = false;
         $unread_message_ids = [];
 
@@ -205,7 +216,7 @@ class Messages
             // The other side has written
             if ($row["senderid"] == $sender_id) {
                 if (empty($chat_partner_image)) {
-                    $chat_partner_image = $this->user->get_avatar($chat_partner) ?? "";
+                    $chat_partner_image = $partner->get_avatar() ?? "";
                 }
 
                 if (!$has_read && !$first_sender_message_displayed) {

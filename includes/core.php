@@ -19,7 +19,7 @@ if (session_status() == PHP_SESSION_NONE) {
 const MAINTENANCE_MODE = false;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MAX_CONQUEST_CHANCE = 0.9;
-const MIN_CONQUEST_CHANCE = 0.05;
+const MIN_CONQUEST_CHANCE = 0.01;
 const BACKGROUND_IMAGE = "images/background.png";
 const ERROR_LOG_FILE = "logs/errors.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
@@ -59,6 +59,12 @@ const UPLOADS_FILE_PATH = 'uploads/';
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . 'default_avatar.jpg';
 const MAX_UPLOAD_FILE_SIZE = 64; // In KB
 const NOOB_PROTECTION_MULT = 0.5;
+const RESEARCH_FOOD_INC = 10;
+const RESEARCH_WOOD_INC = 10;
+const RESEARCH_STONE_INC = 7;
+const RESEARCH_GOLD_INC = 5;
+const RESEARCH_STORAGE_INC = 10000;
+const RESEARCH_WALL_HP_INC = 100;
 
 
 /*
@@ -107,6 +113,17 @@ interface ActionTypes
     const int ACTION_BUILD_TROOPS = 1;
     const int ACTION_SEND_TROOPS = 2;
     const int ACTION_RETURN_TROOPS = 3;
+    const int ACTION_RESEARCH_TECH = 4;
+}
+
+interface TechTypes
+{
+    const int TECH_TYPE_FOOD_INC = 0;
+    const int TECH_TYPE_WOOD_INC = 1;
+    const int TECH_TYPE_STONE_INC = 2;
+    const int TECH_TYPE_GOLD_INC = 3;
+    const int TECH_TYPE_WALL_HP_INC = 4;
+    const int TECH_TYPE_STORAGE_INC = 5;
 }
 
 /*
@@ -241,17 +258,17 @@ function change_location(string $url, int $seconds = 0): void
 
 function show_passed_box(string $info_text): string
 {
-    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><p>$info_text</p></div>";
+    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><span>$info_text</span></div>";
 }
 
 function show_error_box(string $info_text, bool $display = true): string
 {
-    return "<div class='info-box event-error' style='" . ($display ? "" : "display: none;") . "'><img src='images/icons/icon_error.png' alt='Fehler'><p>$info_text</p></div>";
+    return "<div class='info-box event-error' style='" . ($display ? "" : "display: none;") . "'><img src='images/icons/icon_error.png' alt='Fehler'><span>$info_text</span></div>";
 }
 
 function show_weighted_box(string $info_text, string $weighted_text): string
 {
-    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><p><span class='weighted'>$weighted_text</span> $info_text</p></div>";
+    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><span><span class='weighted'>$weighted_text</span> $info_text</span></div>";
 }
 
 // Check for an error in a conversation
@@ -383,7 +400,7 @@ $db = Database::get_instance();
 $db_instance = $db->get_connection();
 
 // Create User instance
-$user = User::get_instance();
+$user = new User($_SESSION["userid"] ?? -1, $_SESSION["username"] ?? "", $_SESSION["kingdomid"] ?? -1);
 $error = "";
 $view = "";
 
@@ -412,7 +429,7 @@ if ($user->is_logged_in()) {
         $_SESSION["lastactivity"] = $timestamp;
 
         // Process all events for the user
-        $user->process_user_events($user->get_user_id());
+        $user->process_user_events();
 
         // Update villager count after events were processed (villager cap)
         apply_villager_cap($user->get_current_kingdom());
@@ -450,7 +467,7 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
 
     // Check if building is built
-    if (!$building->is_built()) {
+    if ($building == null) {
         change_location("towncenter.php");
         exit;
     }
@@ -467,4 +484,9 @@ function send_server_message(int $user_id, string $user_name, string $message, s
     $db = Database::get_instance();
     $db->get_connection()->execute_query("INSERT INTO servermessages (receiverid, receiver, date, message, category) VALUES (?, ?, ?, ?, ?)",
         [$user_id, $user_name, time(), $message, $category]);
+}
+
+function get_resource_text(int $cost, int $current_val): string
+{
+    return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
 }

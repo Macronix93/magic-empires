@@ -21,6 +21,7 @@ class Kingdoms
     private int $villager_per_hour;
     private int $building_id;
     private int $recruiting_id;
+    private int $tech_id;
     private int $map_x;
     private int $map_y;
     private string $kingdom_owner;
@@ -187,27 +188,42 @@ class Kingdoms
         return $kingdom_buildings;
     }
 
-    function fetch_kingdom_building(int $kingdom_id, int $building_id): Building
+    function fetch_kingdom_building(int $kingdom_id, int $building_id): ?Building
     {
-        $db = Database::get_instance();
-        $db_instance = $db->get_connection();
-        $building = new Building($db_instance);
-        $result = $db_instance->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?", [$kingdom_id, $building_id]);
+        $result = $this->mysqli->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+            [$kingdom_id, $building_id]);
+        $row = $result->fetch_assoc();
 
-        foreach ($result as $row) {
-            $building->set_building_name($row['buildingname']);
-            $building->set_building_level($row['buildinglevel']);
+        if (!$row) {
+            return null;
         }
 
+        $building = new Building($this->mysqli);
+        $building->set_building_name($row['buildingname']);
+        $building->set_building_level($row['buildinglevel']);
         $building->set_building_id($building_id);
-        $building->set_building_kingdom_id($_SESSION["kingdomid"]);
+        $building->set_building_kingdom_id($kingdom_id);
 
         return $building;
     }
 
-    public function get_icon(int $building_id, string $b_name): string
+    function fetch_kingdom_tech(int $kingdom_id, int $tech_id): ?Tech
     {
-        return "<img src='images/icons/icon_building$building_id.png' class='menu-icons' alt='$b_name'/>";
+        $result = $this->mysqli->execute_query("SELECT techname, techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+            [$kingdom_id, $tech_id]);
+        $row = $result->fetch_assoc();
+
+        if (!$row) {
+            return null;
+        }
+
+        $tech = new Tech($this->mysqli);
+        $tech->set_tech_name($row['techname']);
+        $tech->set_tech_level((int)$row['techlevel']);
+        $tech->set_tech_id($tech_id);
+        $tech->set_tech_kingdom_id($kingdom_id);
+
+        return $tech;
     }
 
     public function is_kingdom_recruiting(int $kingdom_id): bool
@@ -242,6 +258,30 @@ class Kingdoms
         return $this->building_id;
     }
 
+    public function get_kingdom_building_level(int $building_id): int
+    {
+        $result = $this->mysqli->execute_query("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+            [$this->kingdom_id, $building_id]);
+        $row = $result->fetch_assoc();
+        return $row ? $row["buildinglevel"] : 0;
+    }
+
+    public function is_kingdom_researching(int $kingdom_id): bool
+    {
+        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$kingdom_id, ActionTypes::ACTION_RESEARCH_TECH]);
+        $row = $result->fetch_assoc();
+        if ($row) {
+            $this->tech_id = $row["buildingid"];
+        }
+        return $result->num_rows == 1;
+    }
+
+    public function get_kingdom_research_id(): int
+    {
+        return $this->tech_id;
+    }
+
     public function give_kingdom_wood(int $amount): void
     {
         if ($this->wood + $amount > $this->get_kingdom_max_wood()) {
@@ -256,6 +296,11 @@ class Kingdoms
         return $this->max_wood;
     }
 
+    public function set_kingdom_max_wood(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET maxwood = ? WHERE id = ?", [$amount, $this->kingdom_id]);
+    }
+
     public function get_kingdom_wood(): int
     {
         return $this->wood;
@@ -265,6 +310,11 @@ class Kingdoms
     {
         $this->wood = $amount;
         $this->mysqli->execute_query("UPDATE kingdoms SET wood = ? WHERE id = ?", [$this->wood, $kingdom_id]);
+    }
+
+    public function set_kingdom_wood_per_hour(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET woodperhour = ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function give_kingdom_food(int $amount): void
@@ -281,6 +331,11 @@ class Kingdoms
         return $this->max_food;
     }
 
+    public function set_kingdom_max_food(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET maxfood = ? WHERE id = ?", [$amount, $this->kingdom_id]);
+    }
+
     public function get_kingdom_food(): int
     {
         return $this->food;
@@ -290,6 +345,11 @@ class Kingdoms
     {
         $this->food = $amount;
         $this->mysqli->execute_query("UPDATE kingdoms SET food = ? WHERE id = ?", [$this->food, $kingdom_id]);
+    }
+
+    public function set_kingdom_food_per_hour(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET foodperhour = ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function give_kingdom_stone(int $amount): void
@@ -306,6 +366,11 @@ class Kingdoms
         return $this->max_stone;
     }
 
+    public function set_kingdom_max_stone(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET maxstone = ? WHERE id = ?", [$amount, $this->kingdom_id]);
+    }
+
     public function get_kingdom_stone(): int
     {
         return $this->stone;
@@ -315,6 +380,11 @@ class Kingdoms
     {
         $this->stone = $amount;
         $this->mysqli->execute_query("UPDATE kingdoms SET stone = ? WHERE id = ?", [$this->stone, $kingdom_id]);
+    }
+
+    public function set_kingdom_stone_per_hour(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET stoneperhour = ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function give_kingdom_gold(int $amount): void
@@ -331,6 +401,11 @@ class Kingdoms
         return $this->max_gold;
     }
 
+    public function set_kingdom_max_gold(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET maxgold = ? WHERE id = ?", [$amount, $this->kingdom_id]);
+    }
+
     public function get_kingdom_gold(): int
     {
         return $this->gold;
@@ -340,6 +415,11 @@ class Kingdoms
     {
         $this->gold = $amount;
         $this->mysqli->execute_query("UPDATE kingdoms SET gold = ? WHERE id = ?", [$this->gold, $kingdom_id]);
+    }
+
+    public function set_kingdom_gold_per_hour(int $amount): void
+    {
+        $this->mysqli->execute_query("UPDATE kingdoms SET goldperhour = ? WHERE id = ?", [$amount, $this->kingdom_id]);
     }
 
     public function get_kingdom_food_per_hour(): int
@@ -388,6 +468,12 @@ class Kingdoms
         $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$wall_hp, $this->kingdom_id]);
     }
 
+    public function get_wall_max_hp(): int
+    {
+        return DEFAULT_WALL_HP * $this->get_kingdom_building_level(BuildingTypes::BUILDING_WALL)
+            + $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_WALL_HP_INC) * RESEARCH_WALL_HP_INC;
+    }
+
     public function calculate_wall_defense(int $wall_hp, int $wall_level): int
     {
         if ($wall_hp <= 0 || $wall_level <= 0) {
@@ -406,8 +492,6 @@ class Kingdoms
 
     function fetch_all_kingdom_buildings(): array
     {
-        $db = Database::get_instance();
-        $db_instance = $db->get_connection();
         $buildings = [];
 
         // Query to fetch buildings and dependencies
@@ -418,7 +502,7 @@ class Kingdoms
         LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
         GROUP BY b.id
     ";
-        $result = $db_instance->execute_query($query, [$this->kingdom_id]);
+        $result = $this->mysqli->execute_query($query, [$this->kingdom_id]);
 
         // Process each building and its dependencies
         foreach ($result as $row) {
@@ -426,7 +510,7 @@ class Kingdoms
 
             // Check if building object already exists
             if (!isset($buildings[$building_id])) {
-                $building = new Building($db_instance);
+                $building = new Building($this->mysqli);
                 $buildings = $building->create_building($building, $row, $buildings, $building_id);
             }
 
@@ -444,4 +528,64 @@ class Kingdoms
         return $buildings;
     }
 
+    public function get_kingdom_tech_level(int $tech_id): int
+    {
+        $result = $this->mysqli->execute_query("SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+            [$this->kingdom_id, $tech_id]);
+        $row = $result->fetch_assoc();
+        return $row ? $row["techlevel"] : 0;
+    }
+
+    public function fetch_all_kingdom_techs(): array
+    {
+        $techs = [];
+
+        // All techs + current level
+        $query_techs = "
+            SELECT t.*,
+                   tl.techlevel 
+            FROM techlist t
+            LEFT JOIN techs tl ON tl.techid = t.id AND tl.kingdomid = ?
+        ";
+        $result_techs = $this->mysqli->execute_query($query_techs, [$this->kingdom_id]);
+
+        foreach ($result_techs as $row) {
+            $tech = new Tech($this->mysqli);
+            $techs[$row["id"]] = $tech->create_tech($row);
+        }
+
+        // Building dependencies
+        $query_building_deps = "SELECT * FROM techbuildingdeps";
+        $result_building_deps = $this->mysqli->execute_query($query_building_deps);
+
+        foreach ($result_building_deps as $row) {
+            $tech_id = $row["techid"];
+
+            if (!isset($techs[$tech_id])) {
+                continue;
+            }
+
+            $techs[$tech_id]->add_tech_dependency(
+                $row["dependencyid"], $row["dependencylevel"], -1, 0
+            );
+        }
+
+        // Tech dependencies
+        $query_tech_deps = "SELECT * FROM techdeps";
+        $result_tech_deps = $this->mysqli->execute_query($query_tech_deps);
+
+        foreach ($result_tech_deps as $row) {
+            $tech_id = $row["techid"];
+
+            if (!isset($techs[$tech_id])) {
+                continue;
+            }
+
+            $techs[$tech_id]->add_tech_dependency(
+                -1, 0, $row["dependencyid"], $row["dependencylevel"]
+            );
+        }
+
+        return $techs;
+    }
 }
