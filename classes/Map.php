@@ -3,8 +3,6 @@
 class Map
 {
     private object $mysqli;
-    private int $start_x;
-    private int $start_y;
     private User $user;
 
     // Constructor
@@ -14,88 +12,31 @@ class Map
         $this->user = $user;
     }
 
-    public function get_start_x(): int
+    public function render_map(): void
     {
-        return $this->start_x;
-    }
-
-    public function set_start_x(int $start_x): void
-    {
-        $this->start_x = $start_x;
-    }
-
-    public function get_start_y(): int
-    {
-        return $this->start_y;
-    }
-
-    public function set_start_y(int $start_y): void
-    {
-        $this->start_y = $start_y;
-    }
-
-    public function render_map(int $start_x, int $start_y): void
-    {
-        $arrow_up = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
-        $arrow_up_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
-        $arrow_left = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $start_x - 10) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(180deg);' alt='+10' title='+10'/></a>";
-        $arrow_left_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $start_x - 1) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(180deg);' alt='+1' title='+1'/></a>";
-        $arrow_right = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $start_x + 10) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' alt='+10' title='+10'/></a>";
-        $arrow_right_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . min(91, $start_x + 1) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' alt='+1' title='+1'/></a>";
-        $arrow_down = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . min(91, $start_y + 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(90deg);' alt='+10' title='+10'/></a>";
-        $arrow_down_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . min(91, $start_y + 1) . "\")'><img  class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(90deg);' alt='+1' title='+1'/></a>";
-
-        $x_start = $start_x;
-        $x_end = $start_x + 9;
-        $y_start = $start_y;
-        $y_end = $start_y + 9;
-        $query = "SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel FROM map m LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = 0 WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?";
-        $result = $this->mysqli->execute_query($query, [$x_start, $x_end, $y_start, $y_end]);
-
-        // MAP WRAPPER START
-        echo '<div class="map-view-container">';
-
-        // 1. DIE MAP TABELLE (Rein für die Grafik)
-        echo '<table class="table">';
-
-        $field_color = array(array());
-        $my_coords = array(array());
-        $coords = array(array());
+        $query = "SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel 
+              FROM map m 
+              LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = 0
+              ORDER BY m.mapy, m.mapx";
+        $result = $this->mysqli->execute_query($query);
 
         foreach ($result as $row) {
-            $field_color[$row["mapx"]][$row["mapy"]] = $this->get_field_type_color($row["fieldtype"]);
-            $my_coords[$row["mapx"]][$row["mapy"]] = ($row["kingdomid"] != -1) ? $row["kingdomid"] : -1;
-            $coords[$row["mapx"]][$row["mapy"]] = ($row["kingdomid"] != -1) ? "<div class='cell-container'><img src='" . $this->get_kingdom_icon_by_level($row["buildinglevel"]) . "' class='kingdom-img' alt=''></div>" : "";
-        }
+            $color = $this->get_field_type_color($row["fieldtype"]);
+            $kingdom_id = $row["kingdomid"];
+            $content = "";
 
-        for ($i = $start_y; $i <= $start_y + 9; $i++) {
-            echo "<tr><td>$i</td>";
-            for ($j = $start_x; $j <= $start_x + 9; $j++) {
-                echo "<td data-fieldid='" . $my_coords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $field_color[$j][$i] . "' onclick='highlightField(parseInt(\"" . $my_coords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
+            if ($kingdom_id != -1) {
+                $icon = $this->get_kingdom_icon_by_level($row["buildinglevel"]);
+                $content = "<img src='$icon' alt=''>";
             }
-            echo "</tr>";
+
+            echo "<div class='map-tile' 
+                   data-x='{$row["mapx"]}' 
+                   data-y='{$row["mapy"]}' 
+                   data-kingdomid='$kingdom_id' 
+                   style='background-color: $color;'
+                   onclick='selectField(this)'>$content</div>";
         }
-        // X-Achse unten
-        echo "<tr><td>Y/X</td>";
-        for ($j = $start_x; $j <= $start_x + 9; $j++) echo "<td>$j</td>";
-        echo "</tr></table>";
-
-        // 2. DIE STEUERUNG (Unter der Map)
-        echo '<div class="map-navigation-pad">';
-        echo '    <div class="nav-grid">';
-        echo '        <div class="grid-cell up-fast">' . $arrow_up . '</div>';
-        echo '        <div class="grid-cell up-slow">' . $arrow_up_1 . '</div>';
-        echo '        <div class="grid-cell left-fast">' . $arrow_left . '</div>';
-        echo '        <div class="grid-cell left-slow">' . $arrow_left_1 . '</div>';
-        echo '        <div class="grid-cell center-icon"><img src="images/icons/icon_score.png" style="width:24px; opacity:0.5;"></div>';
-        echo '        <div class="grid-cell right-slow">' . $arrow_right_1 . '</div>';
-        echo '        <div class="grid-cell right-fast">' . $arrow_right . '</div>';
-        echo '        <div class="grid-cell down-slow">' . $arrow_down_1 . '</div>';
-        echo '        <div class="grid-cell down-fast">' . $arrow_down . '</div>';
-        echo '    </div>';
-        echo '</div>';
-
-        echo '</div>';
     }
 
     public function get_field_type_color(int $field_type): string
@@ -305,7 +246,7 @@ class Map
 
         foreach ($result as $row) {
             $map[$row["mapx"]][$row["mapy"]] = [
-                    "traversaltime" => $row["traversaltime"]
+                "traversaltime" => $row["traversaltime"]
             ];
         }
 
@@ -351,7 +292,6 @@ class Map
     }
 
     // Render and show the map
-
     private function get_neighbours($node, $map): array
     {
         $neighbors = [];
@@ -373,13 +313,5 @@ class Map
     {
         $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
         return $result->fetch_column();
-    }
-
-    function clamp_value(int $value)
-    {
-        if ($value > 91) {
-            return 91;
-        }
-        return max(min($value, MAX_X), 1);
     }
 }

@@ -1,113 +1,228 @@
-function sendUpdateMapRequest() {
-    let startX, startY, inputX, inputY;
-    /** @type {HTMLInputElement} */
-    let startXField = document.getElementById("startx");
-    /** @type {HTMLInputElement} */
-    let startYField = document.getElementById("starty");
-    const metaTag = document.querySelector('meta[data-max-map-size]');
-    /** @type {{ maxMapSize: number }} */
-    const jsonData = metaTag ? JSON.parse(metaTag.getAttribute('data-max-map-size')) : {maxMapSize: 0};
+let isDragging = false;
+let wasDragged = false;
+let startX, startY;
+let startMouseX, startMouseY;
+let zoom = 1.0;
 
-    if (startXField && startXField.value) {
-        startX = inputX = startXField.value;
-    }
-    if (startYField && startYField.value) {
-        startY = inputY = startYField.value;
+document.addEventListener("DOMContentLoaded", () => {
+    const viewport = document.getElementById("map-viewport");
+    const grid = document.getElementById("map-grid");
+    const loader = document.getElementById("map-loader");
+    const coordsOverlay = document.getElementById("coords-display");
+
+    if (!viewport || !grid) return;
+
+    viewport.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        applyZoom(zoom + delta, mouseX, mouseY);
+    }, {passive: false});
+
+    viewport.addEventListener("mousedown", startDrag);
+
+    window.addEventListener("mousemove", drag);
+    window.addEventListener("mouseup", stopDrag);
+
+    viewport.addEventListener("touchstart", (e) => startDrag(e.touches[0]), {passive: false});
+    window.addEventListener("touchmove", (e) => drag(e.touches[0]), {passive: false});
+    window.addEventListener("touchend", stopDrag);
+
+    window.addEventListener("resize", () => {
+        clampMapPosition();
+    });
+
+    grid.addEventListener("mousemove", (e) => {
+        const tile = e.target.closest(".map-tile");
+        if (tile) {
+            coordsOverlay.innerText = `X: ${tile.dataset.x} | Y: ${tile.dataset.y}`;
+        }
+    });
+
+    fetch("ajax/map_full_load.php", {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(response => response.text())
+        .then(html => {
+            grid.innerHTML = html;
+
+            requestAnimationFrame(() => {
+                centerMapOn(currentX, currentY, true);
+
+                const startTile = document.querySelector(`.map-tile[data-x="${currentX}"][data-y="${currentY}"]`);
+                if (startTile) startTile.classList.add("highlight");
+
+                grid.style.visibility = "visible";
+                if (loader) {
+                    loader.classList.add("loader-hidden");
+                    setTimeout(() => loader.style.display = "none", 500);
+                }
+            });
+        })
+        .catch(error => {
+            console.error("Fehler:", error);
+            if (loader) loader.querySelector('.loader-text').innerText = "Fehler beim Laden!";
+        });
+});
+
+function startDrag(e) {
+    const grid = document.getElementById('map-grid');
+    if (!grid) return;
+
+    isDragging = true;
+    wasDragged = false;
+    grid.style.transition = "none";
+
+    const style = window.getComputedStyle(grid);
+    const currentLeft = parseInt(style.left) || 0;
+    const currentTop = parseInt(style.top) || 0;
+
+    startX = e.pageX - currentLeft;
+    startY = e.pageY - currentTop;
+
+    startMouseX = e.pageX;
+    startMouseY = e.pageY;
+}
+
+function drag(e) {
+    if (!isDragging) return;
+
+    if (Math.abs(e.pageX - startMouseX) > 5 || Math.abs(e.pageY - startMouseY) > 5) {
+        wasDragged = true;
     }
 
-    // Check if input values are out of bounds
-    if (startX <= 0 || startX > jsonData.maxMapSize || startY <= 0 || startY > jsonData.maxMapSize) {
+    e.preventDefault();
+
+    const viewport = document.getElementById("map-viewport");
+    const grid = document.getElementById("map-grid");
+
+    let x = e.pageX - startX;
+    let y = e.pageY - startY;
+
+    const minX = -(grid.offsetWidth - viewport.offsetWidth);
+    const minY = -(grid.offsetHeight - viewport.offsetHeight);
+
+    x = Math.min(0, Math.max(x, minX));
+    y = Math.min(0, Math.max(y, minY));
+
+    grid.style.left = x + "px";
+    grid.style.top = y + "px";
+}
+
+function stopDrag() {
+    isDragging = false;
+}
+
+function centerMapOn(x, y, instant = false) {
+    const viewport = document.getElementById("map-viewport");
+    const grid = document.getElementById("map-grid");
+    if (!viewport || !grid) return;
+
+    const tileWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--map-tile-size"));
+    const vW = viewport.offsetWidth;
+    const vH = viewport.offsetHeight;
+
+    let left = -((x - 1) * tileWidth) + (vW / 2) - (tileWidth / 2);
+    let top = -((y - 1) * tileWidth) + (vH / 2) - (tileWidth / 2);
+
+    const minX = -(grid.offsetWidth - viewport.offsetWidth);
+    const minY = -(grid.offsetHeight - viewport.offsetHeight);
+
+    left = Math.min(0, Math.max(left, minX));
+    top = Math.min(0, Math.max(top, minY));
+
+    grid.style.transition = instant ? "none" : "all 0.5s ease-out";
+    grid.style.left = left + "px";
+    grid.style.top = top + "px";
+}
+
+function selectField(element) {
+    if (wasDragged) return;
+
+    const x = element.getAttribute("data-x");
+    const y = element.getAttribute("data-y");
+    const kingdomId = element.getAttribute("data-kingdomid");
+
+    document.querySelectorAll('.map-tile').forEach(t => t.classList.remove("highlight"));
+    element.classList.add("highlight");
+
+    fetch(`ajax/field_info.php?clickedfield=${kingdomId}&x=${x}&y=${y}`, {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById("field-info").innerHTML = html;
+        });
+}
+
+function jumpToCoordinates(x, y) {
+    const targetX = parseInt(x);
+    const targetY = parseInt(y);
+
+    if (isNaN(targetX) || isNaN(targetY) || targetX < 1 || targetX > 100 || targetY < 1 || targetY > 100) {
         return;
     }
 
-    if (startX !== undefined && startY !== undefined) {
-        startX = Math.max(1, Math.min(parseInt(startX) - 5, 91));
-        startY = Math.max(1, Math.min(parseInt(startY) - 5, 91));
+    centerMapOn(targetX, targetY);
 
-        updateMap(startX, startY, inputX, inputY);
+    const targetTile = document.querySelector(`.map-tile[data-x="${targetX}"][data-y="${targetY}"]`);
+
+    if (targetTile) {
+        selectField(targetTile);
     }
 }
 
-function updateMap(newStartX, newStartY, inputX, inputY) {
-    fetch(`ajax/map_update.php?startx=${newStartX}&starty=${newStartY}`, {
-        method: "GET",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest"
-        }
-    })
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById("map-container").innerHTML = html;
+function applyZoom(newZoom, mouseX = null, mouseY = null) {
+    const grid = document.getElementById("map-grid");
+    const viewport = document.getElementById("map-viewport");
+    const oldZoom = zoom;
 
-            // Update input fields and highlight
-            if (inputX !== undefined && inputY !== undefined) {
-                document.getElementById('startx').value = inputX;
-                document.getElementById('starty').value = inputY;
+    zoom = Math.max(0.5, Math.min(2.0, newZoom));
+    if (oldZoom === zoom) return;
 
-                const cell = document.querySelector(`td[data-x="${inputX}"][data-y="${inputY}"]`);
+    const baseSize = 60;
+    const oldTileSize = baseSize * oldZoom;
+    const newTileSize = baseSize * zoom;
 
-                if (cell) {
-                    const fieldID = cell.getAttribute('data-fieldid');
-                    highlightField(parseInt(fieldID), inputX, inputY);
-                }
-            } else {
-                const highlightedCell = document.querySelector('td.highlight');
+    const currentLeft = parseInt(grid.style.left) || 0;
+    const currentTop = parseInt(grid.style.top) || 0;
 
-                if (highlightedCell) {
-                    const fieldID = highlightedCell.getAttribute('data-fieldid');
-                    const x = highlightedCell.getAttribute('data-x');
-                    const y = highlightedCell.getAttribute('data-y');
+    if (mouseX === null) mouseX = viewport.offsetWidth / 2;
+    if (mouseY === null) mouseY = viewport.offsetHeight / 2;
 
-                    highlightField(parseInt(fieldID), parseInt(x), parseInt(y));
-                } else {
-                    const oldField = document.getElementById("highlightedfield");
-                    const x = oldField.getAttribute("data-x");
-                    const y = oldField.getAttribute("data-y");
+    const gridX = (mouseX - currentLeft) / oldTileSize;
+    const gridY = (mouseY - currentTop) / oldTileSize;
 
-                    highlightEnteredCoordinates(x, y);
-                }
-            }
-        })
-        .catch(error => {
-            console.error("Map update error:", error);
-        });
+    document.documentElement.style.setProperty("--map-tile-size", newTileSize + "px");
+
+    let nextLeft = mouseX - (gridX * newTileSize);
+    let nextTop = mouseY - (gridY * newTileSize);
+
+    grid.style.left = nextLeft + "px";
+    grid.style.top = nextTop + "px";
+
+    clampMapPosition();
 }
 
+function clampMapPosition() {
+    const viewport = document.getElementById("map-viewport");
+    const grid = document.getElementById("map-grid");
+    if (!grid || !viewport) return;
 
-function highlightField(clickedField = -1, x = -1, y = -1) {
-    const fieldToHighlight = document.getElementById("highlightedfield");
-    fieldToHighlight.setAttribute("data-x", x.toString());
-    fieldToHighlight.setAttribute("data-y", y.toString());
+    let currentLeft = parseInt(grid.style.left) || 0;
+    let currentTop = parseInt(grid.style.top) || 0;
 
-    clearFieldHighlighting();
-    highlightEnteredCoordinates(x, y);
+    const minX = -(grid.offsetWidth - viewport.offsetWidth);
+    const minY = -(grid.offsetHeight - viewport.offsetHeight);
 
-    fetch(`ajax/field_info.php?clickedfield=${clickedField}&x=${x}&y=${y}`, {
-        method: "GET",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest"
-        }
-    })
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById("field-info").innerHTML = html;
-        })
-        .catch(error => {
-            console.error("Field info error:", error);
-        });
-}
+    // Wenn das Grid kleiner als der Viewport ist (beim Rauszoomen), zentrieren
+    let newX = grid.offsetWidth < viewport.offsetWidth ? (viewport.offsetWidth - grid.offsetWidth) / 2 : Math.min(0, Math.max(currentLeft, minX));
+    let newY = grid.offsetHeight < viewport.offsetHeight ? (viewport.offsetHeight - grid.offsetHeight) / 2 : Math.min(0, Math.max(currentTop, minY));
 
-function highlightEnteredCoordinates(x, y) {
-    let cell = document.querySelector(`td[data-x='${x}'][data-y='${y}']`);
-
-    if (cell) {
-        cell.classList.add("highlight");
-    }
-    return cell;
-}
-
-function clearFieldHighlighting() {
-    document.querySelectorAll('td.highlight').forEach(cell => {
-        cell.classList.remove('highlight');
-    });
+    grid.style.left = newX + "px";
+    grid.style.top = newY + "px";
 }
