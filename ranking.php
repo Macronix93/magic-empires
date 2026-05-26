@@ -16,7 +16,7 @@ $total_pages = ceil($num_rows / $rows_per_page);
 $offset = ($current_page - 1) * $rows_per_page;
 
 // Get the data for the current page
-$result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
+$result = $db_instance->execute_query("SELECT id, username, status, lastactivity, lastrank, score FROM users ORDER BY score DESC LIMIT ?, ?", [$offset, $rows_per_page]);
 $view .= '<table class="table">
             <tr>
                 <td class="td-center td-gradient"
@@ -35,6 +35,10 @@ $view .= '<table class="table">
 $position = ($current_page - 1) * $rows_per_page + 1;
 
 foreach ($result as $row) {
+    if (!$row["status"]) {
+        continue;
+    }
+
     $user_id = $row["id"];
     $user_name = $row["username"];
     $icon = "";

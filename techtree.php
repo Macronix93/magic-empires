@@ -9,7 +9,7 @@ if (!($user->is_logged_in())) {
 $dependency_text = "";
 
 // Fetch all buildings and their dependencies
-$kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
+$kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
 

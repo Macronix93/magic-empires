@@ -22,47 +22,23 @@ class User
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activation_key = md5($email . $name);
 
-        $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
-            [$name, $password, $activation_key, $email, session_id()]);
-        $insert_id = $this->mysqli->insert_id;
-
         // Create activation link to activate account
-        $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "activation.php?key=" . $activation_key;
+        $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "login.php?key=" . $activation_key;
 
         $receiver = $email;
         $subject = 'Magic-Empires - Registration';
-        $message = "Willkommen bei Magic-Empires!<br><br>Klicke auf diesen Link, um deinen Account zu aktivieren:<br><br><a href='" . $actual_link . "'>" . $actual_link . "</a><br><br>Viel Spaß beim Zocken! :)";
+        $message = "Willkommen bei Magic-Empires!<br><br>Klicke auf <a href='" . $actual_link . "'>diesen Link</a>, um deinen Account zu aktivieren.<br><br>Viel Spaß beim Zocken! :)";
         $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
             'From: webmaster@magic-empires.de' . "\r\n" .
             'X-Mailer: PHP/' . phpversion();
 
         if (mail($receiver, $subject, $message, $header)) {
-            $this->reg_status = "<span class='passed'>Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.</span><br>";
+            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
+                [$name, $password, $activation_key, $email, session_id()]);
 
-            // Update lastrank
-            $query = "
-                    UPDATE users 
-                        JOIN (
-                            SELECT id, (@rank := @rank + 1) AS new_rank
-                            FROM (SELECT id FROM users ORDER BY score DESC) AS ranked_users
-                            CROSS JOIN (SELECT @rank := 0) AS init
-                        ) AS ranked_users ON users.id = ranked_users.id
-                    SET users.lastrank = ranked_users.new_rank
-                    WHERE users.id = ?
-                ";
-            $this->mysqli->execute_query($query, [$insert_id]);
+            unset($_SESSION["captcha_passed"]);
 
-            // Try to create kingdom
-            $kingdom = new Kingdoms($this->mysqli);
-            $main_kingdom = $kingdom->create_kingdom($insert_id, $name);
-
-            if ($main_kingdom) {
-                // Update mainkingdom in user table
-                $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $insert_id]);
-            } else {
-                $this->reg_status = "<span class='error'>Es sind derzeit keine freien Kartenplätze übrig!</span><br>";
-                $this->mysqli->execute_query("DELETE FROM users WHERE id = ?", [$insert_id]);
-            }
+            $this->reg_status = "Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.<br>";
         }
     }
 
@@ -113,7 +89,7 @@ class User
             switch ($action_id) {
                 case ActionTypes::ACTION_RESEARCH_TECH:
                     if ($building_time < time()) {
-                        $kingdom = new Kingdoms($this->mysqli, $kingdom_id);
+                        $kingdom = new Kingdom($this->mysqli, $kingdom_id);
 
                         switch ($building_id) {
                             case TechTypes::TECH_TYPE_WOOD_INC:
@@ -305,7 +281,7 @@ class User
                     break;
                 case ActionTypes::ACTION_SEND_TROOPS:
                     $map = new Map($this->mysqli, $this);
-                    $kingdom = new Kingdoms($this->mysqli, $this->get_current_kingdom());
+                    $kingdom = new Kingdom($this->mysqli, $this->get_current_kingdom());
                     $my_kingdom_x = $kingdom->get_kingdom_map_x();
                     $my_kingdom_y = $kingdom->get_kingdom_map_y();
 
@@ -355,7 +331,7 @@ class User
                                     $this->mysqli->execute_query($query, [$event_id, $conquerer_id]);
 
                                     // Create new kingdom
-                                    $kingdom = new Kingdoms($this->mysqli);
+                                    $kingdom = new Kingdom($this->mysqli);
                                     $new_kingdom = $kingdom->create_kingdom($this->get_user_id(), $this->get_user_name(), true, $target_x, $target_y);
 
                                     $message .= "Für die Eroberung hat sich ein Eroberer geopfert.<br>Ein neues Königreich ist entstanden: $new_kingdom<br>";
@@ -373,7 +349,7 @@ class User
                                     time() + $return_time,
                                     $event_id]);
                         } else {
-                            $enemy_kingdom = new Kingdoms($this->mysqli, $target_id);
+                            $enemy_kingdom = new Kingdom($this->mysqli, $target_id);
                             $enemy_user_id = $enemy_kingdom->get_kingdom_owner_id();
                             $enemy_user_name = $enemy_kingdom->get_kingdom_owner_name();
                             $enemy_kingdom_name = $enemy_kingdom->get_kingdom_name();
@@ -402,7 +378,7 @@ class User
                                 } else {
                                     $message .= "Es hat ein Kampf stattgefunden mit Spieler $enemy_user_name ($enemy_kingdom_name)!
                                          <br>Kampfergebnis:<br><br>";
-                                    $enemy_message .= "Du wurdest vom Spieler {$kingdom->get_kingdom_owner_name()} ({$kingdom->get_kingdom_name()}) angegriffen!
+                                    $enemy_message .= "Du wurdest vom Spieler {$kingdom->get_kingdom_owner_name()} ({$kingdom->get_kingdom_name()} {$kingdom->get_kingdom_map_x()}:{$kingdom->get_kingdom_map_y()}) angegriffen!
                                          <br>Kampfergebnis:<br><br>";
 
                                     $conquest->initialize_soldier_types();
@@ -588,7 +564,7 @@ class User
                     break;
                 case ActionTypes::ACTION_RETURN_TROOPS:
                     if ($arrival_time < time()) {
-                        $enemy_kingdom = new Kingdoms($this->mysqli, $target_id);
+                        $enemy_kingdom = new Kingdom($this->mysqli, $target_id);
 
                         if ($target_id == -1) {
                             $field_query = "SELECT ft.fieldname

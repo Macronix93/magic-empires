@@ -4,30 +4,42 @@ function setup() {
     for (let i = 0; i < popups.length; i++) {
         /** @type {HTMLElement} */
         let box = document.getElementById(popups[i].id + '_box');
+
         if (box) {
             box.style.display = 'none';
 
-            popups[i].onmouseover = function (e) {
-                if (box) {
-                    let mousePos = getMouseLocation(e);
-                    box.style.display = 'block';
-                    box.style.top = (mousePos[1]) + 'px';
-                    box.style.left = (mousePos[0] + 20) + 'px';
+            const positionBox = function (e) {
+                let mousePos = getMouseLocation(e);
+
+                box.style.display = 'block';
+
+                const boxWidth = box.offsetWidth;
+                const boxHeight = box.offsetHeight;
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+
+                let left = mousePos[0] - (boxWidth / 2);
+
+                if (left < 10) {
+                    left = 10;
+                } else if (left + boxWidth > windowWidth - 10) {
+                    left = windowWidth - boxWidth - 10;
                 }
+
+                let top = mousePos[1] + 25;
+
+                if (e.clientY + 25 + boxHeight > windowHeight) {
+                    top = mousePos[1] - boxHeight - 15;
+                }
+
+                box.style.left = left + 'px';
+                box.style.top = top + 'px';
             };
 
-            popups[i].onmousemove = function (e) {
-                if (box) {
-                    let mousePos = getMouseLocation(e);
-                    box.style.top = (mousePos[1]) + 'px';
-                    box.style.left = (mousePos[0] + 20) + 'px';
-                }
-            };
-
+            popups[i].onmouseover = positionBox;
+            popups[i].onmousemove = positionBox;
             popups[i].onmouseout = function () {
-                if (box) {
-                    box.style.display = 'none';
-                }
+                box.style.display = 'none';
             };
         }
     }
@@ -159,19 +171,53 @@ function cancelDialog() {
 }
 
 window.addEventListener("DOMContentLoaded", function () {
-    const mobileNav = document.getElementById("mobile-nav");
-    const hamburgerIcon = document.getElementById("hamburger-icon");
+    const leftTrigger = document.getElementById("nav-left-trigger");
+    const leftMenu = document.getElementById("nav-left-menu");
+    const rightTrigger = document.getElementById("nav-right-trigger");
+    const rightMenu = document.getElementById("nav-right-menu");
 
-    if (hamburgerIcon) {
-        hamburgerIcon.addEventListener("click", function () {
-            mobileNav.classList.toggle("open");
-            hamburgerIcon.classList.toggle("open");
+    function closeMenus() {
+        if (leftMenu) leftMenu.classList.remove("open");
+        if (leftTrigger) leftTrigger.classList.remove("open");
+        if (rightMenu) rightMenu.classList.remove("open");
+        if (rightTrigger) rightTrigger.classList.remove("open");
+    }
+
+    window.addEventListener("resize", function () {
+        if (window.innerWidth > 1392) {
+            closeMenus();
+        }
+    });
+
+    if (leftTrigger) {
+        leftTrigger.addEventListener("click", function (e) {
+            e.stopPropagation();
+            rightMenu.classList.remove("open");
+            rightTrigger.classList.remove("open");
+            leftMenu.classList.toggle("open");
+            leftTrigger.classList.toggle("open");
         });
     }
 
-    // Setup for popup boxes
-    setup();
+    if (rightTrigger) {
+        rightTrigger.addEventListener("click", function (e) {
+            e.stopPropagation();
+            leftMenu.classList.remove("open");
+            leftTrigger.classList.remove("open");
+            rightMenu.classList.toggle("open");
+            rightTrigger.classList.toggle("open");
+        });
+    }
 
-    // Calculate and update the styling of the username dynamically
+    document.addEventListener("click", function (e) {
+        if (!leftMenu || !rightMenu) return;
+
+        if (!leftMenu.contains(e.target) && !rightMenu.contains(e.target) &&
+            !leftTrigger.contains(e.target) && !rightTrigger.contains(e.target)) {
+            closeMenus();
+        }
+    });
+
+    setup();
     adjustUsernameDisplay();
 });

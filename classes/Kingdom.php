@@ -1,6 +1,6 @@
 <?php
 
-class Kingdoms
+class Kingdom
 {
     private object $mysqli;
     private int $kingdom_id;
@@ -109,12 +109,12 @@ class Kingdoms
         // Insert kingdom
         $placeholder = "Königreich";
         $query = "
-                    INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, wood, stone, gold, foodperhour, 
+                    INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
                                           woodperhour, stoneperhour, goldperhour, wallhp) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)
         ";
-        $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD,
-            STARTING_WOOD, STARTING_STONE, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP]);
+        $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
+            STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP]);
         $insert_id = $this->mysqli->insert_id;
         $kingdom_name = $placeholder . $insert_id;
 

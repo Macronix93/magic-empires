@@ -2,7 +2,7 @@
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
-        $kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
+        $kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
 
         // Get all kingdoms of a player for him to change anytime
         $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);
@@ -94,7 +94,7 @@
                 $building_obj->set_building_name($building["buildingname"]);
 
                 echo "<div class='box" . ($current_page === $building_file ? ' active' : '') . "' onclick=\"navigateTo('" . $building_file . "', this)\">" .
-                    $building_obj->get_building_icon("menu-icons") . " {$building['buildingname']}</div>";
+                        $building_obj->get_building_icon("menu-icons") . " {$building['buildingname']}</div>";
             }
             ?>
         </div>

@@ -29,7 +29,7 @@ if ($building_id != null) {
     $row = $result->fetch_assoc();
 
     if ($building_id >= BuildingTypes::BUILDING_TOWNCENTER && $building_id < $row["total_buildings"]) {
-        $building = (new Kingdoms($db_instance))->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
+        $building = (new Kingdom($db_instance))->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
 
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>{$row["buildingname"]}</div>";
@@ -87,7 +87,7 @@ if ($building_id != null) {
     $row = $result->fetch_assoc();
 
     if ($tech_id >= TechTypes::TECH_TYPE_FOOD_INC && $tech_id < $row["total_techs"]) {
-        $tech = (new Kingdoms($db_instance))->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
+        $tech = (new Kingdom($db_instance))->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
 
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>{$row["techname"]}</div>";

@@ -151,7 +151,7 @@ $guild_id = $row["guildid"];
 $register_date = $row["registerdate"];
 $main_kingdom = $row["mainkingdom"];
 $time_diff = time() - $_SESSION["currlogin"];
-$kingdom = new Kingdoms($db_instance, $main_kingdom);
+$kingdom = new Kingdom($db_instance, $main_kingdom);
 
 $view .= "<div class='title-border' style='margin-top: 30px;'>Allgemeine Daten</div>";
 $view .= "<table class='table' style='margin-top: 10px; width: max-content'>";

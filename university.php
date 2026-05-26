@@ -3,10 +3,10 @@ require_once("includes/core.php");
 
 $result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_UNIVERSITY);
 
-$current_kingdom = $result['current_kingdom'];
-$building = $result['building'];
+$current_kingdom = $result["current_kingdom"];
+$building = $result["building"];
 $building_name = $building->get_building_name();
-$kingdom = $result['kingdom'];
+$kingdom = $result["kingdom"];
 
 $kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_food = $kingdom->get_kingdom_food();
@@ -149,6 +149,11 @@ if ($count_maxed_techs === $tech_count) {
     $view = "Es wurden alle Forschungen geforscht.";
 } else {
     $view .= '<table class="table">
+                        <colgroup>
+                            <col style="width: 60px;">
+                            <col style="width: auto;">
+                            <col style="width: 180px;">
+                        </colgroup>
                             <tr>
                                 <td class="td-center td-gradient" colspan="2">
                                     <b>Gebäude</b></td>
@@ -162,7 +167,7 @@ if ($count_maxed_techs === $tech_count) {
 
         $tech_dependencies = $techs[$i]->get_tech_dependencies();
         foreach ($tech_dependencies as $dependency) {
-            // 1️⃣ BUILDING DEPENDENCIES überprüfen
+            // BUILDING DEPENDENCIES check
             if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
                 $building_level_needed = $dependency["dependencylevel"];
                 $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
@@ -173,7 +178,7 @@ if ($count_maxed_techs === $tech_count) {
                 }
             }
 
-            // 2️⃣ TECH DEPENDENCIES überprüfen
+            // TECH DEPENDENCIES check
             if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
                 $tech_level_needed = $dependency["techdeplevel"];
                 $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
@@ -240,11 +245,11 @@ if ($count_maxed_techs === $tech_count) {
                 }
 
                 $resource_costs = "";
-                if ($text_wood > 0) {
-                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
-                }
                 if ($text_food > 0) {
                     $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
+                }
+                if ($text_wood > 0) {
+                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
                 }
                 if ($text_stone > 0) {
                     $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
@@ -254,8 +259,8 @@ if ($count_maxed_techs === $tech_count) {
                 }
 
                 $view .= "<tr>
-                    <td class='td-center' style='width: 10%;'>" . $techs[$i]->get_tech_icon() . "</td>
-                    <td style='width: 50%;'>
+                    <td class='td-center'>" . $techs[$i]->get_tech_icon() . "</td>
+                    <td>
                         <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
                             <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
                         </b>
@@ -265,7 +270,7 @@ if ($count_maxed_techs === $tech_count) {
                         " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
                         " . convert_sec_to_str($techs[$i]->get_tech_time() * ($level == 0 ? 1 : $level + 1)) . "
                     </td>
-                    <td class='td-center' style='width: 25%;'>" . $text_build . "</td>
+                    <td class='td-center'>" . $text_build . "</td>
                 </tr>";
             }
         }

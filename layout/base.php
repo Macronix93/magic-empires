@@ -42,16 +42,17 @@
         <?php include_once("layout/right.php"); ?>
     </div>
 </div>
-<div id="hamburger-icon">
-    <p style="font-size: 24px;">&#9776;</p>
+<div id="nav-left-trigger" class="mobile-trigger">
+    <p>&#9776;</p>
 </div>
-<div id="mobile-nav">
-    <div id="menu">
-        <?php
-        include("left.php");
-        include("right.php");
-        ?>
-    </div>
+<div id="nav-left-menu" class="mobile-side-nav">
+    <?php include("layout/left.php"); ?>
+</div>
+<div id="nav-right-trigger" class="mobile-trigger">
+    <p>&#127984;</p>
+</div>
+<div id="nav-right-menu" class="mobile-side-nav">
+    <?php include("layout/right.php"); ?>
 </div>
 <footer>
     <div id="footerwrapper">

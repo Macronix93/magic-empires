@@ -114,6 +114,11 @@ if (!empty($last_recruited_soldier)) {
     $user->clear_last_recruited_soldier($current_kingdom);
 }
 $view .= '<table class="table">
+                        <colgroup>
+                            <col style="width: 60px;">
+                            <col style="width: auto;">
+                            <col style="width: 180px;">
+                        </colgroup>
                         <tr>
                             <td class="td-center td-gradient" colspan="2">
                                 <b>Soldat</b></td>
@@ -203,21 +208,25 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     }
 
     $view .= "<tr>
-                    <td class='td-center' style='max-width: 60px;'>" . $soldiers[$i]->get_soldier_icon() . "</td>
+                    <td class='td-center'>" . $soldiers[$i]->get_soldier_icon() . "</td>
                     <td>
                         <b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
-                            <div id='description" . $i . "_box' class='popupbox'>" . $soldiers[$i]->get_soldier_description() . "</div> (" . $kingdom_soldiers[$i] . ")
+                            <div id='description" . $i . "_box' class='popupbox'>
+                                " . $soldiers[$i]->get_soldier_description() . "
+                            </div> (" . $kingdom_soldiers[$i] . ")
                         </b>
-                        <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                        <div id='map-legend' style='justify-content: left; margin-top: 10px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " " . $text_villager . "</div>
+                        </div>
+                        <div id='map-legend' style='justify-content: left;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . $soldiers[$i]->get_soldier_attack() . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . $soldiers[$i]->get_soldier_defense() . "</div>
                         </div>
                         " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
                     </td>
-                    <td class='td-center' style='width: 140px;'>$text_build</td>
+                    <td class='td-center'>$text_build</td>
               </tr>";
 }
 $view .= '</table>';

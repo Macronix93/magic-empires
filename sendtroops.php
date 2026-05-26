@@ -6,7 +6,7 @@ require_once("includes/core.php");
 check_user_login($user);
 
 $map = new Map($db_instance, $user);
-$kingdom = new Kingdoms($db_instance, $user->get_current_kingdom());
+$kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
 $target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : -1;
 $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : -1;
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);

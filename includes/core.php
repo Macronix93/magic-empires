@@ -256,14 +256,14 @@ function change_location(string $url, int $seconds = 0): void
     }
 }
 
-function show_passed_box(string $info_text): string
+function show_passed_box(string $info_text, bool $display = true): string
 {
-    return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><span>$info_text</span></div>";
+    return "<div class='info-box event-passed' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_checked.png' alt='Erfolg'><span>$info_text</span></div>";
 }
 
 function show_error_box(string $info_text, bool $display = true): string
 {
-    return "<div class='info-box event-error' style='" . ($display ? "" : "display: none;") . "'><img src='images/icons/icon_error.png' alt='Fehler'><span>$info_text</span></div>";
+    return "<div class='info-box event-error' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_error.png' alt='Fehler'><span>$info_text</span></div>";
 }
 
 function show_weighted_box(string $info_text, string $weighted_text): string
@@ -334,7 +334,8 @@ function get_bad_names(): array
 /*
  * Global exception handlers
  */
-#[NoReturn] function global_exception_handler($e): void
+#[NoReturn]
+function global_exception_handler($e): void
 {
     error_log("[" . date(ERROR_DATE_FORMAT) . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_LOG_FILE);
     echo "<body style='
@@ -461,7 +462,7 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     $current_kingdom = $user->get_current_kingdom();
 
     // Get kingdom info
-    $kingdom = new Kingdoms($db_instance, $current_kingdom);
+    $kingdom = new Kingdom($db_instance, $current_kingdom);
 
     // Get building info
     $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);

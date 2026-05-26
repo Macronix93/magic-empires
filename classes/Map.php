@@ -36,7 +36,6 @@ class Map
 
     public function render_map(int $start_x, int $start_y): void
     {
-        // Generate URL for each arrow button
         $arrow_up = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(-90deg);' alt='+10' title='+10'/></a>";
         $arrow_up_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . max(1, $start_y - 1) . "\")'><img class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(-90deg);' alt='+1' title='+1'/></a>";
         $arrow_left = "<a href='javascript:void(0);' onclick='updateMap(\"" . max(1, $start_x - 10) . "\", \"" . $start_y . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(180deg);' alt='+10' title='+10'/></a>";
@@ -46,82 +45,57 @@ class Map
         $arrow_down = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . min(91, $start_y + 10) . "\")'><img class='map-arrows' src='images/icons/icon_right_fast.png' style='transform: rotate(90deg);' alt='+10' title='+10'/></a>";
         $arrow_down_1 = "<a href='javascript:void(0);' onclick='updateMap(\"" . $start_x . "\", \"" . min(91, $start_y + 1) . "\")'><img  class='map-arrows' src='images/icons/icon_right_slow.png' style='transform: rotate(90deg);' alt='+1' title='+1'/></a>";
 
-        // Coords Variable
-        $coords = array();
-        for ($c = 1; $c <= MAX_X; $c++) {
-            $coords[$c] = array();
-
-            for ($r = 1; $r <= MAX_Y; $r++) {
-                $coords[$c][$r] = "";
-            }
-        }
-
         $x_start = $start_x;
         $x_end = $start_x + 9;
         $y_start = $start_y;
         $y_end = $start_y + 9;
-
-        $query = "
-                    SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel 
-                    FROM map m 
-                    LEFT JOIN buildings b 
-                    ON m.kingdomid = b.kingdomid AND b.buildingid = 0 
-                    WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?
-        ";
+        $query = "SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel FROM map m LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = 0 WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?";
         $result = $this->mysqli->execute_query($query, [$x_start, $x_end, $y_start, $y_end]);
-        ?>
-        <table class="table" style="width: auto;">
-        <tr>
-            <td colspan="13" class="top-bottom-cell td-gradient">
-                <?php echo $arrow_up . $arrow_up_1 ?>
-            </td>
-        </tr>
-        <tr>
-        <td rowspan="12" class="td-gradient">
-            <?php echo $arrow_left . $arrow_left_1 ?>
-        </td>
-        <?php
+
+        // MAP WRAPPER START
+        echo '<div class="map-view-container">';
+
+        // 1. DIE MAP TABELLE (Rein für die Grafik)
+        echo '<table class="table">';
+
         $field_color = array(array());
         $my_coords = array(array());
+        $coords = array(array());
 
         foreach ($result as $row) {
-            $my_coords[$row["mapx"]][$row["mapy"]] = false;
-            $field_image = "";
             $field_color[$row["mapx"]][$row["mapy"]] = $this->get_field_type_color($row["fieldtype"]);
-
-            if ($row["kingdomid"] != -1) {
-                $my_coords[$row["mapx"]][$row["mapy"]] = $row["kingdomid"];
-
-                $field_image = "<div class='cell-container'><a href='javascript:void(0);'>
-                            <img src='" . $this->get_kingdom_icon_by_level($row["buildinglevel"]) . "' class='kingdom-img' alt='Königreich'>
-                        </a></div>";
-            } else {
-                $my_coords[$row["mapx"]][$row["mapy"]] = -1;
-            }
-
-            $coords[$row["mapx"]][$row["mapy"]] = $field_image;
+            $my_coords[$row["mapx"]][$row["mapy"]] = ($row["kingdomid"] != -1) ? $row["kingdomid"] : -1;
+            $coords[$row["mapx"]][$row["mapy"]] = ($row["kingdomid"] != -1) ? "<div class='cell-container'><img src='" . $this->get_kingdom_icon_by_level($row["buildinglevel"]) . "' class='kingdom-img' alt=''></div>" : "";
         }
 
         for ($i = $start_y; $i <= $start_y + 9; $i++) {
-            echo "<tr>";
-            echo "<td>$i</td>";
-
+            echo "<tr><td>$i</td>";
             for ($j = $start_x; $j <= $start_x + 9; $j++) {
-                echo "<td data-fieldid='" . $my_coords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $field_color[$j][$i] . "'
-                            onclick='highlightField(parseInt(\"" . $my_coords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
-
-                if ($j == $x_end && $i == $y_start) {
-                    echo "<td rowspan='11' class='td-gradient'>$arrow_right$arrow_right_1</td>";
-                }
+                echo "<td data-fieldid='" . $my_coords[$j][$i] . "' data-x='$j' data-y='$i' style='background-color: " . $field_color[$j][$i] . "' onclick='highlightField(parseInt(\"" . $my_coords[$j][$i] . "\"), parseInt(\"" . $j . "\"), parseInt(\"" . $i . "\"))'>{$coords[$j][$i]}</td>";
             }
-
             echo "</tr>";
         }
+        // X-Achse unten
+        echo "<tr><td>Y/X</td>";
+        for ($j = $start_x; $j <= $start_x + 9; $j++) echo "<td>$j</td>";
+        echo "</tr></table>";
 
-        echo "<tr><td>Y<br>X</td><td>$start_x</td><td>" . $start_x + 1 . "</td><td>" . $start_x + 2 . "</td><td>" . $start_x + 3 . "</td><td>" . $start_x + 4 . "</td><td>" . $start_x + 5 . "</td>
-                        <td>" . $start_x + 6 . "</td><td>" . $start_x + 7 . "</td><td>" . $start_x + 8 . "</td><td>" . $start_x + 9 . "</td></tr>
-                        <tr><td colspan='13' class='top-bottom-cell td-gradient'>$arrow_down$arrow_down_1</td></tr>
-              </table>";
+        // 2. DIE STEUERUNG (Unter der Map)
+        echo '<div class="map-navigation-pad">';
+        echo '    <div class="nav-grid">';
+        echo '        <div class="grid-cell up-fast">' . $arrow_up . '</div>';
+        echo '        <div class="grid-cell up-slow">' . $arrow_up_1 . '</div>';
+        echo '        <div class="grid-cell left-fast">' . $arrow_left . '</div>';
+        echo '        <div class="grid-cell left-slow">' . $arrow_left_1 . '</div>';
+        echo '        <div class="grid-cell center-icon"><img src="images/icons/icon_score.png" style="width:24px; opacity:0.5;"></div>';
+        echo '        <div class="grid-cell right-slow">' . $arrow_right_1 . '</div>';
+        echo '        <div class="grid-cell right-fast">' . $arrow_right . '</div>';
+        echo '        <div class="grid-cell down-slow">' . $arrow_down_1 . '</div>';
+        echo '        <div class="grid-cell down-fast">' . $arrow_down . '</div>';
+        echo '    </div>';
+        echo '</div>';
+
+        echo '</div>';
     }
 
     public function get_field_type_color(int $field_type): string
@@ -166,7 +140,7 @@ class Map
 
         if ($field == -1) {
             echo '<div class="title-border">' . $field_name . '</div>
-                  <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                       <tr>
                           <td class="td-mapinfo"><b>Koordinaten</b></td>
                           <td>' . $field_x . ':' . $field_y . '</td>
@@ -209,7 +183,7 @@ class Map
                 echo show_error_box("Dieses Königreich existiert nicht!");
             } else {
                 echo '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
-                      <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                      <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                           <tr>
                               <td class="td-mapinfo"><b>Koordinaten</b></td>
                               <td>' . $field_x . ':' . $field_y . '</td>

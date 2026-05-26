@@ -21,7 +21,7 @@ class Conquest
     private int $event_id;
     private int $conquerer_count = 0;
     private int $accumulated_damage = 0;
-    private Kingdoms $enemy_kingdom;
+    private Kingdom $enemy_kingdom;
     private string $my_message = "";
     private string $enemy_message = "";
 
@@ -40,7 +40,7 @@ class Conquest
         $this->event_id = $event_id;
     }
 
-    public function set_enemy_kingdom(Kingdoms $enemy_kingdom): void
+    public function set_enemy_kingdom(Kingdom $enemy_kingdom): void
     {
         $this->enemy_kingdom = $enemy_kingdom;
     }
@@ -185,7 +185,7 @@ class Conquest
 
     public function calculate_wall_bonus(): int
     {
-        $wall = (new Kingdoms($this->mysqli))->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
+        $wall = (new Kingdom($this->mysqli))->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
 
         return $this->enemy_kingdom->calculate_wall_defense($this->enemy_kingdom->get_wall_hp(),
             $wall->get_building_level());

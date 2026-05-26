@@ -116,13 +116,18 @@ class Soldier
 
     public function get_soldier_icon(string $class = "item-icons"): string
     {
-        return match ($this->soldier_id) {
-            0 => " <img src='images/icons/icon_militia.png' class='$class' alt='Milizsoldat'>",
-            1 => " <img src='images/icons/icon_swordsman.png' class='$class' alt='Schwertkämpfer'>",
-            2 => " <img src='images/icons/icon_thief.png' class='$class' alt='Dieb'>",
-            3 => " <img src='images/icons/icon_conqueror.png' class='$class' alt='Eroberer'>",
-            default => "ICON NOT FOUND",
-        };
+        $icons = [
+            0 => ["file" => "icon_militia.png", "alt" => "Milizsoldat"],
+            1 => ["file" => "icon_swordsman.png", "alt" => "Schwertkämpfer"],
+            2 => ["file" => "icon_thief.png", "alt" => "Dieb"],
+            3 => ["file" => "icon_conqueror.png", "alt" => "Eroberer"],
+        ];
+
+        if (!isset($icons[$this->soldier_id])) {
+            return "ICON NOT FOUND";
+        }
+
+        return "<img src='images/icons/{$icons[$this->soldier_id]["file"]}' class='$class' alt='{$icons[$this->soldier_id]["alt"]}'>";
     }
 
     public function get_soldier_description(): string

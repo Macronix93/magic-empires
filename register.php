@@ -1,5 +1,9 @@
 <?php
 require_once("includes/core.php");
+
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    unset($_SESSION["captcha_passed"]);
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -15,8 +19,17 @@ $email = "";
 $pass = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=' . getenv("LOCALHOST_SERVER_KEY") . '&response=' . $_POST["g-recaptcha-response"]);
-    $data = json_decode($json);
+    if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true) {
+        $response = $_POST["g-recaptcha-response"] ?? "";
+        $json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=' . getenv("LOCALHOST_SERVER_KEY") . '&response=' . $response);
+        $data = json_decode($json);
+
+        if ($data->success) {
+            $_SESSION["captcha_passed"] = true;
+        } else {
+            $error .= "Bitte den Botschutz akzeptieren!<br>";
+        }
+    }
 
     $name = $_POST["username"];
 
@@ -49,6 +62,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error .= "Bitte E-Mail angeben!<br>";
     } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error .= "Falsches E-Mail Format!<br>";
+    } else {
+        $domain = substr(strrchr($email, "@"), 1);
+
+        if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
+            $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
+        }
     }
 
     // Validate password
@@ -58,18 +77,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
     }
 
-    // Validate recaptcha
-    if (!$data->success) {
-        $error .= "Bitte den Botschutz akzeptieren!<br>";
-    }
-
     // Register user if no errors
     if (empty($error)) {
         // Check if username already exists
-        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ?", [$name]);
+        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? OR email = ?", [$name, $email]);
 
-        if ($result->num_rows !== 0) {
-            $error .= "Dieser Benutzername existiert bereits!<br>";
+        if ($result->num_rows > 0) {
+            $error .= "Benutzername oder E-Mail existiert bereits!<br>";
         } else {
             unset($_POST);
             $user->register_user($name, $email, $pass);
@@ -84,7 +98,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <fieldset>
             <legend><b>Registrieren</b></legend>
             <?php
-            echo(!empty($user->get_reg_status()) ? $user->get_reg_status() : '');
+            if (!empty($user->get_reg_status())) echo show_passed_box($user->get_reg_status());
+
             if (!empty($error)) {
                 $error_messages = explode("<br>", $error);
                 foreach ($error_messages as $e) {
@@ -94,13 +109,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
             ?>
-            <table class="table" style="width: 50%;">
+            <table class="table">
                 <tr>
-                    <td><b>Benutzername:</b></td>
+                    <td style="min-width: 165px;"><b>Benutzername:</b></td>
                     <td>
                         <label>
-                            <input style="padding:3px" class="regis" type="text" name="username"
-                                   value="<?= $_POST["username"] ?? ""; ?>">
+                            <input style="padding: 3px; width: 100%;" class="regis" type="text" name="username"
+                                   value="<?= $_POST["username"] ?? ""; ?>" autocomplete="username">
                         </label>
                     </td>
                 </tr>
@@ -111,7 +126,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <td>
                         <label>
                             <input class="regis" type="text" name="email"
-                                   value="<?= $_POST["email"] ?? ""; ?>">
+                                   value="<?= $_POST["email"] ?? ""; ?>" autocomplete="email" style="width: 100%;">
                         </label>
                     </td>
                 </tr>
@@ -122,17 +137,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <td>
                         <label>
                             <input class="regis" type="password" name="password"
+                                   value="<?= htmlspecialchars($_POST["password"] ?? ""); ?>"
+                                   autocomplete="new-password" style="width: 100%;">
                         </label>
                     </td>
                 </tr>
+                <tr>
+                    <td>
+                        <b>Botschutz:</b>
+                    </td>
+                    <td style="display: flex; justify-content: flex-start; align-items: center; padding: 10px;">
+                        <?php if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true): ?>
+                            <div class="g-recaptcha"
+                                 data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"
+                                 data-callback="onSubmit" data-size="compact">
+                            </div>
+                        <?php else: echo "✅"; ?>
+                        <?php endif; ?>
+                    </td>
+                </tr>
             </table>
-            <br>
-            <div class="g-recaptcha"
-                 data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"
-                 data-callback="onSubmit"></div>
-            <br><br>
-            <input type='submit' name='submit' value='Registrieren' style="width:125px; height:50px;"/>
-            <br><br>
+            <input type='submit' name='submit' value='Registrieren'
+                   style="width:125px; height:50px; margin: 15px 0;"/>
             <hr>
             <i>Du bist bereits registriert? Logge dich <a href='login.php'><b>hier</b></a> ein.</i>
         </fieldset>

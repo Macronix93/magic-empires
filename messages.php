@@ -68,6 +68,13 @@ if (isset($_GET["action"])) {
         if (isset($_POST["text"]) && $error == null) {
             $view = $messages->show_private_inbox();
         } else {
+            $view .= "
+                <div class='msg-back-button-container'>
+                    <button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>
+                        Zurück
+                    </button>
+                </div>
+            ";
             $view .= "<form id='newmessage'
                               action='messages.php?action=new'
                               method='POST'>
