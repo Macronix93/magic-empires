@@ -10,4 +10,4 @@ $title = "Gilde";
 $header = "Gilde";
 $view = "";
 
-include('layout/base.php');
+include("layout/base.php");

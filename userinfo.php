@@ -6,7 +6,6 @@ check_user_login($user);
 <!DOCTYPE html>
 <html lang="de">
 <script type="text/javascript" src="js/userinfo.js"></script>
-<script type="text/javascript" src="js/map.js"></script>
 <?php
 include_once("layout/head.html");
 ?>
@@ -50,10 +49,13 @@ if (isset($user_id)) {
         <tr>
             <td style="width: 200px;"><b>Spieler</b></td>
             <td style="width: 300px;">
-                <?= $user_name ?>
-                <?php if (time() - $row["lastactivity"] > INACTIVITY_DELAY): ?>
-                    (Inaktiv)
-                <?php endif; ?>
+                <?php
+                if (time() - $row["lastactivity"] > INACTIVITY_DELAY) {
+                    echo "<i>" . $user_name . "</i>";
+                } else {
+                    echo $user_name;
+                }
+                ?>
             </td>
         </tr>
         <tr>

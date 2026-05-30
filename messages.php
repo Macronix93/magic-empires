@@ -151,7 +151,7 @@ if (isset($_GET["action"])) {
 
                     $view .= "<div class='info-box event-error' style='display: none;'></div>";
                     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>Zurück</button>
-                            <h3 style='width: 85%; margin: 0;'>Konversation mit 
+                            <h3 style='width: 85%; margin: 0;'>
                                 <a href='javascript:void(0);' 
                                  onclick='openPopup(\"userinfo.php?userid=$sender_id\");' 
                                  class='popup'
@@ -162,6 +162,7 @@ if (isset($_GET["action"])) {
 
                     // Show messages between chatpartner and user
                     $view .= "<div id='messages-section'>";
+                    $view .= "<button id='load-older-btn' onclick='loadOlderMessages($sender_id)' class='msg-load-more'>Ältere Nachrichten laden</button>";
                     $view .= $messages->show_messages_with_chatpartner($sender_id, $chat_partner);
                     $view .= "</div>";
                     $view .= "
@@ -284,4 +285,4 @@ if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

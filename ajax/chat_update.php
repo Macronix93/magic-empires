@@ -2,55 +2,51 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    // Get chat partner
-    $chat_partner = htmlspecialchars($_GET["s"]);
+    $chat_partner_id = (int)$_GET["s"];
     $messages_to_delete = [];
     $error = "";
-
-    // Render the conversation HTML
-    ob_start();
+    $html = "";
 
     $user->check_session_id();
 
-    if ($_SESSION["msgreceiver"] != $chat_partner) {
+    if ($_SESSION["msgreceiver"] != $chat_partner_id) {
         $error = "redirect";
     } else {
-        $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner, $user->get_user_id()]);
-        $chat_partner_image = "";
-        $my_chat_image = $user->get_avatar();
-        $row = $result->fetch_assoc();
-        $partner = new User($row["senderid"], $row["sender"]);
+        // 1. Neue Nachrichten holen
+        $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner_id, $user->get_user_id()]);
 
-        foreach ($result as $row) {
+        $my_chat_image = $user->get_avatar();
+        $chat_partner_image = "";
+
+        // Wir nutzen fetch_all oder eine saubere Schleife ohne den Pointer vorher zu bewegen
+        while ($row = $result->fetch_assoc()) {
             if (empty($chat_partner_image)) {
-                $chat_partner_image = $partner->get_avatar() ?? "";
+                // Partner Objekt nur einmal erstellen
+                $partner = new User((int)$row["senderid"], $row["sender"]);
+                $chat_partner_image = $partner->get_avatar();
             }
 
-            echo "<div class='sender-bubble' id='msg-" . $row["id"] . "'>
-                            <div class='image-and-user message-border'>
-                                <img class='user-image' src='$chat_partner_image' alt='Nutzerbild'> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
-                            </div>
-                            " . $row["message"] . "
-                        </div>";
+            $html .= "<div class='sender-bubble' id='msg-" . $row["id"] . "'>
+                        <div class='image-and-user message-border'>
+                            <img class='user-image' src='$chat_partner_image' alt=''> " . $row["sender"] . " am " . date("d.m.Y H:i:s", $row["date"]) . "
+                        </div>
+                        " . $row["message"] . "
+                      </div>";
 
-            // Set message as read
             $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
         }
 
-        // Get messages to delete
-        $query = "
-                    DELETE FROM messages 
-                    WHERE senderid = ? AND receiverid = ? AND deleted = 1 
-                    RETURNING id
-        ";
-        $result = $db_instance->execute_query($query, [$chat_partner, $user->get_user_id()]);
-
-        foreach ($result as $row) {
-            $messages_to_delete[] = $row['id'];
+        // 2. Nachrichten finden, die gelöscht werden müssen (MySQL Weg)
+        // Erst IDs selektieren...
+        $del_res = $db_instance->execute_query("SELECT id FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1", [$chat_partner_id, $user->get_user_id()]);
+        foreach ($del_res as $del_row) {
+            $messages_to_delete[] = $del_row['id'];
+        }
+        // ...dann löschen
+        if (!empty($messages_to_delete)) {
+            $db_instance->execute_query("DELETE FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1", [$chat_partner_id, $user->get_user_id()]);
         }
     }
-
-    $html = ob_get_clean();
 
     echo json_encode([
         "html" => $html,

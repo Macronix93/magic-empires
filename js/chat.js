@@ -1,5 +1,7 @@
 const CHAT_UPDATE_INTERVAL = 5000;
 const ERROR_IMAGE_PATH = "images/icons/icon_error.png";
+let isFetchingOlder = false;
+let canLoadMore = true;
 
 function scrollToLatestMessage() {
     /** @type {HTMLDivElement} */
@@ -186,55 +188,63 @@ function insertNewChatMessage(e) {
         .then(response => response.json())
         .then(response => {
             const infoBox = document.querySelector(".info-box");
-            const currentTextBlock = document.querySelector(".info-box span");
-
-            if (currentTextBlock) {
-                currentTextBlock.remove();
-            }
 
             if (response.error) {
-                const textBlock = document.createElement("span");
-                textBlock.innerText = response.error;
+                let contentWrapper = infoBox.querySelector(".info-wrapper");
 
+                if (!contentWrapper) {
+                    infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler">`;
+
+                    contentWrapper = document.createElement("span");
+                    contentWrapper.className = "info-wrapper";
+                    contentWrapper.style.flex = "1";
+                    contentWrapper.style.textAlign = "center";
+
+                    infoBox.append(contentWrapper);
+                }
+
+                let errorTextSpan = contentWrapper.querySelector(".error-msg-text");
+                if (!errorTextSpan) {
+                    errorTextSpan = document.createElement("span");
+                    errorTextSpan.className = "error-msg-text";
+                    contentWrapper.append(errorTextSpan);
+                }
+
+                errorTextSpan.innerText = response.error;
                 infoBox.style.display = "flex";
-                infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler">`;
-                infoBox.append(textBlock);
 
-                // Create a new span element for the counter, if ratelimit was reached
-                if (response.counter >= response.messageLimit) {
-                    if (!infoBox.querySelector("#counter")) {
-                        /** @type {HTMLElement} */
-                        const counterElement = document.createElement("span");
-                        textBlock.append(counterElement);
+                if (response.counter !== undefined) {
+                    let counterElement = document.getElementById("counter");
 
+                    if (!counterElement) {
+                        counterElement = document.createElement("span");
                         counterElement.id = "counter";
-                        counterElement.innerText = startCountdown(undefined, response.counter);
-                        counterElement.style.marginLeft = "5px";
+                        counterElement.style.padding = "0";
+
+                        contentWrapper.append(counterElement);
                     }
+
+                    startCountdown("counter", response.counter, 0, null, true);
                 }
             } else if (response.html) {
                 document.getElementById("messages-section").innerHTML += response.html;
                 messageInput.value = "";
 
-                if (infoBox) {
-                    infoBox.style.display = "none";
-                }
+                if (infoBox) infoBox.style.display = "none";
 
                 scrollDown();
             }
         })
-        .catch(error => {
-            console.error("Error:", error);
-        });
+        .catch(error => console.error("Error:", error));
 }
 
 function conversationDeletionDialog(chatPartnerID, chatPartner) {
     showConfirmationDialog(
-        'Willst du die Konversation mit ' + chatPartner + ' wirklich löschen?',
-        'Ja',
-        'Nein',
+        "Willst du die Konversation mit " + chatPartner + " wirklich löschen?",
+        "Ja",
+        "Nein",
         () => {
-            deleteConversation('messages.php?action=delete&s=' + chatPartnerID);
+            deleteConversation("messages.php?action=delete&s=" + chatPartnerID);
         }
     );
 }
@@ -244,10 +254,15 @@ function deleteConversation(url) {
 }
 
 function initializeChat() {
-    // Focus on the message input field
     /** @type {HTMLInputElement} */
     const messageInput = document.getElementById("message-input");
-    messageInput.focus();
+    const messageSection = document.getElementById("messages-section");
+
+    if (messageSection) {
+        messageSection.addEventListener("scroll", () => {
+            checkScrollPosition();
+        });
+    }
 
     messageInput.addEventListener("keypress", e => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -282,7 +297,123 @@ function filterServerMessages(element) {
         }
     });
 
+    canLoadMore = true;
+
     // Update active tab
     document.querySelectorAll('.tablinks').forEach(tab => tab.classList.remove("active"));
     element.classList.add("active");
+
+    checkScrollPosition();
+}
+
+function checkScrollPosition() {
+    const messageSection = document.getElementById("messages-section");
+    if (!messageSection || isFetchingOlder || !canLoadMore) return;
+
+    const isServerInbox = window.location.search.includes("servermsgs");
+
+    if (isServerInbox) {
+        const scrollPos = messageSection.scrollTop + messageSection.clientHeight;
+        if (scrollPos > messageSection.scrollHeight - 20) {
+            loadOlderServerMessages();
+        }
+    } else {
+        if (messageSection.scrollTop < 20) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const chatPartner = urlParams.get("s");
+            if (chatPartner) loadOlderMessages(chatPartner);
+        }
+    }
+}
+
+function loadOlderServerMessages() {
+    if (isFetchingOlder || !canLoadMore) return;
+
+    const section = document.getElementById("messages-section");
+    const lastMsg = section.querySelector(".server-bubble:last-child"); // Letztes Element finden
+    if (!lastMsg) return;
+
+    const oldestId = lastMsg.id.replace("msg-", "");
+    const activeTab = document.querySelector(".tablinks.active");
+    const category = activeTab ? activeTab.textContent.trim() : "Alle";
+
+    isFetchingOlder = true;
+
+    fetch(`ajax/server_load_more.php?oldest_id=${oldestId}&category=${category}`, {
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
+        }
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.count > 0) {
+                section.insertAdjacentHTML("beforeend", data.html); // Unten anfügen
+                canLoadMore = data.hasMore;
+            } else {
+                canLoadMore = false;
+            }
+            finishLoading(null);
+        })
+        .catch(() => {
+            isFetchingOlder = false;
+        });
+}
+
+function loadOlderMessages(partnerId) {
+    if (isFetchingOlder || !canLoadMore) return;
+
+    const section = document.getElementById("messages-section");
+    const firstMsg = section.querySelector("[id^='msg-']");
+    if (!firstMsg) return;
+
+    const oldestId = firstMsg.id.replace("msg-", "");
+    const btn = document.getElementById("load-older-btn");
+
+    isFetchingOlder = true;
+    if (btn) {
+        btn.style.display = "block";
+        btn.innerText = "Lade ältere Nachrichten...";
+    }
+
+    fetch(`ajax/chat_load_more.php?s=${partnerId}&oldest_id=${oldestId}`, {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.count > 0) {
+                const oldHeight = section.scrollHeight;
+                btn.insertAdjacentHTML("afterend", data.html);
+                const newHeight = section.scrollHeight;
+                section.scrollTop = newHeight - oldHeight;
+
+                canLoadMore = data.hasMore;
+            } else {
+                canLoadMore = false;
+            }
+
+            finishLoading(btn);
+        })
+        .catch(err => {
+            console.error("Fehler:", err);
+            isFetchingOlder = false;
+
+            if (btn) {
+                btn.innerText = "Fehler beim Laden";
+                btn.style.display = "block";
+            }
+        });
+}
+
+function finishLoading(btn) {
+    if (btn) {
+        if (canLoadMore) {
+            btn.innerText = "Ältere Nachrichten laden";
+        } else {
+            btn.style.display = "none";
+        }
+    }
+    setTimeout(() => {
+        isFetchingOlder = false;
+        checkScrollPosition();
+    }, 800);
 }

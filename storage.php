@@ -54,4 +54,4 @@ if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

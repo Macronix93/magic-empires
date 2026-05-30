@@ -283,4 +283,4 @@ if (!empty($error)) {
     $view = $user_list . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

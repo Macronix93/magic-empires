@@ -224,10 +224,10 @@ if ($count_maxed_techs === $tech_count) {
                                       <script type='text/javascript'>
                                             document.addEventListener('DOMContentLoaded', function () {
                                                   let diff = $difference_time;
-                                                  startCountdown(undefined, diff || 0);
+                                                  startCountdown(undefined, diff || 0, 0, 'cancel-form');
                                             });
                                       </script>
-                                      <form action='university.php' method='GET'>
+                                      <form id='cancel-form' action='university.php' method='GET'>
                                         <input type='hidden' name='action' value='cancel'>
                                         <input type='hidden' name='tid' value='" . $i . "'>
                                         <input type='submit' value='Abbruch' style='margin-top: 5px;'>
@@ -264,7 +264,7 @@ if ($count_maxed_techs === $tech_count) {
                         <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
                             <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
                         </b>
-                        <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                        <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                         $resource_costs
                         </div>
                         " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
@@ -289,4 +289,4 @@ if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

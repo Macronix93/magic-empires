@@ -10,4 +10,4 @@ $title = "Spenden";
 $header = "Spenden";
 $view = "";
 
-include('layout/base.php');
+include("layout/base.php");

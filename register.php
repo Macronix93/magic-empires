@@ -85,7 +85,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($result->num_rows > 0) {
             $error .= "Benutzername oder E-Mail existiert bereits!<br>";
         } else {
-            unset($_POST);
             $user->register_user($name, $email, $pass);
         }
     }
@@ -98,7 +97,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <fieldset>
             <legend><b>Registrieren</b></legend>
             <?php
-            if (!empty($user->get_reg_status())) echo show_passed_box($user->get_reg_status());
+            if (!empty($user->get_reg_status())) echo $user->get_reg_status();
 
             if (!empty($error)) {
                 $error_messages = explode("<br>", $error);

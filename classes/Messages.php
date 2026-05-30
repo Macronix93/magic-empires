@@ -5,6 +5,7 @@ class Messages
     private object $mysqli;
     private User $user;
     private string $view = "";
+    private int $rows_per_page = 10;
 
     public function __construct(object $db_conn, User $user)
     {
@@ -22,6 +23,57 @@ class Messages
     {
         $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?)";
         $this->mysqli->execute_query($query, [$sender_id, $sender_name, $receiver_id, $receiver_name, $time, $message]);
+    }
+
+    public function get_server_history_paged(int $oldest_id = null, string $category = "Alle", int $limit = 20): array
+    {
+        $uid = $this->user->get_user_id();
+        $params = [$uid];
+        $category_sql = "";
+
+        if ($category !== "Alle") {
+            $category_sql = " AND category = ? ";
+            $params[] = $category;
+        }
+
+        if ($oldest_id === null) {
+            $query = "SELECT * FROM servermessages WHERE receiverid = ? $category_sql ORDER BY id DESC LIMIT ?";
+        } else {
+            $query = "SELECT * FROM servermessages WHERE receiverid = ? $category_sql AND id < ? ORDER BY id DESC LIMIT ?";
+            $params[] = $oldest_id;
+        }
+
+        $params[] = $limit;
+        $result = $this->mysqli->execute_query($query, $params);
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function get_chat_history_paged(int $sender_id, int $oldest_id = null, int $limit = 20): array
+    {
+        $uid = $this->user->get_user_id();
+
+        // Wenn keine oldest_id da ist, laden wir die absolut neuesten 20
+        if ($oldest_id === null) {
+            $query = "SELECT * FROM messages 
+                  WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+                  AND deleted = 0 
+                  ORDER BY id DESC LIMIT ?";
+            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $limit]);
+        } else {
+            // Lade Nachrichten, die älter sind als die aktuelle oldest_id
+            $query = "SELECT * FROM messages 
+                  WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+                  AND deleted = 0 AND id < ?
+                  ORDER BY id DESC LIMIT ?";
+            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $oldest_id, $limit]);
+        }
+
+        $messages = [];
+        foreach ($result as $row) {
+            $messages[] = $row;
+        }
+
+        return array_reverse($messages);
     }
 
     function show_private_inbox(): string
@@ -63,11 +115,8 @@ class Messages
                                 <td class='td-center td-gradient'>
                                     <b>Chatpartner</b>
                                 </td>
-                                <td class='td-center td-gradient'>
+                                <td class='td-center td-gradient' colspan='2'>
                                     <b>Letzte Nachricht</b>
-                                </td>
-                                <td class='td-center td-gradient' style='width: 50px;'>
-                                    <b>Aktion</b>
                                 </td>
                             </tr>
             ";
@@ -197,9 +246,21 @@ class Messages
 
     public function show_messages_with_chatpartner(int $sender_id, string $chat_partner): string
     {
-        $query = "SELECT * FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND deleted = 0";
-        $result = $this->mysqli->execute_query($query,
-            [$sender_id, $this->user->get_user_id(), $this->user->get_user_id(), $sender_id]);
+        $limit = SHOW_MESSAGES_LIMIT;
+        $result = $this->get_chat_history_paged($sender_id, null, $limit + 1);
+
+        $has_more = false;
+        if (count($result) > $limit) {
+            $has_more = true;
+            array_shift($result);
+        }
+
+        if (!$has_more) {
+            $this->view .= "<style>#load-older-btn { display: none !important; }</style>";
+            $this->view .= "<script>canLoadMore = false;</script>";
+        } else {
+            $this->view .= "<script>canLoadMore = true;</script>";
+        }
 
         $chat_partner_image = "";
         $my_chat_image = $this->user->get_avatar();
@@ -207,13 +268,16 @@ class Messages
         $first_sender_message_displayed = false;
         $unread_message_ids = [];
 
+        if (empty($result)) {
+            return "<div class='info-box'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+        }
+
         foreach ($result as $row) {
             $message_id = $row["id"];
             $message = $row["message"];
             $has_read = $row["hasread"];
             $date = $row["date"];
 
-            // The other side has written
             if ($row["senderid"] == $sender_id) {
                 if (empty($chat_partner_image)) {
                     $chat_partner_image = $partner->get_avatar() ?? "";
@@ -221,29 +285,23 @@ class Messages
 
                 if (!$has_read && !$first_sender_message_displayed) {
                     $first_sender_message_displayed = true;
-
-                    $this->view .= "<div id='new-message-line' class='error'>
-                                        Neue Nachrichten seit dem " . date("d.m.Y \u\m H:i:s", $date) . "
-                                    </div>";
+                    $this->view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $date) . "</div>";
                 }
 
                 $this->view .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
-                                    <div class='image-and-user message-border'>
-                                        <img class='user-image' src='$chat_partner_image' alt='Nutzerbild'> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "
-                                    </div>
-                                    " . $message . "
-                                </div>
-                ";
+                            <div class='image-and-user message-border'>
+                                <img class='user-image' src='$chat_partner_image' alt=''> " . $row["sender"] . " am " . date("d.m.Y H:i", $date) . "
+                            </div>
+                            " . $message . "
+                        </div>";
             } else {
-                // You have written
                 $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
-                                    <div class='image-and-user message-border'>
-                                        <img class='user-image' src='$my_chat_image' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $date) . "
-                                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteChatMessage(\"$message_id\")' style='cursor: pointer;'>
-                                    </div>
-                                    " . $message . "
-                                </div>
-                ";
+                            <div class='image-and-user message-border'>
+                                <img class='user-image' src='$my_chat_image' alt=''> Du am " . date("d.m.Y H:i", $date) . "
+                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteChatMessage(\"$message_id\")' style='cursor: pointer;'>
+                            </div>
+                            " . $message . "
+                        </div>";
             }
 
             if (!$has_read && $row["receiverid"] == $this->user->get_user_id()) {
@@ -253,7 +311,6 @@ class Messages
 
         if (!empty($unread_message_ids)) {
             $placeholders = implode(",", array_fill(0, count($unread_message_ids), "?"));
-
             $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
         }
 

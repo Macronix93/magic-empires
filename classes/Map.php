@@ -62,106 +62,105 @@ class Map
 
     public function render_field_info(int $field): void
     {
-        // Get the coords of the current kingdom of the user
         $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$this->user->get_current_kingdom()]);
         $row = $result->fetch_assoc();
-        $x = $row["mapx"];
-        $y = $row["mapy"];
-        $field_x = isset($_GET["x"]) && $_GET["x"] != -1 ? $_GET["x"] : $x;
-        $field_y = isset($_GET["y"]) && $_GET["y"] != -1 ? $_GET["y"] : $y;
-        $url = "window.location.href='sendtroops.php?x=" . $field_x . "&y=" . $field_y . "'";
+        $my_x = $row["mapx"];
+        $my_y = $row["mapy"];
 
-        $query = "
-                    SELECT m.fieldtype, f.fieldname FROM map m
-                    JOIN fieldtypes f ON m.fieldtype = f.fieldid
-                    WHERE mapx = ? AND mapy = ?
-        ";
-        $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
-        $field_name = $result->fetch_assoc()["fieldname"];
+        if (isset($_GET["x"]) && $_GET["x"] != -1) {
+            $field_x = intval($_GET["x"]);
+        } elseif (isset($_GET["startx"]) && $_GET["startx"] != -1) {
+            $field_x = intval($_GET["startx"]);
+        } else {
+            $field_x = $my_x;
+        }
+
+        if (isset($_GET["y"]) && $_GET["y"] != -1) {
+            $field_y = intval($_GET["y"]);
+        } elseif (isset($_GET["starty"]) && $_GET["starty"] != -1) {
+            $field_y = intval($_GET["starty"]);
+        } else {
+            $field_y = $my_y;
+        }
 
         if ($field == -1) {
+            $query = "SELECT m.fieldtype, f.fieldname FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
+            $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
+            $field_name = $result->fetch_assoc()["fieldname"];
+
+            $url = "window.location.href='sendtroops.php?x=" . $field_x . "&y=" . $field_y . "'";
+
             echo '<div class="title-border">' . $field_name . '</div>
-                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                      <tr>
-                          <td class="td-mapinfo"><b>Koordinaten</b></td>
-                          <td>' . $field_x . ':' . $field_y . '</td>
-                      </tr>
-                      <tr>
-                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                          <td>' . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . '</td>
-                      </tr>
-                      <tr>
-                          <td colspan="2" class="td-mapinfo" style="text-align: center;">
-                              <button onclick="' . $url . '">Erobern</button>
-                          </td>
-                      </tr>
-                  </table>';
+              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                  <tr>
+                      <td class="td-mapinfo"><b>Koordinaten</b></td>
+                      <td>' . $field_x . ':' . $field_y . '</td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                      <td>' . convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y)) . '</td>
+                  </tr>
+                  <tr>
+                      <td colspan="2" class="td-mapinfo" style="text-align: center;">
+                          <button onclick="' . $url . '">Erobern</button>
+                      </td>
+                  </tr>
+              </table>';
         } else {
-            $query = "
-                    SELECT k.userid, k.username, k.kingdomname, k.mapx, k.mapy, u.score
-                    FROM kingdoms k
-                    JOIN users u ON k.userid = u.id
-                    WHERE k.id = ?
-            ";
+            $query = "SELECT k.userid, k.username, k.kingdomname, k.mapx, k.mapy, u.score FROM kingdoms k JOIN users u ON k.userid = u.id WHERE k.id = ?";
             $result_2 = $this->mysqli->execute_query($query, [$field]);
             $row_2 = $result_2->fetch_assoc();
+
+            $field_x = $row_2["mapx"];
+            $field_y = $row_2["mapy"];
+
+            $url = "window.location.href='sendtroops.php?x=" . $field_x . "&y=" . $field_y . "'";
+
             $kingdom_name = $row_2["kingdomname"];
             $user_name = $row_2["username"];
             $user_id = $row_2["userid"];
             $user_score = "<img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte' title='Punkte'/>" . fnum($row_2["score"]);
-            $field_x = $row_2["mapx"];
-            $field_y = $row_2["mapy"];
 
-            $query = "
-                    SELECT m.fieldtype, f.fieldname FROM map m
-                    JOIN fieldtypes f ON m.fieldtype = f.fieldid
-                    WHERE mapx = ? AND mapy = ?
-            ";
-            $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
-            $field_name = $result->fetch_assoc()["fieldname"];
+            $query = "SELECT f.fieldname FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
+            $result_3 = $this->mysqli->execute_query($query, [$field_x, $field_y]);
+            $field_name = $result_3->fetch_assoc()["fieldname"];
 
-            if ($result_2->num_rows == 0) {
-                echo show_error_box("Dieses Königreich existiert nicht!");
+            echo '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
+              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                  <tr>
+                      <td class="td-mapinfo"><b>Koordinaten</b></td>
+                      <td>' . $field_x . ':' . $field_y . '</td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Königreich</b></td>
+                      <td>' . $kingdom_name . '</td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Besitzer</b></td>
+                      <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a> ' . $user_score . '</td>
+                  </tr>';
+
+            if ($field != $this->user->get_current_kingdom()) {
+                echo '<tr>
+                    <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                    <td>' . convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y)) . '</td>
+                </tr>';
+            }
+
+            // Buttons
+            if ($user_name != $this->user->get_user_name()) {
+                echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
+                        <button onclick=\"" . $url . "\">Angreifen</button>
+                    </td></tr>";
             } else {
-                echo '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
-                      <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                          <tr>
-                              <td class="td-mapinfo"><b>Koordinaten</b></td>
-                              <td>' . $field_x . ':' . $field_y . '</td>
-                          </tr>
-                          <tr>
-                              <td class="td-mapinfo"><b>Königreich</b></td>
-                              <td>' . $kingdom_name . '</td>
-                          </tr>
-                          <tr>
-                              <td class="td-mapinfo"><b>Besitzer</b></td>
-                              <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a> ' . $user_score . '</td>
-                          </tr>
-
-                      ';
-                if ($kingdom_name == "" || $field != $this->user->get_current_kingdom()) {
-                    echo '<tr>
-                            <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                            <td>' . convert_sec_to_str($this->get_arrival_time($x, $y, $field_x, $field_y)) . '</td>
-                        </tr>';
-                }
-
-                if ($user_name != $this->user->get_user_name()) {
+                if ($field != $this->user->get_current_kingdom()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                <button onclick=\"" . $url . "\">Angreifen</button>
-                            </td>
-                            </tr>";
-                } else {
-                    if ($field != $this->user->get_current_kingdom()) {
-                        echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                                <button onclick=\"" . $url . "\">Truppen stationieren</button>
-                            </td>
-                            </tr>";
-                    }
+                        <button onclick=\"" . $url . "\">Truppen stationieren</button>
+                    </td></tr>";
                 }
             }
+            echo "</table>";
         }
-        echo "</table>";
     }
 
     public function get_arrival_time(int $start_x, int $start_y, int $end_x, int $end_y): int
@@ -206,8 +205,8 @@ class Map
             $current = array_search(min($open_list), $open_list);
             $current = $this->decode($current);
 
-            if ($current['x'] == $end['x'] && $current['y'] == $end['y']) {
-                return $this->reconstruct_path($came_from, $current, $map);
+            if ($current["x"] == $end["x"] && $current["y"] == $end["y"]) {
+                return $this->reconstruct_path($came_from, $current, $map, $start_x, $start_y);
             }
 
             unset($open_list[$this->encode($current)]);
@@ -235,21 +234,19 @@ class Map
 
     private function fetch_map_data(): array
     {
-        $query = "
-            SELECT m.mapx, m.mapy, f.traversaltime
-            FROM map m
-            JOIN fieldtypes f ON m.fieldtype = f.fieldid
-        ";
+        if (isset($_SESSION["cached_map_data"])) {
+            return $_SESSION["cached_map_data"];
+        }
 
+        $query = "SELECT m.mapx, m.mapy, f.traversaltime FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid";
         $result = $this->mysqli->execute_query($query);
         $map = [];
 
         foreach ($result as $row) {
-            $map[$row["mapx"]][$row["mapy"]] = [
-                "traversaltime" => $row["traversaltime"]
-            ];
+            $map[$row["mapx"]][$row["mapy"]] = ["traversaltime" => $row["traversaltime"]];
         }
 
+        $_SESSION["cached_map_data"] = $map;
         return $map;
     }
 
@@ -266,10 +263,10 @@ class Map
     private function decode($encoded): array
     {
         list($x, $y) = explode(',', $encoded);
-        return ['x' => (int)$x, 'y' => (int)$y];
+        return ["x" => (int)$x, "y" => (int)$y];
     }
 
-    private function reconstruct_path($came_from, $current, $map): array
+    private function reconstruct_path($came_from, $current, $map, $start_x, $start_y): array
     {
         $path = [$current];
         $total_time = 0;
@@ -279,13 +276,15 @@ class Map
             $path[] = $current;
         }
 
-        // Add traversal time information to the path
         foreach ($path as &$coord) {
-            $coord["traversalTime"] = $map[$coord["x"]][$coord["y"]]["traversaltime"];
+            if ($coord["x"] == $start_x && $coord["y"] == $start_y) {
+                $coord["traversalTime"] = 0;
+            } else {
+                $coord["traversalTime"] = $map[$coord["x"]][$coord["y"]]["traversaltime"];
+            }
             $total_time += $coord["traversalTime"];
         }
 
-        // Reverse the path to start from the beginning
         $path = array_reverse($path);
 
         return ["path" => $path, "totalTime" => $total_time];
@@ -298,11 +297,11 @@ class Map
         $moves = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 
         foreach ($moves as $move) {
-            $x = $node['x'] + $move[0];
-            $y = $node['y'] + $move[1];
+            $x = $node["x"] + $move[0];
+            $y = $node["y"] + $move[1];
 
             if (isset($map[$x][$y])) {
-                $neighbors[] = ['x' => $x, 'y' => $y];
+                $neighbors[] = ["x" => $x, "y" => $y];
             }
         }
 

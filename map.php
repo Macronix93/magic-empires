@@ -28,13 +28,30 @@ echo "<script type='text/javascript'>
 </script>";
 
 // Map legend
-echo "<div id='map-legend'>
+echo "<div class='map-legend'>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></span> Wüste</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></span> Gebirge</div>
     </div>";
+
+// Search
+echo '<form id="update-map" onsubmit="event.preventDefault(); jumpToCoordinates(document.getElementById(\'startx\').value, document.getElementById(\'starty\').value);">
+        X: <label>
+            <input type="text" id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
+        </label>
+        Y: <label>
+            <input type="text" id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
+        </label>
+        <input type="button" id="send-map-request" value="Anzeigen" onclick="jumpToCoordinates(document.getElementById(\'startx\').value, document.getElementById(\'starty\').value)">
+        <span style="margin-left: 10px; display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;">
+            <input type="checkbox" id="show-path-toggle" style="cursor: pointer; margin: 0;">
+            <label for="show-path-toggle" style="font-size: 15px; cursor: pointer; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
+                Weg anzeigen
+            </label>
+        </span>
+    </form><br>';
 
 // Map Container
 echo '<div id="map-container" style="height: var(--map-viewport-height); overflow: hidden;">';
@@ -54,18 +71,6 @@ echo '<div id="field-info">';
 $map->render_field_info($field_id);
 echo '</div>';
 
-// Search
-echo '<br>
-    <form id="update-map" onsubmit="event.preventDefault(); jumpToCoordinates(document.getElementById(\'startx\').value, document.getElementById(\'starty\').value);">
-        X: <label>
-            <input type="text" id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
-        </label>
-        Y: <label>
-            <input type="text" id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
-        </label>
-        <input type="button" value="Anzeigen" onclick="jumpToCoordinates(document.getElementById(\'startx\').value, document.getElementById(\'starty\').value)">
-    </form>';
-
 $view = ob_get_clean();
 
 /*
@@ -76,4 +81,4 @@ $header = "Landschaft";
 $head_extra = '<meta data-max-map-size=\'{"maxMapSize": ' . MAX_X . '}\' />';
 $script_files = ["map", "userinfo"];
 
-include('layout/base.php');
+include("layout/base.php");

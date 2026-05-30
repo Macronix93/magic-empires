@@ -31,6 +31,9 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
     }
 }
 
+$map = new Map($db_instance, $user);
+
+// --- TROOP OVERVIEW ---
 $query = "
     SELECT st.soldierid AS st_soldierid,
            st.soldiercount AS soldiercount,
@@ -49,11 +52,18 @@ $result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes
 
 if ($result && $result->num_rows > 0) {
     $view .= "<table class='table' style='width: 100%;'>";
+    $view .= "<colgroup>
+                <col style='width: 18%;'> <!-- Art -->
+                <col style='width: 25%;'> <!-- Truppen -->
+                <col style='width: 28%;'> <!-- Koordinaten -->
+                <col style='width: 22%;'> <!-- Ankunft -->
+                <col style='width: 7%;'>  <!-- Button -->
+              </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
             <td class='td-center td-gradient'>Truppen</td>
             <td class='td-center td-gradient'>Koordinaten</td>
-            <td class='td-center td-gradient'>Ankunftszeit</td>
+            <td class='td-center td-gradient' colspan='2'>Ankunftszeit</td>
         </tr>";
 
     $action_type = "Angriff";
@@ -87,26 +97,28 @@ if ($result && $result->num_rows > 0) {
 
     foreach ($grouped_events as $event_id => $event_data) {
         $action_id = $event_data["actionid"];
+        $action_button = "";
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
-        $arrival_time = (new Map($db_instance, $user))->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
+        $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
         $difference_time = max(0, $event_data["arrivaltime"] - time());
         $counter_id = "counter_" . $event_id;
         $my_coords = "<a href='javascript:void(0);' onclick='redirectToMap(\"{$event_data["mapx"]}\", \"{$event_data["mapy"]}\")'>{$event_data["mapx"]}:{$event_data["mapy"]}</a>";
         $target_coords = "<a href='javascript:void(0);' onclick='redirectToMap(\"{$event_data["targetx"]}\", \"{$event_data["targety"]}\")'>{$event_data["targetx"]}:{$event_data["targety"]}</a>";
         $coords_str = "$my_coords → $target_coords";
 
-        $action_button = "<b><span id='$counter_id'></span></b><br>
+        $action_counter = "<b><span id='$counter_id'></span></b><br>
             <script type='text/javascript'>
                 document.addEventListener('DOMContentLoaded', function () {
                     let diff = $difference_time;
                     startCountdown('$counter_id', diff || 0);
                 });
             </script>";
+
         if ($action_id != ActionTypes::ACTION_RETURN_TROOPS) {
-            $action_button .= "<form action='index.php' method='GET'>
+            $action_button = "<form action='index.php' method='GET'>
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>
-                                    <input type='submit' value='Abbruch' style='margin-top: 5px;'>
+                                    <input type='submit' value='' style='margin-top: 5px;' class='btn-delete'>
                                 </form>";
         }
 
@@ -131,14 +143,82 @@ if ($result && $result->num_rows > 0) {
         $view .= "<tr>
                 <td class='td-center'>$action_type</td>
                 <td class='td-center'>$soldiers_str</td>
-                <td class='td-center' style='width: 20%'>$coords_str</td>
-                <td class='td-center'>$action_button</td>
-            </tr>";
+                <td class='td-center'>$coords_str</td>";
+
+        if ($action_button !== "") {
+            // Normalfall: Counter und Button nebeneinander
+            $view .= "<td class='td-center'>$action_counter</td>";
+            $view .= "<td class='td-center'>$action_button</td>";
+        } else {
+            // Spezialfall: Kein Button -> Counter nimmt den Platz ein (colspan 2)
+            $view .= "<td class='td-center' colspan='2'>$action_counter</td>";
+        }
+
+        $view .= "</tr>";
     }
 
     $view .= "</table>";
 } else {
     $view .= "Derzeit sind keine Truppen unterwegs.";
+}
+
+// --- MARKETPLACE AND TRANSPORTS OVERVIEW ---
+$view .= '<div class="title-border" style="margin-top: 30px;">Warenlieferungen</div>';
+
+$query_trades = "
+    SELECT e.*, k.kingdomname, k.mapx, k.mapy 
+    FROM events e 
+    JOIN kingdoms k ON e.kingdomid = k.id 
+    WHERE e.userid = ? AND e.actionid = ?
+    ORDER BY e.arrivaltime
+";
+$result_trades = $db_instance->execute_query($query_trades, [$user->get_user_id(), ActionTypes::ACTION_RECEIVE_RESOURCES]);
+
+if ($result_trades && $result_trades->num_rows > 0) {
+    $view .= "<table class='table' style='width: 100%;'>";
+    $view .= "<colgroup>
+                <col style='width: 20%;'> <!-- Art -->
+                <col style='width: 25%;'> <!-- Ressourcen -->
+                <col style='width: 25%;'> <!-- Ziel -->
+                <col style='width: 30%;'> <!-- Ankunft -->
+              </colgroup>";
+    $view .= "<tr>
+            <td class='td-center td-gradient'>Art</td>
+            <td class='td-center td-gradient'>Ressourcen</td>
+            <td class='td-center td-gradient'>Ziel</td>
+            <td class='td-center td-gradient'>Ankunft</td>
+        </tr>";
+
+    foreach ($result_trades as $row) {
+        $event_id = $row["eventid"];
+        $res_type = $row["buildingid"];
+        $amount = $row["buildinglevel"];
+        $target_name = $row["kingdomname"];
+        $target_coords = "{$row["mapx"]}:{$row["mapy"]}";
+
+        $arrival_diff = max(0, $row["arrivaltime"] - time());
+        $counter_id = "trade_counter_" . $event_id;
+
+        $view .= "<tr>
+                <td class='td-center'>{$row["buildingname"]}</td>
+                <td class='td-center'>" . get_resource_icon($res_type) . " " . fnum($amount) . "</td>
+                <td class='td-center'>
+                    $target_name
+                    <a href='javascript:void(0);' onclick='redirectToMap(\"{$row["mapx"]}\", \"{$row["mapy"]}\")'>($target_coords)</a>
+                </td>
+                <td class='td-center'>
+                    <b><span id='$counter_id'></span></b>
+                    <script type='text/javascript'>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            startCountdown('$counter_id', $arrival_diff);
+                        });
+                    </script>
+                </td>
+            </tr>";
+    }
+    $view .= "</table>";
+} else {
+    $view .= "Derzeit sind keine Warenlieferungen unterwegs.";
 }
 
 // Get some user data to show...
@@ -154,8 +234,8 @@ $time_diff = time() - $_SESSION["currlogin"];
 $kingdom = new Kingdom($db_instance, $main_kingdom);
 
 $view .= "<div class='title-border' style='margin-top: 30px;'>Allgemeine Daten</div>";
-$view .= "<table class='table' style='margin-top: 10px; width: max-content'>";
-$view .= "<tr><td>Login-Zeit:</td><td><span id='counter'></span></td></tr>";
+$view .= "<table class='table' style='max-width: 450px;'>";
+$view .= "<tr><td style='width: 170px;'>Login-Zeit:</td><td><span id='counter'></span></td></tr>";
 $view .= "<tr><td>IP-Adresse:</td><td>" . $_SERVER["REMOTE_ADDR"] . "</td></tr>";
 //$view .= "<tr><td>Stored IP Adress:</td><td>" . $ip . "</td></tr>";
 $view .= "<tr><td>Haupt-Königreich:</td><td>" . $kingdom->get_kingdom_name() . " (" . $kingdom->get_kingdom_map_x() . ":" . $kingdom->get_kingdom_map_y() . ")</td></tr>";
@@ -215,4 +295,4 @@ $view .= "
     </script>
 ";
 
-include('layout/base.php');
+include("layout/base.php");

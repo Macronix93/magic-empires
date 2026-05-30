@@ -115,7 +115,7 @@ if (!empty($last_recruited_soldier)) {
 }
 $view .= '<table class="table">
                         <colgroup>
-                            <col style="width: 60px;">
+                            <col style="width: 40px;">
                             <col style="width: auto;">
                             <col style="width: 180px;">
                         </colgroup>
@@ -170,10 +170,10 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                           <script type='text/javascript'>
                                 document.addEventListener('DOMContentLoaded', function () {
                                       let diff = $remaining_time_in_seconds;
-                                      startCountdown(undefined, diff || 0);
+                                      startCountdown(undefined, diff || 0, 0, 'cancel-form');
                                 });
                           </script>
-                          <form action='barracks.php' method='GET'>
+                          <form id='cancel-form' action='barracks.php' method='GET'>
                             <input type='hidden' name='recruit' value='" . $i . "'>
                             <input type='hidden' name='count' value='cancel'>
                             <input type='submit' value='Abbruch' style='margin-top: 5px;'>
@@ -215,16 +215,18 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                 " . $soldiers[$i]->get_soldier_description() . "
                             </div> (" . $kingdom_soldiers[$i] . ")
                         </b>
-                        <div id='map-legend' style='justify-content: left; margin-top: 10px;'>
+                        <div class='map-legend' style='justify-content: left; margin-top: 10px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " " . $text_villager . "</div>
                         </div>
-                        <div id='map-legend' style='justify-content: left;'>
+                        <div class='map-legend' style='justify-content: left;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . $soldiers[$i]->get_soldier_attack() . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . $soldiers[$i]->get_soldier_defense() . "</div>
                         </div>
-                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "
+                        <div class='map-legend' style='justify-content: left;'>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($soldiers[$i]->get_soldier_time()) . "</div>
+                        </div>
                     </td>
                     <td class='td-center'>$text_build</td>
               </tr>";
@@ -242,4 +244,4 @@ if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

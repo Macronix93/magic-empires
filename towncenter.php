@@ -184,14 +184,14 @@ if ($count_maxed_buildings === $building_count) {
 
                         $difference_time = $row["buildingtime"] - time();
 
-                        $text_build = "<b><span id='counter'></b><br>
+                        $text_build = "Bauzeit:<br><b><span id='counter'></b><br>
                                       <script type='text/javascript'>
                                             document.addEventListener('DOMContentLoaded', function () {
                                                   let diff = $difference_time;
-                                                  startCountdown(undefined, diff || 0);
+                                                  startCountdown(undefined, diff || 0, 0, 'cancel-form');
                                             });
                                       </script>
-                                      <form action='towncenter.php' method='GET'>
+                                      <form id='cancel-form' action='towncenter.php' method='GET'>
                                         <input type='hidden' name='action' value='cancel'>
                                         <input type='hidden' name='bid' value='" . $i . "'>
                                         <input type='submit' value='Abbruch' style='margin-top: 5px;'>
@@ -212,14 +212,15 @@ if ($count_maxed_buildings === $building_count) {
                     <td class='td-center'>" . $buildings[$i]->get_building_icon() . "</td>
                     <td>
                         <b>" . $buildings[$i]->get_building_name() . " ($level)</b>
-                        <div id='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                        <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
                         </div>
-                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " 
-                        " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "
+                        <div class='map-legend' style='justify-content: left;'>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "</div>
+                        </div>
                     </td>
                     <td class='td-center'>" . $text_build . "</td>
                 </tr>";
@@ -240,4 +241,4 @@ if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

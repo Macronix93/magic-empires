@@ -20,7 +20,7 @@ html {
     text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
     font-family: 'Georgia', 'Times New Roman', serif;
     width: 100vw;
-    hyphens: auto;
+    hyphens: none;
 }
 
 body {
@@ -44,6 +44,50 @@ body::before {
     background-size: 100% 100%;
     background-position: center center;
     background-repeat: no-repeat;
+}
+
+.rank-number {
+    display: inline-block;
+    width: 50px;
+    text-align: right;
+    padding-right: 5px;
+}
+
+.pagination-container {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.pagination-bar {
+    display: inline-flex;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.page-link {
+    display: inline-block;
+    padding: 6px 12px;
+    min-width: 35px;
+    color: #ccc;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+    transition: all 0.2s;
+    font-weight: bold;
+}
+
+.page-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+.page-link.active {
+    background: var(--link-color);
+    color: white;
+    cursor: default;
 }
 
 input,
@@ -114,11 +158,13 @@ hr {
 #messages-section {
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 500px);
+    max-height: calc(100vh - 680px);
     overflow-x: hidden;
     word-break: break-word;
     padding: 10px;
     text-align: center;
+    border: 2px ridge var(--border-gold);
+    background-color: rgba(3, 2, 1, 0.2);
 }
 
 #messages-section-loading {
@@ -270,7 +316,7 @@ footer {
     width: 100%;
     display: flex;
     align-items: center;
-    height: 120px;
+    height: 308px;
     transition: height 0.5s ease;
 }
 
@@ -376,6 +422,25 @@ textarea:focus,
 input[type=password]:focus {
     outline: none;
     border-color: var(--link-color);
+}
+
+input.btn-delete,
+input.btn-accept {
+    width: 32px;
+    height: 32px;
+    background-size: 70% !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+}
+
+input.btn-delete {
+    background-color: #a62121 !important;
+    background-image: url("images/icons/icon_error.png") !important;
+}
+
+input.btn-accept {
+    background-color: #15803b !important;
+    background-image: url("images/icons/icon_checked.png") !important;
 }
 
 input[type=submit],
@@ -514,11 +579,12 @@ select:-webkit-autofill {
 }
 
 .big-box-header {
+    height: 50px;
     border-bottom: 2px solid var(--border-gold);
+    box-shadow: 0 4px 4px -4px black;
     text-align: center;
     margin: 10px 20px 10px 20px;
     font-size: 32px;
-    height: 50px;
     color: var(--link-color);
     font-variant: small-caps;
 }
@@ -682,6 +748,9 @@ tr:first-child .td-center {
     margin: 0 auto 15px auto;
     padding: 0 10px;
     min-height: 40px;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .info-box img {
@@ -690,8 +759,13 @@ tr:first-child .td-center {
 }
 
 .info-box span {
+    white-space: normal;
     flex: 1;
     text-align: center;
+    min-width: 0;
+    max-width: 650px;
+    margin: 0 auto;
+    padding: 5px 10px;
 }
 
 .info-box .weighted {
@@ -809,7 +883,7 @@ tr:first-child .td-center {
 
 .map-viewport {
     width: 100%;
-    height: var(--map-viewport-height);
+    height: 100%;
     overflow: hidden;
     cursor: grab;
     position: relative;
@@ -847,7 +921,9 @@ tr:first-child .td-center {
     top: 0;
     left: 0;
     visibility: hidden;
-    will-change: left, top;
+    will-change: transform;
+    transform-origin: 0 0;
+    backface-visibility: hidden;
 }
 
 .map-tile {
@@ -870,6 +946,12 @@ tr:first-child .td-center {
 
 .map-tile.highlight {
     outline: 3px solid #f62222;
+    outline-offset: -3px;
+    z-index: 10;
+}
+
+.path-highlight {
+    outline: 3px dashed rgba(246, 34, 34, 0.7);
     outline-offset: -3px;
     z-index: 10;
 }
@@ -897,14 +979,8 @@ tr:first-child .td-center {
 
 .legend-inner-item {
     border: 1px solid rgb(0, 0, 0);
-    width: 32px;
-    height: 32px;
-}
-
-.map-arrows {
-    width: 24px;
-    height: 24px;
-    margin: 5px;
+    width: 20px;
+    height: 20px;
 }
 
 .cell-container {
@@ -917,7 +993,7 @@ tr:first-child .td-center {
     height: 100%;
 }
 
-#map-legend {
+.map-legend {
     padding-bottom: 5px;
     display: flex;
     justify-content: center;
@@ -981,12 +1057,6 @@ tr:first-child .td-center {
     position: relative;
     display: block;
     margin: auto;
-}
-
-.map-legend {
-    width: 32px;
-    border: 1px solid rgb(0, 0, 0);
-    vertical-align: middle;
 }
 
 .highlight {
@@ -1076,6 +1146,35 @@ tr:first-child .td-center {
     overflow: auto;
 }
 
+.td-shrink {
+    width: 10%;
+    white-space: nowrap;
+    padding-right: 20px;
+}
+
+.td-expand {
+    width: auto;
+}
+
+.td-score {
+    width: 25%;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.td-expand .image-and-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.td-expand .image-and-user a {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+
 /* Smartphone Ansicht */
 @media screen and (max-width: 600px) {
     :root {
@@ -1099,7 +1198,7 @@ tr:first-child .td-center {
     }
 
     .header {
-        height: 70px;
+        height: 120px;
     }
 
     .ressource-icons,
@@ -1110,7 +1209,9 @@ tr:first-child .td-center {
         height: 20px;
     }
 
-    input, textarea, button {
+    input,
+    textarea,
+    button {
         font-size: 14px;
     }
 
@@ -1128,7 +1229,7 @@ tr:first-child .td-center {
     }
 
     td {
-        font-size: 16px;
+        font-size: 13px;
     }
 
     .table tr:first-child td {
@@ -1150,20 +1251,22 @@ tr:first-child .td-center {
     }
 
     #messages-section {
-        max-height: calc(100vh - 370px);
-    }
-
-    .map-arrows {
-        width: 20px;
-        height: 20px;
-        margin: 3px;
-    }
-
-    #map-legend {
-        justify-content: space-evenly;
+        max-height: calc(100vh - 400px);
+        font-size: 13px;
     }
 
     .legend-inner-item {
+        width: 16px;
+        height: 16px;
+    }
+
+    .image-and-user img {
+        width: 22px;
+        height: 22px;
+    }
+
+    input.btn-delete,
+    input.btn-accept {
         width: 24px;
         height: 24px;
     }

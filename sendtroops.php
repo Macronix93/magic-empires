@@ -24,6 +24,8 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
     if ($already_sent > 0) {
         $error = "Du hast bereits Truppen zu diesen Koordinaten geschickt!";
+
+        change_location("map.php?startx=$target_x&starty=$target_y", 3);
     } else {
         // Get soldier data
         $soldiers = [];
@@ -131,6 +133,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 WHERE k.mapx = ? AND k.mapy = ?",
             [$target_x, $target_y]);
         $row3 = $result3->fetch_assoc();
+
         if ($row3) {
             $score = $row3["score"];
             $enemy_user_id = $row3["userid"];
@@ -138,11 +141,13 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
         if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
             $error = "Das ist dein aktuelles Königreich!";
+
+            change_location("map.php?startx=$target_x&starty=$target_y", 3);
         } else {
             if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score) && $enemy_user_id != -1) {
-                $view .= show_error_box("Dieser Spieler steht unter Noob-Schutz!");
+                $view .= show_error_box("Euer Punktestand ist zu unterschiedlich (Noob-Schutz)!");
 
-                change_location("map.php?startx=$target_x&starty=$target_y", 2);
+                change_location("map.php?startx=$target_x&starty=$target_y", 3);
             } else {
                 if ($row) {
                     // Noob protection message
@@ -239,4 +244,4 @@ if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
-include('layout/base.php');
+include("layout/base.php");

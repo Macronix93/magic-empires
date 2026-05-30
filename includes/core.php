@@ -13,10 +13,17 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+if (str_contains($_SERVER["HTTP_HOST"], "localhost") || str_contains($_SERVER["HTTP_HOST"], "127.0.0.1")) {
+    define("BASE_URL", "/magic-empires/");
+} else {
+    define("BASE_URL", '/');
+}
+
 /*
     Constants (defines)
 */
 const MAINTENANCE_MODE = false;
+const MAX_ROWS_PER_RANKING_PAGE = 10;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MAX_CONQUEST_CHANCE = 0.9;
 const MIN_CONQUEST_CHANCE = 0.01;
@@ -29,7 +36,6 @@ const MIN_PASSWORD_LENGTH = 5;
 const MAX_PASSWORD_LENGTH = 65;
 const MAX_X = 100;
 const MAX_Y = 100;
-const ACTION_TRADING = 5;
 const MAX_BUILDING_LEVEL = 10;
 const DEFAULT_WALL_HP = 100;
 const MIN_WALL_DEFENSE = 1;
@@ -43,6 +49,7 @@ const MAX_MESSAGE_LENGTH = 400;
 const MAX_LINE_BREAK_COUNT = 10;
 const MESSAGES_RATE_INTERVAL = 60;
 const MAX_MESSAGES_RATELIMIT = 10;
+const SHOW_MESSAGES_LIMIT = 50;
 const INACTIVITY_DELAY = 864000;
 const STARTING_FOOD = 2000;
 const STARTING_WOOD = 2000;
@@ -65,6 +72,11 @@ const RESEARCH_STONE_INC = 7;
 const RESEARCH_GOLD_INC = 5;
 const RESEARCH_STORAGE_INC = 10000;
 const RESEARCH_WALL_HP_INC = 100;
+const MARKET_BASE_FEE = 1;
+const MARKET_FEE_MULTIPLIER_FOOD = 0.0001;
+const MARKET_FEE_MULTIPLIER_WOOD = 0.0002;
+const MARKET_FEE_MULTIPLIER_STONE = 0.0005;
+const MARKET_FEE_MULTIPLIER_GOLD = 0.001;
 
 
 /*
@@ -105,6 +117,7 @@ interface ResourceTypes
     const int RESOURCE_TYPE_DEFENSE = 7;
     const int RESOURCE_TYPE_RECRUIT_TIME = 8;
     const int RESOURCE_TYPE_HEALTH = 9;
+    const int RESOURCE_TYPE_COINS = 10;
 }
 
 interface ActionTypes
@@ -114,6 +127,7 @@ interface ActionTypes
     const int ACTION_SEND_TROOPS = 2;
     const int ACTION_RETURN_TROOPS = 3;
     const int ACTION_RESEARCH_TECH = 4;
+    const int ACTION_RECEIVE_RESOURCES = 5;
 }
 
 interface TechTypes
@@ -165,6 +179,7 @@ function get_resource_icon(int $resource_type): string
         ResourceTypes::RESOURCE_TYPE_DEFENSE => "<img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung' title='Verteidigung'/>",
         ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME => "<img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/>",
         ResourceTypes::RESOURCE_TYPE_HEALTH => "<img src='images/icons/icon_health.png' class='ressource-icons' alt='Lebenspunkte' title='Lebenspunkte'/>",
+        ResourceTypes::RESOURCE_TYPE_COINS => "<img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen' title='Münzen'/>",
         default => 0,
     };
 }
@@ -222,23 +237,23 @@ function convert_sec_to_str(int $secs): string
     if ($secs >= 86400) {
         $days = floor($secs / 86400);
         $secs = $secs % 86400;
-        $output .= $days . "d ";
+        $output .= $days . "T ";
     }
 
     if ($secs >= 3600) {
         $hours = floor($secs / 3600);
         $secs = $secs % 3600;
-        $output .= $hours . "h ";
+        $output .= $hours . " Std. ";
     }
 
     if ($secs >= 60) {
         $minutes = floor($secs / 60);
         $secs = $secs % 60;
-        $output .= $minutes . "m ";
+        $output .= $minutes . " Min. ";
     }
 
     if ($secs > 0) {
-        $output .= $secs . "s";
+        $output .= $secs . " Sek.";
     }
 
     return trim($output);
@@ -246,8 +261,7 @@ function convert_sec_to_str(int $secs): string
 
 function change_location(string $url, int $seconds = 0): void
 {
-    $root_url = "/magic-empires/";
-    $full_url = rtrim($root_url, "/") . "/" . ltrim($url, "/");
+    $full_url = rtrim(BASE_URL, "/") . "/" . ltrim($url, "/");
 
     if ($seconds === 0) {
         header("Location: $full_url");
@@ -422,9 +436,14 @@ if ($user->is_logged_in()) {
             change_location("login.php?logout=session");
         }
     } else {
-        // update last activity timestamp, if not logging out
-        if ($timestamp - $_SESSION["lastactivity"] > USER_UPDATE_TICK && !(isset($_GET["logout"]) && $_GET["logout"] === "inactive")) {
+        if (!isset($_SESSION["last_db_update"])) {
+            $_SESSION["last_db_update"] = 0;
+        }
+
+        if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
             $db_instance->execute_query("UPDATE users SET lastactivity = $timestamp WHERE id = ?", [$user->get_user_id()]);
+
+            $_SESSION["last_db_update"] = $timestamp;
         }
 
         $_SESSION["lastactivity"] = $timestamp;
@@ -490,4 +509,19 @@ function send_server_message(int $user_id, string $user_name, string $message, s
 function get_resource_text(int $cost, int $current_val): string
 {
     return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
+}
+
+function calculate_market_fee($resource_type, $amount)
+{
+    $multipliers = [
+        ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
+        ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,
+        ResourceTypes::RESOURCE_TYPE_STONE => MARKET_FEE_MULTIPLIER_STONE,
+        ResourceTypes::RESOURCE_TYPE_GOLD => MARKET_FEE_MULTIPLIER_GOLD
+    ];
+
+    $factor = $multipliers[$resource_type] ?? 0.0001;
+    $variable_fee = floor($amount * $factor);
+
+    return MARKET_BASE_FEE + $variable_fee;
 }

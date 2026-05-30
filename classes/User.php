@@ -23,7 +23,7 @@ class User
         $activation_key = md5($email . $name);
 
         // Create activation link to activate account
-        $actual_link = "https://$_SERVER[HTTP_HOST]/magic-empires/" . "login.php?key=" . $activation_key;
+        $actual_link = "https://$_SERVER[HTTP_HOST]" . BASE_URL . "login.php?key=" . $activation_key;
 
         $receiver = $email;
         $subject = 'Magic-Empires - Registration';
@@ -33,12 +33,24 @@ class User
             'X-Mailer: PHP/' . phpversion();
 
         if (mail($receiver, $subject, $message, $header)) {
-            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
+            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) 
+                                                VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
                 [$name, $password, $activation_key, $email, session_id()]);
 
+            // RETURNING
+//            if ($result && $row = $result->fetch_assoc()) {
+//                $new_user_id = $row['id'];
+//                $exact_register_date = $row['registerdate'];
+//
+//                echo "new user id: " . $new_user_id . "<br>exact registered date: " . $exact_register_date;
+//            }
+
+            unset($_POST);
             unset($_SESSION["captcha_passed"]);
 
-            $this->reg_status = "Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.<br>";
+            $this->reg_status = show_passed_box("Du hast dich erfolgreich registriert!<br>Ein Aktivierungslink wurde an deine E-Mail gesendet.");
+        } else {
+            $this->reg_status = show_error_box("Mail konnte nicht gesendet werden!");
         }
     }
 
@@ -281,9 +293,9 @@ class User
                     break;
                 case ActionTypes::ACTION_SEND_TROOPS:
                     $map = new Map($this->mysqli, $this);
-                    $kingdom = new Kingdom($this->mysqli, $this->get_current_kingdom());
-                    $my_kingdom_x = $kingdom->get_kingdom_map_x();
-                    $my_kingdom_y = $kingdom->get_kingdom_map_y();
+                    $home_kingdom = new Kingdom($this->mysqli, $kingdom_id);
+                    $my_kingdom_x = $home_kingdom->get_kingdom_map_x();
+                    $my_kingdom_y = $home_kingdom->get_kingdom_map_y();
 
                     if ($arrival_time < time()) {
                         $message = "";
@@ -603,7 +615,37 @@ class User
                         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
                     }
                     break;
-                case ACTION_TRADING:
+                case ActionTypes::ACTION_RECEIVE_RESOURCES:
+                    if ($arrival_time < time()) {
+                        $target_kingdom = new Kingdom($this->mysqli, $kingdom_id);
+
+                        // buildingid = Resource type, buildinglevel = Resource amount
+                        $res_type = $building_id;
+                        $res_amount = $building_level;
+
+                        switch ($res_type) {
+                            case ResourceTypes::RESOURCE_TYPE_FOOD:
+                                $target_kingdom->give_kingdom_food($res_amount);
+                                break;
+                            case ResourceTypes::RESOURCE_TYPE_WOOD:
+                                $target_kingdom->give_kingdom_wood($res_amount);
+                                break;
+                            case ResourceTypes::RESOURCE_TYPE_STONE:
+                                $target_kingdom->give_kingdom_stone($res_amount);
+                                break;
+                            case ResourceTypes::RESOURCE_TYPE_GOLD:
+                                $target_kingdom->give_kingdom_gold($res_amount);
+                                break;
+                        }
+
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+
+                        $msg = "Eine Warenlieferung ist in deinem Königreich \"" . $target_kingdom->get_kingdom_name() . "\" 
+                                ({$target_kingdom->get_kingdom_map_x()}:{$target_kingdom->get_kingdom_map_y()}) angekommen:<br><br>" .
+                            get_resource_icon($res_type) . " " . fnum($res_amount);
+
+                        send_server_message($this->user_id, $this->user_name, $msg, MessageCategories::CATEGORY_TRADE);
+                    }
                     break;
             }
         }
@@ -779,6 +821,11 @@ class User
     {
         $result = $this->mysqli->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$this->user_id]);
         return $result->fetch_assoc()["mainkingdom"];
+    }
+
+    public function give_user_coins(int $coins): void
+    {
+        $this->mysqli->execute_query("UPDATE users SET coins = coins + ? WHERE id = ?", [$coins, $this->user_id]);
     }
 
     public function get_user_coins(): int

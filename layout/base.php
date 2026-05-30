@@ -22,7 +22,7 @@
 </head>
 <body>
 <div class="header img">
-    <img src="images/header3.png" alt="Header"/>
+    <img src="images/header_test.png" alt="Header"/>
 </div>
 <div class="content-box">
     <div class="left-container">

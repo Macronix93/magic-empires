@@ -63,4 +63,4 @@ $title = "War Simulator";
 $header = "War Simulator";
 $script_files = ["warsim"];
 
-include('layout/base.php');
+include("layout/base.php");

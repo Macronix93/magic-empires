@@ -98,4 +98,4 @@ $view .= '<form action="settings.php" method="POST" enctype="multipart/form-data
             <input type="submit" name="submit" value="Hochladen">
         </form>';
 
-include('layout/base.php');
+include("layout/base.php");
