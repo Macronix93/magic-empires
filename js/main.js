@@ -87,21 +87,54 @@ function adjustUsernameDisplay() {
 }
 
 function updateServerTime(initialSeconds) {
+    // 1. Berechne beim Seitenstart einmalig die Sekunden bis zur nächsten vollen Stunde
+    const now = new Date(initialSeconds * 1000);
+    const startMinutes = now.getMinutes();
+    const startSeconds = now.getSeconds();
+
+    // Wie viele Sekunden verbleiben in dieser aktuellen Stunde?
+    let secondsUntilFull = 3600 - ((startMinutes * 60) + startSeconds);
+
     function updateDisplay() {
-        let serverTimeElements = document.getElementsByClassName("servertime");
+        const serverTimeElements = document.getElementsByClassName("servertime");
+        const tickTimers = document.getElementsByClassName("tick-timer");
+        const tickFills = document.getElementsByClassName("tick-progress-fill");
 
-        // Iterate through each "servertime" element
+        const currentTime = new Date(initialSeconds * 1000);
+        const timeString = currentTime.toTimeString().split(' ')[0];
+
         for (let i = 0; i < serverTimeElements.length; i++) {
-            /** @type {HTMLElement} */
-            const serverTime = serverTimeElements[i];
-
-            if (serverTime.offsetParent !== null) {
-                const currentTime = new Date(initialSeconds * 1000);
-                serverTime.innerHTML = " " + currentTime.toTimeString().split(' ')[0];
+            if (serverTimeElements[i].offsetParent !== null || true) {
+                serverTimeElements[i].innerHTML = " " + timeString;
             }
         }
 
-        // Update every second
+        let displayTime, percent;
+
+        if (secondsUntilFull > 0) {
+            const displayMin = Math.floor(secondsUntilFull / 60);
+            const displaySec = secondsUntilFull % 60;
+            displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
+
+            const currentMinutes = currentTime.getMinutes();
+            const currentSeconds = currentTime.getSeconds();
+            const currentPassed = (currentMinutes * 60) + currentSeconds;
+            percent = (currentPassed / 3600) * 100;
+
+            secondsUntilFull--;
+        } else {
+            displayTime = "00:00";
+            percent = 100;
+        }
+
+        for (let i = 0; i < tickTimers.length; i++) {
+            tickTimers[i].innerText = displayTime;
+        }
+
+        for (let i = 0; i < tickFills.length; i++) {
+            tickFills[i].style.width = percent + "%";
+        }
+
         setTimeout(() => {
             initialSeconds++;
             updateDisplay();
@@ -109,6 +142,23 @@ function updateServerTime(initialSeconds) {
     }
 
     updateDisplay();
+}
+
+function switchKingdom(direction) {
+    const select = document.getElementById("choosekingdom");
+    if (!select) return;
+
+    let newIndex = select.selectedIndex + direction;
+
+    if (newIndex < 0) {
+        newIndex = select.options.length - 1;
+    } else if (newIndex >= select.options.length) {
+        newIndex = 0;
+    }
+
+    select.selectedIndex = newIndex;
+
+    updateKingdom(select);
 }
 
 function updateKingdom(selectElement) {
@@ -221,3 +271,11 @@ window.addEventListener("DOMContentLoaded", function () {
     setup();
     adjustUsernameDisplay();
 });
+
+function selectUser(id) {
+    const form = document.forms["newmessage"];
+
+    if (form) {
+        form.receiver.value = id;
+    }
+}

@@ -49,9 +49,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $receiver = $result->fetch_assoc()["username"];
 
             // Insert message into the database
-            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?)";
-            $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $current_time, $message]);
-            $message_id = $db_instance->insert_id;
+            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?) RETURNING id;";
+            $result = $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $current_time, $message]);
+
+            $row = $result->fetch_assoc();
+            $message_id = $row["id"];
 
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>

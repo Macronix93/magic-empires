@@ -22,7 +22,7 @@ function formatTime(totalSeconds) {
 }
 
 function startCountdown(counterID = "counter", initialSeconds, timerType = 0, hideID = null,
-                        keepParams = false) {
+                        keepParams = false, noReload = false) {
     let seconds = parseInt(initialSeconds);
 
     if (activeCountdowns[counterID]) {
@@ -42,7 +42,7 @@ function startCountdown(counterID = "counter", initialSeconds, timerType = 0, hi
             delete activeCountdowns[counterID + "_seconds"];
             return;
         }
-        
+
         activeCountdowns[counterID + "_seconds"] = seconds;
 
         counterElement.innerHTML = formatTime(seconds);
@@ -61,13 +61,15 @@ function startCountdown(counterID = "counter", initialSeconds, timerType = 0, hi
                 if (elementToHide) elementToHide.style.display = 'none';
             }
 
-            setTimeout(() => {
-                if (keepParams) {
-                    location.reload();
-                } else {
-                    window.location.href = window.location.pathname;
-                }
-            }, 1000);
+            if (!noReload) {
+                setTimeout(() => {
+                    if (keepParams) {
+                        location.reload();
+                    } else {
+                        window.location.href = window.location.pathname;
+                    }
+                }, 1000);
+            }
         } else {
             seconds--;
         }

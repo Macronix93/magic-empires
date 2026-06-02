@@ -34,7 +34,7 @@ if ($building_id != null) {
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>{$row["buildingname"]}</div>";
         $view .= "<div class='big-box-content'>
-                <table class='table'>
+                <table class='table' style='width: 100%;'>
                 <tr>
                     <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>
                     <td class='td-center td-gradient'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . "</td>
@@ -92,7 +92,7 @@ if ($building_id != null) {
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>{$row["techname"]}</div>";
         $view .= "<div class='big-box-content'>
-                <table class='table'>
+                <table class='table' style='width: 100%;'>
                 <tr>
                     <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>
                     <td class='td-center td-gradient'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . "</td>
@@ -138,7 +138,7 @@ echo $view;
 ?>
 <br>
 <div style="text-align:center">
-    <a href="javascript:window.close()"
+    <a href="#" onclick="closeOverlay()"
        style="background-color: rgba(0, 0, 0, 0.7); display: inline-block; padding: 10px;">[Schließen]</a>
 </div>
 </body>

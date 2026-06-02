@@ -39,6 +39,66 @@ class Map
         }
     }
 
+    // In classes/Map.php
+
+    public function render_minimap(int $target_x, int $target_y, int $radius = 6): string
+    {
+        $min_x = max(1, $target_x - $radius);
+        $max_x = min(MAX_X, $target_x + $radius);
+        $min_y = max(1, $target_y - $radius);
+        $max_y = min(MAX_Y, $target_y + $radius);
+
+        $query = "SELECT m.mapx, m.mapy, m.fieldtype, m.kingdomid, IFNULL(b.buildinglevel, 1) AS buildinglevel 
+              FROM map m 
+              LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = 0
+              WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?
+              ORDER BY m.mapy, m.mapx";
+
+        $result = $this->mysqli->execute_query($query, [$min_x, $max_x, $min_y, $max_y]);
+
+        $tiles = [];
+        foreach ($result as $row) {
+            $tiles[$row["mapy"]][$row["mapx"]] = $row;
+        }
+
+        $num_cols = ($max_x - $min_x) + 1;
+
+        $html = "<div class='minimap-container' style='grid-template-columns: 25px repeat($num_cols, 1fr);'>";
+
+        for ($y = $min_y; $y <= $max_y; $y++) {
+            $html .= "<div class='minimap-label minimap-label-y'>$y</div>";
+
+            for ($x = $min_x; $x <= $max_x; $x++) {
+                $tile = $tiles[$y][$x] ?? null;
+
+                if ($tile) {
+                    $color = $this->get_field_type_color($tile["fieldtype"]);
+                    $is_target = ($x == $target_x && $y == $target_y);
+                    $has_kingdom = ($tile["kingdomid"] != -1);
+
+                    $class = "minimap-tile";
+                    if ($is_target) $class .= " minimap-target";
+
+                    $content = "";
+                    if ($is_target) $content = "⭐";
+                    elseif ($has_kingdom) $content = "🏰";
+
+                    $html .= "<div class='$class' style='background-color: $color;'>$content</div>";
+                } else {
+                    $html .= "<div class='minimap-tile empty'></div>";
+                }
+            }
+        }
+
+        $html .= "<div class='minimap-label minimap-origin'>Y<br>X</div>";
+        for ($x = $min_x; $x <= $max_x; $x++) {
+            $html .= "<div class='minimap-label minimap-label-x'>$x</div>";
+        }
+
+        $html .= "</div>";
+        return $html;
+    }
+
     public function get_field_type_color(int $field_type): string
     {
         return match ($field_type) {
@@ -137,7 +197,7 @@ class Map
                   </tr>
                   <tr>
                       <td class="td-mapinfo"><b>Besitzer</b></td>
-                      <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a> ' . $user_score . '</td>
+                      <td><a href="#" onclick="openOverlay(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a> ' . $user_score . '</td>
                   </tr>';
 
             if ($field != $this->user->get_current_kingdom()) {

@@ -23,7 +23,7 @@ class User
         $activation_key = md5($email . $name);
 
         // Create activation link to activate account
-        $actual_link = "https://$_SERVER[HTTP_HOST]" . BASE_URL . "login.php?key=" . $activation_key;
+        $actual_link = "https://$_SERVER[HTTP_HOST]" . BASE_URL . "index.php?key=" . $activation_key;
 
         $receiver = $email;
         $subject = 'Magic-Empires - Registration';
@@ -75,7 +75,7 @@ class User
         $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ? WHERE id = ?",
             [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $user_id]);
 
-        change_location("index.php");
+        change_location("overview.php");
     }
 
     public function process_user_events(): void
@@ -170,22 +170,17 @@ class User
 
                         switch ($building_id) {
                             case BuildingTypes::BUILDING_WALL:
-                                // Calculate new wall HP
                                 $new_wall_hp = ($building_level + 1) * DEFAULT_WALL_HP;
 
                                 $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$new_wall_hp, $kingdom_id]);
                                 break;
                             case BuildingTypes::BUILDING_STORAGE:
-                                // Update storage values based on buildinglevel
-                                $max_val = MAX_STORAGE_VALUE;
-                                $update_val = (MAX_STORAGE_VALUE - STORAGE_STARTING_VALUE) / (MAX_BUILDING_LEVEL - 1);
+                                $new_level = $building_level + 1;
+                                $storage_bonus = round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $new_level - 1));
+                                $storage_bonus = floor($storage_bonus / 100) * 100;
 
-                                if ($building_level + 1 == MAX_BUILDING_LEVEL) {
-                                    $query = "UPDATE kingdoms SET maxfood = $max_val, maxwood = $max_val, maxstone = $max_val, maxgold = $max_val  WHERE id = ?";
-                                } else {
-                                    $query = "UPDATE kingdoms SET maxfood = maxfood + $update_val, maxwood = maxwood + $update_val, maxstone = maxstone + $update_val, maxgold = maxgold + $update_val  WHERE id = ?";
-                                }
-                                $this->mysqli->execute_query($query, [$kingdom_id]);
+                                $query = "UPDATE kingdoms SET maxfood = maxfood + ?, maxwood = maxwood + ?, maxstone = maxstone + ?, maxgold = maxgold + ? WHERE id = ?";
+                                $this->mysqli->execute_query($query, [$storage_bonus, $storage_bonus, $storage_bonus, $storage_bonus, $kingdom_id]);
                                 break;
                             case BuildingTypes::BUILDING_MILL:
                                 $query = "
@@ -390,7 +385,7 @@ class User
                                 } else {
                                     $message .= "Es hat ein Kampf stattgefunden mit Spieler $enemy_user_name ($enemy_kingdom_name)!
                                          <br>Kampfergebnis:<br><br>";
-                                    $enemy_message .= "Du wurdest vom Spieler {$kingdom->get_kingdom_owner_name()} ({$kingdom->get_kingdom_name()} {$kingdom->get_kingdom_map_x()}:{$kingdom->get_kingdom_map_y()}) angegriffen!
+                                    $enemy_message .= "Du wurdest vom Spieler {$home_kingdom->get_kingdom_owner_name()} ({$home_kingdom->get_kingdom_name()} {$home_kingdom->get_kingdom_map_x()}:{$home_kingdom->get_kingdom_map_y()}) angegriffen!
                                          <br>Kampfergebnis:<br><br>";
 
                                     $conquest->initialize_soldier_types();
@@ -516,7 +511,8 @@ class User
                                                     $this->mysqli->execute_query("UPDATE users SET score = 2 WHERE id = ?", [$enemy_user_id]);
                                                     $this->mysqli->execute_query("DELETE FROM events WHERE userid = ?", [$enemy_user_id]);
 
-                                                    $main_kingdom = $kingdom->create_kingdom($enemy_user_id, $enemy_user_name);
+                                                    $kingdom_helper = new Kingdom($this->mysqli);
+                                                    $main_kingdom = $kingdom_helper->create_kingdom($enemy_user_id, $enemy_user_name);
 
                                                     if ($main_kingdom) {
                                                         // Update mainkingdom in user table
@@ -657,7 +653,7 @@ class User
 
         if ($result->fetch_assoc()["sessionid"] !== session_id()) {
             session_destroy();
-            change_location("login.php?logout");
+            change_location("index.php?logout");
             exit;
         }
     }

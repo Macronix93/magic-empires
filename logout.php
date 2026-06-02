@@ -5,7 +5,7 @@ require_once("includes/core.php");
 check_user_login($user);
 
 // Logout successful
-change_location("login.php", 2);
+change_location("index.php", 2);
 
 echo "<p style='text-align: center'>Du hast dich erfolgreich ausgeloggt!<br><br>Du wirst zum Login weitergeleitet.</p>";
 

@@ -21,6 +21,7 @@ $buildings = $kingdom->fetch_all_kingdom_buildings();
 $building_count = count($buildings);
 $current_building = (empty($_GET["id"]) ? 0 : (int)$_GET["id"]);
 $build_id = (empty($_GET["bid"]) ? 0 : (int)$_GET["bid"]);
+$tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
 if (isset($_GET["action"])) {
     $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
@@ -48,6 +49,12 @@ if (isset($_GET["action"])) {
                     if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
+                        $target_level = $building_level + 1;
+
+                        if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $tc_level) {
+                            $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe $target_level benötigt)";
+                        }
+
                         $building_dependencies = $buildings[$build_id]->get_building_dependencies();
 
                         foreach ($building_dependencies as $dependency) {
@@ -200,18 +207,33 @@ if ($count_maxed_buildings === $building_count) {
                         $text_build = "-";
                     }
                 } else {
-                    $disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold ? "disabled" : "";
+                    $is_tc_limit_reached = ($i != BuildingTypes::BUILDING_TOWNCENTER && ($level + 1) > $tc_level);
+
+                    $restriction_note = "";
+                    if ($is_tc_limit_reached) {
+                        $needed_tc = $level + 1;
+                        $restriction_note = "<br><span class='error' style='font-size: 11px;'>Dorfzentrum Stufe $needed_tc benötigt</span>";
+                    }
+
+                    $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
+                    $is_disabled = ($res_disabled || $is_tc_limit_reached) ? "disabled" : "";
+
                     $text_build = "<form action='towncenter.php' method='GET'>
                                     <input type='hidden' name='action' value='build'>
                                     <input type='hidden' name='bid' value='" . $i . "'>
-                                    <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "' $disabled>
+                                    <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "' $is_disabled>
+                                    $restriction_note
                                   </form>";
                 }
 
                 $view .= "<tr>
                     <td class='td-center'>" . $buildings[$i]->get_building_icon() . "</td>
                     <td>
-                        <b>" . $buildings[$i]->get_building_name() . " ($level)</b>
+                        <b class='popup' id='description" . $i . "'>" . $buildings[$i]->get_building_name() . " (" . $buildings[$i]->get_building_level() . ")
+                            <div id='description" . $i . "_box' class='popupbox'>
+                                " . $buildings[$i]->get_building_description() . "
+                            </div>
+                        </b>
                         <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>

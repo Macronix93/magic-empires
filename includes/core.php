@@ -56,14 +56,14 @@ const STARTING_WOOD = 2000;
 const STARTING_STONE = 2000;
 const STARTING_GOLD = 2000;
 const STORAGE_STARTING_VALUE = 2000;
-const MAX_STORAGE_VALUE = 50000;
+const STORAGE_INC_FACTOR = 1.43;
 const BASE_FOOD_GAIN = 40;
 const BASE_WOOD_GAIN = 40;
 const BASE_STONE_GAIN = 30;
 const BASE_GOLD_GAIN = 20;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
-const UPLOADS_FILE_PATH = 'uploads/';
-const DEFAULT_AVATAR = UPLOADS_FILE_PATH . 'default_avatar.jpg';
+const UPLOADS_FILE_PATH = "uploads/";
+const DEFAULT_AVATAR = UPLOADS_FILE_PATH . "default_avatar.jpg";
 const MAX_UPLOAD_FILE_SIZE = 64; // In KB
 const NOOB_PROTECTION_MULT = 0.5;
 const RESEARCH_FOOD_INC = 10;
@@ -73,10 +73,11 @@ const RESEARCH_GOLD_INC = 5;
 const RESEARCH_STORAGE_INC = 10000;
 const RESEARCH_WALL_HP_INC = 100;
 const MARKET_BASE_FEE = 1;
-const MARKET_FEE_MULTIPLIER_FOOD = 0.0001;
-const MARKET_FEE_MULTIPLIER_WOOD = 0.0002;
-const MARKET_FEE_MULTIPLIER_STONE = 0.0005;
-const MARKET_FEE_MULTIPLIER_GOLD = 0.001;
+const MARKET_FEE_MULTIPLIER_FOOD = 0.001;
+const MARKET_FEE_MULTIPLIER_WOOD = 0.002;
+const MARKET_FEE_MULTIPLIER_STONE = 0.005;
+const MARKET_FEE_MULTIPLIER_GOLD = 0.01;
+const MAX_SOLDIERS_RECRUIT_INPUT = 99;
 
 
 /*
@@ -140,6 +141,14 @@ interface TechTypes
     const int TECH_TYPE_STORAGE_INC = 5;
 }
 
+interface SoldierTypes
+{
+    const int SOLDIER_TYPE_INFANTRY = 0;
+    const int SOLDIER_TYPE_CAVALRY = 1;
+    const int SOLDIER_TYPE_ARCHERS = 2;
+    const int SOLDIER_TYPE_SPECIAL = 3;
+}
+
 /*
  * Interfaces end
  */
@@ -192,7 +201,7 @@ function start_inactivity_check(int $seconds): void
 
             // Inactivity check
             setTimeout(() => {
-                window.location.href = "login.php?logout=inactive";
+                window.location.href = "index.php?logout=inactive";
             }, seconds * 1000);
         </script>';
 }
@@ -432,8 +441,8 @@ if ($user->is_logged_in()) {
 
     // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
     if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
-        if (basename($_SERVER["PHP_SELF"]) !== "login.php") {
-            change_location("login.php?logout=session");
+        if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
+            change_location("index.php?logout=session");
         }
     } else {
         if (!isset($_SESSION["last_db_update"])) {
@@ -460,7 +469,7 @@ if ($user->is_logged_in()) {
 function check_user_login($user): void
 {
     if (!($user->is_logged_in())) {
-        change_location("login.php");
+        change_location("index.php");
         exit;
     }
 }
@@ -473,7 +482,7 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
 {
     // Check if user is logged in
     if (!($user->is_logged_in())) {
-        change_location("login.php");
+        change_location("index.php");
         exit;
     }
 
@@ -511,7 +520,7 @@ function get_resource_text(int $cost, int $current_val): string
     return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
 }
 
-function calculate_market_fee($resource_type, $amount)
+function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand_value): int
 {
     $multipliers = [
         ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
@@ -520,8 +529,13 @@ function calculate_market_fee($resource_type, $amount)
         ResourceTypes::RESOURCE_TYPE_GOLD => MARKET_FEE_MULTIPLIER_GOLD
     ];
 
-    $factor = $multipliers[$resource_type] ?? 0.0001;
-    $variable_fee = floor($amount * $factor);
+    $factor_s = $multipliers[$supply_type] ?? 0.001;
+    $variable_fee_s = floor($supply_value * $factor_s);
 
-    return MARKET_BASE_FEE + $variable_fee;
+    $factor_d = $multipliers[$demand_type] ?? 0.001;
+    $variable_fee_d = floor($demand_value * $factor_d);
+
+    $max_variable = max($variable_fee_s, $variable_fee_d);
+
+    return (int)(MARKET_BASE_FEE + $max_variable);
 }

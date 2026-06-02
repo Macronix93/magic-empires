@@ -2,7 +2,7 @@
 require_once("includes/core.php");
 
 if (!($user->is_logged_in())) {
-    change_location("login.php");
+    change_location("index.php");
     exit;
 }
 
@@ -12,6 +12,7 @@ $dependency_text = "";
 $kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
+$tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
 $view .= '<table class="table">
     <tr>
@@ -25,6 +26,17 @@ for ($i = 0; $i < count($buildings); $i++) {
     $current_building_level = $buildings[$i]->get_building_level();
     $building_dependencies = $buildings[$i]->get_building_dependencies();
     $building_dependencies_count = count($building_dependencies);
+
+//    if ($i != BuildingTypes::BUILDING_TOWNCENTER) {
+//        $factor = $buildings[$i]->get_tc_level_factor();
+//        $needed_tc = ceil(($current_building_level + 1) / $factor);
+//
+//        if ($tc_level < $needed_tc) {
+//            $dependency_text .= " <span class='error'>Dorfzentrum ($needed_tc)</span>";
+//        } else {
+//            $dependency_text .= " <span class='passed'>Dorfzentrum ($needed_tc)</span>";
+//        }
+//    }
 
     if ($building_dependencies_count != 0) {
         foreach ($building_dependencies as $dependency) {
@@ -40,7 +52,7 @@ for ($i = 0; $i < count($buildings); $i++) {
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
                 <td style='width: 30%;'>
-                <a href='javascript:void(0);' onclick='openPopup(\"techinfo.php?bid=" . $i . "\", undefined, 580);'>
+                <a href='#' onclick='openOverlay(\"techinfo.php?bid=" . $i . "\", \"Gebäude-Info\");'>
                 " . $buildings[$i]->get_building_name() . " ($current_building_level)
                 </a>
                 </td>
@@ -93,8 +105,8 @@ for ($i = 0; $i < count($techs); $i++) {
     $view .= "<tr>
                 <td class='td-center' style='width: 5%;'>{$techs[$i]->get_tech_icon()}</td>
                 <td style='width: 30%;'>
-                    <a href='javascript:void(0);' 
-                       onClick='openPopup(\"techinfo.php?tid=$i\", undefined, 580);'>
+                    <a href='#' 
+                       onClick='openOverlay(\"techinfo.php?tid=$i\",  \"Tech-Info\");'>
                         {$techs[$i]->get_tech_name()} ({$current_tech_level})
                     </a>
                 </td>

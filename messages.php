@@ -87,7 +87,7 @@ if (isset($_GET["action"])) {
                                         <label>
                                             <input type='text' name='receiver' maxlength='16' value='$receiver_value'>
                                         </label>
-                                        <button type='button' onclick='openPopup(\"userlist.php\")'>
+                                        <button type='button' onclick='openOverlay(\"userlist.php\")'>
                                             Spielerliste
                                         </button>
                                     </td>
@@ -152,8 +152,8 @@ if (isset($_GET["action"])) {
                     $view .= "<div class='info-box event-error' style='display: none;'></div>";
                     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>Zurück</button>
                             <h3 style='width: 85%; margin: 0;'>
-                                <a href='javascript:void(0);' 
-                                 onclick='openPopup(\"userinfo.php?userid=$sender_id\");' 
+                                <a href='#' 
+                                 onclick='openOverlay(\"userinfo.php?userid=$sender_id\");' 
                                  class='popup'
                                  style='cursor: pointer;'>
                                  $chat_partner

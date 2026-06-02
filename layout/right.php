@@ -10,20 +10,44 @@
         $current_timestamp = time();
         ?>
         <form method="POST">
-            <label>
-                <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom(this)"
-                        style="width: 100%;">
+            <div class="kingdom-switch-container">
+                <?php
+                $kingdom_count = $result->num_rows;
+
+                if ($kingdom_count > 1): ?>
+                    <img src="images/icons/icon_right_slow.png"
+                         class="arrow-nav arrow-left"
+                         onclick="switchKingdom(-1)"
+                         title="Vorheriges Königreich" alt="">
+                <?php endif; ?>
+
+                <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom(this)">
                     <?php
+                    $result->data_seek(0);
                     foreach ($result as $row) {
                         $selected = ($row["id"] == $user->get_current_kingdom()) ? "selected='selected'" : "";
-
                         echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                     }
                     ?>
                 </select>
-            </label>
+
+                <?php if ($kingdom_count > 1): ?>
+                    <img src="images/icons/icon_right_slow.png"
+                         class="arrow-nav"
+                         onclick="switchKingdom(1)"
+                         title="Nächstes Königreich" alt="">
+                <?php endif; ?>
+            </div>
         </form>
-        <br>
+        <div class="resource-tick-wrapper">
+            <div class="tick-label">
+                <span>Nächster Ertrag in:</span>
+                <span class="tick-timer">--:--</span>
+            </div>
+            <div class="tick-progress-bg">
+                <div class="tick-progress-fill"></div>
+            </div>
+        </div>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
             <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/>
             <span class='servertime'><?= date("H:i:s", $current_timestamp); ?></span>
@@ -73,8 +97,13 @@
                 </div>
                 (<?= fnum($kingdom->get_kingdom_villager_per_hour()) ?>/h)
             </div>
-            <img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen'
-                 title='Münzen'/> <?= fnum($user->get_user_coins()); ?>
+            <div class="split-content">
+                <div>
+                    <img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen'
+                         title='Münzen'/> <?= fnum($user->get_user_coins()); ?>
+                </div>
+                (5/h)
+            </div>
         </div>
     </div>
 </div>

@@ -3,9 +3,11 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
-$view .= "<div class='box-container'>
+// TODO: New layout for news boxes
+$view .= "<div class='box-container' style='background-color: rgb(47,46,38);'>
         <div class='box-header'>Test</div>
-        <div class='box-content'><p>Langer Text Langer Text<br>Langer Text Langer<br>Text</p></div>
+        <div class='box-content'><p>Langer Text Langer Text Langer Text Langer Text Langer Text Langer Text Langer Text
+        Langer Text Langer Text Langer Text<br>Langer Text Langer<br>Text</p></div>
 </div>";
 $view .= "<div class='box-container'>
         <div class='box-header'>Test</div>

@@ -29,7 +29,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     } else {
         // Get soldier data
         $soldiers = [];
-        $result = $db_instance->execute_query("SELECT id, soldiername, attack, defense FROM soldierlist");
+        $result = $db_instance->execute_query("SELECT id, soldiername, attack, defense, icon FROM soldierlist");
 
         foreach ($result as $row) {
             $soldier = new Soldier();
@@ -37,6 +37,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             $soldier->set_soldier_name($row["soldiername"]);
             $soldier->set_soldier_attack($row["attack"]);
             $soldier->set_soldier_defense($row["defense"]);
+            $soldier->set_soldier_icon($row["icon"]);
 
             $soldiers[] = $soldier;
             $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
@@ -89,11 +90,11 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             } else if (empty($error)) {
                 $now = time();
 
-                $db_instance->execute_query(
-                    "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                $result = $db_instance->execute_query(
+                    "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
                     [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
                 );
-                $event_id = $db_instance->insert_id;
+                $event_id = $result->fetch_assoc()["eventid"];
 
                 foreach ($_POST["soldiers"] as $soldier_id => $count) {
                     $soldier_id = intval($soldier_id);
@@ -170,7 +171,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                       </tr>
                                       <tr>
                                           <td class="td-mapinfo"><b>Besitzer</b></td>
-                                          <td><a href="javascript:void(0);" onclick="openPopup(\'userinfo.php?userid=' . $enemy_user_id . '\');">' . $row["username"] . '</a></td>
+                                          <td><a href="#" onclick="openOverlay(\'userinfo.php?userid=' . $enemy_user_id . '\');">' . $row["username"] . '</a></td>
                                       </tr>
                                       <tr>
                                           <td class="td-mapinfo"><b>Ankunftszeit</b></td>

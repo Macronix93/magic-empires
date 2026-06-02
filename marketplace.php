@@ -161,7 +161,7 @@ if (isset($_GET["accept"])) {
                     $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
                 } else {
                     // No offer found for the kingdom - insert to database
-                    $calculated_fee = calculate_market_fee($supply, $supply_value);
+                    $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
 
                     $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins) VALUES(?, ?, ?, ?, ?, ?, ?, ?);";
                     $result = $db_instance->execute_query($query, [
@@ -220,7 +220,7 @@ if (isset($_GET["send_own"])) {
             $error = "Du hast nicht genug Ressourcen für diesen Transport!";
         } else {
             $seconds = $map->get_arrival_time($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
-            $arrival_time = time() + 10;
+            $arrival_time = time() + $seconds;
 
             switch ($res_type) {
                 case ResourceTypes::RESOURCE_TYPE_FOOD:
@@ -263,10 +263,11 @@ $offset = ($current_page - 1) * $rows_per_page;
  * HTML Content Part
  */
 $view .= '<table class="table">
-<form action="marketplace.php" method="GET">
+<form action="marketplace.php" method="GET" onsubmit="return checkMarketOverflow(this, document.getElementById(\'d\').value, document.getElementById(\'dv\').value, true)">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>
+            <br>
             <input type="text"
                    name="sv"
                    id="sv"
@@ -283,6 +284,7 @@ $view .= '<table class="table">
         </td>
         <td>
             <label for="dv">Ich suche:</label>
+            <br>
             <input type="text"
                    name="dv"
                    id="dv"
@@ -297,8 +299,11 @@ $view .= '<table class="table">
                 </select>
             </label>
         </td>
-        <td>
-            <input type="submit" value="Abschicken">
+        <td style="width: 15%; text-align: center;">
+            ' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ' <b id="live-fee">1</b>
+        </td>
+        <td style="text-align: center">
+            <input type="submit" value="Abschicken"/>
         </td>
     </tr>
 </form>
@@ -364,13 +369,13 @@ if ($result->num_rows > 0) {
             $title_attr = "Angebot annehmen";
         }
 
-        $text_build = "<form action='marketplace.php' method='GET'>
-                    <input type='hidden' name='$param' value='" . $row["offerid"] . "'>
-                    <input type='submit' value='' class='$btn_class'>
-                </form>";
+        $text_build = "<form action='marketplace.php' method='GET' onsubmit='return checkMarketOverflow(this, " . $row["supply"] . ", " . $row["supplyvalue"] . ")'>
+                            <input type='hidden' name='$param' value='" . $row["offerid"] . "'>
+                            <input type='submit' value='' class='$btn_class'>
+                        </form>";
 
         $view .= "<tr>
-                    <td>{$row["username"]} (<a href='javascript:void(0);' onclick='redirectToMap(\"$map_x\", \"$map_y\")'>$kingdom_coords</a>)</td>
+                    <td>{$row["username"]} (<a href='#' onclick='redirectToMap(\"$map_x\", \"$map_y\")'>$kingdom_coords</a>)</td>
                     <td class='td-center' style='white-space: nowrap;'>
                         " . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . " 
                         <span style='color: #888;'>&#10234;</span> 
@@ -451,6 +456,27 @@ if ($other_kingdoms_res->num_rows > 0) {
             </form>
             </table><br>';
 }
+
+$storage_info = [
+    ResourceTypes::RESOURCE_TYPE_FOOD => ["cur" => $kingdom->get_kingdom_food(), "max" => $kingdom->get_kingdom_max_food()],
+    ResourceTypes::RESOURCE_TYPE_WOOD => ["cur" => $kingdom->get_kingdom_wood(), "max" => $kingdom->get_kingdom_max_wood()],
+    ResourceTypes::RESOURCE_TYPE_STONE => ["cur" => $kingdom->get_kingdom_stone(), "max" => $kingdom->get_kingdom_max_stone()],
+    ResourceTypes::RESOURCE_TYPE_GOLD => ["cur" => $kingdom->get_kingdom_gold(), "max" => $kingdom->get_kingdom_max_gold()],
+];
+
+$view .= "<script>window.curKingdomStorage = " . json_encode($storage_info) . ";</script>";
+
+$market_config = [
+    "base" => MARKET_BASE_FEE,
+    "factors" => [
+        ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
+        ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,
+        ResourceTypes::RESOURCE_TYPE_STONE => MARKET_FEE_MULTIPLIER_STONE,
+        ResourceTypes::RESOURCE_TYPE_GOLD => MARKET_FEE_MULTIPLIER_GOLD
+    ]
+];
+
+$view .= "<script>window.marketConfig = " . json_encode($market_config) . ";</script>";
 
 /*
  * HTML Section

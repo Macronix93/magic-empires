@@ -20,5 +20,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         }
     }
 } else {
-    change_location("index.php");
+    change_location("overview.php");
 }

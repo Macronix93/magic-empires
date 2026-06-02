@@ -9,10 +9,14 @@ class Soldier
     private int $s_defense;
     private int $s_food;
     private int $s_gold;
+    private int $s_stone;
+    private int $s_wood;
     private int $s_villager;
     private int $s_req_level;
     private int $s_req_time;
     private int $s_score_gain;
+    private int $s_soldier_category;
+    private string $s_soldier_icon;
 
     public function get_soldier_id(): int
     {
@@ -22,6 +26,30 @@ class Soldier
     public function set_soldier_id($id): void
     {
         $this->soldier_id = $id;
+    }
+
+    public function get_soldier_icon(string $class = "buildable-icons"): string
+    {
+        $icon_file = ($this->s_soldier_icon ?? "icon_error") . ".png";
+        $path = "images/icons/" . $icon_file;
+        $alt_text = !empty($this->s_name) ? $this->s_name : "Soldat";
+
+        return "<img src='$path' class='$class' alt='$alt_text' title='$alt_text'>";
+    }
+
+    public function set_soldier_icon(string $icon): void
+    {
+        $this->s_soldier_icon = $icon;
+    }
+
+    public function get_soldier_category(): int
+    {
+        return $this->s_soldier_category;
+    }
+
+    public function set_soldier_category($category): void
+    {
+        $this->s_soldier_category = $category;
     }
 
     public function get_soldier_required_level(): int
@@ -74,6 +102,26 @@ class Soldier
         $this->s_gold = $gold;
     }
 
+    public function get_soldier_stone_cost(): int
+    {
+        return $this->s_stone;
+    }
+
+    public function set_soldier_stone_cost($stone): void
+    {
+        $this->s_stone = $stone;
+    }
+
+    public function get_soldier_wood_cost(): int
+    {
+        return $this->s_wood;
+    }
+
+    public function set_soldier_wood_cost($wood): void
+    {
+        $this->s_wood = $wood;
+    }
+
     public function get_soldier_villager_cost(): int
     {
         return $this->s_villager;
@@ -112,22 +160,6 @@ class Soldier
     public function set_soldier_score_gain($score): void
     {
         $this->s_score_gain = $score;
-    }
-
-    public function get_soldier_icon(string $class = "item-icons"): string
-    {
-        $icons = [
-            0 => ["file" => "icon_militia.png", "alt" => "Milizsoldat"],
-            1 => ["file" => "icon_swordsman.png", "alt" => "Schwertkämpfer"],
-            2 => ["file" => "icon_thief.png", "alt" => "Dieb"],
-            3 => ["file" => "icon_conqueror.png", "alt" => "Eroberer"],
-        ];
-
-        if (!isset($icons[$this->soldier_id])) {
-            return "ICON NOT FOUND";
-        }
-
-        return "<img src='images/icons/{$icons[$this->soldier_id]["file"]}' class='$class' alt='{$icons[$this->soldier_id]["alt"]}'>";
     }
 
     public function get_soldier_description(): string

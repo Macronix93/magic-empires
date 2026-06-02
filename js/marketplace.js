@@ -45,6 +45,72 @@ document.addEventListener("DOMContentLoaded", function () {
     supplySelect.addEventListener("change", updateDropdowns);
     demandSelect.addEventListener("change", updateDropdowns);
 
+    const fields = ["sv", "s", "dv", "d"];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener("input", calculateLiveFee);
+            el.addEventListener("change", calculateLiveFee);
+        }
+    });
+
     // Initial call
     updateDropdowns();
 });
+
+/**
+ * @param {HTMLFormElement} form
+ * @param {number} resType
+ * @param {number} incomingAmount
+ * @param {boolean} isListing
+ */
+function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
+    const storageData = window.curKingdomStorage;
+
+    if (!storageData || !storageData[resType]) return true;
+
+    const storage = storageData[resType];
+    const current = parseInt(storage.cur);
+    const max = parseInt(storage.max);
+    const amount = parseInt(incomingAmount);
+
+    const resNames = ["Nahrung", "Holz", "Stein", "Gold"];
+
+    if (current + amount > max) {
+        const overflow = (current + amount) - max;
+        const msg = isListing
+            ? `Wenn dieses Angebot angenommen wird, würde dein Lager für ${resNames[resType]} überlaufen (Verlust von ca. ${overflow} ${resNames[resType]}). 
+            Trotzdem erstellen?`
+            : `Warnung: Durch diesen Handel wird dein Lager für ${resNames[resType]} überlaufen. Du verlierst ca. ${overflow} Einheiten.
+            Trotzdem annehmen?`;
+
+        showConfirmationDialog(msg, "Ja", "Abbrechen", () => {
+            form.onsubmit = null;
+            form.submit();
+        });
+        return false;
+    }
+    return true;
+}
+
+function calculateLiveFee() {
+    const amountInputS = document.getElementById("sv"); // Supply Value
+    const typeSelectS = document.getElementById('s');   // Supply Type
+    const amountInputD = document.getElementById("dv"); // Demand Value
+    const typeSelectD = document.getElementById('d');   // Demand Type
+    const feeDisplay = document.getElementById("live-fee");
+    const config = window.marketConfig;
+
+    if (!amountInputS || !typeSelectS || !amountInputD || !typeSelectD || !feeDisplay || !config) return;
+
+    const valS = parseInt(amountInputS.value) || 0;
+    const typeS = typeSelectS.value;
+    const valD = parseInt(amountInputD.value) || 0;
+    const typeD = typeSelectD.value;
+
+    const feeS = Math.floor(valS * (config.factors[typeS] || 0));
+    const feeD = Math.floor(valD * (config.factors[typeD] || 0));
+
+    const maxVarFee = Math.max(feeS, feeD);
+    feeDisplay.innerText = config.base + maxVarFee;
+}

@@ -22,7 +22,7 @@
 </head>
 <body>
 <div class="header img">
-    <img src="images/header_test.png" alt="Header"/>
+    <img src="images/header.png" alt="Header"/>
 </div>
 <div class="content-box">
     <div class="left-container">
@@ -54,10 +54,14 @@
 <div id="nav-right-menu" class="mobile-side-nav">
     <?php include("layout/right.php"); ?>
 </div>
-<footer>
-    <div id="footerwrapper">
-        © Magic Empires - 2026
+<div id="onpage-overlay" class="overlay-modal" style="display: none;">
+    <div id="overlay-handle" class="overlay-header">
+        <span id="overlay-title"></span>
+        <button onclick="closeOverlay()" class="overlay-close-btn">&times;</button>
     </div>
-</footer>
+    <div id="overlay-content-body" class="overlay-body">
+        <div class="spinner"></div>
+    </div>
+</div>
 </body>
 </html>

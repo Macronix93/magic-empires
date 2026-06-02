@@ -20,24 +20,16 @@ include_once("layout/head.html");
     </tr>
     <?php
     foreach ($result as $row) {
-        echo "<tr><td><a href='javascript:selectUser(\"" . $row["username"] . "\")'>" . $row["username"] . "</a></td></tr>";
+        $username = htmlspecialchars($row["username"], ENT_QUOTES);
+        
+        echo "<tr><td><a href=\"#\" onclick=\"selectUser('$username'); return false;\">$username</a></td></tr>";
     }
     ?>
 </table>
 <br>
 <div style="text-align:center">
-    <a href="javascript:window.close()"
+    <a href="#" onclick="closeOverlay()"
        style="background-color: rgba(0, 0, 0, 0.7); display: inline-block; padding: 10px;">[Schließen]</a>
 </div>
-
-<script type="text/javascript">
-    function selectUser(id) {
-        const form = opener.document.forms['newmessage'];
-
-        if (form) {
-            form.receiver.value = id;
-        }
-    }
-</script>
 </body>
 </html>

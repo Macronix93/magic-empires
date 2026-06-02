@@ -9,11 +9,12 @@ $unread = $user->get_unread_messages();
         echo "<div style='width: 100%; padding: 0 12px; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
                 <div style='overflow: hidden; white-space: nowrap;' id='username'>";
         echo $user->get_user_name();
-        echo "</div><a href='login.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout' title='Logout'/></a></div>";
+        echo "</div><a href='index.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout' title='Logout'/></a></div>";
         ?>
     </div>
     <div class="box-content">
-        <div class="box<?= $current_page === 'index.php' ? ' active' : '' ?>" onclick="navigateTo('index.php', this)">
+        <div class="box<?= $current_page === 'overview.php' ? ' active' : '' ?>"
+             onclick="navigateTo('index.php', this)">
             <img src="images/icons/icon_overview.png" class="menu-icons" alt="Übersicht"/> Übersicht
         </div>
         <div class="box<?= $current_page === 'messages.php' ? ' active' : '' ?>"
@@ -76,7 +77,7 @@ $unread = $user->get_unread_messages();
             <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
         </div>
         <div class="box<?= $current_page === 'statistics.php' ? ' active' : '' ?>"
-             onclick="navigateTo('index.php', this)">
+             onclick="navigateTo('overview.php', this)">
             <img src="images/icons/icon_statistics.png" class="menu-icons" alt="Statistiken"/> Statistiken
         </div>
         <div class="box<?= $current_page === 'disclaimer.php' ? ' active' : '' ?>"
@@ -84,4 +85,15 @@ $unread = $user->get_unread_messages();
             <img src="images/icons/icon_disclaimer.png" class="menu-icons" alt="Credits"/> Credits
         </div>
     </div>
+</div>
+<div style="text-align: center; margin: 5px 0 10px 0; padding: 0 10px;">
+    <span style="
+        font-family: 'Georgia', serif;
+        font-size: 12px;
+        color: rgba(230, 220, 200, 0.8);
+        letter-spacing: 1px;
+        user-select: none;
+    ">
+        &copy; Magic Empires - 2026
+    </span>
 </div>

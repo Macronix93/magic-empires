@@ -111,11 +111,11 @@ class Kingdom
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
                                           woodperhour, stoneperhour, goldperhour, wallhp) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?) RETURNING id;
         ";
-        $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
+        $result_kingdom = $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP]);
-        $insert_id = $this->mysqli->insert_id;
+        $insert_id = $result_kingdom->fetch_assoc()["id"];
         $kingdom_name = $placeholder . $insert_id;
 
         // Update kingdom name with insert id
