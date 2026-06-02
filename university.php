@@ -150,13 +150,12 @@ if ($count_maxed_techs === $tech_count) {
 } else {
     $view .= '<table class="table">
                         <colgroup>
-                            <col style="width: 60px;">
                             <col style="width: auto;">
                             <col style="width: 180px;">
                         </colgroup>
                             <tr>
-                                <td class="td-center td-gradient" colspan="2">
-                                    <b>Gebäude</b></td>
+                                <td class="td-center td-gradient">
+                                    <b>Forschung</b></td>
                                 <td class="td-center td-gradient">
                                     <b>Aktion</b></td>
                             </tr>';
@@ -259,11 +258,15 @@ if ($count_maxed_techs === $tech_count) {
                 }
 
                 $view .= "<tr>
-                    <td class='td-center'>" . $techs[$i]->get_tech_icon() . "</td>
                     <td>
-                        <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
-                            <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
-                        </b>
+                        <div class='map-legend' style='justify-content: left;'>
+                        <div class='legend-item'>" . $techs[$i]->get_tech_icon() . "</div>
+                            <div class='legend-item'>
+                                <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
+                                    <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
+                                </b>
+                            </div>
+                        </div>
                         <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                         $resource_costs
                         </div>

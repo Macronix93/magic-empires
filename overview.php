@@ -37,6 +37,8 @@ $map = new Map($db_instance, $user);
 $query = "
     SELECT st.soldierid AS st_soldierid,
            st.soldiercount AS soldiercount,
+           sl.icon AS soldier_icon,
+           sl.soldiername AS s_name,
            e.*,
            k.userid AS sender_userid,
            k.mapx, k.mapy,
@@ -45,6 +47,7 @@ $query = "
     JOIN events e ON st.eventid = e.eventid
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
+    JOIN soldierlist sl ON st.soldierid = sl.id
     WHERE e.userid = ? AND (e.actionid = ? OR e.actionid = ?)
 ";
 
@@ -76,22 +79,24 @@ if ($result && $result->num_rows > 0) {
         // Initialize the event group if it doesn't exist yet
         if (!isset($grouped_events[$event_id])) {
             $grouped_events[$event_id] = [
-                'actionid' => $row["actionid"],
-                'targetid' => $row["targetid"],
-                'target_userid' => $row["target_userid"],
-                'mapx' => $row["mapx"],
-                'mapy' => $row["mapy"],
-                'targetx' => $row["targetx"],
-                'targety' => $row["targety"],
-                'arrivaltime' => $row["arrivaltime"],
-                'soldiers' => []
+                "actionid" => $row["actionid"],
+                "targetid" => $row["targetid"],
+                "target_userid" => $row["target_userid"],
+                "mapx" => $row["mapx"],
+                "mapy" => $row["mapy"],
+                "targetx" => $row["targetx"],
+                "targety" => $row["targety"],
+                "arrivaltime" => $row["arrivaltime"],
+                "soldiers" => []
             ];
         }
 
         // Append this troop type to the troops list
         $grouped_events[$event_id]['soldiers'][] = [
-            'soldierid' => $row["st_soldierid"],
-            'soldiercount' => $row["soldiercount"]
+            "soldierid" => $row["st_soldierid"],
+            "soldiercount" => $row["soldiercount"],
+            "icon" => $row["soldier_icon"],
+            "name" => $row["s_name"]
         ];
     }
 
@@ -136,6 +141,8 @@ if ($result && $result->num_rows > 0) {
         foreach ($event_data["soldiers"] as $soldier) {
             $soldier_obj = new Soldier();
             $soldier_obj->set_soldier_id($soldier["soldierid"]);
+            $soldier_obj->set_soldier_icon($soldier["icon"]);
+            $soldier_obj->set_soldier_name($soldier["name"]);
 
             $soldiers_str .= "<div class='legend-item'>" . $soldier_obj->get_soldier_icon("ressource-icons") . "{$soldier['soldiercount']}x</div>";
         }
@@ -146,11 +153,9 @@ if ($result && $result->num_rows > 0) {
                 <td class='td-center'>$coords_str</td>";
 
         if ($action_button !== "") {
-            // Normalfall: Counter und Button nebeneinander
             $view .= "<td class='td-center'>$action_counter</td>";
             $view .= "<td class='td-center'>$action_button</td>";
         } else {
-            // Spezialfall: Kein Button -> Counter nimmt den Platz ein (colspan 2)
             $view .= "<td class='td-center' colspan='2'>$action_counter</td>";
         }
 
@@ -162,7 +167,7 @@ if ($result && $result->num_rows > 0) {
     $view .= "Derzeit sind keine Truppen unterwegs.";
 }
 
-// --- BAU, FORSCHUNG & REKRUTIERUNG ÜBERSICHT ---
+// --- BUILDING, TECH & RECRUIT OVERVIEW ---
 $view .= '<div class="title-border" style="margin-top: 30px;">Bau & Entwicklung</div>';
 
 $query_events = "

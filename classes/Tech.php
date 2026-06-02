@@ -125,7 +125,7 @@ class Tech
         $icon_path = "images/icons/icon_tech$this->tech_id.png";
 
         if (isset($this->tech_id)) {
-            return "<img src='$icon_path' class='item-icons' alt='$this->t_name' title='$this->t_name'/>";
+            return "<img src='$icon_path' class='buildable-icons' alt='$this->t_name' title='$this->t_name'/>";
         } else {
             return "ICON NOT FOUND";
         }

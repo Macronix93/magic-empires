@@ -109,7 +109,7 @@ class Building
         };
     }
 
-    public function get_building_icon(string $class = "item-icons"): string
+    public function get_building_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_building$this->building_id.png";
 

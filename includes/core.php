@@ -196,14 +196,19 @@ function get_resource_icon(int $resource_type): string
 // Start inactivity counter
 function start_inactivity_check(int $seconds): void
 {
-    echo '<script type="text/javascript">
-            seconds = ' . $seconds . ';
+    echo '
+    <script type="text/javascript">
+        (function() {
+            const logoutTime = Date.now() + (' . $seconds . ' * 1000)
 
-            // Inactivity check
-            setTimeout(() => {
-                window.location.href = "index.php?logout=inactive";
-            }, seconds * 1000);
-        </script>';
+            const checkTimer = setInterval(function() {
+                if (Date.now() >= logoutTime) {
+                    clearInterval(checkTimer);
+                    window.location.href = "index.php?logout=inactive";
+                }
+            }, 10000);
+        })();
+    </script>';
 }
 
 // Apply villager cap
@@ -435,7 +440,6 @@ if ($user->is_logged_in()) {
     $timestamp = time();
 
     if (!isset($_SESSION["lastactivity"])) {
-        // initiate value
         $_SESSION["lastactivity"] = $timestamp;
     }
 
@@ -443,6 +447,7 @@ if ($user->is_logged_in()) {
     if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
         if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
             change_location("index.php?logout=session");
+            exit;
         }
     } else {
         if (!isset($_SESSION["last_db_update"])) {
@@ -455,7 +460,11 @@ if ($user->is_logged_in()) {
             $_SESSION["last_db_update"] = $timestamp;
         }
 
-        $_SESSION["lastactivity"] = $timestamp;
+        $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
+
+        if (!$is_ajax) {
+            $_SESSION["lastactivity"] = $timestamp;
+        }
 
         // Process all events for the user
         $user->process_user_events();

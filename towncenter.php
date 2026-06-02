@@ -138,12 +138,11 @@ if ($count_maxed_buildings === $building_count) {
 } else {
     $view .= '<table class="table">
                         <colgroup>
-                            <col style="width: 70px;">
                             <col style="width: auto;">
                             <col style="width: 180px;">
                         </colgroup>
                             <tr>
-                                <td class="td-center td-gradient" colspan="2">
+                                <td class="td-center td-gradient">
                                     <b>Gebäude</b></td>
                                 <td class="td-center td-gradient">
                                     <b>Aktion</b></td>
@@ -227,13 +226,17 @@ if ($count_maxed_buildings === $building_count) {
                 }
 
                 $view .= "<tr>
-                    <td class='td-center'>" . $buildings[$i]->get_building_icon() . "</td>
                     <td>
-                        <b class='popup' id='description" . $i . "'>" . $buildings[$i]->get_building_name() . " (" . $buildings[$i]->get_building_level() . ")
-                            <div id='description" . $i . "_box' class='popupbox'>
-                                " . $buildings[$i]->get_building_description() . "
+                        <div class='map-legend' style='justify-content: left;'>
+                            <div class='legend-item'>" . $buildings[$i]->get_building_icon() . "</div>
+                            <div class='legend-item'>
+                                <b class='popup' id='description" . $i . "'>" . $buildings[$i]->get_building_name() . " (" . $buildings[$i]->get_building_level() . ")
+                                    <div id='description" . $i . "_box' class='popupbox'>
+                                        " . $buildings[$i]->get_building_description() . "
+                                    </div>
+                                </b>
                             </div>
-                        </b>
+                        </div>
                         <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
