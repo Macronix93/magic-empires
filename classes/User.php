@@ -25,25 +25,18 @@ class User
         // Create activation link to activate account
         $actual_link = "https://$_SERVER[HTTP_HOST]" . BASE_URL . "index.php?key=" . $activation_key;
 
-        $receiver = $email;
-        $subject = 'Magic-Empires - Registration';
-        $message = "Willkommen bei Magic-Empires!<br><br>Klicke auf <a href='" . $actual_link . "'>diesen Link</a>, um deinen Account zu aktivieren.<br><br>Viel Spaß beim Zocken! :)";
-        $header = "Content-type:text/html;charset=UTF-8" . "\r\n" .
-            'From: webmaster@magic-empires.de' . "\r\n" .
-            'X-Mailer: PHP/' . phpversion();
+        $subject = 'Magic-Empires - Registrierung';
+        $message = "<h2>Willkommen bei Magic-Empires!</h2>
+                    <p>Hallo " . htmlspecialchars($name) . ",</p>
+                    <p>vielen Dank für deine Registrierung. Bitte klicke auf den folgenden Button, um deinen Account freizuschalten:</p>
+                    <p><a href='" . $actual_link . "' style='display:inline-block; background:#781e14; color:#ffffff; padding:10px 20px; text-decoration:none; border-radius:5px;'>Account aktivieren</a></p>
+                    <p>Sollte der Button nicht funktionieren, kopiere diesen Link in deinen Browser:<br>" . $actual_link . "</p>
+        ";
 
-        if (mail($receiver, $subject, $message, $header)) {
+        if (send_mail($email, $subject, $message)) {
             $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) 
                                                 VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
                 [$name, $password, $activation_key, $email, session_id()]);
-
-            // RETURNING
-//            if ($result && $row = $result->fetch_assoc()) {
-//                $new_user_id = $row['id'];
-//                $exact_register_date = $row['registerdate'];
-//
-//                echo "new user id: " . $new_user_id . "<br>exact registered date: " . $exact_register_date;
-//            }
 
             unset($_POST);
             unset($_SESSION["captcha_passed"]);

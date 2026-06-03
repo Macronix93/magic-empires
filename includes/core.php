@@ -8,6 +8,10 @@
 */
 
 use JetBrains\PhpStorm\NoReturn;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+require "vendor/autoload.php"; // Composer Autoloader
 
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
@@ -433,6 +437,45 @@ spl_autoload_register(function ($class_name) {
 
 // Load .env file
 (new DotEnv(__DIR__ . "/.env"))->load();
+
+function send_mail(string $to, string $subject, string $body): bool
+{
+    $mail = new PHPMailer(true);
+
+    try {
+        // Server settings
+        $mail->isSMTP();
+        $mail->Host = getenv("MAIL_HOST");
+        $mail->SMTPAuth = true;
+        $mail->Username = getenv("MAIL_USER");
+        $mail->Password = getenv("MAIL_PASS");
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = getenv("MAIL_PORT");
+        $mail->SMTPOptions = [
+            "ssl" => [
+                "verify_peer" => false,
+                "verify_peer_name" => false,
+                "allow_self_signed" => true
+            ]
+        ];
+
+        $mail->setFrom(getenv('MAIL_FROM'), getenv('MAIL_NAME'));
+        $mail->addAddress($to);
+
+        $mail->isHTML(true);
+        $mail->CharSet = "UTF-8";
+        $mail->Subject = $subject;
+
+        $mail->Body = "<html lang='de'><head><meta charset='UTF-8'></head><body>" . $body . "</body></html>";
+        $mail->AltBody = strip_tags(str_replace(['<br>', '<br />', '</h1>', '</h2>', '</p>'], ["\n", "\n", "\n\n", "\n\n", "\n\n"], $body));
+
+        $mail->send();
+        return true;
+    } catch (Exception) {
+        error_log("PHPMailer Error: {$mail->ErrorInfo}");
+        return false;
+    }
+}
 
 // Database instance for classes
 $db = Database::get_instance();
