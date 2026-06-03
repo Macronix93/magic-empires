@@ -2,7 +2,6 @@
 
 class Building
 {
-    private object $mysqli;
     private int $building_id; // ID of the building
     private int $kingdom_id; // ID of the kingdom that the building is connected to
     private int $b_level; // Current level of the building for the kingdom
@@ -16,11 +15,6 @@ class Building
     private int $b_goldcost;
     private string $b_description;
     private array $b_dependencies = [];
-
-    public function __construct(object $db_conn)
-    {
-        $this->mysqli = $db_conn;
-    }
 
     public function get_building_kingdom_id(): int
     {
@@ -91,10 +85,10 @@ class Building
         $cost_gold = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_GOLD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_GOLD) * $mult * $level);
 
         return array(
-            "costWood" => $cost_wood,
-            "costFood" => $cost_food,
-            "costStone" => $cost_stone,
-            "costGold" => $cost_gold,
+            "cost_wood" => $cost_wood,
+            "cost_food" => $cost_food,
+            "cost_stone" => $cost_stone,
+            "cost_gold" => $cost_gold,
         );
     }
 

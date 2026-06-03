@@ -21,6 +21,7 @@
                          title="Vorheriges Königreich" alt="">
                 <?php endif; ?>
 
+                <label for="choosekingdom" style="display: none;">Königreich wählen</label>
                 <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom(this)">
                     <?php
                     $result->data_seek(0);
@@ -118,7 +119,7 @@
 
             foreach ($kingdom_buildings as $building) {
                 $building_file = $building['buildingfile'] . ".php";
-                $building_obj = new Building($db_instance);
+                $building_obj = new Building();
                 $building_obj->set_building_id($building["buildingid"]);
                 $building_obj->set_building_name($building["buildingname"]);
 

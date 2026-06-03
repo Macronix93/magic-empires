@@ -5,7 +5,6 @@ class Messages
     private object $mysqli;
     private User $user;
     private string $view = "";
-    private int $rows_per_page = 10;
 
     public function __construct(object $db_conn, User $user)
     {

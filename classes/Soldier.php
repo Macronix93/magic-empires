@@ -28,6 +28,25 @@ class Soldier
         $this->soldier_id = $id;
     }
 
+    public function fill_from_row(array $row): void
+    {
+        $this->set_soldier_id($row["id"]);
+        $this->set_soldier_name($row["soldiername"] ?? "");
+        $this->set_soldier_attack($row["attack"] ?? 0);
+        $this->set_soldier_defense($row["defense"] ?? 0);
+        $this->set_soldier_icon($row["icon"] ?? "");
+
+        if (isset($row["description"])) $this->set_soldier_description($row["description"]);
+        if (isset($row["food"])) $this->set_soldier_food_cost($row["food"]);
+        if (isset($row["gold"])) $this->set_soldier_gold_cost($row["gold"]);
+        if (isset($row["stone"])) $this->set_soldier_stone_cost($row["stone"]);
+        if (isset($row["wood"])) $this->set_soldier_wood_cost($row["wood"]);
+        if (isset($row["villager"])) $this->set_soldier_villager_cost($row["villager"]);
+        if (isset($row["requiredlevel"])) $this->set_soldier_required_level($row["requiredlevel"]);
+        if (isset($row["requiredtime"])) $this->set_soldier_time($row["requiredtime"]);
+        if (isset($row["scoregain"])) $this->set_soldier_score_gain($row["scoregain"]);
+    }
+
     public function get_soldier_icon(string $class = "buildable-icons"): string
     {
         $icon_file = ($this->s_soldier_icon ?? "icon_error") . ".png";

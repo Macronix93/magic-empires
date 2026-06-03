@@ -15,8 +15,10 @@ if (session_status() == PHP_SESSION_NONE) {
 
 if (str_contains($_SERVER["HTTP_HOST"], "localhost") || str_contains($_SERVER["HTTP_HOST"], "127.0.0.1")) {
     define("BASE_URL", "/magic-empires/");
+    define("IS_DEV", true);
 } else {
     define("BASE_URL", '/');
+    define("IS_DEV", false);
 }
 
 /*
@@ -77,6 +79,7 @@ const MARKET_FEE_MULTIPLIER_FOOD = 0.001;
 const MARKET_FEE_MULTIPLIER_WOOD = 0.002;
 const MARKET_FEE_MULTIPLIER_STONE = 0.005;
 const MARKET_FEE_MULTIPLIER_GOLD = 0.01;
+const MARKET_OFFER_DURATION = 86400; // 24 hours
 const MAX_SOLDIERS_RECRUIT_INPUT = 99;
 
 
@@ -408,10 +411,17 @@ function fatal_error_shutdown_handler(): void
 /*
  * PHP Options
  */
-/*set_exception_handler('global_exception_handler');
-set_error_handler('global_error_handler');
-register_shutdown_function('fatal_error_shutdown_handler');*/
-ini_set('max_execution_time', 300);
+if (!IS_DEV) {
+    set_exception_handler("global_exception_handler");
+    set_error_handler("global_error_handler");
+    register_shutdown_function("fatal_error_shutdown_handler");
+} else {
+    ini_set("display_errors", 1);
+    ini_set("display_startup_errors", 1);
+    error_reporting(E_ALL);
+}
+
+ini_set("max_execution_time", 300);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 /*
@@ -513,7 +523,13 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     return [
         "current_kingdom" => $current_kingdom,
         "building" => $building,
-        "kingdom" => $kingdom
+        "building_name" => $building->get_building_name(),
+        "kingdom" => $kingdom,
+        "k_wood" => $kingdom->get_kingdom_wood(),
+        "k_food" => $kingdom->get_kingdom_food(),
+        "k_stone" => $kingdom->get_kingdom_stone(),
+        "k_gold" => $kingdom->get_kingdom_gold(),
+        "k_villager" => $kingdom->get_kingdom_villager()
     ];
 }
 

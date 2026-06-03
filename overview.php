@@ -229,6 +229,9 @@ if ($result_events && $result_events->num_rows > 0) {
                 $type_text = "Rekrutierung";
                 $sol_obj = new Soldier();
                 $sol_obj->set_soldier_id($row["soldierid"]);
+                $sol_obj->set_soldier_icon($soldier["icon"]);
+                $sol_obj->set_soldier_name($soldier["name"]);
+
                 $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
                 $finish_time = $row["recruittime"];
                 break;
@@ -242,13 +245,14 @@ if ($result_events && $result_events->num_rows > 0) {
                 <td class='td-center'>$project_text</td>
                 <td class='td-center'>
                     $k_name 
-                    <a href='#' onclick='switchKingdomAndReload({$row["kingdomid"]}); return false;'>($k_coords)</a>
+                    <a href='#' onclick='switchKingdomAndReload(\"{$row["kingdomid"]}\"); return false;'>($k_coords)</a>
                 </td>
                 <td class='td-center'>
                     <b><span id='$counter_id'></span></b>
                     <script type='text/javascript'>
                         document.addEventListener('DOMContentLoaded', function () {
-                            startCountdown('$counter_id', $arrival_diff, 0, null, false, true);
+                            const diff = \"$arrival_diff\";
+                            void startCountdown('$counter_id', diff, 0, null, false, true);
                         });
                     </script>
                 </td>
@@ -301,13 +305,14 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <td class='td-center'>" . get_resource_icon($res_type) . " " . fnum($amount) . "</td>
                 <td class='td-center'>
                     $target_name
-                    <a href='#' onclick='switchKingdomAndReload({$row["kingdomid"]}); return false;'>($target_coords)</a>
+                    <a href='#' onclick='switchKingdomAndReload(\"{$row["kingdomid"]}\"); return false;'>($target_coords)</a>
                 </td>
                 <td class='td-center'>
                     <b><span id='$counter_id'></span></b>
                     <script type='text/javascript'>
                         document.addEventListener('DOMContentLoaded', function () {
-                            startCountdown('$counter_id', $arrival_diff, 0, null, false, true);
+                            const diff = \"$arrival_diff\";
+                            void startCountdown('$counter_id', diff, 0, null, false, true);
                         });
                     </script>
                 </td>

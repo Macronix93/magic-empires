@@ -373,4 +373,13 @@ class Map
         $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
         return $result->fetch_column();
     }
+
+    public function calculate_arrival_data(int $sx, int $sy, int $ex, int $ey): array
+    {
+        $seconds = $this->get_arrival_time($sx, $sy, $ex, $ey);
+        return [
+            "seconds" => $seconds,
+            "timestamp" => time() + $seconds
+        ];
+    }
 }

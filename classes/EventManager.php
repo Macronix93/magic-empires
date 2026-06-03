@@ -11,11 +11,10 @@ class EventManager
         $this->user = $user;
     }
 
-    /**
-     * Verarbeitet alle fälligen Events des Benutzers.
-     */
     public function process_all(): void
     {
+        $this->cleanup_marketplace();
+
         $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$this->user->get_user_id()]);
 
         foreach ($result as $row) {
@@ -23,9 +22,6 @@ class EventManager
         }
     }
 
-    /**
-     * Verteiler für die verschiedenen Event-Typen.
-     */
     private function handle_event(array $row): void
     {
         switch ($row["actionid"]) {
@@ -50,9 +46,6 @@ class EventManager
         }
     }
 
-    /**
-     * Forschung (Action 4)
-     */
     private function handle_research(array $row): void
     {
         if ($row["buildingtime"] >= time()) return;
@@ -60,7 +53,7 @@ class EventManager
         $kingdom = new Kingdom($this->mysqli, $row["kingdomid"]);
         $tech_id = $row["buildingid"];
 
-        // Ressourceneffekte anwenden
+        // Apply resource effects
         switch ($tech_id) {
             case TechTypes::TECH_TYPE_WOOD_INC:
                 $kingdom->set_kingdom_wood_per_hour($kingdom->get_kingdom_wood_per_hour() + RESEARCH_WOOD_INC);
@@ -87,7 +80,7 @@ class EventManager
                 break;
         }
 
-        // Score berechnen
+        // Calculate score
         $res = $this->mysqli->execute_query("SELECT techscore FROM techlist WHERE id = ?", [$tech_id]);
         $score_gain = $res->fetch_assoc()["techscore"] * $row["buildinglevel"] + 1;
 
@@ -105,9 +98,6 @@ class EventManager
         $this->update_user_score($score_gain);
     }
 
-    /**
-     * Bauauftrag (Action 0)
-     */
     private function handle_building(array $row): void
     {
         if ($row["buildingtime"] >= time()) return;
@@ -132,9 +122,6 @@ class EventManager
         $this->apply_building_effects($row["buildingid"], $row["buildinglevel"], $row["kingdomid"]);
     }
 
-    /**
-     * Rekrutierung (Action 1)
-     */
     private function handle_recruitment(array $row): void
     {
         $soldiers = $this->load_soldier_data();
@@ -170,9 +157,6 @@ class EventManager
         }
     }
 
-    /**
-     * Truppen senden / Kampf / Eroberung (Action 2)
-     */
     private function handle_combat(array $row): void
     {
         if ($row["arrivaltime"] >= time()) return;
@@ -215,9 +199,6 @@ class EventManager
         send_server_message($this->user->get_user_id(), $this->user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
     }
 
-    /**
-     * Truppenrückkehr (Action 3)
-     */
     private function handle_troop_return(array $row): void
     {
         if ($row["arrivaltime"] >= time()) return;
@@ -251,9 +232,6 @@ class EventManager
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
     }
 
-    /**
-     * Warenlieferung (Action 5)
-     */
     private function handle_resource_transfer(array $row): void
     {
         if ($row["arrivaltime"] >= time()) return;
@@ -285,7 +263,7 @@ class EventManager
         send_server_message($this->user->get_user_id(), $this->user->get_user_name(), $msg, MessageCategories::CATEGORY_TRADE);
     }
 
-    // --- Private Hilfsmethoden für die Kampf/Bau-Logik ---
+    // Helper functions
 
     private function apply_building_effects(int $bid, int $lvl, int $kid): void
     {
@@ -336,6 +314,10 @@ class EventManager
 
             if ($conquest->is_conquered($rate)) {
                 $conquerer_id = $conquest->fetch_conquerer_id();
+
+                $soldier_types = $conquest->get_soldier_types();
+                $score_loss = $soldier_types[$conquerer_id]["score"];
+                $this->update_user_score(-$score_loss);
 
                 $this->mysqli->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?"
                     : "UPDATE senttroops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?", [$row["eventid"], $conquerer_id]);
@@ -396,6 +378,8 @@ class EventManager
                     </tr></table><br>";
 
         $message .= $table . $conquest->get_my_message() . $summary . $conquest->append_my_after_battle_message();
+        $message .= "<br><b>Punkteverlust durch Truppen:</b> -" . fnum($conquest->get_my_score_loss()) . " Punkte.<br>";
+
         $enemy_msg .= $table . $conquest->get_enemy_message() . "<tr>
                                                                     <td class='td-center'><b>Summe</b></td>
                                                                     <td class='td-center'>{$conquest->get_initial_enemy_count()}</td>
@@ -403,6 +387,7 @@ class EventManager
                                                                     <td class='td-center'>{$conquest->get_initial_soldier_count()}</td>
                                                                     <td class='td-center'>{$conquest->get_my_loss_count()}</td>
                                                                 </tr></table><br>" . $conquest->append_enemy_after_battle_message();
+        $enemy_msg .= "<br><b>Punkteverlust durch Truppen:</b> -" . fnum($conquest->get_enemy_score_loss()) . " Punkte.<br>";
 
         // Eroberungs-Check
         if ($conquest->get_enemy_loss_count() == $conquest->get_initial_enemy_count()) {
@@ -441,11 +426,22 @@ class EventManager
         if ($conquest->is_conquered($rate)) {
             $c_id = $conquest->fetch_conquerer_id();
 
+            $soldier_types = $conquest->get_soldier_types();
+            $score_loss = $soldier_types[$c_id]["score"];
+            $this->update_user_score(-$score_loss);
+
             $this->mysqli->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?"
                 : "UPDATE senttroops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?", [$row["eventid"], $c_id]);
 
             // Check if it's the last kingdom of the enemy
             $k_count_res = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$enemy_user->get_user_id()]);
+
+            $loss_res = $this->mysqli->execute_query("SELECT SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore) AS loss 
+                                                FROM buildings b 
+                                                JOIN buildinglist bl ON b.buildingid = bl.id 
+                                                WHERE b.kingdomid = ?",
+                [$enemy_kingdom->get_kingdom_id()]);
+            $total_building_score_loss = (int)($loss_res->fetch_assoc()["loss"] ?? 0);
 
             // Does the enemy still have a kingdom?
             if ($k_count_res->fetch_column() > 1) {
@@ -453,13 +449,13 @@ class EventManager
                 // If there are still events for that kingdom, delete them
                 $this->mysqli->execute_query("DELETE FROM events WHERE kingdomid = ? AND userid = ?", [$enemy_kingdom->get_kingdom_id(), $enemy_user->get_user_id()]);
 
-                $lossRes = $this->mysqli->execute_query("SELECT SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore) AS loss 
-                                                                FROM buildings b 
-                                                                JOIN buildinglist bl ON b.buildingid = bl.id 
-                                                                WHERE b.kingdomid = ?",
-                    [$enemy_kingdom->get_kingdom_id()]);
+//                $loss_res = $this->mysqli->execute_query("SELECT SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore) AS loss
+//                                                                FROM buildings b
+//                                                                JOIN buildinglist bl ON b.buildingid = bl.id
+//                                                                WHERE b.kingdomid = ?",
+//                    [$enemy_kingdom->get_kingdom_id()]);
 
-                $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [(int)$lossRes->fetch_assoc()["loss"], $enemy_user->get_user_id()]);
+                $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$total_building_score_loss, $enemy_user->get_user_id()]);
 
                 // Get all remaining kingdoms of the player and choose one and set it as new mainkingdom if the attacked kingdom was the mainkingdom
                 if ($enemy_kingdom->get_kingdom_id() == $enemy_user->get_main_kingdom()) {
@@ -480,6 +476,7 @@ class EventManager
                         [$main_kingdom, $enemy_user->get_user_id()]);
                 } else {
                     // TODO: What if there are no free map spots available?
+                    echo "no free map spots available anymore!";
                 }
             }
 
@@ -488,9 +485,48 @@ class EventManager
                 [$this->user->get_user_id(), $this->user->get_user_name(), $enemy_kingdom->get_kingdom_id()]);
 
             $message .= "Die Eroberung war erfolgreich!<br>Für die Eroberung hat sich ein Eroberer geopfert.<br>Das Königreich gehört nun dir.<br>";
+            $message .= "Der Gegner hat <b>" . fnum($total_building_score_loss) . " Punkte</b> durch den Verlust der Gebäude verloren.<br>";
             $enemy_msg .= "Unser Königreich wurde vom Gegner eingenommen...";
+            $enemy_msg .= "Du hast <b>" . fnum($total_building_score_loss) . " Punkte</b> durch den Verlust deiner Gebäude verloren.<br>";
         } else {
             $message .= "Die Eroberung ist gescheitert...<br>";
+        }
+    }
+
+    public function cleanup_marketplace(): void
+    {
+        $now = time();
+        // Find all expired offers
+        $result = $this->mysqli->execute_query("SELECT * FROM marketplace WHERE expires_at <= ?", [$now]);
+
+        while ($row = $result->fetch_assoc()) {
+            $offer_id = $row["offerid"];
+            $k_id = $row["kingdomid"];
+            $res_type = $row["supply"];
+            $amount = $row["supplyvalue"];
+            $u_id = $row["userid"];
+            $u_name = $row["username"];
+
+            // Give the resources back to the original kingdom
+            $res_field = match ($res_type) {
+                ResourceTypes::RESOURCE_TYPE_FOOD => "food",
+                ResourceTypes::RESOURCE_TYPE_WOOD => "wood",
+                ResourceTypes::RESOURCE_TYPE_STONE => "stone",
+                ResourceTypes::RESOURCE_TYPE_GOLD => "gold",
+                default => null
+            };
+
+            if ($res_field) {
+                $this->mysqli->execute_query("UPDATE kingdoms SET $res_field = $res_field + ? WHERE id = ?",
+                    [$amount, $k_id]
+                );
+            }
+
+            $msg = "Ein Handelsangebot von dir ist abgelaufen. Die Ressourcen wurden an dein Königreich zurückerstattet.";
+            send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_TRADE);
+
+            // Delete offer
+            $this->mysqli->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
         }
     }
 

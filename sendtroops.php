@@ -33,11 +33,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
         foreach ($result as $row) {
             $soldier = new Soldier();
-            $soldier->set_soldier_id($row["id"]);
-            $soldier->set_soldier_name($row["soldiername"]);
-            $soldier->set_soldier_attack($row["attack"]);
-            $soldier->set_soldier_defense($row["defense"]);
-            $soldier->set_soldier_icon($row["icon"]);
+            $soldier->fill_from_row($row);
 
             $soldiers[] = $soldier;
             $kingdom_soldiers[$soldier->get_soldier_id()] = 0;

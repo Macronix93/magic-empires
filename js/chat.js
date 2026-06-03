@@ -190,6 +190,7 @@ function insertNewChatMessage(e) {
             const infoBox = document.querySelector(".info-box");
 
             if (response.error) {
+                /** @type {HTMLElement} */
                 let contentWrapper = infoBox.querySelector(".info-wrapper");
 
                 if (!contentWrapper) {
@@ -214,6 +215,7 @@ function insertNewChatMessage(e) {
                 infoBox.style.display = "flex";
 
                 if (response.counter !== undefined) {
+                    /** @type {HTMLElement} */
                     let counterElement = document.getElementById("counter");
 
                     if (!counterElement) {
@@ -367,6 +369,7 @@ function loadOlderMessages(partnerId) {
     if (!firstMsg) return;
 
     const oldestId = firstMsg.id.replace("msg-", "");
+    /** @type {HTMLElement} */
     const btn = document.getElementById("load-older-btn");
 
     isFetchingOlder = true;
@@ -386,6 +389,7 @@ function loadOlderMessages(partnerId) {
                 const newHeight = section.scrollHeight;
                 section.scrollTop = newHeight - oldHeight;
 
+                /** @type {{hasMore: boolean}} */
                 canLoadMore = data.hasMore;
             } else {
                 canLoadMore = false;

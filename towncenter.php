@@ -1,18 +1,18 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_TOWNCENTER);
+[
+    "current_kingdom" => $current_kingdom,
+    "building" => $building,
+    "building_name" => $building_name,
+    "kingdom" => $kingdom,
+    "k_wood" => $kingdom_wood,
+    "k_food" => $kingdom_food,
+    "k_stone" => $kingdom_stone,
+    "k_gold" => $kingdom_gold,
+    "k_villager" => $kingdom_villager
+] = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_TOWNCENTER);
 
-$current_kingdom = $result["current_kingdom"];
-$building = $result["building"];
-$building_name = $building->get_building_name();
-$kingdom = $result["kingdom"];
-
-$kingdom_wood = $kingdom->get_kingdom_wood();
-$kingdom_food = $kingdom->get_kingdom_food();
-$kingdom_stone = $kingdom->get_kingdom_stone();
-$kingdom_gold = $kingdom->get_kingdom_gold();
-$kingdom_villager = $kingdom->get_kingdom_villager();
 $kingdom_is_building = false;
 $kingdom_building_id = -1;
 
@@ -33,10 +33,10 @@ if (isset($_GET["action"])) {
     if ($build_id >= BuildingTypes::BUILDING_TOWNCENTER && $build_id < $building_count) {
         $building_level = $buildings[$build_id]->get_building_level();
         $costs = $buildings[$build_id]->calculate_building_cost();
-        $cost_wood = $costs["costWood"];
-        $cost_food = $costs["costFood"];
-        $cost_stone = $costs["costStone"];
-        $cost_gold = $costs["costGold"];
+        $cost_wood = $costs["cost_wood"];
+        $cost_food = $costs["cost_food"];
+        $cost_stone = $costs["cost_stone"];
+        $cost_gold = $costs["cost_gold"];
 
         // The action that was set is "building"
         if ($_GET["action"] == "build") {
@@ -171,10 +171,10 @@ if ($count_maxed_buildings === $building_count) {
                 }
 
                 $costs = $buildings[$i]->calculate_building_cost();
-                $cost_wood = $costs["costWood"];
-                $cost_food = $costs["costFood"];
-                $cost_stone = $costs["costStone"];
-                $cost_gold = $costs["costGold"];
+                $cost_wood = $costs["cost_wood"];
+                $cost_food = $costs["cost_food"];
+                $cost_stone = $costs["cost_stone"];
+                $cost_gold = $costs["cost_gold"];
 
                 $text_wood = get_resource_text($cost_wood, $kingdom_wood);
                 $text_food = get_resource_text($cost_food, $kingdom_food);

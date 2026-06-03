@@ -104,8 +104,11 @@ function updateServerTime(initialSeconds) {
         const timeString = currentTime.toTimeString().split(' ')[0];
 
         for (let i = 0; i < serverTimeElements.length; i++) {
-            if (serverTimeElements[i].offsetParent !== null || true) {
-                serverTimeElements[i].innerHTML = " " + timeString;
+            /** @type {HTMLElement} */
+            const el = serverTimeElements[i];
+
+            if (el.offsetParent !== null) {
+                el.innerHTML = " " + timeString;
             }
         }
 
@@ -132,7 +135,9 @@ function updateServerTime(initialSeconds) {
         }
 
         for (let i = 0; i < tickFills.length; i++) {
-            tickFills[i].style.width = percent + "%";
+            /** @type {HTMLElement} */
+            const el = tickFills[i];
+            el.style.width = percent + "%";
         }
 
         setTimeout(() => {
@@ -145,7 +150,9 @@ function updateServerTime(initialSeconds) {
 }
 
 function switchKingdom(direction) {
+    /** @type {HTMLSelectElement} */
     const select = document.getElementById("choosekingdom");
+
     if (!select) return;
 
     let newIndex = select.selectedIndex + direction;

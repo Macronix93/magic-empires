@@ -26,20 +26,7 @@ $result = $db_instance->execute_query("SELECT * FROM soldierlist");
 
 foreach ($result as $row) {
     $soldier = new Soldier();
-    $soldier->set_soldier_id($row["id"]);
-    $soldier->set_soldier_name($row["soldiername"]);
-    $soldier->set_soldier_description($row["description"]);
-    $soldier->set_soldier_attack($row["attack"]);
-    $soldier->set_soldier_defense($row["defense"]);
-    $soldier->set_soldier_food_cost($row["food"]);
-    $soldier->set_soldier_gold_cost($row["gold"]);
-    $soldier->set_soldier_stone_cost($row["stone"]);
-    $soldier->set_soldier_wood_cost($row["wood"]);
-    $soldier->set_soldier_villager_cost($row["villager"]);
-    $soldier->set_soldier_required_level($row["requiredlevel"]);
-    $soldier->set_soldier_time($row["requiredtime"]);
-    $soldier->set_soldier_score_gain($row["scoregain"]);
-    $soldier->set_soldier_icon($row["icon"]);
+    $soldier->fill_from_row($row);
 
     $soldiers[] = $soldier;
     $kingdom_soldiers[$soldier->get_soldier_id()] = 0;

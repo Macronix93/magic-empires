@@ -86,8 +86,8 @@ for ($i = 0; $i < count($techs); $i++) {
                 $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
 
                 $dependency_text .= $building_level_needed > $building_level_current
-                    ? " <span class='error'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ({$building_level_needed})</span>"
-                    : " <span class='passed'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ({$building_level_needed})</span>";
+                    ? " <span class='error'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>"
+                    : " <span class='passed'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>";
             }
 
             // Tech dependency
@@ -96,8 +96,8 @@ for ($i = 0; $i < count($techs); $i++) {
                 $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
 
                 $dependency_text .= $tech_level_needed > $tech_level_current
-                    ? " <span class='error'>{$techs[$dependency["techdepid"]]->get_tech_name()} ({$tech_level_needed})</span>"
-                    : " <span class='passed'>{$techs[$dependency["techdepid"]]->get_tech_name()} ({$tech_level_needed})</span>";
+                    ? " <span class='error'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>"
+                    : " <span class='passed'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>";
             }
         }
     }
@@ -107,10 +107,10 @@ for ($i = 0; $i < count($techs); $i++) {
                 <td style='width: 30%;'>
                     <a href='#' 
                        onClick='openOverlay(\"techinfo.php?tid=$i\",  \"Tech-Info\");'>
-                        {$techs[$i]->get_tech_name()} ({$current_tech_level})
+                        {$techs[$i]->get_tech_name()} ($current_tech_level)
                     </a>
                 </td>
-                <td>{$dependency_text}</td>
+                <td>$dependency_text</td>
               </tr>";
 }
 

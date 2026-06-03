@@ -1,3 +1,6 @@
+/** @var curKingdomStorage */
+/** @var marketConfig */
+
 document.addEventListener("DOMContentLoaded", function () {
     const supplySelect = document.querySelector("select[name='s']");
     const demandSelect = document.querySelector("select[name='d']");
@@ -60,19 +63,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
 /**
  * @param {HTMLFormElement} form
- * @param {number} resType
- * @param {number} incomingAmount
- * @param {boolean} isListing
+ * @param {number|string} resType
+ * @param {number|string} incomingAmount
+ * @param {boolean} [isListing=false]
+ * @returns {boolean}
  */
 function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
+    /** @type {Object<number, {cur: string|number, max: number}>} */
     const storageData = window.curKingdomStorage;
 
     if (!storageData || !storageData[resType]) return true;
 
     const storage = storageData[resType];
     const current = parseInt(storage.cur);
-    const max = parseInt(storage.max);
-    const amount = parseInt(incomingAmount);
+    const max = Number(storage.max);
+    const amount = Number(incomingAmount);
 
     const resNames = ["Nahrung", "Holz", "Stein", "Gold"];
 
@@ -94,11 +99,16 @@ function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
 }
 
 function calculateLiveFee() {
+    /** @type {HTMLInputElement} */
     const amountInputS = document.getElementById("sv"); // Supply Value
+    /** @type {HTMLSelectElement} */
     const typeSelectS = document.getElementById('s');   // Supply Type
+    /** @type {HTMLInputElement} */
     const amountInputD = document.getElementById("dv"); // Demand Value
+    /** @type {HTMLSelectElement} */
     const typeSelectD = document.getElementById('d');   // Demand Type
     const feeDisplay = document.getElementById("live-fee");
+    /** @type {{base: number, factors: Object<number, number>}} */
     const config = window.marketConfig;
 
     if (!amountInputS || !typeSelectS || !amountInputD || !typeSelectD || !feeDisplay || !config) return;

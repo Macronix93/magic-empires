@@ -37,14 +37,14 @@ echo "<div class='map-legend'>
     </div>";
 
 // Search
-echo '<form id="update-map" onsubmit="event.preventDefault(); jumpToCoordinates(document.getElementById(\'startx\').value, document.getElementById(\'starty\').value);">
+echo '<form id="update-map">
         X: <label>
             <input type="text" id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
         </label>
         Y: <label>
             <input type="text" id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
         </label>
-        <input type="button" id="send-map-request" value="Anzeigen" onclick="jumpToCoordinates(document.getElementById(\'startx\').value, document.getElementById(\'starty\').value)">
+        <input type="submit" id="send-map-request" value="Anzeigen">
         <span style="margin-left: 10px; display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;">
             <input type="checkbox" id="show-path-toggle" style="cursor: pointer; margin: 0;">
             <label for="show-path-toggle" style="font-size: 15px; cursor: pointer; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">

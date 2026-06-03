@@ -46,25 +46,11 @@ if (isset($_GET["accept"])) {
             $creator_id = $row["userid"];
             $creator_name = $row["username"];
 
-            $seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"]);
-            $arrival_time = time() + $seconds;
+            $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $row["mapx"], $row["mapy"]);
+            $seconds = $arrival_data["seconds"];
+            $arrival_time = $arrival_data["timestamp"];
 
-            // Subtract demand resources from buyer
-            switch ($demand) {
-                case ResourceTypes::RESOURCE_TYPE_FOOD:
-                    $kingdom->give_kingdom_food(-$demand_value);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_WOOD:
-                    $kingdom->give_kingdom_wood(-$demand_value);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_STONE:
-                    $kingdom->give_kingdom_stone(-$demand_value);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_GOLD:
-                    $kingdom->give_kingdom_gold(-$demand_value);
-                    break;
-            }
-
+            $kingdom->modify_resource((int)$demand, -$demand_value);
             $user->give_user_coins(-$coins_cost);
 
             // Buyer receives supply
@@ -108,20 +94,7 @@ if (isset($_GET["accept"])) {
         $origin_kingdom = new Kingdom($db_instance, $origin_kingdom_id);
 
         // Give supply resources back to kingdom
-        switch ($supply) {
-            case ResourceTypes::RESOURCE_TYPE_FOOD:
-                $origin_kingdom->give_kingdom_food($supply_value);
-                break;
-            case ResourceTypes::RESOURCE_TYPE_WOOD:
-                $origin_kingdom->give_kingdom_wood($supply_value);
-                break;
-            case ResourceTypes::RESOURCE_TYPE_STONE:
-                $origin_kingdom->give_kingdom_stone($supply_value);
-                break;
-            case ResourceTypes::RESOURCE_TYPE_GOLD:
-                $origin_kingdom->give_kingdom_gold($supply_value);
-                break;
-        }
+        $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
 
         // Delete the marketplace offer
         $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["delete"]]);
@@ -162,10 +135,11 @@ if (isset($_GET["accept"])) {
                 } else {
                     // No offer found for the kingdom - insert to database
                     $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
+                    $expires_at = time() + MARKET_OFFER_DURATION;
 
-                    $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins) VALUES(?, ?, ?, ?, ?, ?, ?, ?);";
+                    $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);";
                     $result = $db_instance->execute_query($query, [
-                        $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee]);
+                        $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee, $expires_at]);
 
                     switch ($supply) {
                         case ResourceTypes::RESOURCE_TYPE_FOOD:
@@ -199,6 +173,7 @@ if (isset($_GET["send_own"])) {
     if ($target_row && $target_id != $current_kingdom) {
         // 2. Ressourcen-Check
         $has_enough = false;
+
         switch ($res_type) {
             case ResourceTypes::RESOURCE_TYPE_FOOD:
                 $has_enough = ($kingdom->get_kingdom_food() >= $amount);
@@ -219,23 +194,11 @@ if (isset($_GET["send_own"])) {
         } elseif (!$has_enough) {
             $error = "Du hast nicht genug Ressourcen für diesen Transport!";
         } else {
-            $seconds = $map->get_arrival_time($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
-            $arrival_time = time() + $seconds;
+            $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
+            $seconds = $arrival_data["seconds"];
+            $arrival_time = $arrival_data["timestamp"];
 
-            switch ($res_type) {
-                case ResourceTypes::RESOURCE_TYPE_FOOD:
-                    $kingdom->give_kingdom_food(-$amount);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_WOOD:
-                    $kingdom->give_kingdom_wood(-$amount);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_STONE:
-                    $kingdom->give_kingdom_stone(-$amount);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_GOLD:
-                    $kingdom->give_kingdom_gold(-$amount);
-                    break;
-            }
+            $kingdom->modify_resource($res_type, -$amount);
 
             $db_instance->execute_query(
                 "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -263,7 +226,7 @@ $offset = ($current_page - 1) * $rows_per_page;
  * HTML Content Part
  */
 $view .= '<table class="table">
-<form action="marketplace.php" method="GET" onsubmit="return checkMarketOverflow(this, document.getElementById(\'d\').value, document.getElementById(\'dv\').value, true)">
+<form action="marketplace.php" method="GET" onsubmit="return checkMarketOverflow(this, (/** @type {HTMLSelectElement} */(document.getElementById(\'d\'))).value, (/** @type {HTMLInputElement} */(document.getElementById(\'dv\'))).value, true)">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>
@@ -315,15 +278,17 @@ $query = "
             LEFT JOIN kingdoms k 
             ON m.kingdomid = k.id
 ";
+/** @var mysqli_result $result */
 $result = $db_instance->execute_query($query);
 
 if ($result->num_rows > 0) {
     $view .= "<h3>Aktuelle Handelsangebote</h3>";
     $view .= '<table class="table">
                 <colgroup>
-                    <col style="width: 25%;"> <!-- Spieler -->
+                    <col style="width: 20%;"> <!-- Spieler -->
                     <col style="width: 30%;"> <!-- Bietet/Benötigt -->
-                    <col style="width: 25%;"> <!-- Ankunft -->
+                    <col style="width: 20%;"> <!-- Ankunft -->
+                    <col style="width: 20%;"> <!-- Endet in -->
                     <col style="width: 12%;"> <!-- Gebühr -->
                     <col style="width: 8%;">  <!-- Aktion -->
                 </colgroup>
@@ -338,6 +303,9 @@ if ($result->num_rows > 0) {
                         <b>Ankunft</b>
                     </td>
                     <td class="td-center td-gradient">
+                        <b>Endet in</b>
+                    </td>
+                    <td class="td-center td-gradient">
                         <b>Gebühr</b>
                     </td>
                     <td class="td-center td-gradient"></td>
@@ -347,6 +315,8 @@ if ($result->num_rows > 0) {
         $map_x = $row["mapx"];
         $map_y = $row["mapy"];
         $is_my_offer = ($row["userid"] == $user->get_user_id());
+        $remaining = $row["expires_at"] - time();
+        $time_str = convert_sec_to_str($remaining);
 
         if ($is_my_offer) {
             $arrival_time_str = "-";
@@ -369,7 +339,7 @@ if ($result->num_rows > 0) {
             $title_attr = "Angebot annehmen";
         }
 
-        $text_build = "<form action='marketplace.php' method='GET' onsubmit='return checkMarketOverflow(this, " . $row["supply"] . ", " . $row["supplyvalue"] . ")'>
+        $text_build = "<form action='marketplace.php' method='GET' onsubmit=\"return checkMarketOverflow(this, '" . (int)$row["supply"] . "', '" . (int)$row["supplyvalue"] . "')\">
                             <input type='hidden' name='$param' value='" . $row["offerid"] . "'>
                             <input type='submit' value='' class='$btn_class'>
                         </form>";
@@ -382,6 +352,7 @@ if ($result->num_rows > 0) {
                         " . get_resource_icon($row["demand"]) . " " . fnum($row["demandvalue"]) . "
                     </td>
                     <td class='td-center'>$arrival_time_str</td>
+                    <td class='td-center'>$time_str</td>
                     <td class='td-center'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " {$row["coins"]}</td>
                     <td class='td-center'>$text_build</td>
                 </tr>";

@@ -24,7 +24,7 @@ $tree = [
 ];
 
 // Function to draw the tree
-function drawTree($image, $tree, $x, $y, $level = 1, $spacing = 150, $horizontalSpacing = 400)
+function drawTree($image, $tree, $x, $y, $level = 1, $spacing = 150, $horizontalSpacing = 400): void
 {
     $box_width = 80;
     $box_height = 30;

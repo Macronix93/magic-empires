@@ -2,7 +2,7 @@
 
 class Database
 {
-    private static $_instance;
+    private static ?Database $_instance = null;
     private object $_connection; // The single instance
 
     /*
@@ -21,8 +21,8 @@ class Database
     // Constructor
     public static function get_instance(): Database
     {
-        if (!self::$_instance) // If no instance then make one
-        {
+        // If no instance then make one
+        if (!self::$_instance) {
             self::$_instance = new self();
         }
         return self::$_instance;
@@ -41,6 +41,6 @@ class Database
      */
     private function __clone()
     {
-        throw new Exception("Can't clone a singleton");
+        throw new Exception("Singleton kann nicht geklont werden.");
     }
 }

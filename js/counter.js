@@ -57,7 +57,9 @@ function startCountdown(counterID = "counter", initialSeconds, timerType = 0, hi
             }
 
             if (hideID) {
+                /** @type {HTMLElement} */
                 const elementToHide = document.getElementById(hideID);
+
                 if (elementToHide) elementToHide.style.display = 'none';
             }
 

@@ -1,3 +1,4 @@
+/* global currentX, currentY */
 let isDragging = false;
 let wasDragged = false;
 let startX, startY;
@@ -28,7 +29,9 @@ function refreshMapConstants() {
 
 document.addEventListener("DOMContentLoaded", () => {
     const viewport = document.getElementById("map-viewport");
+    /** @type {HTMLElement} */
     const grid = document.getElementById("map-grid");
+    /** @type {HTMLElement} */
     const loader = document.getElementById("map-loader");
     const coordsOverlay = document.getElementById("coords-display");
 
@@ -90,6 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     const pathToggle = document.getElementById("show-path-toggle");
+
     if (pathToggle) {
         pathToggle.addEventListener("change", function () {
             if (!this.checked) {
@@ -103,18 +107,39 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const searchForm = document.getElementById("update-map");
+
+    if (searchForm) {
+        searchForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            /** @type {HTMLInputElement} */
+            const xInput = document.getElementById('startx');
+            /** @type {HTMLInputElement} */
+            const yInput = document.getElementById('starty');
+
+            if (xInput && yInput) {
+                jumpToCoordinates(xInput.value, yInput.value);
+            }
+        });
+    }
+
     fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
         .then(response => response.text())
         .then(html => {
             grid.innerHTML = html;
+
             requestAnimationFrame(() => {
                 centerMapOn(currentX, currentY, true);
+
                 const startTile = document.querySelector(`.map-tile[data-x="${currentX}"][data-y="${currentY}"]`);
+
                 if (startTile) startTile.classList.add("highlight");
                 grid.style.visibility = "visible";
 
                 if (loader) {
                     loader.classList.add("loader-hidden");
+
                     setTimeout(() => loader.style.display = "none", 500);
                 }
             });
@@ -122,9 +147,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function updateTransform(instant = false) {
+    /** @type {HTMLElement} */
     const grid = document.getElementById("map-grid");
+
     grid.style.transition = instant ? "none" : "transform 0.3s ease-out";
     grid.style.transform = `translate3d(${currentTranslateX}px, ${currentTranslateY}px, 0) scale(${zoom})`;
+
     updateMobileCoords();
 }
 
@@ -166,7 +194,9 @@ function stopDrag() {
 }
 
 function clampMapPosition(instant = true) {
+    /** @type {HTMLElement} */
     const viewport = document.getElementById("map-viewport");
+
     if (!viewport) return;
 
     const scaledGridSize = baseGridSize * zoom;
@@ -193,6 +223,7 @@ function applyMomentum() {
     currentTranslateX += velocityX;
     currentTranslateY += velocityY;
 
+    /** @type {HTMLElement} */
     const viewport = document.getElementById("map-viewport");
     const scaledGridSize = baseGridSize * zoom;
     const minX = -(scaledGridSize - viewport.offsetWidth);
@@ -215,8 +246,11 @@ function applyMomentum() {
 
 function centerMapOn(x, y, instant = false) {
     cancelAnimationFrame(momentumID);
+
     velocityX = 0;
     velocityY = 0;
+
+    /** @type {HTMLElement} */
     const viewport = document.getElementById("map-viewport");
     const tileCenterX = (x - 0.5) * baseTileSize * zoom;
     const tileCenterY = (y - 0.5) * baseTileSize * zoom;
@@ -228,9 +262,11 @@ function centerMapOn(x, y, instant = false) {
 }
 
 function applyZoom(newZoom, mouseX = null, mouseY = null) {
+    /** @type {HTMLElement} */
     const viewport = document.getElementById("map-viewport");
     const oldZoom = zoom;
     zoom = Math.max(0.5, Math.min(2.0, newZoom));
+
     if (oldZoom === zoom) return;
 
     if (mouseX === null) mouseX = viewport.offsetWidth / 2;
@@ -246,6 +282,7 @@ function applyZoom(newZoom, mouseX = null, mouseY = null) {
 }
 
 function updateMobileCoords() {
+    /** @type {HTMLElement} */
     const viewport = document.getElementById("map-viewport");
     const coordsOverlay = document.getElementById("coords-display");
     const currentScaledTileSize = baseTileSize * zoom;
@@ -284,17 +321,19 @@ function forceSelectField(element) {
     })
         .then(r => r.json())
         .then(data => {
+            /** @type {{html: string, path: Array<{x: number, y: number}>}} */
             document.getElementById("field-info").innerHTML = data.html;
 
-            // 2. Alten Pfad löschen (immer)
             document.querySelectorAll('.path-highlight').forEach(t => t.classList.remove("path-highlight"));
 
-            // 3. Neuen Pfad zeichnen (NUR wenn Tickbox gesetzt ist)
-            const isPathEnabled = document.getElementById("show-path-toggle").checked;
+            /** @type {HTMLInputElement} */
+            const pathToggle = document.getElementById("show-path-toggle");
+            const isPathEnabled = pathToggle.checked;
 
             if (isPathEnabled && data.path && data.path.length > 0) {
                 data.path.forEach(step => {
                     const pathTile = document.querySelector(`.map-tile[data-x="${step.x}"][data-y="${step.y}"]`);
+
                     if (pathTile) {
                         pathTile.classList.add("path-highlight");
                     }
@@ -306,5 +345,6 @@ function forceSelectField(element) {
 
 function selectField(element) {
     if (wasDragged) return;
+
     forceSelectField(element);
 }

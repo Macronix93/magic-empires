@@ -198,7 +198,7 @@ class Kingdom
             return null;
         }
 
-        $building = new Building($this->mysqli);
+        $building = new Building();
         $building->set_building_name($row['buildingname']);
         $building->set_building_level($row['buildinglevel']);
         $building->set_building_id($building_id);
@@ -510,7 +510,7 @@ class Kingdom
 
             // Check if building object already exists
             if (!isset($buildings[$building_id])) {
-                $building = new Building($this->mysqli);
+                $building = new Building();
                 $buildings = $building->create_building($building, $row, $buildings, $building_id);
             }
 
@@ -587,5 +587,16 @@ class Kingdom
         }
 
         return $techs;
+    }
+
+    public function modify_resource(int $resource_type, int $amount): void
+    {
+        match ($resource_type) {
+            ResourceTypes::RESOURCE_TYPE_FOOD => $this->give_kingdom_food($amount),
+            ResourceTypes::RESOURCE_TYPE_WOOD => $this->give_kingdom_wood($amount),
+            ResourceTypes::RESOURCE_TYPE_STONE => $this->give_kingdom_stone($amount),
+            ResourceTypes::RESOURCE_TYPE_GOLD => $this->give_kingdom_gold($amount),
+            default => null
+        };
     }
 }

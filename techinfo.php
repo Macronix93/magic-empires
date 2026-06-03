@@ -10,8 +10,18 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
-$building_id = $_GET['bid'] ?? null;
-$tech_id = $_GET['tid'] ?? null;
+$building_id = $_GET["bid"] ?? null;
+$tech_id = $_GET["tid"] ?? null;
+
+$get_costs_for_level = function (array $data, int $lvl) {
+    $m = $data["multiplicator"];
+    return [
+            "wood" => fnum($data["woodcost"] + round($data["woodcost"] * $m * $lvl)),
+            "food" => fnum($data["foodcost"] + round($data["foodcost"] * $m * $lvl)),
+            "stone" => fnum($data["stonecost"] + round($data["stonecost"] * $m * $lvl)),
+            "gold" => fnum($data["goldcost"] + round($data["goldcost"] * $m * $lvl)),
+    ];
+};
 
 if ($building_id != null) {
     $query = "
@@ -48,10 +58,12 @@ if ($building_id != null) {
         $current_level_value = $building ? $building->get_building_level() : 0;
 
         for ($i = 0; $i < MAX_BUILDING_LEVEL; $i++) {
-            $wood_cost = fnum($row["woodcost"] + round($row["woodcost"] * $row["multiplicator"] * $i));
-            $food_cost = fnum($row["foodcost"] + round($row["foodcost"] * $row["multiplicator"] * $i));
-            $stone_cost = fnum($row["stonecost"] + round($row["stonecost"] * $row["multiplicator"] * $i));
-            $gold_cost = fnum($row["goldcost"] + round($row["goldcost"] * $row["multiplicator"] * $i));
+            $costs = $get_costs_for_level($row, $i);
+            $wood_cost = $costs["wood"];
+            $food_cost = $costs["food"];
+            $stone_cost = $costs["stone"];
+            $gold_cost = $costs["gold"];
+
             $time_to_build = convert_sec_to_str($row["timetobuild"] + round($row["timetobuild"] * $i));
 
             $style = ($i == $current_level_value) ? "style='background-color: green;'" : "";
@@ -106,10 +118,12 @@ if ($building_id != null) {
         $current_level_value = $tech ? $tech->get_tech_level() : 0;
 
         for ($i = 0; $i < $row["maxlevel"]; $i++) {
-            $wood_cost = fnum($row["woodcost"] + round($row["woodcost"] * $row["multiplicator"] * $i));
-            $food_cost = fnum($row["foodcost"] + round($row["foodcost"] * $row["multiplicator"] * $i));
-            $stone_cost = fnum($row["stonecost"] + round($row["stonecost"] * $row["multiplicator"] * $i));
-            $gold_cost = fnum($row["goldcost"] + round($row["goldcost"] * $row["multiplicator"] * $i));
+            $costs = $get_costs_for_level($row, $i);
+            $wood_cost = $costs["wood"];
+            $food_cost = $costs["food"];
+            $stone_cost = $costs["stone"];
+            $gold_cost = $costs["gold"];
+
             $time_to_research = convert_sec_to_str($row["timetoresearch"] + round($row["timetoresearch"] * $i));
 
             $style = ($i == $current_level_value) ? "style='background-color: green;'" : "";

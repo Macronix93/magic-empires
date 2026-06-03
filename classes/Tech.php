@@ -102,10 +102,10 @@ class Tech
         $cost_gold = round($this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_GOLD) + $this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_GOLD) * $mult * $level);
 
         return array(
-            "costWood" => $cost_wood,
-            "costFood" => $cost_food,
-            "costStone" => $cost_stone,
-            "costGold" => $cost_gold,
+            "cost_wood" => $cost_wood,
+            "cost_food" => $cost_food,
+            "cost_stone" => $cost_stone,
+            "cost_gold" => $cost_gold,
         );
     }
 

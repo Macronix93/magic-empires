@@ -8,7 +8,9 @@ let yOffset = 0;
 let currentOverlayWidth = "850px";
 
 function applyOverlayStyles() {
+    /** @type {HTMLElement} */
     const overlay = document.getElementById("onpage-overlay");
+
     if (!overlay || overlay.style.display === "none") return;
 
     if (window.innerWidth < 600) {
@@ -21,6 +23,7 @@ function applyOverlayStyles() {
 }
 
 function openOverlay(url, title = "Spieler-Info") {
+    /** @type {HTMLElement} */
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
@@ -49,11 +52,17 @@ function openOverlay(url, title = "Spieler-Info") {
 }
 
 function closeOverlay() {
-    document.getElementById("onpage-overlay").style.display = "none";
+    /** @type {HTMLElement} */
+    const overlay = document.getElementById("onpage-overlay");
+
+    if (overlay) {
+        overlay.style.display = "none";
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
     const dragItem = document.getElementById("overlay-handle");
+    /** @type {HTMLElement} */
     const container = document.getElementById("onpage-overlay");
 
     window.addEventListener("resize", () => {

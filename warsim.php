@@ -10,11 +10,7 @@ $result = $db_instance->execute_query("SELECT id, soldiername, attack, defense, 
 
 foreach ($result as $row) {
     $soldier = new Soldier();
-    $soldier->set_soldier_id($row["id"]);
-    $soldier->set_soldier_name($row["soldiername"]);
-    $soldier->set_soldier_attack($row["attack"]);
-    $soldier->set_soldier_defense($row["defense"]);
-    $soldier->set_soldier_icon($row["icon"]);
+    $soldier->fill_from_row($row);
 
     $soldiers[] = $soldier;
 }
