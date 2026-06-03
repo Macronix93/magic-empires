@@ -11,7 +11,7 @@ use JetBrains\PhpStorm\NoReturn;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require "vendor/autoload.php"; // Composer Autoloader
+require __DIR__ . "/../vendor/autoload.php"; // Composer Autoloader
 
 if (session_status() == PHP_SESSION_NONE) {
     session_start();

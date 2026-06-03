@@ -12,16 +12,13 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     if ($_SESSION["msgreceiver"] != $chat_partner_id) {
         $error = "redirect";
     } else {
-        // 1. Neue Nachrichten holen
         $result = $db_instance->execute_query("SELECT * FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0", [$chat_partner_id, $user->get_user_id()]);
 
         $my_chat_image = $user->get_avatar();
         $chat_partner_image = "";
 
-        // Wir nutzen fetch_all oder eine saubere Schleife ohne den Pointer vorher zu bewegen
         while ($row = $result->fetch_assoc()) {
             if (empty($chat_partner_image)) {
-                // Partner Objekt nur einmal erstellen
                 $partner = new User((int)$row["senderid"], $row["sender"]);
                 $chat_partner_image = $partner->get_avatar();
             }
@@ -36,13 +33,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
         }
 
-        // 2. Nachrichten finden, die gelöscht werden müssen (MySQL Weg)
-        // Erst IDs selektieren...
         $del_res = $db_instance->execute_query("SELECT id FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1", [$chat_partner_id, $user->get_user_id()]);
         foreach ($del_res as $del_row) {
             $messages_to_delete[] = $del_row['id'];
         }
-        // ...dann löschen
+
         if (!empty($messages_to_delete)) {
             $db_instance->execute_query("DELETE FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1", [$chat_partner_id, $user->get_user_id()]);
         }

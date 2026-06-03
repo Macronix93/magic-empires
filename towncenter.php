@@ -74,9 +74,8 @@ if (isset($_GET["action"])) {
                             $kingdom->give_kingdom_stone(-$cost_stone);
                             $kingdom->give_kingdom_gold(-$cost_gold);
 
-                            $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) 
-                                                    VALUES('" . ActionTypes::ACTION_BUILD_BUILDING . "', '{$user->get_user_id()}', '$current_kingdom', 
-                                                    '$build_id', '$building_time', '{$buildings[$build_id]->get_building_level()}', '{$buildings[$build_id]->get_building_name()}');");
+                            $db_instance->query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
                         }
                     }
                 }

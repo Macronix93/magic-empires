@@ -73,7 +73,6 @@ if (isset($_GET["logout"])) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
     // LOGIN
     if (isset($_POST["login"])) {
         $name = make_secure($_POST["username"] ?? "");
@@ -94,6 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $error .= "Nutzername oder Passwort ist falsch!";
                     } else {
                         unset($_POST);
+
                         $user->login_user($row["id"]);
                     }
                 }
