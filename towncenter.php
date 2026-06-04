@@ -90,6 +90,11 @@ if (isset($_GET["action"])) {
                 $kingdom->give_kingdom_food($cost_food);
                 $kingdom->give_kingdom_stone($cost_stone);
                 $kingdom->give_kingdom_gold($cost_gold);
+
+                $logger->log_game("ECONOMY", "BUILDING_CANCEL", [
+                    "building" => $buildings[$build_id]->get_building_name(),
+                    "refund" => $costs
+                ], $current_kingdom);
             } else {
                 $error = "Du baust gerade nichts!";
             }

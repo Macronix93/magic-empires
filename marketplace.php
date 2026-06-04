@@ -77,6 +77,17 @@ if (isset($_GET["accept"])) {
             // Delete the offer and send a confirmation text
             $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
 
+            $logger->log_game("TRADE", "OFFER_ACCEPT", [
+                "offer_id" => $_GET["accept"],
+                "seller_id" => $creator_id,
+                "resource" => $supply,
+                "amount" => $supply_value,
+                "cost_res" => $demand,
+                "cost_amount" => $demand_value,
+                "from_kingdom" => $row["kingdomid"],
+                "to_kingdom" => $kingdom->get_kingdom_id()
+            ], $current_kingdom);
+
             $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . convert_sec_to_str($seconds));
         }
     } else {
@@ -99,6 +110,12 @@ if (isset($_GET["accept"])) {
         // Delete the marketplace offer
         $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["delete"]]);
         $view .= show_passed_box("Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.");
+
+        $logger->log_game("TRADE", "OFFER_DELETE", [
+            "offer_id" => $_GET["delete"],
+            "refund_res" => $row["supply"],
+            "refund_amount" => $row["supplyvalue"]
+        ], $current_kingdom);
     } else {
         $error = "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
     }
@@ -155,6 +172,14 @@ if (isset($_GET["accept"])) {
                             $kingdom->give_kingdom_gold(-$supply_value);
                             break;
                     }
+
+                    $logger->log_game("TRADE", "OFFER_CREATE", [
+                        "supply_res" => $supply,
+                        "supply_amount" => $supply_value,
+                        "demand_res" => $demand,
+                        "demand_amount" => $demand_value,
+                        "fee" => $calculated_fee
+                    ], $current_kingdom);
                 }
             }
         }
@@ -191,7 +216,7 @@ if (isset($_GET["send_own"])) {
 
         if ($amount <= 0) {
             $error = "Bitte gib eine Menge größer als 0 an!";
-        } elseif (!$has_enough) {
+        } else if (!$has_enough) {
             $error = "Du hast nicht genug Ressourcen für diesen Transport!";
         } else {
             $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
@@ -204,6 +229,12 @@ if (isset($_GET["send_own"])) {
                 "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $target_id, $res_type, $amount, "Interner Transport", $arrival_time]
             );
+
+            $logger->log_game("TRADE", "INTERNAL_TRANSPORT", [
+                "target_kingdom" => $target_id,
+                "resource" => $res_type,
+                "amount" => $amount
+            ], $current_kingdom);
 
             $view .= show_passed_box("Transport nach " . $target_row["kingdomname"] . " gestartet!<br>Ankunft in " . convert_sec_to_str($seconds));
         }

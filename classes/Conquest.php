@@ -409,4 +409,52 @@ class Conquest
 
         return $this->enemy_message;
     }
+
+    public function get_initial_soldiers_detailed(): array
+    {
+        $details = [];
+        foreach ($this->initial_soldiers as $id => $data) {
+            if ($data["initial_my_soldiers"] > 0) {
+                $name = $this->soldier_types[$id]["soldiername"];
+                $details[$name] = (int)$data["initial_my_soldiers"];
+            }
+        }
+        return $details;
+    }
+
+    public function get_initial_enemy_detailed(): array
+    {
+        $details = [];
+        foreach ($this->initial_soldiers as $id => $data) {
+            if ($data["initial_enemy_soldiers"] > 0) {
+                $name = $this->soldier_types[$id]["soldiername"];
+                $details[$name] = (int)$data["initial_enemy_soldiers"];
+            }
+        }
+        return $details;
+    }
+
+    public function get_attacker_losses_detailed(): array
+    {
+        $details = [];
+        foreach ($this->initial_soldiers as $id => $data) {
+            if ($data["my_losses"] > 0) {
+                $name = $this->soldier_types[$id]["soldiername"];
+                $details[$name] = (int)$data["my_losses"];
+            }
+        }
+        return $details;
+    }
+
+    public function get_defender_losses_detailed(): array
+    {
+        $details = [];
+        foreach ($this->initial_soldiers as $id => $data) {
+            if ($data["enemy_losses"] > 0) {
+                $name = $this->soldier_types[$id]["soldiername"];
+                $details[$name] = (int)$data["enemy_losses"];
+            }
+        }
+        return $details;
+    }
 }

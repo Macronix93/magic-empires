@@ -385,6 +385,8 @@ function get_bad_names(): array
 function global_exception_handler($e): void
 {
     error_log("[" . date(ERROR_DATE_FORMAT) . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_LOG_FILE);
+    Logger::get_instance()->error($e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+
     echo "<body style='
                         display: flex;
                         justify-content: center;
@@ -409,8 +411,11 @@ function global_error_handler($err_no, $err_str, $err_file, $err_line)
 function fatal_error_shutdown_handler(): void
 {
     $error = error_get_last();
+
     if ($error !== null) {
         error_log("[" . date(ERROR_DATE_FORMAT) . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_LOG_FILE);
+        Logger::get_instance()->error("FATAL: " . $error['message'] . " in " . $error['file']);
+
         echo "<body style='
                         display: flex;
                         justify-content: center;
@@ -492,6 +497,9 @@ function send_mail(string $to, string $subject, string $body): bool
 // Database instance for classes
 $db = Database::get_instance();
 $db_instance = $db->get_connection();
+
+// Logger instance
+$logger = Logger::get_instance();
 
 // Create User instance
 $user = new User($_SESSION["userid"] ?? -1, $_SESSION["username"] ?? "", $_SESSION["kingdomid"] ?? -1);

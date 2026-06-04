@@ -113,6 +113,25 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 }
 
                 if ($event_id !== null) {
+                    $log_troops = [];
+                    
+                    foreach ($_POST["soldiers"] as $s_id => $count) {
+                        $count = (int)$count;
+
+                        if ($count > 0) {
+                            $name = $soldiers[$s_id]->get_soldier_name();
+                            $logTroops[$name] = $count;
+                        }
+                    }
+
+                    $logger->log_game("COMBAT", "ATTACK_SEND", [
+                        "target_x" => $target_x,
+                        "target_y" => $target_y,
+                        "target_kingdom_id" => $kingdom_id,
+                        "arrival_in" => $arrival_time,
+                        "troops" => $log_troops
+                    ], $user->get_current_kingdom());
+
                     $view .= show_passed_box("Truppen erfolgreich gesendet!");
                 }
             }

@@ -54,6 +54,12 @@ if (isset($_POST['submit'])) {
                 if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
                     $view = "Nutzerbild wurde erfolgreich hochgeladen!";
 
+                    $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
+                        "filename" => $file_name,
+                        "extension" => $file_ext,
+                        "size" => $file_size
+                    ]);
+
                     unset($_SESSION['csrf_token']);
                 } else {
                     $error = "Fehler beim Hochladen des Nutzerbildes!";

@@ -40,7 +40,7 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
             // Calculate remaining soldiers to be recruited and resulting refunds
             $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
                 [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $s_id]);
-            $soldier_goal = $result->fetch_assoc()['soldiergoal'];
+            $soldier_goal = $result->fetch_assoc()["soldiergoal"];
 
             // Refund player
             $kingdom->give_kingdom_food($soldier_goal * $soldiers[$s_id]->get_soldier_food_cost());
@@ -51,6 +51,11 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
             // Delete the job
             $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?",
                 [$user->get_user_id(), $s_id, $current_kingdom]);
+
+            $logger->log_game("ECONOMY", "RECRUIT_CANCEL", [
+                "soldier_name" => $soldiers[$s_id]->get_soldier_name(),
+                "amount_cancelled" => $soldier_goal
+            ], $current_kingdom);
         } else {
             $error = "Du rekrutierst gerade nicht!";
         }

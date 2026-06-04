@@ -25,6 +25,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair"])) {
         $kingdom->give_kingdom_stone(-$repair_cost);
         $kingdom->set_wall_hp($wall_max_hp);
 
+        $logger->log_game("ECONOMY", "WALL_REPAIR", [
+            "hp_gained" => $hp_difference,
+            "cost_stone" => $repair_cost
+        ], $current_kingdom);
+
         change_location("wall.php");
     } else {
         $error = "Nicht genügend Stein oder Mauer ist bereits voll repariert!";

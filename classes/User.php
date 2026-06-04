@@ -68,6 +68,8 @@ class User
         $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ? WHERE id = ?",
             [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $user_id]);
 
+        Logger::get_instance()->log_game("ACCOUNT", "LOGIN_SUCCESS");
+
         change_location("overview.php");
     }
 

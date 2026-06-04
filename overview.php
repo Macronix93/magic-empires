@@ -25,6 +25,12 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
             $update = $db_instance->execute_query("UPDATE events SET actionid = ?, arrivaltime = ? WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
             );
+
+            $logger->log_game("COMBAT", "ATTACK_RECALL", [
+                "event_id" => $event_id,
+                "target_x" => $event["targetx"],
+                "target_y" => $event["targety"]
+            ], $event["kingdomid"]);
         }
     } else {
         $error = "Diese Aktion ist ungültig!";

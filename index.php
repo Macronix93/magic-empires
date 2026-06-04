@@ -34,6 +34,7 @@ if (!empty($_GET["key"])) {
                 ";
                 $db_instance->execute_query($query_rank, [$user_id]);
                 $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $user_id]);
+
                 $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
             } else {
                 $error = "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de";
@@ -82,14 +83,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $error .= "Bitte beide Felder ausfüllen!";
         } else {
             $result = $db_instance->execute_query("SELECT id, password, status, adminlevel FROM users WHERE username = ? LIMIT 1", [$name]);
+
             if ($result && $result->num_rows == 1) {
                 $row = $result->fetch_assoc();
+
                 if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
                     $error .= "Der Server befindet sich im Wartungsmodus!";
                 } else {
                     if (!$row["status"]) {
                         $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
                     } else if (!password_verify($pass, $row["password"])) {
+                        $logger->security("Login failed for user: $name");
                         $error .= "Nutzername oder Passwort ist falsch!";
                     } else {
                         unset($_POST);
@@ -98,6 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
             } else {
+                $logger->security("Login failed for user: $name");
                 $error .= "Nutzername oder Passwort ist falsch!";
             }
         }
@@ -167,6 +172,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error .= "Benutzername oder E-Mail existiert bereits!<br>";
             } else {
                 $user->register_user($name, $email, $pass);
+                $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
                 $success = $user->get_reg_status();
                 $mode = "login";
             }

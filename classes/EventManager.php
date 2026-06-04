@@ -96,6 +96,12 @@ class EventManager
 
         $this->user->set_last_researched_tech($row["kingdomid"], $row["buildingname"], $row["buildinglevel"]);
         $this->update_user_score($score_gain);
+
+        Logger::get_instance()->log_game("ECONOMY", "RESEARCH_FINISH", [
+            "tech_id" => $tech_id,
+            "tech_name" => $row["buildingname"],
+            "level" => $row["buildinglevel"] + 1
+        ], $row["kingdomid"]);
     }
 
     private function handle_building(array $row): void
@@ -120,6 +126,11 @@ class EventManager
 
         // Special effects for a building after construction
         $this->apply_building_effects($row["buildingid"], $row["buildinglevel"], $row["kingdomid"]);
+
+        Logger::get_instance()->log_game("ECONOMY", "BUILDING_UPGRADE", [
+            "building" => $row["buildingname"],
+            "level" => $row["buildinglevel"] + 1
+        ], $row["kingdomid"]);
     }
 
     private function handle_recruitment(array $row): void
@@ -154,6 +165,12 @@ class EventManager
 
         if ($number_left_to_recruit == 0) {
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+
+            Logger::get_instance()->log_game("ECONOMY", "RECRUIT_FINISH", [
+                "soldier_id" => $s_id,
+                "soldier_name" => $soldier_name,
+                "amount" => $row["soldiergoal"]
+            ], $row["kingdomid"]);
         }
     }
 
@@ -416,6 +433,20 @@ class EventManager
 
         // Send server message to the enemy
         send_server_message($enemy_user->get_user_id(), $enemy_user->get_user_name(), $enemy_msg, MessageCategories::CATEGORY_WAR);
+
+        $logDetails = [
+            "attacker_id" => $this->user->get_user_id(),
+            "defender_id" => $enemy_user->get_user_id(),
+            "target_coords" => $row["targetx"] . ":" . $row["targety"],
+            "troops_sent" => $conquest->get_initial_soldiers_detailed(),
+            "troops_defender" => $conquest->get_initial_enemy_detailed(),
+            "losses_attacker" => $conquest->get_attacker_losses_detailed(),
+            "losses_defender" => $conquest->get_defender_losses_detailed(),
+            "wall_before" => $enemy_kingdom->get_wall_hp(),
+            "wall_after" => $conquest->calculate_wall_damage()
+        ];
+
+        Logger::get_instance()->log_game("COMBAT", "RESULT", $logDetails, $row["kingdomid"]);
     }
 
     private function handle_post_battle_conquest(array $row, Conquest $conquest, Kingdom $enemy_kingdom, User $enemy_user, string &$message, string &$enemy_msg): void

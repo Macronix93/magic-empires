@@ -49,7 +49,7 @@ registerAction("changeKingdomSelect", (el) => {
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
-    const selector = `[data-on-click="${name}"], [data-on-submit="${name}"]`;
+    const selector = `[data-on-click="${name}"], [data-on-submit="${name}"], [data-on-change="${name}"]`;
     document.querySelectorAll(selector).forEach(bindActions);
 }
 

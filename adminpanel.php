@@ -9,11 +9,11 @@ $user_id = -1;
 if ($user->get_user_admin_level() == 0) {
     $error = "Du bist kein Administrator!";
 } else {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['field'])) {
-        $field = $_POST['field'];
-        $old_value = $_POST['old_value'];
-        $new_value = $_POST['new_value'];
-        $user_id = $_POST['user_id'];
+    if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["field"])) {
+        $field = $_POST["field"];
+        $old_value = $_POST["old_value"];
+        $new_value = $_POST["new_value"];
+        $user_id = $_POST["user_id"];
 
         // Update avatar file
         if ($field == "avatar") {
@@ -37,8 +37,10 @@ if ($user->get_user_admin_level() == 0) {
 
         if ($result) {
             if ($field == "password") {
-                $new_value = $_POST['new_value'];
+                $new_value = $_POST["new_value"];
             }
+
+            $logger->admin("Edited field '$field' for user ID $user_id. New Value: " . ($field === "password" ? '***' : $new_value));
 
             $view .= show_passed_box("Daten erfolgreich aktualisiert! Field: $field Value: $new_value");
         } else {
@@ -47,8 +49,8 @@ if ($user->get_user_admin_level() == 0) {
     }
 
     // Show user related info if clicked on a user
-    if (isset($_GET['userid'])) {
-        $user_id = $_GET['userid'];
+    if (isset($_GET["userid"])) {
+        $user_id = $_GET["userid"];
 
         $query = "SELECT 
                     users.*, 
@@ -75,9 +77,9 @@ if ($user->get_user_admin_level() == 0) {
             $found_kingdom = -1;
 
             foreach ($result as $row) {
-                $kingdom_id = $row['kingdom_id'];
-                $event_id = $row['event_id'];
-                $adm_user = new User($row['id'], $row['username']);
+                $kingdom_id = $row["kingdom_id"];
+                $event_id = $row["event_id"];
+                $adm_user = new User($row["id"], $row["username"]);
 
                 // Process user information only once (for display purposes)
                 if (empty($user_info)) {
@@ -260,6 +262,8 @@ if ($user->get_user_admin_level() == 0) {
                     $db_instance->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = ?", [$row["kingdomid"]]);
                 }
             }
+
+            $logger->admin("DELETED USER: $username (ID: $user_id)");
 
             $view .= show_passed_box("Benutzer erfolgreich gelöscht!");
         } else {
