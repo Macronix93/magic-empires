@@ -22,7 +22,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             <div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
                 <div class='message-border'>
                     Am " . date("d.m.Y H:i:s", $row["date"]) . "
-                    <img src='images/icons/icon_delete.png' class='ressource-icons' onclick='deleteServerMessage(\"{$row["id"]}\")' style='cursor: pointer;' alt=''>
+                    <img src='images/icons/icon_delete.png' 
+                         class='ressource-icons' 
+                         data-on-click='deleteServerMsg' 
+                         data-id='" . e($row["id"]) . "' 
+                         style='cursor: pointer;' alt=''>
                 </div>
                 {$row["message"]}
             </div>";

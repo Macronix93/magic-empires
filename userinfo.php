@@ -84,8 +84,11 @@ if (isset($user_id)) {
                 <b>Haupt-Königreich</b>
             </td>
             <td>
-                <a href='#' onclick='redirectToMap(<?= $x ?>, <?= $y ?>)'>
-                    <?= $x . ":" . $y ?>
+                <a href="#"
+                   data-on-click="mapJump"
+                   data-x="<?= e($x) ?>"
+                   data-y="<?= e($y) ?>">
+                    <?= e($x) . ":" . e($y) ?>
                 </a>
             </td>
         </tr>
@@ -100,7 +103,8 @@ if (isset($user_id)) {
     </table>
     <br>
     <div style="text-align:center">
-        <a href="#" onclick="closeOverlay()"
+        <a href="#"
+           data-on-click="closeOverlay"
            style="background-color: rgba(0, 0, 0, 0.7); display: inline-block;">
             [Schließen]
         </a>

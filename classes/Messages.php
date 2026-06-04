@@ -99,9 +99,7 @@ class Messages
 
         $this->view .= "
                     <div class='msg-back-button-container'>
-                        <button class='msg-back-button' onclick='window.location.href=\"messages.php\";'>
-                            Zurück
-                        </button>
+                        <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
                     </div>
         ";
 
@@ -130,7 +128,9 @@ class Messages
 
                 $this->view .= "
                     <tr class='tr-hover$old_conversation'>
-                        <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant_id"]}\";'>
+                        <td class='td-cursor' 
+                            data-on-click='redirect' 
+                            data-url='messages.php?action=read&s=" . e($row["participant_id"]) . "'>
                             <div class='image-and-user'>
                                 <img class='user-image' src='$image_path' alt='Nutzerbild'>
                                 <span>$sender_name</span>
@@ -140,15 +140,19 @@ class Messages
                     ) . "
                             </div>
                         </td>
-                        <td class='td-cursor' onclick='window.location.href=\"messages.php?action=read&s={$row["participant_id"]}\";'>
+                        <td class='td-cursor' 
+                            data-on-click='redirect' 
+                            data-url='messages.php?action=read&s=" . e($row["participant_id"]) . "'>
                             am " . date("d.m.Y \u\m H:i:s", $latest_timestamp) . "
                         </td>
                         <td class='td-center'>
                             <img src='images/icons/icon_delete.png' 
-                            class='ressource-icons' 
-                            alt='Löschen' 
-                            onclick='conversationDeletionDialog(\"{$row["participant_id"]}\", \"$sender_name\")' 
-                            style='cursor: pointer;'>
+                                 class='ressource-icons' 
+                                 alt='Löschen' 
+                                 data-on-click='confirmDeleteConversation' 
+                                 data-id='" . e($row["participant_id"]) . "' 
+                                 data-name='" . e($sender_name) . "' 
+                                 style='cursor: pointer;'>
                         </td>
                     </tr>
                 ";
@@ -206,10 +210,11 @@ class Messages
                                 <div class='message-border'>
                                     Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
                                     <img src='images/icons/icon_delete.png' 
-                                    class='ressource-icons' 
-                                    alt='Löschen' 
-                                    onclick='deleteServerMessage(\"$message_id\")' 
-                                    style='cursor: pointer;'>
+                                     class='ressource-icons' 
+                                     alt='Löschen' 
+                                     data-on-click='deleteServerMsg' 
+                                     data-id='" . e($message_id) . "' 
+                                     style='cursor: pointer;'>
                                 </div>
                                 " . $row["message"] . "
                             </div>
@@ -297,7 +302,12 @@ class Messages
                 $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                             <div class='image-and-user message-border'>
                                 <img class='user-image' src='$my_chat_image' alt=''> Du am " . date("d.m.Y H:i", $date) . "
-                                <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteChatMessage(\"$message_id\")' style='cursor: pointer;'>
+                                <img src='images/icons/icon_delete.png' 
+                                   class='ressource-icons' 
+                                   alt='Löschen' 
+                                   data-on-click='deleteChatMsg' 
+                                   data-id='" . e($message_id) . "' 
+                                   style='cursor: pointer;'>
                             </div>
                             " . $message . "
                         </div>";

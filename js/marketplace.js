@@ -1,6 +1,30 @@
 /** @var curKingdomStorage */
 /** @var marketConfig */
 
+registerAction("checkMarket", (form, event) => {
+    event.preventDefault();
+
+    let resType, amount;
+
+    if (form.dataset.typeField && form.dataset.amountField) {
+        resType = document.getElementById(form.dataset.typeField).value;
+        amount = document.getElementById(form.dataset.amountField).value;
+    } else {
+        resType = form.dataset.resType;
+        amount = form.dataset.amount;
+    }
+
+    const isListing = form.dataset.isListing === "true";
+
+    if (typeof checkMarketOverflow === "function") {
+        const noOverflowDetected = checkMarketOverflow(form, resType, amount, isListing);
+
+        if (noOverflowDetected === true) {
+            form.submit();
+        }
+    }
+});
+
 document.addEventListener("DOMContentLoaded", function () {
     const supplySelect = document.querySelector("select[name='s']");
     const demandSelect = document.querySelector("select[name='d']");
@@ -71,13 +95,14 @@ document.addEventListener("DOMContentLoaded", function () {
 function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
     /** @type {Object<number, {cur: string|number, max: number}>} */
     const storageData = window.curKingdomStorage;
+    const typeKey = parseInt(resType);
 
-    if (!storageData || !storageData[resType]) return true;
+    if (!storageData || !storageData[typeKey]) return true;
 
-    const storage = storageData[resType];
+    const storage = storageData[typeKey];
     const current = parseInt(storage.cur);
     const max = Number(storage.max);
-    const amount = Number(incomingAmount);
+    const amount = Number(incomingAmount) || 0;
 
     const resNames = ["Nahrung", "Holz", "Stein", "Gold"];
 

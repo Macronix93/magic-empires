@@ -107,8 +107,8 @@ if ($result && $result->num_rows > 0) {
         $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
         $difference_time = max(0, $event_data["arrivaltime"] - time());
         $counter_id = "counter_" . $event_id;
-        $my_coords = "<a href='#' onclick='redirectToMap(\"{$event_data["mapx"]}\", \"{$event_data["mapy"]}\")'>{$event_data["mapx"]}:{$event_data["mapy"]}</a>";
-        $target_coords = "<a href='#' onclick='redirectToMap(\"{$event_data["targetx"]}\", \"{$event_data["targety"]}\")'>{$event_data["targetx"]}:{$event_data["targety"]}</a>";
+        $my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
+        $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
         $coords_str = "$my_coords → $target_coords";
 
         $action_counter = "<b><span id='$counter_id'></span></b><br>
@@ -171,9 +171,10 @@ if ($result && $result->num_rows > 0) {
 $view .= '<div class="title-border" style="margin-top: 30px;">Bau & Entwicklung</div>';
 
 $query_events = "
-    SELECT e.*, k.kingdomname, k.mapx, k.mapy 
+    SELECT e.*, k.kingdomname, k.mapx, k.mapy, sl.icon AS soldier_icon, sl.soldiername AS soldiername
     FROM events e 
-    JOIN kingdoms k ON e.kingdomid = k.id 
+    JOIN kingdoms k ON e.kingdomid = k.id
+    LEFT JOIN soldierlist sl ON sl.id = e.soldierid
     WHERE e.userid = ? AND e.actionid IN (?, ?, ?)
     ORDER BY COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
 ";
@@ -229,8 +230,8 @@ if ($result_events && $result_events->num_rows > 0) {
                 $type_text = "Rekrutierung";
                 $sol_obj = new Soldier();
                 $sol_obj->set_soldier_id($row["soldierid"]);
-                $sol_obj->set_soldier_icon($soldier["icon"]);
-                $sol_obj->set_soldier_name($soldier["name"]);
+                $sol_obj->set_soldier_icon($row["soldier_icon"]);
+                $sol_obj->set_soldier_name($row["soldiername"]);
 
                 $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
                 $finish_time = $row["recruittime"];
@@ -245,7 +246,7 @@ if ($result_events && $result_events->num_rows > 0) {
                 <td class='td-center'>$project_text</td>
                 <td class='td-center'>
                     $k_name 
-                    <a href='#' onclick='switchKingdomAndReload(\"{$row["kingdomid"]}\"); return false;'>($k_coords)</a>
+                    <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($k_coords) . ")</a>
                 </td>
                 <td class='td-center'>
                     <b><span id='$counter_id'></span></b>
@@ -305,7 +306,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <td class='td-center'>" . get_resource_icon($res_type) . " " . fnum($amount) . "</td>
                 <td class='td-center'>
                     $target_name
-                    <a href='#' onclick='switchKingdomAndReload(\"{$row["kingdomid"]}\"); return false;'>($target_coords)</a>
+                    <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($target_coords) . ")</a>
                 </td>
                 <td class='td-center'>
                     <b><span id='$counter_id'></span></b>

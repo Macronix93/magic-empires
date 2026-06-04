@@ -73,7 +73,13 @@ foreach ($result as $row) {
                 <td class='td-expand'>
                     <div class='image-and-user'>
                         <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
-                        <a href='#' onclick='openOverlay(\"userinfo.php?userid=" . $row["id"] . "\");' class='popup' id='activity" . $position . "' style='color: $color; cursor: pointer;'>$user_name</a>
+                            <a href='#' 
+                               data-on-click='openOverlay' 
+                               data-url='userinfo.php?userid=" . e($row["id"]) . "' 
+                               data-title='Spieler-Info'
+                               class='popup' 
+                               id='activity" . e($position) . "' 
+                               style='color: " . e($color) . "; cursor: pointer;'>$user_name</a>
                     </div>
                     <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                 </td>

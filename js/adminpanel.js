@@ -1,3 +1,25 @@
+registerAction("editUserField", (el) => {
+    editField(
+        el.dataset.userid,
+        el.dataset.fieldid,
+        el.dataset.raw,
+        el.dataset.formatted
+    );
+});
+registerAction("userDeletionDialog", (el) => {
+    const uid = el.dataset.userid;
+    const name = el.dataset.username;
+
+    showConfirmationDialog(
+        `Willst du den Benutzer ${name} (ID: ${uid}) wirklich löschen?`,
+        "Ja",
+        "Nein",
+        () => {
+            window.location.href = "adminpanel.php?deleteuser=" + uid;
+        }
+    );
+});
+
 function editField(userID, fieldID, currentValue, formattedValue) {
     // Get the table cell by ID
     const td = document.getElementById('td_' + fieldID);

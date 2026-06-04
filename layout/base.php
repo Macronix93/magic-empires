@@ -57,7 +57,7 @@
 <div id="onpage-overlay" class="overlay-modal" style="display: none;">
     <div id="overlay-handle" class="overlay-header">
         <span id="overlay-title"></span>
-        <button onclick="closeOverlay()" class="overlay-close-btn">&times;</button>
+        <button data-on-click="closeOverlay" class="overlay-close-btn">&times;</button>
     </div>
     <div id="overlay-content-body" class="overlay-body">
         <div class="spinner"></div>

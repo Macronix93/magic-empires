@@ -31,11 +31,11 @@ class Map
             }
 
             echo "<div class='map-tile' 
-                   data-x='{$row["mapx"]}' 
-                   data-y='{$row["mapy"]}' 
-                   data-kingdomid='$kingdom_id' 
-                   style='background-color: $color;'
-                   onclick='selectField(this)'>$content</div>";
+                   data-x='" . e($row["mapx"]) . "' 
+                   data-y='" . e($row["mapy"]) . "' 
+                   data-kingdomid='" . e($kingdom_id) . "' 
+                   style='background-color: " . e($color) . ";'
+                   data-on-click='selectField'>$content</div>";
         }
     }
 
@@ -143,12 +143,12 @@ class Map
             $field_y = $my_y;
         }
 
+        $target_url = "sendtroops.php?x=" . e($field_x) . "&y=" . e($field_y);
+
         if ($field == -1) {
             $query = "SELECT m.fieldtype, f.fieldname FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
             $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
             $field_name = $result->fetch_assoc()["fieldname"];
-
-            $url = "window.location.href='sendtroops.php?x=" . $field_x . "&y=" . $field_y . "'";
 
             echo '<div class="title-border">' . $field_name . '</div>
               <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
@@ -162,7 +162,7 @@ class Map
                   </tr>
                   <tr>
                       <td colspan="2" class="td-mapinfo" style="text-align: center;">
-                          <button onclick="' . $url . '">Erobern</button>
+                          <button data-on-click="redirect" data-url="' . $target_url . '">Erobern</button>
                       </td>
                   </tr>
               </table>';
@@ -173,8 +173,6 @@ class Map
 
             $field_x = $row_2["mapx"];
             $field_y = $row_2["mapy"];
-
-            $url = "window.location.href='sendtroops.php?x=" . $field_x . "&y=" . $field_y . "'";
 
             $kingdom_name = $row_2["kingdomname"];
             $user_name = $row_2["username"];
@@ -197,7 +195,12 @@ class Map
                   </tr>
                   <tr>
                       <td class="td-mapinfo"><b>Besitzer</b></td>
-                      <td><a href="#" onclick="openOverlay(\'userinfo.php?userid=' . $user_id . '\');">' . $user_name . '</a> ' . $user_score . '</td>
+                      <td><a href="#" 
+                           data-on-click="openOverlay" 
+                           data-url="userinfo.php?userid=' . e($user_id) . '" 
+                           data-title="Spieler-Info">' . e($user_name) . '</a>
+                        ' . $user_score . '
+                      </td>
                   </tr>';
 
             if ($field != $this->user->get_current_kingdom()) {
@@ -210,12 +213,12 @@ class Map
             // Buttons
             if ($user_name != $this->user->get_user_name()) {
                 echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                        <button onclick=\"" . $url . "\">Angreifen</button>
+                        <button data-on-click='redirect' data-url='$target_url'>Angreifen</button>
                     </td></tr>";
             } else {
                 if ($field != $this->user->get_current_kingdom()) {
                     echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                        <button onclick=\"" . $url . "\">Truppen stationieren</button>
+                        <button data-on-click='redirect' data-url='$target_url'>Truppen stationieren</button>
                     </td></tr>";
                 }
             }

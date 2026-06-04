@@ -31,7 +31,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $class = $is_me ? "receiver-bubble" : "sender-bubble";
             $img = $is_me ? $my_avatar : $partner_avatar;
             $name = $is_me ? "Du" : $row["sender"];
-            $del_btn = $is_me ? "<img src='images/icons/icon_delete.png' class='ressource-icons' onclick='deleteChatMessage(\"{$row["id"]}\")' style='cursor:pointer;' alt='Löschen'>" : "";
+            $del_btn = $is_me ? "<img src='images/icons/icon_delete.png' 
+                          class='ressource-icons' 
+                          data-on-click='deleteChatMsg' 
+                          data-id='" . e($row["id"]) . "' 
+                          style='cursor:pointer;' 
+                          alt='Löschen'>" : "";
 
             $html .= "<div class='$class' id='msg-{$row["id"]}'>
                         <div class='image-and-user message-border'>

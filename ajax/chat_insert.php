@@ -3,7 +3,17 @@ require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $response = [];
-    $receiver_id = $_SESSION["msgreceiver"];
+    $receiver_id = (int)($_SESSION["msgreceiver"] ?? 0);
+    $tab_partner_id = (int)$_POST["receiver"];
+
+    if ($receiver_id !== $tab_partner_id) {
+        echo json_encode([
+            "error" => "redirect",
+            "chatPartner" => $receiver_id
+        ]);
+        exit;
+    }
+
     $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
     $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
 
@@ -59,7 +69,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                                     <div class='image-and-user message-border'>
                                         <img class='user-image' src='" . $user->get_avatar() . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $current_time) . " 
-                                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' onclick='deleteChatMessage(\"$message_id\")' style='cursor: pointer;'>
+                                        <img src='images/icons/icon_delete.png' 
+                                                       class='ressource-icons' 
+                                                       alt='Löschen' 
+                                                       data-on-click='deleteChatMsg' 
+                                                       data-id='" . e($message_id) . "' 
+                                                       style='cursor: pointer;'>
                                     </div>
                                     " . $message . "
                                 </div>";

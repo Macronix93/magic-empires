@@ -21,14 +21,19 @@ include_once("layout/head.html");
     <?php
     foreach ($result as $row) {
         $username = htmlspecialchars($row["username"], ENT_QUOTES);
-        
-        echo "<tr><td><a href=\"#\" onclick=\"selectUser('$username'); return false;\">$username</a></td></tr>";
+
+        echo "<tr><td>
+                <a href='#' 
+                   data-on-click='pickUser' 
+                   data-username='" . e($username) . "'>" . e($username) . "</a>
+              </td></tr>";
     }
     ?>
 </table>
 <br>
 <div style="text-align:center">
-    <a href="#" onclick="closeOverlay()"
+    <a href="#"
+       data-on-click="closeOverlay"
        style="background-color: rgba(0, 0, 0, 0.7); display: inline-block; padding: 10px;">[Schließen]</a>
 </div>
 </body>

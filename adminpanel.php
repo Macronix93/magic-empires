@@ -126,30 +126,41 @@ if ($user->get_user_admin_level() == 0) {
             $view .= '<table class="table">';
 
             foreach ($user_info as $label => $data) {
-                $field_id = $data['field'];
-                $value = $data['value'];
+                $field_id = $data["field"];
+                $raw_value = $data["value"];
+                $display_value = "";
+
+                if ($label === "Avatar") {
+                    $display_value = '<img class="user-image" src="' . e($raw_value) . '" alt="Nutzerbild">';
+                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Letzte Nachricht", "Rate-Limit Ende"])) {
+                    $display_value = date("d.m.Y", $raw_value) . ' um ' . date("H:i:s", $raw_value);
+                } else if ($label === "Punkte") {
+                    $display_value = fnum($raw_value);
+                } else {
+                    $display_value = e($raw_value);
+                }
 
                 if ($label === "Name") {
-                    $value = '' . $value . ' [ID: ' . $user_id . ']';
-                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Letzte Nachricht", "Rate-Limit Ende"])) {
-                    $value = date("d.m.Y", $value) . ' um ' . date("H:i:s", $value);
-                } else if ($label === "Punkte") {
-                    $value = fnum($value);
-                } else if ($label === "Avatar") {
-                    $value = '<img class="user-image" src="' . $value . '" alt="Nutzerbild">';
+                    $display_value .= ' [ID: ' . $user_id . ']';
                 }
 
                 $view .= '<tr>
-                        <td style="width: 30%;">' . $label . ':</td>
-                        <td id="td_' . $field_id . '">
-                            ' . $value . '
-                        </td>
-                        <td class="td-center">
-                            <a onclick="editField(\'' . $user_id . '\', \'' . $field_id . '\', \'' . htmlspecialchars($data['value'], ENT_QUOTES) . '\', \'' . htmlspecialchars($value, ENT_QUOTES) . '\')">
-                                <img src="images/icons/icon_edit.png" class="ressource-icons" alt="Editieren">
-                            </a>'
+                            <td style="width: 30%;">' . $label . ':</td>
+                            <td id="td_' . $field_id . '">' . $display_value . '</td>
+                            <td class="td-center">
+                                <a href="#" 
+                                   data-on-click="editUserField" 
+                                   data-userid="' . e($user_id) . '" 
+                                   data-fieldid="' . e($field_id) . '" 
+                                   data-raw="' . e($raw_value) . '" 
+                                   data-formatted="' . e($display_value) . '">
+                                    <img src="images/icons/icon_edit.png" class="ressource-icons" alt="Editieren">
+                                </a>'
                     . ($label === "Name" ? '
-                            <a onclick="userDeletionDialog(\'' . $user_id . '\')">
+                            <a href="#" 
+                               data-on-click="userDeletionDialog" 
+                               data-userid="' . e($user_id) . '" 
+                               data-username="' . e($row["username"]) . '">
                                 <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen" >
                             </a>'
                         : '') . '
@@ -166,7 +177,11 @@ if ($user->get_user_admin_level() == 0) {
                 $view .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto;">';
 
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
-                    $view .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $user_id . '&kingdomid=' . $kingdom_id . '\', this)">
+                    $target_url = "adminpanel.php?userid=" . e($user_id) . "&kingdomid=" . e($kingdom_id);
+
+                    $view .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" 
+                                   data-on-click="navigate" 
+                                   data-url="' . $target_url . '">
                     <div style="width: 50px; text-align: center;">
                         ' . $kingdom_id . '
                     </div>
@@ -256,8 +271,12 @@ if ($user->get_user_admin_level() == 0) {
     $result = $db_instance->execute_query("SELECT * FROM users");
 
     $user_list .= '<div class="box-container" style="max-height: 250px; width: 300px; overflow: auto;">';
+
     foreach ($result as $row) {
-        $user_list .= '<div class="box' . (isset($_GET["userid"]) && $_GET["userid"] == $row["id"] ? ' active' : '') . '" onclick="navigateTo(\'adminpanel.php?userid=' . $row["id"] . '\', this)">
+        $user_url = "adminpanel.php?userid=" . e($row["id"]);
+        $user_list .= '<div class="box' . (isset($_GET["userid"]) && $_GET["userid"] == $row["id"] ? ' active' : '') . '" 
+                            data-on-click="navigate" 
+                            data-url="' . $user_url . '">
                     <div style="width: 50px;">
                         ' . $row["id"] . '
                     </div>

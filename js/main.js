@@ -1,3 +1,113 @@
+const ClickActions = new Map();
+
+registerAction("redirect", (el) => {
+    const url = el.dataset.url;
+    if (url) {
+        window.location.href = url;
+    }
+});
+registerAction("fillMax", (el) => {
+    const targetId = el.dataset.target;
+    const maxValue = el.dataset.value;
+
+    /** @type {HTMLInputElement} */
+    const input = document.getElementById(targetId);
+
+    if (input) {
+        input.value = maxValue;
+    }
+});
+registerAction("switchKingdom", (el) => {
+    const kingdomId = el.dataset.id;
+    if (typeof switchKingdomAndReload === "function") {
+        switchKingdomAndReload(kingdomId);
+    }
+});
+registerAction("switchKingdomPrev", () => {
+    if (typeof switchKingdom === "function") switchKingdom(-1);
+});
+
+registerAction("switchKingdomNext", () => {
+    if (typeof switchKingdom === "function") switchKingdom(1);
+});
+registerAction("pickUser", (el) => {
+    const username = el.dataset.username;
+
+    if (typeof selectUser === "function") {
+        selectUser(username);
+    }
+});
+registerAction("navigate", (el) => {
+    const url = el.dataset.url;
+    if (url) window.location.href = url;
+});
+registerAction("changeKingdomSelect", (el) => {
+    if (typeof updateKingdom === "function") {
+        updateKingdom(el);
+    }
+});
+
+function registerAction(name, callback) {
+    ClickActions.set(name, callback);
+    const selector = `[data-on-click="${name}"], [data-on-submit="${name}"]`;
+    document.querySelectorAll(selector).forEach(bindActions);
+}
+
+function bindActions(el) {
+    if (!el.dataset) return;
+
+    const actionName = el.dataset.onClick;
+    const callback = ClickActions.get(actionName);
+
+    if (callback && !el.dataset.bound) {
+        el.addEventListener("click", (e) => {
+            e.preventDefault();
+
+            callback(el, e);
+        });
+
+        el.dataset.bound = "true";
+    }
+
+    if (el.dataset.onSubmit && !el.dataset.boundSubmit) {
+        el.addEventListener("submit", (e) => {
+            const callback = ClickActions.get(el.dataset.onSubmit);
+
+            if (callback) callback(el, e);
+        });
+
+        el.dataset.boundSubmit = "true";
+    }
+
+    if (el.dataset.onChange && !el.dataset.boundChange) {
+        const callback = ClickActions.get(el.dataset.onChange);
+
+        if (callback) {
+            el.addEventListener("change", (e) => callback(el, e));
+            el.dataset.boundChange = "true";
+        }
+    }
+}
+
+const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) {
+                if (node.dataset.onClick || node.dataset.onSubmit) bindActions(node);
+
+                node.querySelectorAll('[data-on-click]').forEach(bindActions);
+            }
+        });
+    });
+});
+
+observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
+});
+
 function setup() {
     const popups = getElementsByClassName('popup');
 
@@ -232,6 +342,7 @@ window.addEventListener("DOMContentLoaded", function () {
     const leftMenu = document.getElementById("nav-left-menu");
     const rightTrigger = document.getElementById("nav-right-trigger");
     const rightMenu = document.getElementById("nav-right-menu");
+    document.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
 
     function closeMenus() {
         if (leftMenu) leftMenu.classList.remove("open");
@@ -273,6 +384,11 @@ window.addEventListener("DOMContentLoaded", function () {
             !leftTrigger.contains(e.target) && !rightTrigger.contains(e.target)) {
             closeMenus();
         }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
     });
 
     setup();

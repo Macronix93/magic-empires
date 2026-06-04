@@ -196,36 +196,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         }
     } else {
         // Calculate the maximum soldiers recruitable based on each resource
-//        $food_cost_per_soldier = $soldiers[$i]->get_soldier_food_cost();
-//        $gold_cost_per_soldier = $soldiers[$i]->get_soldier_gold_cost();
-//        $stone_cost_per_soldier = $soldiers[$i]->get_soldier_stone_cost();
-//        $wood_cost_per_soldier = $soldiers[$i]->get_soldier_wood_cost();
-//        $villager_cost_per_soldier = $soldiers[$i]->get_soldier_villager_cost();
-//
-//        $max_soldiers_food = floor($kingdom_food / $food_cost_per_soldier);
-//        $max_soldiers_gold = floor($kingdom_gold / $gold_cost_per_soldier);
-//        $max_soldiers_stone = ($stone_cost_per_soldier > 0 ? floor($kingdom_stone / $stone_cost_per_soldier) : 0);
-//        $max_soldiers_wood = ($wood_cost_per_soldier > 0 ? floor($kingdom_wood / $wood_cost_per_soldier) : 0);
-//        $max_soldiers_villagers = floor($kingdom_villager / $villager_cost_per_soldier);
-//
-//        $max_recruit_val = min($max_soldiers_food, $max_soldiers_gold, $max_soldiers_stone, $max_soldiers_wood, $max_soldiers_villagers);
-//        $max_soldiers = min($max_recruit_val, MAX_SOLDIERS_RECRUIT_INPUT);
-//
-//        $disabled = $cost_food > $kingdom_food || $cost_gold > $kingdom_gold || $cost_villager > $kingdom_villager
-//        || $cost_stone > $kingdom_stone || $cost_wood > $kingdom_wood ? "disabled" : "";
-//
-//        $text_build = "<form action='barracks.php?' method='GET'>
-//                            <input type='hidden' name='recruit' value='" . $i . "'>
-//                            <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2' $disabled>
-//                            <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $max_soldiers . "\")' $disabled><br>
-//                            <input type='submit' value='Ausbilden' style='margin-top: 10px' $disabled>
-//                        </form>
-//                        <script>
-//                            function fillMax(i, maxValue) {
-//                                document.getElementById('count' + i).value = maxValue;
-//                                return false;
-//                            }
-//                        </script>";
         $max_soldiers = MAX_SOLDIERS_RECRUIT_INPUT;
 
         $food_cost = $soldiers[$i]->get_soldier_food_cost();
@@ -254,18 +224,16 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
         $disabled = ($max_soldiers == 0) ? "disabled" : "";
 
-        $text_build = "<form action='barracks.php?' method='GET'>
-                        <input type='hidden' name='recruit' value='" . $i . "'>
-                        <input type='text' name='count' id='count" . $i . "' size='2' maxlength='2' $disabled>
-                        <input type='button' value='Max.' onclick='fillMax(\"" . $i . "\", \"" . $max_soldiers . "\")' $disabled><br>
+        $text_build = "<form action='barracks.php' method='GET'>
+                        <input type='hidden' name='recruit' value='" . e($i) . "'>
+                        <input type='text' name='count' id='count" . e($i) . "' size='2' maxlength='2' $disabled>
+                        <input type='button' value='Max.' 
+                               data-on-click='fillMax' 
+                               data-target='count" . e($i) . "' 
+                               data-value='" . e($max_soldiers) . "' 
+                               $disabled><br>
                         <input type='submit' value='Ausbilden' style='margin-top: 10px' $disabled>
-                    </form>
-                    <script>
-                        function fillMax(i, maxValue) {
-                            document.getElementById('count' + i).value = maxValue;
-                            return false;
-                        }
-                    </script>";
+                    </form>";
     }
 
     $view .= "<tr>

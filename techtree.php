@@ -52,7 +52,10 @@ for ($i = 0; $i < count($buildings); $i++) {
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
                 <td style='width: 30%;'>
-                <a href='#' onclick='openOverlay(\"techinfo.php?bid=" . $i . "\", \"Gebäude-Info\");'>
+                <a href='#'
+                   data-on-click='openOverlay'
+                   data-url='techinfo.php?bid=" . e($i) . "'
+                   data-title='Gebäude-Info'>
                 " . $buildings[$i]->get_building_name() . " ($current_building_level)
                 </a>
                 </td>
@@ -106,7 +109,9 @@ for ($i = 0; $i < count($techs); $i++) {
                 <td class='td-center' style='width: 5%;'>{$techs[$i]->get_tech_icon()}</td>
                 <td style='width: 30%;'>
                     <a href='#' 
-                       onClick='openOverlay(\"techinfo.php?tid=$i\",  \"Tech-Info\");'>
+                       data-on-click='openOverlay' 
+                       data-url='techinfo.php?tid=" . e($i) . "' 
+                       data-title='Tech-Info'>
                         {$techs[$i]->get_tech_name()} ($current_tech_level)
                     </a>
                 </td>

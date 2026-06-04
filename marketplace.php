@@ -226,7 +226,11 @@ $offset = ($current_page - 1) * $rows_per_page;
  * HTML Content Part
  */
 $view .= '<table class="table">
-<form action="marketplace.php" method="GET" onsubmit="return checkMarketOverflow(this, (/** @type {HTMLSelectElement} */(document.getElementById(\'d\'))).value, (/** @type {HTMLInputElement} */(document.getElementById(\'dv\'))).value, true)">
+<form action="marketplace.php" method="GET" 
+      data-on-submit="checkMarket" 
+      data-type-field="d" 
+      data-amount-field="dv"
+      data-is-listing="true">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>
@@ -339,13 +343,16 @@ if ($result->num_rows > 0) {
             $title_attr = "Angebot annehmen";
         }
 
-        $text_build = "<form action='marketplace.php' method='GET' onsubmit=\"return checkMarketOverflow(this, '" . (int)$row["supply"] . "', '" . (int)$row["supplyvalue"] . "')\">
-                            <input type='hidden' name='$param' value='" . $row["offerid"] . "'>
-                            <input type='submit' value='' class='$btn_class'>
+        $text_build = "<form action='marketplace.php' method='GET' 
+                            data-on-submit='checkMarket' 
+                            data-res-type='" . (int)$row["supply"] . "' 
+                            data-amount='" . (int)$row["supplyvalue"] . "'>
+                            <input type='hidden' name='" . e($param) . "' value='" . e($row["offerid"]) . "'>
+                            <input type='submit' value='' class='" . e($btn_class) . "'>
                         </form>";
 
         $view .= "<tr>
-                    <td>{$row["username"]} (<a href='#' onclick='redirectToMap(\"$map_x\", \"$map_y\")'>$kingdom_coords</a>)</td>
+                    <td>{$row["username"]} (<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'>$kingdom_coords</a>)</td>
                     <td class='td-center' style='white-space: nowrap;'>
                         " . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . " 
                         <span style='color: #888;'>&#10234;</span> 

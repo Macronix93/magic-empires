@@ -167,7 +167,10 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                       </tr>
                                       <tr>
                                           <td class="td-mapinfo"><b>Besitzer</b></td>
-                                          <td><a href="#" onclick="openOverlay(\'userinfo.php?userid=' . $enemy_user_id . '\');">' . $row["username"] . '</a></td>
+                                          <td><a href="#" 
+                                               data-on-click="openOverlay" 
+                                               data-url="userinfo.php?userid=' . e($enemy_user_id) . '" 
+                                               data-title="Spieler-Info">' . e($row["username"]) . '</a></td>
                                       </tr>
                                       <tr>
                                           <td class="td-mapinfo"><b>Ankunftszeit</b></td>

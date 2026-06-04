@@ -3,6 +3,41 @@ const ERROR_IMAGE_PATH = "images/icons/icon_error.png";
 let isFetchingOlder = false;
 let canLoadMore = true;
 
+registerAction("loadOlderChat", (el) => {
+    const partnerId = el.dataset.partnerid;
+
+    if (typeof loadOlderMessages === "function") {
+        loadOlderMessages(partnerId);
+    }
+});
+registerAction("filterServer", (el) => {
+    if (typeof filterServerMessages === "function") {
+        filterServerMessages(el);
+    }
+});
+registerAction("deleteServerMsg", (el) => {
+    const msgId = el.dataset.id;
+
+    if (typeof deleteServerMessage === "function") {
+        deleteServerMessage(msgId);
+    }
+});
+registerAction("deleteChatMsg", (el) => {
+    const msgId = el.dataset.id;
+
+    if (typeof deleteChatMessage === "function") {
+        deleteChatMessage(msgId);
+    }
+});
+registerAction("confirmDeleteConversation", (el) => {
+    const partnerId = el.dataset.id;
+    const partnerName = el.dataset.name;
+
+    if (typeof conversationDeletionDialog === "function") {
+        conversationDeletionDialog(partnerId, partnerName);
+    }
+});
+
 function scrollToLatestMessage() {
     /** @type {HTMLDivElement} */
     let newMessageLine = document.getElementById("new-message-line");
@@ -33,6 +68,19 @@ function sendUpdateChatRequest() {
     }
 }
 
+function checkSessionSync() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const chatPartnerInTab = urlParams.get("s");
+
+    if (!chatPartnerInTab) return;
+
+    updateChat(chatPartnerInTab);
+}
+
+window.addEventListener("focus", function () {
+    checkSessionSync();
+});
+
 function updateChat(chatPartner) {
     fetch("ajax/chat_update.php?action=read&s=" + encodeURIComponent(chatPartner), {
         method: "GET",
@@ -43,6 +91,11 @@ function updateChat(chatPartner) {
     })
         .then(response => response.json())
         .then(data => {
+            if (data.error === "redirect") {
+                window.location.href = "messages.php?action=read&s=" + data.chatPartner;
+                return;
+            }
+
             /** @type {{ html: string, messagesToDelete: array, error: string, chatPartner: string }} */
             const response = data;
             /** @type {HTMLElement} */
@@ -187,6 +240,11 @@ function insertNewChatMessage(e) {
     })
         .then(response => response.json())
         .then(response => {
+            if (response.error === "redirect") {
+                window.location.href = "messages.php?action=read&s=" + response.chatPartner;
+                return;
+            }
+
             const infoBox = document.querySelector(".info-box");
 
             if (response.error) {

@@ -14,11 +14,11 @@ $unread = $user->get_unread_messages();
     </div>
     <div class="box-content">
         <div class="box<?= $current_page === 'overview.php' ? ' active' : '' ?>"
-             onclick="navigateTo('index.php', this)">
+             data-on-click="navigate" data-url="index.php">
             <img src="images/icons/icon_overview.png" class="menu-icons" alt="Übersicht"/> Übersicht
         </div>
         <div class="box<?= $current_page === 'messages.php' ? ' active' : '' ?>"
-             onclick="navigateTo('messages.php', this)">
+             data-on-click="navigate" data-url="messages.php">
             <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
             <span>Nachrichten</span>
             <?php if ($unread > 0): ?>
@@ -27,21 +27,23 @@ $unread = $user->get_unread_messages();
             </span>
             <?php endif; ?>
         </div>
-        <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" onclick="navigateTo('guild.php', this)">
+        <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" data-on-click="navigate"
+             data-url="guild.php">
             <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde
         </div>
         <div class="box<?= $current_page === 'ranking.php' ? ' active' : '' ?>"
-             onclick="navigateTo('ranking.php', this)">
+             data-on-click="navigate" data-url="ranking.php">
             <img src="images/icons/icon_ranking.png" class="menu-icons" alt="Rangliste"/> Rangliste
         </div>
-        <div class="box<?= $current_page === 'map.php' ? ' active' : '' ?>" onclick="navigateTo('map.php', this)">
+        <div class="box<?= $current_page === 'map.php' ? ' active' : '' ?>" data-on-click="navigate" data-url="map.php">
             <img src="images/icons/icon_map.png" class="menu-icons" alt="Karte"/> Karte
         </div>
         <div class="box<?= $current_page === 'techtree.php' ? ' active' : '' ?>"
-             onclick="navigateTo('techtree.php', this)">
+             data-on-click="navigate" data-url="techtree.php">
             <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Gebäude"/> Techtree
         </div>
-        <div class="box<?= $current_page === 'warsim.php' ? ' active' : '' ?>" onclick="navigateTo('warsim.php', this)">
+        <div class="box<?= $current_page === 'warsim.php' ? ' active' : '' ?>" data-on-click="navigate"
+             data-url="warsim.php">
             <img src="images/icons/icon_warsim.png" class="menu-icons" alt=""/> War Simulator
         </div>
     </div>
@@ -51,21 +53,22 @@ $unread = $user->get_unread_messages();
     <div class="box-content">
         <?php
         if ($user->get_user_admin_level() > 0) {
-            echo '<div class="box' . ($current_page === "adminpanel.php" ? ' active' : '') . '" 
-                onclick="navigateTo(\'adminpanel.php\', this)">
+            echo '<div class="box' . ($current_page === "adminpanel.php" ? " active" : '') . '" 
+                data-on-click="navigate" data-url="adminpanel.php">
                 <img src="images/icons/icon_adminpanel.png" class="menu-icons" alt="Admin-Bereich"/> Admin-Bereich
               </div>';
         }
         ?>
-        <div class="box<?= $current_page === 'news.php' ? ' active' : '' ?>" onclick="navigateTo('news.php', this)">
+        <div class="box<?= $current_page === 'news.php' ? ' active' : '' ?>" data-on-click="navigate"
+             data-url="news.php">
             <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/> Neuigkeiten
         </div>
         <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
-             onclick="navigateTo('settings.php', this)">
+             data-on-click="navigate" data-url="settings.php">
             <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen
         </div>
         <div class="box<?= $current_page === 'donations.php' ? ' active' : '' ?>"
-             onclick="navigateTo('donations.php', this)">
+             data-on-click="navigate" data-url="donations.php">
             <img src="images/icons/icon_donation.png" class="menu-icons" alt="Spenden"/> Spenden
         </div>
     </div>
@@ -73,15 +76,15 @@ $unread = $user->get_unread_messages();
 <div class="box-container">
     <div class="box-header">Sonstiges</div>
     <div class="box-content">
-        <div class="box" onclick="navigateTo('https://board.magic-empires.de', this)">
+        <div class="box" data-on-click="navigate" data-url="https://board.magic-empires.de">
             <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
         </div>
         <div class="box<?= $current_page === 'statistics.php' ? ' active' : '' ?>"
-             onclick="navigateTo('overview.php', this)">
+             data-on-click="navigate" data-url="overview.php">
             <img src="images/icons/icon_statistics.png" class="menu-icons" alt="Statistiken"/> Statistiken
         </div>
         <div class="box<?= $current_page === 'disclaimer.php' ? ' active' : '' ?>"
-             onclick="navigateTo('disclaimer.php', this)">
+             data-on-click="navigate" data-url="disclaimer.php">
             <img src="images/icons/icon_disclaimer.png" class="menu-icons" alt="Credits"/> Credits
         </div>
     </div>

@@ -17,12 +17,12 @@
                 if ($kingdom_count > 1): ?>
                     <img src="images/icons/icon_right_slow.png"
                          class="arrow-nav arrow-left"
-                         onclick="switchKingdom(-1)"
+                         data-on-click="switchKingdomPrev"
                          title="Vorheriges Königreich" alt="">
                 <?php endif; ?>
 
                 <label for="choosekingdom" style="display: none;">Königreich wählen</label>
-                <select id="choosekingdom" name="choosekingdom" onchange="updateKingdom(this)">
+                <select id='choosekingdom' name='choosekingdom' data-on-change='changeKingdomSelect'>
                     <?php
                     $result->data_seek(0);
                     foreach ($result as $row) {
@@ -35,7 +35,7 @@
                 <?php if ($kingdom_count > 1): ?>
                     <img src="images/icons/icon_right_slow.png"
                          class="arrow-nav"
-                         onclick="switchKingdom(1)"
+                         data-on-click="switchKingdomNext"
                          title="Nächstes Königreich" alt="">
                 <?php endif; ?>
             </div>
@@ -123,8 +123,10 @@
                 $building_obj->set_building_id($building["buildingid"]);
                 $building_obj->set_building_name($building["buildingname"]);
 
-                echo "<div class='box" . ($current_page === $building_file ? ' active' : '') . "' onclick=\"navigateTo('" . $building_file . "', this)\">" .
-                        $building_obj->get_building_icon("menu-icons") . " {$building['buildingname']}</div>";
+                echo "<div class='box" . ($current_page === $building_file ? ' active' : '') . "' 
+                           data-on-click='navigate' 
+                           data-url='" . e($building_file) . "'>" .
+                        $building_obj->get_building_icon("menu-icons") . " " . e($building['buildingname']) . "</div>";
             }
             ?>
         </div>

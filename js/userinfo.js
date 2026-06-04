@@ -7,6 +7,25 @@ let xOffset = 0;
 let yOffset = 0;
 let currentOverlayWidth = "850px";
 
+registerAction("openOverlay", (el) => {
+    const url = el.dataset.url;
+    const title = el.dataset.title;
+    openOverlay(url, title);
+});
+registerAction("closeOverlay", () => {
+    if (typeof closeOverlay === "function") {
+        closeOverlay();
+    }
+});
+registerAction("mapJump", (el) => {
+    const x = el.dataset.x;
+    const y = el.dataset.y;
+
+    if (typeof redirectToMap === "function") {
+        redirectToMap(x, y);
+    }
+});
+
 function applyOverlayStyles() {
     /** @type {HTMLElement} */
     const overlay = document.getElementById("onpage-overlay");

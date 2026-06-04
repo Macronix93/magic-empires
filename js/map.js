@@ -18,6 +18,14 @@ let baseTileSize = 60;
 let baseGridSize = 6000;
 const MAP_DIMENSION = 100;
 
+registerAction("selectField", (el) => {
+    if (typeof wasDragged !== "undefined" && wasDragged) return;
+
+    if (typeof selectField === "function") {
+        selectField(el);
+    }
+});
+
 function refreshMapConstants() {
     const rootStyle = getComputedStyle(document.documentElement);
     const sizeFromCSS = parseInt(rootStyle.getPropertyValue("--map-tile-size"));

@@ -70,9 +70,7 @@ if (isset($_GET["action"])) {
         } else {
             $view .= "
                 <div class='msg-back-button-container'>
-                    <button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>
-                        Zurück
-                    </button>
+                    <button class='msg-back-button' data-on-click='redirect' data-url='messages.php?privmsgs'>Zurück</button>
                 </div>
             ";
             $view .= "<form id='newmessage'
@@ -87,8 +85,8 @@ if (isset($_GET["action"])) {
                                         <label>
                                             <input type='text' name='receiver' maxlength='16' value='$receiver_value'>
                                         </label>
-                                        <button type='button' onclick='openOverlay(\"userlist.php\")'>
-                                            Spielerliste
+                                        <button type='button' data-on-click='openOverlay' data-url='userlist.php' data-title='Spielerliste'>
+                                        Spielerliste
                                         </button>
                                     </td>
                                 </tr>
@@ -150,11 +148,13 @@ if (isset($_GET["action"])) {
                     $messages->delete_marked_messages($sender_id);
 
                     $view .= "<div class='info-box event-error' style='display: none;'></div>";
-                    $view .= "<div class='msg-back-button-container'><button class='msg-back-button' onclick='window.location.href=\"messages.php?privmsgs\";'>Zurück</button>
+                    $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php?privmsgs'>Zurück</button>
                             <h3 style='width: 85%; margin: 0;'>
                                 <a href='#' 
-                                 onclick='openOverlay(\"userinfo.php?userid=$sender_id\");' 
-                                 class='popup'
+                                 data-on-click='openOverlay' 
+                                 data-url='userinfo.php?userid=" . e($sender_id) . "' 
+                                 data-title='Spieler-Info'
+                                 class='popup' 
                                  style='cursor: pointer;'>
                                  $chat_partner
                                 </a>
@@ -162,7 +162,10 @@ if (isset($_GET["action"])) {
 
                     // Show messages between chatpartner and user
                     $view .= "<div id='messages-section'>";
-                    $view .= "<button id='load-older-btn' onclick='loadOlderMessages(\"$sender_id\")' class='msg-load-more'>Ältere Nachrichten laden</button>";
+                    $view .= "<button id='load-older-btn'
+                                data-on-click='loadOlderChat'
+                                data-partnerid='" . e($sender_id) . "'
+                                class='msg-load-more'>Ältere Nachrichten laden</button>";
                     $view .= $messages->show_messages_with_chatpartner($sender_id, $chat_partner);
                     $view .= "</div>";
                     $view .= "
@@ -219,20 +222,18 @@ if (isset($_GET["action"])) {
 if (isset($_GET["servermsgs"])) {
     $view .= "
                 <div class='msg-back-button-container'>
-                    <button class='msg-back-button' onclick='window.location.href=\"messages.php\";'>
+                    <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>
                         Zurück
                     </button>
                 </div>
     ";
 
     // Category Tabs
-    $view .= "
-                <div class='tab'>
-                    <div class='tablinks active' onclick='filterServerMessages(this)'>Alle</div>
-                    <div class='tablinks' onclick='filterServerMessages(this)'>Krieg</div>
-                    <div class='tablinks' onclick='filterServerMessages(this)'>Handel</div>
-                </div>
-    ";
+    $view .= "<div class='tab'>
+                    <div class='tablinks active' data-on-click='filterServer'>Alle</div>
+                    <div class='tablinks' data-on-click='filterServer'>Krieg</div>
+                    <div class='tablinks' data-on-click='filterServer'>Handel</div>
+                </div>";
 
     $view .= "<div id='messages-section'>";
     $view .= $messages->show_server_inbox();

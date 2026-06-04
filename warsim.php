@@ -49,8 +49,8 @@ $view .= '</table>
     <script type="text/javascript">
         let soldierTypes = ' . $soldiers_array . ';
     </script>
-    <button type="button" style="margin-top: 10px;" onclick="calculateWarOutcome(soldierTypes)">Berechnen</button>
-    <button type="button" onclick="resetFields(soldierTypes)">Reset</button>';
+    <button type="button" style="margin-top: 10px;" data-on-click="calculateWarOutcome">Berechnen</button>
+    <button type="button" data-on-click="resetFields">Reset</button>';
 
 
 /*

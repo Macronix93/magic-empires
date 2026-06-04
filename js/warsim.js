@@ -1,3 +1,15 @@
+/** @var {Array} window.soldierTypes */
+registerAction("calculateWarOutcome", () => {
+    if (typeof calculateWarOutcome === "function" && typeof soldierTypes !== "undefined") {
+        calculateWarOutcome(soldierTypes);
+    }
+});
+registerAction("resetFields", () => {
+    if (typeof resetFields === "function" && typeof soldierTypes !== "undefined") {
+        resetFields(soldierTypes);
+    }
+});
+
 function resetFields(soldierTypes) {
     soldierTypes.forEach(type => {
         /** @type {HTMLInputElement} */
