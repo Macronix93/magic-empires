@@ -215,17 +215,19 @@ if ($result_events && $result_events->num_rows > 0) {
             case ActionTypes::ACTION_BUILD_BUILDING:
                 $type_text = "Bauauftrag";
                 $next_lvl = $row["buildinglevel"] + 1;
-                $project_text = "<strong>{$row["buildingname"]}</strong> (Stufe $next_lvl)";
+
+                $icon = "<img src='images/icons/icon_building" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
+                $project_text = "$icon <strong>" . e($row["buildingname"]) . "</strong> ($next_lvl)";
                 $finish_time = $row["buildingtime"];
                 break;
-
             case ActionTypes::ACTION_RESEARCH_TECH:
                 $type_text = "Forschung";
                 $next_lvl = $row["buildinglevel"] + 1;
-                $project_text = "<strong>{$row["buildingname"]}</strong> (Stufe $next_lvl)";
+
+                $icon = "<img src='images/icons/icon_tech" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
+                $project_text = "$icon <strong>" . e($row["buildingname"]) . "</strong> ($next_lvl)";
                 $finish_time = $row["buildingtime"];
                 break;
-
             case ActionTypes::ACTION_BUILD_TROOPS:
                 $type_text = "Rekrutierung";
                 $sol_obj = new Soldier();

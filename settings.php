@@ -44,14 +44,11 @@ if (isset($_POST['submit'])) {
             } elseif ($file_error !== 0) {
                 $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
             } else {
-                $file_path = UPLOADS_FILE_PATH . $user->get_user_name();
-                $files = glob(UPLOADS_FILE_PATH . $user->get_user_name() . '*');
+                $hashedName = hash("sha256", $user->get_user_id() . AVATAR_SALT);
+                $file_path = UPLOADS_FILE_PATH . $hashedName;
 
-                if (count($files) > 0) {
-                    $info = pathinfo($files[0]);
-
-                    unlink($file_path . "." . $info['extension']);
-                }
+                // Remove old files of the user
+                array_map("unlink", glob(UPLOADS_FILE_PATH . $hashedName . ".*"));
 
                 // Move the file from temp location to the uploads directory
                 if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {

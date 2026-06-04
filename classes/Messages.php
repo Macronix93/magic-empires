@@ -243,8 +243,8 @@ class Messages
 
     public function delete_marked_messages(int $sender_id): void
     {
-        $this->mysqli->execute_query("DELETE FROM messages WHERE senderid = ? AND receiverid = ? AND deleted = 1",
-            [$sender_id, $this->user->get_user_id()]
+        $this->mysqli->execute_query("DELETE FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (receiverid = ? AND senderid = ?)) AND deleted = 1",
+            [$this->user->get_user_id(), $sender_id, $sender_id, $this->user->get_user_id()]
         );
     }
 
@@ -259,12 +259,16 @@ class Messages
             array_shift($result);
         }
 
+        $tab_token = time() . "_" . rand(1000, 9999);
+        $_SESSION["active_chat_token"] = $tab_token;
+
         if (!$has_more) {
             $this->view .= "<style>#load-older-btn { display: none !important; }</style>";
             $this->view .= "<script>canLoadMore = false;</script>";
         } else {
             $this->view .= "<script>canLoadMore = true;</script>";
         }
+        $this->view .= "<div id='chat-tab-token' data-token='$tab_token' style='display:none;'></div>";
 
         $chat_partner_image = "";
         $my_chat_image = $this->user->get_avatar();
@@ -273,7 +277,8 @@ class Messages
         $unread_message_ids = [];
 
         if (empty($result)) {
-            return "<div class='info-box'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+            $this->view .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+            return $this->view;
         }
 
         foreach ($result as $row) {
@@ -289,19 +294,19 @@ class Messages
 
                 if (!$has_read && !$first_sender_message_displayed) {
                     $first_sender_message_displayed = true;
-                    $this->view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $date) . "</div>";
+                    $this->view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
                 }
 
                 $this->view .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
                             <div class='image-and-user message-border'>
-                                <img class='user-image' src='$chat_partner_image' alt=''> " . $row["sender"] . " am " . date("d.m.Y H:i", $date) . "
+                                <img class='user-image' src='$chat_partner_image' alt=''> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "
                             </div>
                             " . $message . "
                         </div>";
             } else {
                 $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                             <div class='image-and-user message-border'>
-                                <img class='user-image' src='$my_chat_image' alt=''> Du am " . date("d.m.Y H:i", $date) . "
+                                <img class='user-image' src='$my_chat_image' alt=''> Du am " . date("d.m.Y \u\m H:i:s", $date) . "
                                 <img src='images/icons/icon_delete.png' 
                                    class='ressource-icons' 
                                    alt='Löschen' 

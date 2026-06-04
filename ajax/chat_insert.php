@@ -5,11 +5,13 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $response = [];
     $receiver_id = (int)($_SESSION["msgreceiver"] ?? 0);
     $tab_partner_id = (int)$_POST["receiver"];
+    $client_token = $_POST["token"] ?? "";
+    $session_token = $_SESSION["active_chat_token"] ?? "";
 
-    if ($receiver_id !== $tab_partner_id) {
+    if ($client_token !== $session_token) {
         echo json_encode([
             "error" => "redirect",
-            "chatPartner" => $receiver_id
+            "chatPartner" => "privmsgs"
         ]);
         exit;
     }
@@ -64,6 +66,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
             $row = $result->fetch_assoc();
             $message_id = $row["id"];
+            $response["lastId"] = $message_id;
 
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>

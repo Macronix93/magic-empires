@@ -40,7 +40,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
             $html .= "<div class='$class' id='msg-{$row["id"]}'>
                         <div class='image-and-user message-border'>
-                            <img class='user-image' src='$img' alt=''> $name am " . date("d.m.Y H:i", $row["date"]) . " $del_btn
+                            <img class='user-image' src='$img' alt=''> $name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " $del_btn
                         </div>
                         {$row["message"]}
                       </div>";

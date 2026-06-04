@@ -70,6 +70,7 @@ const BASE_GOLD_GAIN = 20;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = "uploads/";
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . "default_avatar.jpg";
+const AVATAR_SALT = "Dpf89!jkl#45mAlmDlp";
 const MAX_UPLOAD_FILE_SIZE = 64; // In KB
 const NOOB_PROTECTION_MULT = 0.5;
 const RESEARCH_FOOD_INC = 10;
