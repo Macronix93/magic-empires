@@ -8,7 +8,7 @@ $unread = $user->get_unread_messages();
         <?php
         echo "<div style='width: 100%; padding: 0 12px; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
                 <div style='overflow: hidden; white-space: nowrap;' id='username'>";
-        echo $user->get_user_name();
+        echo e($user->get_user_name());
         echo "</div><a href='index.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout' title='Logout'/></a></div>";
         ?>
     </div>

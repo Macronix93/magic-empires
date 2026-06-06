@@ -64,7 +64,7 @@ function editField(userID, fieldID, currentValue, formattedValue) {
     form.appendChild(input);
 
     // Clear the current cell and append the form
-    td.innerHTML = '';
+    td.replaceChildren();
     td.appendChild(form);
 
     // Add event listeners for the input field
@@ -86,7 +86,7 @@ function editField(userID, fieldID, currentValue, formattedValue) {
 }
 
 function cancelEdit(td, originalValue) {
-    td.innerHTML = originalValue;
+    td.textContent = originalValue;
 }
 
 function userDeletionDialog(userID) {

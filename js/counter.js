@@ -21,45 +21,48 @@ function formatTime(totalSeconds) {
     }
 }
 
-function startCountdown(counterID = "counter", initialSeconds, timerType = 0, hideID = null,
+function startCountdown(target, initialSeconds, timerType = 0, hideID = null,
                         keepParams = false, noReload = false) {
+    let counterElement;
+    let internalKey;
+
+    if (typeof target === "string") {
+        counterElement = document.getElementById(target);
+        internalKey = target;
+    } else {
+        counterElement = target;
+
+        if (!counterElement.id) {
+            counterElement.id = "cd-" + Math.random().toString(36).substr(2, 9);
+        }
+        internalKey = counterElement.id;
+    }
+
+    if (!counterElement) return;
+
     let seconds = parseInt(initialSeconds);
 
-    if (activeCountdowns[counterID]) {
-        if (seconds <= activeCountdowns[counterID + "_seconds"]) {
+    if (activeCountdowns[internalKey]) {
+        if (seconds <= activeCountdowns[internalKey + "_seconds"]) {
             return;
         }
-
-        clearInterval(activeCountdowns[counterID]);
+        clearInterval(activeCountdowns[internalKey]);
     }
 
     function countDown() {
-        const counterElement = document.getElementById(counterID);
-
-        if (!counterElement) {
-            clearInterval(activeCountdowns[counterID]);
-            delete activeCountdowns[counterID];
-            delete activeCountdowns[counterID + "_seconds"];
-            return;
-        }
-
-        activeCountdowns[counterID + "_seconds"] = seconds;
-
-        counterElement.innerHTML = formatTime(seconds);
+        activeCountdowns[internalKey + "_seconds"] = seconds;
+        counterElement.textContent = formatTime(seconds);
 
         if (seconds <= 0) {
-            clearInterval(activeCountdowns[counterID]);
-            delete activeCountdowns[counterID];
-            delete activeCountdowns[counterID + "_seconds"];
+            clearInterval(activeCountdowns[internalKey]);
+            delete activeCountdowns[internalKey];
 
             if (timerType === 0) {
-                counterElement.innerHTML = "Fertig!";
+                counterElement.textContent = "Fertig!";
             }
 
             if (hideID) {
-                /** @type {HTMLElement} */
                 const elementToHide = document.getElementById(hideID);
-
                 if (elementToHide) elementToHide.style.display = 'none';
             }
 
@@ -78,11 +81,15 @@ function startCountdown(counterID = "counter", initialSeconds, timerType = 0, hi
     }
 
     countDown();
-    activeCountdowns[counterID] = setInterval(countDown, 1000);
+    activeCountdowns[internalKey] = setInterval(countDown, 1000);
 }
 
-function startCountup(initialSeconds) {
+function startCountup(target, initialSeconds) {
     let seconds = initialSeconds;
+
+    const el = (typeof target === "string") ? document.getElementById(target) : target;
+
+    if (!el) return;
 
     function countUp() {
         let hours = Math.floor(seconds / 3600);
@@ -93,13 +100,18 @@ function startCountup(initialSeconds) {
         minutes = (minutes < 10) ? "0" + minutes : minutes;
         remainingSeconds = (remainingSeconds < 10) ? "0" + remainingSeconds : remainingSeconds;
 
-        document.getElementById("counter").innerHTML = hours + ":" + minutes + ":" + remainingSeconds;
-
+        el.textContent = `${hours}:${minutes}:${remainingSeconds}`;
         seconds++;
     }
 
-    // Initial call to set up the countup
     countUp();
     setInterval(countUp, 1000);
-    return false;
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    const el = document.getElementById("login-counter");
+
+    if (el) {
+        startCountup(el, parseInt(el.dataset.start));
+    }
+});

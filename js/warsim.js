@@ -1,4 +1,6 @@
-/** @var {Array} window.soldierTypes */
+const warsimDataEl = document.getElementById("warsim-data");
+const soldierTypes = warsimDataEl ? JSON.parse(warsimDataEl.dataset.soldiers) : [];
+
 registerAction("calculateWarOutcome", () => {
     if (typeof calculateWarOutcome === "function" && typeof soldierTypes !== "undefined") {
         calculateWarOutcome(soldierTypes);

@@ -15,12 +15,9 @@
         }
     }
     echo $head_extra ?? '';
-
-    // Start inactivity check
-    start_inactivity_check(TIMEOUT_MAX_SECONDS);
     ?>
 </head>
-<body>
+<body <?php echo start_inactivity_check(TIMEOUT_MAX_SECONDS); ?>>
 <div class="header img">
     <img src="images/header.png" alt="Header"/>
 </div>

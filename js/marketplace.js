@@ -1,3 +1,10 @@
+const mConfigEl = document.getElementById("market-configs");
+
+if (mConfigEl) {
+    window.curKingdomStorage = JSON.parse(mConfigEl.dataset.storage);
+    window.marketConfig = JSON.parse(mConfigEl.dataset.config);
+}
+
 /** @var curKingdomStorage */
 /** @var marketConfig */
 

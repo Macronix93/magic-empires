@@ -25,10 +25,18 @@ if (str_contains($_SERVER["HTTP_HOST"], "localhost") || str_contains($_SERVER["H
     define("IS_DEV", false);
 }
 
+header("Content-Security-Policy: " .
+    "default-src 'self'; " .
+    "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; " .
+    "frame-src https://www.google.com/recaptcha/; " .
+    "style-src 'self' 'unsafe-inline'; " .
+    "img-src 'self' data:; " .
+    "connect-src 'self';");
+
 /*
     Constants (defines)
 */
-const MAINTENANCE_MODE = false;
+const MAINTENANCE_MODE = true;
 const MAX_ROWS_PER_RANKING_PAGE = 10;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MAX_CONQUEST_CHANCE = 0.9;
@@ -137,6 +145,7 @@ interface ActionTypes
     const int ACTION_RETURN_TROOPS = 3;
     const int ACTION_RESEARCH_TECH = 4;
     const int ACTION_RECEIVE_RESOURCES = 5;
+    const int ACTION_RETURN_RESOURCES = 6;
 }
 
 interface TechTypes
@@ -202,32 +211,28 @@ function get_resource_icon(int $resource_type): string
 }
 
 // Start inactivity counter
-function start_inactivity_check(int $seconds): void
+function start_inactivity_check(int $seconds): string
 {
-    echo '
-    <script type="text/javascript">
-        (function() {
-            const logoutTime = Date.now() + (' . $seconds . ' * 1000)
-
-            const checkTimer = setInterval(function() {
-                if (Date.now() >= logoutTime) {
-                    clearInterval(checkTimer);
-                    window.location.href = "index.php?logout=inactive";
-                }
-            }, 10000);
-        })();
-    </script>';
+    return 'data-timeout="' . $seconds . '" data-server-time="' . time() . '"';
 }
 
 // Apply villager cap
 function apply_villager_cap(int $kingdom_id): void
 {
+    if ($kingdom_id <= 0) {
+        return;
+    }
+
     $db = Database::get_instance();
     $db_instance = $db->get_connection();
     $result = $db_instance->execute_query("SELECT villager, maxvillager FROM kingdoms WHERE id = ?", [$kingdom_id]);
 
     // Fetch the villager count from the result and apply the cap if needed
     $row = $result->fetch_assoc();
+    if (!$row) {
+        return;
+    }
+
     $villager_count = $row["villager"];
     $max_villager = $row["maxvillager"];
 

@@ -24,7 +24,7 @@ class Messages
         $this->mysqli->execute_query($query, [$sender_id, $sender_name, $receiver_id, $receiver_name, $time, $message]);
     }
 
-    public function get_server_history_paged(int $oldest_id = null, string $category = "Alle", int $limit = 20): array
+    public function get_server_history_paged(?int $oldest_id = null, string $category = "Alle", int $limit = 20): array
     {
         $uid = $this->user->get_user_id();
         $params = [$uid];
@@ -47,7 +47,7 @@ class Messages
         return $result->fetch_all(MYSQLI_ASSOC);
     }
 
-    public function get_chat_history_paged(int $sender_id, int $oldest_id = null, int $limit = 20): array
+    public function get_chat_history_paged(int $sender_id, ?int $oldest_id = null, int $limit = 20): array
     {
         $uid = $this->user->get_user_id();
 
@@ -264,10 +264,10 @@ class Messages
 
         if (!$has_more) {
             $this->view .= "<style>#load-older-btn { display: none !important; }</style>";
-            $this->view .= "<script>canLoadMore = false;</script>";
-        } else {
-            $this->view .= "<script>canLoadMore = true;</script>";
         }
+        $this->view .= "<div id='chat-config' 
+                             data-has-more='" . ($has_more ? 'true' : 'false') . "' 
+                             data-token='$tab_token'></div>";
         $this->view .= "<div id='chat-tab-token' data-token='$tab_token' style='display:none;'></div>";
 
         $chat_partner_image = "";

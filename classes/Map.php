@@ -43,10 +43,30 @@ class Map
 
     public function render_minimap(int $target_x, int $target_y, int $radius = 6): string
     {
-        $min_x = max(1, $target_x - $radius);
-        $max_x = min(MAX_X, $target_x + $radius);
-        $min_y = max(1, $target_y - $radius);
-        $max_y = min(MAX_Y, $target_y + $radius);
+        $view_size = ($radius * 2) + 1;
+
+        $min_x = $target_x - $radius;
+        $max_x = $target_x + $radius;
+        $min_y = $target_y - $radius;
+        $max_y = $target_y + $radius;
+
+        if ($min_x < 1) {
+            $min_x = 1;
+            $max_x = min(MAX_X, $view_size);
+        }
+        if ($max_x > MAX_X) {
+            $max_x = MAX_X;
+            $min_x = max(1, MAX_X - $view_size + 1);
+        }
+
+        if ($min_y < 1) {
+            $min_y = 1;
+            $max_y = min(MAX_Y, $view_size);
+        }
+        if ($max_y > MAX_Y) {
+            $max_y = MAX_Y;
+            $min_y = max(1, MAX_Y - $view_size + 1);
+        }
 
         $query = "SELECT m.mapx, m.mapy, m.fieldtype, m.kingdomid, IFNULL(b.buildinglevel, 1) AS buildinglevel 
               FROM map m 
@@ -83,7 +103,7 @@ class Map
                     if ($is_target) $content = "⭐";
                     elseif ($has_kingdom) $content = "🏰";
 
-                    $html .= "<div class='$class' style='background-color: $color;'>$content</div>";
+                    $html .= "<div class='" . e($class) . "' style='background-color: " . e($color) . ";'>" . e($content) . "</div>";
                 } else {
                     $html .= "<div class='minimap-tile empty'></div>";
                 }

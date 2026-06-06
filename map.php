@@ -21,12 +21,6 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"]) && is_numeric($_GET["star
     $y = $row["mapy"] ?? 1;
 }
 
-// JS Vars
-echo "<script type='text/javascript'>
-    let currentX = $x;
-    let currentY = $y;
-</script>";
-
 // Map legend
 echo "<div class='map-legend'>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
@@ -54,7 +48,7 @@ echo '<form id="update-map">
     </form><br>';
 
 // Map Container
-echo '<div id="map-container" style="height: var(--map-viewport-height); overflow: hidden;">';
+echo '<div id="map-container" data-start-x="' . $x . '" data-start-y="' . $y . '" style="height: var(--map-viewport-height); overflow: hidden;">';
 echo '<div id="map-loader">
             <div class="spinner"></div>
             <div class="loader-text">Kartograph zeichnet Karte...</div>

@@ -218,13 +218,9 @@ if ($count_maxed_techs === $tech_count) {
 
                         $difference_time = $row["buildingtime"] - time();
 
-                        $text_build = "<b><span id='counter'></b><br>
-                                      <script type='text/javascript'>
-                                            document.addEventListener('DOMContentLoaded', function () {
-                                                  let diff = $difference_time;
-                                                  startCountdown(undefined, diff || 0, 0, 'cancel-form');
-                                            });
-                                      </script>
+                        $text_build = "<b><span class='js-countdown' 
+                                               data-seconds='$difference_time' 
+                                               data-hide-id='cancel-form'></span></b><br>
                                       <form id='cancel-form' action='university.php' method='GET'>
                                         <input type='hidden' name='action' value='cancel'>
                                         <input type='hidden' name='tid' value='" . $i . "'>

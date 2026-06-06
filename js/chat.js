@@ -115,7 +115,7 @@ function updateChat(chatPartner) {
                 if (response.error === "redirect") {
                     location.href = "messages.php?action=read&s=" + response.chatPartner;
                 } else {
-                    infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler"> ${response.error}`;
+                    setInfoBoxError(response.error);
                     infoBox.style.display = "flex";
                 }
                 return;
@@ -127,7 +127,17 @@ function updateChat(chatPartner) {
                 }
             } else {
                 removeEmptyPlaceholder();
-                messageSection.insertAdjacentHTML("beforeend", response.html);
+
+                let temp = document.createElement("div");
+                temp.innerHTML = response.html;
+                let newBubbles = temp.querySelectorAll("[id^='msg-']");
+
+                newBubbles.forEach(bubble => {
+                    if (!document.getElementById(bubble.id)) {
+                        messageSection.appendChild(bubble);
+                    }
+                });
+
                 lastSeenId = data.lastId;
 
                 scrollDown();
@@ -140,7 +150,8 @@ function updateChat(chatPartner) {
             }
 
             if (messageSection && messageSection.innerText.trim() === "") {
-                infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler"><div style="flex-grow: 1;">Schreibe eine Nachricht, um den Chat zu beginnen.</div>`;
+                setInfoBoxError("Schreibe eine Nachricht, um den Chat zu beginnen.");
+
                 infoBox.style.display = "flex";
                 infoBox.style.margin = "0px";
             }
@@ -160,10 +171,12 @@ function removeChatBubble(bubbleID) {
         const remainingMessages = parent.querySelectorAll("[id^='msg-']");
 
         if (remainingMessages.length === 0) {
-            parent.innerHTML = `
-                <div id="chat-empty-placeholder" class="info-box" style="margin: 0;  justify-content: center;">
-                    Schreibe eine Nachricht, um den Chat zu beginnen.
-                </div>`;
+            const placeholder = document.createElement("div");
+            placeholder.id = "chat-empty-placeholder";
+            placeholder.className = "info-box";
+            placeholder.style.justifyContent = "center";
+            placeholder.textContent = "Schreibe eine Nachricht, um den Chat zu beginnen.";
+            parent.replaceChildren(placeholder);
         }
     }
 }
@@ -178,11 +191,8 @@ function deleteChatMessage(messageID) {
     })
         .then(response => response.json())
         .then(response => {
-            const infoBox = document.querySelector(".info-box");
-
             if (response.error) {
-                infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler"> <div style="flex-grow: 1;">${response.error}</div`;
-                infoBox.style.display = "flex";
+                setInfoBoxError(response.error);
             } else {
                 removeChatBubble(messageID);
             }
@@ -283,13 +293,16 @@ function insertNewChatMessage(e) {
                 let contentWrapper = infoBox.querySelector(".info-wrapper");
 
                 if (!contentWrapper) {
-                    infoBox.innerHTML = `<img src="${ERROR_IMAGE_PATH}" alt="Fehler">`;
+                    infoBox.replaceChildren();
+                    const errImg = document.createElement("img");
+                    errImg.src = ERROR_IMAGE_PATH;
+                    errImg.alt = "Fehler";
+                    infoBox.appendChild(errImg);
 
                     contentWrapper = document.createElement("span");
                     contentWrapper.className = "info-wrapper";
                     contentWrapper.style.flex = "1";
                     contentWrapper.style.textAlign = "center";
-
                     infoBox.append(contentWrapper);
                 }
 
@@ -315,7 +328,10 @@ function insertNewChatMessage(e) {
                         contentWrapper.append(counterElement);
                     }
 
-                    startCountdown("counter", response.counter, 0, null, true);
+                    const counterEl = document.getElementById("counter");
+                    if (counterEl) {
+                        startCountdown(counterEl, response.counter, 0, null, true);
+                    }
                 }
             } else if (response.html) {
                 removeEmptyPlaceholder();
@@ -350,10 +366,16 @@ function deleteConversation(url) {
 function initializeChat() {
     /** @type {HTMLInputElement} */
     const messageInput = document.getElementById("message-input");
+    const messageForm = document.getElementById("newmessage");
     const messageSection = document.getElementById("messages-section");
     const allMsgs = document.querySelectorAll("[id^='msg-']");
-
     const loadMoreBtn = document.getElementById("load-older-btn");
+    const chatCfg = document.getElementById("chat-config");
+
+    if (chatCfg) {
+        canLoadMore = chatCfg.dataset.hasMore === "true";
+    }
+
     if (loadMoreBtn && !canLoadMore) {
         loadMoreBtn.style.display = "none";
     }
@@ -369,14 +391,18 @@ function initializeChat() {
         });
     }
 
-    messageInput.addEventListener("keypress", e => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            insertNewChatMessage(e);
-        }
-    });
+    if (messageInput) {
+        messageInput.addEventListener("keydown", e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+
+                messageForm.dispatchEvent(new Event("submit"));
+            }
+        });
+    }
 
     // Add event listener for form submission
-    document.getElementById("newmessage").addEventListener("submit", e => {
+    messageForm.addEventListener("submit", e => {
         insertNewChatMessage(e);
     });
 
@@ -524,3 +550,22 @@ function finishLoading(btn) {
         checkScrollPosition();
     }, 800);
 }
+
+function setInfoBoxError(message) {
+    const infoBox = document.querySelector(".info-box");
+    const img = document.createElement("img");
+    img.src = ERROR_IMAGE_PATH;
+    img.alt = "Fehler";
+
+    const span = document.createElement("span");
+    span.textContent = message;
+
+    infoBox.replaceChildren(img, span);
+    infoBox.style.display = "flex";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("message-input")) {
+        initializeChat();
+    }
+});

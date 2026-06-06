@@ -184,13 +184,6 @@ if (isset($_GET["action"])) {
                                 </form>
                             </div>
                     ";
-
-                    $view .= "<script type='text/javascript'>
-                                document.addEventListener('DOMContentLoaded', function () {
-                                    initializeChat();
-                                });
-                            </script>
-                    ";
                 }
             }
         }

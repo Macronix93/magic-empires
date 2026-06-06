@@ -67,19 +67,22 @@ foreach ($result as $row) {
                 <td class='td-shrink' style='text-align: right; border-right: none;'>
                     <div style='position: relative; display: inline-block;'>$position
                         <div class='popup' id='description" . $position . "'>$icon</div>
-                        <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row["lastrank"]} ($change)</div>
                     </div>
+                    <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row["lastrank"]} ($change)</div>
                 </td>
                 <td class='td-expand'>
                     <div class='image-and-user'>
-                        <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
-                            <a href='#' 
-                               data-on-click='openOverlay' 
-                               data-url='userinfo.php?userid=" . e($row["id"]) . "' 
-                               data-title='Spieler-Info'
-                               class='popup' 
-                               id='activity" . e($position) . "' 
-                               style='color: " . e($color) . "; cursor: pointer;'>$user_name</a>
+                        <div class='avatar-container'>
+                            <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
+                            <span class='status-indicator' style='background-color: " . $color . ";'></span>
+                        </div>
+                        <a href='#' 
+                           data-on-click='openOverlay' 
+                           data-url='userinfo.php?userid=" . e($row["id"]) . "' 
+                           data-title='Spieler-Info'
+                           class='popup' 
+                           id='activity" . e($position) . "' 
+                           style='cursor: pointer;'>$user_name</a>
                     </div>
                     <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                 </td>

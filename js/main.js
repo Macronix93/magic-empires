@@ -3,7 +3,12 @@ const ClickActions = new Map();
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
     if (url) {
-        window.location.href = url;
+        const forbiddenProtocols = ["javascript:", "data:", "vbscript:"];
+        const isForbidden = forbiddenProtocols.some(proto => url.trim().toLowerCase().startsWith(proto));
+
+        if (!isForbidden) {
+            window.location.href = url;
+        }
     }
 });
 registerAction("fillMax", (el) => {
@@ -155,18 +160,6 @@ function setup() {
     }
 }
 
-function navigateTo(url, clickedBox) {
-    const boxes = document.querySelectorAll('.box');
-    boxes.forEach(box => {
-        if (box !== clickedBox) {
-            box.classList.remove('active');
-        }
-    });
-    clickedBox.classList.add('active');
-
-    window.location.href = url;
-}
-
 function getMouseLocation(e) {
     let posx, posy;
     if (e.pageX || e.pageY) {
@@ -197,12 +190,10 @@ function adjustUsernameDisplay() {
 }
 
 function updateServerTime(initialSeconds) {
-    // 1. Berechne beim Seitenstart einmalig die Sekunden bis zur nächsten vollen Stunde
     const now = new Date(initialSeconds * 1000);
     const startMinutes = now.getMinutes();
     const startSeconds = now.getSeconds();
 
-    // Wie viele Sekunden verbleiben in dieser aktuellen Stunde?
     let secondsUntilFull = 3600 - ((startMinutes * 60) + startSeconds);
 
     function updateDisplay() {
@@ -218,7 +209,7 @@ function updateServerTime(initialSeconds) {
             const el = serverTimeElements[i];
 
             if (el.offsetParent !== null) {
-                el.innerHTML = " " + timeString;
+                el.textContent = timeString;
             }
         }
 
@@ -342,7 +333,16 @@ window.addEventListener("DOMContentLoaded", function () {
     const leftMenu = document.getElementById("nav-left-menu");
     const rightTrigger = document.getElementById("nav-right-trigger");
     const rightMenu = document.getElementById("nav-right-menu");
+    const timeout = document.body.dataset.timeout;
+    const serverTime = document.body.dataset.serverTime;
     document.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
+
+    if (timeout) {
+        const logoutTime = Date.now() + (parseInt(timeout) * 1000);
+        setInterval(() => {
+            if (Date.now() >= logoutTime) window.location.href = "index.php?logout=inactive";
+        }, 10000);
+    }
 
     function closeMenus() {
         if (leftMenu) leftMenu.classList.remove("open");
@@ -393,6 +393,9 @@ window.addEventListener("DOMContentLoaded", function () {
 
     setup();
     adjustUsernameDisplay();
+
+    if (serverTime) updateServerTime(parseInt(serverTime));
+    initAutomaticCountdowns();
 });
 
 function selectUser(id) {
@@ -401,4 +404,16 @@ function selectUser(id) {
     if (form) {
         form.receiver.value = id;
     }
+}
+
+function initAutomaticCountdowns() {
+    document.querySelectorAll('.js-countdown').forEach(el => {
+        const seconds = parseInt(el.dataset.seconds) || 0;
+        const timerType = parseInt(el.dataset.timerType) || 0;
+        const hideID = el.dataset.hideId || null;
+        const keepParams = el.dataset.keepParams === "true";
+        const noReload = el.dataset.noReload === "true";
+
+        startCountdown(el, seconds, timerType, hideID, keepParams, noReload);
+    });
 }

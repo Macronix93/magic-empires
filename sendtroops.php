@@ -120,7 +120,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                         if ($count > 0) {
                             $name = $soldiers[$s_id]->get_soldier_name();
-                            $logTroops[$name] = $count;
+                            $log_troops[$name] = $count;
                         }
                     }
 

@@ -264,7 +264,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <i>Du bist bereits registriert? Logge dich <a href="index.php"><b>hier</b></a> ein.</i>
             </fieldset>
         </form>
-        <script src="https://www.google.com/recaptcha/api.js"></script>
     <?php endif; ?>
 </div>
 </body>

@@ -36,6 +36,9 @@ function refreshMapConstants() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    const mapCont = document.getElementById("map-container");
+    let currentX = parseInt(mapCont.dataset.startX) || 1;
+    let currentY = parseInt(mapCont.dataset.startY) || 1;
     const viewport = document.getElementById("map-viewport");
     /** @type {HTMLElement} */
     const grid = document.getElementById("map-grid");
@@ -329,9 +332,9 @@ function forceSelectField(element) {
     })
         .then(r => r.json())
         .then(data => {
-            /** @type {{html: string, path: Array<{x: number, y: number}>}} */
-            document.getElementById("field-info").innerHTML = data.html;
-
+            const fieldInfoBox = document.getElementById("field-info");
+            fieldInfoBox.replaceChildren();
+            fieldInfoBox.insertAdjacentHTML("afterbegin", data.html);
             document.querySelectorAll('.path-highlight').forEach(t => t.classList.remove("path-highlight"));
 
             /** @type {HTMLInputElement} */

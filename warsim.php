@@ -46,9 +46,10 @@ for ($i = 0; $i < count($soldiers); $i++) {
 }
 
 $view .= '</table>
-    <script type="text/javascript">
-        let soldierTypes = ' . $soldiers_array . ';
-    </script>
+    <div id="warsim-data" data-soldiers="' . e(json_encode(array_map(function ($soldier) {
+        return $soldier->get_soldier_name();
+    }, $soldiers))) . '">
+    </div> 
     <button type="button" style="margin-top: 10px;" data-on-click="calculateWarOutcome">Berechnen</button>
     <button type="button" data-on-click="resetFields">Reset</button>';
 

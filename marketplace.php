@@ -226,8 +226,20 @@ if (isset($_GET["send_own"])) {
             $kingdom->modify_resource($res_type, -$amount);
 
             $db_instance->execute_query(
-                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $target_id, $res_type, $amount, "Interner Transport", $arrival_time]
+                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime, targetid, targetx, targety, buildingtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    ActionTypes::ACTION_RECEIVE_RESOURCES,
+                    $user->get_user_id(),
+                    $target_id,
+                    $res_type,
+                    $amount,
+                    "Interner Transport",
+                    $arrival_time,
+                    $current_kingdom,
+                    $my_x,
+                    $my_y,
+                    time()
+                ]
             );
 
             $logger->log_game("TRADE", "INTERNAL_TRANSPORT", [
@@ -473,8 +485,6 @@ $storage_info = [
     ResourceTypes::RESOURCE_TYPE_GOLD => ["cur" => $kingdom->get_kingdom_gold(), "max" => $kingdom->get_kingdom_max_gold()],
 ];
 
-$view .= "<script>window.curKingdomStorage = " . json_encode($storage_info) . ";</script>";
-
 $market_config = [
     "base" => MARKET_BASE_FEE,
     "factors" => [
@@ -485,7 +495,9 @@ $market_config = [
     ]
 ];
 
-$view .= "<script>window.marketConfig = " . json_encode($market_config) . ";</script>";
+$view .= '<div id="market-configs" 
+               data-storage="' . e(json_encode($storage_info)) . '" 
+               data-config="' . e(json_encode($market_config)) . '"></div>';
 
 /*
  * HTML Section

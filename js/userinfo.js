@@ -42,18 +42,23 @@ function applyOverlayStyles() {
 }
 
 function openOverlay(url, title = "Spieler-Info") {
-    /** @type {HTMLElement} */
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
 
-    overlay.style.display = "block";
+    const isAlreadyOpen = (overlay.style.display === "block");
+
+    if (!isAlreadyOpen) {
+        content.innerHTML = '<div class="spinner">Lade...</div>';
+        overlay.style.display = "block";
+        content.style.opacity = "1";
+    } else {
+        content.style.opacity = "0.5";
+        content.style.transition = "opacity 0.2s";
+    }
 
     applyOverlayStyles();
-
     overlayTitle.innerText = title;
-    content.innerHTML = "<div class=\"spinner\">Lade...</div>";
-    content.scrollTop = 0;
 
     fetch(url, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
@@ -62,10 +67,14 @@ function openOverlay(url, title = "Spieler-Info") {
         .then(html => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, "text/html");
+
             content.innerHTML = doc.body.innerHTML;
+            content.style.opacity = "1";
+            content.scrollTop = 0;
         })
         .catch(err => {
-            content.innerHTML = "Fehler beim Laden.";
+            content.textContent = "Fehler beim Laden.";
+            content.style.opacity = "1";
             console.error(err);
         });
 }
