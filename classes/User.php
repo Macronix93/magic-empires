@@ -51,8 +51,11 @@ class User
     {
         $timestamp = time();
 
+        $device_id = $_COOKIE["me_device_id"] ?? bin2hex(random_bytes(16));
+        setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
+
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, msgcount, lastsentmsgend, adminlevel FROM users WHERE id = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, msgcount, lastsentmsgend, adminlevel, device_id FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
@@ -63,10 +66,11 @@ class User
         $_SESSION["score"] = $row["score"];
         $_SESSION["message_count"] = $row["msgcount"];
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
+        $_SESSION["device_id"] = $device_id;
 
         // Update login time and session id
-        $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ? WHERE id = ?",
-            [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $user_id]);
+        $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ?, device_id = ? WHERE id = ?",
+            [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $device_id, $user_id]);
 
         Logger::get_instance()->log_game("ACCOUNT", "LOGIN_SUCCESS");
 

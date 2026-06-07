@@ -17,78 +17,95 @@ $default_demand = ResourceTypes::RESOURCE_TYPE_WOOD;
 
 if (isset($_GET["accept"])) {
     $result = $db_instance->execute_query("
-        SELECT m.*, k.mapx, k.mapy 
+        SELECT m.*, k.mapx, k.mapy, u.ip AS seller_ip, u.device_id AS seller_device
         FROM marketplace m 
         JOIN kingdoms k ON m.kingdomid = k.id 
+        JOIN users u ON m.userid = u.id
         WHERE m.offerid = ?", [$_GET["accept"]]);
     $row = $result->fetch_assoc();
 
     if ($row && $row["userid"] != $user->get_user_id()) {
-        $supply = $row["supply"];
-        $supply_value = $row["supplyvalue"];
-        $demand = $row["demand"];
-        $demand_value = $row["demandvalue"];
-        $coins_cost = $row["coins"];
+        $buyer_device = $_SESSION["device_id"] ?? '';
+        $is_same_device = (!empty($row["seller_device"]) && $row["seller_device"] === $buyer_device);
 
-        // Check if kingdom has enough resources to handle the trade
-        if ($demand == ResourceTypes::RESOURCE_TYPE_FOOD && $kingdom->get_kingdom_food() < $demand_value) {
-            $error = "Soviel Nahrung kannst du nicht aufbringen!";
-        } else if ($demand == ResourceTypes::RESOURCE_TYPE_WOOD && $kingdom->get_kingdom_wood() < $demand_value) {
-            $error = "Soviel Holz kannst du nicht aufbringen!";
-        } else if ($demand == ResourceTypes::RESOURCE_TYPE_STONE && $kingdom->get_kingdom_stone() < $demand_value) {
-            $error = "Soviel Stein kannst du nicht aufbringen!";
-        } else if ($demand == ResourceTypes::RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $demand_value) {
-            $error = "Soviel Gold kannst du nicht aufbringen!";
-        } else if ($user->get_user_coins() < $coins_cost) {
-            $error = "Deine Münzen reichen nicht für das Handelsangebot!";
-        } else {
-            $other_kingdom = new Kingdom($db_instance, $row["kingdomid"]);
-            $creator_id = $row["userid"];
-            $creator_name = $row["username"];
+        if ($is_same_device) {
+            $error = "Handel zwischen Accounts am selben Gerät ist nicht gestattet!";
+            $row = null;
+        } else if ($row["seller_ip"] === $_SERVER["REMOTE_ADDR"]) {
+            $logger->log_game("TRADE", "SAME_IP_TRADE", [
+                "seller_id" => $row["userid"],
+                "buyer_id" => $user->get_user_id(),
+                "ip" => $_SERVER["REMOTE_ADDR"]
+            ]);
+        }
 
-            $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $row["mapx"], $row["mapy"]);
-            $seconds = $arrival_data["seconds"];
-            $arrival_time = $arrival_data["timestamp"];
+        if ($row) {
+            $supply = $row["supply"];
+            $supply_value = $row["supplyvalue"];
+            $demand = $row["demand"];
+            $demand_value = $row["demandvalue"];
+            $coins_cost = $row["coins"];
 
-            $kingdom->modify_resource((int)$demand, -$demand_value);
-            $user->give_user_coins(-$coins_cost);
+            // Check if kingdom has enough resources to handle the trade
+            if ($demand == ResourceTypes::RESOURCE_TYPE_FOOD && $kingdom->get_kingdom_food() < $demand_value) {
+                $error = "Soviel Nahrung kannst du nicht aufbringen!";
+            } else if ($demand == ResourceTypes::RESOURCE_TYPE_WOOD && $kingdom->get_kingdom_wood() < $demand_value) {
+                $error = "Soviel Holz kannst du nicht aufbringen!";
+            } else if ($demand == ResourceTypes::RESOURCE_TYPE_STONE && $kingdom->get_kingdom_stone() < $demand_value) {
+                $error = "Soviel Stein kannst du nicht aufbringen!";
+            } else if ($demand == ResourceTypes::RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $demand_value) {
+                $error = "Soviel Gold kannst du nicht aufbringen!";
+            } else if ($user->get_user_coins() < $coins_cost) {
+                $error = "Deine Münzen reichen nicht für das Handelsangebot!";
+            } else {
+                $other_kingdom = new Kingdom($db_instance, $row["kingdomid"]);
+                $creator_id = $row["userid"];
+                $creator_name = $row["username"];
 
-            // Buyer receives supply
-            $db_instance->execute_query(
-                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $current_kingdom, $supply, $supply_value, "Warenlieferung", $arrival_time]
-            );
+                $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $row["mapx"], $row["mapy"]);
+                $seconds = $arrival_data["seconds"];
+                $arrival_time = $arrival_data["timestamp"];
 
-            // Seller receives demand
-            $db_instance->execute_query(
-                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, "Handelserlös", $arrival_time]
-            );
+                $kingdom->modify_resource((int)$demand, -$demand_value);
+                $user->give_user_coins(-$coins_cost);
 
-            $arrival_str = convert_sec_to_str($seconds);
-            $seller_message = "Dein Handelsangebot<br><br>" .
-                get_resource_icon($supply) . " " . fnum($supply_value) . " gegen " .
-                get_resource_icon($demand) . " " . fnum($demand_value) . "<br><br>" .
-                "wurde vom Spieler \"" . $user->get_user_name() . "\"(Königreich: " . $kingdom->get_kingdom_name() . ") angenommen!<br><br>" .
-                "Die Karawane trifft in " . $arrival_str . " in deinem Königreich ein.";
+                // Buyer receives supply
+                $db_instance->execute_query(
+                    "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $current_kingdom, $supply, $supply_value, "Warenlieferung", $arrival_time]
+                );
 
-            send_server_message($creator_id, $creator_name, $seller_message, MessageCategories::CATEGORY_TRADE);
+                // Seller receives demand
+                $db_instance->execute_query(
+                    "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, "Handelserlös", $arrival_time]
+                );
 
-            // Delete the offer and send a confirmation text
-            $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
+                $arrival_str = convert_sec_to_str($seconds);
+                $seller_message = "Dein Handelsangebot<br><br>" .
+                    get_resource_icon($supply) . " " . fnum($supply_value) . " gegen " .
+                    get_resource_icon($demand) . " " . fnum($demand_value) . "<br><br>" .
+                    "wurde vom Spieler \"" . $user->get_user_name() . "\"(Königreich: " . $kingdom->get_kingdom_name() . ") angenommen!<br><br>" .
+                    "Die Karawane trifft in " . $arrival_str . " in deinem Königreich ein.";
 
-            $logger->log_game("TRADE", "OFFER_ACCEPT", [
-                "offer_id" => $_GET["accept"],
-                "seller_id" => $creator_id,
-                "resource" => $supply,
-                "amount" => $supply_value,
-                "cost_res" => $demand,
-                "cost_amount" => $demand_value,
-                "from_kingdom" => $row["kingdomid"],
-                "to_kingdom" => $kingdom->get_kingdom_id()
-            ], $current_kingdom);
+                send_server_message($creator_id, $creator_name, $seller_message, MessageCategories::CATEGORY_TRADE);
 
-            $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . convert_sec_to_str($seconds));
+                // Delete the offer and send a confirmation text
+                $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
+
+                $logger->log_game("TRADE", "OFFER_ACCEPT", [
+                    "offer_id" => $_GET["accept"],
+                    "seller_id" => $creator_id,
+                    "resource" => $supply,
+                    "amount" => $supply_value,
+                    "cost_res" => $demand,
+                    "cost_amount" => $demand_value,
+                    "from_kingdom" => $row["kingdomid"],
+                    "to_kingdom" => $kingdom->get_kingdom_id()
+                ], $current_kingdom);
+
+                $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . convert_sec_to_str($seconds));
+            }
         }
     } else {
         $error = "Dieses Angebot existiert nicht oder ist von einem deiner Königreiche!";

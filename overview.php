@@ -55,23 +55,23 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 }
 
 $map = new Map($db_instance, $user);
+$limit = 7;
 
 // --- TROOP OVERVIEW ---
+$count_tp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?)",
+    [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS])->fetch_row()[0];
+$pages_tp = ceil($count_tp / $limit);
+$curr_tp = isset($_GET["tp"]) ? max(1, (int)$_GET["tp"]) : 1;
+$offset_tp = ($curr_tp - 1) * $limit;
+
 $query = "
-    SELECT st.soldierid AS st_soldierid,
-           st.soldiercount AS soldiercount,
-           sl.icon AS soldier_icon,
-           sl.soldiername AS s_name,
-           e.*,
-           k.userid AS sender_userid,
-           k.mapx, k.mapy,
-           kt.userid AS target_userid
-    FROM senttroops st
-    JOIN events e ON st.eventid = e.eventid
+    SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
+           e.*, k.mapx, k.mapy, kt.userid AS target_userid
+    FROM (SELECT * FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?) ORDER BY arrivaltime LIMIT $offset_tp, $limit) e
+    JOIN senttroops st ON st.eventid = e.eventid
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     JOIN soldierlist sl ON st.soldierid = sl.id
-    WHERE e.userid = ? AND (e.actionid = ? OR e.actionid = ?)
 ";
 
 $result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]);
@@ -143,7 +143,7 @@ if ($result && $result->num_rows > 0) {
             $action_button = "<form action='overview.php' method='GET'>
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>
-                                    <input type='submit' value='' style='margin-top: 5px;' class='btn-delete'>
+                                    <input type='submit' value='' class='btn-delete'>
                                 </form>";
         }
 
@@ -183,11 +183,55 @@ if ($result && $result->num_rows > 0) {
     }
 
     $view .= "</table>";
+
+    if ($pages_tp > 1) {
+        $view .= '<div class="pagination-container"><div class="pagination-bar">';
+
+        if ($curr_tp > 1) {
+            $params = $_GET;
+            $params["tp"] = 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Erste Seite'>&laquo;</a>";
+
+            $params["tp"] = $curr_tp - 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Zurück'>&lsaquo;</a>";
+        }
+
+        $range = 2;
+        for ($i = ($curr_tp - $range); $i <= ($curr_tp + $range); $i++) {
+            if ($i > 0 && $i <= $pages_tp) {
+                $params = $_GET;
+                $params["tp"] = $i;
+
+                if ($i == $curr_tp) {
+                    $view .= "<span class='page-link active'>$i</span>";
+                } else {
+                    $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link'>$i</a>";
+                }
+            }
+        }
+
+        if ($curr_tp < $pages_tp) {
+            $params = $_GET;
+            $params["tp"] = $curr_tp + 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Weiter'>&rsaquo;</a>";
+
+            $params["tp"] = $pages_tp;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Letzte Seite'>&raquo;</a>";
+        }
+
+        $view .= '</div></div>';
+    }
 } else {
     $view .= "Derzeit sind keine Truppen unterwegs.";
 }
 
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
+$count_bp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?)",
+    [$user->get_user_id(), ActionTypes::ACTION_BUILD_BUILDING, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_RESEARCH_TECH])->fetch_row()[0];
+$pages_bp = ceil($count_bp / $limit);
+$curr_bp = isset($_GET["bp"]) ? max(1, (int)$_GET["bp"]) : 1;
+$offset_bp = ($curr_bp - 1) * $limit;
+
 $view .= '<div class="title-border" style="margin-top: 30px;">Bau & Entwicklung</div>';
 
 $query_events = "
@@ -197,6 +241,7 @@ $query_events = "
     LEFT JOIN soldierlist sl ON sl.id = e.soldierid
     WHERE e.userid = ? AND e.actionid IN (?, ?, ?)
     ORDER BY COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
+    LIMIT $offset_bp, $limit
 ";
 
 $result_events = $db_instance->execute_query($query_events, [
@@ -237,7 +282,7 @@ if ($result_events && $result_events->num_rows > 0) {
                 $next_lvl = $row["buildinglevel"] + 1;
 
                 $icon = "<img src='images/icons/icon_building" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
-                $project_text = "$icon <strong>" . e($row["buildingname"]) . "</strong> ($next_lvl)";
+                $project_text = "$icon ($next_lvl)";
                 $finish_time = $row["buildingtime"];
                 break;
             case ActionTypes::ACTION_RESEARCH_TECH:
@@ -245,7 +290,7 @@ if ($result_events && $result_events->num_rows > 0) {
                 $next_lvl = $row["buildinglevel"] + 1;
 
                 $icon = "<img src='images/icons/icon_tech" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
-                $project_text = "$icon <strong>" . e($row["buildingname"]) . "</strong> ($next_lvl)";
+                $project_text = "$icon ($next_lvl)";
                 $finish_time = $row["buildingtime"];
                 break;
             case ActionTypes::ACTION_BUILD_TROOPS:
@@ -278,20 +323,66 @@ if ($result_events && $result_events->num_rows > 0) {
                 </td>
             </tr>";
     }
+
     $view .= "</table>";
+
+    if ($pages_bp > 1) {
+        $view .= '<div class="pagination-container"><div class="pagination-bar">';
+
+        if ($curr_bp > 1) {
+            $params = $_GET;
+            $params["bp"] = 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Erste Seite'>&laquo;</a>";
+
+            $params["bp"] = $curr_bp - 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Zurück'>&lsaquo;</a>";
+        }
+
+        $range = 2;
+        for ($i = ($curr_bp - $range); $i <= ($curr_bp + $range); $i++) {
+            if ($i > 0 && $i <= $pages_bp) {
+                $params = $_GET;
+                $params["bp"] = $i;
+
+                if ($i == $curr_bp) {
+                    $view .= "<span class='page-link active'>$i</span>";
+                } else {
+                    $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link'>$i</a>";
+                }
+            }
+        }
+
+        if ($curr_bp < $pages_bp) {
+            $params = $_GET;
+            $params["bp"] = $curr_bp + 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Weiter'>&rsaquo;</a>";
+
+            $params["bp"] = $pages_bp;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Letzte Seite'>&raquo;</a>";
+        }
+
+        $view .= '</div></div>';
+    }
 } else {
     $view .= "Derzeit gibt es keine Bauaufträge, Forschungen oder Rekrutierungen.";
 }
 
 // --- MARKETPLACE AND TRANSPORTS OVERVIEW ---
+$count_wp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?)",
+    [$user->get_user_id(), ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])->fetch_row()[0];
+$pages_wp = ceil($count_wp / $limit);
+$curr_wp = isset($_GET["wp"]) ? max(1, (int)$_GET["wp"]) : 1;
+$offset_wp = ($curr_wp - 1) * $limit;
+
 $view .= '<div class="title-border" style="margin-top: 30px;">Warenlieferungen</div>';
 
 $query_trades = "
     SELECT e.*, k.kingdomname, k.mapx, k.mapy 
     FROM events e 
     JOIN kingdoms k ON e.kingdomid = k.id 
-    WHERE e.userid = ? AND  (e.actionid = ? OR e.actionid = ?)
+    WHERE e.userid = ? AND (e.actionid = ? OR e.actionid = ?)
     ORDER BY e.arrivaltime
+    LIMIT $offset_wp, $limit
 ";
 $result_trades = $db_instance->execute_query($query_trades, [$user->get_user_id(),
     ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES]);
@@ -355,7 +446,46 @@ if ($result_trades && $result_trades->num_rows > 0) {
                        data-no-reload='true'></span>
             </tr>";
     }
+
     $view .= "</table>";
+
+    if ($pages_wp > 1) {
+        $view .= '<div class="pagination-container"><div class="pagination-bar">';
+
+        if ($curr_wp > 1) {
+            $params = $_GET;
+            $params["wp"] = 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Erste Seite'>&laquo;</a>";
+
+            $params["wp"] = $curr_wp - 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Zurück'>&lsaquo;</a>";
+        }
+
+        $range = 2;
+        for ($i = ($curr_wp - $range); $i <= ($curr_wp + $range); $i++) {
+            if ($i > 0 && $i <= $pages_wp) {
+                $params = $_GET;
+                $params["wp"] = $i;
+
+                if ($i == $curr_wp) {
+                    $view .= "<span class='page-link active'>$i</span>";
+                } else {
+                    $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link'>$i</a>";
+                }
+            }
+        }
+
+        if ($curr_wp < $pages_wp) {
+            $params = $_GET;
+            $params["wp"] = $curr_wp + 1;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Weiter'>&rsaquo;</a>";
+
+            $params["wp"] = $pages_wp;
+            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Letzte Seite'>&raquo;</a>";
+        }
+
+        $view .= '</div></div>';
+    }
 } else {
     $view .= "Derzeit sind keine Warenlieferungen unterwegs.";
 }

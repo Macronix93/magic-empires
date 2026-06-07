@@ -211,8 +211,42 @@ if ($user->get_user_admin_level() == 0) {
 
             $view .= '</table>';
 
+            // --- MULTI-ACCOUNT CHECK ---
+            $view .= '<h3>Multi-Account Check</h3>';
+            $view .= '<table class="table">';
+
+            $multi_ip = $db_instance->execute_query("SELECT id, username FROM users WHERE ip = ? AND id != ?", [$row['ip'], $user_id]);
+            $multi_device = $db_instance->execute_query("SELECT id, username FROM users WHERE device_id = ? AND id != ? AND device_id IS NOT NULL", [$row['device_id'], $user_id]);
+
+            // Show IP matching
+            $view .= '<tr><td style="width: 30%;">Gleiche IP:</td><td>';
+
+            if ($multi_ip->num_rows > 0) {
+                foreach ($multi_ip as $m) {
+                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m['username']) . '</a> ';
+                }
+            } else {
+                $view .= '<span class="passed">Keine Treffer</span>';
+            }
+
+            $view .= '</td></tr>';
+
+            // Show Device ID matching
+            $view .= "<tr><td>Gleiches Gerät:</td><td>";
+
+            if ($multi_device->num_rows > 0) {
+                foreach ($multi_device as $m) {
+                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m['username']) . ' (Fingerabdruck)</a> ';
+                }
+            } else {
+                $view .= '<span class="passed">Keine Treffer</span>';
+            }
+
+            $view .= "</td></tr>";
+            $view .= "</table>";
+
             // Display kingdoms
-            $view .= '<h3>Königreiche</h3>';
+            $view .= "<h3>Königreiche</h3>";
 
             if (!empty($kingdoms)) {
                 $view .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto; margin: 0 auto;">';
