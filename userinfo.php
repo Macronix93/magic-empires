@@ -54,7 +54,7 @@ if (isset($user_id)) {
             <td style="width: 200px;"><b>Spieler</b></td>
             <td style="width: 300px;">
                 <?php
-                if (time() - $row["lastactivity"] > INACTIVITY_DELAY) {
+                if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
                     echo "<i>" . $user_name . "</i> (Inaktiv)";
                 } else {
                     echo $user_name;

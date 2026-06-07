@@ -255,7 +255,7 @@ function removeEmptyPlaceholder() {
 }
 
 function insertNewChatMessage(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
     const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
     const messageInput = document.getElementById("message-input");
@@ -281,7 +281,7 @@ function insertNewChatMessage(e) {
         .then(response => response.json())
         .then(response => {
             if (response.error === "redirect") {
-                const target = data.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + data.chatPartner;
+                const target = response.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + response.chatPartner;
                 window.location.href = "messages.php?" + target;
                 return;
             }
@@ -396,7 +396,7 @@ function initializeChat() {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
 
-                messageForm.dispatchEvent(new Event("submit"));
+                messageForm.requestSubmit();
             }
         });
     }

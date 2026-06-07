@@ -19,6 +19,27 @@ registerAction("userDeletionDialog", (el) => {
         }
     );
 });
+registerAction("banUserDialog", (el) => {
+    const uid = el.dataset.userid;
+    const name = el.dataset.username;
+    const isBanned = el.dataset.status === "1";
+
+    if (isBanned) {
+        showConfirmationDialog(
+            `Willst du ${name} wirklich entbannen?`,
+            "Ja", "Abbrechen",
+            () => {
+                window.location.href = `adminpanel.php?userid=${uid}&unbanuser=${uid}`;
+            }
+        );
+    } else {
+        const reason = prompt(`Grund für den Bann von ${name}:`, "Verstoß gegen die Regeln");
+
+        if (reason !== null) {
+            window.location.href = `adminpanel.php?userid=${uid}&banuser=${uid}&reason=${encodeURIComponent(reason)}`;
+        }
+    }
+});
 
 function editField(userID, fieldID, currentValue, formattedValue) {
     // Get the table cell by ID

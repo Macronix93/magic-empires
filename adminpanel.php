@@ -9,6 +9,30 @@ $user_id = -1;
 if ($user->get_user_admin_level() == 0) {
     $error = "Du bist kein Administrator!";
 } else {
+    if (isset($_GET["banuser"]) || isset($_GET["unbanuser"])) {
+        $uid = (int)($_GET["banuser"] ?? $_GET["unbanuser"]);
+
+        if (isset($_GET["banuser"])) {
+            $uid = (int)$_GET["banuser"];
+            $reason = $_GET["reason"] ?? "Verstoß gegen die Regeln";
+
+            $db_instance->execute_query("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", [$reason, $uid]);
+            $logger->admin("BANNED USER ID $uid. Reason: $reason");
+
+            $_SESSION["admin_flash_msg"] = show_passed_box("Benutzer ID $uid wurde gebannt!");
+        } else if (isset($_GET["unbanuser"])) {
+            $uid = (int)$_GET["unbanuser"];
+
+            $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", [$uid]);
+            $logger->admin("UNBANNED USER ID $uid");
+
+            $_SESSION["admin_flash_msg"] = show_passed_box("Benutzer ID $uid wurde entsperrt!");
+        }
+
+        change_location("adminpanel.php?userid=" . $uid);
+        exit;
+    }
+
     if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["field"])) {
         $field = $_POST["field"];
         $old_value = $_POST["old_value"];
@@ -85,6 +109,8 @@ if ($user->get_user_admin_level() == 0) {
                 if (empty($user_info)) {
                     $user_info = [
                         'Name' => ['field' => 'username', 'value' => $row['username']],
+                        'Bann-Status' => ['field' => 'is_banned', 'value' => $row['is_banned']],
+                        'Bann-Grund' => ['field' => 'ban_reason', 'value' => $row['ban_reason']],
                         'Passwort' => ['field' => 'password', 'value' => "Passwort"],
                         'Avatar' => ['field' => 'avatar', 'value' => $adm_user->get_avatar()],
                         'Account-Status' => ['field' => 'status', 'value' => $row['status']],
@@ -123,6 +149,12 @@ if ($user->get_user_admin_level() == 0) {
                 }
             }
 
+            if (isset($_SESSION["admin_flash_msg"])) {
+                $view .= $_SESSION["admin_flash_msg"];
+
+                unset($_SESSION["admin_flash_msg"]);
+            }
+
             // Display user info using a loop
             $view .= '<h3>Spieler-Info</h3>';
             $view .= '<table class="table">';
@@ -149,7 +181,7 @@ if ($user->get_user_admin_level() == 0) {
                 $view .= '<tr>
                             <td style="width: 30%;">' . $label . ':</td>
                             <td id="td_' . $field_id . '">' . $display_value . '</td>
-                            <td class="td-center">
+                            <td class="td-center" style="border-bottom: 1px solid var(--box-header);">
                                 <a href="#" 
                                    data-on-click="editUserField" 
                                    data-userid="' . e($user_id) . '" 
@@ -159,6 +191,13 @@ if ($user->get_user_admin_level() == 0) {
                                     <img src="images/icons/icon_edit.png" class="ressource-icons" alt="Editieren">
                                 </a>'
                     . ($label === "Name" ? '
+                            <a href="#" 
+                               data-on-click="banUserDialog" 
+                               data-userid="' . e($user_id) . '" 
+                               data-username="' . e($row["username"]) . '"
+                               data-status="' . e($row["is_banned"]) . '">
+                                <img src="images/icons/' . ($row["is_banned"] ? 'icon_checked.png' : 'icon_error.png') . '" class="ressource-icons" alt="Bannen" title="Sperren/Entsperren">
+                            </a>
                             <a href="#" 
                                data-on-click="userDeletionDialog" 
                                data-userid="' . e($user_id) . '" 
@@ -176,7 +215,7 @@ if ($user->get_user_admin_level() == 0) {
             $view .= '<h3>Königreiche</h3>';
 
             if (!empty($kingdoms)) {
-                $view .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto;">';
+                $view .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto; margin: 0 auto;">';
 
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
                     $target_url = "adminpanel.php?userid=" . e($user_id) . "&kingdomid=" . e($kingdom_id);
@@ -274,7 +313,7 @@ if ($user->get_user_admin_level() == 0) {
     // Display all users
     $result = $db_instance->execute_query("SELECT * FROM users");
 
-    $user_list .= '<div class="box-container" style="max-height: 250px; width: 300px; overflow: auto;">';
+    $user_list .= '<div class="box-container" style="max-height: 250px; width: 300px; overflow: auto; margin: 0 auto;">';
 
     foreach ($result as $row) {
         $user_url = "adminpanel.php?userid=" . e($row["id"]);

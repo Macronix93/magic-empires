@@ -50,7 +50,7 @@ echo '<form id="update-map">
 // Map Container
 echo '<div id="map-container" data-start-x="' . $x . '" data-start-y="' . $y . '" style="height: var(--map-viewport-height); overflow: hidden;">';
 echo '<div id="map-loader">
-            <div class="spinner"></div>
+            <div class="loading-spinner"></div>
             <div class="loader-text">Kartograph zeichnet Karte...</div>
           </div>';
 echo '<div id="coords-display" class="map-coords-overlay">X: ' . $x . ' | Y: ' . $y . '</div>';

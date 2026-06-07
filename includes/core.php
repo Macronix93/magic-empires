@@ -36,13 +36,13 @@ header("Content-Security-Policy: " .
 /*
     Constants (defines)
 */
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 const MAX_ROWS_PER_RANKING_PAGE = 10;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MAX_CONQUEST_CHANCE = 0.9;
 const MIN_CONQUEST_CHANCE = 0.01;
 const BACKGROUND_IMAGE = "images/background.png";
-const ERROR_LOG_FILE = "logs/errors.log";
+const ERROR_LOG_FILE = "logs/error.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 16;
@@ -484,7 +484,7 @@ function send_mail(string $to, string $subject, string $body): bool
         $mail->setFrom(getenv('MAIL_FROM'), getenv('MAIL_NAME'));
         $mail->addAddress($to);
 
-        $mail->isHTML(true);
+        $mail->isHTML();
         $mail->CharSet = "UTF-8";
         $mail->Subject = $subject;
 
@@ -514,6 +514,17 @@ $view = "";
 // Timeout and session ID check
 if ($user->is_logged_in()) {
     $user->check_session_id();
+
+    $check_query = $db_instance->execute_query("SELECT is_banned, ban_reason FROM users WHERE id = ?", [$user->get_user_id()]);
+    $ban_status = $check_query->fetch_assoc();
+
+    if ($ban_status && $ban_status["is_banned"] == 1) {
+        $reason = $ban_status["ban_reason"] ?? "Kein Grund angegeben";
+        session_destroy();
+
+        change_location("index.php?banned=" . urlencode($reason));
+        exit;
+    }
 
     $timestamp = time();
 

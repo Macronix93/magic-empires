@@ -5,6 +5,10 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     unset($_SESSION["captcha_passed"]);
 }
 
+if (isset($_GET["banned"])) {
+    $error = "Du wurdest soeben gebannt! Grund: " . e($_GET["banned"]);
+}
+
 $success = "";
 $error = "";
 $mode = $_GET["action"] ?? "login";
@@ -82,12 +86,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (empty($name) || empty($pass)) {
             $error .= "Bitte beide Felder ausfüllen!";
         } else {
-            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel FROM users WHERE username = ? LIMIT 1", [$name]);
+            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason FROM users WHERE username = ? LIMIT 1", [$name]);
 
             if ($result && $result->num_rows == 1) {
                 $row = $result->fetch_assoc();
 
-                if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
+                if ($row["is_banned"] == 1) {
+                    $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
+                } else if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
                     $error .= "Der Server befindet sich im Wartungsmodus!";
                 } else {
                     if (!$row["status"]) {

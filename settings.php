@@ -23,46 +23,52 @@ if (isset($_POST['submit'])) {
         $error = "Ungültiger Token!";
     } else {
         if (isset($_FILES['image'])) {
-            // Image file information
             $file_name = $_FILES['image']['name'];
             $file_tmp = $_FILES['image']['tmp_name'];
             $file_size = $_FILES['image']['size'];
             $file_error = $_FILES['image']['error'];
             $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+            $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes
 
-            // Max file size in bytes
-            $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes to KB: 1024 * KB number
-
-            // Get file extension
-            $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-
-            // Validation
-            if (!in_array($file_ext, $allowed_extensions)) {
-                $error = "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.";
-            } elseif ($file_size > $max_file_size) {
-                $error = "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!";
-            } elseif ($file_error !== 0) {
+            if ($file_error !== 0) {
                 $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
+            } else if ($file_size > $max_file_size) {
+                $error = "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!";
             } else {
-                $hashedName = hash("sha256", $user->get_user_id() . AVATAR_SALT);
-                $file_path = UPLOADS_FILE_PATH . $hashedName;
+                $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
-                // Remove old files of the user
-                array_map("unlink", glob(UPLOADS_FILE_PATH . $hashedName . ".*"));
-
-                // Move the file from temp location to the uploads directory
-                if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                    $view = "Nutzerbild wurde erfolgreich hochgeladen!";
-
-                    $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
-                        "filename" => $file_name,
-                        "extension" => $file_ext,
-                        "size" => $file_size
-                    ]);
-
-                    unset($_SESSION['csrf_token']);
+                if (!in_array($file_ext, $allowed_extensions)) {
+                    $error = "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.";
                 } else {
-                    $error = "Fehler beim Hochladen des Nutzerbildes!";
+                    $finfo = new finfo(FILEINFO_MIME_TYPE);
+                    $mime_type = $finfo->file($file_tmp);
+                    $allowed_mimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/gif'];
+
+                    if (!in_array($mime_type, $allowed_mimes)) {
+                        $error = "Der Datei-Inhalt entspricht keinem gültigen Bild!";
+                    } else if (getimagesize($file_tmp) === false) {
+                        $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
+                    } else {
+                        $hashedName = hash("sha256", $user->get_user_id() . AVATAR_SALT);
+                        $file_path = UPLOADS_FILE_PATH . $hashedName;
+
+                        array_map("unlink", glob(UPLOADS_FILE_PATH . $hashedName . ".*"));
+
+                        if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
+                            $view = "Nutzerbild wurde erfolgreich hochgeladen!";
+
+                            $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
+                                "filename" => $file_name,
+                                "extension" => $file_ext,
+                                "mime" => $mime_type,
+                                "size" => $file_size
+                            ]);
+
+                            unset($_SESSION['csrf_token']);
+                        } else {
+                            $error = "Fehler beim Hochladen der Datei auf den Server!";
+                        }
+                    }
                 }
             }
         } else {

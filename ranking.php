@@ -37,11 +37,12 @@ $position = ($current_page - 1) * $rows_per_page + 1;
 foreach ($result as $row) {
     $user_id = $row["id"];
     $user_name = $row["username"];
-    $inactive = (time() - $row["lastactivity"] > INACTIVITY_DELAY);
+    $last_active = $row["lastactivity"];
+    $inactive = (time() - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $icon = "";
     $change = "";
-    $color = (time() - $row["lastactivity"] > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $row["lastactivity"] > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
-    $last_activity = ($row["lastactivity"] == 0) ? "Nicht verfügbar" : (date("d.m.Y", $row["lastactivity"]) . " um " . date("H:i:s", $row["lastactivity"]) . " " . ($inactive ? "(Inaktiv)" : ""));
+    $color = (time() - $last_active > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
+    $last_activity = ($last_active == 0) ? "Nicht verfügbar" : (date("d.m.Y", $last_active) . " um " . date("H:i:s", $last_active) . " " . ($inactive ? "(Inaktiv)" : ""));
     $diff = $row["lastrank"] - $position; // Check last rank (since 00:00) and compare with current rank
 
     // Get user image
