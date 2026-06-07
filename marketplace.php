@@ -12,8 +12,8 @@ $my_x = $kingdom->get_kingdom_map_x();
 $my_y = $kingdom->get_kingdom_map_y();
 $map = new Map($db_instance, $user);
 
-$default_supply = ResourceTypes::RESOURCE_TYPE_FOOD; // Nahrung
-$default_demand = ResourceTypes::RESOURCE_TYPE_WOOD; // Holz
+$default_supply = ResourceTypes::RESOURCE_TYPE_FOOD;
+$default_demand = ResourceTypes::RESOURCE_TYPE_WOOD;
 
 if (isset($_GET["accept"])) {
     $result = $db_instance->execute_query("
@@ -191,12 +191,10 @@ if (isset($_GET["send_own"])) {
     $res_type = (int)$_GET["rt"];
     $amount = (int)$_GET["am"];
 
-    // 1. Prüfen, ob das Ziel-Königreich dem User gehört und nicht das aktuelle ist
     $res_target = $db_instance->execute_query("SELECT id, mapx, mapy, kingdomname FROM kingdoms WHERE id = ? AND userid = ?", [$target_id, $user->get_user_id()]);
     $target_row = $res_target->fetch_assoc();
 
     if ($target_row && $target_id != $current_kingdom) {
-        // 2. Ressourcen-Check
         $has_enough = false;
 
         switch ($res_type) {
@@ -256,7 +254,7 @@ if (isset($_GET["send_own"])) {
 }
 
 // PAGINATION
-$rows_per_page = 15;
+$rows_per_page = 10;
 $current_page = isset($_GET["currentpage"]) ? max(1, (int)$_GET["currentpage"]) : 1;
 
 $num_rows = $db_instance->execute_query("SELECT COUNT(*) FROM marketplace")->fetch_row()[0];
@@ -324,9 +322,11 @@ $query = "
             FROM marketplace m 
             LEFT JOIN kingdoms k 
             ON m.kingdomid = k.id
+            ORDER BY m.offerid DESC
+            LIMIT ?, ?
 ";
 /** @var mysqli_result $result */
-$result = $db_instance->execute_query($query);
+$result = $db_instance->execute_query($query, [$offset, $rows_per_page]);
 
 if ($result->num_rows > 0) {
     $view .= "<h3>Aktuelle Handelsangebote</h3>";
@@ -352,10 +352,9 @@ if ($result->num_rows > 0) {
                     <td class="td-center td-gradient">
                         <b>Endet in</b>
                     </td>
-                    <td class="td-center td-gradient">
+                    <td class="td-center td-gradient" colspan="2">
                         <b>Gebühr</b>
                     </td>
-                    <td class="td-center td-gradient"></td>
                 </tr>';
 
     foreach ($result as $row) {
