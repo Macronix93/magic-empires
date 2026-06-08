@@ -16,8 +16,16 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit;
     }
 
-    $message = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
+    $raw_text = $_POST["text"];
+
+//    if (is_message_blocked($raw_text)) {
+//        echo json_encode(["error" => "Deine Nachricht enthält blockierte Begriffe oder Umgehungsversuche!"]);
+//        exit;
+//    }
+
+    $message = nl2br(htmlspecialchars($raw_text, ENT_QUOTES, "UTF-8"));
     $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
+    $message = filter_chat_message($message);
 
     // Render the conversation HTML
     ob_start();

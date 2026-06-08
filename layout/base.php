@@ -7,6 +7,9 @@
     <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
     <link rel="stylesheet" type="text/css" href="styles.css">
     <title><?php echo (!empty($title)) ? "Magic Empires - $title" : "Magic Empires"; ?></title>
+    <noscript>
+        <meta http-equiv="refresh" content="0;url=nojs.php">
+    </noscript>
     <script type="text/javascript" src="js/main.js" defer></script>
     <?php
     if (!empty($script_files)) {

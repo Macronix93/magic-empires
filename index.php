@@ -146,7 +146,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 if (!preg_match("/^[a-zA-Z0-9 ]+$/", $name)) {
                     $error .= "Benutzername darf nur Buchstaben/Zahlen enthalten!<br>";
-                } else if (preg_match_all(regex_pattern(), $name, $matches) || !empty($bad_names_matches)) {
+                } else if (contains_bad_words($name) || preg_match_all(regex_pattern(), $name, $matches)) {
                     $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
                 } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
                     $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";

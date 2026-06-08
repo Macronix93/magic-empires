@@ -494,7 +494,7 @@ function send_mail(string $to, string $subject, string $body): bool
         $mail->send();
         return true;
     } catch (Exception) {
-        error_log("PHPMailer Error: {$mail->ErrorInfo}");
+        error_log("PHPMailer Error: $mail->ErrorInfo");
         return false;
     }
 }
@@ -572,6 +572,79 @@ function check_user_login($user): void
     }
 }
 
+// Bad words checker
+function contains_bad_words($name): bool
+{
+    $bad_words = get_bad_names();
+
+    foreach ($bad_words as $bad) {
+        $bad = trim($bad);
+        if (empty($bad) || mb_strlen($bad) < 3) continue;
+
+        $pattern = get_bad_word_pattern($bad);
+
+        if (preg_match($pattern, $name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function get_bad_word_pattern($bad_word): string
+{
+    $leet_map = [
+        'a' => '[a4@]', 'e' => '[e3]', 'i' => '[i1!|]',
+        'o' => '[o0]', 's' => '[s5$]', 't' => '[t7+]', 'b' => '[b8]'
+    ];
+
+    $bad_word = mb_strtolower($bad_word, 'UTF-8');
+    $chars = preg_split('//u', $bad_word, -1, PREG_SPLIT_NO_EMPTY);
+    $regex_parts = [];
+
+    foreach ($chars as $char) {
+        $pattern = $leet_map[$char] ?? preg_quote($char, '/');
+        $regex_parts[] = $pattern . '+';
+    }
+
+    $stretchy_pattern = implode('[.\s_\-\d]*', $regex_parts);
+
+    return "/(?<![a-zäöüß])" . $stretchy_pattern . "(?![a-zäöüß])/iu";
+}
+
+function filter_chat_message($text)
+{
+    $bad_words = get_bad_names();
+    $filtered_text = $text;
+
+    foreach ($bad_words as $bad) {
+        $bad = trim($bad);
+        if (empty($bad) || mb_strlen($bad) < 3) continue;
+
+        $pattern = get_bad_word_pattern($bad);
+
+        $filtered_text = preg_replace_callback($pattern, function ($matches) {
+            return str_repeat('*', mb_strlen($matches[0]));
+        }, $filtered_text);
+    }
+    return $filtered_text;
+}
+
+function is_message_blocked($text): bool
+{
+    $bad_words = get_bad_names();
+
+    foreach ($bad_words as $bad) {
+        $bad = trim($bad);
+        if (empty($bad) || mb_strlen($bad) < 3) continue;
+
+        $pattern = get_bad_word_pattern($bad);
+
+        if (preg_match($pattern, $text)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /*
  * Check if user is logged in and get kingdom and building relevant infos
