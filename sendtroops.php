@@ -29,7 +29,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     } else {
         // Get soldier data
         $soldiers = [];
-        $result = $db_instance->execute_query("SELECT id, soldiername, attack, defense, icon FROM soldierlist");
+        $result = $db_instance->execute_query("SELECT id, soldiername, category, attack, defense, icon FROM soldierlist");
 
         foreach ($result as $row) {
             $soldier = new Soldier();
@@ -88,7 +88,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                 $result = $db_instance->execute_query(
                     "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
-                    [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
+                    [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + 10]
                 );
                 $event_id = $result->fetch_assoc()["eventid"];
 
@@ -114,7 +114,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                 if ($event_id !== null) {
                     $log_troops = [];
-                    
+
                     foreach ($_POST["soldiers"] as $s_id => $count) {
                         $count = (int)$count;
 
@@ -160,14 +160,13 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
             change_location("map.php?startx=$target_x&starty=$target_y", 3);
         } else {
+            // Noob protection message
             if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score) && $enemy_user_id != -1) {
                 $view .= show_error_box("Euer Punktestand ist zu unterschiedlich (Noob-Schutz)!");
 
                 change_location("map.php?startx=$target_x&starty=$target_y", 3);
             } else {
                 if ($row) {
-                    // Noob protection message
-
                     if ($enemy_user_id == $user->get_user_id()) {
                         $send_title = "Truppen stationieren";
                     } else {
@@ -175,7 +174,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     }
 
                     $view .= '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
-                                  <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                                       <tr>
                                           <td class="td-mapinfo"><b>Koordinaten</b></td>
                                           <td>' . $target_x . ':' . $target_y . '</td>
@@ -199,7 +198,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                 } else {
                     $view .= '<div class="title-border">' . $field_name . '</div>
-                                  <table class="table" style="margin-top: 20px; max-width: 400px; text-align: left;">
+                                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                                       <tr>
                                           <td class="td-mapinfo"><b>Koordinaten</b></td>
                                           <td>' . $target_x . ':' . $target_y . '</td>
@@ -214,39 +213,92 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 }
                 $view .= "</table><br>";
 
+                $categories = [
+                    SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
+                    SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+                    SoldierTypes::SOLDIER_TYPE_ARCHERS => "Schützen",
+                    SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezial"
+                ];
+
+                $view .= "<div class='tab'>";
+                foreach ($categories as $id => $name) {
+                    $active_class = ($id === 0) ? "active" : "";
+                    $view .= "<div class='tablinks $active_class' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
+                }
+                $view .= "</div>";
+
                 // Show users soldiers
-                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST">
-                            <table class="table" style="max-width: 400px;">
+                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
+                            <table class="table" style="max-width: 500px;">
+                                                        <colgroup>
+                                <col style="width: auto;">
+                                <col style="width: 130px;">
+                            </colgroup>
                             <tr>
                                 <td class="td-center td-gradient">Soldat</td>
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
 
                 for ($i = 0; $i < count($soldiers); $i++) {
-                    $soldier_name = $soldiers[$i]->get_soldier_name();
+                    $s_obj = $soldiers[$i];
+                    $soldier_id = $s_obj->get_soldier_id();
+                    $soldier_name = $s_obj->get_soldier_name();
+                    $unit_cat = $s_obj->get_soldier_category();
+                    $icon_name = $s_obj->get_soldier_icon_name();
+                    $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
 
-                    $view .= "<tr>
-                            <td>
-                                <div class='image-and-user' style='margin-bottom: 5px;'>" . $soldiers[$i]->get_soldier_icon() . " <b>" . $soldier_name . " (" . $kingdom_soldiers[$i] . ")</b>
-                                </div>
-                                <div class='split-content' style='width: 104px;'>
-                                    <div>
-                                        <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->get_soldier_attack() . "
+                    $row_style = ($unit_cat === 0) ? "" : "display: none;";
+
+                    $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
+                                <td>
+                                    <div class='image-and-user' style='margin-bottom: 5px;'>" . $s_obj->get_soldier_icon() . " <b>" . $soldier_name . " (" . $owned_count . ")</b></div>
+                                    <div class='map-legend' style='justify-content: left;'>
+                                        <div class='legend-item' style='width: 60px;'>
+                                            <div>
+                                                <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $s_obj->get_soldier_attack() . "
+                                            </div>
+                                        </div>
+                                        <div class='legend-item' style='width: 80px;'>
+                                            <div style='margin-left: 15px;'>
+                                                <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $s_obj->get_soldier_defense() . "
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div style='margin-left: 15px;'>
-                                        <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->get_soldier_defense() . "
+                                </td>
+                                <td class='td-center'>
+                                    <div style='display: flex; gap: 5px; align-items: center; justify-content: center;'>
+                                        <input type='text' 
+                                               id='sol_$soldier_id' 
+                                               name='soldiers[$soldier_id]' 
+                                               size='5' 
+                                               maxlength='6' 
+                                               class='js-unit-input' 
+                                               data-name='" . e($soldier_name) . "' 
+                                               data-id='$soldier_id'
+                                               data-icon='$icon_name'
+                                               data-max='$owned_count'>
+                                        <input type='button' 
+                                               value='Max.' 
+                                               data-on-click='fillMaxAndRefresh' 
+                                               data-target='sol_$soldier_id' 
+                                               data-value='$owned_count'>
+                                        <input type='button' 
+                                               value='X' 
+                                               title='Feld leeren'
+                                               data-on-click='resetUnitAndRefresh' 
+                                               data-target='sol_$soldier_id'>       
                                     </div>
-                                </div>
-                            </td>
-                            <td class='td-center'>
-                                <input type='text' id='" . $i . "' name='soldiers[" . $i . "]' size='5' maxlength='6'>
-                            </td>
-                          </tr>";
+                                </td>
+                              </tr>";
                 }
 
-                $view .= '</table>
-                    <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
-                </form>';
+                $view .= '</table>';
+                $view .= '<div id="troop-summary-container" style="margin-top: 20px; display: none; flex-direction: column;">
+                                <div style="font-weight: bold; margin-bottom: 10px;">Gewählte Truppen:</div>
+                                <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-direction: column;"></div>
+                            </div>
+                            <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
+                        </form>';
             }
         }
     }
@@ -257,7 +309,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
  */
 $title = $send_title;
 $header = $send_title;
-$script_files = ["userinfo"];
+$script_files = ["userinfo", "sendtroops"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

@@ -11,6 +11,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $history = $messages_obj->get_server_history_paged($oldest_id, $category, $limit + 1);
 
         $has_more = false;
+
         if (count($history) > $limit) {
             $has_more = true;
             array_pop($history);
@@ -32,7 +33,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             </div>";
         }
 
-        echo json_encode(["html" => $html, "hasMore" => $has_more, "count" => count($history)]);
+        echo json_encode([
+            "html" => $html,
+            "hasMore" => $has_more,
+            "count" => count($history)
+        ]);
     }
 } else {
     change_location("messages.php");

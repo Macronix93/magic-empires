@@ -49,33 +49,39 @@ if (isset($_GET["action"])) {
                     if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
-                        $target_level = $building_level + 1;
+                        if ($build_id == BuildingTypes::BUILDING_EMBASSY && $current_kingdom != $user->get_main_kingdom()) {
+                            $error = "Dieses Gebäude kannst du nur auf deinem Hauptkönigreich ausbauen!";
+                        } else {
+                            $target_level = $building_level + 1;
 
-                        if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $tc_level) {
-                            $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe $target_level benötigt)";
-                        }
-
-                        $building_dependencies = $buildings[$build_id]->get_building_dependencies();
-
-                        foreach ($building_dependencies as $dependency) {
-                            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                                $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " 
-                                            Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                            if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $tc_level) {
+                                $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe $target_level benötigt)";
                             }
-                        }
 
-                        // Dependency check passed - build/upgrade building!
-                        if (empty($error)) {
-                            $building_time = time() + $buildings[$build_id]->get_building_time() * ($building_level == 0 ? 1 : $building_level + 1);
+                            $building_dependencies = $buildings[$build_id]->get_building_dependencies();
 
-                            // Subtract building costs from kingdom resources
-                            $kingdom->give_kingdom_wood(-$cost_wood);
-                            $kingdom->give_kingdom_food(-$cost_food);
-                            $kingdom->give_kingdom_stone(-$cost_stone);
-                            $kingdom->give_kingdom_gold(-$cost_gold);
+                            foreach ($building_dependencies as $dependency) {
+                                if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
+                                    $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " 
+                                            Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                                }
+                            }
 
-                            $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
+                            // Dependency check passed - build/upgrade building!
+                            if (empty($error)) {
+                                $reduction = $kingdom->get_construction_time_multiplier();
+                                $base_time = $buildings[$build_id]->get_building_time() * ($building_level == 0 ? 1 : $building_level + 1);
+                                $building_time = time() + (int)round($base_time * $reduction);
+
+                                // Subtract building costs from kingdom resources
+                                $kingdom->give_kingdom_wood(-$cost_wood);
+                                $kingdom->give_kingdom_food(-$cost_food);
+                                $kingdom->give_kingdom_stone(-$cost_stone);
+                                $kingdom->give_kingdom_gold(-$cost_gold);
+
+                                $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                    [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
+                            }
                         }
                     }
                 }
@@ -170,6 +176,12 @@ if ($count_maxed_buildings === $building_count) {
 
         if ($level < MAX_BUILDING_LEVEL) {
             if ($show_building) {
+                if ($buildings[$i]->get_building_id() == BuildingTypes::BUILDING_EMBASSY) {
+                    if ($current_kingdom != $user->get_main_kingdom()) {
+                        continue;
+                    }
+                }
+
                 if (!is_numeric($level)) {
                     $level = "0";
                 }
@@ -227,6 +239,9 @@ if ($count_maxed_buildings === $building_count) {
                                   </form>";
                 }
 
+                $base_sec = $buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1);
+                $time_text = convert_sec_to_str((int)round($base_sec * $kingdom->get_construction_time_multiplier()));
+
                 $view .= "<tr>
                     <td>
                         <div class='map-legend' style='justify-content: left;'>
@@ -246,7 +261,7 @@ if ($count_maxed_buildings === $building_count) {
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
                         </div>
                         <div class='map-legend' style='justify-content: left;'>
-                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " " . convert_sec_to_str($buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1)) . "</div>
+                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " " . $time_text . "</div>
                         </div>
                     </td>
                     <td class='td-center'>" . $text_build . "</td>

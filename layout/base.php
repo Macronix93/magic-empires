@@ -1,3 +1,46 @@
+<?php
+$show_attack_alert = false;
+
+if ($user->is_logged_in()) {
+    $now = time();
+    $my_uid = $user->get_user_id();
+
+    if (!isset($_SESSION["acknowledged_attacks"])) {
+        $_SESSION["acknowledged_attacks"] = [];
+    }
+
+    $q_active = "
+        SELECT e.eventid, e.arrivaltime, b.buildinglevel
+        FROM events e
+        JOIN kingdoms k ON e.targetid = k.id
+        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = 12
+        WHERE k.userid = ? AND e.actionid = 2 AND is_processing = 0
+    ";
+    $active_res = $db_instance->execute_query($q_active, [$my_uid]);
+
+    $current_attack_ids = [];
+    $active_attacks_data = [];
+
+    while ($row = $active_res->fetch_assoc()) {
+        $current_attack_ids[] = $row["eventid"];
+        $active_attacks_data[] = $row;
+    }
+
+    $_SESSION["acknowledged_attacks"] = array_intersect($_SESSION["acknowledged_attacks"], $current_attack_ids);
+
+    foreach ($active_attacks_data as $atk) {
+        $visibility = $atk["buildinglevel"] * WATCHTOWER_DETECTION_PER_LEVEL;
+        $time_left = $atk["arrivaltime"] - $now;
+
+        if ($time_left > 0 && $time_left <= $visibility) {
+            if (!in_array($atk["eventid"], $_SESSION["acknowledged_attacks"])) {
+                $show_attack_alert = true;
+                break;
+            }
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -21,6 +64,9 @@
     ?>
 </head>
 <body <?php echo start_inactivity_check(TIMEOUT_MAX_SECONDS); ?>>
+<?php if (isset($show_attack_alert) && $show_attack_alert): ?>
+    <div class="attack-alert-overlay"></div>
+<?php endif; ?>
 <div class="header img">
     <img src="images/header.png" alt="Header"/>
 </div>

@@ -6,7 +6,7 @@ check_user_login($user);
 $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
 $soldiers = [];
-$result = $db_instance->execute_query("SELECT id, soldiername, attack, defense, icon FROM soldierlist");
+$result = $db_instance->execute_query("SELECT id, soldiername, category, attack, defense, icon FROM soldierlist");
 
 foreach ($result as $row) {
     $soldier = new Soldier();
@@ -28,15 +28,28 @@ $view .= '<table class="table">
 
 for ($i = 0; $i < count($soldiers); $i++) {
     $soldier_name = $soldiers[$i]->get_soldier_name();
+    $category = $soldiers[$i]->get_soldier_category();
 
     $view .= "<tr>
-                <td>" . $soldiers[$i]->get_soldier_icon() . " " . $soldier_name . "<br>
-                    <div class='split-content' style='width: 104px;'>
-                        <div id='" . $soldier_name . "_atk' data-attack='" . $soldiers[$i]->get_soldier_attack() . "'>
-                            <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->get_soldier_attack() . "
+                <td>
+                    <div class='map-legend' style='justify-content: left;'>
+                        <div class='legend-item'>
+                        " . $soldiers[$i]->get_soldier_icon() . "
                         </div>
-                        <div id='" . $soldier_name . "_def' data-defense='" . $soldiers[$i]->get_soldier_defense() . "' style='margin-left: 15px;'>
-                            <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->get_soldier_defense() . "
+                        <div class='legend-item'>
+                        " . $soldier_name . "
+                        </div>
+                    </div>
+                    <div class='map-legend' style='justify-content: left;'>
+                        <div class='legend-item' style='width: 60px;'>
+                            <div id='" . $soldier_name . "_atk' data-attack='" . $soldiers[$i]->get_soldier_attack() . "' data-category='" . $category . "'>
+                                <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $soldiers[$i]->get_soldier_attack() . "
+                            </div>
+                        </div>
+                        <div class='legend-item' style='width: 80px;'>
+                            <div id='" . $soldier_name . "_def' data-defense='" . $soldiers[$i]->get_soldier_defense() . "'>
+                                <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $soldiers[$i]->get_soldier_defense() . "
+                            </div>
                         </div>
                     </div>
                 </td>

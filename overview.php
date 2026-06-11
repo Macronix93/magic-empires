@@ -3,9 +3,43 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
-// Fetch all sent troops events from the user
-$view .= '<div class="title-border">Gesendete Truppen</div>';
+// Get some user data to show...
+$result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
+$row = $result->fetch_assoc();
+$ip = $row["ip"];
+$email = $row["email"];
+$score = $row["score"];
+$guild_id = $row["guildid"];
+$register_date = $row["registerdate"];
+$main_kingdom = $row["mainkingdom"];
+$now = time();
+$time_diff = $now - $_SESSION["currlogin"];
+$kingdom = new Kingdom($db_instance, $main_kingdom);
 
+if (!isset($_SESSION["acknowledged_attacks"])) {
+    $_SESSION["acknowledged_attacks"] = [];
+}
+
+$q_ack = "
+    SELECT e.eventid, b.buildinglevel, e.arrivaltime
+    FROM events e
+    JOIN kingdoms k ON e.targetid = k.id
+    JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = 12
+    WHERE k.userid = ? AND e.actionid = 2 AND e.arrivaltime > ? AND is_processing = 0
+";
+$current_visible = $db_instance->execute_query($q_ack, [$user->get_user_id(), $now]);
+
+foreach ($current_visible as $row) {
+    $vis = $row["buildinglevel"] * WATCHTOWER_DETECTION_PER_LEVEL;
+
+    if (($row["arrivaltime"] - $now) <= $vis) {
+        if (!in_array($row["eventid"], $_SESSION["acknowledged_attacks"])) {
+            $_SESSION["acknowledged_attacks"][] = $row["eventid"];
+        }
+    }
+}
+
+// Fetch all sent troops events from the user
 if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])) {
     $event_id = (empty($_GET["eid"]) ? 0 : (int)$_GET["eid"]);
     $result = $db_instance->execute_query("SELECT * FROM events WHERE eventid = ? AND userid = ?",
@@ -16,7 +50,6 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 
 
         if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS) {
-            $now = time();
             $total_duration = $event["arrivaltime"] - $event["buildingtime"];
             $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
             $new_arrival_time = $now + $already_marched;
@@ -57,12 +90,70 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 $map = new Map($db_instance, $user);
 $limit = 7;
 
+
+// -- INCOMING ENEMIES OVERVIEW ---
+$my_uid = $user->get_user_id();
+$query_wt = "SELECT k.id, k.kingdomname, b.buildinglevel 
+             FROM kingdoms k 
+             JOIN buildings b ON k.id = b.kingdomid 
+             WHERE k.userid = ? AND b.buildingid = ? AND b.buildinglevel > 0";
+
+$my_watchtowers = $db_instance->execute_query($query_wt, [$my_uid, BuildingTypes::BUILDING_WATCHTOWER]);
+
+if ($my_watchtowers->num_rows > 0) {
+    $incoming_html = "";
+
+    foreach ($my_watchtowers as $wt) {
+        $visibility_window = $wt["buildinglevel"] * WATCHTOWER_DETECTION_PER_LEVEL;
+
+        $query_incoming = "
+            SELECT arrivaltime 
+            FROM events 
+            WHERE targetid = ? 
+              AND actionid = ? 
+              AND arrivaltime - ? <= ?
+              AND arrivaltime > ?
+            ORDER BY arrivaltime
+        ";
+        $incoming = $db_instance->execute_query($query_incoming, [
+            $wt["id"],
+            ActionTypes::ACTION_SEND_TROOPS,
+            $now,
+            $visibility_window,
+            $now
+        ]);
+
+        while ($attack = $incoming->fetch_assoc()) {
+            $diff = $attack["arrivaltime"] - $now;
+
+            $incoming_html .= "<tr>
+                <td style='color: var(--link-color);'>Alarm in <b>" . e($wt["kingdomname"]) . "</b>!</td>
+                <td class='td-center'><b>Ankunft in: 
+                        <span class='js-countdown' 
+                              data-seconds='$diff' 
+                              data-no-reload='true'>
+                              " . convert_sec_to_str($diff) . "
+                        </span>
+                    </b>
+                </td>
+            </tr>";
+        }
+    }
+
+    if ($incoming_html !== "") {
+        $view .= '<div class="title-border error">Feindliche Truppenbewegung</div>';
+        $view .= '<table class="table">' . $incoming_html . '</table><br>';
+    }
+}
+
 // --- TROOP OVERVIEW ---
 $count_tp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?)",
     [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS])->fetch_row()[0];
 $pages_tp = ceil($count_tp / $limit);
 $curr_tp = isset($_GET["tp"]) ? max(1, (int)$_GET["tp"]) : 1;
 $offset_tp = ($curr_tp - 1) * $limit;
+
+$view .= '<div class="title-border">Gesendete Truppen</div>';
 
 $query = "
     SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
@@ -128,7 +219,7 @@ if ($result && $result->num_rows > 0) {
         $action_button = "";
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
         $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
-        $difference_time = max(0, $event_data["arrivaltime"] - time());
+        $difference_time = max(0, $event_data["arrivaltime"] - $now);
         $counter_id = "counter_" . $event_id;
         $my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
         $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
@@ -305,7 +396,7 @@ if ($result_events && $result_events->num_rows > 0) {
                 break;
         }
 
-        $arrival_diff = max(0, $finish_time - time());
+        $arrival_diff = max(0, $finish_time - $now);
         $counter_id = "event_counter_" . $event_id;
 
         $view .= "<tr>
@@ -410,7 +501,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
         $target_name = $row["kingdomname"];
         $target_coords = "{$row["mapx"]}:{$row["mapy"]}";
 
-        $arrival_diff = max(0, $row["arrivaltime"] - time());
+        $arrival_diff = max(0, $row["arrivaltime"] - $now);
         $counter_id = "trade_counter_" . $event_id;
 
         $is_cancelable = ($row["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $row["buildingname"] == "Interner Transport");
@@ -490,23 +581,11 @@ if ($result_trades && $result_trades->num_rows > 0) {
     $view .= "Derzeit sind keine Warenlieferungen unterwegs.";
 }
 
-// Get some user data to show...
-$result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
-$row = $result->fetch_assoc();
-$ip = $row["ip"];
-$email = $row["email"];
-$score = $row["score"];
-$guild_id = $row["guildid"];
-$register_date = $row["registerdate"];
-$main_kingdom = $row["mainkingdom"];
-$time_diff = time() - $_SESSION["currlogin"];
-$kingdom = new Kingdom($db_instance, $main_kingdom);
-
+// Show user data...
 $view .= "<div class='title-border' style='margin-top: 30px;'>Allgemeine Daten</div>";
 $view .= "<table class='table' style='max-width: 450px;'>";
 $view .= "<tr><td>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>";
 $view .= "<tr><td>IP-Adresse:</td><td>" . $_SERVER["REMOTE_ADDR"] . "</td></tr>";
-//$view .= "<tr><td>Stored IP Adress:</td><td>" . $ip . "</td></tr>";
 $view .= "<tr><td>Haupt-Königreich:</td><td>" . $kingdom->get_kingdom_name() . " (" . $kingdom->get_kingdom_map_x() . ":" . $kingdom->get_kingdom_map_y() . ")</td></tr>";
 $view .= "<tr><td>E-Mail:</td><td>$email</td></tr>";
 $view .= "<tr><td>Registriert seit:</td><td>" . date('d.m.Y H:i:s', $register_date) . "</td></tr>";
@@ -515,35 +594,6 @@ $view .= "<tr><td>Score:</td><td>$score</td></tr>";
 $view .= "<tr><td>Gilde:</td><td>" . ($guild_id == -1 ? "Keine Gilde" : $guild_id) . "</td></tr>";
 $view .= "<tr><td>Admin-Level:</td><td>" . $user->get_user_admin_level() . "</td></tr>";
 $view .= "</table>";
-
-/*$view .= '<img src="images/icons/icon_right_slow.png" class="popup" id="test1" alt="" style="width:24px;"/>
-            <div id="test1_box" class="popupbox">Testbox hahaha <br>hahahah</div>
-            <br>
-            <a class="popup" id="test2">This is a test</a>
-            <div id="test2_box" class="popupbox">E-Mail: ' . htmlspecialchars($email) . '</div>
-            <br><br>';*/
-
-
-// Check for existing IP
-/*$ipPattern = explode('.', $_SERVER["REMOTE_ADDR"]);
-$ipToCheck = $ipPattern[0] . "." . $ipPattern[1] . ".%";
-
-$sql = "SELECT COUNT(*) FROM users WHERE ip LIKE ?";
-$stmt = $db_instance->prepare($sql);
-$stmt->bind_param('s', $ipToCheck);
-$stmt->execute();
-$stmt->bind_result($count);
-$stmt->fetch();
-$stmt->close();
-
-if ($count > 0) {
-    // The database contains at least one IP address matching the pattern xxx.xxx.*.*
-    echo 'IP found.';
-} else {
-    // No matching IP address found
-    echo 'IP not found.';
-}*/
-
 
 /*
  * HTML Section

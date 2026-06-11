@@ -110,7 +110,7 @@ class Building
         if (isset($this->building_id) && file_exists($icon_path)) {
             return "<img src='$icon_path' class='$class' alt='$this->b_name' title='$this->b_name'/>";
         } else {
-            return "<img src='images/icons/icon_error.png' class='item-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
+            return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
         }
     }
 

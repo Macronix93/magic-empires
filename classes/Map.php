@@ -25,7 +25,9 @@ class Map
             $kingdom_id = $row["kingdomid"];
             $content = "";
 
-            if ($kingdom_id != -1) {
+            if ($kingdom_id == -2) {
+                $content = "<img src='images/icons/icon_gems.png' style='max-width: 24px; max-height: 24px;' alt='Schätze' title='Schätze'>";
+            } else if ($kingdom_id != -1) {
                 $icon = $this->get_kingdom_icon_by_level($row["buildinglevel"]);
                 $content = "<img src='$icon' alt=''>";
             }
@@ -165,7 +167,25 @@ class Map
 
         $target_url = "sendtroops.php?x=" . e($field_x) . "&y=" . e($field_y);
 
-        if ($field == -1) {
+        if ($field == -2) {
+            echo '<div class="title-border">Verlassenes Vorratslager</div>
+                  <p>Hier befinden sich Schätze, die geplündert werden können.</p>
+                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                  <tr>
+                      <td class="td-mapinfo"><b>Koordinaten</b></td>
+                      <td>' . $field_x . ':' . $field_y . '</td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                      <td>' . convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y)) . '</td>
+                  </tr>
+                  <tr>
+                      <td colspan="2" class="td-mapinfo" style="text-align: center;">
+                          <button data-on-click="redirect" data-url="' . $target_url . '">Plündern</button>
+                      </td>
+                  </tr>
+              </table>';
+        } else if ($field == -1) {
             $query = "SELECT m.fieldtype, f.fieldname FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
             $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
             $field_name = $result->fetch_assoc()["fieldname"];
@@ -250,22 +270,10 @@ class Map
     {
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
-        // DEBUGGING: print the path
-        /*$path = $result['path'];
+        $kingdom = new Kingdom($this->mysqli, $this->user->get_current_kingdom());
+        $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
 
-        echo "Path:<br>";
-        array_map(function ($coord) {
-            return "{x: {$coord['x']},
-                    y: {$coord['y']},
-                    traversalTime: {$coord['traversalTime']}
-                    }";
-        }, $path);
-
-        foreach ($path as $coord) {
-            echo "x: {$coord['x']}, y: {$coord['y']}, time: {$coord['traversalTime']}<br>";
-        }*/
-
-        return $result["totalTime"];
+        return (int)round($modified_time);
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
@@ -361,16 +369,16 @@ class Map
 
         foreach ($path as &$coord) {
             if ($coord["x"] == $start_x && $coord["y"] == $start_y) {
-                $coord["traversalTime"] = 0;
+                $coord["traversaltime"] = 0;
             } else {
-                $coord["traversalTime"] = $map[$coord["x"]][$coord["y"]]["traversaltime"];
+                $coord["traversaltime"] = $map[$coord["x"]][$coord["y"]]["traversaltime"];
             }
-            $total_time += $coord["traversalTime"];
+            $total_time += $coord["traversaltime"];
         }
 
         $path = array_reverse($path);
 
-        return ["path" => $path, "totalTime" => $total_time];
+        return ["path" => $path, "totaltime" => $total_time];
     }
 
     // Render and show the map

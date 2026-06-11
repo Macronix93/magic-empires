@@ -12,6 +12,9 @@ registerAction("loadOlderChat", (el) => {
         loadOlderMessages(partnerId);
     }
 });
+registerAction("loadMoreServerMsgs", () => {
+    loadOlderServerMessages();
+});
 registerAction("filterServer", (el) => {
     if (typeof filterServerMessages === "function") {
         filterServerMessages(el);
@@ -413,6 +416,7 @@ function initializeChat() {
 
     // Scroll to latest message at the bottom
     scrollDown();
+    scrollToLatestMessage();
 }
 
 // Filter server log messages
@@ -461,7 +465,10 @@ function loadOlderServerMessages() {
     if (isFetchingOlder || !canLoadMore) return;
 
     const section = document.getElementById("messages-section");
-    const lastMsg = section.querySelector(".server-bubble:last-child"); // Letztes Element finden
+    const bubbles = section.querySelectorAll(".server-bubble");
+    const lastMsg = bubbles[bubbles.length - 1];
+    const btn = document.getElementById("load-more-server-btn");
+
     if (!lastMsg) return;
 
     const oldestId = lastMsg.id.replace("msg-", "");
@@ -470,23 +477,39 @@ function loadOlderServerMessages() {
 
     isFetchingOlder = true;
 
+    if (btn) btn.innerText = "Lade...";
+
     fetch(`ajax/server_load_more.php?oldest_id=${oldestId}&category=${category}`, {
-        headers: {
-            "X-Requested-With": "XMLHttpRequest"
-        }
+        headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.json())
         .then(data => {
             if (data.count > 0) {
-                section.insertAdjacentHTML("beforeend", data.html); // Unten anfügen
+                if (btn) {
+                    btn.insertAdjacentHTML("beforebegin", data.html);
+                } else {
+                    section.insertAdjacentHTML("beforeend", data.html);
+                }
+
                 canLoadMore = data.hasMore;
             } else {
                 canLoadMore = false;
             }
-            finishLoading(null);
+
+            if (btn) {
+                if (!canLoadMore) {
+                    btn.remove();
+                } else {
+                    btn.innerText = "Ältere Berichte laden";
+                }
+            }
+
+            isFetchingOlder = false;
         })
         .catch(() => {
             isFetchingOlder = false;
+
+            if (btn) btn.innerText = "Fehler beim Laden";
         });
 }
 
@@ -565,7 +588,17 @@ function setInfoBoxError(message) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    if (document.getElementById("message-input")) {
-        initializeChat();
+    const messageSection = document.getElementById("messages-section");
+
+    if (messageSection) {
+        messageSection.addEventListener("scroll", () => {
+            checkScrollPosition();
+        });
+
+        if (document.getElementById("message-input")) {
+            initializeChat();
+        } else {
+            canLoadMore = !!document.getElementById("load-more-server-btn");
+        }
     }
 });

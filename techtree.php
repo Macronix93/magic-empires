@@ -27,17 +27,6 @@ for ($i = 0; $i < count($buildings); $i++) {
     $building_dependencies = $buildings[$i]->get_building_dependencies();
     $building_dependencies_count = count($building_dependencies);
 
-//    if ($i != BuildingTypes::BUILDING_TOWNCENTER) {
-//        $factor = $buildings[$i]->get_tc_level_factor();
-//        $needed_tc = ceil(($current_building_level + 1) / $factor);
-//
-//        if ($tc_level < $needed_tc) {
-//            $dependency_text .= " <span class='error'>Dorfzentrum ($needed_tc)</span>";
-//        } else {
-//            $dependency_text .= " <span class='passed'>Dorfzentrum ($needed_tc)</span>";
-//        }
-//    }
-
     if ($building_dependencies_count != 0) {
         foreach ($building_dependencies as $dependency) {
             $level_of_dependency_building = $buildings[$dependency["dependencyid"]]->get_building_level();
@@ -48,6 +37,8 @@ for ($i = 0; $i < count($buildings); $i++) {
                 $dependency_text .= " <span class='passed'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
             }
         }
+    } else {
+        continue;
     }
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
@@ -84,7 +75,7 @@ for ($i = 0; $i < count($techs); $i++) {
     if (!empty($tech_dependencies)) {
         foreach ($tech_dependencies as $dependency) {
             // Building dependency
-            if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
+            if (isset($dependency["dependencyid"]) && $dependency["dependencyid"] !== -1) {
                 $building_level_needed = $dependency["dependencylevel"];
                 $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
 
@@ -94,7 +85,7 @@ for ($i = 0; $i < count($techs); $i++) {
             }
 
             // Tech dependency
-            if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
+            if (isset($dependency["techdepid"]) && $dependency["techdepid"] !== -1) {
                 $tech_level_needed = $dependency["techdeplevel"];
                 $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
 

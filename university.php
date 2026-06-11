@@ -123,6 +123,45 @@ if (!empty($last_researched_tech)) {
     $user->clear_last_researched_tech($current_kingdom);
 }
 
+// Calculate and show tech boni
+$boni_view = "";
+
+$arch_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCHITECTURE);
+if ($arch_lvl > 0) {
+    $percent = $arch_lvl * ARCHITECTURE_TIME_REDUCTION * 100;
+    $boni_view .= "<tr><td>Baukunst:</td><td class='passed'>-$percent% Bauzeit</td></tr>";
+}
+
+$carto_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CARTOGRAPHY);
+if ($carto_lvl > 0) {
+    $reduction = (1 - $kingdom->get_march_speed_multiplier()) * 100;
+    $boni_view .= "<tr><td>Kartografie:</td><td class='passed'>-" . round($reduction, 1) . "% Marschzeit</td></tr>";
+}
+
+$maint_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_MAINTENANCE);
+if ($maint_lvl > 0) {
+    $percent = $maint_lvl * MAINTENANCE_REPAIR_REDUCTION * 100;
+    $boni_view .= "<tr><td>Mauerwartung:</td><td class='passed'>-$percent% Reparaturkosten</td></tr>";
+}
+
+$plund_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
+if ($plund_lvl > 0) {
+    $percent = $plund_lvl * PLUNDER_CAPACITY_BONUS * 100;
+    $boni_view .= "<tr><td>Plünderungstaktik:</td><td class='passed'>+$percent% Beute-Kapazität</td></tr>";
+}
+
+$rites_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
+if ($rites_lvl > 0) {
+    $effekt = $rites_lvl * SHRINE_TECH_STEP * 100;
+    $boni_view .= "<tr><td>Ahnenritus:</td><td class='passed'>+$effekt% Schrein-Effektivität</td></tr>";
+}
+
+if (!empty($boni_view)) {
+    $view .= "<div class='title-border'>Aktive Boni (Forschung)</div>";
+    $view .= "<table class='table' style='max-width: 450px; margin-bottom: 10px;'>$boni_view</table>";
+}
+
+
 /*
  * HTML Content Part
  */
@@ -218,7 +257,7 @@ if ($count_maxed_techs === $tech_count) {
 
                         $difference_time = $row["buildingtime"] - time();
 
-                        $text_build = "<b><span class='js-countdown' 
+                        $text_build = "Forschungszeit:<br><b><span class='js-countdown' 
                                                data-seconds='$difference_time' 
                                                data-hide-id='cancel-form'></span></b><br>
                                       <form id='cancel-form' action='university.php' method='GET'>

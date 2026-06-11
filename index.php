@@ -11,6 +11,7 @@ if (isset($_GET["banned"])) {
 
 $success = "";
 $error = "";
+$warning = "";
 $mode = $_GET["action"] ?? "login";
 
 // ACCOUNT ACTIVATION
@@ -55,9 +56,9 @@ if (!empty($_GET["key"])) {
 if (isset($_GET["logout"])) {
     if ($user->is_logged_in()) {
         if ($_GET["logout"] === "inactive") {
-            $error .= "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
+            $warning = show_warning_box("Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!");
         } else if ($_GET["logout"] === "session") {
-            $error .= "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
+            $warning = show_warning_box("Deine Session ist abgelaufen. Bitte logge dich erneut ein!");
         }
 
         // Update anti spam
@@ -206,6 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
                 if (!empty($error)) echo show_error_box($error);
+                if (!empty($warning)) echo $warning;
                 ?>
                 <table class="table">
                     <tr>
@@ -232,6 +234,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (!empty($success)) echo $success;
                 if (!empty($error)) {
                     $error_messages = explode("<br>", $error);
+
                     foreach ($error_messages as $e) {
                         if (trim($e) !== "") echo show_error_box($e);
                     }

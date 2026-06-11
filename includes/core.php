@@ -17,26 +17,39 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-if (str_contains($_SERVER["HTTP_HOST"], "localhost") || str_contains($_SERVER["HTTP_HOST"], "127.0.0.1")) {
-    define("BASE_URL", "/magic-empires/");
-    define("IS_DEV", true);
+$is_cli = (php_sapi_name() === 'cli');
+
+if (!$is_cli) {
+    if (str_contains($_SERVER["HTTP_HOST"] ?? '', "localhost") || str_contains($_SERVER["HTTP_HOST"] ?? '', "127.0.0.1")) {
+        define("BASE_URL", "/magic-empires/");
+        define("IS_DEV", true);
+    } else {
+        define("BASE_URL", '/');
+        define("IS_DEV", false);
+    }
 } else {
     define("BASE_URL", '/');
-    define("IS_DEV", false);
+    define("IS_DEV", true);
 }
 
-header("Content-Security-Policy: " .
-    "default-src 'self'; " .
-    "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; " .
-    "frame-src https://www.google.com/recaptcha/; " .
-    "style-src 'self' 'unsafe-inline'; " .
-    "img-src 'self' data:; " .
-    "connect-src 'self';");
+if (!$is_cli) {
+    header("Content-Security-Policy: " .
+        "default-src 'self'; " .
+        "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; " .
+        "frame-src https://www.google.com/recaptcha/; " .
+        "style-src 'self' 'unsafe-inline'; " .
+        "img-src 'self' data:; " .
+        "connect-src 'self';");
+}
 
 /*
     Constants (defines)
 */
-const MAINTENANCE_MODE = false;
+const MAINTENANCE_MODE = true;
+const MAX_RESOURCE_TILES = 500;
+const RESOURCE_TILES_SPAWN_RATE = 20;
+const MIN_RESOURCES_FOR_TILE = 500;
+const MAX_RESOURCES_FOR_TILE = 2000;
 const MAX_ROWS_PER_RANKING_PAGE = 10;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MAX_CONQUEST_CHANCE = 0.9;
@@ -51,11 +64,11 @@ const MAX_PASSWORD_LENGTH = 65;
 const MAX_X = 100;
 const MAX_Y = 100;
 const MAX_BUILDING_LEVEL = 10;
-const DEFAULT_WALL_HP = 100;
+const DEFAULT_WALL_HP = 270;
 const MIN_WALL_DEFENSE = 1;
-const MAX_WALL_DEFENSE = 5;
+const MAX_WALL_DEFENSE = 96;
 const WALL_DEFENSE_FACTOR = 0.6;
-const BASE_WALL_REPAIR_COST = 50;
+const BASE_WALL_REPAIR_COST = 10;
 const TIMEOUT_MAX_SECONDS = 1800; // 30 Minutes
 const AFK_SECONDS = 300; // 5 Minutes
 const USER_UPDATE_TICK = 30; // 30 Seconds
@@ -94,11 +107,36 @@ const MARKET_FEE_MULTIPLIER_STONE = 0.005;
 const MARKET_FEE_MULTIPLIER_GOLD = 0.01;
 const MARKET_OFFER_DURATION = 86400; // 24 hours
 const MAX_SOLDIERS_RECRUIT_INPUT = 99;
-
+const ESTATE_VILLAGER_GROWTH_STEP = 3;
+const ESTATE_MAX_VILLAGER_INC = 10;
+const WATCHTOWER_DETECTION_PER_LEVEL = 1200;
+const SHRINE_BONUS_BASE = 0.10;
+const SHRINE_MALUS_BASE = 0.05;
+const SHRINE_CHANGE_COST = 500;
+const SHRINE_TECH_STEP = 0.05; // Every level of Ahnenritus increases Bonus by X %
+const CARTOGRAPHY_SPEED_BONUS = 0.05;
+const PLUNDER_CAPACITY_BONUS = 0.02;
+const ARCHITECTURE_TIME_REDUCTION = 0.02;
+const MAINTENANCE_REPAIR_REDUCTION = 0.05;
+const BASE_SETTLER_CHANCE = 0.50; // 50% with one waggon
+const SETTLER_CHANCE_STEP = 0.25; // +25% for every additional waggon
+const MAX_SETTLER_CHANCE = 1.0;  // max is 100
+const THIEF_BASE_CAPACITY = 50;
+const STORAGE_SECURE_PERCENT_STEP = 0.025;
+const RAIDER_BASE_CAPACITY = 25;
+const RAIDER_LOSS_CHANCE = 15;
 
 /*
  * Interfaces
  */
+
+interface AlignmentTypes
+{
+    const int ALIGN_NONE = 0;
+    const int ALIGN_WAR = 1;    // Bonus: Attack | Malus: Gold
+    const int ALIGN_TRADE = 2;  // Bonus: Gold | Malus: Defense (Wall)
+    const int ALIGN_NATURE = 3; // Bonus: Food/Wood | Malus: Stone
+}
 
 interface MessageCategories
 {
@@ -120,6 +158,10 @@ interface BuildingTypes
     const int BUILDING_GOLDMINE = 8;
     const int BUILDING_STORAGE = 9;
     const int BUILDING_MARKETPLACE = 10;
+    const int BUILDING_ESTATE = 11;
+    const int BUILDING_WATCHTOWER = 12;
+    const int BUILDING_SHRINE = 13;
+    const int BUILDING_EMBASSY = 14;
 }
 
 interface ResourceTypes
@@ -156,6 +198,12 @@ interface TechTypes
     const int TECH_TYPE_GOLD_INC = 3;
     const int TECH_TYPE_WALL_HP_INC = 4;
     const int TECH_TYPE_STORAGE_INC = 5;
+    const int TECH_TYPE_CARTOGRAPHY = 6;
+    const int TECH_TYPE_PLUNDER = 7;
+    const int TECH_TYPE_ARCHITECTURE = 8;
+    const int TECH_TYPE_ARCANE_INTEL = 9;
+    const int TECH_TYPE_ANCESTRAL_RITES = 10;
+    const int TECH_TYPE_MAINTENANCE = 11;
 }
 
 interface SoldierTypes
@@ -164,6 +212,26 @@ interface SoldierTypes
     const int SOLDIER_TYPE_CAVALRY = 1;
     const int SOLDIER_TYPE_ARCHERS = 2;
     const int SOLDIER_TYPE_SPECIAL = 3;
+}
+
+interface Soldiers
+{
+    const int SOLDIER_MILITIA = 0;
+    const int SOLDIER_SWORDSMAN = 1;
+    const int SOLDIER_HALBERDIER = 2;
+    const int SOLDIER_KNIGHT = 3;
+    const int SOLDIER_PALADIN = 4;
+    const int SOLDIER_CUIRASSIER = 5;
+    const int SOLDIER_ARCHER = 6;
+    const int SOLDIER_LONGBOWMAN = 7;
+    const int SOLDIER_CROSSBOWMAN = 8;
+    const int SOLDIER_CONQUEROR = 9;
+    const int SOLDIER_SETTLER_WAGON = 10;
+    const int SOLDIER_THIEF = 11;
+    const int SOLDIER_SCOUT = 12;
+    const int SOLDIER_RAIDER = 13;
+    const int SOLDIER_HERO = 14;
+    const int SOLDIER_RAM = 15;
 }
 
 /*
@@ -184,6 +252,10 @@ function get_building_file(int $building_id): string
         BuildingTypes::BUILDING_GOLDMINE => "goldmine",
         BuildingTypes::BUILDING_STORAGE => "storage",
         BuildingTypes::BUILDING_MARKETPLACE => "marketplace",
+        BuildingTypes::BUILDING_ESTATE => "manor",
+        BuildingTypes::BUILDING_WATCHTOWER => "watchtower",
+        BuildingTypes::BUILDING_SHRINE => "shrine",
+        BuildingTypes::BUILDING_EMBASSY => "embassy",
         default => "index",
     };
 }
@@ -316,6 +388,11 @@ function show_passed_box(string $info_text, bool $display = true): string
 function show_error_box(string $info_text, bool $display = true): string
 {
     return "<div class='info-box event-error' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_error.png' alt='Fehler'><span>$info_text</span></div>";
+}
+
+function show_warning_box(string $info_text, bool $display = true): string
+{
+    return "<div class='info-box event-warning' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_warning.png' alt='Hinweis'><span>$info_text</span></div>";
 }
 
 function show_weighted_box(string $info_text, string $weighted_text): string

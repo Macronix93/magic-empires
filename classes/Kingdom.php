@@ -19,6 +19,10 @@ class Kingdom
     private int $villager;
     private int $max_villager;
     private int $villager_per_hour;
+    private int $base_food_rate;
+    private int $base_stone_rate;
+    private int $base_gold_rate;
+    private int $base_wood_rate;
     private int $building_id;
     private int $recruiting_id;
     private int $tech_id;
@@ -28,6 +32,7 @@ class Kingdom
     private int $kingdom_owner_id;
     private string $kingdom_name;
     private int $wall_hp;
+    private int $alignment;
 
     public function __construct(object $db_conn, int $kingdom_id = -1)
     {
@@ -68,6 +73,12 @@ class Kingdom
                 $this->max_villager = $row["maxvillager"];
                 $this->villager_per_hour = $row["villagerperhour"];
                 $this->wall_hp = $row["wallhp"];
+                $this->alignment = $row["alignment"];
+
+                $this->base_food_rate = $row["base_food_rate"];
+                $this->base_gold_rate = $row["base_gold_rate"];
+                $this->base_stone_rate = $row["base_stone_rate"];
+                $this->base_wood_rate = $row["base_wood_rate"];
             }
         }
     }
@@ -110,11 +121,12 @@ class Kingdom
         $placeholder = "Königreich";
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
-                                          woodperhour, stoneperhour, goldperhour, wallhp) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?) RETURNING id;
+                                          woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
         ";
         $result_kingdom = $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
-            STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP]);
+            STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
+            $food_rate, $gold_rate, $stone_rate, $wood_rate]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
         $kingdom_name = $placeholder . $insert_id;
 
@@ -134,6 +146,9 @@ class Kingdom
                     SELECT ?, '9', 'Lager', '1'
         ";
         $this->mysqli->execute_query($query, [$insert_id, $insert_id, $insert_id]);
+
+        $new_k = new Kingdom($this->mysqli, $insert_id);
+        $new_k->recalculate_production();
 
         return $insert_id;
     }
@@ -275,6 +290,12 @@ class Kingdom
             $this->tech_id = $row["buildingid"];
         }
         return $result->num_rows == 1;
+    }
+
+    public function get_shrine_modifier(): float
+    {
+        $tech_level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
+        return SHRINE_BONUS_BASE + ($tech_level * SHRINE_TECH_STEP);
     }
 
     public function get_kingdom_research_id(): int
@@ -476,9 +497,7 @@ class Kingdom
 
     public function calculate_wall_defense(int $wall_hp, int $wall_level): int
     {
-        if ($wall_hp <= 0 || $wall_level <= 0) {
-            return 0;
-        }
+        if ($wall_hp <= 0 || $wall_level <= 0) return 0;
 
         $max_hp = $wall_level * DEFAULT_WALL_HP;
         $level_scale = pow(($wall_level - 1), WALL_DEFENSE_FACTOR);
@@ -487,7 +506,47 @@ class Kingdom
 
         $defense = floor(($wall_hp / $max_hp) * $scaled_max_defense);
 
+        if ($this->alignment == AlignmentTypes::ALIGN_TRADE) {
+            $defense *= (1 - SHRINE_MALUS_BASE);
+        }
+
         return max(MIN_WALL_DEFENSE, (int)$defense);
+    }
+
+    public function recalculate_production(): void
+    {
+        $tech_mod = $this->get_shrine_modifier();
+
+        $f_per_hour = $this->base_food_rate;
+        $w_per_hour = $this->base_wood_rate;
+        if ($this->alignment == AlignmentTypes::ALIGN_NATURE) {
+            $f_per_hour *= (1 + $tech_mod);
+            $w_per_hour *= (1 + $tech_mod);
+        }
+
+        $s_per_hour = $this->base_stone_rate;
+        if ($this->alignment == AlignmentTypes::ALIGN_NATURE) {
+            $s_per_hour *= (1 - SHRINE_MALUS_BASE);
+        }
+
+        $g_per_hour = $this->base_gold_rate;
+        if ($this->alignment == AlignmentTypes::ALIGN_TRADE) {
+            $g_per_hour *= (1 + $tech_mod);
+        } else if ($this->alignment == AlignmentTypes::ALIGN_WAR) {
+            $g_per_hour *= (1 - SHRINE_MALUS_BASE);
+        }
+
+        $this->mysqli->execute_query("
+        UPDATE kingdoms 
+        SET foodperhour = ?, woodperhour = ?, stoneperhour = ?, goldperhour = ? 
+        WHERE id = ?",
+            [(int)round($f_per_hour), (int)round($w_per_hour), (int)round($s_per_hour), (int)round($g_per_hour), $this->kingdom_id]
+        );
+
+        $this->food_per_hour = (int)round($f_per_hour);
+        $this->wood_per_hour = (int)round($w_per_hour);
+        $this->stone_per_hour = (int)round($s_per_hour);
+        $this->gold_per_hour = (int)round($g_per_hour);
     }
 
     function fetch_all_kingdom_buildings(): array
@@ -496,12 +555,12 @@ class Kingdom
 
         // Query to fetch buildings and dependencies
         $query = "
-        SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
-        FROM buildinglist b 
-        LEFT JOIN buildingdeps d ON b.id = d.buildingid 
-        LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
-        GROUP BY b.id
-    ";
+            SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
+            FROM buildinglist b 
+            LEFT JOIN buildingdeps d ON b.id = d.buildingid 
+            LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
+            GROUP BY b.id
+        ";
         $result = $this->mysqli->execute_query($query, [$this->kingdom_id]);
 
         // Process each building and its dependencies
@@ -515,7 +574,7 @@ class Kingdom
             }
 
             // Process dependencies if any exist
-            if (!empty($row["dependency_ids"])) {
+            if ($row["dependency_ids"] !== null && $row["dependency_ids"] !== "") {
                 $dependency_ids = explode(',', $row["dependency_ids"]);
                 $dependency_levels = explode(',', $row["dependency_levels"]);
 
@@ -598,5 +657,33 @@ class Kingdom
             ResourceTypes::RESOURCE_TYPE_GOLD => $this->give_kingdom_gold($amount),
             default => null
         };
+    }
+
+    public function set_kingdom_alignment(int $alignment): void
+    {
+        $this->alignment = $alignment;
+    }
+
+    public function get_kingdom_alignment(): int
+    {
+        return $this->alignment;
+    }
+
+    public function get_march_speed_multiplier(): float
+    {
+        $level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_CARTOGRAPHY);
+        return 1 / (1 + ($level * CARTOGRAPHY_SPEED_BONUS));
+    }
+
+    public function get_construction_time_multiplier(): float
+    {
+        $level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCHITECTURE);
+        return max(0.5, 1 - ($level * ARCHITECTURE_TIME_REDUCTION)); // Max 50% reduction
+    }
+
+    public function get_repair_cost_multiplier(): float
+    {
+        $level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_MAINTENANCE);
+        return max(0.3, 1 - ($level * MAINTENANCE_REPAIR_REDUCTION));
     }
 }

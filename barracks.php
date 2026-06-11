@@ -34,6 +34,23 @@ foreach ($result as $row) {
 
 $soldiers_count = count($soldiers);
 
+// Standard soldier category
+$active_cat = 0;
+
+if (isset($_GET["cat"])) {
+    $active_cat = (int)$_GET["cat"];
+} else if (isset($_GET["recruit"])) {
+    $r_id = (int)$_GET["recruit"];
+
+    if (isset($soldiers[$r_id])) {
+        $active_cat = $soldiers[$r_id]->get_soldier_category();
+    }
+} else if ($kingdom_is_recruiting) {
+    if (isset($soldiers[$kingdom_recruiting_id])) {
+        $active_cat = $soldiers[$kingdom_recruiting_id]->get_soldier_category();
+    }
+}
+
 if (isset($_GET["recruit"]) && isset($_GET["count"])) {
     if ($_GET["count"] == "cancel") {
         if ($kingdom_is_recruiting) {
@@ -124,6 +141,22 @@ if (!empty($last_recruited_soldier)) {
 
     $user->clear_last_recruited_soldier($current_kingdom);
 }
+
+$categories = [
+    SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
+    SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+    SoldierTypes::SOLDIER_TYPE_ARCHERS => "Schützen",
+    SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezial"
+];
+
+$view .= "<div class='tab'>";
+
+foreach ($categories as $id => $name) {
+    $active_class = ($id === $active_cat) ? "active" : "";
+    $view .= "<div class='tablinks $active_class' data-on-click='filterBarracks' data-category='$id'>$name</div>";
+}
+
+$view .= "</div>";
 $view .= '<table class="table">
                         <colgroup>
                             <col style="width: auto;">
@@ -154,6 +187,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     if ($soldiers[$i]->get_soldier_required_level() > $building->get_building_level()) {
         continue;
     }
+
+    $unit_cat = $soldiers[$i]->get_soldier_category();
 
     $cost_food = $soldiers[$i]->get_soldier_food_cost();
     $cost_gold = $soldiers[$i]->get_soldier_gold_cost();
@@ -193,6 +228,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                           <form id='cancel-form' action='barracks.php' method='GET'>
                             <input type='hidden' name='recruit' value='" . $i . "'>
                             <input type='hidden' name='count' value='cancel'>
+                            <input type='hidden' name='cat' value='" . $unit_cat . "'>
                             <input type='submit' value='Abbruch' style='margin-top: 5px;'>
                           </form>";
         } else {
@@ -230,6 +266,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
         $text_build = "<form action='barracks.php' method='GET'>
                         <input type='hidden' name='recruit' value='" . e($i) . "'>
+                        <input type='hidden' name='cat' value='" . $unit_cat . "'>
                         <input type='text' name='count' id='count" . e($i) . "' size='2' maxlength='2' $disabled>
                         <input type='button' value='Max.' 
                                data-on-click='fillMax' 
@@ -240,7 +277,9 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                     </form>";
     }
 
-    $view .= "<tr>
+    $row_style = ($unit_cat === $active_cat) ? "" : "display: none;";
+
+    $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
                     <td>
                         <div class='map-legend' style='justify-content: left;'>
                             <div class='legend-item'>" . $soldiers[$i]->get_soldier_icon() . "</div>
@@ -277,7 +316,7 @@ $view .= '</table>';
  */
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
-$script_files = ["counter"];
+$script_files = ["counter", "barracks"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

@@ -183,48 +183,58 @@ class Messages
 
     function show_server_inbox(): string
     {
-        // Get all server messages for the user
-        $query = "SELECT * FROM servermessages WHERE receiverid = ? ORDER BY date DESC";
-        $result = $this->mysqli->execute_query($query, [$this->user->get_user_id()]);
+        $limit = SHOW_MESSAGES_LIMIT;
+        $uid = $this->user->get_user_id();
+
+        $query = "SELECT * FROM servermessages WHERE receiverid = ? ORDER BY id DESC LIMIT ?";
+        $result = $this->mysqli->execute_query($query, [$uid, $limit + 1]);
 
         if ($result->num_rows == 0) {
-            $this->view .= "Du hast keine Servernachrichten!";
-        } else {
-            $first_sender_msg_displayed = false;
+            return "Du hast keine Servernachrichten!";
+        }
 
-            foreach ($result as $row) {
-                if ($row["hasread"] == 0 && !$first_sender_msg_displayed) {
-                    $first_sender_msg_displayed = true;
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+        $has_more = (count($rows) > $limit);
 
-                    $this->view .= "
-                                <div id='new-message-line' class='error'>
-                                    Neue Nachrichten seit dem " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
-                                </div>
-                    ";
-                }
+        if ($has_more) {
+            array_pop($rows);
+        }
 
-                $message_id = $row["id"];
+        $html = "";
+        $first_unread_displayed = false;
 
-                $this->view .= "
-                            <div class='server-bubble' data-category='{$row["category"]}' id='msg-$message_id'>
-                                <div class='message-border'>
-                                    Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
-                                    <img src='images/icons/icon_delete.png' 
-                                     class='ressource-icons' 
-                                     alt='Löschen' 
-                                     data-on-click='deleteServerMsg' 
-                                     data-id='" . e($message_id) . "' 
-                                     style='cursor: pointer;'>
-                                </div>
-                                " . $row["message"] . "
+        foreach ($rows as $row) {
+            if ($row["hasread"] == 0 && !$first_unread_displayed) {
+                $first_unread_displayed = true;
+
+                $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
+            }
+
+            $html .= "<div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
+                            <div class='message-border'>
+                                Am " . date("d.m.Y H:i:s", $row["date"]) . "
+                                <img src='images/icons/icon_delete.png' 
+                                 class='ressource-icons' 
+                                 data-on-click='deleteServerMsg' 
+                                 data-id='{$row["id"]}' 
+                                 style='cursor: pointer;' alt=''>
                             </div>
-                ";
+                            {$row["message"]}
+                        </div>";
 
+            if ($row["hasread"] == 0) {
                 $this->mysqli->execute_query("UPDATE servermessages SET hasread = 1 WHERE id = ?", [$row["id"]]);
             }
         }
 
-        return $this->view;
+        if ($has_more) {
+            $html .= "<button id='load-more-server-btn' 
+                          data-on-click='loadMoreServerMsgs' 
+                          class='msg-load-more' 
+                          style='margin: 10px auto; display: block;'>Ältere Berichte laden</button>";
+        }
+
+        return $html;
     }
 
     public function get_unread_private_count(): int

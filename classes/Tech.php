@@ -120,17 +120,17 @@ class Tech
         };
     }
 
-    public function get_tech_icon(): string
+    public function get_tech_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_tech$this->tech_id.png";
 
-        if (isset($this->tech_id)) {
-            return "<img src='$icon_path' class='buildable-icons' alt='$this->t_name' title='$this->t_name'/>";
+        if (isset($this->tech_id) && file_exists($icon_path)) {
+            return "<img src='$icon_path' class='$class' alt='$this->t_name' title='$this->t_name'/>";
         } else {
-            return "ICON NOT FOUND";
+            return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
         }
     }
-
+    
     public function is_researched(): bool
     {
         $query = "SELECT * FROM techs WHERE kingdomid = ? AND techid = ?";

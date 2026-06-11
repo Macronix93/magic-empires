@@ -16,7 +16,8 @@ $bonus_defense = $kingdom->calculate_wall_defense($wall_hp, $building->get_build
 $kingdom_stone = $kingdom->get_kingdom_stone();
 
 $hp_difference = $wall_max_hp - $wall_hp;
-$repair_cost = $hp_difference * BASE_WALL_REPAIR_COST;
+$maintenance_mult = $kingdom->get_repair_cost_multiplier();
+$repair_cost = (int)round($hp_difference * BASE_WALL_REPAIR_COST * $maintenance_mult);
 $disabled = $repair_cost > $kingdom_stone || $hp_difference == 0 ? "disabled" : "";
 $bonus_defense_text = $bonus_defense == 0 ? "0" : "+$bonus_defense";
 
@@ -35,6 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair"])) {
         $error = "Nicht genügend Stein oder Mauer ist bereits voll repariert!";
     }
 }
+
 
 /*
  * HTML Content Part

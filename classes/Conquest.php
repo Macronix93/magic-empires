@@ -123,11 +123,13 @@ class Conquest
 
     public function initialize_soldier_types(): void
     {
-        $result = $this->mysqli->execute_query("SELECT * FROM soldierlist");
+        $result = $this->mysqli->execute_query("SELECT id, soldiername, category, attack, defense, scoregain FROM soldierlist");
+
         foreach ($result as $row) {
             $this->soldier_types[$row["id"]] = [
                 "soldierid" => $row["id"],
                 "soldiername" => $row["soldiername"],
+                "category" => $row["category"],
                 "attack" => $row["attack"],
                 "defense" => $row["defense"],
                 "score" => $row["scoregain"]
@@ -161,14 +163,22 @@ class Conquest
         }
     }
 
-    public function set_soldier_stats(): void
+    public function set_soldier_stats(Kingdom $home_kingdom): void
     {
         $bonus_defense = $this->calculate_wall_bonus();
+
+        // Attacker Bonus (War God)
+        $atk_multiplier = 1.0;
+
+        if ($home_kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+            $atk_multiplier += $home_kingdom->get_shrine_modifier();
+        }
 
         foreach ($this->soldier_types as $id => $soldier) {
             $my_soldier_count = $this->initial_soldiers[$id]["initial_my_soldiers"];
             $enemy_soldier_count = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
-            $soldier_atk = $soldier["attack"];
+
+            $soldier_atk = (int)($soldier["attack"] * $atk_multiplier);
             $soldier_def = $soldier["defense"] + $bonus_defense;
 
             $this->enemy_soldiers[$id] = $enemy_soldier_count;
@@ -187,41 +197,123 @@ class Conquest
     {
         $wall = (new Kingdom($this->mysqli))->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
 
+        if (!$wall) {
+            return 0;
+        }
+
         return $this->enemy_kingdom->calculate_wall_defense($this->enemy_kingdom->get_wall_hp(),
             $wall->get_building_level());
     }
 
+//    public function calculate_battle_outcome(): void
+//    {
+//        foreach ($this->soldier_types as $attacker_id => $attacker_soldier) {
+//            if ($this->soldiers[$attacker_id]["count"] > 0) {
+//                foreach ($this->soldier_types as $defender_id => $defender_soldier) {
+//                    if ($this->enemy_soldiers[$defender_id] > 0) {
+//                        // Calculate damage done (for wall hp)
+//                        $damage_done = min($this->my_total_atk[$attacker_id], $this->enemy_total_def[$defender_id]);
+//                        $this->accumulated_damage += $damage_done;
+//
+//                        $outcome_for_me = ceil(
+//                            max($this->my_total_atk[$attacker_id] - $this->enemy_total_def[$defender_id], 0) / $this->soldier_type_atk[$attacker_id]
+//                        );
+//                        $outcome_for_enemy = ceil(
+//                            max($this->enemy_total_def[$defender_id] - $this->my_total_atk[$attacker_id], 0) / $this->soldier_type_def[$defender_id]
+//                        );
+//
+//                        $this->soldiers[$attacker_id]["count"] = $outcome_for_me;
+//                        $this->enemy_soldiers[$defender_id] = $outcome_for_enemy;
+//
+//                        // Calculate unit loss
+//                        $this->initial_soldiers[$attacker_id]["my_losses"] = $this->initial_soldiers[$attacker_id]["initial_my_soldiers"] - $this->soldiers[$attacker_id]["count"];
+//                        $this->initial_soldiers[$defender_id]["enemy_losses"] = $this->initial_soldiers[$defender_id]["initial_enemy_soldiers"] - $this->enemy_soldiers[$defender_id];
+//
+//                        // Recalculate total ATK for type and DEF for enemy type
+//                        $this->my_total_atk[$attacker_id] = $this->soldiers[$attacker_id]["count"] * $this->soldier_type_atk[$attacker_id];
+//                        $this->enemy_total_def[$defender_id] = $this->enemy_soldiers[$defender_id] * $this->soldier_type_def[$defender_id];
+//                    }
+//                }
+//            }
+//        }
+//    }
+
     public function calculate_battle_outcome(): void
     {
-        foreach ($this->soldier_types as $attacker_id => $attacker_soldier) {
-            if ($this->soldiers[$attacker_id]["count"] > 0) {
-                foreach ($this->soldier_types as $defender_id => $defender_soldier) {
-                    if ($this->enemy_soldiers[$defender_id] > 0) {
-                        // Calculate damage done (for wall hp)
-                        $damage_done = min($this->my_total_atk[$attacker_id], $this->enemy_total_def[$defender_id]);
-                        $this->accumulated_damage += $damage_done;
+        $playerAtkPool = 0;
+        $playerDefPool = 0;
+        $enemyAtkPool = 0;
+        $enemyDefPool = 0;
 
-                        $outcome_for_me = ceil(
-                            max($this->my_total_atk[$attacker_id] - $this->enemy_total_def[$defender_id], 0) / $this->soldier_type_atk[$attacker_id]
-                        );
-                        $outcome_for_enemy = ceil(
-                            max($this->enemy_total_def[$defender_id] - $this->my_total_atk[$attacker_id], 0) / $this->soldier_type_def[$defender_id]
-                        );
+        $totalOwnUnits = array_sum(array_column($this->initial_soldiers, 'initial_my_soldiers'));
+        $totalEnemyUnits = array_sum(array_column($this->initial_soldiers, 'initial_enemy_soldiers'));
 
-                        $this->soldiers[$attacker_id]["count"] = $outcome_for_me;
-                        $this->enemy_soldiers[$defender_id] = $outcome_for_enemy;
+        if ($totalOwnUnits <= 0 || $totalEnemyUnits <= 0) return;
 
-                        // Calculate unit loss
-                        $this->initial_soldiers[$attacker_id]["my_losses"] = $this->initial_soldiers[$attacker_id]["initial_my_soldiers"] - $this->soldiers[$attacker_id]["count"];
-                        $this->initial_soldiers[$defender_id]["enemy_losses"] = $this->initial_soldiers[$defender_id]["initial_enemy_soldiers"] - $this->enemy_soldiers[$defender_id];
+        // 1. Pools berechnen (Simultaner Angriff beider Seiten)
+        foreach ($this->soldier_types as $id => $unit) {
+            $ownCount = $this->initial_soldiers[$id]["initial_my_soldiers"];
+            $enemyCount = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
 
-                        // Recalculate total ATK for type and DEF for enemy type
-                        $this->my_total_atk[$attacker_id] = $this->soldiers[$attacker_id]["count"] * $this->soldier_type_atk[$attacker_id];
-                        $this->enemy_total_def[$defender_id] = $this->enemy_soldiers[$defender_id] * $this->soldier_type_def[$defender_id];
+            // --- Spieler Angriffs-Pool ---
+            if ($ownCount > 0) {
+                $bonus = 1.0;
+                foreach ($this->soldier_types as $id_target => $unit_target) {
+                    if ($this->initial_soldiers[$id_target]["initial_enemy_soldiers"] > 0) {
+                        $share = $this->initial_soldiers[$id_target]["initial_enemy_soldiers"] / $totalEnemyUnits;
+                        if (($unit['category'] == 0 && $unit_target['category'] == 1) ||
+                            ($unit['category'] == 1 && $unit_target['category'] == 2) ||
+                            ($unit['category'] == 2 && $unit_target['category'] == 0)) {
+                            $bonus += (0.5 * $share);
+                        }
                     }
                 }
+                $playerAtkPool += ($ownCount * $this->soldier_type_atk[$id] * $bonus);
             }
+
+            // --- Gegner Angriffs-Pool ---
+            if ($enemyCount > 0) {
+                $bonus = 1.0;
+                foreach ($this->soldier_types as $id_target => $unit_target) {
+                    if ($this->initial_soldiers[$id_target]["initial_my_soldiers"] > 0) {
+                        $share = $this->initial_soldiers[$id_target]["initial_my_soldiers"] / $totalOwnUnits;
+                        if (($unit['category'] == 0 && $unit_target['category'] == 1) ||
+                            ($unit['category'] == 1 && $unit_target['category'] == 2) ||
+                            ($unit['category'] == 2 && $unit_target['category'] == 0)) {
+                            $bonus += (0.5 * $share);
+                        }
+                    }
+                }
+                // Hier nutzen wir die Basis-Werte des Verteidigers (da er keine Schmiede-Boni etc. hat)
+                $enemyAtkPool += ($enemyCount * $unit['attack'] * $bonus);
+            }
+
+            // --- Verteidigungs-Pools ---
+            $playerDefPool += ($ownCount * $this->soldier_type_def[$id]);
+            $enemyDefPool += ($enemyCount * $this->soldier_type_def[$id]);
         }
+
+        // 2. Verlustraten bestimmen
+        $playerLossRatio = ($playerDefPool > 0) ? min(1.0, $enemyAtkPool / $playerDefPool) : 1.0;
+        $enemyLossRatio = ($enemyDefPool > 0) ? min(1.0, $playerAtkPool / $enemyDefPool) : 1.0;
+        $playerLossRatio = round($playerLossRatio, 6);
+        $enemyLossRatio = round($enemyLossRatio, 6);
+
+        // 3. Verluste anwenden
+        foreach ($this->soldier_types as $id => $unit) {
+            // Umstieg auf round()
+            $my_losses = round($this->initial_soldiers[$id]["initial_my_soldiers"] * $playerLossRatio);
+            $en_losses = round($this->initial_soldiers[$id]["initial_enemy_soldiers"] * $enemyLossRatio);
+
+            $this->initial_soldiers[$id]["my_losses"] = (int)$my_losses;
+            $this->initial_soldiers[$id]["enemy_losses"] = (int)$en_losses;
+
+            $this->soldiers[$id]["count"] = $this->initial_soldiers[$id]["initial_my_soldiers"] - (int)$my_losses;
+            $this->enemy_soldiers[$id] = $this->initial_soldiers[$id]["initial_enemy_soldiers"] - (int)$en_losses;
+        }
+
+        // 4. Schaden für die Mauer speichern
+        $this->accumulated_damage = $playerAtkPool;
     }
 
     public function calculate_loss_counts(): void
@@ -413,48 +505,67 @@ class Conquest
     public function get_initial_soldiers_detailed(): array
     {
         $details = [];
+
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["initial_my_soldiers"] > 0) {
                 $name = $this->soldier_types[$id]["soldiername"];
                 $details[$name] = (int)$data["initial_my_soldiers"];
             }
         }
+
         return $details;
     }
 
     public function get_initial_enemy_detailed(): array
     {
         $details = [];
+
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["initial_enemy_soldiers"] > 0) {
                 $name = $this->soldier_types[$id]["soldiername"];
                 $details[$name] = (int)$data["initial_enemy_soldiers"];
             }
         }
+
         return $details;
     }
 
     public function get_attacker_losses_detailed(): array
     {
         $details = [];
+
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["my_losses"] > 0) {
                 $name = $this->soldier_types[$id]["soldiername"];
                 $details[$name] = (int)$data["my_losses"];
             }
         }
+
         return $details;
     }
 
     public function get_defender_losses_detailed(): array
     {
         $details = [];
+
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["enemy_losses"] > 0) {
                 $name = $this->soldier_types[$id]["soldiername"];
                 $details[$name] = (int)$data["enemy_losses"];
             }
         }
+
         return $details;
+    }
+
+    public function calculate_loot_capacity(int $base_capacity, Kingdom $attacker_kingdom): int
+    {
+        $plunder_lvl = $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
+        return (int)($base_capacity * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
+    }
+
+    public function get_surviving_count(int $soldier_id): int
+    {
+        return (int)($this->soldiers[$soldier_id]["count"] ?? 0);
     }
 }

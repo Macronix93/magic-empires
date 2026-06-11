@@ -21,12 +21,15 @@
                          title="Vorheriges Königreich" alt="">
                 <?php endif; ?>
 
+
                 <label for="choosekingdom" style="display: none;">Königreich wählen</label>
                 <select id='choosekingdom' name='choosekingdom' data-on-change='changeKingdomSelect'>
                     <?php
                     $result->data_seek(0);
+
                     foreach ($result as $row) {
                         $selected = ($row["id"] == $user->get_current_kingdom()) ? "selected='selected'" : "";
+
                         echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                     }
                     ?>
@@ -123,7 +126,7 @@
                 $building_obj->set_building_id($building["buildingid"]);
                 $building_obj->set_building_name($building["buildingname"]);
 
-                echo "<div class='box" . ($current_page === $building_file ? ' active' : '') . "' 
+                echo "<div class='menu-icons-small box" . ($current_page === $building_file ? ' active' : '') . "' 
                            data-on-click='navigate' 
                            data-url='" . e($building_file) . "'>" .
                         $building_obj->get_building_icon("menu-icons") . " " . e($building['buildingname']) . "</div>";

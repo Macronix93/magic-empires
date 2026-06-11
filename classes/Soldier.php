@@ -32,6 +32,7 @@ class Soldier
     {
         $this->set_soldier_id($row["id"]);
         $this->set_soldier_name($row["soldiername"] ?? "");
+        $this->set_soldier_category($row["category"] ?? 0);
         $this->set_soldier_attack($row["attack"] ?? 0);
         $this->set_soldier_defense($row["defense"] ?? 0);
         $this->set_soldier_icon($row["icon"] ?? "");
@@ -49,11 +50,18 @@ class Soldier
 
     public function get_soldier_icon(string $class = "buildable-icons"): string
     {
-        $icon_file = ($this->s_soldier_icon ?? "icon_error") . ".png";
-        $path = "images/icons/" . $icon_file;
-        $alt_text = !empty($this->s_name) ? $this->s_name : "Soldat";
+        $icon_path = "images/icons/" . ($this->s_soldier_icon ?? "icon_error") . ".png";
 
-        return "<img src='$path' class='$class' alt='$alt_text' title='$alt_text'>";
+        if (isset($this->soldier_id) && file_exists($icon_path)) {
+            return "<img src='$icon_path' class='$class' alt='$this->s_name' title='$this->s_name'/>";
+        } else {
+            return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
+        }
+    }
+    
+    public function get_soldier_icon_name(): string
+    {
+        return $this->s_soldier_icon ?? "icon_error";
     }
 
     public function set_soldier_icon(string $icon): void
