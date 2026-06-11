@@ -12,7 +12,6 @@ $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) 
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
 $send_title = "Erobern";
 
-
 if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     $error = "Diese Koordinaten gibt es nicht!";
 } else {
@@ -81,8 +80,29 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 }
             }
 
+            $tc_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+            $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
+            $active_res = $db_instance->execute_query(
+                "SELECT COUNT(*) as total FROM events WHERE kingdomid = ? AND (actionid = ? OR actionid = ?)",
+                [$user->get_current_kingdom(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]
+            );
+            $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
+
             if (!$has_soldiers) {
                 $view .= show_error_box("Du musst mindestens einen Soldaten auswählen!");
+            } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
+                $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
+            } else if ($kingdom_id == -1 && $settler_wagon_count > 0) {
+                $imp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
+                $max_settled_slots = BASE_SETTLEMENT_LIMIT + $imp_lvl;
+                $k_count_res = $db_instance->execute_query(
+                    "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
+                    [$user->get_user_id()]
+                );
+
+                if ($k_count_res->fetch_assoc()["total"] >= $max_settled_slots) {
+                    $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
+                }
             } else if (empty($error)) {
                 $now = time();
 

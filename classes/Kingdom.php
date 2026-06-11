@@ -513,23 +513,59 @@ class Kingdom
         return max(MIN_WALL_DEFENSE, (int)$defense);
     }
 
+    public function get_active_boosts(?int $res_type = null): array
+    {
+        $boosts = [];
+        $query = "SELECT resource_type, boost_amount, expires_at 
+              FROM kingdom_boosts 
+              WHERE kingdomid = ? AND expires_at > ?";
+        $params = [$this->kingdom_id, time()];
+
+        if ($res_type !== null) {
+            $query .= " AND resource_type = ?";
+            $params[] = $res_type;
+        }
+
+        $res = $this->mysqli->execute_query($query, $params);
+
+        while ($row = $res->fetch_assoc()) {
+            $boosts[(int)$row["resource_type"]] = [
+                "amount" => (int)$row["boost_amount"],
+                "expiry" => (int)$row["expires_at"]
+            ];
+        }
+
+        return $boosts;
+    }
+
+    public function get_boost_expiry(int $res_type): int
+    {
+        $res = $this->mysqli->execute_query(
+            "SELECT expires_at FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
+            [$this->kingdom_id, $res_type]
+        );
+        $row = $res->fetch_assoc();
+
+        return ($row && $row["expires_at"] > time()) ? $row["expires_at"] : 0;
+    }
+
     public function recalculate_production(): void
     {
         $tech_mod = $this->get_shrine_modifier();
 
         $f_per_hour = $this->base_food_rate;
         $w_per_hour = $this->base_wood_rate;
+        $s_per_hour = $this->base_stone_rate;
+        $g_per_hour = $this->base_gold_rate;
+
+        // Alignment buffs/nerfs
         if ($this->alignment == AlignmentTypes::ALIGN_NATURE) {
             $f_per_hour *= (1 + $tech_mod);
             $w_per_hour *= (1 + $tech_mod);
         }
-
-        $s_per_hour = $this->base_stone_rate;
         if ($this->alignment == AlignmentTypes::ALIGN_NATURE) {
             $s_per_hour *= (1 - SHRINE_MALUS_BASE);
         }
-
-        $g_per_hour = $this->base_gold_rate;
         if ($this->alignment == AlignmentTypes::ALIGN_TRADE) {
             $g_per_hour *= (1 + $tech_mod);
         } else if ($this->alignment == AlignmentTypes::ALIGN_WAR) {

@@ -169,8 +169,9 @@ class Map
 
         if ($field == -2) {
             echo '<div class="title-border">Verlassenes Vorratslager</div>
-                  <p>Hier befinden sich Schätze, die geplündert werden können.</p>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                  <tr>
+                      <td class="td-mapinfo" colspan="2" style="text-align: center;">Hier befinden sich Schätze, die geplündert werden können.</td>
                   <tr>
                       <td class="td-mapinfo"><b>Koordinaten</b></td>
                       <td>' . $field_x . ':' . $field_y . '</td>

@@ -152,8 +152,14 @@ if ($plund_lvl > 0) {
 
 $rites_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
 if ($rites_lvl > 0) {
-    $effekt = $rites_lvl * SHRINE_TECH_STEP * 100;
-    $boni_view .= "<tr><td>Ahnenritus:</td><td class='passed'>+$effekt% Schrein-Effektivität</td></tr>";
+    $effect = $rites_lvl * SHRINE_TECH_STEP * 100;
+    $boni_view .= "<tr><td>Ahnenritus:</td><td class='passed'>+$effect% Schrein-Effektivität</td></tr>";
+}
+
+$settlement_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
+if ($settlement_lvl > 0) {
+    $effekt = BASE_SETTLEMENT_LIMIT + $settlement_lvl;
+    $boni_view .= "<tr><td>Siedlungsgründungen:</td><td class='passed'>$effekt Siedlungen</td></tr>";
 }
 
 if (!empty($boni_view)) {

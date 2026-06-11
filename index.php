@@ -119,69 +119,76 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (isset($_POST["register"])) {
         $mode = "register";
 
-        if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true) {
-            $response = $_POST["g-recaptcha-response"] ?? "";
-            $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("LOCALHOST_SERVER_KEY") . "&response=" . $response);
-            $data = json_decode($json);
+        $current_ip = $_SERVER["REMOTE_ADDR"];
+        $ip_check = $db_instance->execute_query("SELECT id FROM users WHERE ip = ? AND is_banned = 1 LIMIT 1", [$current_ip]);
 
-            if ($data->success) {
-                $_SESSION["captcha_passed"] = true;
-            } else {
-                $error .= "Bitte den Botschutz akzeptieren!<br>";
-            }
-        }
-
-        $name = $_POST["username"];
-        if (preg_match('/\s/', $name)) {
-            $error .= "Benutzername darf keine Leerzeichen enthalten!<br>";
+        if ($ip_check->num_rows > 0) {
+            $error .= "Deine IP-Adresse ist für Neuregistrierungen gesperrt!<br>";
         } else {
-            $name = make_secure($_POST["username"] ?? "");
-            $email = make_secure($_POST["email"] ?? "");
-            $pass = make_secure($_POST["password"] ?? "");
+            if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true) {
+                $response = $_POST["g-recaptcha-response"] ?? "";
+                $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("LOCALHOST_SERVER_KEY") . "&response=" . $response);
+                $data = json_decode($json);
 
-            if (empty($name)) {
-                $error .= "Bitte einen Benutzernamen angeben!<br>";
-            } else {
-                $pattern = '/^' . preg_quote(strtolower($name), '/') . '$/i';
-                $bad_names_matches = preg_grep($pattern, get_bad_names());
-
-                if (!preg_match("/^[a-zA-Z0-9 ]+$/", $name)) {
-                    $error .= "Benutzername darf nur Buchstaben/Zahlen enthalten!<br>";
-                } else if (contains_bad_words($name) || preg_match_all(regex_pattern(), $name, $matches)) {
-                    $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
-                } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
-                    $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
+                if ($data->success) {
+                    $_SESSION["captcha_passed"] = true;
+                } else {
+                    $error .= "Bitte den Botschutz akzeptieren!<br>";
                 }
             }
-        }
 
-        if (empty($email)) {
-            $error .= "Bitte E-Mail angeben!<br>";
-        } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error .= "Falsches E-Mail Format!<br>";
-        } else {
-            $domain = substr(strrchr($email, "@"), 1);
-            if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
-                $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
-            }
-        }
-
-        if (empty($pass)) {
-            $error .= "Bitte ein Passwort angeben!<br>";
-        } else if (strlen($pass) < MIN_PASSWORD_LENGTH || strlen($pass) > MAX_PASSWORD_LENGTH) {
-            $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
-        }
-
-        if (empty($error)) {
-            $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? OR email = ?", [$name, $email]);
-
-            if ($result->num_rows > 0) {
-                $error .= "Benutzername oder E-Mail existiert bereits!<br>";
+            $name = $_POST["username"];
+            if (preg_match('/\s/', $name)) {
+                $error .= "Benutzername darf keine Leerzeichen enthalten!<br>";
             } else {
-                $user->register_user($name, $email, $pass);
-                $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
-                $success = $user->get_reg_status();
-                $mode = "login";
+                $name = make_secure($_POST["username"] ?? "");
+                $email = make_secure($_POST["email"] ?? "");
+                $pass = make_secure($_POST["password"] ?? "");
+
+                if (empty($name)) {
+                    $error .= "Bitte einen Benutzernamen angeben!<br>";
+                } else {
+                    $pattern = '/^' . preg_quote(strtolower($name), '/') . '$/i';
+                    $bad_names_matches = preg_grep($pattern, get_bad_names());
+
+                    if (!preg_match("/^[a-zA-Z0-9 ]+$/", $name)) {
+                        $error .= "Benutzername darf nur Buchstaben/Zahlen enthalten!<br>";
+                    } else if (contains_bad_words($name) || preg_match_all(regex_pattern(), $name, $matches)) {
+                        $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
+                    } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
+                        $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
+                    }
+                }
+            }
+
+            if (empty($email)) {
+                $error .= "Bitte E-Mail angeben!<br>";
+            } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $error .= "Falsches E-Mail Format!<br>";
+            } else {
+                $domain = substr(strrchr($email, "@"), 1);
+                if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
+                    $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
+                }
+            }
+
+            if (empty($pass)) {
+                $error .= "Bitte ein Passwort angeben!<br>";
+            } else if (strlen($pass) < MIN_PASSWORD_LENGTH || strlen($pass) > MAX_PASSWORD_LENGTH) {
+                $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
+            }
+
+            if (empty($error)) {
+                $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? OR email = ?", [$name, $email]);
+
+                if ($result->num_rows > 0) {
+                    $error .= "Benutzername oder E-Mail existiert bereits!<br>";
+                } else {
+                    $user->register_user($name, $email, $pass);
+                    $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
+                    $success = $user->get_reg_status();
+                    $mode = "login";
+                }
             }
         }
     }

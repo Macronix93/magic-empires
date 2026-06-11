@@ -317,8 +317,9 @@ if ($result && $result->num_rows > 0) {
 }
 
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
-$count_bp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?)",
-    [$user->get_user_id(), ActionTypes::ACTION_BUILD_BUILDING, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_RESEARCH_TECH])->fetch_row()[0];
+$count_bp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
+    [$user->get_user_id(), ActionTypes::ACTION_BUILD_BUILDING, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_RESEARCH_TECH,
+        ActionTypes::ACTION_UPGRADE_TROOPS])->fetch_row()[0];
 $pages_bp = ceil($count_bp / $limit);
 $curr_bp = isset($_GET["bp"]) ? max(1, (int)$_GET["bp"]) : 1;
 $offset_bp = ($curr_bp - 1) * $limit;
@@ -330,7 +331,7 @@ $query_events = "
     FROM events e 
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN soldierlist sl ON sl.id = e.soldierid
-    WHERE e.userid = ? AND e.actionid IN (?, ?, ?)
+    WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?)
     ORDER BY COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
     LIMIT $offset_bp, $limit
 ";
@@ -339,7 +340,8 @@ $result_events = $db_instance->execute_query($query_events, [
     $user->get_user_id(),
     ActionTypes::ACTION_BUILD_BUILDING,
     ActionTypes::ACTION_BUILD_TROOPS,
-    ActionTypes::ACTION_RESEARCH_TECH
+    ActionTypes::ACTION_RESEARCH_TECH,
+    ActionTypes::ACTION_UPGRADE_TROOPS
 ]);
 
 if ($result_events && $result_events->num_rows > 0) {
@@ -392,6 +394,20 @@ if ($result_events && $result_events->num_rows > 0) {
                 $sol_obj->set_soldier_name($row["soldiername"]);
 
                 $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
+                $finish_time = $row["recruittime"];
+                break;
+            case ActionTypes::ACTION_UPGRADE_TROOPS:
+                $type_text = "Aufwertung";
+                $sol_obj = new Soldier();
+                $sol_obj->set_soldier_id($row["soldierid"]);
+                $sol_obj->set_soldier_icon($row["soldier_icon"]);
+                $sol_obj->set_soldier_name($row["soldiername"]);
+
+                $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
+
+                $res_s = $db_instance->execute_query("SELECT requiredtime FROM soldierlist WHERE id = ?", [$row["soldierid"]]);
+                $u_time = $res_s->fetch_assoc()["requiredtime"];
+
                 $finish_time = $row["recruittime"];
                 break;
         }

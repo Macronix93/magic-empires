@@ -203,6 +203,25 @@ class User
         ];
     }
 
+    public function set_last_upgraded_soldier(int $kingdom_id, string $name, int $count): void
+    {
+        if (!isset($_SESSION["last_upgraded"][$kingdom_id])) {
+            $_SESSION["last_upgraded"] = array();
+        }
+
+        $_SESSION["last_upgraded"][$kingdom_id] = ["name" => $name, "count" => $count];
+    }
+
+    public function get_last_upgraded_soldier(int $kingdom_id): ?array
+    {
+        return $_SESSION["last_upgraded"][$kingdom_id] ?? null;
+    }
+
+    public function clear_last_upgraded_soldier(int $kingdom_id): void
+    {
+        unset($_SESSION["last_upgraded"][$kingdom_id]);
+    }
+
     public function get_unread_messages(): int
     {
         $query = "

@@ -37,7 +37,7 @@ class EventManager
                 if ($now >= $next_unit_ready) $is_due = true;
             }
             if (in_array($row["actionid"], [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS,
-                    ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])
+                    ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES, ActionTypes::ACTION_UPGRADE_TROOPS])
                 && $row["arrivaltime"] <= $now) $is_due = true;
 
             if (!$is_due) continue;
@@ -82,6 +82,9 @@ class EventManager
                 break;
             case ActionTypes::ACTION_RECEIVE_RESOURCES:
                 $this->handle_resource_transfer($row);
+                break;
+            case ActionTypes::ACTION_UPGRADE_TROOPS:
+                $this->handle_upgrade_finish($row);
                 break;
         }
     }
@@ -192,6 +195,54 @@ class EventManager
         ], $row["kingdomid"]);
     }
 
+    private function handle_upgrade_finish(array $row): void
+    {
+        $now = time();
+        $kingdom_id = $row["kingdomid"];
+        $from_id = $row["buildingid"];
+        $to_id = $row["soldierid"];
+        $goal = $row["soldiergoal"];
+
+        $res_to = $this->mysqli->execute_query("SELECT soldiername, requiredtime, scoregain FROM soldierlist WHERE id = ?", [$to_id]);
+        $target_data = $res_to->fetch_assoc();
+
+        $res_from = $this->mysqli->execute_query("SELECT scoregain FROM soldierlist WHERE id = ?", [$from_id]);
+        $source_score = $res_from->fetch_assoc()["scoregain"];
+
+        $unit_time = $target_data["requiredtime"];
+        $s_name = $target_data["soldiername"];
+        $target_score = $target_data["scoregain"];
+
+        $total_duration = $goal * $unit_time;
+        $start_time = $row["recruittime"] - $total_duration;
+
+        $units_finished_total = floor(($now - $start_time) / $unit_time);
+        $units_to_add = min($goal, $units_finished_total);
+
+        if ($units_to_add > 0) {
+            $this->mysqli->execute_query(
+                "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
+             VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
+                [$kingdom_id, $to_id, $s_name, $units_to_add, $units_to_add]
+            );
+
+            $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE eventid = ?", [$units_to_add, $row["eventid"]]);
+
+            $this->user->set_last_upgraded_soldier($kingdom_id, $s_name, $units_to_add);
+            $score_difference = ($target_score - $source_score) * $units_to_add;
+
+            if ($score_difference != 0) {
+                $this->update_user_score($score_difference, $this->user);
+            }
+        }
+
+        if ($units_to_add >= $goal) {
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        } else {
+            $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+        }
+    }
+
     private function handle_recruitment(array $row): void
     {
         $soldiers = $this->load_soldier_data();
@@ -289,9 +340,9 @@ class EventManager
                 return;
             }
 
-            $enemy_uid = $enemy_kingdom->get_kingdom_owner_id();
+            $current_owner_id = $enemy_kingdom->get_kingdom_owner_id();
 
-            if ($attacker_id == $enemy_uid) {
+            if ($attacker_id == $current_owner_id) {
                 $message .= "Deine Truppen sind erfolgreich bei deinem Königreich {$enemy_kingdom->get_kingdom_name()} ({$row["targetx"]}:{$row["targety"]}) angekommen.<br><br>";
 
                 $conquest->set_target_id($row["targetid"]);
@@ -308,9 +359,34 @@ class EventManager
 
     public function handle_troop_return(array $row): void
     {
+        $owner_id = (int)$row["userid"];
+        $home_id = (int)$row["kingdomid"];
+
+        $check_home = $this->mysqli->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$home_id]);
+        $current_home_owner = $check_home->fetch_assoc()["userid"] ?? null;
+
+        if ($current_home_owner !== $owner_id) {
+            $main_res = $this->mysqli->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$owner_id]);
+            $user_data = $main_res->fetch_assoc();
+            $main_k_id = $user_data["mainkingdom"];
+            $u_name = $user_data["username"];
+
+            if ($main_k_id && $main_k_id != $home_id) {
+                $this->mysqli->execute_query(
+                    "UPDATE events SET kingdomid = ?, arrivaltime = arrivaltime + 600, is_processing = 0 WHERE eventid = ?",
+                    [$main_k_id, $row["eventid"]]
+                );
+
+                send_server_message($owner_id, $u_name, "Dein Heimatdorf wurde erobert! Deine Truppen wurden zu deinem Hauptkönigreich umgeleitet.", MessageCategories::CATEGORY_WAR);
+            } else {
+                $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$row["eventid"]]);
+                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            }
+            return;
+        }
+
         $target_x = $row["targetx"];
         $target_y = $row["targety"];
-        $owner_id = (int)$row["userid"];
         $res = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$owner_id]);
         $u_name = $res->fetch_assoc()["username"] ?? "Spieler";
 
@@ -745,7 +821,7 @@ class EventManager
             }
 
             // Kingdom now belongs to the attacker
-            $this->mysqli->execute_query("UPDATE kingdoms SET userid = ?, username = ? WHERE id = ?",
+            $this->mysqli->execute_query("UPDATE kingdoms SET userid = ?, username = ?, creation_method = 1 WHERE id = ?",
                 [$attacker_user->get_user_id(), $attacker_user->get_user_name(), $enemy_kingdom->get_kingdom_id()]);
 
             $message .= "Die Eroberung war erfolgreich!<br>Für die Eroberung hat sich ein Eroberer geopfert.<br>Das Königreich gehört nun dir.<br>";

@@ -46,6 +46,8 @@ if (!$is_cli) {
     Constants (defines)
 */
 const MAINTENANCE_MODE = true;
+const BASE_SEND_TROOPS_LIMIT = 2;
+const BASE_SETTLEMENT_LIMIT = 5;
 const MAX_RESOURCE_TILES = 500;
 const RESOURCE_TILES_SPAWN_RATE = 20;
 const MIN_RESOURCES_FOR_TILE = 500;
@@ -125,6 +127,9 @@ const THIEF_BASE_CAPACITY = 50;
 const STORAGE_SECURE_PERCENT_STEP = 0.025;
 const RAIDER_BASE_CAPACITY = 25;
 const RAIDER_LOSS_CHANCE = 15;
+const BOOST_DURATION_MULTIPLIER = 1.0;  // 1.0 = 1 hour per Level
+const BOOST_PRODUCTION_BONUS = 1.0;
+const BOOST_COST_PER_LEVEL = 50;
 
 /*
  * Interfaces
@@ -188,6 +193,7 @@ interface ActionTypes
     const int ACTION_RESEARCH_TECH = 4;
     const int ACTION_RECEIVE_RESOURCES = 5;
     const int ACTION_RETURN_RESOURCES = 6;
+    const int ACTION_UPGRADE_TROOPS = 7;
 }
 
 interface TechTypes
@@ -204,6 +210,7 @@ interface TechTypes
     const int TECH_TYPE_ARCANE_INTEL = 9;
     const int TECH_TYPE_ANCESTRAL_RITES = 10;
     const int TECH_TYPE_MAINTENANCE = 11;
+    const int TECH_TYPE_IMPERIAL = 12;
 }
 
 interface SoldierTypes
@@ -592,11 +599,13 @@ $view = "";
 if ($user->is_logged_in()) {
     $user->check_session_id();
 
-    $check_query = $db_instance->execute_query("SELECT is_banned, ban_reason FROM users WHERE id = ?", [$user->get_user_id()]);
+    $current_ip = $_SERVER["REMOTE_ADDR"];
+    $check_query = $db_instance->execute_query("SELECT is_banned, ban_reason FROM users WHERE id = ? OR (ip = ? AND is_banned = 1) LIMIT 1",
+        [$user->get_user_id(), $current_ip]);
     $ban_status = $check_query->fetch_assoc();
 
     if ($ban_status && $ban_status["is_banned"] == 1) {
-        $reason = $ban_status["ban_reason"] ?? "Kein Grund angegeben";
+        $reason = $ban_status["ban_reason"] ?? "Sicherheitsbann (IP-Match)";
         session_destroy();
 
         change_location("index.php?banned=" . urlencode($reason));

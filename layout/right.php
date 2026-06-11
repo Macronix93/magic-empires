@@ -8,6 +8,12 @@
         $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);
         $row = $result->fetch_assoc();
         $current_timestamp = time();
+
+        $active_boosts = $kingdom->get_active_boosts(); // Get active resource boosts
+        $display_food = $kingdom->get_kingdom_food_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_FOOD]["amount"] ?? 0);
+        $display_wood = $kingdom->get_kingdom_wood_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_WOOD]["amount"] ?? 0);
+        $display_stone = $kingdom->get_kingdom_stone_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_STONE]["amount"] ?? 0);
+        $display_gold = $kingdom->get_kingdom_gold_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_GOLD]["amount"] ?? 0);
         ?>
         <form method="POST">
             <div class="kingdom-switch-container">
@@ -65,7 +71,7 @@
                         <?= fnum($kingdom->get_kingdom_food()) ?>
                     </span>
                 </div>
-                (<?= fnum($kingdom->get_kingdom_food_per_hour()) ?>/h)
+                (<?= fnum($display_food) ?>/h)
             </div>
             <div class='split-content'>
                 <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) ?>
@@ -73,7 +79,7 @@
                         <?= fnum($kingdom->get_kingdom_wood()) ?>
                     </span>
                 </div>
-                (<?= fnum($kingdom->get_kingdom_wood_per_hour()) ?>/h)
+                (<?= fnum($display_wood) ?>/h)
             </div>
             <div class='split-content'>
                 <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) ?>
@@ -81,7 +87,7 @@
                         <?= fnum($kingdom->get_kingdom_stone()) ?>
                     </span>
                 </div>
-                (<?= fnum($kingdom->get_kingdom_stone_per_hour()) ?>/h)
+                (<?= fnum($display_stone) ?>/h)
             </div>
             <div class='split-content'>
                 <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) ?>
@@ -89,7 +95,7 @@
                         <?= fnum($kingdom->get_kingdom_gold()) ?>
                     </span>
                 </div>
-                (<?= fnum($kingdom->get_kingdom_gold_per_hour()) ?>/h)
+                (<?= fnum($display_gold) ?>/h)
             </div>
             <div class='split-content'>
                 <div>
