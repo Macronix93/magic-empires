@@ -825,9 +825,8 @@ function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand
 
 function checkImageContent($tempFilePath)
 {
-    // Diese URL scheint bei dir zu funktionieren
-    $api_url = "https://router.huggingface.co/hf-inference/models/Falconsai/nsfw_image_detection";
-    $api_token = "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";
+    $api_url = getenv("CHECK_NSFW_API_URL");
+    $api_token = getenv("CHECK_NSFW_API_KEY");
 
     $imageData = file_get_contents($tempFilePath);
     if ($imageData === false) return "error: Datei nicht lesbar";
