@@ -108,7 +108,17 @@ class Conquest
         $damage_diff = $this->accumulated_damage - $enemy_defense_without_wall;
         $damage_to_wall = $damage_diff > 0
             ? (int)round(min($current_wall_hp, $damage_diff * 0.4))
-            : (int)max(1, min($current_wall_hp, $this->accumulated_damage * 0.05)); // 5% of accumulated damage minimum
+            : (int)max(1, min($current_wall_hp, $this->accumulated_damage * 0.05));
+
+        $res_atk = $this->mysqli->execute_query("SELECT kingdomid FROM events WHERE eventid = ?", [$this->event_id]);
+        $attacker_kingdom_id = $res_atk->fetch_column();
+
+        $res_siege = $this->mysqli->execute_query("SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+            [$attacker_kingdom_id, TechTypes::TECH_TYPE_SIEGE]);
+        $siege_lvl = ($res_siege->num_rows > 0) ? $res_siege->fetch_column() : 0;
+
+        $multiplier = 1 + ($siege_lvl * SMITHY_SIEGE_BONUS);
+        $damage_to_wall = (int)round($damage_to_wall * $multiplier);
 
         return max(0, $current_wall_hp - $damage_to_wall);
     }
@@ -174,12 +184,32 @@ class Conquest
             $atk_multiplier += $home_kingdom->get_shrine_modifier();
         }
 
+        $inf_atk = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
+        $inf_def = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
+        $cav_atk = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
+        $cav_def = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
+        $arc_atk = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
+        $arc_def = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
+
         foreach ($this->soldier_types as $id => $soldier) {
             $my_soldier_count = $this->initial_soldiers[$id]["initial_my_soldiers"];
             $enemy_soldier_count = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
 
-            $soldier_atk = (int)($soldier["attack"] * $atk_multiplier);
-            $soldier_def = $soldier["defense"] + $bonus_defense;
+            $t_atk = 0;
+            $t_def = 0;
+            if ($soldier["category"] == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
+                $t_atk = $inf_atk;
+                $t_def = $inf_def;
+            } else if ($soldier["category"] == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+                $t_atk = $cav_atk;
+                $t_def = $cav_def;
+            } else if ($soldier["category"] == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+                $t_atk = $arc_atk;
+                $t_def = $arc_def;
+            }
+
+            $soldier_atk = (int)(($soldier["attack"] + $t_atk) * $atk_multiplier);
+            $soldier_def = $soldier["defense"] + $t_def + $bonus_defense;
 
             $this->enemy_soldiers[$id] = $enemy_soldier_count;
             $this->initial_soldier_count += $my_soldier_count;

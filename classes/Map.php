@@ -96,14 +96,14 @@ class Map
                 if ($tile) {
                     $color = $this->get_field_type_color($tile["fieldtype"]);
                     $is_target = ($x == $target_x && $y == $target_y);
-                    $has_kingdom = ($tile["kingdomid"] != -1);
+                    $has_kingdom = ($tile["kingdomid"] != -1 && $tile["kingdomid"] != -2);
 
                     $class = "minimap-tile";
                     if ($is_target) $class .= " minimap-target";
 
                     $content = "";
                     if ($is_target) $content = "⭐";
-                    elseif ($has_kingdom) $content = "🏰";
+                    else if ($has_kingdom) $content = "🏰";
 
                     $html .= "<div class='" . e($class) . "' style='background-color: " . e($color) . ";'>" . e($content) . "</div>";
                 } else {

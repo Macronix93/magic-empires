@@ -95,12 +95,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($row["is_banned"] == 1) {
                     $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
                 } else if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
-                    $error .= "Der Server befindet sich im Wartungsmodus!";
+                    $warning = show_warning_box("Der Server befindet sich im Wartungsmodus!");
                 } else {
                     if (!$row["status"]) {
                         $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
                     } else if (!password_verify($pass, $row["password"])) {
                         $logger->security("Login failed for user: $name");
+
                         $error .= "Nutzername oder Passwort ist falsch!";
                     } else {
                         unset($_POST);

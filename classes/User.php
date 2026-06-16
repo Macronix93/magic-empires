@@ -106,14 +106,16 @@ class User
 
     public function get_avatar(): string
     {
-        $hashedName = hash('sha256', $this->user_id . AVATAR_SALT);
-        $directory = __DIR__ . '/../' . UPLOADS_FILE_PATH;
+        $hashedName = substr(hash("sha256", $this->user_id . AVATAR_SALT), 0, 12);
+
+        $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
         $files = glob($directory . $hashedName . ".*");
 
         if (!empty($files)) {
             $info = pathinfo($files[0]);
-            return UPLOADS_FILE_PATH . $hashedName . "." . $info["extension"];
+            return UPLOADS_FILE_PATH . $hashedName . "." . $info["extension"] . "?t=" . filemtime($files[0]);
         }
+
         return DEFAULT_AVATAR;
     }
 

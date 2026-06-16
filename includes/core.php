@@ -108,6 +108,7 @@ const MARKET_FEE_MULTIPLIER_WOOD = 0.002;
 const MARKET_FEE_MULTIPLIER_STONE = 0.005;
 const MARKET_FEE_MULTIPLIER_GOLD = 0.01;
 const MARKET_OFFER_DURATION = 86400; // 24 hours
+const MIN_SOLDIERS_RECRUIT_INPUT = 10;
 const MAX_SOLDIERS_RECRUIT_INPUT = 99;
 const ESTATE_VILLAGER_GROWTH_STEP = 3;
 const ESTATE_MAX_VILLAGER_INC = 10;
@@ -130,6 +131,16 @@ const RAIDER_LOSS_CHANCE = 15;
 const BOOST_DURATION_MULTIPLIER = 1.0;  // 1.0 = 1 hour per Level
 const BOOST_PRODUCTION_BONUS = 1.0;
 const BOOST_COST_PER_LEVEL = 50;
+const MAX_DAILY_TRADES = 5;
+const MARKET_CAPACITY_PER_LEVEL = 10000;
+const SMITHY_INF_ATK_BONUS = 2;    // +2 Angriff pro Level
+const SMITHY_INF_DEF_BONUS = 2;    // +2 Verteidigung pro Level
+const SMITHY_CAV_ATK_BONUS = 3;    // +3 Angriff pro Level
+const SMITHY_CAV_DEF_BONUS = 3;    // +3 Verteidigung pro Level
+const SMITHY_ARC_ATK_BONUS = 2;    // +2 Angriff pro Level
+const SMITHY_ARC_DEF_BONUS = 1;    // +1 Verteidigung pro Level
+const SMITHY_WEIGHT_REDUCTION = 0.05; // 5% Rabatt auf Kosten/Zeit pro Level
+const SMITHY_SIEGE_BONUS = 0.20;   // +20% Mauerschaden pro Level
 
 /*
  * Interfaces
@@ -194,6 +205,7 @@ interface ActionTypes
     const int ACTION_RECEIVE_RESOURCES = 5;
     const int ACTION_RETURN_RESOURCES = 6;
     const int ACTION_UPGRADE_TROOPS = 7;
+    const int ACTION_SMITHY_UPGRADE = 8;
 }
 
 interface TechTypes
@@ -211,6 +223,14 @@ interface TechTypes
     const int TECH_TYPE_ANCESTRAL_RITES = 10;
     const int TECH_TYPE_MAINTENANCE = 11;
     const int TECH_TYPE_IMPERIAL = 12;
+    const int TECH_TYPE_BLADES = 13;
+    const int TECH_TYPE_SHIELDWALL = 14;
+    const int TECH_TYPE_LANCE_RIDING = 15;
+    const int TECH_TYPE_CUIRASS = 16;
+    const int TECH_TYPE_ARROWHEADS = 17;
+    const int TECH_TYPE_DOUBLET = 18;
+    const int TECH_TYPE_WEIGHT = 19;
+    const int TECH_TYPE_SIEGE = 20;
 }
 
 interface SoldierTypes
@@ -801,4 +821,60 @@ function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand
     $max_variable = max($variable_fee_s, $variable_fee_d);
 
     return (int)(MARKET_BASE_FEE + $max_variable);
+}
+
+function checkImageContent($tempFilePath)
+{
+    // Diese URL scheint bei dir zu funktionieren
+    $api_url = "https://router.huggingface.co/hf-inference/models/Falconsai/nsfw_image_detection";
+    $api_token = "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";
+
+    $imageData = file_get_contents($tempFilePath);
+    if ($imageData === false) return "error: Datei nicht lesbar";
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $api_url);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $imageData);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Bearer " . $api_token,
+        "Content-Type: application/octet-stream"
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    if ($response === false) {
+        return "error: Verbindung fehlgeschlagen";
+    }
+
+    $result = json_decode($response, true);
+
+    if ($httpCode === 503) return "loading";
+    if (isset($result['error'])) return "error: " . $result['error'];
+
+    $nsfw_score = 0;
+    $normal_score = 0;
+
+    if (is_array($result)) {
+        $data = isset($result[0][0]) ? $result[0] : $result;
+
+        foreach ($data as $prediction) {
+            if (isset($prediction['label']) && isset($prediction['score'])) {
+                $label = strtolower($prediction['label']);
+                if ($label === 'nsfw') $nsfw_score = $prediction['score'];
+                if ($label === 'normal') $normal_score = $prediction['score'];
+            }
+        }
+    }
+
+    if ($nsfw_score > $normal_score) {
+        return $nsfw_score;
+    }
+
+    return 0;
 }

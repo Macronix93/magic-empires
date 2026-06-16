@@ -125,7 +125,7 @@ if (isset($_GET["action"])) {
         if (!isset($_GET["s"])) {
             change_location("messages.php?privmsgs");
         } else {
-            $sender_id = htmlspecialchars($_GET["s"]);
+            $sender_id = (int)$_GET["s"];
 
             if ($sender_id == null) {
                 $error = "Der Spieler existiert nicht!";

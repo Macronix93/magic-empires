@@ -52,20 +52,25 @@ function updateRecruitCosts(input) {
     const amount = isNaN(val) ? 0 : val;
     const displayAmount = (amount <= 0) ? 1 : amount;
 
-    const id = input.dataset.id; // Das ist jetzt unser $i
+    const resEl = document.getElementById("kingdom-resources");
+    const smithyMultiplier = parseFloat(resEl.dataset.smithyMultiplier) || 1.0;
+
+    const id = input.dataset.id;
     const form = input.closest("form");
     const upgradeSelect = form.querySelector(".js-upgrade-select");
     const selectedUpgrade = (upgradeSelect && upgradeSelect.value !== "") ? upgradeSelect.selectedOptions[0] : null;
 
-    // --- ZEIT BERECHNEN ---
-    let unitTime = parseInt(input.dataset.timePerUnit) || 0;
+    let rawTimePerUnit = parseInt(input.dataset.timePerUnit) || 0;
     if (selectedUpgrade) {
-        unitTime = parseInt(selectedUpgrade.dataset.utime) || 0;
+        rawTimePerUnit = parseInt(selectedUpgrade.dataset.utime) || 0;
     }
+
+    let discountedUnitTime = Math.round(rawTimePerUnit * smithyMultiplier);
 
     const timeEl = document.getElementById(`time-${id}`);
     if (timeEl) {
-        const totalSec = unitTime * displayAmount;
+        const totalSec = discountedUnitTime * displayAmount;
+
         const h = Math.floor(totalSec / 3600);
         const m = Math.floor((totalSec % 3600) / 60);
         const s = totalSec % 60;
@@ -74,26 +79,28 @@ function updateRecruitCosts(input) {
         if (h > 0) timeParts.push(h + " Std.");
         if (m > 0) timeParts.push(m + " Min.");
         if (s > 0) timeParts.push(s + " Sek.");
-        timeEl.innerText = timeParts.length > 0 ? timeParts.join(" ") : ""; // Zeigt nichts an statt "0 Sek."
+
+        timeEl.innerText = timeParts.length > 0 ? timeParts.join(" ") : "0 Sek.";
     }
 
-    // --- RESSOURCEN BERECHNEN ---
     const resources = ["food", "gold", "stone", "wood", "villager"];
 
     resources.forEach(res => {
-        // Basiskosten der aktuellen Zeile
-        const baseCost = parseInt(input.dataset["cost" + res.charAt(0).toUpperCase() + res.slice(1)]) || 0;
-        let finalUnitCost = baseCost;
+        let baseCostPerUnit = parseInt(input.dataset["cost" + res.charAt(0).toUpperCase() + res.slice(1)]) || 0;
 
+        let finalUnitCost;
         if (selectedUpgrade) {
-            // DIFFERENZ: Zielkosten - Quellkosten
             const targetCost = parseInt(selectedUpgrade.dataset["u" + res.toLowerCase()]) || 0;
-            finalUnitCost = Math.max(0, targetCost - baseCost);
+            finalUnitCost = Math.max(0, targetCost - baseCostPerUnit);
+        } else {
+            finalUnitCost = baseCostPerUnit;
         }
 
-        const totalCost = finalUnitCost * displayAmount;
-        const displayEl = document.getElementById(`cost-${res}-${id}`);
+        let currentMultiplier = (res === "villager") ? 1.0 : smithyMultiplier;
 
+        const totalCost = Math.floor(finalUnitCost * currentMultiplier) * displayAmount;
+
+        const displayEl = document.getElementById(`cost-${res}-${id}`);
         if (displayEl) {
             displayEl.innerText = totalCost.toLocaleString("de-DE");
 

@@ -49,24 +49,41 @@ if (isset($_POST['submit'])) {
                     } else if (getimagesize($file_tmp) === false) {
                         $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
                     } else {
-                        $hashedName = hash("sha256", $user->get_user_id() . AVATAR_SALT);
-                        $file_path = UPLOADS_FILE_PATH . $hashedName;
+                        $nsfw_result = checkImageContent($file_tmp);
 
-                        array_map("unlink", glob(UPLOADS_FILE_PATH . $hashedName . ".*"));
-
-                        if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                            $view = "Nutzerbild wurde erfolgreich hochgeladen!";
-
-                            $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
-                                "filename" => $file_name,
-                                "extension" => $file_ext,
-                                "mime" => $mime_type,
-                                "size" => $file_size
-                            ]);
-
-                            unset($_SESSION['csrf_token']);
+                        if ($nsfw_result === "loading") {
+                            $error = "Ladefehler... Bitte versuche es in 20 Sekunden nochmal.";
+                        } else if (is_string($nsfw_result) && str_starts_with($nsfw_result, "error")) {
+                            $error = "Inhaltsprüfung fehlgeschlagen: " . $nsfw_result;
                         } else {
-                            $error = "Fehler beim Hochladen der Datei auf den Server!";
+                            $nsfw_score = (float)$nsfw_result;
+
+                            if ($nsfw_score > 0.8) {
+                                //$percent = round($nsfw_score * 100);
+                                $error = "Dein Bild wurde als unangemessen eingestuft.";
+
+                                // $logger->log_security("NSFW Blockiert", ["user" => $user->get_user_id(), "score" => $nsfw_score]);
+                            } else {
+                                $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
+                                $file_path = UPLOADS_FILE_PATH . $hashed_name;
+
+                                array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
+
+                                if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
+                                    $view = "Nutzerbild wurde erfolgreich hochgeladen!";
+
+                                    $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
+                                        "filename" => $file_name,
+                                        "extension" => $file_ext,
+                                        "mime" => $mime_type,
+                                        "size" => $file_size
+                                    ]);
+
+                                    unset($_SESSION['csrf_token']);
+                                } else {
+                                    $error = "Fehler beim Hochladen der Datei auf den Server!";
+                                }
+                            }
                         }
                     }
                 }

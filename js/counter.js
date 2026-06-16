@@ -23,89 +23,84 @@ function formatTime(totalSeconds) {
 
 function startCountdown(target, initialSeconds, timerType = 0, hideID = null,
                         keepParams = false, noReload = false) {
-    let counterElement;
-    let internalKey;
+    let el = (typeof target === "string") ? document.getElementById(target) : target;
+    if (!el) return;
 
-    if (typeof target === "string") {
-        counterElement = document.getElementById(target);
-        internalKey = target;
-    } else {
-        counterElement = target;
-
-        if (!counterElement.id) {
-            counterElement.id = "cd-" + Math.random().toString(36).substr(2, 9);
-        }
-        internalKey = counterElement.id;
+    if (!el.id) {
+        el.id = "cd-" + Math.random().toString(36).substr(2, 9);
     }
+    const key = el.id;
 
-    if (!counterElement) return;
+    const seconds = parseInt(initialSeconds);
+    if (isNaN(seconds)) return;
 
-    let seconds = parseInt(initialSeconds);
+    const endTime = Date.now() + (seconds * 1000);
 
-    if (activeCountdowns[internalKey]) {
-        if (seconds <= activeCountdowns[internalKey + "_seconds"]) {
+    if (activeCountdowns[key]) {
+        const timeDiff = Math.abs(activeCountdowns[key].endTime - endTime);
+        if (timeDiff < 1500) {
             return;
         }
-        clearInterval(activeCountdowns[internalKey]);
+        clearInterval(activeCountdowns[key].interval);
     }
 
-    function countDown() {
-        activeCountdowns[internalKey + "_seconds"] = seconds;
-        counterElement.textContent = formatTime(seconds);
+    const update = () => {
+        const now = Date.now();
+        const msLeft = endTime - now;
+        const secLeft = Math.ceil(msLeft / 1000);
 
-        if (seconds <= 0) {
-            clearInterval(activeCountdowns[internalKey]);
-            delete activeCountdowns[internalKey];
-
-            if (timerType === 0) {
-                counterElement.textContent = "Fertig!";
-            }
+        if (msLeft <= 0) {
+            clearInterval(activeCountdowns[key].interval);
+            delete activeCountdowns[key];
+            el.textContent = (timerType === 0) ? "Fertig!" : "00:00";
 
             if (hideID) {
-                const elementToHide = document.getElementById(hideID);
-                if (elementToHide) elementToHide.style.display = 'none';
+                const hideEl = document.getElementById(hideID);
+                if (hideEl) hideEl.style.display = "none";
             }
 
             if (!noReload) {
                 setTimeout(() => {
-                    if (keepParams) {
-                        location.reload();
-                    } else {
-                        window.location.href = window.location.pathname;
-                    }
+                    if (keepParams) location.reload();
+                    else window.location.href = window.location.pathname;
                 }, 1000);
             }
-        } else {
-            seconds--;
+            return;
         }
-    }
 
-    countDown();
-    activeCountdowns[internalKey] = setInterval(countDown, 1000);
+        el.textContent = formatTime(secLeft);
+    };
+
+    update();
+    activeCountdowns[key] = {
+        interval: setInterval(update, 200),
+        endTime: endTime
+    };
 }
 
 function startCountup(target, initialSeconds) {
-    let seconds = initialSeconds;
-
+    let seconds = parseInt(initialSeconds);
     const el = (typeof target === "string") ? document.getElementById(target) : target;
-
     if (!el) return;
 
-    function countUp() {
-        let hours = Math.floor(seconds / 3600);
-        let minutes = Math.floor((seconds % 3600) / 60);
-        let remainingSeconds = seconds % 60;
+    const startTime = Date.now() - (seconds * 1000);
 
-        hours = (hours < 10) ? "0" + hours : hours;
-        minutes = (minutes < 10) ? "0" + minutes : minutes;
-        remainingSeconds = (remainingSeconds < 10) ? "0" + remainingSeconds : remainingSeconds;
+    function update() {
+        const now = Date.now();
+        const diff = Math.floor((now - startTime) / 1000);
 
-        el.textContent = `${hours}:${minutes}:${remainingSeconds}`;
-        seconds++;
+        let hours = Math.floor(diff / 3600);
+        let minutes = Math.floor((diff % 3600) / 60);
+        let secs = diff % 60;
+
+        el.textContent =
+            String(hours).padStart(2, '0') + ":" +
+            String(minutes).padStart(2, '0') + ":" +
+            String(secs).padStart(2, '0');
     }
 
-    countUp();
-    setInterval(countUp, 1000);
+    update();
+    setInterval(update, 1000);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

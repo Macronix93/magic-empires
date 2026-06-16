@@ -292,6 +292,17 @@ class Kingdom
         return $result->num_rows == 1;
     }
 
+    public function is_kingdom_smithing(int $kingdom_id): bool
+    {
+        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$kingdom_id, ActionTypes::ACTION_SMITHY_UPGRADE]);
+        $row = $result->fetch_assoc();
+        if ($row) {
+            $this->tech_id = $row["buildingid"];
+        }
+        return $result->num_rows == 1;
+    }
+
     public function get_shrine_modifier(): float
     {
         $tech_level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
@@ -631,18 +642,19 @@ class Kingdom
         return $row ? $row["techlevel"] : 0;
     }
 
-    public function fetch_all_kingdom_techs(): array
+    public function fetch_all_kingdom_techs(?int $origin_building = null): array
     {
         $techs = [];
 
         // All techs + current level
-        $query_techs = "
-            SELECT t.*,
-                   tl.techlevel 
-            FROM techlist t
-            LEFT JOIN techs tl ON tl.techid = t.id AND tl.kingdomid = ?
-        ";
-        $result_techs = $this->mysqli->execute_query($query_techs, [$this->kingdom_id]);
+        $query = "SELECT t.*, tl.techlevel FROM techlist t
+              LEFT JOIN techs tl ON tl.techid = t.id AND tl.kingdomid = ?";
+
+        if ($origin_building !== null) {
+            $query .= " WHERE t.origin_building = " . $origin_building;
+        }
+
+        $result_techs = $this->mysqli->execute_query($query, [$this->kingdom_id]);
 
         foreach ($result_techs as $row) {
             $tech = new Tech($this->mysqli);

@@ -25,7 +25,10 @@ class EventManager
         foreach ($result as $row) {
             $is_due = false;
 
-            if (in_array($row["actionid"], [ActionTypes::ACTION_BUILD_BUILDING, ActionTypes::ACTION_RESEARCH_TECH])
+            if (in_array($row["actionid"], [
+                    ActionTypes::ACTION_BUILD_BUILDING,
+                    ActionTypes::ACTION_RESEARCH_TECH,
+                    ActionTypes::ACTION_SMITHY_UPGRADE])
                 && $row["buildingtime"] <= $now) $is_due = true;
             if ($row["actionid"] == ActionTypes::ACTION_BUILD_TROOPS) {
                 $soldiers_stats = $this->load_soldier_data();
@@ -36,8 +39,12 @@ class EventManager
 
                 if ($now >= $next_unit_ready) $is_due = true;
             }
-            if (in_array($row["actionid"], [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS,
-                    ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES, ActionTypes::ACTION_UPGRADE_TROOPS])
+            if (in_array($row["actionid"], [
+                    ActionTypes::ACTION_SEND_TROOPS,
+                    ActionTypes::ACTION_RETURN_TROOPS,
+                    ActionTypes::ACTION_RECEIVE_RESOURCES,
+                    ActionTypes::ACTION_RETURN_RESOURCES,
+                    ActionTypes::ACTION_UPGRADE_TROOPS])
                 && $row["arrivaltime"] <= $now) $is_due = true;
 
             if (!$is_due) continue;
@@ -66,6 +73,7 @@ class EventManager
     {
         switch ($row["actionid"]) {
             case ActionTypes::ACTION_RESEARCH_TECH:
+            case ActionTypes::ACTION_SMITHY_UPGRADE:
                 $this->handle_research($row);
                 break;
             case ActionTypes::ACTION_BUILD_BUILDING:
@@ -248,41 +256,49 @@ class EventManager
         $soldiers = $this->load_soldier_data();
         $s_id = $row["soldierid"];
 
-        $soldier_name = $soldiers[$s_id]->get_soldier_name();
-        $soldier_time = $soldiers[$s_id]->get_soldier_time();
+        $kingdom = new Kingdom($this->mysqli, $row["kingdomid"]);
+        $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
+        $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
 
-        $total_difference = $row["recruittime"] - time();
-        $number_left_to_recruit = max(0, ceil($total_difference / $soldier_time));
-        $soldier_difference = $row["soldiergoal"] - $number_left_to_recruit;
+        $unit_time = (int)round($soldiers[$s_id]->get_soldier_time() * $discount);
+        if ($unit_time < 1) $unit_time = 1;
 
-        if ($soldier_difference != 0) {
-            $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE kingdomid = ? AND soldierid = ?",
-                [$soldier_difference, $row["kingdomid"], $s_id]);
+        $now = time();
+        $start_time = $row["buildingtime"];
+        $elapsed = $now - $start_time;
+        $total_finished_since_start = floor($elapsed / $unit_time);
 
-            $soldier_name = $soldiers[$s_id]->get_soldier_name();
-            $this->mysqli->execute_query("INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
-                                                VALUES (?, ?, ?, ?) 
-                                                ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
-                [$row["kingdomid"], $s_id, $soldier_name, $soldier_difference, $soldier_difference]);
+        if ($total_finished_since_start > 0) {
+            $units_to_deliver = min((int)$total_finished_since_start, $row["soldiergoal"]);
 
-            $this->user->set_last_recruited_soldier($row["kingdomid"], $soldier_name, $soldier_difference);
+            if ($units_to_deliver > 0) {
+                $soldier_name = $soldiers[$s_id]->get_soldier_name();
 
-            $vill_cost = $soldier_difference * $soldiers[$s_id]->get_soldier_villager_cost();
-            $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - ? WHERE id = ?", [$vill_cost, $row["kingdomid"]]);
-            // apply_villager_cap ?
+                $this->mysqli->execute_query(
+                    "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
+                 VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
+                    [$row["kingdomid"], $s_id, $soldier_name, $units_to_deliver, $units_to_deliver]
+                );
 
-            $score_gain = $soldier_difference * $soldiers[$s_id]->get_soldier_score_gain();
-            $this->update_user_score($score_gain, $this->user);
+                $vill_total = $units_to_deliver * $soldiers[$s_id]->get_soldier_villager_cost();
+                $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - ? WHERE id = ?",
+                    [$vill_total, $row["kingdomid"]]);
+
+                $this->mysqli->execute_query(
+                    "UPDATE events SET soldiergoal = soldiergoal - ?, buildingtime = buildingtime + (? * ?) WHERE eventid = ?",
+                    [$units_to_deliver, $units_to_deliver, $unit_time, $row["eventid"]]
+                );
+
+                $this->user->set_last_recruited_soldier($row["kingdomid"], $soldier_name, $units_to_deliver);
+                $this->update_user_score($units_to_deliver * $soldiers[$s_id]->get_soldier_score_gain(), $this->user);
+            }
         }
 
-        if ($number_left_to_recruit == 0) {
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $res = $this->mysqli->execute_query("SELECT soldiergoal FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $check = $res->fetch_assoc();
 
-            Logger::get_instance()->log_game("ECONOMY", "RECRUIT_FINISH", [
-                "soldier_id" => $s_id,
-                "soldier_name" => $soldier_name,
-                "amount" => $row["soldiergoal"]
-            ], $row["kingdomid"]);
+        if (!$check || $check["soldiergoal"] <= 0) {
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
         } else {
             $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
         }
@@ -872,9 +888,10 @@ class EventManager
 
     private function update_user_score(int $add, User $target_user): void
     {
+        if ($add == 0) return;
+
         $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?",
             [$add, $target_user->get_user_id()]);
-        $target_user->set_user_score($target_user->get_user_score() + $add);
     }
 
     private function load_soldier_data(): array

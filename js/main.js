@@ -227,7 +227,7 @@ function updateServerTime(initialSeconds) {
 
             secondsUntilFull--;
         } else {
-            displayTime = "00:00";
+            displayTime = "Jetzt";
             percent = 100;
         }
 

@@ -16,7 +16,7 @@ $kingdom_is_researching = false;
 $kingdom_tech_id = -1;
 
 // Fetch all buildings and their dependencies
-$techs = $kingdom->fetch_all_kingdom_techs();
+$techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_UNIVERSITY);
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $tech_count = count($techs);
 $current_tech = (empty($_GET["id"]) ? 0 : (int)$_GET["id"]);

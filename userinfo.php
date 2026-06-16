@@ -15,9 +15,9 @@ include_once("layout/head.html");
 include_once("layout/banner_small.html");
 ?>
 <?php
-$user_id = $_GET['userid'];
+$user_id = (int)($_GET["userid"] ?? 0);
 
-if (isset($user_id)) {
+if ($user_id) {
     $query = "
             SELECT users.*, kingdoms.mapx, kingdoms.mapy
             FROM users
@@ -28,9 +28,8 @@ if (isset($user_id)) {
     $row = $result->fetch_assoc();
 
     // Get sorted list of players and calculate the rank
-    $result = $db_instance->execute_query("SELECT id, username, lastactivity, score, guildid FROM users ORDER BY score DESC");
-    $sorted_users = $result->fetch_all(MYSQLI_ASSOC);
-    $user_rank = array_search($user_id, array_column($sorted_users, "id")) + 1;
+    $result = $db_instance->execute_query("SELECT COUNT(*) + 1 AS rank FROM users WHERE score > (SELECT score FROM users WHERE id = ?)", [$user_id]);
+    $user_rank = $result->fetch_column();
 
     if (!$row) {
         echo "<div style='text-align: center;'>
@@ -47,7 +46,7 @@ if (isset($user_id)) {
     $y = $row["mapy"];
 
     $map = new Map($db_instance, $user);
-    $minimapHTML = $map->render_minimap($x, $y);
+    $minimap_html = $map->render_minimap($x, $y);
     ?>
     <table class="table">
         <tr>
@@ -78,7 +77,7 @@ if (isset($user_id)) {
             <td>
                 <b>Gilde</b>
             </td>
-            <?= "<td>" . $guild_id . "</td>" ?>
+            <?= "<td>" . ($guild_id == -1 ? "Keine Gilde" : $guild_id) . "</td>" ?>
         </tr>
         <tr>
             <td>
@@ -97,7 +96,7 @@ if (isset($user_id)) {
             <td><b>Position</b></td>
             <td>
                 <div class="minimap-wrapper">
-                    <?= $minimapHTML ?>
+                    <?= $minimap_html ?>
                 </div>
             </td>
         </tr>

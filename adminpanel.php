@@ -39,36 +39,45 @@ if ($user->get_user_admin_level() == 0) {
         $new_value = $_POST["new_value"];
         $user_id = $_POST["user_id"];
 
-        // Update avatar file
-        if ($field == "avatar") {
-            $file_path = UPLOADS_FILE_PATH . $old_value;
-            $temp_file_path = UPLOADS_FILE_PATH . $user->get_user_name() . '_temp.' . pathinfo($new_value, PATHINFO_EXTENSION); // Create temp file path
-            $new_file_path = UPLOADS_FILE_PATH . $new_value;
+        $result = false;
 
-            if (file_exists($file_path)) {
-                if (!rename($file_path, $new_file_path)) {
-                    $view .= show_error_box("Fehler beim Aktualisieren des Avatars!");
+        if ($field == "avatar") {
+            $old_filename = basename($old_value);
+            $new_filename = basename($new_value);
+
+            $file_path = UPLOADS_FILE_PATH . $old_filename;
+            $new_file_path = UPLOADS_FILE_PATH . $new_filename;
+
+            if (!empty($old_filename) && file_exists($file_path)) {
+                if (rename($file_path, $new_file_path)) {
+                    $result = true;
+                } else {
+                    $view .= show_error_box("Fehler beim Umbenennen der Datei!");
                 }
+            } else if (file_exists($new_file_path)) {
+                $result = true;
+            } else {
+                $view .= show_error_box("Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!");
             }
         } else {
             if ($field == "password") {
-                $new_value = make_secure($new_value ?? "");
-                $new_value = password_hash($new_value, PASSWORD_BCRYPT);
+                $new_value_db = password_hash(make_secure($new_value ?? ""), PASSWORD_BCRYPT);
+            } else {
+                $new_value_db = $new_value;
             }
 
-            $result = $db_instance->execute_query("UPDATE users SET $field = ? WHERE id = ?", [$new_value, $user_id]);
+            $result = $db_instance->execute_query("UPDATE users SET $field = ? WHERE id = ?", [$new_value_db, $user_id]);
         }
 
         if ($result) {
-            if ($field == "password") {
-                $new_value = $_POST["new_value"];
-            }
+            $log_display = ($field === "password") ? "***" : $new_value;
+            $logger->admin("Edited field '$field' for user ID $user_id. New Value: " . $log_display);
 
-            $logger->admin("Edited field '$field' for user ID $user_id. New Value: " . ($field === "password" ? '***' : $new_value));
-
-            $view .= show_passed_box("Daten erfolgreich aktualisiert! Field: $field Value: $new_value");
+            $view .= show_passed_box("Daten erfolgreich aktualisiert! Feld: $field");
         } else {
-            $view .= show_error_box("Fehler beim Aktualisieren! Field: $field Value: $new_value");
+            if (empty($view)) {
+                $view .= show_error_box("Fehler beim Aktualisieren! Feld: $field");
+            }
         }
     }
 
