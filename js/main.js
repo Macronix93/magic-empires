@@ -189,64 +189,44 @@ function adjustUsernameDisplay() {
     }
 }
 
-function updateServerTime(initialSeconds) {
-    const now = new Date(initialSeconds * 1000);
-    const startMinutes = now.getMinutes();
-    const startSeconds = now.getSeconds();
-
-    let secondsUntilFull = 3600 - ((startMinutes * 60) + startSeconds);
+function updateServerTime(initialServerTimestamp) {
+    const clientStartTime = Date.now();
+    const serverStartTime = initialServerTimestamp * 1000;
 
     function updateDisplay() {
+        const now = Date.now();
+        const elapsed = now - clientStartTime;
+
+        const currentServerTime = new Date(serverStartTime + elapsed);
+
+        const timeString = currentServerTime.toTimeString().split(' ')[0];
         const serverTimeElements = document.getElementsByClassName("servertime");
-        const tickTimers = document.getElementsByClassName("tick-timer");
-        const tickFills = document.getElementsByClassName("tick-progress-fill");
-
-        const currentTime = new Date(initialSeconds * 1000);
-        const timeString = currentTime.toTimeString().split(' ')[0];
-
         for (let i = 0; i < serverTimeElements.length; i++) {
-            /** @type {HTMLElement} */
-            const el = serverTimeElements[i];
-
-            if (el.offsetParent !== null) {
-                el.textContent = timeString;
+            if (serverTimeElements[i].offsetParent !== null) {
+                serverTimeElements[i].textContent = timeString;
             }
         }
 
-        let displayTime, percent;
+        const secondsIntoHour = (currentServerTime.getMinutes() * 60) + currentServerTime.getSeconds();
+        const secondsUntilFull = 3600 - secondsIntoHour;
 
-        if (secondsUntilFull > 0) {
-            const displayMin = Math.floor(secondsUntilFull / 60);
-            const displaySec = secondsUntilFull % 60;
-            displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
+        const displayMin = Math.floor(secondsUntilFull / 60);
+        const displaySec = secondsUntilFull % 60;
+        const displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
 
-            const currentMinutes = currentTime.getMinutes();
-            const currentSeconds = currentTime.getSeconds();
-            const currentPassed = (currentMinutes * 60) + currentSeconds;
-            percent = (currentPassed / 3600) * 100;
-
-            secondsUntilFull--;
-        } else {
-            displayTime = "Jetzt";
-            percent = 100;
-        }
-
+        const tickTimers = document.getElementsByClassName("tick-timer");
         for (let i = 0; i < tickTimers.length; i++) {
-            tickTimers[i].innerText = displayTime;
+            tickTimers[i].innerText = (secondsUntilFull <= 0) ? "Jetzt" : displayTime;
         }
 
+        const percent = (secondsIntoHour / 3600) * 100;
+        const tickFills = document.getElementsByClassName("tick-progress-fill");
         for (let i = 0; i < tickFills.length; i++) {
-            /** @type {HTMLElement} */
-            const el = tickFills[i];
-            el.style.width = percent + "%";
+            tickFills[i].style.width = percent + "%";
         }
-
-        setTimeout(() => {
-            initialSeconds++;
-            updateDisplay();
-        }, 1000);
     }
 
+    setInterval(updateDisplay, 500);
     updateDisplay();
 }
 
@@ -333,14 +313,29 @@ window.addEventListener("DOMContentLoaded", function () {
     const leftMenu = document.getElementById("nav-left-menu");
     const rightTrigger = document.getElementById("nav-right-trigger");
     const rightMenu = document.getElementById("nav-right-menu");
-    const timeout = document.body.dataset.timeout;
+    const timeoutSeconds = parseInt(document.body.dataset.timeout);
     const serverTime = document.body.dataset.serverTime;
     document.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
 
-    if (timeout) {
-        const logoutTime = Date.now() + (parseInt(timeout) * 1000);
+    if (timeoutSeconds > 0) {
+        let lastActivityTimestamp = Date.now();
+        const logoutLimitMs = timeoutSeconds * 1000;
+
+        const resetActivity = () => {
+            lastActivityTimestamp = Date.now();
+        };
+
+        ["mousedown", "mousemove", "keypress", "scroll", "touchstart"].forEach(eventName => {
+            document.addEventListener(eventName, resetActivity, {passive: true});
+        });
+
         setInterval(() => {
-            if (Date.now() >= logoutTime) window.location.href = "index.php?logout=inactive";
+            const now = Date.now();
+            const inactiveTime = now - lastActivityTimestamp;
+
+            if (inactiveTime >= logoutLimitMs) {
+                window.location.href = "index.php?logout=inactive";
+            }
         }, 10000);
     }
 

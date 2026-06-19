@@ -322,7 +322,7 @@ $offset = ($current_page - 1) * $rows_per_page;
 $view .= "<div class='info-box' style='background-color: rgba(212, 175, 55, 0.1); border: 1px solid var(--border-gold); margin-bottom: 20px; max-width: 500px;'>
     <img src='images/icons/icon_building10.png' class='buildable-icons' alt='Marktplatz'>
     <span>
-        <b>Heutige Aktionen:</b> $daily_trades_count von $max_trades verbraucht<br>
+        <b>Heutige Handelsaktionen:</b> $daily_trades_count von $max_trades<br>
         <b>Kapazität:</b> Max. " . fnum($max_capacity) . " pro Angebot
     </span>
 </div>";
@@ -530,8 +530,8 @@ if ($other_kingdoms_res->num_rows > 0) {
                             <option value="' . ResourceTypes::RESOURCE_TYPE_GOLD . '">Gold</option>
                         </select>
                     </td>
-                    <td class="td-center">
-                        <input type="submit" value="Transport senden">
+                    <td style="text-align: center;">
+                        <input type="submit" value="Senden">
                     </td>
                 </tr>
             </form>

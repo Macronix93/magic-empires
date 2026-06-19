@@ -598,4 +598,40 @@ class Conquest
     {
         return (int)($this->soldiers[$soldier_id]["count"] ?? 0);
     }
+
+    public function get_battle_result_data(bool $for_attacker): array
+    {
+        $data = [];
+
+        foreach ($this->soldier_types as $id => $soldier) {
+            $initial = $for_attacker
+                ? $this->initial_soldiers[$id]["initial_my_soldiers"]
+                : $this->initial_soldiers[$id]["initial_enemy_soldiers"];
+
+            $losses = $for_attacker
+                ? $this->initial_soldiers[$id]["my_losses"]
+                : $this->initial_soldiers[$id]["enemy_losses"];
+
+            if ($initial > 0) {
+                $res = $this->mysqli->execute_query("SELECT icon FROM soldierlist WHERE id = ?", [$id]);
+                $icon = $res->fetch_column() ?: "icon_error";
+
+                $data[] = [
+                    "id" => $id,
+                    "name" => $soldier["soldiername"],
+                    "initial" => (int)$initial,
+                    "losses" => (int)$losses,
+                    "icon" => $icon
+                ];
+            }
+        }
+        return $data;
+    }
+
+    public function get_initial_count_by_id(int $soldierId, bool $is_attacker): int
+    {
+        return (int)($is_attacker
+            ? ($this->initial_soldiers[$soldierId]["initial_my_soldiers"] ?? 0)
+            : ($this->initial_soldiers[$soldierId]["initial_enemy_soldiers"] ?? 0));
+    }
 }

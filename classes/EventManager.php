@@ -326,7 +326,7 @@ class EventManager
         $conquest->fetch_sent_troops();
         $conquest->initialize_soldier_types();
 
-        // Truppenzusammensetzung prüfen
+        // Check for troop composition
         $res = $this->mysqli->execute_query(
             "SELECT soldierid, soldiercount FROM senttroops WHERE eventid = ?",
             [$row["eventid"]]
@@ -635,10 +635,7 @@ class EventManager
         $summary = "<tr><td class='td-center'><b>Summe</b></td><td class='td-center'>{$conquest->get_initial_soldier_count()}</td><td class='td-center'>{$conquest->get_my_loss_count()}</td><td class='td-center'>{$conquest->get_initial_enemy_count()}</td><td class='td-center'>{$conquest->get_enemy_loss_count()}</td></tr></table><br>";
 
         $message .= $table_header . $conquest->get_my_message() . $summary . $conquest->append_my_after_battle_message();
-        //$message .= "<br><b>Punkteverlust durch Truppen:</b> -" . fnum($conquest->get_my_score_loss()) . " Punkte.<br>";
-
         $enemy_msg .= $table_header . $conquest->get_enemy_message() . "<tr><td class='td-center'><b>Summe</b></td><td class='td-center'>{$conquest->get_initial_enemy_count()}</td><td class='td-center'>{$conquest->get_enemy_loss_count()}</td><td class='td-center'>{$conquest->get_initial_soldier_count()}</td><td class='td-center'>{$conquest->get_my_loss_count()}</td></tr></table><br>" . $conquest->append_enemy_after_battle_message();
-        //$enemy_msg .= "<br><b>Punkteverlust durch Truppen:</b> -" . fnum($conquest->get_enemy_score_loss()) . " Punkte.<br>";
 
         // Conquering logic
         if ($conquest->get_enemy_loss_count() == $conquest->get_initial_enemy_count()) {
@@ -746,7 +743,7 @@ class EventManager
             $message = "<b>Die Schlacht war ein totaler Fehlschlag!</b><br>Kein einziger Soldat kehrte lebend zurück. Wir haben keine Informationen über die verbliebene Stärke des Gegners.";
         } else {
             if ($surviving_scouts > 0) {
-                $message .= $this->generate_scout_report($surviving_scouts, $enemy_kingdom);
+                $message .= $this->generate_scout_report($conquest->get_initial_soldiers_detailed()["Späher"] ?? $surviving_scouts, ($conquest->get_initial_soldiers_detailed()["Späher"] ?? 0) - $surviving_scouts, $enemy_kingdom);
             } else if ($attacker_survived) {
                 $message .= "<br><br>🛡️ <b>Bericht der Heimkehrer:</b><br>Unsere Soldaten berichten, dass der Gegner nach dem Kampf noch Truppen übrig hatte.";
             }
@@ -1017,13 +1014,9 @@ class EventManager
         $survivors = $atk_scouts - $atk_losses;
 
         if ($survivors > 0) {
-            $msg_atk = "<b>Erfolgreiche Spionage in {$enemy_k->get_kingdom_name()} ({$enemy_k->get_kingdom_map_x()}:{$enemy_k->get_kingdom_map_y()}):</b><br>";
-            $msg_atk .= $this->generate_scout_report($survivors, $enemy_k);
-
-            if ($atk_losses > 0) $msg_atk .= "<br><span class='error'>Verluste: $atk_losses Späher.</span>";
+            $msg_atk = $this->generate_scout_report($atk_scouts, $atk_losses, $enemy_k);
 
             $msg_def = "⚠️ <b>Spionage-Warnung!</b><br>Späher aus <b>{$home_k->get_kingdom_name()}</b> ({$home_k->get_kingdom_map_x()}:{$home_k->get_kingdom_map_y()}) wurden dabei ertappt, wie sie unsere Stadt auskundschafteten.";
-
             if ($def_losses > 0) $msg_def .= "<br>Unsere Grenzwache verlor dabei $def_losses Späher.";
 
             $this->mysqli->execute_query(
@@ -1041,55 +1034,70 @@ class EventManager
         send_server_message($enemy_owner_id, $enemy_owner_name, $msg_def, MessageCategories::CATEGORY_WAR);
     }
 
-    private function generate_scout_report(int $survivors, Kingdom $enemy_k): string
+    private function generate_scout_report(int $atk_scouts, int $atk_losses, Kingdom $enemy_k): string
     {
-        $report = "<br><br>🔍 <b>Spionagebericht unserer Überlebenden:</b><br><br>";
+        $survivors = $atk_scouts - $atk_losses;
+        $report = "<div class='battle-report'>";
+        $report .= "<div class='battle-column'>";
+        $report .= "<div class='report-section-title'>Spionagebericht: " . e($enemy_k->get_kingdom_name()) . "</div>";
 
-        // Tier 1: Resources
-        $report .= "💰 <b>Ressourcen:</b><br>";
-        $report .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($enemy_k->get_kingdom_food()) . " | ";
-        $report .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($enemy_k->get_kingdom_wood()) . " | ";
-        $report .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($enemy_k->get_kingdom_stone()) . " | ";
-        $report .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($enemy_k->get_kingdom_gold()) . "<br>";
+        // TIER 1: Resources
+        $res = [
+            "food" => $enemy_k->get_kingdom_food(),
+            "wood" => $enemy_k->get_kingdom_wood(),
+            "stone" => $enemy_k->get_kingdom_stone(),
+            "gold" => $enemy_k->get_kingdom_gold()
+        ];
+        $report .= BattleReportRenderer::render_scout_resource_bar($res);
 
-        // Tier 2 and 3: Troops and full building info
-        if ($survivors >= 15) {
-            // TIER 3: Detaillierte Liste ALLER Gebäude
-            $report .= "<br>🏰 <b>Gebäudeinformationen:</b><br>";
-            $b_res = $this->mysqli->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? ORDER BY buildinglevel DESC", [$enemy_k->get_kingdom_id()]);
+        // TIER 2 & 3: Buildings
+        if ($survivors >= 5) {
+            $report .= "<div class='report-section-title' style='margin-top: 10px;'>Identifizierte Gebäude</div>";
+            $report .= "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left;'>";
 
-            if ($b_res->num_rows > 0) {
-                $report .= "<table class='table'>";
+            if ($survivors >= 15) {
+                // Tier 3: ALl Buildings
+                $b_res = $this->mysqli->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? ORDER BY buildinglevel DESC", [$enemy_k->get_kingdom_id()]);
+
                 while ($b = $b_res->fetch_assoc()) {
-                    $report .= "<tr><td>{$b["buildingname"]}</td><td>Stufe " . (int)$b["buildinglevel"] . "</td></tr>";
+                    $report .= "<div>• {$b["buildingname"]} (Stufe " . (int)$b["buildinglevel"] . ")</div>";
                 }
-                $report .= "</table>";
+            } else {
+                // Tier 2: Only Main Buildings
+                $report .= "<div>• Dorfzentrum (Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER) . ")</div>";
+                $report .= "<div>• Mauer (Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_WALL) . ")</div>";
+                $report .= "<div>• Lager (Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_STORAGE) . ")</div>";
             }
-        } else if ($survivors >= 5) {
-            // Tier 2: Only main buildings
-            $report .= "<br>🏰 <b>Gebäudeinformationen:</b><br>";
-            $report .= "- Dorfzentrum: Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER) . "<br>";
-            $report .= "- Mauer: Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_WALL) . "<br>";
-            $report .= "- Lager: Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_STORAGE) . "<br>";
+            $report .= "</div>";
         }
 
-        // Tier 3: Troop info
+        // TIER 3: Troops
         if ($survivors >= 15) {
-            $report .= "<br>🛡️ <b>Gegnerische Truppen:</b><br>";
-            $t_res = $this->mysqli->execute_query("SELECT soldiername, soldiercount FROM soldiers WHERE kingdomid = ? AND soldiercount > 0", [$enemy_k->get_kingdom_id()]);
+            $report .= "<div class='report-section-title' style='margin-top: 10px;'>Gegnerische Garnison</div>";
+            $report .= "<div style='display: flex; flex-wrap: wrap; gap: 10px;'>";
+
+            $t_res = $this->mysqli->execute_query(
+                "SELECT s.soldiername, s.soldiercount, sl.icon 
+             FROM soldiers s 
+             JOIN soldierlist sl ON s.soldierid = sl.id 
+             WHERE s.kingdomid = ? AND s.soldiercount > 0",
+                [$enemy_k->get_kingdom_id()]
+            );
 
             if ($t_res->num_rows > 0) {
-                $report .= "<table class='table'>";
-
                 while ($t = $t_res->fetch_assoc()) {
-                    $report .= "<tr><td>{$t["soldiername"]}</td><td>" . fnum($t["soldiercount"]) . "</td></tr>";
+                    $report .= "<div style='flex: 1 1 200px;'>" . BattleReportRenderer::render_unit_card($t["soldiername"], $t["soldiercount"], 0, $t["icon"], true) . "</div>";
                 }
-
-                $report .= "</table>";
             } else {
-                $report .= "Keine Truppen stationiert.<br>";
+                $report .= "<i>Keine Truppen stationiert.</i>";
             }
+            $report .= "</div>";
         }
+
+        $report .= "</div>";
+
+        $report .= BattleReportRenderer::render_own_scout_status($atk_scouts, $atk_losses);
+        $report .= "</div>";
 
         return $report;
     }

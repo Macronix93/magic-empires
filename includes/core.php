@@ -133,14 +133,14 @@ const BOOST_PRODUCTION_BONUS = 1.0;
 const BOOST_COST_PER_LEVEL = 50;
 const MAX_DAILY_TRADES = 5;
 const MARKET_CAPACITY_PER_LEVEL = 10000;
-const SMITHY_INF_ATK_BONUS = 2;    // +2 Angriff pro Level
-const SMITHY_INF_DEF_BONUS = 2;    // +2 Verteidigung pro Level
-const SMITHY_CAV_ATK_BONUS = 3;    // +3 Angriff pro Level
-const SMITHY_CAV_DEF_BONUS = 3;    // +3 Verteidigung pro Level
-const SMITHY_ARC_ATK_BONUS = 2;    // +2 Angriff pro Level
-const SMITHY_ARC_DEF_BONUS = 1;    // +1 Verteidigung pro Level
-const SMITHY_WEIGHT_REDUCTION = 0.05; // 5% Rabatt auf Kosten/Zeit pro Level
-const SMITHY_SIEGE_BONUS = 0.20;   // +20% Mauerschaden pro Level
+const SMITHY_INF_ATK_BONUS = 2;
+const SMITHY_INF_DEF_BONUS = 2;
+const SMITHY_CAV_ATK_BONUS = 3;
+const SMITHY_CAV_DEF_BONUS = 3;
+const SMITHY_ARC_ATK_BONUS = 2;
+const SMITHY_ARC_DEF_BONUS = 1;
+const SMITHY_WEIGHT_REDUCTION = 0.05;
+const SMITHY_SIEGE_BONUS = 0.20;
 
 /*
  * Interfaces
@@ -641,6 +641,8 @@ if ($user->is_logged_in()) {
     // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
     if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
         if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
+            session_unset();
+            session_destroy();
             change_location("index.php?logout=session");
             exit;
         }
@@ -829,7 +831,7 @@ function checkImageContent($tempFilePath)
     $api_token = getenv("CHECK_NSFW_API_KEY");
 
     $imageData = file_get_contents($tempFilePath);
-    if ($imageData === false) return "error: Datei nicht lesbar";
+    if ($imageData === false) return "Datei nicht lesbar";
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $api_url);
@@ -848,13 +850,13 @@ function checkImageContent($tempFilePath)
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
     if ($response === false) {
-        return "error: Verbindung fehlgeschlagen";
+        return "Verbindung fehlgeschlagen";
     }
 
     $result = json_decode($response, true);
 
     if ($httpCode === 503) return "loading";
-    if (isset($result['error'])) return "error: " . $result['error'];
+    if (isset($result["error"])) return "error: " . $result["error"];
 
     $nsfw_score = 0;
     $normal_score = 0;
@@ -863,10 +865,11 @@ function checkImageContent($tempFilePath)
         $data = isset($result[0][0]) ? $result[0] : $result;
 
         foreach ($data as $prediction) {
-            if (isset($prediction['label']) && isset($prediction['score'])) {
-                $label = strtolower($prediction['label']);
-                if ($label === 'nsfw') $nsfw_score = $prediction['score'];
-                if ($label === 'normal') $normal_score = $prediction['score'];
+            if (isset($prediction["label"]) && isset($prediction["score"])) {
+                $label = strtolower($prediction["label"]);
+
+                if ($label === "nsfw") $nsfw_score = $prediction["score"];
+                if ($label === "normal") $normal_score = $prediction["score"];
             }
         }
     }
