@@ -1,5 +1,7 @@
 .htaccess
 *.bat
+test.*
+testfile.*
 
 ##### Windows
 # Windows thumbnail cache files
