@@ -37,21 +37,16 @@ class Kingdom
     public function __construct(object $db_conn, int $kingdom_id = -1)
     {
         $this->mysqli = $db_conn;
+        $this->kingdom_id = -1;
+        $this->alignment = 0;
+        $this->wall_hp = 0;
 
         if ($kingdom_id != -1) {
             $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
 
-            /*if (!$row) {
-                // If kingdom is invalid, search for a valid kingdom from the player
-                $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [User::get_instance()->get_user_id()]);
-                $row = $result->fetch_assoc();
-                $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$row["id"], User::get_instance()->get_user_id()]);
-
-                $_SESSION["kingdomid"] = $row["id"];
-            }*/
             if ($result && $result->num_rows > 0) {
                 $row = $result->fetch_assoc();
-                $this->kingdom_id = $row["id"];
+                $this->kingdom_id = (int)$row["id"];
                 $this->kingdom_owner_id = $row["userid"];
                 $this->kingdom_owner = $row["username"];
                 $this->kingdom_name = $row["kingdomname"];
@@ -733,5 +728,25 @@ class Kingdom
     {
         $level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_MAINTENANCE);
         return max(0.3, 1 - ($level * MAINTENANCE_REPAIR_REDUCTION));
+    }
+
+    public function get_base_food_rate(): int
+    {
+        return $this->base_food_rate;
+    }
+
+    public function get_base_wood_rate(): int
+    {
+        return $this->base_wood_rate;
+    }
+
+    public function get_base_stone_rate(): int
+    {
+        return $this->base_stone_rate;
+    }
+
+    public function get_base_gold_rate(): int
+    {
+        return $this->base_gold_rate;
     }
 }

@@ -49,7 +49,7 @@ if (isset($_POST["activate_boost"])) {
 /*
  * HTML Content Part
  */
-$view .= "<div style='margin-bottom: 15px;'><b>Holzertrag pro Stunde:</b> " . fnum($kingdom->get_kingdom_wood_per_hour()) . " $boost_display</div>";
+$view .= "<div style='margin-bottom: 15px;'><b>Holzertrag pro Stunde:</b> " . fnum($kingdom->get_base_wood_rate()) . " $boost_display</div>";
 
 if ($expiry > 0) {
     $view .= "Ertragsboost aktiv!<br>Ende in: <span class='js-countdown' data-seconds='" . ($expiry - time()) . "'></span>";

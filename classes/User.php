@@ -1,5 +1,7 @@
 <?php
 
+use Random\RandomException;
+
 class User
 {
     private object $mysqli;
@@ -17,10 +19,20 @@ class User
         $this->current_kingdom = $current_kingdom;
     }
 
+    /**
+     * @throws RandomException
+     */
     public function register_user(string $name, string $email, string $pass): void
     {
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activation_key = md5($email . $name);
+
+        $ip = $_SERVER["REMOTE_ADDR"];
+        $device_id = $_COOKIE["me_device_id"] ?? bin2hex(random_bytes(16));
+
+        if (!isset($_COOKIE["me_device_id"])) {
+            setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
+        }
 
         // Create activation link to activate account
         $actual_link = "https://$_SERVER[HTTP_HOST]" . BASE_URL . "index.php?key=" . $activation_key;
@@ -34,9 +46,9 @@ class User
         ";
 
         if (send_mail($email, $subject, $message)) {
-            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid) 
-                                                VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?)",
-                [$name, $password, $activation_key, $email, session_id()]);
+            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid, ip, device_id) 
+                                                VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?)",
+                [$name, $password, $activation_key, $email, session_id(), $ip, $device_id]);
 
             unset($_POST);
             unset($_SESSION["captcha_passed"]);
@@ -79,8 +91,7 @@ class User
 
     public function process_user_events(): void
     {
-        $event_manager = new EventManager($this);
-        $event_manager->process_all();
+        new EventManager($this)->process_all();
     }
 
     public function check_session_id(): void

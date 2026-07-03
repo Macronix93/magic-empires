@@ -45,7 +45,6 @@ if (!$is_cli) {
 /*
     Constants (defines)
 */
-const MAINTENANCE_MODE = true;
 const BASE_SEND_TROOPS_LIMIT = 2;
 const BASE_SETTLEMENT_LIMIT = 5;
 const MAX_RESOURCE_TILES = 500;
@@ -121,7 +120,7 @@ const CARTOGRAPHY_SPEED_BONUS = 0.05;
 const PLUNDER_CAPACITY_BONUS = 0.02;
 const ARCHITECTURE_TIME_REDUCTION = 0.02;
 const MAINTENANCE_REPAIR_REDUCTION = 0.05;
-const BASE_SETTLER_CHANCE = 0.50; // 50% with one waggon
+const BASE_SETTLER_CHANCE = 0.2; // 20% with one waggon
 const SETTLER_CHANCE_STEP = 0.25; // +25% for every additional waggon
 const MAX_SETTLER_CHANCE = 1.0;  // max is 100
 const THIEF_BASE_CAPACITY = 50;
@@ -363,35 +362,31 @@ function make_secure(string $data): string
 }
 
 // Convert seconds to a string
-function convert_sec_to_str(int $secs): string
+function convert_sec_to_str(int $secs, bool $short_format = false): string
 {
-    if ($secs == 0) {
-        return "0s";
+    if ($secs <= 0) return "0s";
+
+    $days = floor($secs / 86400);
+    $secs %= 86400;
+    $hours = floor($secs / 3600);
+    $secs %= 3600;
+    $minutes = floor($secs / 60);
+    $seconds = $secs % 60;
+
+    if ($short_format) {
+        if ($days > 0 && $hours == 0 && $minutes == 0 && $seconds == 0) {
+            return $days . "d";
+        }
+
+        $out = ($days > 0) ? $days . "d " : "";
+        return $out . sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
     }
 
     $output = "";
-
-    if ($secs >= 86400) {
-        $days = floor($secs / 86400);
-        $secs = $secs % 86400;
-        $output .= $days . "T ";
-    }
-
-    if ($secs >= 3600) {
-        $hours = floor($secs / 3600);
-        $secs = $secs % 3600;
-        $output .= $hours . " Std. ";
-    }
-
-    if ($secs >= 60) {
-        $minutes = floor($secs / 60);
-        $secs = $secs % 60;
-        $output .= $minutes . " Min. ";
-    }
-
-    if ($secs > 0) {
-        $output .= $secs . " Sek.";
-    }
+    if ($days > 0) $output .= $days . "T ";
+    if ($hours > 0) $output .= $hours . " Std. ";
+    if ($minutes > 0) $output .= $minutes . " Min. ";
+    if ($seconds > 0 || empty($output)) $output .= $seconds . " Sek.";
 
     return trim($output);
 }
@@ -562,7 +557,7 @@ spl_autoload_register(function ($class_name) {
 });
 
 // Load .env file
-(new DotEnv(__DIR__ . "/.env"))->load();
+new DotEnv(__DIR__ . "/.env")->load();
 
 function send_mail(string $to, string $subject, string $body): bool
 {
@@ -607,6 +602,11 @@ function send_mail(string $to, string $subject, string $body): bool
 $db = Database::get_instance();
 $db_instance = $db->get_connection();
 
+// Server Settings
+$setting_res = $db_instance->execute_query("SELECT value FROM system_settings WHERE name = 'maintenance_mode'");
+$maintenance_db = $setting_res->fetch_assoc()["value"] ?? "0";
+define("MAINTENANCE_MODE", ($maintenance_db === "1"));
+
 // Logger instance
 $logger = Logger::get_instance();
 
@@ -619,17 +619,38 @@ $view = "";
 if ($user->is_logged_in()) {
     $user->check_session_id();
 
+    $current_k_id = $user->get_current_kingdom();
     $current_ip = $_SERVER["REMOTE_ADDR"];
-    $check_query = $db_instance->execute_query("SELECT is_banned, ban_reason FROM users WHERE id = ? OR (ip = ? AND is_banned = 1) LIMIT 1",
-        [$user->get_user_id(), $current_ip]);
-    $ban_status = $check_query->fetch_assoc();
 
-    if ($ban_status && $ban_status["is_banned"] == 1) {
-        $reason = $ban_status["ban_reason"] ?? "Sicherheitsbann (IP-Match)";
+    $query = "
+        SELECT 
+            u.is_banned, u.ban_reason, u.mainkingdom,
+            k.id AS current_k_exists
+        FROM users u
+        LEFT JOIN kingdoms k ON k.id = ? AND k.userid = u.id
+        WHERE u.id = ? OR (u.ip = ? AND u.is_banned = 1)
+        LIMIT 1
+    ";
+    $check_res = $db_instance->execute_query($query, [$current_k_id, $user->get_user_id(), $current_ip]);
+    $user_status = $check_res->fetch_assoc();
+
+    if ($user_status && $user_status["is_banned"] == 1) {
+        $reason = $user_status["ban_reason"] ?? "Sicherheitsbann (IP-Match)";
         session_destroy();
 
         change_location("index.php?banned=" . urlencode($reason));
         exit;
+    }
+
+    if (!$user_status || $user_status["current_k_exists"] === null) {
+        $main_k = $user_status["mainkingdom"] ?? -1;
+        $_SESSION["kingdomid"] = $main_k;
+        $user->set_current_kingdom($main_k);
+
+        if (basename($_SERVER["PHP_SELF"]) !== "overview.php") {
+            change_location(basename($_SERVER["PHP_SELF"]));
+            exit;
+        }
     }
 
     $timestamp = time();

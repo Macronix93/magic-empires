@@ -12,9 +12,6 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
-include_once("layout/banner_small.html");
-?>
-<?php
 $user_id = (int)($_GET["userid"] ?? 0);
 
 if ($user_id) {

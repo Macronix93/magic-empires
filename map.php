@@ -13,6 +13,8 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"]) && is_numeric($_GET["star
     $y = (int)$_GET["starty"];
     $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
     $field_id = ($result->num_rows != 0) ? $result->fetch_assoc()["kingdomid"] : -1;
+
+    echo $x;
 } else {
     $field_id = $user->get_current_kingdom();
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$field_id]);
@@ -31,18 +33,18 @@ echo "<div class='map-legend'>
     </div>";
 
 // Search
-echo '<form id="update-map">
-        X: <label>
+echo '<form id="update-map" style="display: flex; flex-wrap: wrap;">
+        X:<label>
             <input type="text" id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
         </label>
-        Y: <label>
+        Y:<label>
             <input type="text" id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
         </label>
-        <input type="submit" id="send-map-request" value="Anzeigen">
-        <span style="margin-left: 10px; display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;">
+        <input type="submit" id="send-map-request" value="Los">
+        <span style="display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;">
             <input type="checkbox" id="show-path-toggle" style="cursor: pointer; margin: 0;">
             <label for="show-path-toggle" style="font-size: 15px; cursor: pointer; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
-                Weg anzeigen
+                Laufweg
             </label>
         </span>
     </form><br>';

@@ -114,50 +114,74 @@ observer.observe(document.body, {
 });
 
 function setup() {
-    const popups = getElementsByClassName('popup');
+    // Alle Elemente mit der Klasse 'popup' finden
+    const popups = document.querySelectorAll('.popup');
 
-    for (let i = 0; i < popups.length; i++) {
-        /** @type {HTMLElement} */
-        let box = document.getElementById(popups[i].id + '_box');
+    popups.forEach(trigger => {
+        // Die Box finden, die sich innerhalb des Triggers befindet
+        const box = trigger.querySelector('.popupbox');
 
         if (box) {
-            box.style.display = 'none';
+            // WICHTIG: Die Box an den Body verschieben,
+            // damit sie nicht von der Sidebar abgeschnitten wird.
+            document.body.appendChild(box);
 
             const positionBox = function (e) {
                 let mousePos = getMouseLocation(e);
 
+                // Box sichtbar machen und über alles andere legen
                 box.style.display = 'block';
+                box.style.position = 'absolute';
+                box.style.zIndex = '999999';
 
                 const boxWidth = box.offsetWidth;
                 const boxHeight = box.offsetHeight;
                 const windowWidth = window.innerWidth;
                 const windowHeight = window.innerHeight;
 
+                // Horizontale Position berechnen (Zentriert unter/über Maus)
                 let left = mousePos[0] - (boxWidth / 2);
 
-                if (left < 10) {
-                    left = 10;
-                } else if (left + boxWidth > windowWidth - 10) {
+                // Rand-Check links
+                if (left < 10) left = 10;
+                // Rand-Check rechts (verhindert, dass die Box rechts rausragt)
+                if (left + boxWidth > windowWidth - 10) {
                     left = windowWidth - boxWidth - 10;
                 }
 
+                // Vertikale Position (Standard: 25px unter der Maus)
                 let top = mousePos[1] + 25;
 
-                if (e.clientY + 25 + boxHeight > windowHeight) {
-                    top = mousePos[1] - boxHeight - 15;
+                // Mobile/Viewport Check: Wenn die Box unten rausragen würde,
+                // zeige sie oberhalb der Maus/des Fingers an.
+                let checkY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+                if (checkY + 25 + boxHeight > windowHeight) {
+                    top = mousePos[1] - boxHeight - 20;
                 }
 
                 box.style.left = left + 'px';
                 box.style.top = top + 'px';
             };
 
-            popups[i].onmouseover = positionBox;
-            popups[i].onmousemove = positionBox;
-            popups[i].onmouseout = function () {
+            // Mouse Events
+            trigger.onmouseover = positionBox;
+            trigger.onmousemove = positionBox;
+            trigger.onmouseout = function () {
                 box.style.display = 'none';
             };
+
+            // Touch Support (Handy)
+            trigger.addEventListener('touchstart', function (e) {
+                if (box.style.display === 'block') {
+                    box.style.display = 'none';
+                } else {
+                    // Alle anderen Popups schließen
+                    document.querySelectorAll('.popupbox').forEach(b => b.style.display = 'none');
+                    positionBox(e);
+                }
+            }, {passive: true});
         }
-    }
+    });
 }
 
 function getMouseLocation(e) {

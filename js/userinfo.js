@@ -5,7 +5,6 @@ let initialX;
 let initialY;
 let xOffset = 0;
 let yOffset = 0;
-let currentOverlayWidth = "850px";
 
 registerAction("openOverlay", (el) => {
     const url = el.dataset.url;
@@ -26,56 +25,48 @@ registerAction("mapJump", (el) => {
     }
 });
 
+function setTranslate(xPos, yPos, el) {
+    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0) translateX(-50%)`;
+}
+
 function applyOverlayStyles() {
     /** @type {HTMLElement} */
     const overlay = document.getElementById("onpage-overlay");
 
     if (!overlay || overlay.style.display === "none") return;
 
-    if (window.innerWidth < 600) {
-        overlay.style.width = "95vw";
-        overlay.style.maxWidth = "95vw";
+    if (window.innerHeight < 500) {
+        overlay.style.top = "10px";
     } else {
-        overlay.style.width = currentOverlayWidth;
-        overlay.style.maxWidth = "95vw";
+        overlay.style.top = "50px";
     }
 }
 
-function openOverlay(url, title = "Spieler-Info") {
+function openOverlay(url, title = "Info") {
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
 
-    const isAlreadyOpen = (overlay.style.display === "block");
+    xOffset = 0;
+    yOffset = 0;
+    setTranslate(0, 0, overlay);
 
-    if (!isAlreadyOpen) {
-        content.innerHTML = '<div class="spinner">Lade...</div>';
-        overlay.style.display = "block";
-        content.style.opacity = "1";
-    } else {
-        content.style.opacity = "0.5";
-        content.style.transition = "opacity 0.2s";
-    }
+    overlay.style.display = "grid";
+    overlayTitle.innerText = title;
+    content.innerHTML = '<div class="spinner">Lade...</div>';
 
     applyOverlayStyles();
-    overlayTitle.innerText = title;
 
-    fetch(url, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
+    fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
         .then(response => response.text())
         .then(html => {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, "text/html");
-
             content.innerHTML = doc.body.innerHTML;
-            content.style.opacity = "1";
             content.scrollTop = 0;
         })
-        .catch(err => {
+        .catch(() => {
             content.textContent = "Fehler beim Laden.";
-            content.style.opacity = "1";
-            console.error(err);
         });
 }
 
@@ -112,54 +103,82 @@ document.addEventListener("DOMContentLoaded", function () {
         dragItem.addEventListener("mousedown", dragStart);
         document.addEventListener("mouseup", dragEnd);
         document.addEventListener("mousemove", drag);
+
+        dragItem.addEventListener("touchstart", dragStart, {passive: false});
+        document.addEventListener("touchmove", drag, {passive: false});
+        document.addEventListener("touchend", dragEnd);
     }
 
     function dragStart(e) {
-        initialX = e.clientX - xOffset;
-        initialY = e.clientY - yOffset;
+        let clientX, clientY;
+
+        if (e.type === "touchstart") {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        initialX = clientX - xOffset;
+        initialY = clientY - yOffset;
 
         if (e.target === dragItem || dragItem.contains(e.target)) {
             isDraggingInfoWindow = true;
         }
     }
 
+
     function drag(e) {
-        if (isDraggingInfoWindow) {
-            e.preventDefault();
+        if (!isDraggingInfoWindow) return;
+        if (e.cancelable) e.preventDefault();
 
-            let x = e.clientX - initialX;
-            let y = e.clientY - initialY;
+        let clientX, clientY;
 
-            const rect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const winH = window.innerHeight;
-            const halfWidth = rect.width / 2;
-
-            const minX = -(winW / 2 - halfWidth);
-            const maxX = (winW / 2 - halfWidth);
-
-            const minY = -100;
-            const maxY = winH - 100 - rect.height;
-
-            currentXInfoWindow = Math.min(Math.max(x, minX), maxX);
-            currentYInfoWindow = Math.min(Math.max(y, minY), maxY);
-
-            xOffset = currentXInfoWindow;
-            yOffset = currentYInfoWindow;
-
-            setTranslate(currentXInfoWindow, currentYInfoWindow, container);
+        if (e.type === "touchmove") {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
         }
-    }
 
-    function setTranslate(xPos, yPos, el) {
-        el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0) translateX(-50%)`;
+        let x = clientX - initialX;
+        let y = clientY - initialY;
+
+        const rect = container.getBoundingClientRect();
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const halfWidth = rect.width / 2;
+
+        const minX = -(winW / 2) + halfWidth;
+        const maxX = (winW / 2) - halfWidth;
+        const minY = -parseInt(window.getComputedStyle(container).top);
+        const maxY = winH - rect.height - 20;
+
+        xOffset = Math.min(Math.max(x, minX), maxX);
+        yOffset = Math.min(Math.max(y, minY), maxY);
+
+        setTranslate(xOffset, yOffset, container);
     }
 
     function dragEnd() {
-        initialX = currentXInfoWindow;
-        initialY = currentYInfoWindow;
         isDraggingInfoWindow = false;
     }
+
+    window.addEventListener("resize", () => {
+        if (container.style.display === "block") {
+            const rect = container.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const halfWidth = rect.width / 2;
+            const limitX = (winW / 2) - halfWidth;
+
+            if (Math.abs(xOffset) > limitX) {
+                xOffset = xOffset > 0 ? limitX : -limitX;
+                setTranslate(xOffset, yOffset, container);
+            }
+        }
+    });
 });
 
 function redirectToMap(x, y) {

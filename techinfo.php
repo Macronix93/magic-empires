@@ -10,8 +10,8 @@ include_once("layout/head.html");
 ?>
 <body>
 <?php
-$building_id = $_GET["bid"] ?? null;
-$tech_id = $_GET["tid"] ?? null;
+$building_id = isset($_GET["bid"]) ? (int)$_GET["bid"] : null;
+$tech_id = isset($_GET["tid"]) ? (int)$_GET["tid"] : null;
 
 $get_costs_for_level = function (array $data, int $lvl) {
     $m = $data["multiplicator"];

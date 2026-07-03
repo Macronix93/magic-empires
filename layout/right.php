@@ -10,10 +10,36 @@
         $current_timestamp = time();
 
         $active_boosts = $kingdom->get_active_boosts(); // Get active resource boosts
-        $display_food = $kingdom->get_kingdom_food_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_FOOD]["amount"] ?? 0);
-        $display_wood = $kingdom->get_kingdom_wood_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_WOOD]["amount"] ?? 0);
-        $display_stone = $kingdom->get_kingdom_stone_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_STONE]["amount"] ?? 0);
-        $display_gold = $kingdom->get_kingdom_gold_per_hour() + ($active_boosts[ResourceTypes::RESOURCE_TYPE_GOLD]["amount"] ?? 0);
+        $current_align = $kingdom->get_kingdom_alignment();
+        $shrine_mod = $kingdom->get_shrine_modifier();
+        $shrine_malus = SHRINE_MALUS_BASE;
+
+        $resource_config = [
+                ResourceTypes::RESOURCE_TYPE_FOOD => [
+                        "icon" => ResourceTypes::RESOURCE_TYPE_FOOD,
+                        "val" => $kingdom->get_kingdom_food(), "max" => $kingdom->get_kingdom_max_food(),
+                        "base_prod" => $kingdom->get_base_food_rate(),
+                        "total_prod_with_shrine" => $kingdom->get_kingdom_food_per_hour()
+                ],
+                ResourceTypes::RESOURCE_TYPE_WOOD => [
+                        "icon" => ResourceTypes::RESOURCE_TYPE_WOOD,
+                        "val" => $kingdom->get_kingdom_wood(), "max" => $kingdom->get_kingdom_max_wood(),
+                        "base_prod" => $kingdom->get_base_wood_rate(),
+                        "total_prod_with_shrine" => $kingdom->get_kingdom_wood_per_hour()
+                ],
+                ResourceTypes::RESOURCE_TYPE_STONE => [
+                        "icon" => ResourceTypes::RESOURCE_TYPE_STONE,
+                        "val" => $kingdom->get_kingdom_stone(), "max" => $kingdom->get_kingdom_max_stone(),
+                        "base_prod" => $kingdom->get_base_stone_rate(),
+                        "total_prod_with_shrine" => $kingdom->get_kingdom_stone_per_hour()
+                ],
+                ResourceTypes::RESOURCE_TYPE_GOLD => [
+                        "icon" => ResourceTypes::RESOURCE_TYPE_GOLD,
+                        "val" => $kingdom->get_kingdom_gold(), "max" => $kingdom->get_kingdom_max_gold(),
+                        "base_prod" => $kingdom->get_base_gold_rate(),
+                        "total_prod_with_shrine" => $kingdom->get_kingdom_gold_per_hour()
+                ],
+        ];
         ?>
         <form method="POST">
             <div class="kingdom-switch-container">
@@ -65,38 +91,65 @@
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
              title='Punkte'/> <?= fnum($user->get_user_score()); ?>
         <div id="kingdom-info">
-            <div class='split-content'>
-                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) ?>
-                    <span class='<?= $kingdom->get_kingdom_food() >= $kingdom->get_kingdom_max_food() ? "over-limit" : "under-limit" ?>'>
-                        <?= fnum($kingdom->get_kingdom_food()) ?>
-                    </span>
-                </div>
-                (<?= fnum($display_food) ?>/h)
+            <?php
+            foreach ($resource_config as $type => $data) {
+                $item_boost = $active_boosts[$type]["amount"] ?? 0;
+                $expiry = $active_boosts[$type]["expiry"] ?? 0;
+
+                // Actual difference of shrine bonus
+                $actual_shrine_diff = $data["total_prod_with_shrine"] - $data["base_prod"];
+
+                $has_shrine_effect = ($actual_shrine_diff != 0);
+                $has_item_boost = ($item_boost > 0);
+
+                // Should the Popup Box be shown?
+                $show_popup = ($has_shrine_effect || $has_item_boost);
+
+                $total_display_prod = $data["total_prod_with_shrine"] + $item_boost;
+
+                // Set CSS classes
+                $prod_class = $show_popup ? "popup" : "";
+
+                if ($total_display_prod > $data["base_prod"]) {
+                    $prod_class .= " passed";
+                } else if ($total_display_prod < $data["base_prod"]) {
+                    $prod_class .= " error";
+                }
+
+                $prod_id = "boost_info_" . $type;
+
+                echo "<div class='split-content'>
+            <div>" . get_resource_icon($data["icon"]) . "
+                <span class='" . ($data["val"] >= $data["max"] ? "over-limit" : "under-limit") . "'>
+                    " . fnum($data["val"]) . "
+                </span>
             </div>
-            <div class='split-content'>
-                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) ?>
-                    <span class='<?= $kingdom->get_kingdom_wood() >= $kingdom->get_kingdom_max_wood() ? "over-limit" : "under-limit" ?>'>
-                        <?= fnum($kingdom->get_kingdom_wood()) ?>
-                    </span>
-                </div>
-                (<?= fnum($display_wood) ?>/h)
-            </div>
-            <div class='split-content'>
-                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) ?>
-                    <span class='<?= $kingdom->get_kingdom_stone() >= $kingdom->get_kingdom_max_stone() ? "over-limit" : "under-limit" ?>'>
-                        <?= fnum($kingdom->get_kingdom_stone()) ?>
-                    </span>
-                </div>
-                (<?= fnum($display_stone) ?>/h)
-            </div>
-            <div class='split-content'>
-                <div><?= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) ?>
-                    <span class='<?= $kingdom->get_kingdom_gold() >= $kingdom->get_kingdom_max_gold() ? "over-limit" : "under-limit" ?>'>
-                        <?= fnum($kingdom->get_kingdom_gold()) ?>
-                    </span>
-                </div>
-                (<?= fnum($display_gold) ?>/h)
-            </div>
+            <div class='$prod_class' id='$prod_id'>
+                (" . fnum($total_display_prod) . "/h)";
+
+                if ($show_popup) {
+                    echo "<div id='{$prod_id}_box' class='popupbox'>
+                <b>Aktive Boosts:</b><br>
+                Basis & Forschung: " . fnum($data["base_prod"]) . "/h<br>";
+
+                    if ($has_shrine_effect) {
+                        if ($actual_shrine_diff > 0) {
+                            echo "<span class='passed'>Schrein-Bonus: +" . fnum($actual_shrine_diff) . "/h</span><br>";
+                        } else {
+                            echo "<span class='error'>Schrein-Malus: -" . fnum(abs($actual_shrine_diff)) . "/h</span><br>";
+                        }
+                    }
+
+                    if ($has_item_boost) {
+                        echo "<span class='passed'>Gebäude-Boost: +" . fnum($item_boost) . "/h</span> <small>(Bis " . date("H:i", $expiry) . " Uhr)</small>";
+                    }
+
+                    echo "</div>";
+                }
+
+                echo "</div></div>";
+            }
+            ?>
             <div class='split-content'>
                 <div>
                     <img src='images/icons/icon_villager.png' class='ressource-icons' alt='Dorfbewohner'

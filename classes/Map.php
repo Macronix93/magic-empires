@@ -212,6 +212,12 @@ class Map
             $result_2 = $this->mysqli->execute_query($query, [$field]);
             $row_2 = $result_2->fetch_assoc();
 
+            if (!$row_2) {
+                echo '<div class="title-border">Verlassenes Dorf</div>
+                        <p style="text-align:center;">Dieses Königreich wurde aufgegeben oder zerstört.</p>';
+                return;
+            }
+
             $field_x = $row_2["mapx"];
             $field_y = $row_2["mapy"];
 

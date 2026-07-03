@@ -99,17 +99,35 @@ class Conquest
     public function calculate_wall_damage(): int
     {
         $current_wall_hp = $this->enemy_kingdom->get_wall_hp();
-        $enemy_defense_without_wall = 0;
+        $wall_level = $this->enemy_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
 
+        // 1. Mauer-Eigenschutz (Soak)
+        // Jede Mauerstufe schluckt einen festen Betrag an Schaden, bevor die HP sinken.
+        $wall_absorption = $wall_level * 100;
+
+        $enemy_defense_without_wall = 0;
         foreach ($this->soldier_types as $id => $soldier) {
             $enemy_defense_without_wall += $this->enemy_soldiers[$id] * $soldier["defense"];
         }
 
+        // Die Differenz zwischen Angriffs-Pool und Truppen-Verteidigung
         $damage_diff = $this->accumulated_damage - $enemy_defense_without_wall;
-        $damage_to_wall = $damage_diff > 0
-            ? (int)round(min($current_wall_hp, $damage_diff * 0.4))
-            : (int)max(1, min($current_wall_hp, $this->accumulated_damage * 0.05));
 
+        if ($damage_diff > 0) {
+            // Angreifer hat gewonnen:
+            // Wir ziehen erst den Eigenschutz der Mauer ab
+            $effective_damage = max(0, $damage_diff - $wall_absorption);
+
+            // 2. Faktor massiv senken (von 40% auf z.B. 3%)
+            // Ohne Belagerungswaffen sollten Soldaten kaum eine Steinmauer einreißen.
+            $damage_to_wall = $effective_damage * 0.03;
+        } else {
+            // Angreifer hat verloren oder Gleichstand:
+            // Nur minimaler Abnutzungsschaden (0,1% statt 5%)
+            $damage_to_wall = $this->accumulated_damage * 0.001;
+        }
+
+        // 3. Belagerungs-Bonus (Schmiede/Technik) einrechnen
         $res_atk = $this->mysqli->execute_query("SELECT kingdomid FROM events WHERE eventid = ?", [$this->event_id]);
         $attacker_kingdom_id = $res_atk->fetch_column();
 
@@ -117,10 +135,14 @@ class Conquest
             [$attacker_kingdom_id, TechTypes::TECH_TYPE_SIEGE]);
         $siege_lvl = ($res_siege->num_rows > 0) ? $res_siege->fetch_column() : 0;
 
+        // Belagerungstechnik erhöht den Schaden an der Mauer
         $multiplier = 1 + ($siege_lvl * SMITHY_SIEGE_BONUS);
-        $damage_to_wall = (int)round($damage_to_wall * $multiplier);
+        $final_damage = (int)round($damage_to_wall * $multiplier);
 
-        return max(0, $current_wall_hp - $damage_to_wall);
+        // Sicherheitscheck: Mindestens 0, maximal aktuelle HP
+        $final_damage = max(0, min($current_wall_hp, $final_damage));
+
+        return $current_wall_hp - $final_damage;
     }
 
     public function get_enemy_soldiers(): void
@@ -225,7 +247,7 @@ class Conquest
 
     public function calculate_wall_bonus(): int
     {
-        $wall = (new Kingdom($this->mysqli))->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
+        $wall = new Kingdom($this->mysqli)->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
 
         if (!$wall) {
             return 0;
@@ -235,105 +257,69 @@ class Conquest
             $wall->get_building_level());
     }
 
-//    public function calculate_battle_outcome(): void
-//    {
-//        foreach ($this->soldier_types as $attacker_id => $attacker_soldier) {
-//            if ($this->soldiers[$attacker_id]["count"] > 0) {
-//                foreach ($this->soldier_types as $defender_id => $defender_soldier) {
-//                    if ($this->enemy_soldiers[$defender_id] > 0) {
-//                        // Calculate damage done (for wall hp)
-//                        $damage_done = min($this->my_total_atk[$attacker_id], $this->enemy_total_def[$defender_id]);
-//                        $this->accumulated_damage += $damage_done;
-//
-//                        $outcome_for_me = ceil(
-//                            max($this->my_total_atk[$attacker_id] - $this->enemy_total_def[$defender_id], 0) / $this->soldier_type_atk[$attacker_id]
-//                        );
-//                        $outcome_for_enemy = ceil(
-//                            max($this->enemy_total_def[$defender_id] - $this->my_total_atk[$attacker_id], 0) / $this->soldier_type_def[$defender_id]
-//                        );
-//
-//                        $this->soldiers[$attacker_id]["count"] = $outcome_for_me;
-//                        $this->enemy_soldiers[$defender_id] = $outcome_for_enemy;
-//
-//                        // Calculate unit loss
-//                        $this->initial_soldiers[$attacker_id]["my_losses"] = $this->initial_soldiers[$attacker_id]["initial_my_soldiers"] - $this->soldiers[$attacker_id]["count"];
-//                        $this->initial_soldiers[$defender_id]["enemy_losses"] = $this->initial_soldiers[$defender_id]["initial_enemy_soldiers"] - $this->enemy_soldiers[$defender_id];
-//
-//                        // Recalculate total ATK for type and DEF for enemy type
-//                        $this->my_total_atk[$attacker_id] = $this->soldiers[$attacker_id]["count"] * $this->soldier_type_atk[$attacker_id];
-//                        $this->enemy_total_def[$defender_id] = $this->enemy_soldiers[$defender_id] * $this->soldier_type_def[$defender_id];
-//                    }
-//                }
-//            }
-//        }
-//    }
-
     public function calculate_battle_outcome(): void
     {
-        $playerAtkPool = 0;
-        $playerDefPool = 0;
-        $enemyAtkPool = 0;
-        $enemyDefPool = 0;
+        $player_atk_pool = 0;
+        $player_def_pool = 0;
+        $enemy_atk_pool = 0;
+        $enemy_def_pool = 0;
 
-        $totalOwnUnits = array_sum(array_column($this->initial_soldiers, 'initial_my_soldiers'));
-        $totalEnemyUnits = array_sum(array_column($this->initial_soldiers, 'initial_enemy_soldiers'));
+        $total_own_units = array_sum(array_column($this->initial_soldiers, "initial_my_soldiers"));
+        $total_enemy_units = array_sum(array_column($this->initial_soldiers, "initial_enemy_soldiers"));
 
-        if ($totalOwnUnits <= 0 || $totalEnemyUnits <= 0) return;
+        if ($total_own_units <= 0 || $total_enemy_units <= 0) return;
 
-        // 1. Pools berechnen (Simultaner Angriff beider Seiten)
         foreach ($this->soldier_types as $id => $unit) {
             $ownCount = $this->initial_soldiers[$id]["initial_my_soldiers"];
             $enemyCount = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
 
-            // --- Spieler Angriffs-Pool ---
             if ($ownCount > 0) {
                 $bonus = 1.0;
+
                 foreach ($this->soldier_types as $id_target => $unit_target) {
                     if ($this->initial_soldiers[$id_target]["initial_enemy_soldiers"] > 0) {
-                        $share = $this->initial_soldiers[$id_target]["initial_enemy_soldiers"] / $totalEnemyUnits;
-                        if (($unit['category'] == 0 && $unit_target['category'] == 1) ||
-                            ($unit['category'] == 1 && $unit_target['category'] == 2) ||
-                            ($unit['category'] == 2 && $unit_target['category'] == 0)) {
+                        $share = $this->initial_soldiers[$id_target]["initial_enemy_soldiers"] / $total_enemy_units;
+
+                        if (($unit["category"] == 0 && $unit_target["category"] == 1) ||
+                            ($unit["category"] == 1 && $unit_target["category"] == 2) ||
+                            ($unit["category"] == 2 && $unit_target["category"] == 0)) {
                             $bonus += (0.5 * $share);
                         }
                     }
                 }
-                $playerAtkPool += ($ownCount * $this->soldier_type_atk[$id] * $bonus);
+                $player_atk_pool += ($ownCount * $this->soldier_type_atk[$id] * $bonus);
             }
 
-            // --- Gegner Angriffs-Pool ---
             if ($enemyCount > 0) {
                 $bonus = 1.0;
+
                 foreach ($this->soldier_types as $id_target => $unit_target) {
                     if ($this->initial_soldiers[$id_target]["initial_my_soldiers"] > 0) {
-                        $share = $this->initial_soldiers[$id_target]["initial_my_soldiers"] / $totalOwnUnits;
-                        if (($unit['category'] == 0 && $unit_target['category'] == 1) ||
-                            ($unit['category'] == 1 && $unit_target['category'] == 2) ||
-                            ($unit['category'] == 2 && $unit_target['category'] == 0)) {
+                        $share = $this->initial_soldiers[$id_target]["initial_my_soldiers"] / $total_enemy_units;
+
+                        if (($unit["category"] == 0 && $unit_target["category"] == 1) ||
+                            ($unit["category"] == 1 && $unit_target["category"] == 2) ||
+                            ($unit["category"] == 2 && $unit_target["category"] == 0)) {
                             $bonus += (0.5 * $share);
                         }
                     }
                 }
-                // Hier nutzen wir die Basis-Werte des Verteidigers (da er keine Schmiede-Boni etc. hat)
-                $enemyAtkPool += ($enemyCount * $unit['attack'] * $bonus);
+
+                $enemy_atk_pool += ($enemyCount * $unit["attack"] * $bonus);
             }
 
-            // --- Verteidigungs-Pools ---
-            $playerDefPool += ($ownCount * $this->soldier_type_def[$id]);
-            $enemyDefPool += ($enemyCount * $this->soldier_type_def[$id]);
+            $player_def_pool += ($ownCount * $this->soldier_type_def[$id]);
+            $enemy_def_pool += ($enemyCount * $this->soldier_type_def[$id]);
         }
 
-        // 2. Verlustraten bestimmen
-        $playerLossRatio = ($playerDefPool > 0) ? min(1.0, $enemyAtkPool / $playerDefPool) : 1.0;
-        $enemyLossRatio = ($enemyDefPool > 0) ? min(1.0, $playerAtkPool / $enemyDefPool) : 1.0;
-        $playerLossRatio = round($playerLossRatio, 6);
-        $enemyLossRatio = round($enemyLossRatio, 6);
+        $player_loss_ratio = ($player_def_pool > 0) ? min(1.0, $enemy_atk_pool / $player_def_pool) : 1.0;
+        $enemy_loss_ratio = ($enemy_def_pool > 0) ? min(1.0, $player_atk_pool / $enemy_def_pool) : 1.0;
+        $player_loss_ratio = round($player_loss_ratio, 6);
+        $enemy_loss_ratio = round($enemy_loss_ratio, 6);
 
-        // 3. Verluste anwenden
         foreach ($this->soldier_types as $id => $unit) {
-            // Umstieg auf round()
-            $my_losses = round($this->initial_soldiers[$id]["initial_my_soldiers"] * $playerLossRatio);
-            $en_losses = round($this->initial_soldiers[$id]["initial_enemy_soldiers"] * $enemyLossRatio);
+            $my_losses = round($this->initial_soldiers[$id]["initial_my_soldiers"] * $player_loss_ratio);
+            $en_losses = round($this->initial_soldiers[$id]["initial_enemy_soldiers"] * $enemy_loss_ratio);
 
             $this->initial_soldiers[$id]["my_losses"] = (int)$my_losses;
             $this->initial_soldiers[$id]["enemy_losses"] = (int)$en_losses;
@@ -342,8 +328,7 @@ class Conquest
             $this->enemy_soldiers[$id] = $this->initial_soldiers[$id]["initial_enemy_soldiers"] - (int)$en_losses;
         }
 
-        // 4. Schaden für die Mauer speichern
-        $this->accumulated_damage = $playerAtkPool;
+        $this->accumulated_damage = $player_atk_pool;
     }
 
     public function calculate_loss_counts(): void
@@ -411,29 +396,34 @@ class Conquest
 
     public function deploy_soldiers_to_kingdom(): void
     {
-        $this->my_message .= "<table class='table'>
-                                            <tr>
-                                                <td class='td-center td-gradient'>Einheit</td>
-                                                <td class='td-center td-gradient'>Anzahl</td>
-                                            </tr>";
-
-        // Update/Insert troops to new kingdom
-        foreach ($this->soldiers as $soldier_id => $soldier_data) {
-            $this->my_message .= "<tr>
-                                                <td class='td-center'>{$soldier_data["name"]}</td>
-                                                <td class='td-center'>{$soldier_data["count"]}</td>
-                                              </tr>";
-
-            $query = "
-                    INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
-                    VALUES (?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount);
-            ";
-            $this->mysqli->execute_query($query, [$this->target_id, $soldier_id, $soldier_data["name"], $soldier_data["count"]]);
+        if (empty($this->soldiers)) {
+            return;
         }
-        $this->my_message .= "</table>";
 
-        // Delete the event and senttroops
+        $values_parts = [];
+        $params = [];
+
+        foreach ($this->soldiers as $soldier_id => $soldier_data) {
+            if ($soldier_data["count"] > 0) {
+                $values_parts[] = "(?, ?, ?, ?)";
+                $params[] = $this->target_id;
+                $params[] = $soldier_id;
+                $params[] = $soldier_data["name"];
+                $params[] = $soldier_data["count"];
+            }
+        }
+
+        if (!empty($values_parts)) {
+            $query = "
+            INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
+            VALUES " . implode(', ', $values_parts) . "
+            ON DUPLICATE KEY UPDATE soldiercount = soldiers.soldiercount + VALUES(soldiercount);
+        ";
+
+            $this->mysqli->execute_query($query, $params);
+        }
+
+        // Cleanup
         $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$this->event_id]);
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$this->event_id]);
     }
@@ -463,16 +453,6 @@ class Conquest
         return $this->enemy_score_loss;
     }
 
-    public function get_my_message(): string
-    {
-        return $this->my_message;
-    }
-
-    public function get_enemy_message(): string
-    {
-        return $this->enemy_message;
-    }
-
     public function get_initial_soldier_count(): int
     {
         return $this->initial_soldier_count;
@@ -488,9 +468,9 @@ class Conquest
         return min(BASE_CONQUEST_CHANCE + ($conquerer_count * MIN_CONQUEST_CHANCE), MAX_CONQUEST_CHANCE) * 100;
     }
 
-    public function is_conquered(int $success_rate): bool
+    public function is_conquered(float $success_rate): bool
     {
-        return mt_rand(0, 100) < $success_rate;
+        return mt_rand(0, 100) <= $success_rate;
     }
 
     public function has_noob_protection(int $attacker_score, int $defender_score): bool
@@ -500,36 +480,6 @@ class Conquest
         $max_score = $attacker_score / $noob_mult;
 
         return $defender_score < $min_score || $defender_score > $max_score;
-    }
-
-    public function append_my_after_battle_message(): string
-    {
-        if ($this->my_loss_count == 0) {
-            $this->my_message = "Wir haben den Kampf unbeschadet überstanden!<br>";
-        } else if (($this->my_loss_count / $this->initial_soldier_count) >= 0.5 && ($this->my_loss_count / $this->initial_soldier_count) < 1) {
-            $this->my_message = "Wir haben mehr als die Hälfte unserer Truppen verloren...<br>";
-        } else if (($this->my_loss_count / $this->initial_soldier_count) > 0 && ($this->my_loss_count / $this->initial_soldier_count) < 0.5) {
-            $this->my_message = "Wir haben ein paar unserer Truppen verloren.<br>";
-        } else {
-            $this->my_message = "Wir wurden komplett vom Gegner aufgerieben...<br>";
-        }
-
-        return $this->my_message;
-    }
-
-    public function append_enemy_after_battle_message(): string
-    {
-        if ($this->enemy_loss_count == 0) {
-            $this->enemy_message = "Wir haben den Kampf unbeschadet überstanden!<br>";
-        } else if (($this->enemy_loss_count / $this->initial_enemy_count) >= 0.5 && ($this->enemy_loss_count / $this->initial_enemy_count) < 1) {
-            $this->enemy_message = "Wir haben mehr als die Hälfte unserer Truppen verloren...<br>";
-        } else if (($this->enemy_loss_count / $this->initial_enemy_count) > 0 && ($this->enemy_loss_count / $this->initial_enemy_count) < 0.5) {
-            $this->enemy_message = "Wir haben ein paar unserer Truppen verloren.<br>";
-        } else {
-            $this->enemy_message = "Wir wurden komplett vom Gegner aufgerieben...<br>";
-        }
-
-        return $this->enemy_message;
     }
 
     public function get_initial_soldiers_detailed(): array
@@ -605,12 +555,16 @@ class Conquest
 
         foreach ($this->soldier_types as $id => $soldier) {
             $initial = $for_attacker
-                ? $this->initial_soldiers[$id]["initial_my_soldiers"]
-                : $this->initial_soldiers[$id]["initial_enemy_soldiers"];
+                ? ($this->initial_soldiers[$id]["initial_my_soldiers"] ?? 0)
+                : ($this->initial_soldiers[$id]["initial_enemy_soldiers"] ?? 0);
 
             $losses = $for_attacker
-                ? $this->initial_soldiers[$id]["my_losses"]
-                : $this->initial_soldiers[$id]["enemy_losses"];
+                ? ($this->initial_soldiers[$id]["my_losses"] ?? 0)
+                : ($this->initial_soldiers[$id]["enemy_losses"] ?? 0);
+
+            if ($initial === 0 && $for_attacker && isset($this->soldiers[$id]["count"])) {
+                $initial = $this->soldiers[$id]["count"];
+            }
 
             if ($initial > 0) {
                 $res = $this->mysqli->execute_query("SELECT icon FROM soldierlist WHERE id = ?", [$id]);

@@ -9,6 +9,15 @@ $user_id = -1;
 if ($user->get_user_admin_level() == 0) {
     $error = "Du bist kein Administrator!";
 } else {
+    if (isset($_POST["toggle_maintenance"])) {
+        $new_val = (MAINTENANCE_MODE ? "0" : "1");
+        $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$new_val]);
+        $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON" : "OFF"));
+
+        change_location("adminpanel.php");
+        exit;
+    }
+
     if (isset($_GET["banuser"]) || isset($_GET["unbanuser"])) {
         $uid = (int)($_GET["banuser"] ?? $_GET["unbanuser"]);
 
@@ -224,34 +233,44 @@ if ($user->get_user_admin_level() == 0) {
             $view .= '<h3>Multi-Account Check</h3>';
             $view .= '<table class="table">';
 
-            $multi_ip = $db_instance->execute_query("SELECT id, username FROM users WHERE ip = ? AND id != ?", [$row['ip'], $user_id]);
-            $multi_device = $db_instance->execute_query("SELECT id, username FROM users WHERE device_id = ? AND id != ? AND device_id IS NOT NULL", [$row['device_id'], $user_id]);
+            // Calculate Root IP
+            $ip_parts = explode('.', $row["ip"]);
+            $subnet = "";
+            if (count($ip_parts) === 4) {
+                $subnet = $ip_parts[0] . '.' . $ip_parts[1] . '.' . $ip_parts[2] . '.%';
+            } else {
+                // Fallback for IPv6
+                $ipv6_parts = explode(':', $row["ip"]);
+                if (count($ipv6_parts) > 4) {
+                    $subnet = $ipv6_parts[0] . ':' . $ipv6_parts[1] . ':' . $ipv6_parts[2] . ':' . $ipv6_parts[3] . ':%';
+                } else {
+                    $subnet = $row["ip"]; // Fallback
+                }
+            }
 
-            // Show IP matching
-            $view .= '<tr><td style="width: 30%;">Gleiche IP:</td><td>';
+            // Check for Subnet (Root IP)
+            $multi_ip = $db_instance->execute_query(
+                "SELECT id, username, ip FROM users WHERE ip LIKE ? AND id != ?",
+                [$subnet, $user_id]
+            );
+
+            $multi_device = $db_instance->execute_query(
+                "SELECT id, username FROM users WHERE device_id = ? AND id != ? AND device_id IS NOT NULL",
+                [$row["device_id"], $user_id]
+            );
+
+            // Show Subnet Result
+            $view .= '<tr><td style="width: 30%;">Gleiches Subnetz:</td><td>';
 
             if ($multi_ip->num_rows > 0) {
                 foreach ($multi_ip as $m) {
-                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m['username']) . '</a> ';
+                    $is_exact = ($m['ip'] === $row['ip']) ? ' <b>(Exakt)</b>' : ' (Subnetz)';
+                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m['username']) . '</a>' . $is_exact . '<br>';
                 }
             } else {
                 $view .= '<span class="passed">Keine Treffer</span>';
             }
-
             $view .= '</td></tr>';
-
-            // Show Device ID matching
-            $view .= "<tr><td>Gleiches Gerät:</td><td>";
-
-            if ($multi_device->num_rows > 0) {
-                foreach ($multi_device as $m) {
-                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m['username']) . ' (Fingerabdruck)</a> ';
-                }
-            } else {
-                $view .= '<span class="passed">Keine Treffer</span>';
-            }
-
-            $view .= "</td></tr>";
             $view .= "</table>";
 
             // Display kingdoms
@@ -320,7 +339,7 @@ if ($user->get_user_admin_level() == 0) {
             }
         }
     } else if (isset($_GET["deleteuser"])) {
-        $user_id = htmlspecialchars($_GET["deleteuser"]);
+        $user_id = (int)$_GET["deleteuser"];
 
         // Check if user id was found and get all kingdoms for updating the map
         $query = "
@@ -352,6 +371,20 @@ if ($user->get_user_admin_level() == 0) {
             $error .= "Der Benutzer existiert nicht!";
         }
     }
+
+    // Show Server Settings
+    $m_status = MAINTENANCE_MODE ? "<span class='error'>AKTIV</span>" : "<span class='passed'>Inaktiv</span>";
+    $m_button = MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren";
+
+    $settings_list = "<div class='box-container' style='margin-bottom: 20px;'>
+                <div class='box-header'>System-Steuerung</div>
+                <div class='box-content' style='padding: 15px;'>
+                    <b>Wartungsmodus:</b> $m_status 
+                    <form method='POST' style='display:inline; margin-left: 20px;'>
+                        <input type='submit' name='toggle_maintenance' value='$m_button'>
+                    </form>
+                </div>
+            </div>";
 
     // Display all users
     $result = $db_instance->execute_query("SELECT * FROM users");
@@ -385,7 +418,7 @@ $script_files = ["adminpanel"];
 if (!empty($error)) {
     $view = show_error_box($error) . $view;
 } else {
-    $view = $user_list . $view;
+    $view = $settings_list . $user_list . $view;
 }
 
 include("layout/base.php");

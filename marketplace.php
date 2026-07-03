@@ -30,12 +30,14 @@ $default_supply = ResourceTypes::RESOURCE_TYPE_FOOD;
 $default_demand = ResourceTypes::RESOURCE_TYPE_WOOD;
 
 if (isset($_GET["accept"])) {
+    $accept_id = (int)$_GET["accept"];
+
     $result = $db_instance->execute_query("
         SELECT m.*, k.mapx, k.mapy, u.ip AS seller_ip, u.device_id AS seller_device
         FROM marketplace m 
         JOIN kingdoms k ON m.kingdomid = k.id 
         JOIN users u ON m.userid = u.id
-        WHERE m.offerid = ?", [$_GET["accept"]]);
+        WHERE m.offerid = ?", [$accept_id]);
     $row = $result->fetch_assoc();
 
     if ($row && $row["userid"] != $user->get_user_id()) {
@@ -110,14 +112,14 @@ if (isset($_GET["accept"])) {
                     send_server_message($creator_id, $creator_name, $seller_message, MessageCategories::CATEGORY_TRADE);
 
                     // Delete the offer and send a confirmation text
-                    $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["accept"]]);
+                    $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$accept_id]);
 
                     // Update daily trades count for the user
                     $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$u_id]);
                     $daily_trades_count++;
 
                     $logger->log_game("TRADE", "OFFER_ACCEPT", [
-                        "offer_id" => $_GET["accept"],
+                        "offer_id" => $accept_id,
                         "seller_id" => $creator_id,
                         "resource" => $supply,
                         "amount" => $supply_value,
@@ -135,8 +137,10 @@ if (isset($_GET["accept"])) {
         $error = "Dieses Angebot existiert nicht oder ist von einem deiner Königreiche!";
     }
 } else if (isset($_GET["delete"])) {
+    $delete_id = (int)$_GET["delete"];
+
     $result = $db_instance->execute_query("SELECT supply, supplyvalue, kingdomid FROM marketplace 
-                                      WHERE offerid = ? AND userid = ?", [$_GET["delete"], $user->get_user_id()]);
+                                      WHERE offerid = ? AND userid = ?", [$delete_id, $user->get_user_id()]);
     $row = $result->fetch_assoc();
 
     if ($row) {
@@ -149,7 +153,7 @@ if (isset($_GET["accept"])) {
         $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
 
         // Delete the marketplace offer
-        $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$_GET["delete"]]);
+        $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$delete_id]);
         $view .= show_passed_box("Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.");
 
         // Refund daily offer count
@@ -157,7 +161,7 @@ if (isset($_GET["accept"])) {
         $daily_trades_count--;
 
         $logger->log_game("TRADE", "OFFER_DELETE", [
-            "offer_id" => $_GET["delete"],
+            "offer_id" => $delete_id,
             "refund_res" => $row["supply"],
             "refund_amount" => $row["supplyvalue"]
         ], $current_kingdom);
@@ -165,10 +169,10 @@ if (isset($_GET["accept"])) {
         $error = "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
     }
 } else if (!empty($_GET["sv"]) && !empty($_GET["dv"])) {
-    $supply_value = $_GET["sv"];
-    $demand_value = $_GET["dv"];
-    $supply = $_GET["s"];
-    $demand = $_GET["d"];
+    $supply_value = (int)$_GET["sv"];
+    $demand_value = (int)$_GET["dv"];
+    $supply = (int)$_GET["s"];
+    $demand = (int)$_GET["d"];
 
     if ($supply < 0 || $supply > 3 || $demand < 0 || $demand > 3) {
         $error = "Diese Ressource gibt es nicht!";
@@ -308,7 +312,7 @@ if (isset($_GET["send_own"])) {
 
 // PAGINATION
 $rows_per_page = 10;
-$current_page = isset($_GET["currentpage"]) ? max(1, (int)$_GET["currentpage"]) : 1;
+$current_page = max(1, (int)($_GET["currentpage"] ?? 1));
 
 $num_rows = $db_instance->execute_query("SELECT COUNT(*) FROM marketplace")->fetch_row()[0];
 $total_pages = ceil($num_rows / $rows_per_page);
@@ -423,7 +427,7 @@ if ($result->num_rows > 0) {
         $map_y = $row["mapy"];
         $is_my_offer = ($row["userid"] == $user->get_user_id());
         $remaining = $row["expires_at"] - time();
-        $time_str = convert_sec_to_str($remaining);
+        $time_str = convert_sec_to_str($remaining, true);
 
         if ($is_my_offer) {
             $arrival_time_str = "-";

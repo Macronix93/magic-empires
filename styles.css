@@ -181,14 +181,17 @@ option {
 }
 
 .title-border {
-    border-bottom: 2px double var(--border-gold);
-    width: 50%;
-    line-height: 40px;
+    width: fit-content;
+    min-width: 50%;
+    max-width: 100%;
     margin: 0 auto 15px auto;
+    line-height: 40px;
     text-transform: uppercase;
     letter-spacing: 2px;
     text-align: center;
+    border-bottom: 2px double var(--border-gold);
 }
+
 
 hr {
     background-color: var(--border-gold);
@@ -1303,14 +1306,19 @@ tr:first-child .td-center {
 .overlay-modal {
     position: fixed;
     z-index: 3001;
-    top: 100px;
+    top: 50px;
     left: 50%;
-    transform: translateX(-50%);
-    width: fit-content;
+    transform: translate3d(0, 0, 0) translateX(-50%);
+    width: 95vw;
+    max-width: 850px;
+    max-height: 80vh;
+    display: none;
+    grid-template-rows: min-content 1fr;
     background-color: var(--box-content-color, #1a1a1a);
     border: 2px solid #555;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
     border-radius: 5px;
+    overflow: hidden;
 }
 
 .overlay-header {
@@ -1327,13 +1335,16 @@ tr:first-child .td-center {
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+    touch-action: none;
 }
 
 .overlay-body {
-    padding: 15px;
-    max-height: fit-content;
+    padding: 10px;
     overflow-y: auto;
+    overflow-x: hidden;
     color: #eee;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
 }
 
 .overlay-close-btn {

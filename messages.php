@@ -62,7 +62,7 @@ if (isset($_POST["sendpm"])) {
 
 if (isset($_GET["action"])) {
     if ($_GET["action"] == "new") {
-        $receiver = isset($_GET["s"]) ? htmlspecialchars($_GET["s"]) : "";
+        $receiver = isset($_GET["s"]) ? (int)$_GET["s"] : "";
         $receiver_value = isset($_GET["receiver"]) ? htmlspecialchars($_GET["receiver"]) : (isset($_POST["receiver"]) ? htmlspecialchars($_POST["receiver"]) : "");
         $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
 
@@ -189,7 +189,7 @@ if (isset($_GET["action"])) {
             }
         }
     } else if ($_GET["action"] == "delete") {
-        $chat_partner_id = htmlspecialchars($_GET["s"]);
+        $chat_partner_id = (int)$_GET["s"];
         $user_id = $user->get_user_id();
 
         if (empty($chat_partner_id)) {

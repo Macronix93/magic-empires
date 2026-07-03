@@ -5,8 +5,7 @@ check_user_login($user);
 
 $rows_per_page = MAX_ROWS_PER_RANKING_PAGE;
 // Get the current page or set a default
-$current_page = isset($_GET["currentpage"]) ? max(1, $_GET["currentpage"]) : 1;
-if ($current_page < 1) $current_page = 1;
+$current_page = max(1, (int)($_GET["currentpage"] ?? 1));
 
 // Get the total number of rows
 $num_rows = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE status = 1")->fetch_row()[0];

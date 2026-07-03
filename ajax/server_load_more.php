@@ -4,7 +4,7 @@ require_once("../includes/core.php");
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     if (isset($_GET["oldest_id"])) {
         $oldest_id = (int)$_GET["oldest_id"];
-        $category = $_GET["category"] ?? 'Alle';
+        $category = $_GET["category"] ?? "Alle";
         $limit = SHOW_MESSAGES_LIMIT;
 
         $messages_obj = new Messages($db_instance, $user);

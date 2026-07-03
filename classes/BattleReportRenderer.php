@@ -31,8 +31,12 @@ class BattleReportRenderer
 
         // Attacker Column
         $html .= "<div class='battle-column'><div class='report-section-title'>$atk_label</div>";
-        foreach ($attacker_units as $u) {
-            $html .= self::render_unit_card($u["name"], $u["initial"], $u["losses"], $u["icon"]);
+        if (empty($attacker_units)) {
+            $html .= "<i>Wir haben keine Truppen!</i>";
+        } else {
+            foreach ($attacker_units as $u) {
+                $html .= self::render_unit_card($u["name"], $u["initial"], $u["losses"], $u["icon"]);
+            }
         }
         $html .= "</div>";
 
@@ -98,5 +102,48 @@ class BattleReportRenderer
                     <span class='battle-unit-count'>$survivors <small>/ $initial</small> $losses_text</span>
                 </div>
             </div>";
+    }
+
+    public static function render_outcome_box(string $title, string $main_text, int $wall_before = 0, int $wall_after = 0, string $sub_text = "", string $type = "neutral",
+                                              array  $resources = []): string
+    {
+        $styles = [
+            "success" => ["bg" => "rgba(46, 204, 113, 0.2)", "border" => "#2ecc71"],
+            "error" => ["bg" => "rgba(231, 76, 60, 0.2)", "border" => "#e74c3c"],
+            "neutral" => ["bg" => "rgba(212, 175, 55, 0.1)", "border" => "rgb(165, 124, 0)"],
+            "normal" => ["bg" => "rgba(255, 255, 255, 0.05)", "border" => "rgba(212, 175, 55, 0.2)"]
+        ];
+
+        $style = $styles[$type] ?? $styles["neutral"];
+
+        $html = "<div class='battle-column' style='background: {$style["bg"]}; border-color: {$style["border"]}; margin-top: 10px;'>";
+        $html .= "<div class='report-section-title' style='border-color: {$style["border"]};'>$title</div>";
+        $html .= "<div style='font-size: 1.1em; margin-bottom: 5px;'>$main_text</div>";
+
+        if ($wall_before > 0 || $wall_after > 0) {
+            $wall_icon = get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE);
+            $destroyed = ($wall_after <= 0) ? " <span class='error'>(Zerstört)</span>" : "";
+            $html .= "<div>$wall_icon Mauer: $wall_before &rarr; $wall_after$destroyed</div>";
+        }
+
+        if (!empty($resources)) {
+            $html .= "<div style='display: flex; gap: 15px; justify-content: center;'>";
+
+            foreach ($resources as $res_id => $amount) {
+                if ($amount > 0) {
+                    $html .= "<div>" . get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
+                }
+            }
+
+            $html .= "</div>";
+        }
+
+        if (!empty($sub_text)) {
+            $html .= "<div style='font-style: italic; opacity: 0.9; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;'>$sub_text</div>";
+        }
+
+        $html .= "</div>";
+
+        return $html;
     }
 }

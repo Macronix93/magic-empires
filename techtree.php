@@ -42,7 +42,7 @@ for ($i = 0; $i < count($buildings); $i++) {
     }
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                <td style='width: 30%;'>
+                <td style='width: 35%;'>
                 <a href='#'
                    data-on-click='openOverlay'
                    data-url='techinfo.php?bid=" . e($i) . "'
@@ -98,7 +98,7 @@ for ($i = 0; $i < count($techs); $i++) {
 
     $view .= "<tr>
                 <td class='td-center' style='width: 5%;'>{$techs[$i]->get_tech_icon()}</td>
-                <td style='width: 30%;'>
+                <td style='width: 35%;'>
                     <a href='#' 
                        data-on-click='openOverlay' 
                        data-url='techinfo.php?tid=" . e($i) . "' 
@@ -110,6 +110,31 @@ for ($i = 0; $i < count($techs); $i++) {
               </tr>";
 }
 
+$view .= '</table>';
+
+$view .= '<br><table class="table">
+    <tr>
+        <td class="td-center td-gradient" colspan="2"><b>Einheiten</b></td>
+        <td class="td-center td-gradient"><b>Voraussetzungen</b></td>
+    </tr>';
+
+$res_soldiers = $db_instance->execute_query("SELECT * FROM soldierlist ORDER BY category, requiredlevel");
+foreach ($res_soldiers as $row) {
+    $s_obj = new Soldier();
+    $s_obj->fill_from_row($row);
+
+    $req_lvl = $s_obj->get_soldier_required_level();
+    $barracks_lvl = $buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level();
+
+    $is_hero = $s_obj->get_soldier_id() == Soldiers::SOLDIER_HERO;
+    $status_class = $is_hero ? "style='font-style: italic;'" : (($barracks_lvl >= $req_lvl) ? "class='passed'" : "class='error'");
+
+    $view .= "<tr>
+                <td class='td-center' style='width: 5%;'>{$s_obj->get_soldier_icon()}</td>
+                <td style='width: 35%;'>{$s_obj->get_soldier_name()}</td>
+                <td><span $status_class>" . ($is_hero ? "Verteilung alle 24 Stunden" : "Kaserne ($req_lvl)") . "</span></td>
+              </tr>";
+}
 $view .= '</table>';
 
 /*

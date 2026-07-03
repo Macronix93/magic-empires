@@ -34,7 +34,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             $soldier = new Soldier();
             $soldier->fill_from_row($row);
 
-            $soldiers[] = $soldier;
+            $soldiers[$soldier->get_soldier_id()] = $soldier;
             $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
         }
 
@@ -42,8 +42,8 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
         $result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$user->get_current_kingdom()]);
 
         foreach ($result as $row) {
-            $soldier_id = $row['soldierid'] ?? -1;
-            $sol_count = $row['soldiercount'] ?? 0;
+            $soldier_id = $row["soldierid"] ?? -1;
+            $sol_count = $row["soldiercount"] ?? 0;
             $kingdom_soldiers[$soldier_id] = $sol_count;
         }
 
@@ -87,22 +87,19 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 [$user->get_current_kingdom(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]
             );
             $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
+            $imp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
+            $max_settled_slots = BASE_SETTLEMENT_LIMIT + $imp_lvl;
+            $current_k_count = ($settler_wagon_count > 0 ? $db_instance->execute_query(
+                "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
+                [$user->get_user_id()])->fetch_assoc()["total"]
+                : 0);
 
             if (!$has_soldiers) {
-                $view .= show_error_box("Du musst mindestens einen Soldaten auswählen!");
+                $error = "Du musst mindestens einen Soldaten auswählen!";
             } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
                 $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
-            } else if ($kingdom_id == -1 && $settler_wagon_count > 0) {
-                $imp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
-                $max_settled_slots = BASE_SETTLEMENT_LIMIT + $imp_lvl;
-                $k_count_res = $db_instance->execute_query(
-                    "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
-                    [$user->get_user_id()]
-                );
-
-                if ($k_count_res->fetch_assoc()["total"] >= $max_settled_slots) {
-                    $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
-                }
+            } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_k_count >= $max_settled_slots) {
+                $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
             } else if (empty($error)) {
                 $now = time();
 
@@ -181,7 +178,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             change_location("map.php?startx=$target_x&starty=$target_y", 3);
         } else {
             // Noob protection message
-            if ((new Conquest($db_instance))->has_noob_protection($user->get_user_score(), $score) && $enemy_user_id != -1) {
+            if (new Conquest($db_instance)->has_noob_protection($user->get_user_score(), $score) && $enemy_user_id != -1) {
                 $view .= show_error_box("Euer Punktestand ist zu unterschiedlich (Noob-Schutz)!");
 
                 change_location("map.php?startx=$target_x&starty=$target_y", 3);
@@ -259,8 +256,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
 
-                for ($i = 0; $i < count($soldiers); $i++) {
-                    $s_obj = $soldiers[$i];
+                foreach ($soldiers as $soldier_id => $s_obj) {
                     $soldier_id = $s_obj->get_soldier_id();
                     $soldier_name = $s_obj->get_soldier_name();
                     $unit_cat = $s_obj->get_soldier_category();

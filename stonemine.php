@@ -49,7 +49,7 @@ if (isset($_POST["activate_boost"])) {
 /*
  * HTML Content Part
  */
-$view .= "<div style='margin-bottom: 15px;'><b>Steinertrag pro Stunde:</b> " . fnum($kingdom->get_kingdom_stone_per_hour()) . " $boost_display</div>";
+$view .= "<div style='margin-bottom: 15px;'><b>Steinertrag pro Stunde:</b> " . fnum($kingdom->get_base_stone_rate()) . " $boost_display</div>";
 
 if ($expiry > 0) {
     $view .= "Ertragsboost aktiv!<br>Ende in: <span class='js-countdown' data-seconds='" . ($expiry - time()) . "'></span>";
