@@ -56,9 +56,11 @@ if (!empty($_GET["key"])) {
 if (isset($_GET["logout"])) {
     if ($user->is_logged_in()) {
         if ($_GET["logout"] === "inactive") {
-            $warning = show_warning_box("Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!");
+            $warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
         } else if ($_GET["logout"] === "session") {
-            $warning = show_warning_box("Deine Session ist abgelaufen. Bitte logge dich erneut ein!");
+            $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
+        } else if ($_GET["logout"] === "maintenance") {
+            $warning = "Der Server befindet sich im Wartungsmodus!";
         }
 
         // Update anti spam
@@ -95,7 +97,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($row["is_banned"] == 1) {
                     $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
                 } else if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
-                    $warning = show_warning_box("Der Server befindet sich im Wartungsmodus!");
+                    $warning = "Der Server befindet sich im Wartungsmodus!";
                 } else {
                     if (!$row["status"]) {
                         $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
@@ -194,6 +196,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
+
+if (MAINTENANCE_MODE) {
+    $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
+
+    if (!str_contains($warning, $maintenance_text)) {
+        if (!empty($warning)) {
+            $warning .= "<br>";
+        }
+
+        $warning .= $maintenance_text;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -215,7 +229,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
                 if (!empty($error)) echo show_error_box($error);
-                if (!empty($warning)) echo $warning;
+                if (!empty($warning)) echo show_warning_box($warning);
                 ?>
                 <table class="table">
                     <tr>
@@ -229,9 +243,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </tr>
                 </table>
                 <input type="submit" name="login" value="Einloggen" style="width:125px; height:50px; margin: 15px 0;"/>
+                <br>
+                <a href="forgot_password.php" style="font-size: 14px; opacity: 0.8;">Passwort vergessen?</a>
                 <hr>
                 <i>Du bist noch nicht registriert? Registriere dich <a href="index.php?action=register"><b>hier</b></a>.</i>
             </fieldset>
+            <?php include_once("layout/copyright.php"); ?>
         </form>
 
     <?php else: ?>
@@ -240,6 +257,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <legend><b>Registrieren</b></legend>
                 <?php
                 if (!empty($success)) echo $success;
+                if (!empty($warning)) echo show_warning_box($warning);
                 if (!empty($error)) {
                     $error_messages = explode("<br>", $error);
 
@@ -280,6 +298,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <hr>
                 <i>Du bist bereits registriert? Logge dich <a href="index.php"><b>hier</b></a> ein.</i>
             </fieldset>
+            <?php include_once("layout/copyright.php"); ?>
         </form>
     <?php endif; ?>
 </div>

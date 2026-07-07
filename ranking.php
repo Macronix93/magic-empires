@@ -67,8 +67,8 @@ foreach ($result as $row) {
                 <td class='td-shrink' style='text-align: right; border-right: none;'>
                     <div style='position: relative; display: inline-block;'>$position
                         <div class='popup' id='description" . $position . "'>$icon</div>
+                        <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row["lastrank"]} ($change)</div>
                     </div>
-                    <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row["lastrank"]} ($change)</div>
                 </td>
                 <td class='td-expand'>
                     <div class='image-and-user'>
@@ -82,9 +82,10 @@ foreach ($result as $row) {
                            data-title='Spieler-Info'
                            class='popup' 
                            id='activity" . e($position) . "' 
-                           style='cursor: pointer;'>$user_name</a>
+                           style='cursor: pointer;'>$user_name
+                           <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
+                           </a>
                     </div>
-                    <div id='activity" . $position . "_box' class='popupbox'>Letzte Aktivität: $last_activity</div>
                 </td>
                 <td class='td-score'>" . fnum($row["score"]) . "</td>
             </tr>";

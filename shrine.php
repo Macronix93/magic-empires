@@ -77,12 +77,12 @@ $view .= "
     </div>";
 
 foreach ($aligns as $id => $data) {
-    $active = ($current_align == $id) ? "style='border: 2px solid var(--link-color); background: var(--box-selected);'" : "";
+    $active = ($current_align == $id) ? " border: 2px solid var(--link-color); background: var(--box-selected);" : "";
 
     $view .= "
-    <div class='box-container' $active>
+    <div class='box-container' style='margin: 0;$active'>
         <div class='box-header'>{$data['name']}</div>
-        <div class='box-content' style='padding: 10px;'>
+        <div class='box-content box-content-bg' style='padding: 10px;'>
             <span class='passed'>{$data['desc']}</span><br>
             <span class='error'>{$data['malus']}</span><br><br>
             <form method='POST'>

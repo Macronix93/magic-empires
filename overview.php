@@ -255,7 +255,7 @@ if ($result && $result->num_rows > 0) {
             $soldier_obj->set_soldier_icon($soldier["icon"]);
             $soldier_obj->set_soldier_name($soldier["name"]);
 
-            $soldiers_str .= "<div class='legend-item'>" . $soldier_obj->get_soldier_icon("ressource-icons") . "{$soldier['soldiercount']}x</div>";
+            $soldiers_str .= "<div class='legend-item'>" . $soldier_obj->get_soldier_icon("ressource-icons") . "{$soldier["soldiercount"]}x</div>";
         }
 
         $view .= "<tr>

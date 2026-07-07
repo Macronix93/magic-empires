@@ -43,6 +43,8 @@ foreach ($result as $row) {
     $soldiers[] = $soldier;
     $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
 }
+$total_k_atk = 0;
+$total_k_def = 0;
 
 $soldiers_count = count($soldiers);
 
@@ -265,6 +267,23 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
 /*
  * HTML Content Part
  */
+// Get soldiers of kingdom
+$result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
+
+$total_k_atk = 0;
+$total_k_def = 0;
+
+foreach ($result as $row) {
+    $soldier_id = $row["soldierid"] ?? -1;
+    $sol_count = $row["soldiercount"] ?? 0;
+    $kingdom_soldiers[$soldier_id] = $sol_count;
+
+    if (isset($soldiers[$soldier_id])) {
+        $total_k_atk += $sol_count * $soldiers[$soldier_id]->get_soldier_attack();
+        $total_k_def += $sol_count * $soldiers[$soldier_id]->get_soldier_defense();
+    }
+}
+
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();
 $kingdom_stone = $kingdom->get_kingdom_stone();
@@ -287,6 +306,21 @@ if (!empty($last_recruited_soldier)) {
 
     $user->clear_last_recruited_soldier($current_kingdom);
 }
+
+$view .= "
+<div style='max-width: 550px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-gold); border-radius: 5px; 
+            margin-left: auto; margin-right: auto; margin-bottom: 15px; display: flex; 
+            justify-content: flex-start; align-items: center; flex-wrap: wrap; padding: 10px;'>
+    <div class='legend-item' style='flex: 2;'>
+        <b>Garnisons-Stärke:</b>
+    </div>
+    <div class='legend-item' style='flex: 1;' title='Gesamter Angriffswert aller stationierten Truppen'>
+        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_k_atk) . "
+    </div>
+    <div class='legend-item' style='flex: 1;'  title='Gesamter Verteidigungswert aller stationierten Truppen'>
+        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_k_def) . "
+    </div>
+</div>";
 
 $categories = [
     SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
@@ -315,8 +349,8 @@ foreach ($categories as $id => $name) {
 $view .= "</div>";
 $view .= '<table class="table">
                         <colgroup>
-                            <col style="width: auto;">
-                            <col style="width: 180px;">
+                            <col class="col-description">
+                            <col class="col-action">
                         </colgroup>
                         <tr>
                             <td class="td-center td-gradient">
@@ -328,15 +362,6 @@ $kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
 
 if ($kingdom_is_recruiting) {
     $kingdom_recruiting_id = $kingdom->get_kingdom_recruiting_id();
-}
-
-// Get soldiers of kingdom
-$result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
-
-foreach ($result as $row) {
-    $soldier_id = $row['soldierid'] ?? -1;
-    $sol_count = $row['soldiercount'] ?? 0;
-    $kingdom_soldiers[$soldier_id] = $sol_count;
 }
 
 for ($i = 0; $i < $soldiers_count; $i++) {

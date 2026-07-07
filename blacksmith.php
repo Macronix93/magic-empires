@@ -184,8 +184,8 @@ if ($kingdom_is_researching) {
 
 $view .= '<table class="table">
             <colgroup>
-                <col style="width: auto;">
-                <col style="width: 180px;">
+                <col class="col-description">
+                <col class="col-action">
             </colgroup>
             <tr>
                 <td class="td-center td-gradient">

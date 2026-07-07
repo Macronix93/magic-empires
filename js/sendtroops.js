@@ -73,9 +73,9 @@ function updateTroopSummary() {
             const iconName = input.dataset.icon;
             const iconPath = `images/icons/${iconName}.png`;
 
-            html += `<div class="legend-item">
-                        <img src="${iconPath}" class="ressource-icons" alt=""> 
-                        <b>${val}x</b> ${name}
+            html += `<div class="unit-badge" title="${name}">
+                        <img src="${iconPath}" alt=""> 
+                        <b>${val.toLocaleString("de-DE")}x</b>
                      </div>`;
 
             totalUnits += val;
@@ -83,6 +83,11 @@ function updateTroopSummary() {
     });
 
     summaryList.innerHTML = html;
+    summaryList.style.display = "flex";
+    summaryList.style.flexWrap = "wrap";
+    summaryList.style.justifyContent = "center";
+    summaryList.style.gap = "5px";
+    
     summaryContainer.style.display = (totalUnits > 0) ? "flex" : "none";
 }
 

@@ -140,6 +140,8 @@ const SMITHY_ARC_ATK_BONUS = 2;
 const SMITHY_ARC_DEF_BONUS = 1;
 const SMITHY_WEIGHT_REDUCTION = 0.05;
 const SMITHY_SIEGE_BONUS = 0.20;
+const MAX_NEWS_TITLE_LENGTH = 50;
+const MAX_NEWS_CONTENT_LENGTH = 500;
 
 /*
  * Interfaces
@@ -619,6 +621,11 @@ $view = "";
 if ($user->is_logged_in()) {
     $user->check_session_id();
 
+    if (MAINTENANCE_MODE && !$user->is_admin()) {
+        change_location("index.php?logout=maintenance");
+        exit;
+    }
+
     $current_k_id = $user->get_current_kingdom();
     $current_ip = $_SERVER["REMOTE_ADDR"];
 
@@ -846,7 +853,7 @@ function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand
     return (int)(MARKET_BASE_FEE + $max_variable);
 }
 
-function checkImageContent($tempFilePath)
+function check_image_content($tempFilePath)
 {
     $api_url = getenv("CHECK_NSFW_API_URL");
     $api_token = getenv("CHECK_NSFW_API_KEY");
@@ -900,4 +907,30 @@ function checkImageContent($tempFilePath)
     }
 
     return 0;
+}
+
+function get_chat_emojis(): array
+{
+    return [
+        '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '⚒', '📜', '🗺️', '👑', '🏆', '💎',
+        '💰', '🤝', '⚖️', '📦', '🛒', '📈', '📉', '🍞', '🥩', '🌲', '⛏️',
+        '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
+        '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
+        '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
+        '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭',
+        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '🫡',
+        '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴'
+    ];
+}
+
+function get_unread_news_count($user, $db_instance): int
+{
+    $uid = $user->get_user_id();
+    if ($uid <= 0) return 0;
+
+    $result = $db_instance->execute_query(
+        "SELECT COUNT(*) FROM news WHERE id > (SELECT last_news_read FROM users WHERE id = ?)",
+        [$uid]
+    );
+    return (int)$result->fetch_row()[0];
 }

@@ -40,6 +40,18 @@ registerAction("banUserDialog", (el) => {
         }
     }
 });
+registerAction("confirmDeleteNews", (el) => {
+    const newsId = el.dataset.id;
+
+    showConfirmationDialog(
+        "Soll dieser Neuigkeiten-Eintrag wirklich gelöscht werden?",
+        "Ja, löschen",
+        "Abbrechen",
+        () => {
+            window.location.href = "news.php?delete=" + newsId;
+        }
+    );
+});
 
 function editField(userID, fieldID, currentValue, formattedValue) {
     const td = document.getElementById("td_" + fieldID);

@@ -575,7 +575,9 @@ class Conquest
                     "name" => $soldier["soldiername"],
                     "initial" => (int)$initial,
                     "losses" => (int)$losses,
-                    "icon" => $icon
+                    "icon" => $icon,
+                    "atk" => $soldier["attack"],
+                    "def" => $soldier["defense"]
                 ];
             }
         }

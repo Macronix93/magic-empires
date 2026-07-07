@@ -311,7 +311,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 $view .= '</table>';
                 $view .= '<div id="troop-summary-container" style="margin-top: 20px; display: none; flex-direction: column;">
                                 <div style="font-weight: bold; margin-bottom: 10px;">Gewählte Truppen:</div>
-                                <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-direction: column;"></div>
+                                <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center;"></div>
                             </div>
                             <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
                         </form>';

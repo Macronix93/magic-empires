@@ -20,7 +20,14 @@ class EventManager
         if ($uid <= 0) return;
 
         $now = time();
-        $result = $this->mysqli->execute_query("SELECT * FROM events WHERE userid = ?", [$uid]);
+
+        $query = "
+            SELECT e.* 
+            FROM events e
+            LEFT JOIN kingdoms k ON e.targetid = k.id
+            WHERE (e.userid = ? OR k.userid = ?)
+        ";
+        $result = $this->mysqli->execute_query($query, [$uid, $uid]);
 
         foreach ($result as $row) {
             $is_due = false;
@@ -518,11 +525,10 @@ class EventManager
                 $msg = "<b>Handels-Info:</b> Deine Karawane konnte <b>" . e($k_data["kingdomname"] ?? "das Ziel") . "</b> nicht erreichen, 
                             da es den Besitzer gewechselt hat. Die Waren wurden zu deinem Haupt-Königreich umgeleitet.";
                 send_server_message($original_recipient_id, $u_data["username"], $msg, MessageCategories::CATEGORY_TRADE);
-                return;
             } else {
                 $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
-                return;
             }
+            return;
         }
 
         $target_k = new Kingdom($this->mysqli, $target_kingdom_id);
@@ -1051,7 +1057,8 @@ class EventManager
     {
         $current_time = time();
         $query = "
-            SELECT e.eventid, e.arrivaltime, e.targetid, k.userid, k.username, k.kingdomname
+            SELECT e.eventid, e.arrivaltime, e.targetid, e.kingdomid AS source_id,
+                   k.userid, k.username, k.kingdomname
             FROM events e
             JOIN kingdoms k ON e.targetid = k.id
             WHERE e.actionid = ? 
@@ -1074,11 +1081,69 @@ class EventManager
                 $time_to_arrival = convert_sec_to_str($row["arrivaltime"] - $current_time);
 
                 $msg = "<div class='battle-report'>";
-                $main_text = "Unsere Grenzwachen in <b>" . e($row['kingdomname']) . "</b> haben herannahende Truppen gesichtet!";
+                $main_text = "Unsere Grenzwachen in <b>" . e($row["kingdomname"]) . "</b> haben herannahende Truppen gesichtet!<br>";
+
+                // Level 1: Only arrival time
                 $sub_text = "Ankunft in ca.: " . $time_to_arrival;
+
+                // Level 2: Enemy Kingdom Name
+                if ($intel_level >= 2) {
+                    $res_source = $this->mysqli->execute_query("SELECT kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$row["source_id"]]);
+                    if ($src = $res_source->fetch_assoc()) {
+                        $main_text .= "<br>Herkunft: <b>" . e($src["kingdomname"]) . "</b> (" . $src["mapx"] . ":" . $src["mapy"] . ")";
+                    }
+                }
+
+                // Level 3: Rough Troop Strength
                 if ($intel_level >= 3) {
-                    // TODO: Show troop count, strength etc. based on Arkane Aufklärung Level?
-                    $sub_text .= "<br>Unsere Späher melden eine große Armee!";
+                    $res_count = $this->mysqli->execute_query("SELECT SUM(soldiercount) as total FROM senttroops WHERE eventid = ?", [$row["eventid"]]);
+                    $total_units = $res_count->fetch_assoc()["total"] ?? 0;
+
+                    if ($total_units < 50) $strength_label = "Ein kleiner Trupp";
+                    else if ($total_units < 200) $strength_label = "Eine ansehnliche Streitmacht";
+                    else if ($total_units < 1000) $strength_label = "Ein großes Heer";
+                    else $strength_label = "Eine gewaltige Armee";
+
+                    $main_text .= "<br>Späherbericht: <i>$strength_label (ca. " . fnum($total_units) . " Einheiten)</i>";
+                }
+
+                // Level 4 and higher: Exact Troop Strength and Troop Power
+                if ($intel_level >= 4) {
+                    $main_text .= "<br><br><b>Identifizierte Einheiten:</b><br>";
+                    $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;'>";
+
+                    $total_atk = 0;
+                    $total_def = 0;
+
+                    $res_troops = $this->mysqli->execute_query("
+                                                SELECT sl.soldiername, sl.icon, sl.attack, sl.defense, st.soldiercount 
+                                                FROM senttroops st 
+                                                JOIN soldierlist sl ON st.soldierid = sl.id 
+                                                WHERE st.eventid = ?", [$row["eventid"]]);
+
+                    while ($t = $res_troops->fetch_assoc()) {
+                        $count = (int)$t["soldiercount"];
+
+                        $total_atk += $count * $t["attack"];
+                        $total_def += $count * $t["defense"];
+
+                        $icon_path = "images/icons/" . $t["icon"] . ".png";
+                        $main_text .= "<div class='unit-badge' title='" . e($t["soldiername"]) . "'>";
+                        $main_text .= "<img src='$icon_path' alt=''>";
+                        $main_text .= "<b>" . fnum($count) . "x</b>";
+                        $main_text .= "</div>";
+                    }
+                    $main_text .= "</div>";
+
+                    if ($intel_level >= 5) {
+                        $main_text .= "<div style='margin-top: 12px; padding-top: 8px; border-top: 1px ridge rgba(212,175,55,0.4); text-align: left;'>";
+                        $main_text .= "<b>Geschätzte Gesamtstärke:</b><br>";
+
+                        $main_text .= "<span style='margin-right: 20px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_atk) . "</span>";
+                        $main_text .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_def) . "</span>";
+
+                        $main_text .= "</div>";
+                    }
                 }
 
                 $msg .= BattleReportRenderer::render_outcome_box("WACHTURM-MELDUNG", $main_text, 0, 0, $sub_text, "error");

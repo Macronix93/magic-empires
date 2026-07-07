@@ -49,7 +49,7 @@ if (isset($_POST['submit'])) {
                     } else if (getimagesize($file_tmp) === false) {
                         $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
                     } else {
-                        $nsfw_result = checkImageContent($file_tmp);
+                        $nsfw_result = check_image_content($file_tmp);
 
                         if ($nsfw_result === "loading") {
                             $error = "Ladefehler... Bitte versuche es in 20 Sekunden nochmal.";

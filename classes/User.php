@@ -303,4 +303,9 @@ class User
     {
         return $this->reg_status;
     }
+
+    public function is_admin(): bool
+    {
+        return $this->get_user_admin_level() > 0;
+    }
 }

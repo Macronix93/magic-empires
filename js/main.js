@@ -51,6 +51,14 @@ registerAction("changeKingdomSelect", (el) => {
         updateKingdom(el);
     }
 });
+registerAction("toggleEmojis", () => {
+    const menu = document.getElementById("emoji-menu");
+    if (menu) menu.classList.toggle("open");
+});
+
+registerAction("pickEmoji", (el) => {
+    insertEmoji(el.innerText);
+});
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
@@ -114,22 +122,17 @@ observer.observe(document.body, {
 });
 
 function setup() {
-    // Alle Elemente mit der Klasse 'popup' finden
     const popups = document.querySelectorAll('.popup');
 
     popups.forEach(trigger => {
-        // Die Box finden, die sich innerhalb des Triggers befindet
         const box = trigger.querySelector('.popupbox');
 
         if (box) {
-            // WICHTIG: Die Box an den Body verschieben,
-            // damit sie nicht von der Sidebar abgeschnitten wird.
             document.body.appendChild(box);
 
             const positionBox = function (e) {
                 let mousePos = getMouseLocation(e);
 
-                // Box sichtbar machen und über alles andere legen
                 box.style.display = 'block';
                 box.style.position = 'absolute';
                 box.style.zIndex = '999999';
@@ -139,21 +142,14 @@ function setup() {
                 const windowWidth = window.innerWidth;
                 const windowHeight = window.innerHeight;
 
-                // Horizontale Position berechnen (Zentriert unter/über Maus)
                 let left = mousePos[0] - (boxWidth / 2);
 
-                // Rand-Check links
                 if (left < 10) left = 10;
-                // Rand-Check rechts (verhindert, dass die Box rechts rausragt)
                 if (left + boxWidth > windowWidth - 10) {
                     left = windowWidth - boxWidth - 10;
                 }
 
-                // Vertikale Position (Standard: 25px unter der Maus)
                 let top = mousePos[1] + 25;
-
-                // Mobile/Viewport Check: Wenn die Box unten rausragen würde,
-                // zeige sie oberhalb der Maus/des Fingers an.
                 let checkY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
                 if (checkY + 25 + boxHeight > windowHeight) {
                     top = mousePos[1] - boxHeight - 20;
@@ -170,12 +166,11 @@ function setup() {
                 box.style.display = 'none';
             };
 
-            // Touch Support (Handy)
+            // Touch Support
             trigger.addEventListener('touchstart', function (e) {
                 if (box.style.display === 'block') {
                     box.style.display = 'none';
                 } else {
-                    // Alle anderen Popups schließen
                     document.querySelectorAll('.popupbox').forEach(b => b.style.display = 'none');
                     positionBox(e);
                 }
@@ -194,12 +189,6 @@ function getMouseLocation(e) {
         posy = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
     }
     return [posx, posy];
-}
-
-function getElementsByClassName(className, tag, elm) {
-    tag = tag || "*";
-    elm = elm || document;
-    return Array.from(elm.querySelectorAll(tag + "." + className));
 }
 
 function adjustUsernameDisplay() {
@@ -304,15 +293,43 @@ function updateKingdom(selectElement) {
 }
 
 function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonYesAction) {
+    if (document.getElementById("info-box-overlay")) {
+        return;
+    }
+
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
+
     const infoBoxBg = document.createElement("div");
     const infoBoxOverlay = document.createElement("div");
     const infoBoxTextBox = document.createElement("p");
     const buttonYes = document.createElement("button");
     const buttonNo = document.createElement("button");
 
-    buttonYes.onclick = buttonYesAction;
+    const closeAndCleanup = () => {
+        document.removeEventListener("keydown", handleKeyDown);
+        if (infoBoxBg.parentNode) infoBoxBg.remove();
+        if (infoBoxOverlay.parentNode) infoBoxOverlay.remove();
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            buttonYesAction();
+            closeAndCleanup();
+        } else if (e.key === "Escape") {
+            closeAndCleanup();
+        }
+    };
+
+    buttonYes.onclick = () => {
+        buttonYesAction();
+        closeAndCleanup();
+    };
     buttonYes.innerText = buttonYesText;
-    buttonNo.onclick = cancelDialog;
+
+    buttonNo.onclick = closeAndCleanup;
     buttonNo.innerText = buttonNoText;
 
     infoBoxTextBox.innerText = dialogText;
@@ -324,12 +341,11 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
     infoBoxOverlay.classList.add("info-box-overlay");
     infoBoxOverlay.append(infoBoxTextBox, buttonYes, buttonNo);
 
+    document.addEventListener("keydown", handleKeyDown);
     document.body.append(infoBoxBg, infoBoxOverlay);
-}
 
-function cancelDialog() {
-    document.getElementById('info-box-bg').remove();
-    document.getElementById('info-box-overlay').remove();
+    // Optional: Fokus direkt auf den "Ja"-Button setzen für schnellere Bedienung
+    buttonYes.focus();
 }
 
 window.addEventListener("DOMContentLoaded", function () {
@@ -397,6 +413,13 @@ window.addEventListener("DOMContentLoaded", function () {
     }
 
     document.addEventListener("click", function (e) {
+        const menu = document.getElementById("emoji-menu");
+        const trigger = document.querySelector(".emoji-trigger");
+
+        if (menu && !menu.contains(e.target) && e.target !== trigger) {
+            menu.classList.remove("open");
+        }
+
         if (!leftMenu || !rightMenu) return;
 
         if (!leftMenu.contains(e.target) && !rightMenu.contains(e.target) &&
@@ -435,4 +458,17 @@ function initAutomaticCountdowns() {
 
         startCountdown(el, seconds, timerType, hideID, keepParams, noReload);
     });
+}
+
+function insertEmoji(emoji) {
+    const input = document.getElementById("message-input");
+    if (!input) return;
+
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const text = input.value;
+
+    input.value = text.substring(0, start) + emoji + text.substring(end);
+    input.selectionStart = input.selectionEnd = start + emoji.length;
+    input.focus();
 }

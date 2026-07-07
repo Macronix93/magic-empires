@@ -46,7 +46,172 @@ body {
     padding-left: calc(100vw - 100%);
 }
 
+.col-description {
+    width: auto;
+}
+
+.col-action {
+    width: 180px;
+}
+
+.copyright-wrapper {
+    text-align: center;
+    margin: 5px 0 10px 0;
+    padding: 0 10px;
+}
+
+.copyright {
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    color: rgba(230, 220, 200, 0.8);
+    letter-spacing: 1px;
+    user-select: none;
+}
+
+.news-content {
+    font-size: 20px;
+}
+
+.news-flex-header {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 15px;
+    height: auto !important;
+    min-height: 40px;
+}
+
+.news-header-title {
+    text-align: center;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-weight: bold;
+    word-wrap: break-word;
+    width: 100%;
+    padding: 0 45px;
+    line-height: 1.2;
+    font-size: 24px;
+}
+
+.news-admin-tools {
+    position: absolute;
+    right: 10px;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+}
+
+.box-content form input[type="text"],
+.box-content form textarea {
+    background-color: #2a2622;
+}
+
+.box-content-bg {
+    background-color: rgb(54, 46, 38);
+}
+
+/* Emoji-Container */
+.emoji-picker-container {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    margin-right: 5px;
+}
+
+.emoji-trigger {
+    font-size: 20px !important;
+    padding: 5px 8px !important;
+    line-height: 1;
+    height: 100%;
+}
+
+/* Emoji Menu */
+.allow-overflow {
+    overflow: visible !important;
+}
+
+.emoji-menu.open.bottom {
+    display: grid;
+    bottom: auto;
+    top: 40px;
+    left: 1px;
+}
+
+.emoji-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.emoji-menu::-webkit-scrollbar-thumb {
+    background: var(--border-gold);
+    border-radius: 3px;
+}
+
+.emoji-menu::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.emoji-menu {
+    display: none;
+    position: absolute;
+    bottom: 55px;
+    right: 0;
+    width: 320px;
+    max-height: 250px;
+    background: var(--box-content-color);
+    border: 1px solid var(--border-gold);
+    border-radius: 5px;
+    padding: 10px;
+    z-index: 1000;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    grid-template-columns: repeat(6, 1fr);
+    overflow-y: auto;
+}
+
+.emoji-menu span {
+    cursor: pointer;
+    font-size: 22px;
+    text-align: center;
+    padding: 5px;
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+.emoji-menu span:hover {
+    background: var(--box-selected);
+}
+
+.emoji-menu.open {
+    display: grid;
+}
+
 /* BATTLE-LOG */
+.unit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    margin: 2px;
+    white-space: nowrap;
+}
+
+.unit-badge img {
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+}
+
+.unit-badge b {
+    font-size: 14px;
+    color: #fff;
+    text-shadow: 1px 1px 2px #000;
+}
+
 .battle-report {
     display: flex;
     flex-direction: column;
@@ -120,7 +285,6 @@ body {
 .report-section-title {
     border-bottom: 1px solid var(--border-gold);
     color: var(--link-color);
-    margin-bottom: 10px;
     text-align: left;
     font-variant: small-caps;
     font-size: 18px;
@@ -192,7 +356,6 @@ option {
     border-bottom: 2px double var(--border-gold);
 }
 
-
 hr {
     background-color: var(--border-gold);
     height: 2px;
@@ -244,7 +407,7 @@ hr {
 #messages-section {
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 665px);
+    max-height: calc(100vh - 650px);
     overflow-x: hidden;
     word-break: break-word;
     padding: 10px;
@@ -352,6 +515,9 @@ hr {
 }
 
 .message-border {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     border-bottom: 1px solid rgba(0, 0, 0, 0.4);
     padding-bottom: 5px;
     margin-bottom: 10px;
@@ -425,6 +591,9 @@ hr {
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 0 15px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .g-recaptcha {
@@ -435,6 +604,8 @@ hr {
     margin: auto;
     text-align: center;
     min-width: 25%;
+    max-width: 500px;
+    width: 100%;
 }
 
 fieldset {
@@ -1523,11 +1694,44 @@ tr:first-child .td-center {
     }
 }
 
+/* Landscape Modus */
+@media screen and (max-height: 500px) {
+    #messages-section {
+        min-height: 200px;
+        max-height: 60vh;
+        font-size: 13px;
+    }
+
+    .header img {
+        max-height: 150px;
+    }
+}
+
 /* Smartphone Ansicht */
 @media screen and (max-width: 600px) {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .news-header-title {
+        font-size: 20px;
+    }
+
+    .news-content {
+        font-size: 16px;
+    }
+
+    .title-border {
+        line-height: 24px;
+    }
+
+    .col-action {
+        width: 120px;
+    }
+
+    .tab div {
+        font-size: 12px;
     }
 
     .battle-report {
@@ -1617,6 +1821,7 @@ tr:first-child .td-center {
 
     .big-box-header {
         font-size: 24px;
+        height: 35px;
     }
 
     .big-box-container {
@@ -1638,10 +1843,6 @@ tr:first-child .td-center {
         text-overflow: ellipsis;
     }
 
-    .title-border {
-        width: 90%;
-    }
-
     #newmessage-section textarea {
         height: 50px;
     }
@@ -1651,7 +1852,8 @@ tr:first-child .td-center {
     }
 
     #messages-section {
-        max-height: calc(100vh - 400px);
+        min-height: 300px;
+        max-height: calc(100vh - 450px);
         font-size: 13px;
     }
 

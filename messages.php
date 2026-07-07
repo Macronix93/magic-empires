@@ -178,9 +178,18 @@ if (isset($_GET["action"])) {
                                         <input type=\"hidden\" name=\"receiver\" value=\"" . $sender_id . "\">
                                         <textarea id=\"message-input\" 
                                               name=\"text\" 
-                                              rows=\"5\"
+                                              rows=\"3\"
                                               maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
                                               style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
+                                        <div class=\"emoji-picker-container\">
+                                        <div id=\"emoji-menu\" class=\"emoji-menu\">";
+                    foreach (get_chat_emojis() as $emoji) {
+                        $view .= "<span data-on-click=\"pickEmoji\">$emoji</span>";
+                    }
+
+                    $view .= "</div>
+                                            <button type=\"button\" class=\"emoji-trigger\" data-on-click=\"toggleEmojis\" title=\"Emoji einfügen\">🙂</button>
+                                        </div>
                                         <input type=\"submit\" name=\"sendpm\" value=\"Absenden\n[ENTER]\"/>
                                 </form>
                             </div>

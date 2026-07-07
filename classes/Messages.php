@@ -178,7 +178,7 @@ class Messages
             return "";
         }
 
-        return ($number > 5) ? "5+" : (string)$number;
+        return ($number > 9) ? "9+" : (string)$number;
     }
 
     function show_server_inbox(): string

@@ -27,10 +27,30 @@ class BattleReportRenderer
 
     public static function render_vs_grid(array $attacker_units, array $defender_units, string $atk_label = "Deine Truppen", string $def_label = "Gegner"): string
     {
+        // Calculate Power Sums
+        $sum_atk_atk = 0;
+        $sum_atk_def = 0;
+        foreach ($attacker_units as $u) {
+            $sum_atk_atk += $u["initial"] * ($u["atk"] ?? 0);
+            $sum_atk_def += $u["initial"] * ($u["def"] ?? 0);
+        }
+
+        $sum_def_atk = 0;
+        $sum_def_def = 0;
+        foreach ($defender_units as $u) {
+            $sum_def_atk += $u["initial"] * ($u["atk"] ?? 0);
+            $sum_def_def += $u["initial"] * ($u["def"] ?? 0);
+        }
+
         $html = "<div class='battle-vs-wrapper'>";
 
         // Attacker Column
         $html .= "<div class='battle-column'><div class='report-section-title'>$atk_label</div>";
+        $html .= "<div style='font-size: 12px; display: flex; gap: 10px; justify-content: center; opacity: 0.9;'>";
+        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_atk_atk) . "</span>";
+        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_atk_def) . "</span>";
+        $html .= "</div>";
+
         if (empty($attacker_units)) {
             $html .= "<i>Wir haben keine Truppen!</i>";
         } else {
@@ -44,6 +64,11 @@ class BattleReportRenderer
 
         // Defender Column
         $html .= "<div class='battle-column'><div class='report-section-title'>$def_label</div>";
+        $html .= "<div style='font-size: 12px; display: flex; gap: 10px; justify-content: center; opacity: 0.9;'>";
+        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_def_atk) . "</span>";
+        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_def_def) . "</span>";
+        $html .= "</div>";
+
         if (empty($defender_units)) {
             $html .= "<i>Keine Truppen stationiert</i>";
         } else {
