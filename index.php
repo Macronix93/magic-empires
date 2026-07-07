@@ -214,111 +214,171 @@ if (MAINTENANCE_MODE) {
         $warning .= "<br>" . $maintenance_text;
     }
 }
+$online_limit = time() - AFK_SECONDS;
+$res_online = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE lastactivity > ?", [$online_limit]);
+$count_online = $res_online->fetch_row()[0];
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <?php include_once("layout/head.html"); ?>
 <body>
-<?php include_once("layout/banner.html"); ?>
-
-<div class="form">
-    <?php if ($mode === "login"): ?>
-        <form class="login-register" method="POST" action="index.php">
-            <fieldset>
-                <legend><b>Login</b></legend>
-                <?php
-                if (!empty($success)) {
-                    if (str_contains($success, "info-box")) {
-                        echo $success;
-                    } else {
-                        echo show_passed_box($success);
-                    }
-                }
-                if (!empty($error)) echo show_error_box($error);
-                if (!empty($warning)) {
-                    $warning_messages = explode("<br>", $warning);
-
-                    foreach ($warning_messages as $w) {
-                        if (trim($w) !== "") echo show_warning_box($w);
-                    }
-                }
-                ?>
-                <table class="table">
-                    <tr>
-                        <td style="min-width: 165px;"><b>Benutzername:</b></td>
-                        <td><label><input type="text" name="username" value="<?= $_POST["username"] ?? ""; ?>"
-                                          style="width: 100%;"></label></td>
-                    </tr>
-                    <tr>
-                        <td><b>Passwort:</b></td>
-                        <td><label><input type="password" name="password" style="width: 100%;"></label></td>
-                    </tr>
-                </table>
-                <input type="submit" name="login" value="Einloggen" style="width:125px; height:50px; margin: 15px 0;"/>
-                <br>
-                <a href="forgot_password.php" style="font-size: 14px; opacity: 0.8;">Passwort vergessen?</a>
-                <hr>
-                <i>Du bist noch nicht registriert? Registriere dich <a href="index.php?action=register"><b>hier</b></a>.</i>
-            </fieldset>
-            <?php include_once("layout/copyright.php"); ?>
-        </form>
-
-    <?php else: ?>
-        <form class="login-register" method="POST" action="index.php?action=register">
-            <fieldset>
-                <legend><b>Registrieren</b></legend>
-                <?php
-                if (!empty($success)) echo $success;
-                if (!empty($warning)) {
-                    $warning_messages = explode("<br>", $warning);
-
-                    foreach ($warning_messages as $w) {
-                        if (trim($w) !== "") echo show_warning_box($w);
-                    }
-                }
-                if (!empty($error)) {
-                    $error_messages = explode("<br>", $error);
-
-                    foreach ($error_messages as $e) {
-                        if (trim($e) !== "") echo show_error_box($e);
-                    }
-                }
-                ?>
-                <table class="table">
-                    <tr>
-                        <td style="min-width: 165px;"><b>Benutzername:</b></td>
-                        <td><label><input class="regis" type="text" name="username"
-                                          value="<?= $_POST["username"] ?? ""; ?>" autocomplete="username"
-                                          style="width: 100%;"></label></td>
-                    </tr>
-                    <tr>
-                        <td><b>E-Mail:</b></td>
-                        <td><label><input class="regis" type="text" name="email" value="<?= $_POST["email"] ?? ""; ?>"
-                                          autocomplete="email" style="width: 100%;"></label></td>
-                    </tr>
-                    <tr>
-                        <td><b>Passwort:</b></td>
-                        <td><label><input class="regis" type="password" name="password" autocomplete="new-password"
-                                          style="width: 100%;"></label></td>
-                    </tr>
-                    <tr>
-                        <td><b>Botschutz:</b></td>
-                        <td style="display: flex; justify-content: flex-start; align-items: center; padding: 10px;">
-                            <?php if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true): ?>
-                                <div class="g-recaptcha" data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"
-                                     data-size="compact"></div>
-                            <?php else: echo "✅"; endif; ?>
-                        </td>
-                    </tr>
-                </table>
-                <input type="submit" name="register" value="Registrieren"
-                       style="width:125px; height:50px; margin: 15px 0;"/>
-                <hr>
-                <i>Du bist bereits registriert? Logge dich <a href="index.php"><b>hier</b></a> ein.</i>
-            </fieldset>
-            <?php include_once("layout/copyright.php"); ?>
-        </form>
-    <?php endif; ?>
+<div class="header img">
+    <img src="images/header.png" alt="Header"/>
 </div>
+
+<div class="landing-container">
+    <div class="landing-messages">
+        <?php
+        if (!empty($success)) {
+            echo (str_contains($success, "info-box")) ? $success : show_passed_box($success);
+        }
+
+        if (!empty($error)) {
+            $errors = explode("<br>", $error);
+            foreach ($errors as $e) {
+                if (trim($e) !== "") echo show_error_box($e);
+            }
+        }
+
+        if (!empty($warning)) {
+            $warning_messages = explode("<br>", $warning);
+            foreach ($warning_messages as $w) {
+                if (trim($w) !== "") echo show_warning_box($w);
+            }
+        }
+        ?>
+    </div>
+
+    <div class="landing-main">
+        <div class="landing-hero">
+            <div class="hero-header">
+                <h1 style="text-align: center;">Willkommen bei<br>Magic Empires!</h1>
+                <p style="margin-top: 0;">
+                    Schreibe deine eigene Geschichte in einer Welt voller Magie und Strategie.
+                    Errichte prachtvolle Königreiche, erforsche vergessene Technologien und führe deine
+                    Truppen in epische Schlachten.
+                </p>
+                <p>
+                    Ob als friedlicher Händler auf dem Marktplatz oder als furchtloser Eroberer –
+                    dein Schicksal liegt in deinen Händen.
+                </p>
+                <div style="text-align: center; margin-bottom: 40px;"><b class="passed">Bereit für den Kampf?</b></div>
+            </div>
+
+            <div class="hero-footer">
+                <hr>
+                <?php if ($mode === "login"): ?>
+                    <i>Noch kein Konto? <a href="index.php?action=register"
+                                           style="color: var(--link-color); text-decoration: underline;"><b>Hier
+                                kostenlos registrieren!</b></a></i>
+                <?php elseif ($mode === "register"): ?>
+                    <i>Bereits registriert? <a href="index.php?action=login"
+                                               style="color: var(--link-color); text-decoration: underline;"><b>Zum
+                                Login!</b></a></i>
+                <?php else: ?>
+                    <i>Bereits registriert? <a href="index.php?action=login"
+                                               style="color: var(--link-color); text-decoration: underline;"><b>Zum
+                                Login!</b></a></i>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="landing-login-box">
+            <div class="form" style="padding: 0;">
+                <?php if ($mode === "login"): ?>
+                    <form class="login-register" method="POST" action="index.php" style="max-width: 100%;">
+                        <fieldset>
+                            <legend><b>Login</b></legend>
+                            <table class="table" style="width: 100%;">
+                                <tr>
+                                    <td><label>
+                                            <input type="text" name="username" placeholder="Benutzername"
+                                                   style="width: 100%;">
+                                        </label></td>
+                                </tr>
+                                <tr>
+                                    <td><label>
+                                            <input type="password" name="password" placeholder="Passwort"
+                                                   style="width: 100%;">
+                                        </label></td>
+                                </tr>
+                            </table>
+                            <input type="submit" name="login" value="Einloggen"
+                                   style="width:150px; height:40px; margin: 10px 0;"/>
+                            <a href="forgot_password.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
+                                vergessen?</a>
+                        </fieldset>
+                    </form>
+                <?php else: ?>
+                    <form class="login-register" method="POST" action="index.php?action=register"
+                          style="max-width: 100%;">
+                        <fieldset>
+                            <legend><b>Registrieren</b></legend>
+                            <table class="table" style="width: 100%;">
+                                <tr>
+                                    <td><label>
+                                            <input type="text" name="username" placeholder="Benutzername"
+                                                   style="width: 100%;">
+                                        </label></td>
+                                </tr>
+                                <tr>
+                                    <td><label>
+                                            <input type="text" name="email" placeholder="E-Mail Adresse"
+                                                   style="width: 100%;">
+                                        </label></td>
+                                </tr>
+                                <tr>
+                                    <td><label>
+                                            <input type="password" name="password" placeholder="Passwort"
+                                                   style="width: 100%;">
+                                        </label></td>
+                                </tr>
+                                <tr>
+                                    <td style="display: flex; justify-content: center; padding: 10px;">
+                                        <div class="g-recaptcha" data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"
+                                             data-size=""></div>
+                                    </td>
+                                </tr>
+                            </table>
+                            <input type="submit" name="register" value="Registrieren"
+                                   style="height:40px; margin: 10px 0;"/>
+                            <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück zum
+                                Login</a>
+                        </fieldset>
+                    </form>
+                <?php endif; ?>
+            </div>
+
+            <div class="landing-sidebar">
+                <div class="box-container">
+                    <div class="box-header">Spieler online</div>
+                    <div class="box-content">
+                        <div class="box"
+                             style="justify-content: center; text-align: center; gap: 5px; pointer-events: none;">
+                            Gesamt: <b><?= $count_online ?></b>
+                        </div>
+                    </div>
+                </div>
+                <div class="box-container">
+                    <div class="box-header">Info</div>
+                    <div class="box-content">
+                        <div class="box">
+                            <img src="images/icons/icon_news.png" class="menu-icons" alt="Account-Info"/>
+                            Neuigkeiten
+                        </div>
+                        <div class="box">
+                            <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/>
+                            Spielregeln
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+<footer>
+    <?php include_once("layout/copyright.php"); ?>
+</footer>
 </body>
 </html>
