@@ -25,9 +25,8 @@ $view .= '<table class="table">
 for ($i = 0; $i < count($buildings); $i++) {
     $current_building_level = $buildings[$i]->get_building_level();
     $building_dependencies = $buildings[$i]->get_building_dependencies();
-    $building_dependencies_count = count($building_dependencies);
 
-    if ($building_dependencies_count != 0) {
+    if (!empty($building_dependencies)) {
         foreach ($building_dependencies as $dependency) {
             $level_of_dependency_building = $buildings[$dependency["dependencyid"]]->get_building_level();
 
@@ -38,7 +37,7 @@ for ($i = 0; $i < count($buildings); $i++) {
             }
         }
     } else {
-        continue;
+        $dependency_text = " <span class='passed'>Dorfzentrum (1)</span>";
     }
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
@@ -50,7 +49,7 @@ for ($i = 0; $i < count($buildings); $i++) {
                 " . $buildings[$i]->get_building_name() . " ($current_building_level)
                 </a>
                 </td>
-                <td>" . (!empty($dependency_text) ? $dependency_text : "") . "</td>
+                <td>" . (!empty($dependency_text) ? $dependency_text : "Dorfzentrum (1)") . "</td>
                 </tr>
     ";
 
@@ -119,6 +118,7 @@ $view .= '<br><table class="table">
     </tr>';
 
 $res_soldiers = $db_instance->execute_query("SELECT * FROM soldierlist ORDER BY category, requiredlevel");
+
 foreach ($res_soldiers as $row) {
     $s_obj = new Soldier();
     $s_obj->fill_from_row($row);

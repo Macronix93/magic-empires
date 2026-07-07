@@ -1,4 +1,7 @@
 <?php
+
+use Random\RandomException;
+
 require_once("includes/core.php");
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
@@ -54,24 +57,22 @@ if (!empty($_GET["key"])) {
 
 // LOGOUT
 if (isset($_GET["logout"])) {
-    if ($user->is_logged_in()) {
-        if ($_GET["logout"] === "inactive") {
-            $warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
-        } else if ($_GET["logout"] === "session") {
-            $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
-        } else if ($_GET["logout"] === "maintenance") {
-            $warning = "Der Server befindet sich im Wartungsmodus!";
-        }
+    if ($_GET["logout"] === "inactive") {
+        $warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
+    } else if ($_GET["logout"] === "session") {
+        $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
+    } else if ($_GET["logout"] === "maintenance") {
+        $warning = "Der Server befindet sich im Wartungsmodus!";
+    } else if (empty($_GET["logout"])) {
+        $success = "Du hast dich erfolgreich ausgeloggt!";
+    }
 
-        // Update anti spam
-        $db_instance->execute_query("UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?", [$_SESSION["message_count"], $_SESSION["message_timeframe_end"], $user->get_user_id()]);
+    if ($user->is_logged_in()) {
+        $db_instance->execute_query("UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?",
+                [$_SESSION["message_count"] ?? 0, $_SESSION["message_timeframe_end"] ?? 0, $user->get_user_id()]);
 
         session_unset();
         session_destroy();
-
-        if (empty($_GET["logout"])) {
-            $success = "Du hast dich erfolgreich ausgeloggt!";
-        }
     }
 } else {
     if ($user->is_logged_in()) {
@@ -187,10 +188,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($result->num_rows > 0) {
                     $error .= "Benutzername oder E-Mail existiert bereits!<br>";
                 } else {
-                    $user->register_user($name, $email, $pass);
-                    $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
-                    $success = $user->get_reg_status();
-                    $mode = "login";
+                    try {
+                        $user->register_user($name, $email, $pass);
+
+                        $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
+                        $success = $user->get_reg_status();
+                        $mode = "login";
+                    } catch (RandomException $e) {
+                        $logger->error("Registrierung fehlgeschlagen (RandomException): " . $e->getMessage());
+                        $error .= "Ein interner Systemfehler ist aufgetreten. Bitte versuche es in wenigen Minuten erneut.<br>";
+                        $mode = "register";
+                    }
                 }
             }
         }
@@ -200,12 +208,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 if (MAINTENANCE_MODE) {
     $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
 
-    if (!str_contains($warning, $maintenance_text)) {
-        if (!empty($warning)) {
-            $warning .= "<br>";
-        }
-
-        $warning .= $maintenance_text;
+    if (empty($warning)) {
+        $warning = $maintenance_text;
+    } else if (!str_contains($warning, $maintenance_text)) {
+        $warning .= "<br>" . $maintenance_text;
     }
 }
 ?>
@@ -229,7 +235,13 @@ if (MAINTENANCE_MODE) {
                     }
                 }
                 if (!empty($error)) echo show_error_box($error);
-                if (!empty($warning)) echo show_warning_box($warning);
+                if (!empty($warning)) {
+                    $warning_messages = explode("<br>", $warning);
+
+                    foreach ($warning_messages as $w) {
+                        if (trim($w) !== "") echo show_warning_box($w);
+                    }
+                }
                 ?>
                 <table class="table">
                     <tr>
@@ -257,7 +269,13 @@ if (MAINTENANCE_MODE) {
                 <legend><b>Registrieren</b></legend>
                 <?php
                 if (!empty($success)) echo $success;
-                if (!empty($warning)) echo show_warning_box($warning);
+                if (!empty($warning)) {
+                    $warning_messages = explode("<br>", $warning);
+
+                    foreach ($warning_messages as $w) {
+                        if (trim($w) !== "") echo show_warning_box($w);
+                    }
+                }
                 if (!empty($error)) {
                     $error_messages = explode("<br>", $error);
 
