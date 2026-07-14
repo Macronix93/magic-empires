@@ -63,6 +63,8 @@ if (isset($_GET["logout"])) {
         $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
     } else if ($_GET["logout"] === "maintenance") {
         $warning = "Der Server befindet sich im Wartungsmodus!";
+    } else if ($_GET["logout"] === "deleted") {
+        $success = "Dein Account wurde erfolgreich gelöscht!";
     } else if (empty($_GET["logout"])) {
         $success = "Du hast dich erfolgreich ausgeloggt!";
     }
@@ -170,9 +172,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $error .= "Falsches E-Mail Format!<br>";
             } else {
-                $domain = substr(strrchr($email, "@"), 1);
-                if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
-                    $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
+                if (str_ends_with(strtolower($email), "@magic-empires.de")) {
+                    $error .= "Diese E-Mail-Adresse ist nicht gestattet!<br>";
+                } else {
+                    $domain = substr(strrchr($email, "@"), 1);
+
+                    if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
+                        $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
+                    }
                 }
             }
 
@@ -262,7 +269,7 @@ $count_online = $res_online->fetch_row()[0];
                     Ob als friedlicher Händler auf dem Marktplatz oder als furchtloser Eroberer –
                     dein Schicksal liegt in deinen Händen.
                 </p>
-                <div style="text-align: center; margin-bottom: 40px;"><b class="passed">Bereit für den Kampf?</b></div>
+                <div class="ready-msg"><b class="passed">Bereit für den Kampf?</b></div>
             </div>
 
             <div class="hero-footer">
@@ -271,10 +278,6 @@ $count_online = $res_online->fetch_row()[0];
                     <i>Noch kein Konto? <a href="index.php?action=register"
                                            style="color: var(--link-color); text-decoration: underline;"><b>Hier
                                 kostenlos registrieren!</b></a></i>
-                <?php elseif ($mode === "register"): ?>
-                    <i>Bereits registriert? <a href="index.php?action=login"
-                                               style="color: var(--link-color); text-decoration: underline;"><b>Zum
-                                Login!</b></a></i>
                 <?php else: ?>
                     <i>Bereits registriert? <a href="index.php?action=login"
                                                style="color: var(--link-color); text-decoration: underline;"><b>Zum
@@ -318,13 +321,13 @@ $count_online = $res_online->fetch_row()[0];
                                 <tr>
                                     <td><label>
                                             <input type="text" name="username" placeholder="Benutzername"
-                                                   style="width: 100%;">
+                                                   style="width: 100%;" value="<?= e($_POST["username"] ?? "") ?>">
                                         </label></td>
                                 </tr>
                                 <tr>
                                     <td><label>
                                             <input type="text" name="email" placeholder="E-Mail Adresse"
-                                                   style="width: 100%;">
+                                                   style="width: 100%;" value="<?= e($_POST["email"] ?? "") ?>">
                                         </label></td>
                                 </tr>
                                 <tr>
@@ -335,8 +338,15 @@ $count_online = $res_online->fetch_row()[0];
                                 </tr>
                                 <tr>
                                     <td style="display: flex; justify-content: center; padding: 10px;">
-                                        <div class="g-recaptcha" data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"
-                                             data-size=""></div>
+                                        <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
+                                            <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
+                                                <span class="passed">✔</span> <b>Botschutz verifiziert</b>
+                                            </div>
+                                            <input type="hidden" name="captcha_already_passed" value="1">
+                                        <?php else: ?>
+                                            <div class="g-recaptcha"
+                                                 data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"></div>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             </table>
@@ -362,14 +372,15 @@ $count_online = $res_online->fetch_row()[0];
                 <div class="box-container">
                     <div class="box-header">Info</div>
                     <div class="box-content">
-                        <div class="box">
-                            <img src="images/icons/icon_news.png" class="menu-icons" alt="Account-Info"/>
-                            Neuigkeiten
-                        </div>
-                        <div class="box">
-                            <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/>
-                            Spielregeln
-                        </div>
+                        <a href="news.php" class="box">
+                            <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/> Neuigkeiten
+                        </a>
+                        <a href="rules.php" class="box">
+                            <img src="images/icons/icon_rules.png" class="menu-icons" alt="Spielregeln"/> Spielregeln
+                        </a>
+                        <a href="faq.php" class="box">
+                            <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
+                        </a>
                     </div>
                 </div>
             </div>

@@ -27,21 +27,14 @@ if ($result && $result->num_rows > 0) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $token_valid) {
-    $pass1 = $_POST["pass1"] ?? "";
-    $pass2 = $_POST["pass2"] ?? "";
+    $new_plain_password = generate_safe_password(8);
+    $new_hash = password_hash($new_plain_password, PASSWORD_BCRYPT);
 
-    if (strlen($pass1) < MIN_PASSWORD_LENGTH) {
-        $error = "Das Passwort muss mindestens " . MIN_PASSWORD_LENGTH . " Zeichen lang sein!";
-    } else if ($pass1 !== $pass2) {
-        $error = "Die Passwörter stimmen nicht überein!";
-    } else {
-        $new_hash = password_hash(make_secure($pass1), PASSWORD_BCRYPT);
+    $db_instance->execute_query("UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
 
-        $db_instance->execute_query("UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
+    $success = "Dein neues Passwort lautet: <br><br><b style='font-size: 24px; color: var(--link-color); border: 1px dashed; padding: 5px;'>$new_plain_password</b><br><br>Bitte notiere es dir sofort und logge dich damit ein!";
 
-        $success = "Passwort erfolgreich geändert! Du wirst zum Login weitergeleitet...";
-        change_location("index.php", 3);
-    }
+    $token_valid = false;
 }
 ?>
 <!DOCTYPE html>
@@ -53,28 +46,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
 <div class="form">
     <form class="login-register" method="POST" action="reset_password.php?token=<?= e($token) ?>">
         <fieldset>
-            <legend><b>Neues Passwort vergeben</b></legend>
+            <legend><b>Passwort zurücksetzen</b></legend>
             <?php
-            if (!empty($success)) echo show_passed_box($success);
+            if (!empty($success)) {
+                echo show_passed_box($success);
+            }
             if (!empty($error)) echo show_error_box($error);
             ?>
-
             <?php if ($token_valid && empty($success)): ?>
-                <p style="margin-top: 0;">Gib jetzt dein neues Passwort ein.</p>
-                <table class="table" style="margin-bottom: 15px;">
-                    <tr>
-                        <td style="min-width: 150px;"><b>Neues Passwort:</b></td>
-                        <td><label><input type="password" name="pass1" style="width: 100%;"></label></td>
-                    </tr>
-                    <tr>
-                        <td><b>Wiederholen:</b></td>
-                        <td><label><input type="password" name="pass2" style="width: 100%;"></label></td>
-                    </tr>
-                </table>
-                <input type="submit" name="reset_now" value="Speichern"
-                       style="width:125px; height:50px; margin-bottom: 15px;"/>
-            <?php endif; ?>
+                <p style="margin-top: 0;">Klicke auf den Button, um ein neues, sicheres Passwort für deinen Account zu
+                    generieren.</p>
 
+                <div style="margin: 20px 0;">
+                    <input type="submit" name="reset_now" value="Passwort jetzt generieren"
+                           style="width:220px; height:50px; cursor: pointer; font-weight: bold;"/>
+                </div>
+
+                <p style="font-size: 13px; opacity: 0.8;">
+                    <i>Hinweis: Das System erstellt ein zufälliges Passwort und zeigt es dir im nächsten Schritt an.</i>
+                </p>
+            <?php endif; ?>
             <hr>
             <a href="index.php"><b>Zurück zum Login</b></a>
         </fieldset>

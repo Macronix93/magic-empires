@@ -49,7 +49,7 @@ class Conquest
     {
         $query = "
                     SELECT s.id, s.soldiername, st.soldiercount 
-                    FROM senttroops st
+                    FROM sent_troops st
                     JOIN soldierlist s ON st.soldierid = s.id
                     WHERE st.eventid = ?
                 ";
@@ -357,12 +357,12 @@ class Conquest
 
             if ($this->initial_soldiers[$id]["initial_my_soldiers"] > 0) {
                 if ($this->initial_soldiers[$id]["my_losses"] >= $this->initial_soldiers[$id]["initial_my_soldiers"]) {
-                    $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?", [$this->event_id, $id]);
+                    $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?", [$this->event_id, $id]);
                 } else {
                     $my_survivors = $this->initial_soldiers[$id]["initial_my_soldiers"] - $this->initial_soldiers[$id]["my_losses"];
 
                     if ($my_survivors != $this->initial_soldiers[$id]["initial_my_soldiers"]) {
-                        $this->mysqli->execute_query("UPDATE senttroops SET soldiercount = ? WHERE eventid = ? AND soldierid = ?",
+                        $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = ? WHERE eventid = ? AND soldierid = ?",
                             [$my_survivors, $this->event_id, $id]);
                     }
                 }
@@ -424,7 +424,7 @@ class Conquest
         }
 
         // Cleanup
-        $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$this->event_id]);
+        $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$this->event_id]);
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$this->event_id]);
     }
 

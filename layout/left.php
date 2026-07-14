@@ -28,7 +28,7 @@ $unread_news = get_unread_news_count($user, $db_instance);
             </span>
                 <?php endif; ?>
             </div>
-            <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" data-on-click="navigate"
+            <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?> box-disabled" data-on-click="navigate"
                  data-url="guild.php">
                 <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde
             </div>
@@ -77,6 +77,14 @@ $unread_news = get_unread_news_count($user, $db_instance);
                  data-on-click="navigate" data-url="settings.php">
                 <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen
             </div>
+            <div class="box<?= $current_page === 'rules.php' ? ' active' : '' ?>"
+                 data-on-click="navigate" data-url="rules.php">
+                <img src="images/icons/icon_rules.png" class="menu-icons" alt="Regeln"/> Regeln
+            </div>
+            <div class="box<?= $current_page === 'faq.php' ? ' active' : '' ?>"
+                 data-on-click="navigate" data-url="faq.php">
+                <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
+            </div>
             <div class="box<?= $current_page === 'donations.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="donations.php">
                 <img src="images/icons/icon_donation.png" class="menu-icons" alt="Spenden"/> Spenden
@@ -86,11 +94,11 @@ $unread_news = get_unread_news_count($user, $db_instance);
     <div class="box-container">
         <div class="box-header">Sonstiges</div>
         <div class="box-content">
-            <div class="box" data-on-click="navigate" data-url="https://board.magic-empires.de">
+            <div class="box box-disabled" data-on-click="navigate" data-url="https://board.magic-empires.de">
                 <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
             </div>
-            <div class="box<?= $current_page === 'statistics.php' ? ' active' : '' ?>"
-                 data-on-click="navigate" data-url="overview.php">
+            <div class="box<?= $current_page === 'stats.php' ? ' active' : '' ?>"
+                 data-on-click="navigate" data-url="stats.php">
                 <img src="images/icons/icon_statistics.png" class="menu-icons" alt="Statistiken"/> Statistiken
             </div>
             <div class="box<?= $current_page === 'disclaimer.php' ? ' active' : '' ?>"

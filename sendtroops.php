@@ -116,7 +116,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     if ($soldier_count > 0) {
                         // Insert troop record
                         $db_instance->execute_query(
-                            "INSERT INTO senttroops (eventid, soldierid, soldiercount) VALUES (?, ?, ?)",
+                            "INSERT INTO sent_troops (eventid, soldierid, soldiercount) VALUES (?, ?, ?)",
                             [$event_id, $soldier_id, $soldier_count]
                         );
 

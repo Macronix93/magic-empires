@@ -45,6 +45,8 @@ if (!$is_cli) {
 /*
     Constants (defines)
 */
+const MIN_KINGDOM_NAME_LENGTH = 3;
+const MAX_KINGDOM_NAME_LENGTH = 32;
 const BASE_SEND_TROOPS_LIMIT = 2;
 const BASE_SETTLEMENT_LIMIT = 5;
 const MAX_RESOURCE_TILES = 500;
@@ -933,4 +935,21 @@ function get_unread_news_count($user, $db_instance): int
         [$uid]
     );
     return (int)$result->fetch_row()[0];
+}
+
+function get_include_contents($filename, $variables = []): false|string
+{
+    if (is_file($filename)) {
+        extract($variables);
+        ob_start();
+        include $filename;
+        return ob_get_clean();
+    }
+    return "Inhalt nicht gefunden.";
+}
+
+function generate_safe_password($length = 12): string
+{
+    $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?";
+    return substr(str_shuffle(str_repeat($chars, 5)), 0, $length);
 }

@@ -42,6 +42,30 @@ if ($user->get_user_admin_level() == 0) {
         exit;
     }
 
+    if (isset($_GET["deletelog"])) {
+        $log_id = (int)$_GET["deletelog"];
+        $db_instance->execute_query("DELETE FROM gamelogs WHERE id = ?", [$log_id]);
+        $logger->admin("Deleted log entry ID $log_id");
+
+        $_SESSION["admin_flash_msg"] = show_passed_box("Log-Eintrag wurde gelöscht!");
+
+        change_location("adminpanel.php");
+        exit;
+    }
+
+    if (isset($_GET["deleteevent"])) {
+        $event_id = (int)$_GET["deleteevent"];
+        $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+        $logger->admin("Deleted event ID $event_id");
+
+        $_SESSION["admin_flash_msg"] = show_passed_box("Event wurde manuell abgebrochen/gelöscht!");
+
+        $redir = isset($_GET["userid"]) ? "?userid=" . (int)$_GET["userid"] : "";
+
+        change_location("adminpanel.php" . $redir);
+        exit;
+    }
+
     if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["field"])) {
         $field = $_POST["field"];
         $old_value = $_POST["old_value"];
@@ -250,7 +274,7 @@ if ($user->get_user_admin_level() == 0) {
 
             // Check for Subnet (Root IP)
             $multi_ip = $db_instance->execute_query(
-                "SELECT id, username, ip FROM users WHERE ip LIKE ? AND id != ?",
+                "SELECT id, username, ip, linked_user FROM users WHERE ip LIKE ? AND id != ?",
                 [$subnet, $user_id]
             );
 
@@ -264,8 +288,21 @@ if ($user->get_user_admin_level() == 0) {
 
             if ($multi_ip->num_rows > 0) {
                 foreach ($multi_ip as $m) {
-                    $is_exact = ($m['ip'] === $row['ip']) ? ' <b>(Exakt)</b>' : ' (Subnetz)';
-                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m['username']) . '</a>' . $is_exact . '<br>';
+                    $is_exact = ($m["ip"] === $row["ip"]) ? ' <b>(Gleiche IP)</b>' : ' (Subnetz)';
+
+                    $consider_linked = ($row["linked_user"] === $m["username"]);
+                    $back_linked = ($m["linked_user"] === $row["username"]);
+
+                    if ($consider_linked && $back_linked) {
+                        $link_status = '<span class="passed"> [Gegenseitig angemeldet]</span>';
+                    } elseif ($consider_linked || $back_linked) {
+                        $link_status = '<span class="event-warning"> [Einseitig angemeldet!]</span>';
+                    } else {
+                        $link_status = '<b class="error"> [NICHT ANGEMELDET!]</b>';
+                    }
+
+                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m["username"]) . '</a>'
+                        . $is_exact . $link_status . '<br>';
                 }
             } else {
                 $view .= '<span class="passed">Keine Treffer</span>';
@@ -322,15 +359,28 @@ if ($user->get_user_admin_level() == 0) {
                     $view .= '<h3>Event-Info</h3>';
 
                     if (!empty($found_kingdom['events'])) {
-                        $view .= '<table class="table">';
+                        $view .= '<h3>Event-Info</h3>';
+                        $view .= '<table class="table">
+                                    <tr>
+                                        <td class="td-gradient"><b>Aktion</b></td>
+                                        <td class="td-gradient"><b>ID</b></td>
+                                        <td class="td-gradient"><b>Aktion</b></td>
+                                    </tr>';
 
                         foreach ($found_kingdom['events'] as $event) {
                             $view .= '<tr>
-                                        <td>Aktion:</td>
-                                        <td>' . $event['action_id'] . ' [ID: ' . $event['event_id'] . ']</td>
+                                        <td>' . $event['action_id'] . '</td>
+                                        <td>' . $event['event_id'] . '</td>
+                                        <td class="td-center">
+                                            <a href="#" 
+                                               data-on-click="confirmDeleteEvent" 
+                                               data-id="' . $event['event_id'] . '" 
+                                               data-userid="' . $user_id . '">
+                                                <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen">
+                                            </a>
+                                        </td>
                                     </tr>';
                         }
-
                         $view .= '</table>';
                     } else {
                         $view .= 'Keine Events für das Königreich gefunden.';
@@ -378,7 +428,7 @@ if ($user->get_user_admin_level() == 0) {
 
     $settings_list = "<div class='box-container' style='margin-bottom: 20px;'>
                 <div class='box-header'>System-Steuerung</div>
-                <div class='box-content' style='padding: 15px;'>
+                <div class='box-content box-content-bg' style='padding: 15px;'>
                     <b>Wartungsmodus:</b> $m_status 
                     <form method='POST' style='display:inline; margin-left: 20px;'>
                         <input type='submit' name='toggle_maintenance' value='$m_button'>
@@ -405,6 +455,95 @@ if ($user->get_user_admin_level() == 0) {
                   </div>';
     }
     $user_list .= '</div>';
+}
+
+$view .= "<br><hr><div class='title-border'>System Logs</div>";
+
+$rows_per_page_logs = 20;
+$current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
+
+// Get total number of logs
+$total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM gamelogs")->fetch_row()[0];
+$total_pages_logs = ceil($total_logs / $rows_per_page_logs);
+$offset_logs = ($current_page_logs - 1) * $rows_per_page_logs;
+
+// Load Data for current page
+$logs = $db_instance->execute_query(
+    "SELECT l.*, u.username 
+     FROM gamelogs l 
+     LEFT JOIN users u ON l.userid = u.id 
+     ORDER BY l.id DESC LIMIT ?, ?",
+    [$offset_logs, $rows_per_page_logs]
+);
+
+$view .= "<table class='table'>
+            <tr>
+                <td class='td-gradient'><b>ID</b></td>
+                <td class='td-gradient'><b>Spieler</b></td>
+                <td class='td-gradient'><b>Kat.</b></td>
+                <td class='td-gradient'><b>Aktion</b></td>
+                <td class='td-gradient'><b>Datum</b></td>
+                <td class='td-gradient'><b></b></td>
+            </tr>";
+
+if ($logs->num_rows > 0) {
+    foreach ($logs as $l) {
+        $user_display = $l['username'] ? e($l['username']) . " <small>({$l['userid']})</small>" : "<i>System / Gast</i>";
+
+        $view .= "<tr>
+                    <td>{$l['id']}</td>
+                    <td>$user_display</td>
+                    <td><small>{$l['category']}</small></td>
+                    <td style='word-break: break-all'>{$l['action']}</td>
+                    <td style='font-size: 13px;'>" . date("d.m. H:i:s", $l['created_at']) . "</td>
+                    <td class='td-center'>
+                        <a href='#' 
+                           data-on-click='confirmDeleteLog' 
+                           data-id='{$l['id']}'>
+                            <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'>
+                        </a>
+                    </td>
+                  </tr>";
+    }
+} else {
+    $view .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";
+}
+$view .= "</table>";
+
+// Pagination Bar
+if ($total_pages_logs > 1) {
+    $view .= '<div class="pagination-container"><div class="pagination-bar">';
+
+    $get_params = $_GET;
+
+    if ($current_page_logs > 1) {
+        $get_params['logpage'] = 1;
+        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&laquo;</a>";
+        $get_params['logpage'] = $current_page_logs - 1;
+        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&lsaquo;</a>";
+    }
+
+    $range = 2;
+    for ($i = ($current_page_logs - $range); $i <= ($current_page_logs + $range); $i++) {
+        if ($i > 0 && $i <= $total_pages_logs) {
+            $get_params['logpage'] = $i;
+            $active = ($i == $current_page_logs) ? "active" : "";
+            if ($i == $current_page_logs) {
+                $view .= "<span class='page-link active'>$i</span>";
+            } else {
+                $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>$i</a>";
+            }
+        }
+    }
+
+    if ($current_page_logs < $total_pages_logs) {
+        $get_params['logpage'] = $current_page_logs + 1;
+        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&rsaquo;</a>";
+        $get_params['logpage'] = $total_pages_logs;
+        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&raquo;</a>";
+    }
+
+    $view .= "</div></div>";
 }
 
 

@@ -13,8 +13,6 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"]) && is_numeric($_GET["star
     $y = (int)$_GET["starty"];
     $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
     $field_id = ($result->num_rows != 0) ? $result->fetch_assoc()["kingdomid"] : -1;
-
-    echo $x;
 } else {
     $field_id = $user->get_current_kingdom();
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$field_id]);

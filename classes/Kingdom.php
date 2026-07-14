@@ -78,11 +78,38 @@ class Kingdom
         }
     }
 
+    private function generate_random_name(): string
+    {
+        $adjectives = [
+            "Goldenes", "Silbernes", "Uraltes", "Ewiges", "Stolzes", "Freies",
+            "Heiliges", "Eisiges", "Wildes", "Finsteres", "Sonniges", "Nebliges",
+            "Düsteres", "Edles", "Fernes", "Mächtiges", "Dunkles", "Glühendes",
+            "Stilles", "Graues", "Frostiges", "Loderndes", "Lichtes", "Wahres",
+            "Reines", "Kühles", "Grünes", "Verlassenes", "Verborgenes"
+        ];
+
+        $nouns = [
+            "Reich", "Land", "Tal", "Ufer", "Eiland", "Plateau", "Ödland",
+            "Feld", "Gehölz", "Massiv", "Becken", "Moor", "Delta", "Bündnis",
+            "Erbe", "Bollwerk", "Monument", "Hort", "Heim", "Tor", "Schloss",
+            "Kastell", "Grabmal", "Domizil", "Zentrum", "Atrium", "Refugium"
+        ];
+
+        $adj = $adjectives[array_rand($adjectives)];
+        $noun = $nouns[array_rand($nouns)];
+
+        $name = $adj . " " . $noun;
+
+        if (mb_strlen($name) > 32) {
+            return "Ewiges Reich"; // Fallback
+        }
+
+        return $name;
+    }
+
     // Function to create a new kingdom
     public function create_kingdom(int $user_id, string $user_name, bool $is_conquest = false, int $map_x = -1, int $map_y = -1): false|int
     {
-        //return (!$row) ? false : $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
-
         if ($is_conquest) {
             $result = $this->mysqli->execute_query("SELECT fieldtype FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
             $row = $result->fetch_assoc();
@@ -113,34 +140,41 @@ class Kingdom
         $gold_rate = BASE_GOLD_GAIN * $row->goldrate;
 
         // Insert kingdom
-        $placeholder = "Königreich";
+        $random_name = $this->generate_random_name();
+
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
                                           woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
         ";
-        $result_kingdom = $this->mysqli->execute_query($query, [$placeholder, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
+
+        $result_kingdom = $this->mysqli->execute_query($query, [$random_name, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
             $food_rate, $gold_rate, $stone_rate, $wood_rate]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
-        $kingdom_name = $placeholder . $insert_id;
 
-        // Update kingdom name with insert id
-        $this->mysqli->execute_query("UPDATE kingdoms SET kingdomname = ? WHERE id = ?", [$kingdom_name, $insert_id]);
+//        $kingdom_name = $random_name . $insert_id;
+//
+//        // Update kingdom name with insert id
+//        $this->mysqli->execute_query("UPDATE kingdoms SET kingdomname = ? WHERE id = ?", [$kingdom_name, $insert_id]);
 
         // Update map properties of x and y
         $this->mysqli->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [$insert_id, $rand_x, $rand_y]);
 
         // Insert standard buildings for this kingdom
         $query = "
-                    INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel)
-                    SELECT ?, '0', 'Dorfzentrum', '1'
-                    UNION ALL
-                    SELECT ?, '3', 'Mauer', '1'
-                    UNION ALL
-                    SELECT ?, '9', 'Lager', '1'
+            INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel)
+            SELECT ?, id, buildingname, 1 
+            FROM buildinglist 
+            WHERE id IN (?, ?, ?)
         ";
-        $this->mysqli->execute_query($query, [$insert_id, $insert_id, $insert_id]);
+
+        $this->mysqli->execute_query($query, [
+            $insert_id,
+            BuildingTypes::BUILDING_TOWNCENTER,
+            BuildingTypes::BUILDING_WALL,
+            BuildingTypes::BUILDING_STORAGE
+        ]);
 
         $new_k = new Kingdom($this->mysqli, $insert_id);
         $new_k->recalculate_production();
@@ -300,6 +334,9 @@ class Kingdom
 
     public function get_shrine_modifier(): float
     {
+        if ($this->get_kingdom_building_level(BuildingTypes::BUILDING_SHRINE) <= 0) {
+            return 0.0;
+        }
         $tech_level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
         return SHRINE_BONUS_BASE + ($tech_level * SHRINE_TECH_STEP);
     }
@@ -557,24 +594,28 @@ class Kingdom
 
     public function recalculate_production(): void
     {
-        $tech_mod = $this->get_shrine_modifier();
+        $has_shrine = ($this->get_kingdom_building_level(BuildingTypes::BUILDING_SHRINE) > 0);
+
+        $tech_mod = $has_shrine ? $this->get_shrine_modifier() : 0.0;
+        $active_align = $has_shrine ? $this->alignment : AlignmentTypes::ALIGN_NONE;
 
         $f_per_hour = $this->base_food_rate;
         $w_per_hour = $this->base_wood_rate;
         $s_per_hour = $this->base_stone_rate;
         $g_per_hour = $this->base_gold_rate;
 
-        // Alignment buffs/nerfs
-        if ($this->alignment == AlignmentTypes::ALIGN_NATURE) {
+        if ($active_align == AlignmentTypes::ALIGN_NATURE) {
             $f_per_hour *= (1 + $tech_mod);
             $w_per_hour *= (1 + $tech_mod);
         }
-        if ($this->alignment == AlignmentTypes::ALIGN_NATURE) {
+
+        if ($active_align == AlignmentTypes::ALIGN_NATURE) {
             $s_per_hour *= (1 - SHRINE_MALUS_BASE);
         }
-        if ($this->alignment == AlignmentTypes::ALIGN_TRADE) {
+
+        if ($active_align == AlignmentTypes::ALIGN_TRADE) {
             $g_per_hour *= (1 + $tech_mod);
-        } else if ($this->alignment == AlignmentTypes::ALIGN_WAR) {
+        } else if ($active_align == AlignmentTypes::ALIGN_WAR) {
             $g_per_hour *= (1 - SHRINE_MALUS_BASE);
         }
 

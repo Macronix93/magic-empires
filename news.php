@@ -1,8 +1,7 @@
 <?php
 require_once("includes/core.php");
-check_user_login($user);
 
-$is_admin = ($user->get_user_admin_level() > 0);
+$is_admin = ($user->is_logged_in() && $user->get_user_admin_level() > 0);
 
 if ($is_admin) {
     if (isset($_POST["post_news"])) {
@@ -49,8 +48,10 @@ $result = $db_instance->execute_query(
 );
 
 // Set Read Status
-$latest_news_id = $db_instance->execute_query("SELECT MAX(id) FROM news")->fetch_row()[0] ?? 0;
-$db_instance->execute_query("UPDATE users SET last_news_read = ? WHERE id = ?", [$latest_news_id, $user->get_user_id()]);
+if ($user->is_logged_in()) {
+    $latest_news_id = $db_instance->execute_query("SELECT MAX(id) FROM news")->fetch_row()[0] ?? 0;
+    $db_instance->execute_query("UPDATE users SET last_news_read = ? WHERE id = ?", [$latest_news_id, $user->get_user_id()]);
+}
 
 // Build View
 if ($is_admin) {
@@ -148,4 +149,8 @@ $title = "Neuigkeiten";
 $header = "Neuigkeiten";
 $script_files = ["adminpanel"];
 
-include("layout/base.php");
+if ($user->is_logged_in()) {
+    include("layout/base.php");
+} else {
+    include("layout/guest_base.php");
+}

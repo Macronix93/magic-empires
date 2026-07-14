@@ -3,17 +3,11 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
-// Get some user data to show...
-$result = $db_instance->execute_query("SELECT ip, email, score, guildid, registerdate, mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
+// Get main kingdom of user
+$result = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
 $row = $result->fetch_assoc();
-$ip = $row["ip"];
-$email = $row["email"];
-$score = $row["score"];
-$guild_id = $row["guildid"];
-$register_date = $row["registerdate"];
 $main_kingdom = $row["mainkingdom"];
 $now = time();
-$time_diff = $now - $_SESSION["currlogin"];
 $kingdom = new Kingdom($db_instance, $main_kingdom);
 
 if (!isset($_SESSION["acknowledged_attacks"])) {
@@ -159,7 +153,7 @@ $query = "
     SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
            e.*, k.mapx, k.mapy, kt.userid AS target_userid
     FROM (SELECT * FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?) ORDER BY arrivaltime LIMIT $offset_tp, $limit) e
-    JOIN senttroops st ON st.eventid = e.eventid
+    JOIN sent_troops st ON st.eventid = e.eventid
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     JOIN soldierlist sl ON st.soldierid = sl.id
@@ -596,20 +590,6 @@ if ($result_trades && $result_trades->num_rows > 0) {
 } else {
     $view .= "Derzeit sind keine Warenlieferungen unterwegs.";
 }
-
-// Show user data...
-$view .= "<div class='title-border' style='margin-top: 30px;'>Allgemeine Daten</div>";
-$view .= "<table class='table' style='max-width: 450px;'>";
-$view .= "<tr><td>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>";
-$view .= "<tr><td>IP-Adresse:</td><td>" . $_SERVER["REMOTE_ADDR"] . "</td></tr>";
-$view .= "<tr><td>Haupt-Königreich:</td><td>" . $kingdom->get_kingdom_name() . " (" . $kingdom->get_kingdom_map_x() . ":" . $kingdom->get_kingdom_map_y() . ")</td></tr>";
-$view .= "<tr><td>E-Mail:</td><td>$email</td></tr>";
-$view .= "<tr><td>Registriert seit:</td><td>" . date('d.m.Y H:i:s', $register_date) . "</td></tr>";
-$view .= "<tr><td>Letzter Login:</td><td>" . date('d.m.Y H:i:s', $_SESSION["lastlogin"]) . "</td></tr>";
-$view .= "<tr><td>Score:</td><td>$score</td></tr>";
-$view .= "<tr><td>Gilde:</td><td>" . ($guild_id == -1 ? "Keine Gilde" : $guild_id) . "</td></tr>";
-$view .= "<tr><td>Admin-Level:</td><td>" . $user->get_user_admin_level() . "</td></tr>";
-$view .= "</table>";
 
 /*
  * HTML Section

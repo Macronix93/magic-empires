@@ -335,7 +335,7 @@ class EventManager
 
         // Check for troop composition
         $res = $this->mysqli->execute_query(
-            "SELECT soldierid, soldiercount FROM senttroops WHERE eventid = ?",
+            "SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?",
             [$row["eventid"]]
         );
 
@@ -421,7 +421,7 @@ class EventManager
 
                 send_server_message($owner_id, $u_name, "Dein Heimatdorf wurde erobert! Deine Truppen wurden zu deinem Hauptkönigreich umgeleitet.", MessageCategories::CATEGORY_WAR);
             } else {
-                $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$row["eventid"]]);
+                $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
                 $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             }
             return;
@@ -466,7 +466,7 @@ class EventManager
 
         $res_troops = $this->mysqli->execute_query(
             "SELECT sl.soldiername, st.soldiercount, sl.icon 
-             FROM senttroops st 
+             FROM sent_troops st 
              JOIN soldierlist sl ON st.soldierid = sl.id 
              WHERE st.eventid = ?",
             [$row["eventid"]]
@@ -478,7 +478,7 @@ class EventManager
         $msg .= "</div>";
         $msg .= "</div>";
 
-        $res = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM senttroops WHERE eventid = ?", [$row["eventid"]]);
+        $res = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
         while ($sol = $res->fetch_assoc()) {
             $this->mysqli->execute_query("UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?",
                 [$sol["soldiercount"], $row["kingdomid"], $sol["soldierid"]]);
@@ -494,8 +494,8 @@ class EventManager
 
         send_server_message($owner_id, $u_name, $msg, MessageCategories::CATEGORY_WAR);
 
-        // Delete the event and senttroops
-        $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ?", [$row["eventid"]]);
+        // Delete the event and sent troops
+        $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
     }
 
@@ -599,7 +599,16 @@ class EventManager
     {
         $res = $this->mysqli->execute_query("SELECT ft.$rate_field FROM map m JOIN fieldtypes ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$kid]);
         $rate = $res->fetch_assoc()[$rate_field];
-        $this->mysqli->execute_query("UPDATE kingdoms SET $target_field = $target_field + ? WHERE id = ?", [$base * $rate, $kid]);
+
+        $base_field = "base_" . str_replace("perhour", "_rate", $target_field);
+        $increase = $base * $rate;
+
+        $this->mysqli->execute_query("UPDATE kingdoms SET $base_field = $base_field + ? WHERE id = ?", [$increase, $kid]);
+
+        $kingdom = new Kingdom($this->mysqli, $kid);
+        $kingdom->recalculate_production();
+
+        //$this->mysqli->execute_query("UPDATE kingdoms SET $target_field = $target_field + ? WHERE id = ?", [$base * $rate, $kid]);
     }
 
     private function process_empty_field_conquest(array $row, string &$message, User $attacker_user): void
@@ -617,7 +626,7 @@ class EventManager
         }
 
         $res = $this->mysqli->execute_query(
-            "SELECT soldiercount FROM senttroops WHERE eventid = ? AND soldierid = ?",
+            "SELECT soldiercount FROM sent_troops WHERE eventid = ? AND soldierid = ?",
             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
         );
         $wagon_count = ($res->num_rows > 0) ? $res->fetch_column() : 0;
@@ -638,12 +647,12 @@ class EventManager
                 if ($new_kingdom_id) {
                     if ($wagon_count > 1) {
                         $this->mysqli->execute_query(
-                            "UPDATE senttroops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?",
+                            "UPDATE sent_troops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?",
                             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
                         );
                     } else {
                         $this->mysqli->execute_query(
-                            "DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?",
+                            "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?",
                             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
                         );
                     }
@@ -912,8 +921,8 @@ class EventManager
             // Score decrease for losing one Conquerer
             $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$score_loss, $attacker_user->get_user_id()]);
 
-            $this->mysqli->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?"
-                : "UPDATE senttroops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?", [$row["eventid"], $c_id]);
+            $this->mysqli->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?"
+                : "UPDATE sent_troops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?", [$row["eventid"], $c_id]);
 
             // Check: Is it the last kingdom of the defender?
             $k_count_res = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$enemy_user->get_user_id()]);
@@ -1096,7 +1105,7 @@ class EventManager
 
                 // Level 3: Rough Troop Strength
                 if ($intel_level >= 3) {
-                    $res_count = $this->mysqli->execute_query("SELECT SUM(soldiercount) as total FROM senttroops WHERE eventid = ?", [$row["eventid"]]);
+                    $res_count = $this->mysqli->execute_query("SELECT SUM(soldiercount) as total FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
                     $total_units = $res_count->fetch_assoc()["total"] ?? 0;
 
                     if ($total_units < 50) $strength_label = "Ein kleiner Trupp";
@@ -1117,7 +1126,7 @@ class EventManager
 
                     $res_troops = $this->mysqli->execute_query("
                                                 SELECT sl.soldiername, sl.icon, sl.attack, sl.defense, st.soldiercount 
-                                                FROM senttroops st 
+                                                FROM sent_troops st 
                                                 JOIN soldierlist sl ON st.soldierid = sl.id 
                                                 WHERE st.eventid = ?", [$row["eventid"]]);
 
@@ -1201,7 +1210,7 @@ class EventManager
         // Attacker losses
         if ($atk_losses > 0) {
             $this->mysqli->execute_query(
-                "UPDATE senttroops SET soldiercount = GREATEST(0, soldiercount - ?) WHERE eventid = ? AND soldierid = ?",
+                "UPDATE sent_troops SET soldiercount = GREATEST(0, soldiercount - ?) WHERE eventid = ? AND soldierid = ?",
                 [$atk_losses, $event_id, Soldiers::SOLDIER_SCOUT]
             );
         }
@@ -1334,7 +1343,7 @@ class EventManager
 
         // Count raiders
         $res = $this->mysqli->execute_query(
-            "SELECT soldiercount FROM senttroops WHERE eventid = ? AND soldierid = ?",
+            "SELECT soldiercount FROM sent_troops WHERE eventid = ? AND soldierid = ?",
             [$event_id, Soldiers::SOLDIER_RAIDER]
         );
         $raider_count = ($res->num_rows > 0) ? (int)$res->fetch_column() : 0;
@@ -1387,11 +1396,11 @@ class EventManager
 
                 // Reduce troops in event
                 if ($losses >= $raider_count) {
-                    $this->mysqli->execute_query("DELETE FROM senttroops WHERE eventid = ? AND soldierid = ?", [$event_id, Soldiers::SOLDIER_RAIDER]);
+                    $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?", [$event_id, Soldiers::SOLDIER_RAIDER]);
 
                     $losses = $raider_count; // Everyone dead
                 } else {
-                    $this->mysqli->execute_query("UPDATE senttroops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_RAIDER]);
+                    $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_RAIDER]);
                 }
             }
 

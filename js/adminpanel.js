@@ -52,6 +52,31 @@ registerAction("confirmDeleteNews", (el) => {
         }
     );
 });
+registerAction("confirmDeleteLog", (el) => {
+    const logId = el.dataset.id;
+
+    showConfirmationDialog(
+        "Soll dieser Log-Eintrag wirklich gelöscht werden?",
+        "Ja, löschen",
+        "Abbrechen",
+        () => {
+            window.location.href = "adminpanel.php?deletelog=" + logId;
+        }
+    );
+});
+registerAction("confirmDeleteEvent", (el) => {
+    const eventId = el.dataset.id;
+    const userId = el.dataset.userid;
+
+    showConfirmationDialog(
+        "Soll dieses Event (Bau/Rekrutierung/Forschung) wirklich abgebrochen werden?",
+        "Ja, abbrechen",
+        "Nein",
+        () => {
+            window.location.href = `adminpanel.php?deleteevent=${eventId}&userid=${userId}`;
+        }
+    );
+});
 
 function editField(userID, fieldID, currentValue, formattedValue) {
     const td = document.getElementById("td_" + fieldID);

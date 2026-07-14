@@ -78,6 +78,11 @@ body {
     flex-direction: column;
 }
 
+.ready-msg {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
 .hero-footer {
     margin-top: auto;
     text-align: center;
@@ -940,10 +945,11 @@ select:-webkit-autofill {
 
 .big-box-header {
     height: 50px;
+    width: 95%;
     border-bottom: 2px solid var(--border-gold);
     box-shadow: 0 4px 4px -4px black;
     text-align: center;
-    margin: 10px 20px 10px 20px;
+    margin: 10px auto;
     font-size: 32px;
     color: var(--link-color);
     font-variant: small-caps;
@@ -962,6 +968,7 @@ select:-webkit-autofill {
     overflow: hidden;
     box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.6);
     width: 100%;
+    height: fit-content;
 }
 
 .box-header {
@@ -993,6 +1000,17 @@ select:-webkit-autofill {
 .box:hover, .box.active {
     background: var(--box-selected);
     color: var(--link-color);
+}
+
+.box.box-disabled {
+    filter: grayscale(100%);
+    color: #888 !important;
+    pointer-events: none;
+}
+
+.box.box-disabled:hover {
+    background-color: var(--box-content-color) !important;
+    color: #888 !important;
 }
 
 /* Container of each side and mid */
@@ -1793,6 +1811,10 @@ tr:first-child .td-center {
         --map-viewport-height: 400px;
     }
 
+    .ready-msg {
+        margin-bottom: 5px;
+    }
+
     .landing-main {
         flex-direction: column;
     }
@@ -1908,6 +1930,10 @@ tr:first-child .td-center {
     textarea,
     button {
         font-size: 14px;
+    }
+
+    .box-header {
+        font-size: 18px;
     }
 
     .big-box-header {
