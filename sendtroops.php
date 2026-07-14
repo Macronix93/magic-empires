@@ -54,7 +54,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
         // Get field info
         $query = "
                     SELECT m.fieldtype, f.fieldname FROM map m
-                    JOIN fieldtypes f ON m.fieldtype = f.fieldid
+                    JOIN field_types f ON m.fieldtype = f.fieldid
                     WHERE mapx = ? AND mapy = ?
             ";
         $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);

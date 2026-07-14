@@ -44,7 +44,7 @@ if ($user->get_user_admin_level() == 0) {
 
     if (isset($_GET["deletelog"])) {
         $log_id = (int)$_GET["deletelog"];
-        $db_instance->execute_query("DELETE FROM gamelogs WHERE id = ?", [$log_id]);
+        $db_instance->execute_query("DELETE FROM game_logs WHERE id = ?", [$log_id]);
         $logger->admin("Deleted log entry ID $log_id");
 
         $_SESSION["admin_flash_msg"] = show_passed_box("Log-Eintrag wurde gelöscht!");
@@ -463,14 +463,14 @@ $rows_per_page_logs = 20;
 $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
 
 // Get total number of logs
-$total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM gamelogs")->fetch_row()[0];
+$total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM game_logs")->fetch_row()[0];
 $total_pages_logs = ceil($total_logs / $rows_per_page_logs);
 $offset_logs = ($current_page_logs - 1) * $rows_per_page_logs;
 
 // Load Data for current page
 $logs = $db_instance->execute_query(
     "SELECT l.*, u.username 
-     FROM gamelogs l 
+     FROM game_logs l 
      LEFT JOIN users u ON l.userid = u.id 
      ORDER BY l.id DESC LIMIT ?, ?",
     [$offset_logs, $rows_per_page_logs]

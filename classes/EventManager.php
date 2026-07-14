@@ -166,7 +166,7 @@ class EventManager
         }
 
         // Calculate score
-        $res = $this->mysqli->execute_query("SELECT techscore FROM techlist WHERE id = ?", [$tech_id]);
+        $res = $this->mysqli->execute_query("SELECT techscore FROM tech_list WHERE id = ?", [$tech_id]);
         $score_gain = $res->fetch_assoc()["techscore"] * $row["buildinglevel"] + 1;
 
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
@@ -185,7 +185,7 @@ class EventManager
     {
         if ($row["buildingtime"] >= time()) return;
 
-        $res = $this->mysqli->execute_query("SELECT buildingscore FROM buildinglist WHERE id = ?", [$row["buildingid"]]);
+        $res = $this->mysqli->execute_query("SELECT buildingscore FROM building_list WHERE id = ?", [$row["buildingid"]]);
         $score_gain = $res->fetch_assoc()["buildingscore"] * $row["buildinglevel"] + 1;
 
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
@@ -433,7 +433,7 @@ class EventManager
         $u_name = $res->fetch_assoc()["username"] ?? "Spieler";
 
         if ($row["targetid"] == -1 || $row["targetid"] == -2) {
-            $res = $this->mysqli->execute_query("SELECT ft.fieldname FROM map m JOIN fieldtypes ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
+            $res = $this->mysqli->execute_query("SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
                 [$target_x, $target_y]);
 
             $field_name = $res->fetch_assoc()["fieldname"] ?? "Unbekannt";
@@ -597,7 +597,7 @@ class EventManager
 
     private function update_production(int $kid, string $rate_field, int $base, string $target_field): void
     {
-        $res = $this->mysqli->execute_query("SELECT ft.$rate_field FROM map m JOIN fieldtypes ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$kid]);
+        $res = $this->mysqli->execute_query("SELECT ft.$rate_field FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$kid]);
         $rate = $res->fetch_assoc()[$rate_field];
 
         $base_field = "base_" . str_replace("perhour", "_rate", $target_field);
@@ -928,7 +928,7 @@ class EventManager
             $k_count_res = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$enemy_user->get_user_id()]);
             $loss_res = $this->mysqli->execute_query("SELECT SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore) AS loss 
                                             FROM buildings b 
-                                            JOIN buildinglist bl ON b.buildingid = bl.id 
+                                            JOIN building_list bl ON b.buildingid = bl.id 
                                             WHERE b.kingdomid = ?",
                 [$enemy_kingdom->get_kingdom_id()]);
             $total_building_score_loss = (int)($loss_res->fetch_assoc()["loss"] ?? 0);

@@ -131,7 +131,7 @@ class Kingdom
     public function found_free_field(int $field_type, int $rand_x, int $rand_y, int $user_id, string $user_name): int
     {
         // Get resource gain rates based on fieldtype
-        $result = $this->mysqli->execute_query("SELECT foodrate, woodrate, stonerate, goldrate FROM fieldtypes WHERE fieldid = ?", [$field_type]);
+        $result = $this->mysqli->execute_query("SELECT foodrate, woodrate, stonerate, goldrate FROM field_types WHERE fieldid = ?", [$field_type]);
         $row = $result->fetch_object();
 
         $food_rate = BASE_FOOD_GAIN * $row->foodrate;
@@ -165,7 +165,7 @@ class Kingdom
         $query = "
             INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel)
             SELECT ?, id, buildingname, 1 
-            FROM buildinglist 
+            FROM building_list 
             WHERE id IN (?, ?, ?)
         ";
 
@@ -639,8 +639,8 @@ class Kingdom
         // Query to fetch buildings and dependencies
         $query = "
             SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
-            FROM buildinglist b 
-            LEFT JOIN buildingdeps d ON b.id = d.buildingid 
+            FROM building_list b 
+            LEFT JOIN building_deps d ON b.id = d.buildingid 
             LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
             GROUP BY b.id
         ";
@@ -683,7 +683,7 @@ class Kingdom
         $techs = [];
 
         // All techs + current level
-        $query = "SELECT t.*, tl.techlevel FROM techlist t
+        $query = "SELECT t.*, tl.techlevel FROM tech_list t
               LEFT JOIN techs tl ON tl.techid = t.id AND tl.kingdomid = ?";
 
         if ($origin_building !== null) {
@@ -698,7 +698,7 @@ class Kingdom
         }
 
         // Building dependencies
-        $query_building_deps = "SELECT * FROM techbuildingdeps";
+        $query_building_deps = "SELECT * FROM tech_building_deps";
         $result_building_deps = $this->mysqli->execute_query($query_building_deps);
 
         foreach ($result_building_deps as $row) {
@@ -714,7 +714,7 @@ class Kingdom
         }
 
         // Tech dependencies
-        $query_tech_deps = "SELECT * FROM techdeps";
+        $query_tech_deps = "SELECT * FROM tech_deps";
         $result_tech_deps = $this->mysqli->execute_query($query_tech_deps);
 
         foreach ($result_tech_deps as $row) {

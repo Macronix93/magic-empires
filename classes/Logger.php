@@ -36,7 +36,7 @@ class Logger
         $details_json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $ip = $_SERVER["REMOTE_ADDR"] ?? "0.0.0.0";
 
-        $query = "INSERT INTO gamelogs (userid, kingdomid, category, action, details, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $query = "INSERT INTO game_logs (userid, kingdomid, category, action, details, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
         $this->db->execute_query($query, [$user_id, $kid, $category, $action, $details_json, $ip, time()]);
     }
 

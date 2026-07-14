@@ -242,7 +242,7 @@ class User
                 SELECT id FROM messages 
                 WHERE receiverid = ? AND hasread = 0 AND deleted = 0
                 UNION ALL
-                SELECT id FROM servermessages 
+                SELECT id FROM server_messages 
                 WHERE receiverid = ? AND hasread = 0
             ) AS combined_messages
         ";

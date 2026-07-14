@@ -22,7 +22,7 @@ if (isset($_POST["activate_boost"])) {
         if ($kingdom->get_kingdom_stone() >= $boost_cost) {
             $kingdom->give_kingdom_stone(-$boost_cost);
 
-            $res_ft = $db_instance->execute_query("SELECT ft.stonerate FROM map m JOIN fieldtypes ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$current_kingdom]);
+            $res_ft = $db_instance->execute_query("SELECT ft.stonerate FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$current_kingdom]);
             $ft = $res_ft->fetch_assoc();
 
             $hourly_boost = (int)round(BASE_STONE_GAIN * $ft["stonerate"] * BOOST_PRODUCTION_BONUS);

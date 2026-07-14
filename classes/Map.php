@@ -187,7 +187,7 @@ class Map
                   </tr>
               </table>';
         } else if ($field == -1) {
-            $query = "SELECT m.fieldtype, f.fieldname FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
+            $query = "SELECT m.fieldtype, f.fieldname FROM map m JOIN field_types f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
             $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
             $field_name = $result->fetch_assoc()["fieldname"];
 
@@ -226,7 +226,7 @@ class Map
             $user_id = $row_2["userid"];
             $user_score = "<img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte' title='Punkte'/>" . fnum($row_2["score"]);
 
-            $query = "SELECT f.fieldname FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
+            $query = "SELECT f.fieldname FROM map m JOIN field_types f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
             $result_3 = $this->mysqli->execute_query($query, [$field_x, $field_y]);
             $field_name = $result_3->fetch_assoc()["fieldname"];
 
@@ -336,7 +336,7 @@ class Map
             return $_SESSION["cached_map_data"];
         }
 
-        $query = "SELECT m.mapx, m.mapy, f.traversaltime FROM map m JOIN fieldtypes f ON m.fieldtype = f.fieldid";
+        $query = "SELECT m.mapx, m.mapy, f.traversaltime FROM map m JOIN field_types f ON m.fieldtype = f.fieldid";
         $result = $this->mysqli->execute_query($query);
         $map = [];
 

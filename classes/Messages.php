@@ -36,9 +36,9 @@ class Messages
         }
 
         if ($oldest_id === null) {
-            $query = "SELECT * FROM servermessages WHERE receiverid = ? $category_sql ORDER BY id DESC LIMIT ?";
+            $query = "SELECT * FROM server_messages WHERE receiverid = ? $category_sql ORDER BY id DESC LIMIT ?";
         } else {
-            $query = "SELECT * FROM servermessages WHERE receiverid = ? $category_sql AND id < ? ORDER BY id DESC LIMIT ?";
+            $query = "SELECT * FROM server_messages WHERE receiverid = ? $category_sql AND id < ? ORDER BY id DESC LIMIT ?";
             $params[] = $oldest_id;
         }
 
@@ -186,7 +186,7 @@ class Messages
         $limit = SHOW_MESSAGES_LIMIT;
         $uid = $this->user->get_user_id();
 
-        $query = "SELECT * FROM servermessages WHERE receiverid = ? ORDER BY id DESC LIMIT ?";
+        $query = "SELECT * FROM server_messages WHERE receiverid = ? ORDER BY id DESC LIMIT ?";
         $result = $this->mysqli->execute_query($query, [$uid, $limit + 1]);
 
         if ($result->num_rows == 0) {
@@ -223,7 +223,7 @@ class Messages
                         </div>";
 
             if ($row["hasread"] == 0) {
-                $this->mysqli->execute_query("UPDATE servermessages SET hasread = 1 WHERE id = ?", [$row["id"]]);
+                $this->mysqli->execute_query("UPDATE server_messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
             }
         }
 
@@ -246,7 +246,7 @@ class Messages
 
     public function get_unread_server_count(): int
     {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM servermessages WHERE receiverid = ? AND hasread = 0",
+        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM server_messages WHERE receiverid = ? AND hasread = 0",
             [$this->user->get_user_id()]);
         return $result->fetch_assoc()["unreadcount"];
     }

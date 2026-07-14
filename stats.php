@@ -50,7 +50,7 @@ $view = "
             <hr>
             <div style='text-align:center; margin-bottom: 5px;'><b>Militärische Stärke</b></div>
             <div class='split-content'><span>Summe aller Truppen:</span> <b>" . fnum($total_soldiers) . "</b></div>
-            <div class='split-content'><span>Durchgeführte Schlachten:</span> <b>" . fnum($db_instance->execute_query("SELECT COUNT(*) FROM gamelogs WHERE action = 'RESULT'")->fetch_row()[0]) . "</b></div>
+            <div class='split-content'><span>Durchgeführte Schlachten:</span> <b>" . fnum($db_instance->execute_query("SELECT COUNT(*) FROM game_logs WHERE action = 'RESULT'")->fetch_row()[0]) . "</b></div>
         </div>
     </div>
 </div>

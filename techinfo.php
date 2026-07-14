@@ -23,15 +23,15 @@ $get_costs_for_level = function (array $data, int $lvl) {
     ];
 };
 
-if ($building_id != null) {
+if ($building_id !== null) {
     $query = "
                 SELECT 
                     b.*, 
                     t.total_buildings
                 FROM 
-                    buildinglist b
+                    building_list b
                 CROSS JOIN 
-                    (SELECT COUNT(*) AS total_buildings FROM buildinglist) t
+                    (SELECT COUNT(*) AS total_buildings FROM building_list) t
                 WHERE 
                     b.id = ?
     ";
@@ -83,15 +83,15 @@ if ($building_id != null) {
     } else {
         $view .= show_error_box("Dieses Gebäude existiert nicht!");
     }
-} else if ($tech_id != null) {
+} else if ($tech_id !== null) {
     $query = "
                 SELECT 
                     t.*, 
                     tt.total_techs
                 FROM 
-                    techlist t
+                    tech_list t
                 CROSS JOIN 
-                    (SELECT COUNT(*) AS total_techs FROM techlist) tt
+                    (SELECT COUNT(*) AS total_techs FROM tech_list) tt
                 WHERE 
                     t.id = ?
     ";

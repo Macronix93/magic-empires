@@ -826,7 +826,7 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
 function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT): void
 {
     $db = Database::get_instance();
-    $db->get_connection()->execute_query("INSERT INTO servermessages (receiverid, receiver, date, message, category) VALUES (?, ?, ?, ?, ?)",
+    $db->get_connection()->execute_query("INSERT INTO server_messages (receiverid, receiver, date, message, category) VALUES (?, ?, ?, ?, ?)",
         [$user_id, $user_name, time(), $message, $category]);
 }
 
