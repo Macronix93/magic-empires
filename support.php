@@ -228,8 +228,9 @@ if (isset($_GET["tid"])) {
     $current_page = max(1, (int)($_GET["currentpage"] ?? 1));
     $offset = ($current_page - 1) * $rows_per_page;
 
-    if (!$support->has_active_ticket($uid)) {
-        $view .= "<div class='box-container'>
+    if (!$is_staff) {
+        if (!$support->has_active_ticket($uid)) {
+            $view .= "<div class='box-container'>
                         <div class='box-header'>Neues Support-Ticket</div>
                         <div class='box-content box-content-bg' style='padding: 15px;'>
                             <form method='POST' action='support.php' id='newticketform'>
@@ -240,10 +241,7 @@ if (isset($_GET["tid"])) {
                             </form>
                         </div>
                       </div><br>";
-    }
-
-    if (!$is_staff) {
-
+        }
 
         $total_items = $db_instance->execute_query("SELECT COUNT(*) FROM support_tickets WHERE userid = ?", [$uid])->fetch_row()[0];
 
