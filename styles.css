@@ -1013,6 +1013,26 @@ select:-webkit-autofill {
     color: #888 !important;
 }
 
+/* Stats Ranking */
+.rank-gold, .rank-silver, .rank-bronze {
+    font-weight: bold;
+}
+
+.rank-gold {
+    color: #d4af37;
+    font-size: 22px;
+}
+
+.rank-silver {
+    color: #B0BBC0;
+    font-size: 20px;
+}
+
+.rank-bronze {
+    color: #cd7f32;
+    font-size: 18px;
+}
+
 /* Container of each side and mid */
 .left-container,
 .right-container {
@@ -1255,7 +1275,7 @@ tr:first-child .td-center {
 
 #overlay-content-body {
     min-height: 100px;
-    transition: opacity 0.2s ease-in-out;
+    transition: opacity 0.2s ease;
 }
 
 .spinner {
@@ -1809,6 +1829,18 @@ tr:first-child .td-center {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .rank-gold {
+        font-size: 18px;
+    }
+
+    .rank-silver {
+        font-size: 16px;
+    }
+
+    .rank-bronze {
+        font-size: 15px;
     }
 
     .ready-msg {

@@ -44,7 +44,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
 <?php include_once("layout/banner.html"); ?>
 
 <div class="form">
-    <form class="login-register" method="POST" action="reset_password.php?token=<?= e($token) ?>">
+    <form class="login-register" method="POST" action="resetpassword.php?token=<?= e($token) ?>">
         <fieldset>
             <legend><b>Passwort zurücksetzen</b></legend>
             <?php

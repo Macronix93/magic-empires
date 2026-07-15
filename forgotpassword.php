@@ -33,7 +33,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 
             $db_instance->execute_query("UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?", [$token, $expires, $row["id"]]);
 
-            $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "reset_password.php?token=" . $token;
+            $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "resetpassword.php?token=" . $token;
 
             $subject = "Magic Empires - Passwort zurücksetzen";
             $message = "Hallo " . htmlspecialchars($row["username"]) . ",<br><br>
@@ -59,7 +59,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 <?php include_once("layout/banner.html"); ?>
 
 <div class="form">
-    <form class="login-register" method="POST" action="forgot_password.php">
+    <form class="login-register" method="POST" action="forgotpassword.php">
         <fieldset>
             <legend><b>Passwort vergessen</b></legend>
             <?php

@@ -1,10 +1,9 @@
 let isDraggingInfoWindow = false;
-let currentXInfoWindow;
-let currentYInfoWindow;
 let initialX;
 let initialY;
 let xOffset = 0;
 let yOffset = 0;
+let currentOverlayUrl = "";
 
 registerAction("openOverlay", (el) => {
     const url = el.dataset.url;
@@ -47,27 +46,45 @@ function openOverlay(url, title = "Info") {
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
 
-    xOffset = 0;
-    yOffset = 0;
-    setTranslate(0, 0, overlay);
+    if (url === currentOverlayUrl && overlay.style.display === "grid") {
+        return;
+    }
 
-    overlay.style.display = "grid";
+    if (overlay.style.display === "grid") {
+        content.style.height = content.offsetHeight + "px";
+    } else {
+        xOffset = 0;
+        yOffset = 0;
+        setTranslate(0, 0, overlay);
+        overlay.style.display = "grid";
+        applyOverlayStyles();
+    }
+
+    currentOverlayUrl = url;
     overlayTitle.innerText = title;
-    content.innerHTML = '<div class="spinner">Lade...</div>';
 
-    applyOverlayStyles();
+    content.style.opacity = "0";
 
-    fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
-        .then(response => response.text())
-        .then(html => {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-            content.innerHTML = doc.body.innerHTML;
-            content.scrollTop = 0;
-        })
-        .catch(() => {
-            content.textContent = "Fehler beim Laden.";
-        });
+    setTimeout(() => {
+        content.innerHTML = '<div class="spinner">Lade...</div>';
+        content.style.opacity = "1";
+
+        fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+
+                content.innerHTML = doc.body.innerHTML;
+                content.style.height = "auto";
+                content.scrollTop = 0;
+            })
+            .catch(() => {
+                content.textContent = "Fehler beim Laden.";
+                content.style.height = "auto";
+                currentOverlayUrl = "";
+            });
+    }, 150);
 }
 
 function closeOverlay() {
@@ -76,6 +93,8 @@ function closeOverlay() {
 
     if (overlay) {
         overlay.style.display = "none";
+
+        currentOverlayUrl = "";
     }
 }
 

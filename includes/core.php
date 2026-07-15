@@ -45,6 +45,8 @@ if (!$is_cli) {
 /*
     Constants (defines)
 */
+const USERNAME_CHANGE_COOLDOWN_DAYS = 7;
+const KINGDOM_NAME_CHANGE_COOLDOWN_DAYS = 7;
 const MIN_KINGDOM_NAME_LENGTH = 3;
 const MAX_KINGDOM_NAME_LENGTH = 32;
 const BASE_SEND_TROOPS_LIMIT = 2;

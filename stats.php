@@ -68,11 +68,19 @@ $top5 = $db_instance->execute_query("SELECT username, score FROM users WHERE sta
 $rank = 1;
 
 foreach ($top5 as $row) {
-    $color = ($rank == 1) ? "style='color: #d4af37; font-weight: bold;'" : "";
+    $rank_class = match ($rank) {
+        1 => "rank-gold",
+        2 => "rank-silver",
+        3 => "rank-bronze",
+        default => ""
+    };
+
+    $class_attr = !empty($rank_class) ? "class='$rank_class'" : "";
+
     $view .= "<tr>
-                <td class='td-center' $color>$rank</td>
-                <td $color>" . e($row["username"]) . "</td>
-                <td class='td-center' $color>" . fnum($row["score"]) . "</td>
+                <td class='td-center $rank_class'>$rank</td>
+                <td $class_attr>" . e($row["username"]) . "</td>
+                <td class='td-center $rank_class'>" . fnum($row["score"]) . "</td>
               </tr>";
     $rank++;
 }

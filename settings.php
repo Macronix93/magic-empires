@@ -98,6 +98,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
 
+        // Change Name
+        if (isset($_POST['change_username'])) {
+            $raw_name = $_POST['new_username'] ?? "";
+            $confirm_pw = $_POST['confirm_pw_name'] ?? "";
+
+            $res = $db_instance->execute_query("SELECT password, last_username_change FROM users WHERE id = ?", [$uid]);
+            $u_data = $res->fetch_assoc();
+
+            $days_since_change = (time() - $u_data['last_username_change']) / 86400;
+
+            if (!password_verify($confirm_pw, $u_data['password'])) {
+                $error = "Passwort-Bestätigung fehlgeschlagen.";
+            } else if ($days_since_change < USERNAME_CHANGE_COOLDOWN_DAYS) {
+                $wait = ceil(USERNAME_CHANGE_COOLDOWN_DAYS - $days_since_change);
+                $error = "Du kannst deinen Namen erst in $wait Tagen wieder ändern.";
+            } else {
+                if (preg_match('/\s/', $raw_name)) {
+                    $error = "Benutzername darf keine Leerzeichen enthalten!";
+                } else {
+                    $new_name = make_secure($raw_name);
+
+                    if (empty($new_name)) {
+                        $error = "Bitte einen Benutzernamen angeben!";
+                    } else if (!preg_match("/^[a-zA-Z0-9]+$/", $new_name)) {
+                        $error = "Benutzername darf nur Buchstaben und Zahlen enthalten!";
+                    } else if (strlen($new_name) < MIN_USERNAME_LENGTH || strlen($new_name) > MAX_USERNAME_LENGTH) {
+                        $error = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
+                    } else if (contains_bad_words($new_name) || preg_match_all(regex_pattern(), $new_name, $matches)) {
+                        $error = "Dieser Benutzername ist nicht erlaubt!";
+                    } else {
+                        $check = $db_instance->execute_query("SELECT id FROM users WHERE username = ? AND id != ?", [$new_name, $uid]);
+
+                        if ($check->num_rows > 0) {
+                            $error = "Dieser Name ist bereits vergeben.";
+                        } else {
+                            $db_instance->execute_query("UPDATE users SET username = ?, last_username_change = ? WHERE id = ?", [$new_name, time(), $uid]);
+                            $_SESSION["username"] = $new_name;
+                            $view .= show_passed_box("Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.");
+
+                            $logger->log_game("ACCOUNT", "USERNAME_CHANGE", ["new_name" => $new_name]);
+                        }
+                    }
+                }
+            }
+        }
+
         // Change Password
         if (isset($_POST['change_password'])) {
             $old_pw = $_POST['old_pw'] ?? "";
@@ -147,14 +193,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $new_k_name = trim($_POST['new_kingdom_name'] ?? '');
             $current_k_id = $user->get_current_kingdom();
 
-            if (mb_strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || mb_strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
+            $res_k = $db_instance->execute_query("SELECT last_name_change, kingdomname FROM kingdoms WHERE id = ?", [$current_k_id]);
+            $k_data = $res_k->fetch_assoc();
+
+            $days_since_k_change = (time() - $k_data['last_name_change']) / 86400;
+
+            if ($days_since_k_change < KINGDOM_NAME_CHANGE_COOLDOWN_DAYS) {
+                $wait_k = ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
+
+                $error = "Dieses Königreich wurde erst kürzlich umbenannt. Du musst noch $wait_k Tage warten.";
+            } else if (strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
                 $error = "Der Name muss zwischen " . MIN_KINGDOM_NAME_LENGTH . " und " . MAX_KINGDOM_NAME_LENGTH . " Zeichen lang sein.";
             } else if (contains_bad_words($new_k_name)) {
                 $error = "Der Name enthält unzulässige Begriffe.";
             } else if (!preg_match('/^[a-zA-Z0-9\s\[\]\-_.]+$/u', $new_k_name)) {
                 $error = "Der Name enthält ungültige Sonderzeichen. Erlaubt sind: [ ] - _ .";
             } else {
-                $db_instance->execute_query("UPDATE kingdoms SET kingdomname = ? WHERE id = ?", [$new_k_name, $current_k_id]);
+                $db_instance->execute_query("UPDATE kingdoms SET kingdomname = ?, last_name_change = ? WHERE id = ?",
+                    [$new_k_name, time(), $current_k_id]);
                 $logger->log_game("ECONOMY", "KINGDOM_RENAME", ["new_name" => $new_k_name], $current_k_id);
 
                 $view .= show_passed_box("Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!");
@@ -245,6 +301,24 @@ $view .= '
 
 $view .= '
 <div class="box-container">
+    <div class="box-header">Benutzernamen ändern</div>
+    <div class="box-content box-content-bg" style="padding: 10px;">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <table class="table" style="width: 100%;">
+                <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="16" required></td></tr>
+                <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_name" required></td></tr>
+            </table><br>
+            <input type="submit" name="change_username" value="Namen ändern">
+        </form>
+        <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
+            Hinweis: Namensänderungen sind nur alle ' . USERNAME_CHANGE_COOLDOWN_DAYS . ' Tage möglich.
+        </p>
+    </div>
+</div>';
+
+$view .= '
+<div class="box-container">
     <div class="box-header">Passwort ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
@@ -288,6 +362,7 @@ $view .= '
             <input type="submit" name="rename_kingdom" value="Namen speichern">
         </form>
         <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
+            Hinweis: Königreiche können nur alle ' . KINGDOM_NAME_CHANGE_COOLDOWN_DAYS . ' Tage umbenannt werden.<br>
             Erlaubte Sonderzeichen: [ ] - _ . (sowie Zahlen & Buchstaben)
         </p>
     </div>

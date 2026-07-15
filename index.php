@@ -308,7 +308,7 @@ $count_online = $res_online->fetch_row()[0];
                             </table>
                             <input type="submit" name="login" value="Einloggen"
                                    style="width:150px; height:40px; margin: 10px 0;"/>
-                            <a href="forgot_password.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
+                            <a href="forgotpassword.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
                                 vergessen?</a>
                         </fieldset>
                     </form>

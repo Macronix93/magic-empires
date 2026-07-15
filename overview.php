@@ -164,9 +164,9 @@ $result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes
 if ($result && $result->num_rows > 0) {
     $view .= "<table class='table' style='width: 100%;'>";
     $view .= "<colgroup>
-                <col style='width: 18%;'> <!-- Art -->
-                <col style='width: 25%;'> <!-- Truppen -->
-                <col style='width: 28%;'> <!-- Koordinaten -->
+                <col style='width: 15%;'> <!-- Art -->
+                <col style='width: 38%;'> <!-- Truppen -->
+                <col style='width: 18%;'> <!-- Koordinaten -->
                 <col style='width: 22%;'> <!-- Ankunft -->
                 <col style='width: 7%;'>  <!-- Button -->
               </colgroup>";
@@ -242,15 +242,19 @@ if ($result && $result->num_rows > 0) {
         }
 
         // Build soldiers string
-        $soldiers_str = "";
+        $soldiers_str = "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
         foreach ($event_data["soldiers"] as $soldier) {
             $soldier_obj = new Soldier();
             $soldier_obj->set_soldier_id($soldier["soldierid"]);
             $soldier_obj->set_soldier_icon($soldier["icon"]);
             $soldier_obj->set_soldier_name($soldier["name"]);
 
-            $soldiers_str .= "<div class='legend-item'>" . $soldier_obj->get_soldier_icon("ressource-icons") . "{$soldier["soldiercount"]}x</div>";
+            $soldiers_str .= "<div class='unit-badge' title='" . e($soldier["name"]) . "'>
+                                " . $soldier_obj->get_soldier_icon("ressource-icons") . "
+                                <b>" . fnum($soldier["soldiercount"]) . "x</b>
+                            </div>";
         }
+        $soldiers_str .= "</div>";
 
         $view .= "<tr>
                 <td class='td-center'>$action_type</td>
