@@ -31,3 +31,13 @@ if ($winner) {
 
     echo "Held vergeben an $uname im Königreich $kname";
 }
+
+// Delete closed support tickets
+$delete_limit = time() - (SUPPORT_TICKET_AUTO_DELETE_DAYS * 86400);
+$db->execute_query("DELETE FROM support_tickets WHERE status = 0 AND closed_at < ?", [$delete_limit]);
+
+$deleted_count = $db->affected_rows;
+
+if ($deleted_count > 0) {
+    echo "[" . date("H:i:s") . "] Support-Cleanup: $deleted_count alte Tickets gelöscht.\n";
+}

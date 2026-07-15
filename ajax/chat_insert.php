@@ -23,7 +23,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 //        exit;
 //    }
 
-    $message = nl2br(htmlspecialchars($raw_text, ENT_QUOTES, "UTF-8"));
+    $message = nl2br(e($raw_text));
     $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
     $message = filter_chat_message($message);
 
@@ -78,14 +78,17 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>
-                                    <div class='image-and-user message-border'>
-                                        <img class='user-image' src='" . $user->get_avatar() . "' alt='Nutzerbild'> Du am " . date("d.m.Y \u\m H:i:s", $current_time) . " 
+                                    <div class='message-border'>
+                                        <span class='msg-header-left'>
+                                            <img class='user-image' src='" . $user->get_avatar() . "' alt='Nutzerbild'> 
+                                            <span>Du am " . date("d.m.Y \u\m H:i:s", $current_time) . "</span>
+                                        </span>
                                         <img src='images/icons/icon_delete.png' 
-                                                       class='ressource-icons' 
-                                                       alt='Löschen' 
-                                                       data-on-click='deleteChatMsg' 
-                                                       data-id='" . e($message_id) . "' 
-                                                       style='cursor: pointer;'>
+                                             class='ressource-icons' 
+                                             alt='Löschen' 
+                                             data-on-click='deleteChatMsg' 
+                                             data-id='" . e($message_id) . "' 
+                                             style='cursor: pointer;'>
                                     </div>
                                     " . $message . "
                                 </div>";

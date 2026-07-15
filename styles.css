@@ -600,11 +600,18 @@ hr {
 
 .message-border {
     display: flex;
-    justify-content: space-between;
+    justify-content: space-between !important;
     align-items: center;
     border-bottom: 1px solid rgba(0, 0, 0, 0.4);
     padding-bottom: 5px;
     margin-bottom: 10px;
+    gap: 10px;
+}
+
+.msg-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 #newmessage-section form {
@@ -863,14 +870,11 @@ select:-webkit-autofill {
     width: 100%;
 }
 
-.msg-back-button {
-    min-width: 8%;
-}
-
 .msg-back-button-container {
     display: flex;
-    margin: 10px 0;
     align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
 }
 
 .msg-button {
@@ -1831,6 +1835,11 @@ tr:first-child .td-center {
         --map-viewport-height: 400px;
     }
 
+    .receiver-bubble,
+    .sender-bubble {
+        max-width: 330px;
+    }
+
     .rank-gold {
         font-size: 18px;
     }
@@ -2011,7 +2020,7 @@ tr:first-child .td-center {
         height: 16px;
     }
 
-    .image-and-user img {
+    .image-and-user img, .msg-header-left img {
         width: 22px;
         height: 22px;
     }

@@ -6,7 +6,7 @@ check_user_login($user);
 $user_list = "";
 $user_id = -1;
 
-if ($user->get_user_admin_level() == 0) {
+if (!$user->is_admin()) {
     $error = "Du bist kein Administrator!";
 } else {
     if (isset($_POST["toggle_maintenance"])) {

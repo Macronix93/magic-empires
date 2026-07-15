@@ -20,7 +20,7 @@ include_once("layout/head.html");
     </tr>
     <?php
     foreach ($result as $row) {
-        $username = htmlspecialchars($row["username"], ENT_QUOTES);
+        $username = e($row["username"]);
 
         echo "<tr><td>
                 <a href='#' 

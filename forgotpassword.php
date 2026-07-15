@@ -36,7 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
             $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "resetpassword.php?token=" . $token;
 
             $subject = "Magic Empires - Passwort zurücksetzen";
-            $message = "Hallo " . htmlspecialchars($row["username"]) . ",<br><br>
+            $message = "Hallo " . e($row["username"]) . ",<br><br>
                         du hast angefordert, dein Passwort zurückzusetzen. Klicke dazu auf den folgenden Link:<br>
                         <a href='$reset_link'>$reset_link</a><br><br>
                         Dieser Link ist für 1 Stunde gültig. Wenn du dies nicht warst, ignoriere diese Mail.";

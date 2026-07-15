@@ -45,6 +45,13 @@ if (!$is_cli) {
 /*
     Constants (defines)
 */
+const ADMIN_LEVEL_USER = 0;
+const ADMIN_LEVEL_SUPPORTER = 1;
+const ADMIN_LEVEL_LIGHT_ADMIN = 2;
+const ADMIN_LEVEL_FULL_ADMIN = 3;
+const SUPPORT_TICKET_AUTO_DELETE_DAYS = 14;
+const SUPPOR_TICKET_ROWS_PER_PAGE = 10;
+const MAX_SUPPORT_TICKET_SUBJECT_LENGTH = 16;
 const USERNAME_CHANGE_COOLDOWN_DAYS = 7;
 const KINGDOM_NAME_CHANGE_COOLDOWN_DAYS = 7;
 const MIN_KINGDOM_NAME_LENGTH = 3;
@@ -626,8 +633,10 @@ if ($user->is_logged_in()) {
     $user->check_session_id();
 
     if (MAINTENANCE_MODE && !$user->is_admin()) {
-        change_location("index.php?logout=maintenance");
-        exit;
+        if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
+            change_location("index.php?logout=maintenance");
+            exit;
+        }
     }
 
     $current_k_id = $user->get_current_kingdom();

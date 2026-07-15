@@ -15,8 +15,8 @@ if ($is_admin) {
         } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
             $view .= show_error_box("Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
         } else {
-            $title = htmlspecialchars($raw_title, ENT_QUOTES, "UTF-8");
-            $content = nl2br(htmlspecialchars($raw_content, ENT_QUOTES, "UTF-8"));
+            $title = e($raw_title);
+            $content = nl2br(e($raw_content));
 
             $db_instance->execute_query(
                 "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",

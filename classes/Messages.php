@@ -112,7 +112,7 @@ class Messages
                                 <td class='td-center td-gradient'>
                                     <b>Chatpartner</b>
                                 </td>
-                                <td class='td-center td-gradient' colspan='2'>
+                                <td class='td-center td-gradient' colspan='2' style='width: 55%;'>
                                     <b>Letzte Nachricht</b>
                                 </td>
                             </tr>
@@ -308,21 +308,27 @@ class Messages
                 }
 
                 $this->view .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
-                            <div class='image-and-user message-border'>
-                                <img class='user-image' src='$chat_partner_image' alt=''> " . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "
+                            <div class='message-border'>
+                                <span class='msg-header-left'>
+                                    <img class='user-image' src='$chat_partner_image' alt=''> 
+                                    <span>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
+                                </span>
                             </div>
                             " . $message . "
                         </div>";
             } else {
                 $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
-                            <div class='image-and-user message-border'>
-                                <img class='user-image' src='$my_chat_image' alt=''> Du am " . date("d.m.Y \u\m H:i:s", $date) . "
+                            <div class='message-border'>
+                                <span class='msg-header-left'>
+                                    <img class='user-image' src='$my_chat_image' alt=''> 
+                                    <span>Du am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
+                                </span>
                                 <img src='images/icons/icon_delete.png' 
-                                   class='ressource-icons' 
-                                   alt='Löschen' 
-                                   data-on-click='deleteChatMsg' 
-                                   data-id='" . e($message_id) . "' 
-                                   style='cursor: pointer;'>
+                                     class='ressource-icons' 
+                                     alt='Löschen' 
+                                     data-on-click='deleteChatMsg' 
+                                     data-id='" . e($message_id) . "' 
+                                     style='cursor: pointer;'>
                             </div>
                             " . $message . "
                         </div>";

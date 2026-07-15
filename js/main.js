@@ -55,7 +55,6 @@ registerAction("toggleEmojis", () => {
     const menu = document.getElementById("emoji-menu");
     if (menu) menu.classList.toggle("open");
 });
-
 registerAction("pickEmoji", (el) => {
     insertEmoji(el.innerText);
 });

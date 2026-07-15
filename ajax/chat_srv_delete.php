@@ -3,7 +3,7 @@ require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $response = [];
-    $message_to_delete = htmlspecialchars($_GET["m_id"]);
+    $message_to_delete = e($_GET["m_id"]);
 
     // Get server message to delete
     $result = $db_instance->execute_query("SELECT receiverid FROM server_messages WHERE id = ?", [$message_to_delete]);

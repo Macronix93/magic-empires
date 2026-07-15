@@ -8,7 +8,7 @@ $messages = new Messages($db_instance, $user);
 if (isset($_POST["sendpm"])) {
     $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
     $_SESSION["msgreceiver"] = $receiver_name;
-    $text = nl2br(htmlspecialchars($_POST["text"], ENT_QUOTES, "UTF-8"));
+    $text = nl2br(e($_POST["text"]));
     $text = filter_chat_message($text);
     $error = get_error($text, $receiver_name);
 
@@ -16,7 +16,7 @@ if (isset($_POST["sendpm"])) {
         // Prevent HTML Injection
         $sender_id = $user->get_user_id();
         $sender_name = $user->get_user_name();
-        $receiver_name = htmlspecialchars($receiver_name, ENT_QUOTES, "UTF-8");
+        $receiver_name = e($receiver_name);
         $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $text);
         $current_time = time();
 
@@ -63,8 +63,8 @@ if (isset($_POST["sendpm"])) {
 if (isset($_GET["action"])) {
     if ($_GET["action"] == "new") {
         $receiver = isset($_GET["s"]) ? (int)$_GET["s"] : "";
-        $receiver_value = isset($_GET["receiver"]) ? htmlspecialchars($_GET["receiver"]) : (isset($_POST["receiver"]) ? htmlspecialchars($_POST["receiver"]) : "");
-        $message = isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : "";
+        $receiver_value = isset($_GET["receiver"]) ? e($_GET["receiver"]) : (isset($_POST["receiver"]) ? e($_POST["receiver"]) : "");
+        $message = isset($_POST["text"]) ? e($_POST["text"]) : "";
 
         if (isset($_POST["text"]) && $error == null) {
             $view = $messages->show_private_inbox();
@@ -150,7 +150,7 @@ if (isset($_GET["action"])) {
 
                     $view .= "<div class='info-box event-error' style='display: none;'></div>";
                     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php?privmsgs'>Zurück</button>
-                            <h3 style='width: 85%; margin: 0;'>
+                            <h3 style='width: 100%; margin: 0;'>
                                 <a href='#' 
                                  data-on-click='openOverlay' 
                                  data-url='userinfo.php?userid=" . e($sender_id) . "' 
@@ -180,7 +180,7 @@ if (isset($_GET["action"])) {
                                               name=\"text\" 
                                               rows=\"3\"
                                               maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
-                                              style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? htmlspecialchars($_POST["text"]) : '') . "</textarea>
+                                              style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? e($_POST["text"]) : '') . "</textarea>
                                         <div class=\"emoji-picker-container\">
                                         <div id=\"emoji-menu\" class=\"emoji-menu\">";
                     foreach (get_chat_emojis() as $emoji) {
@@ -245,6 +245,7 @@ if (isset($_GET["servermsgs"])) {
     $inbox_header = "Servernachrichten";
 } else if (isset($_GET["privmsgs"])) {
     $view = $messages->show_private_inbox();
+
     $inbox_header = "Privatnachrichten";
 } else if (!isset($_GET["action"])) {
     $private = $messages->get_unread_private_count();
@@ -252,29 +253,47 @@ if (isset($_GET["servermsgs"])) {
 
     $view .= "<div class='msg-button-container'>";
 
+    // Private Messages Button
     $view .= "<a href='messages.php?privmsgs' class='msg-button'>
     <div class='msg-left'>
         <span>📩</span>
         <span>Privatnachrichten</span>
     </div>";
-
     if ($private > 0) {
         $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($private) . "</span>";
     }
-
     $view .= "</a>";
 
+    // Server Messages Button
     $view .= "<a href='messages.php?servermsgs' class='msg-button'>
     <div class='msg-left'>
         <span>🖥️</span>
         <span>Servernachrichten</span>
     </div>";
-
     if ($server > 0) {
         $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($server) . "</span>";
     }
+    $view .= "</a>";
 
-    $view .= "</a></div>";
+    // Support Button
+    $is_staff = ($user->get_user_admin_level() > 0);
+    $support_unread_query = $is_staff
+        ? "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE m.is_admin_reply = 0 AND m.hasread = 0 AND t.status = 1"
+        : "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE t.userid = ? AND m.is_admin_reply = 1 AND m.hasread = 0";
+
+    $support_unread = $db_instance->execute_query($support_unread_query, $is_staff ? [] : [$user->get_user_id()])->fetch_row()[0];
+
+    $view .= "<a href='support.php' class='msg-button'>
+    <div class='msg-left'>
+        <span>🛠️</span>
+        <span>Support-Tickets</span>
+    </div>";
+    if ($support_unread > 0) {
+        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($support_unread) . "</span>";
+    }
+    $view .= "</a>";
+
+    $view .= "</div>";
 }
 
 

@@ -39,8 +39,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                           alt='Löschen'>" : "";
 
             $html .= "<div class='$class' id='msg-{$row["id"]}'>
-                        <div class='image-and-user message-border'>
-                            <img class='user-image' src='$img' alt=''> $name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " $del_btn
+                        <div class='message-border'>
+                            <span class='msg-header-left'>
+                                <img class='user-image' src='$img' alt=''> 
+                                <span>$name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                            </span>
+                            $del_btn
                         </div>
                         {$row["message"]}
                       </div>";

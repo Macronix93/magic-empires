@@ -39,7 +39,7 @@ class User
 
         $subject = 'Magic-Empires - Registrierung';
         $message = "<h2>Willkommen bei Magic-Empires!</h2>
-                    <p>Hallo " . htmlspecialchars($name) . ",</p>
+                    <p>Hallo " . e($name) . ",</p>
                     <p>vielen Dank für deine Registrierung. Bitte klicke auf den folgenden Button, um deinen Account freizuschalten:</p>
                     <p><a href='" . $actual_link . "' style='display:inline-block; background:#781e14; color:#ffffff; padding:10px 20px; text-decoration:none; border-radius:5px;'>Account aktivieren</a></p>
                     <p>Sollte der Button nicht funktionieren, kopiere diesen Link in deinen Browser:<br>" . $actual_link . "</p>
@@ -235,19 +235,43 @@ class User
         unset($_SESSION["last_upgraded"][$kingdom_id]);
     }
 
+//    public function get_unread_messages(): int
+//    {
+//        $query = "
+//            SELECT COUNT(*) AS unread_count FROM (
+//                SELECT id FROM messages
+//                WHERE receiverid = ? AND hasread = 0 AND deleted = 0
+//                UNION ALL
+//                SELECT id FROM server_messages
+//                WHERE receiverid = ? AND hasread = 0
+//            ) AS combined_messages
+//        ";
+//
+//        $result = $this->mysqli->execute_query($query, [$this->get_user_id(), $this->get_user_id()]);
+//        return $result->fetch_assoc()["unread_count"];
+//    }
     public function get_unread_messages(): int
     {
-        $query = "
-            SELECT COUNT(*) AS unread_count FROM (
-                SELECT id FROM messages 
-                WHERE receiverid = ? AND hasread = 0 AND deleted = 0
-                UNION ALL
-                SELECT id FROM server_messages 
-                WHERE receiverid = ? AND hasread = 0
-            ) AS combined_messages
-        ";
+        $uid = $this->get_user_id();
+        $is_staff = ($this->get_user_admin_level() > 0);
 
-        $result = $this->mysqli->execute_query($query, [$this->get_user_id(), $this->get_user_id()]);
+        $support_query = $is_staff
+            ? "SELECT m.id FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE m.is_admin_reply = 0 AND m.hasread = 0 AND t.status = 1"
+            : "SELECT m.id FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE t.userid = ? AND m.is_admin_reply = 1 AND m.hasread = 0";
+
+        $query = "
+                    SELECT COUNT(*) AS unread_count FROM (
+                        SELECT id FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0
+                        UNION ALL
+                        SELECT id FROM server_messages WHERE receiverid = ? AND hasread = 0
+                        UNION ALL
+                        $support_query
+                    ) AS combined_messages
+                ";
+
+        $params = $is_staff ? [$uid, $uid] : [$uid, $uid, $uid];
+        $result = $this->mysqli->execute_query($query, $params);
+
         return $result->fetch_assoc()["unread_count"];
     }
 
@@ -306,6 +330,11 @@ class User
 
     public function is_admin(): bool
     {
-        return $this->get_user_admin_level() > 0;
+        return $this->get_user_admin_level() >= ADMIN_LEVEL_LIGHT_ADMIN;
+    }
+
+    public function is_supporter(): bool
+    {
+        return $this->get_user_admin_level() == ADMIN_LEVEL_SUPPORTER;
     }
 }

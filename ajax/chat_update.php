@@ -47,8 +47,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $delete_icon = $is_me ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
 
         $html .= "<div class='$class' id='msg-" . $row["id"] . "'>
-                    <div class='image-and-user message-border'>
-                        <img class='user-image' src='" . e($avatar) . "' alt=''> $name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . " 
+                    <div class='message-border'>
+                        <span class='msg-header-left'>
+                            <img class='user-image' src='" . e($avatar) . "' alt=''> 
+                            <span>$name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                        </span>
                         $delete_icon
                     </div>
                     " . nl2br(e($row["message"])) . "
