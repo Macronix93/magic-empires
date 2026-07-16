@@ -99,7 +99,7 @@
                 // Actual difference of shrine bonus
                 $actual_shrine_diff = $data["total_prod_with_shrine"] - $data["base_prod"];
 
-                $has_shrine_effect = ($actual_shrine_diff != 0);
+                $has_shrine_effect = ($actual_shrine_diff != 0 && $current_align != AlignmentTypes::ALIGN_NONE);
                 $has_item_boost = ($item_boost > 0);
 
                 // Should the Popup Box be shown?

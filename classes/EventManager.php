@@ -4,6 +4,7 @@ class EventManager
 {
     private mysqli $mysqli;
     private User $user;
+    private static ?array $cached_soldiers = null;
 
     public function __construct(User $user)
     {
@@ -37,6 +38,7 @@ class EventManager
                     ActionTypes::ACTION_RESEARCH_TECH,
                     ActionTypes::ACTION_SMITHY_UPGRADE])
                 && $row["buildingtime"] <= $now) $is_due = true;
+
             if ($row["actionid"] == ActionTypes::ACTION_BUILD_TROOPS) {
                 $soldiers_stats = $this->load_soldier_data();
                 $s_id = $row["soldierid"];
@@ -46,6 +48,7 @@ class EventManager
 
                 if ($now >= $next_unit_ready) $is_due = true;
             }
+
             if (in_array($row["actionid"], [
                     ActionTypes::ACTION_SEND_TROOPS,
                     ActionTypes::ACTION_RETURN_TROOPS,
@@ -1047,6 +1050,10 @@ class EventManager
 
     private function load_soldier_data(): array
     {
+        if (self::$cached_soldiers !== null) {
+            return self::$cached_soldiers;
+        }
+
         $soldiers = [];
         $res = $this->mysqli->execute_query("SELECT * FROM soldier_list");
 
@@ -1059,6 +1066,8 @@ class EventManager
             $s->set_soldier_score_gain($row["scoregain"]);
             $soldiers[$row["id"]] = $s;
         }
+
+        self::$cached_soldiers = $soldiers;
 
         return $soldiers;
     }

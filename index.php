@@ -233,158 +233,165 @@ $count_online = $res_online->fetch_row()[0];
     <img src="images/header.png" alt="Header"/>
 </div>
 
-<div class="landing-container">
-    <div class="landing-messages">
-        <?php
-        if (!empty($success)) {
-            echo (str_contains($success, "info-box")) ? $success : show_passed_box($success);
-        }
-
-        if (!empty($error)) {
-            $errors = explode("<br>", $error);
-            foreach ($errors as $e) {
-                if (trim($e) !== "") echo show_error_box($e);
+<div class="middle-container" style="margin: auto; width: 1100px; max-width: 95%;">
+    <div class="big-box-container">
+        <div class="landing-messages">
+            <?php
+            if (!empty($success)) {
+                echo (str_contains($success, "info-box")) ? $success : show_passed_box($success);
             }
-        }
 
-        if (!empty($warning)) {
-            $warning_messages = explode("<br>", $warning);
-            foreach ($warning_messages as $w) {
-                if (trim($w) !== "") echo show_warning_box($w);
+            if (!empty($error)) {
+                $errors = explode("<br>", $error);
+                foreach ($errors as $e) {
+                    if (trim($e) !== "") echo show_error_box($e);
+                }
             }
-        }
-        ?>
-    </div>
 
-    <div class="landing-main">
-        <div class="landing-hero">
-            <div class="hero-header">
-                <h1 style="text-align: center;">Willkommen bei<br>Magic Empires!</h1>
-                <p style="margin-top: 0;">
-                    Schreibe deine eigene Geschichte in einer Welt voller Magie und Strategie.
-                    Errichte prachtvolle Königreiche, erforsche vergessene Technologien und führe deine
-                    Truppen in epische Schlachten.
-                </p>
-                <p>
-                    Ob als friedlicher Händler auf dem Marktplatz oder als furchtloser Eroberer –
-                    dein Schicksal liegt in deinen Händen.
-                </p>
-                <div class="ready-msg"><b class="passed">Bereit für den Kampf?</b></div>
-            </div>
-
-            <div class="hero-footer">
-                <hr>
-                <?php if ($mode === "login"): ?>
-                    <i>Noch kein Konto? <a href="index.php?action=register"
-                                           style="color: var(--link-color); text-decoration: underline;"><b>Hier
-                                kostenlos registrieren!</b></a></i>
-                <?php else: ?>
-                    <i>Bereits registriert? <a href="index.php?action=login"
-                                               style="color: var(--link-color); text-decoration: underline;"><b>Zum
-                                Login!</b></a></i>
-                <?php endif; ?>
-            </div>
+            if (!empty($warning)) {
+                $warning_messages = explode("<br>", $warning);
+                foreach ($warning_messages as $w) {
+                    if (trim($w) !== "") echo show_warning_box($w);
+                }
+            }
+            ?>
         </div>
 
-        <div class="landing-login-box">
-            <div class="form" style="padding: 0;">
-                <?php if ($mode === "login"): ?>
-                    <form class="login-register" method="POST" action="index.php" style="max-width: 100%;">
-                        <fieldset>
-                            <legend><b>Login</b></legend>
-                            <table class="table" style="width: 100%;">
-                                <tr>
-                                    <td><label>
-                                            <input type="text" name="username" placeholder="Benutzername"
-                                                   style="width: 100%;">
-                                        </label></td>
-                                </tr>
-                                <tr>
-                                    <td><label>
-                                            <input type="password" name="password" placeholder="Passwort"
-                                                   style="width: 100%;">
-                                        </label></td>
-                                </tr>
-                            </table>
-                            <input type="submit" name="login" value="Einloggen"
-                                   style="width:150px; height:40px; margin: 10px 0;"/>
-                            <a href="forgotpassword.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
-                                vergessen?</a>
-                        </fieldset>
-                    </form>
-                <?php else: ?>
-                    <form class="login-register" method="POST" action="index.php?action=register"
-                          style="max-width: 100%;">
-                        <fieldset>
-                            <legend><b>Registrieren</b></legend>
-                            <table class="table" style="width: 100%;">
-                                <tr>
-                                    <td><label>
-                                            <input type="text" name="username" placeholder="Benutzername"
-                                                   style="width: 100%;" value="<?= e($_POST["username"] ?? "") ?>">
-                                        </label></td>
-                                </tr>
-                                <tr>
-                                    <td><label>
-                                            <input type="text" name="email" placeholder="E-Mail Adresse"
-                                                   style="width: 100%;" value="<?= e($_POST["email"] ?? "") ?>">
-                                        </label></td>
-                                </tr>
-                                <tr>
-                                    <td><label>
-                                            <input type="password" name="password" placeholder="Passwort"
-                                                   style="width: 100%;">
-                                        </label></td>
-                                </tr>
-                                <tr>
-                                    <td style="display: flex; justify-content: center; padding: 10px;">
-                                        <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
-                                            <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
-                                                <span class="passed">✔</span> <b>Botschutz verifiziert</b>
-                                            </div>
-                                            <input type="hidden" name="captcha_already_passed" value="1">
-                                        <?php else: ?>
-                                            <div class="g-recaptcha"
-                                                 data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"></div>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            </table>
-                            <input type="submit" name="register" value="Registrieren"
-                                   style="height:40px; margin: 10px 0;"/>
-                            <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück zum
-                                Login</a>
-                        </fieldset>
-                    </form>
-                <?php endif; ?>
+        <div class="landing-main">
+            <div class="landing-hero">
+                <div class="hero-header">
+                    <h1 style="text-align: center;">Willkommen bei<br>Magic Empires!</h1>
+                    <p style="margin-top: 0;">
+                        Schreibe deine eigene Geschichte in einer Welt voller Magie und Strategie.
+                        Errichte prachtvolle Königreiche, erforsche vergessene Technologien und führe deine
+                        Truppen in epische Schlachten.
+                    </p>
+                    <p>
+                        Ob als friedlicher Händler auf dem Marktplatz oder als furchtloser Eroberer –
+                        dein Schicksal liegt in deinen Händen.
+                    </p>
+                    <div class="ready-msg"><b class="passed">Bereit für den Kampf?</b></div>
+                </div>
+
+                <div class="hero-footer">
+                    <hr>
+                    <?php if ($mode === "login"): ?>
+                        <i>Noch kein Konto? <a href="index.php?action=register"
+                                               style="color: var(--link-color); text-decoration: underline;"><b>Hier
+                                    kostenlos registrieren!</b></a></i>
+                    <?php else: ?>
+                        <i>Bereits registriert? <a href="index.php?action=login"
+                                                   style="color: var(--link-color); text-decoration: underline;"><b>Zum
+                                    Login!</b></a></i>
+                    <?php endif; ?>
+                </div>
             </div>
 
-            <div class="landing-sidebar">
-                <div class="box-container">
-                    <div class="box-header">Spieler online</div>
-                    <div class="box-content">
-                        <div class="box"
-                             style="justify-content: center; text-align: center; gap: 5px; pointer-events: none;">
-                            Gesamt: <b><?= $count_online ?></b>
+            <div class="landing-login-box">
+                <div class="form" style="padding: 0;">
+                    <?php if ($mode === "login"): ?>
+                        <form class="login-register" method="POST" action="index.php"
+                              style="max-width: 100%;">
+                            <fieldset class="box-content-bg">
+                                <legend><b>Login</b></legend>
+                                <table class="table" style="width: 100%;">
+                                    <tr>
+                                        <td><label>
+                                                <input type="text" name="username" placeholder="Benutzername"
+                                                       style="width: 100%;">
+                                            </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td><label>
+                                                <input type="password" name="password" placeholder="Passwort"
+                                                       style="width: 100%;">
+                                            </label></td>
+                                    </tr>
+                                </table>
+                                <input type="submit" name="login" value="Einloggen"
+                                       style="width:150px; height:40px; margin: 10px 0;"/>
+                                <a href="forgotpassword.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
+                                    vergessen?</a><br>
+                                <a href="index.php?action=register"
+                                   style="display: block; font-size: 13px; opacity: 0.7;">Hier
+                                    registrieren!</a>
+                            </fieldset>
+                        </form>
+                    <?php else: ?>
+                        <form class="login-register" method="POST" action="index.php?action=register"
+                              style="max-width: 100%;">
+                            <fieldset class="box-content-bg">
+                                <legend><b>Registrieren</b></legend>
+                                <table class="table" style="width: 100%;">
+                                    <tr>
+                                        <td><label>
+                                                <input type="text" name="username" placeholder="Benutzername"
+                                                       style="width: 100%;" value="<?= e($_POST["username"] ?? "") ?>">
+                                            </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td><label>
+                                                <input type="text" name="email" placeholder="E-Mail Adresse"
+                                                       style="width: 100%;" value="<?= e($_POST["email"] ?? "") ?>">
+                                            </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td><label>
+                                                <input type="password" name="password" placeholder="Passwort"
+                                                       style="width: 100%;">
+                                            </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="display: flex; justify-content: center; padding: 10px;">
+                                            <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
+                                                <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
+                                                    <span class="passed">✔</span> <b>Botschutz verifiziert</b>
+                                                </div>
+                                                <input type="hidden" name="captcha_already_passed" value="1">
+                                            <?php else: ?>
+                                                <div class="g-recaptcha"
+                                                     data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"></div>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <input type="submit" name="register" value="Registrieren"
+                                       style="height:40px; margin: 10px 0;"/>
+                                <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück zum
+                                    Login</a>
+                            </fieldset>
+                        </form>
+                    <?php endif; ?>
+                </div>
+
+                <div class="landing-sidebar">
+                    <div class="box-container">
+                        <div class="box-header">Spieler online</div>
+                        <div class="box-content box-content-bg">
+                            <div class="box"
+                                 style="justify-content: center; text-align: center; gap: 5px; pointer-events: none;">
+                                Gesamt: <b><?= $count_online ?></b>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="box-container">
+                        <div class="box-header">Info</div>
+                        <div class="box-content">
+                            <a href="news.php" class="box">
+                                <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/> Neuigkeiten
+                            </a>
+                            <a href="rules.php" class="box">
+                                <img src="images/icons/icon_rules.png" class="menu-icons" alt="Spielregeln"/>
+                                Spielregeln
+                            </a>
+                            <a href="faq.php" class="box">
+                                <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
+                            </a>
                         </div>
                     </div>
                 </div>
-                <div class="box-container">
-                    <div class="box-header">Info</div>
-                    <div class="box-content">
-                        <a href="news.php" class="box">
-                            <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/> Neuigkeiten
-                        </a>
-                        <a href="rules.php" class="box">
-                            <img src="images/icons/icon_rules.png" class="menu-icons" alt="Spielregeln"/> Spielregeln
-                        </a>
-                        <a href="faq.php" class="box">
-                            <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
-                        </a>
-                    </div>
-                </div>
-            </div>
 
+            </div>
         </div>
     </div>
 </div>

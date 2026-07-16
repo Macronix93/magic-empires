@@ -16,38 +16,26 @@ $example_secure_units = floor($kingdom->get_kingdom_max_food() * $secure_percent
 /*
  * HTML Content Part
  */
-$view .= "<div style='margin: auto; width: 200px;'>
+$view .= "<div style='margin: auto; width: 170px;'>
         <div class='split-content'>
-            <div>
-                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . "
-                " . fnum($kingdom->get_kingdom_food()) . "
-            </div>
+            <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($kingdom->get_kingdom_food()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_food()) . "</div>
         </div>
         <div class='split-content'>
-            <div>
-                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . "
-                " . fnum($kingdom->get_kingdom_wood()) . "
-            </div>
+            <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($kingdom->get_kingdom_wood()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_wood()) . "</div>
         </div>
         <div class='split-content'>
-            <div>
-                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . "
-                " . fnum($kingdom->get_kingdom_stone()) . "
-            </div>
+            <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($kingdom->get_kingdom_stone()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_stone()) . "</div>
         </div>
         <div class='split-content'>
-            <div>
-                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . "
-                " . fnum($kingdom->get_kingdom_gold()) . "
-            </div>
+            <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($kingdom->get_kingdom_gold()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_gold()) . "</div>
         </div>
 </div>";
 $view .= "
-    <div class='info-box event-passed' style='margin-top: 20px; flex-direction: column; padding: 15px;'>
+    <div class='info-box event-passed' style='margin-top: 20px; flex-direction: column; padding: 15px; max-width: 550px;'>
         <span style='font-weight: bold; font-size: 22px;'>🛡️ Sichere Ressourcen</span>
         <span style='font-size: 0.9em; opacity: 0.9; margin-top: 5px;'>
             Durch die Bauweise deines Lagers sind <b>$display_percent %</b> deiner maximalen Lagerkapazität 

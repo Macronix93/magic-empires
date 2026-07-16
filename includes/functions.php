@@ -29,7 +29,6 @@ function get_building_file(int $building_id): string
 /*
     Useful functions
 */
-
 function get_resource_icon(int $resource_type): string
 {
     return match ($resource_type) {
@@ -129,9 +128,45 @@ function show_weighted_box(string $info_text, string $weighted_text): string
     return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><span><span class='weighted'>$weighted_text</span> $info_text</span></div>";
 }
 
-function fnum(int $number): string
+function format_num($number): string
 {
+    if (!is_numeric($number)) return "0";
+
+    if ($number >= 1000000) {
+        $val = $number / 1000000;
+        $truncated = floor($val * 100) / 100;
+
+        if ($truncated == floor($val)) {
+            return number_format($truncated, 0, ",", ".") . 'M';
+        }
+
+        return number_format($truncated, 2, ",", ".") . 'M';
+    }
+
+    if ($number >= 100000) {
+        $val = $number / 1000;
+        $truncated = floor($val * 10) / 10;
+
+        if ($truncated == floor($val)) {
+            return number_format($truncated, 0, ",", ".") . 'k';
+        }
+
+        return number_format($truncated, 1, ",", ".") . 'k';
+    }
+
     return number_format($number, 0, ",", ".");
+}
+
+function fnum($number): string
+{
+    $full = number_format($number, 0, ",", ".");
+    $short = format_num($number);
+
+    if ($full === $short) {
+        return $full;
+    }
+
+    return "<span title='$full' style='cursor: help;'>$short</span>";
 }
 
 function regex_pattern(): string

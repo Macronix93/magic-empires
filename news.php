@@ -58,7 +58,7 @@ if ($is_admin) {
     $view .= "
     <div class='box-container allow-overflow' style='margin-bottom: 30px;'>
         <div class='box-header'>Neuigkeit verfassen</div>
-        <div class='box-content' style='padding: 15px;'>
+        <div class='box-content box-content-bg' style='padding: 15px;'>
             <form method='POST'>
                 <input type='text' maxlength='" . MAX_NEWS_TITLE_LENGTH . "' name='title' placeholder='Titel' style='width: 100%; margin-bottom: 10px;' required><br>
                 <textarea id='message-input' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='3' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
@@ -69,7 +69,7 @@ if ($is_admin) {
         $view .= "<span data-on-click='pickEmoji'>$emoji</span>";
     }
     $view .= "          </div>
-                        <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>😊</button>
+                        <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
                     </div>
                     <input type='submit' name='post_news' value='Veröffentlichen'>
                 </div>

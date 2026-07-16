@@ -5,8 +5,8 @@ check_user_login($user);
 
 // Get main kingdom of user
 $result = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
-$row = $result->fetch_assoc();
-$main_kingdom = $row["mainkingdom"];
+$row_main = $result->fetch_assoc();
+$main_kingdom = $row_main["mainkingdom"];
 $now = time();
 $kingdom = new Kingdom($db_instance, $main_kingdom);
 
@@ -87,57 +87,56 @@ $limit = 7;
 
 // -- INCOMING ENEMIES OVERVIEW ---
 $my_uid = $user->get_user_id();
-$query_wt = "SELECT k.id, k.kingdomname, b.buildinglevel 
-             FROM kingdoms k 
-             JOIN buildings b ON k.id = b.kingdomid 
-             WHERE k.userid = ? AND b.buildingid = ? AND b.buildinglevel > 0";
+if (!isset($_SESSION["acknowledged_attacks"])) {
+    $_SESSION["acknowledged_attacks"] = [];
+}
 
-$my_watchtowers = $db_instance->execute_query($query_wt, [$my_uid, BuildingTypes::BUILDING_WATCHTOWER]);
+$query_incoming = "
+    SELECT e.eventid, e.arrivaltime, k.kingdomname
+    FROM events e
+    JOIN kingdoms k ON e.targetid = k.id
+    JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ?
+    WHERE k.userid = ? 
+      AND e.actionid = ?
+      AND b.buildinglevel > 0
+      AND e.arrivaltime > ?
+      AND (e.arrivaltime - ?) <= (b.buildinglevel * ?)
+    ORDER BY e.arrivaltime
+";
 
-if ($my_watchtowers->num_rows > 0) {
+$incoming_attacks = $db_instance->execute_query($query_incoming, [
+    BuildingTypes::BUILDING_WATCHTOWER,
+    $my_uid,
+    ActionTypes::ACTION_SEND_TROOPS,
+    $now,
+    $now,
+    WATCHTOWER_DETECTION_PER_LEVEL
+]);
+
+if ($incoming_attacks->num_rows > 0) {
     $incoming_html = "";
 
-    foreach ($my_watchtowers as $wt) {
-        $visibility_window = $wt["buildinglevel"] * WATCHTOWER_DETECTION_PER_LEVEL;
-
-        $query_incoming = "
-            SELECT arrivaltime 
-            FROM events 
-            WHERE targetid = ? 
-              AND actionid = ? 
-              AND arrivaltime - ? <= ?
-              AND arrivaltime > ?
-            ORDER BY arrivaltime
-        ";
-        $incoming = $db_instance->execute_query($query_incoming, [
-            $wt["id"],
-            ActionTypes::ACTION_SEND_TROOPS,
-            $now,
-            $visibility_window,
-            $now
-        ]);
-
-        while ($attack = $incoming->fetch_assoc()) {
-            $diff = $attack["arrivaltime"] - $now;
-
-            $incoming_html .= "<tr>
-                <td style='color: var(--link-color);'>Alarm in <b>" . e($wt["kingdomname"]) . "</b>!</td>
-                <td class='td-center'><b>Ankunft in: 
-                        <span class='js-countdown' 
-                              data-seconds='$diff' 
-                              data-no-reload='true'>
-                              " . convert_sec_to_str($diff) . "
-                        </span>
-                    </b>
-                </td>
-            </tr>";
+    while ($attack = $incoming_attacks->fetch_assoc()) {
+        if (!in_array($attack["eventid"], $_SESSION["acknowledged_attacks"])) {
+            $_SESSION["acknowledged_attacks"][] = $attack["eventid"];
         }
+
+        $diff = $attack["arrivaltime"] - $now;
+        $incoming_html .= "<tr>
+            <td style='color: var(--link-color);'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>!</td>
+            <td class='td-center'><b>Ankunft in: 
+                    <span class='js-countdown' 
+                          data-seconds='$diff' 
+                          data-no-reload='true'>
+                          " . convert_sec_to_str($diff) . "
+                    </span>
+                </b>
+            </td>
+        </tr>";
     }
 
-    if ($incoming_html !== "") {
-        $view .= '<div class="title-border error">Feindliche Truppenbewegung</div>';
-        $view .= '<table class="table">' . $incoming_html . '</table><br>';
-    }
+    $view .= '<div class="title-border error">Feindliche Truppenbewegung</div>';
+    $view .= '<table class="table" style=" max-width: 550px">' . $incoming_html . '</table><br>';
 }
 
 // --- TROOP OVERVIEW ---

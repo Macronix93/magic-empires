@@ -131,7 +131,14 @@ foreach ($res_soldiers as $row) {
 
     $view .= "<tr>
                 <td class='td-center' style='width: 5%;'>{$s_obj->get_soldier_icon()}</td>
-                <td style='width: 35%;'>{$s_obj->get_soldier_name()}</td>
+                <td style='width: 35%;'>
+                    <a href='#' 
+                       data-on-click='openOverlay' 
+                       data-url='techinfo.php?sid=" . $s_obj->get_soldier_id() . "' 
+                       data-title='Einheiten-Info'>
+                        " . $s_obj->get_soldier_name() . "
+                    </a>
+                </td>
                 <td><span $status_class>" . ($is_hero ? "Verteilung alle 24 Stunden" : "Kaserne ($req_lvl)") . "</span></td>
               </tr>";
 }

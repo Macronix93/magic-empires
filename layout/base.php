@@ -5,39 +5,39 @@ if ($user->is_logged_in()) {
     $now = time();
     $my_uid = $user->get_user_id();
 
-    if (!isset($_SESSION["acknowledged_attacks"])) {
-        $_SESSION["acknowledged_attacks"] = [];
+    $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
+    $not_in_clause = "";
+
+    if (!empty($ack_ids)) {
+        $clean_ids = array_map('intval', $ack_ids);
+        $not_in_clause = "AND e.eventid NOT IN (" . implode(',', $clean_ids) . ")";
     }
 
-    $q_active = "
-        SELECT e.eventid, e.arrivaltime, b.buildinglevel
+    $q_alert = "
+        SELECT e.eventid
         FROM events e
         JOIN kingdoms k ON e.targetid = k.id
-        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = 12
-        WHERE k.userid = ? AND e.actionid = 2 AND is_processing = 0
+        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ?
+        WHERE k.userid = ? 
+          AND e.actionid = ?
+          AND e.is_processing = 0
+          AND e.arrivaltime > ?
+          AND (e.arrivaltime - ?) <= (b.buildinglevel * ?)
+          $not_in_clause
+        LIMIT 1
     ";
-    $active_res = $db_instance->execute_query($q_active, [$my_uid]);
 
-    $current_attack_ids = [];
-    $active_attacks_data = [];
+    $res_alert = $db_instance->execute_query($q_alert, [
+            BuildingTypes::BUILDING_WATCHTOWER,
+            $my_uid,
+            ActionTypes::ACTION_SEND_TROOPS,
+            $now,
+            $now,
+            WATCHTOWER_DETECTION_PER_LEVEL
+    ]);
 
-    while ($row = $active_res->fetch_assoc()) {
-        $current_attack_ids[] = $row["eventid"];
-        $active_attacks_data[] = $row;
-    }
-
-    $_SESSION["acknowledged_attacks"] = array_intersect($_SESSION["acknowledged_attacks"], $current_attack_ids);
-
-    foreach ($active_attacks_data as $atk) {
-        $visibility = $atk["buildinglevel"] * WATCHTOWER_DETECTION_PER_LEVEL;
-        $time_left = $atk["arrivaltime"] - $now;
-
-        if ($time_left > 0 && $time_left <= $visibility) {
-            if (!in_array($atk["eventid"], $_SESSION["acknowledged_attacks"])) {
-                $show_attack_alert = true;
-                break;
-            }
-        }
+    if ($res_alert->num_rows > 0) {
+        $show_attack_alert = true;
     }
 }
 ?>
