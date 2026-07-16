@@ -117,7 +117,7 @@ $view .= '<br><table class="table">
         <td class="td-center td-gradient"><b>Voraussetzungen</b></td>
     </tr>';
 
-$res_soldiers = $db_instance->execute_query("SELECT * FROM soldierlist ORDER BY category, requiredlevel");
+$res_soldiers = $db_instance->execute_query("SELECT * FROM soldier_list ORDER BY category, requiredlevel");
 
 foreach ($res_soldiers as $row) {
     $s_obj = new Soldier();

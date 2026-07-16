@@ -34,7 +34,7 @@ if ($res_upg->num_rows > 0) {
 }
 
 // Get all soldier types from the database
-$result = $db_instance->execute_query("SELECT * FROM soldierlist");
+$result = $db_instance->execute_query("SELECT * FROM soldier_list");
 
 foreach ($result as $row) {
     $soldier = new Soldier();
@@ -527,8 +527,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
     if (!$is_hero) {
         $view .= "<div class='map-legend' style='justify-content: left; margin-top: 10px;'>
-                    <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
-                    <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                    " . ($cost_food > 0 ? "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>" : "") . "
+                    " . ($cost_gold > 0 ? "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>" : "") . "
                     " . ($cost_stone > 0 ? "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>" : "") . "
                     " . ($cost_wood > 0 ? "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>" : "") . "
                     <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " " . $text_villager . "</div>

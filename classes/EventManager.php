@@ -218,10 +218,10 @@ class EventManager
         $to_id = $row["soldierid"];
         $goal = $row["soldiergoal"];
 
-        $res_to = $this->mysqli->execute_query("SELECT soldiername, requiredtime, scoregain FROM soldierlist WHERE id = ?", [$to_id]);
+        $res_to = $this->mysqli->execute_query("SELECT soldiername, requiredtime, scoregain FROM soldier_list WHERE id = ?", [$to_id]);
         $target_data = $res_to->fetch_assoc();
 
-        $res_from = $this->mysqli->execute_query("SELECT scoregain FROM soldierlist WHERE id = ?", [$from_id]);
+        $res_from = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$from_id]);
         $source_score = $res_from->fetch_assoc()["scoregain"];
 
         $unit_time = $target_data["requiredtime"];
@@ -353,7 +353,7 @@ class EventManager
             $this->process_empty_field_conquest($row, $message, $attacker_user_obj);
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
-                [ActionTypes::ACTION_RETURN_TROOPS, time() + 10, $row["eventid"]]);
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
         } else {
             $enemy_kingdom = new Kingdom($this->mysqli, $row["targetid"]);
 
@@ -391,7 +391,7 @@ class EventManager
                 $conquest->set_target_id($row["targetid"]);
                 $conquest->deploy_soldiers_to_kingdom();
             } else {
-                $this->process_battle($row, $conquest, $home_kingdom, $enemy_kingdom, $attacker_user_obj, 10);
+                $this->process_battle($row, $conquest, $home_kingdom, $enemy_kingdom, $attacker_user_obj, $return_time);
                 return;
             }
         }
@@ -467,7 +467,7 @@ class EventManager
         $res_troops = $this->mysqli->execute_query(
             "SELECT sl.soldiername, st.soldiercount, sl.icon 
              FROM sent_troops st 
-             JOIN soldierlist sl ON st.soldierid = sl.id 
+             JOIN soldier_list sl ON st.soldierid = sl.id 
              WHERE st.eventid = ?",
             [$row["eventid"]]
         );
@@ -562,10 +562,11 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$hp, $kid]);
                 break;
             case BuildingTypes::BUILDING_STORAGE:
-                $bonus = floor((round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $lvl))) / 100) * 100;
+                $new_level = $lvl + 1;
+                $new_max = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $new_level - 1));
 
-                $this->mysqli->execute_query("UPDATE kingdoms SET maxfood = maxfood + ?, maxwood = maxwood + ?, maxstone = maxstone + ?, maxgold = maxgold + ? WHERE id = ?",
-                    [$bonus, $bonus, $bonus, $bonus, $kid]);
+                $this->mysqli->execute_query("UPDATE kingdoms SET maxfood = ?, maxwood = ?, maxstone = ?, maxgold = ? WHERE id = ?",
+                    [$new_max, $new_max, $new_max, $new_max, $kid]);
                 break;
             case BuildingTypes::BUILDING_MILL:
                 $this->update_production($kid, "foodrate", BASE_FOOD_GAIN, "foodperhour");
@@ -1047,7 +1048,7 @@ class EventManager
     private function load_soldier_data(): array
     {
         $soldiers = [];
-        $res = $this->mysqli->execute_query("SELECT * FROM soldierlist");
+        $res = $this->mysqli->execute_query("SELECT * FROM soldier_list");
 
         foreach ($res as $row) {
             $s = new Soldier();
@@ -1127,7 +1128,7 @@ class EventManager
                     $res_troops = $this->mysqli->execute_query("
                                                 SELECT sl.soldiername, sl.icon, sl.attack, sl.defense, st.soldiercount 
                                                 FROM sent_troops st 
-                                                JOIN soldierlist sl ON st.soldierid = sl.id 
+                                                JOIN soldier_list sl ON st.soldierid = sl.id 
                                                 WHERE st.eventid = ?", [$row["eventid"]]);
 
                     while ($t = $res_troops->fetch_assoc()) {
@@ -1174,7 +1175,7 @@ class EventManager
         $event_id = $row["eventid"];
 
         // Get scout stats
-        $res_stats = $this->mysqli->execute_query("SELECT attack, defense FROM soldierlist WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+        $res_stats = $this->mysqli->execute_query("SELECT attack, defense FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
         $scout_stats = $res_stats->fetch_assoc();
         $s_atk = (int)$scout_stats["attack"];
         $s_def = (int)$scout_stats["defense"];
@@ -1293,7 +1294,7 @@ class EventManager
             $t_res = $this->mysqli->execute_query(
                 "SELECT s.soldiername, s.soldiercount, sl.icon 
              FROM soldiers s 
-             JOIN soldierlist sl ON s.soldierid = sl.id 
+             JOIN soldier_list sl ON s.soldierid = sl.id 
              WHERE s.kingdomid = ? AND s.soldiercount > 0",
                 [$enemy_k->get_kingdom_id()]
             );
@@ -1388,7 +1389,7 @@ class EventManager
                 $losses = (int)ceil($raider_count * $loss_percent);
 
                 // Score loss for fallen raiders
-                $res_score = $this->mysqli->execute_query("SELECT scoregain FROM soldierlist WHERE id = ?", [Soldiers::SOLDIER_RAIDER]);
+                $res_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_RAIDER]);
                 $score_per_raider = $res_score->fetch_column() ?: 1;
                 $total_score_loss = $losses * $score_per_raider;
 

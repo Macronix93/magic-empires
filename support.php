@@ -95,7 +95,9 @@ if (isset($_POST["send_msg"]) && is_numeric($_POST["tid"])) {
 
     $val_error = get_support_error($raw_text);
 
-    if (!$t_check || (!$is_staff && $t_check["userid"] != $uid)) {
+    if (!$t_check) {
+        $error = "Das Ticket existiert nicht mehr oder wurde gelöscht.";
+    } else if (!$is_staff && $t_check["userid"] != $uid) {
         $error = "Zugriff verweigert!";
     } else if ($t_check["status"] == 0) {
         $error = "Dieses Ticket ist bereits geschlossen!";
@@ -145,10 +147,11 @@ if (isset($_GET["tid"])) {
                         WHERE t.id = ?", [$tid]);
     $ticket = $res->fetch_assoc();
 
-    if (!$ticket || (!$is_staff && $ticket["userid"] != $uid)) {
+    if (!$ticket) {
+        $view .= show_error_box("Dieses Ticket wurde gelöscht oder existiert nicht.");
+    } else if (!$is_staff && $ticket["userid"] != $uid) {
         $view .= show_error_box("Zugriff verweigert.");
     } else {
-
         if ($is_staff) {
             if ($ticket["assigned_admin"] && $ticket["assigned_to"] != $uid) {
                 $view .= show_warning_box("Dieses Ticket wird bereits von <b>" . e($ticket["assigned_admin"]) . "</b> bearbeitet.");
@@ -224,7 +227,7 @@ if (isset($_GET["tid"])) {
     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button></div>";
 
     // Pagination variables
-    $rows_per_page = SUPPOR_TICKET_ROWS_PER_PAGE;
+    $rows_per_page = SUPPORT_TICKET_ROWS_PER_PAGE;
     $current_page = max(1, (int)($_GET["currentpage"] ?? 1));
     $offset = ($current_page - 1) * $rows_per_page;
 

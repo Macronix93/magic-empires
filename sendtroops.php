@@ -28,7 +28,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     } else {
         // Get soldier data
         $soldiers = [];
-        $result = $db_instance->execute_query("SELECT id, soldiername, category, attack, defense, icon FROM soldierlist");
+        $result = $db_instance->execute_query("SELECT id, soldiername, category, attack, defense, icon FROM soldier_list");
 
         foreach ($result as $row) {
             $soldier = new Soldier();
@@ -105,7 +105,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                 $result = $db_instance->execute_query(
                     "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
-                    [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + 10]
+                    [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
                 );
                 $event_id = $result->fetch_assoc()["eventid"];
 

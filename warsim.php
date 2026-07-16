@@ -6,7 +6,7 @@ check_user_login($user);
 $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
 $soldiers = [];
-$result = $db_instance->execute_query("SELECT id, soldiername, category, attack, defense, icon FROM soldierlist");
+$result = $db_instance->execute_query("SELECT id, soldiername, category, attack, defense, icon FROM soldier_list");
 
 foreach ($result as $row) {
     $soldier = new Soldier();

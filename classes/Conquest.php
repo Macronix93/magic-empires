@@ -50,7 +50,7 @@ class Conquest
         $query = "
                     SELECT s.id, s.soldiername, st.soldiercount 
                     FROM sent_troops st
-                    JOIN soldierlist s ON st.soldierid = s.id
+                    JOIN soldier_list s ON st.soldierid = s.id
                     WHERE st.eventid = ?
                 ";
         $result = $this->mysqli->execute_query($query, [$this->event_id]);
@@ -155,7 +155,7 @@ class Conquest
 
     public function initialize_soldier_types(): void
     {
-        $result = $this->mysqli->execute_query("SELECT id, soldiername, category, attack, defense, scoregain FROM soldierlist");
+        $result = $this->mysqli->execute_query("SELECT id, soldiername, category, attack, defense, scoregain FROM soldier_list");
 
         foreach ($result as $row) {
             $this->soldier_types[$row["id"]] = [
@@ -567,7 +567,7 @@ class Conquest
             }
 
             if ($initial > 0) {
-                $res = $this->mysqli->execute_query("SELECT icon FROM soldierlist WHERE id = ?", [$id]);
+                $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
                 $icon = $res->fetch_column() ?: "icon_error";
 
                 $data[] = [

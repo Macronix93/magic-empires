@@ -156,7 +156,7 @@ $query = "
     JOIN sent_troops st ON st.eventid = e.eventid
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
-    JOIN soldierlist sl ON st.soldierid = sl.id
+    JOIN soldier_list sl ON st.soldierid = sl.id
 ";
 
 $result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]);
@@ -328,7 +328,7 @@ $query_events = "
     SELECT e.*, k.kingdomname, k.mapx, k.mapy, sl.icon AS soldier_icon, sl.soldiername AS soldiername
     FROM events e 
     JOIN kingdoms k ON e.kingdomid = k.id
-    LEFT JOIN soldierlist sl ON sl.id = e.soldierid
+    LEFT JOIN soldier_list sl ON sl.id = e.soldierid
     WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?)
     ORDER BY COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
     LIMIT $offset_bp, $limit
@@ -403,7 +403,7 @@ if ($result_events && $result_events->num_rows > 0) {
 
                 $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
 
-                $res_s = $db_instance->execute_query("SELECT requiredtime FROM soldierlist WHERE id = ?", [$row["soldierid"]]);
+                $res_s = $db_instance->execute_query("SELECT requiredtime FROM soldier_list WHERE id = ?", [$row["soldierid"]]);
                 $u_time = $res_s->fetch_assoc()["requiredtime"];
 
                 $finish_time = $row["recruittime"];
@@ -594,6 +594,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
 } else {
     $view .= "Derzeit sind keine Warenlieferungen unterwegs.";
 }
+
 
 /*
  * HTML Section

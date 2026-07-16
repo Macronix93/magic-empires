@@ -76,20 +76,21 @@ class Building
 
     function calculate_building_cost(): array
     {
-        $mult = $this->b_mult;
         $level = $this->b_level;
+        $factor = $this->b_mult;
 
-        $cost_wood = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_WOOD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_WOOD) * $mult * $level);
-        $cost_food = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_FOOD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_FOOD) * $mult * $level);
-        $cost_stone = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_STONE) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_STONE) * $mult * $level);
-        $cost_gold = round($this->get_building_cost(ResourceTypes::RESOURCE_TYPE_GOLD) + $this->get_building_cost(ResourceTypes::RESOURCE_TYPE_GOLD) * $mult * $level);
+        $calc = function ($base) use ($factor, $level) {
+            if ($base <= 0) return 0;
 
-        return array(
-            "cost_wood" => $cost_wood,
-            "cost_food" => $cost_food,
-            "cost_stone" => $cost_stone,
-            "cost_gold" => $cost_gold,
-        );
+            return round($base * pow($factor, $level));
+        };
+
+        return [
+            "cost_wood" => $calc($this->b_woodcost),
+            "cost_food" => $calc($this->b_foodcost),
+            "cost_stone" => $calc($this->b_stonecost),
+            "cost_gold" => $calc($this->b_goldcost),
+        ];
     }
 
     public function get_building_cost(int $type): int

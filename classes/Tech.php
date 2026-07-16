@@ -93,20 +93,21 @@ class Tech
 
     function calculate_tech_cost(): array
     {
-        $mult = $this->t_mult;
         $level = $this->t_level;
+        $factor = $this->t_mult;
 
-        $cost_wood = round($this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_WOOD) + $this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_WOOD) * $mult * $level);
-        $cost_food = round($this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_FOOD) + $this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_FOOD) * $mult * $level);
-        $cost_stone = round($this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_STONE) + $this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_STONE) * $mult * $level);
-        $cost_gold = round($this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_GOLD) + $this->get_tech_cost(ResourceTypes::RESOURCE_TYPE_GOLD) * $mult * $level);
+        $calc = function ($base) use ($factor, $level) {
+            if ($base <= 0) return 0;
 
-        return array(
-            "cost_wood" => $cost_wood,
-            "cost_food" => $cost_food,
-            "cost_stone" => $cost_stone,
-            "cost_gold" => $cost_gold,
-        );
+            return (int)round($base * pow($factor, $level));
+        };
+
+        return [
+            "cost_wood" => $calc($this->t_woodcost),
+            "cost_food" => $calc($this->t_foodcost),
+            "cost_stone" => $calc($this->t_stonecost),
+            "cost_gold" => $calc($this->t_goldcost),
+        ];
     }
 
     public function get_tech_cost(int $type): int
@@ -130,7 +131,7 @@ class Tech
             return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
         }
     }
-    
+
     public function is_researched(): bool
     {
         $query = "SELECT * FROM techs WHERE kingdomid = ? AND techid = ?";

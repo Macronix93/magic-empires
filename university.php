@@ -77,8 +77,7 @@ if (isset($_GET["action"])) {
                         if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                             $error = "Nicht genügend Ressourcen!";
                         } else {
-
-                            $tech_time = time() + $techs[$tech_id]->get_tech_time() * ($tech_level == 0 ? 1 : $tech_level + 1);
+                            $tech_time = time() + (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
 
                             // Subtract research costs from kingdom resources
                             $kingdom->give_kingdom_wood(-$cost_wood);
@@ -311,7 +310,7 @@ if ($count_maxed_techs === $tech_count) {
                         $resource_costs
                         </div>
                         " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-                        " . convert_sec_to_str($techs[$i]->get_tech_time() * ($level == 0 ? 1 : $level + 1)) . "
+                        " . convert_sec_to_str((int)round($techs[$i]->get_tech_time() * pow($techs[$i]->get_tech_mult(), $level))) . "
                     </td>
                     <td class='td-center'>" . $text_build . "</td>
                 </tr>";

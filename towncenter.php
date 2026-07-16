@@ -70,7 +70,7 @@ if (isset($_GET["action"])) {
                             // Dependency check passed - build/upgrade building!
                             if (empty($error)) {
                                 $reduction = $kingdom->get_construction_time_multiplier();
-                                $base_time = $buildings[$build_id]->get_building_time() * ($building_level == 0 ? 1 : $building_level + 1);
+                                $base_time = round($buildings[$build_id]->get_building_time() * pow($buildings[$build_id]->get_building_mult(), $building_level));
                                 $building_time = time() + (int)round($base_time * $reduction);
 
                                 // Subtract building costs from kingdom resources
@@ -239,8 +239,22 @@ if ($count_maxed_buildings === $building_count) {
                                   </form>";
                 }
 
-                $base_sec = $buildings[$i]->get_building_time() * ($level == 0 ? 1 : $level + 1);
+                $base_sec = round($buildings[$i]->get_building_time() * pow($buildings[$i]->get_building_mult(), $level));
                 $time_text = convert_sec_to_str((int)round($base_sec * $kingdom->get_construction_time_multiplier()));
+
+                $resource_costs = "";
+                if ($text_food > 0) {
+                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
+                }
+                if ($text_wood > 0) {
+                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
+                }
+                if ($text_stone > 0) {
+                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
+                }
+                if ($text_gold > 0) {
+                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
+                }
 
                 $view .= "<tr>
                     <td>
@@ -255,10 +269,7 @@ if ($count_maxed_buildings === $building_count) {
                             </div>
                         </div>
                         <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
-                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
-                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
-                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>
-                            <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                        $resource_costs
                         </div>
                         <div class='map-legend' style='justify-content: left;'>
                             <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_TIME) . " " . $time_text . "</div>
