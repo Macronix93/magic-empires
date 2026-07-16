@@ -326,7 +326,7 @@ class EventManager
         $my_y = $home_kingdom->get_kingdom_map_y();
 
         $message = "";
-        $return_time = $map->get_arrival_time($row["targetx"], $row["targety"], $my_x, $my_y);
+        $return_time = (int)($row["arrivaltime"] - $row["buildingtime"]);
 
         $conquest = new Conquest($this->mysqli);
         $conquest->set_event_id($row["eventid"]);

@@ -277,7 +277,7 @@ class Map
     {
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
-        $kid = ($origin_kingdom_id == -1) ? $this->user->get_current_kingdom() : $origin_kingdom_id;
+        $kid = ($origin_kingdom_id != -1) ? $origin_kingdom_id : $this->user->get_current_kingdom();
 
         $kingdom = new Kingdom($this->mysqli, $kid);
         $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();

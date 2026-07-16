@@ -1835,6 +1835,19 @@ tr:first-child .td-center {
         --map-viewport-height: 400px;
     }
 
+    .unit-badge {
+        padding: 3px;
+    }
+
+    .unit-badge img {
+        width: 16px;
+        height: 16px;
+    }
+
+    .unit-badge b {
+        font-size: 12px;
+    }
+
     .receiver-bubble,
     .sender-bubble {
         max-width: 340px;

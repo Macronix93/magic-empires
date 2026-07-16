@@ -59,7 +59,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             ";
         $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);
         $field_name = $result2->fetch_assoc()["fieldname"];
-        $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y);
+        $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y, $user->get_current_kingdom());
 
         // Check if sent troop was clicked
         if (!empty($_POST["soldiers"])) {
@@ -228,7 +228,13 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
                     $send_title = "Erobern";
                 }
-                $view .= "</table><br>";
+                $view .= "</table>";
+                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
+                            <div id="troop-summary-container" style="display: none; flex-direction: column;">
+                                <div style="font-weight: bold; margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen:</div>
+                                <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center;"></div>
+                            </div>
+                            <input type="submit" style="margin: 10px;" value="Truppen schicken">';
 
                 $categories = [
                     SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
@@ -245,8 +251,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 $view .= "</div>";
 
                 // Show users soldiers
-                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
-                            <table class="table" style="max-width: 500px;">
+                $view .= '<table class="table" style="max-width: 500px;">
                                                         <colgroup>
                                 <col style="width: auto;">
                                 <col style="width: 130px;">
@@ -308,13 +313,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                               </tr>";
                 }
 
-                $view .= '</table>';
-                $view .= '<div id="troop-summary-container" style="margin-top: 20px; display: none; flex-direction: column;">
-                                <div style="font-weight: bold; margin-bottom: 10px;">Gewählte Truppen:</div>
-                                <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center;"></div>
-                            </div>
-                            <input type="submit" style="margin-top: 10px;" value="Truppen schicken">
-                        </form>';
+                $view .= '</table></form>';
             }
         }
     }
