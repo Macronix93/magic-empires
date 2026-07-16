@@ -273,11 +273,13 @@ class Map
         }
     }
 
-    public function get_arrival_time(int $start_x, int $start_y, int $end_x, int $end_y): int
+    public function get_arrival_time(int $start_x, int $start_y, int $end_x, int $end_y, int $origin_kingdom_id = -1): int
     {
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
-        $kingdom = new Kingdom($this->mysqli, $this->user->get_current_kingdom());
+        $kid = ($origin_kingdom_id == -1) ? $this->user->get_current_kingdom() : $origin_kingdom_id;
+
+        $kingdom = new Kingdom($this->mysqli, $kid);
         $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
 
         return (int)round($modified_time);

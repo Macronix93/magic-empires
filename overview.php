@@ -212,7 +212,7 @@ if ($result && $result->num_rows > 0) {
         $action_id = $event_data["actionid"];
         $action_button = "";
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
-        $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"]);
+        $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"], $row["kingdomid"]);
         $difference_time = max(0, $event_data["arrivaltime"] - $now);
         $counter_id = "counter_" . $event_id;
         $my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
