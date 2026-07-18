@@ -3,6 +3,7 @@
 /*
     Constants (defines)
 */
+const STARTING_SCORE = 0;
 const ADMIN_LEVEL_USER = 0;
 const ADMIN_LEVEL_SUPPORTER = 1;
 const ADMIN_LEVEL_LIGHT_ADMIN = 2;

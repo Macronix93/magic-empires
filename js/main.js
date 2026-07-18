@@ -373,7 +373,10 @@ window.addEventListener("DOMContentLoaded", function () {
             const inactiveTime = now - lastActivityTimestamp;
 
             if (inactiveTime >= logoutLimitMs) {
-                window.location.href = "index.php?logout=inactive";
+                const token = Math.random().toString(36).substring(2, 15);
+                document.cookie = "logout_verify=" + token + "; path=/; max-age=30; SameSite=Lax";
+
+                window.location.href = "index.php?logout=inactive&v=" + token;
             }
         }, 10000);
     }

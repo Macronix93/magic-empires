@@ -77,6 +77,20 @@ registerAction("confirmDeleteEvent", (el) => {
         }
     );
 });
+registerAction("confirmResetRound", (el) => {
+    showConfirmationDialog(
+        "Bist du absolut sicher? Dies wird die gesamte Spielwelt unwiderruflich löschen und eine neue Runde starten!",
+        "JA, WELT RESETTEN",
+        "Abbrechen",
+        () => {
+            const form = el.closest('form');
+            const hidden = form.querySelector('#hidden_reset_submit');
+
+            hidden.value = "1";
+            form.submit();
+        }
+    );
+});
 
 function editField(userID, fieldID, currentValue, formattedValue) {
     const td = document.getElementById("td_" + fieldID);

@@ -57,24 +57,54 @@ if (!empty($_GET["key"])) {
 
 // LOGOUT
 if (isset($_GET["logout"])) {
-    if ($_GET["logout"] === "inactive") {
-        $warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
-    } else if ($_GET["logout"] === "session") {
-        $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
-    } else if ($_GET["logout"] === "maintenance") {
-        $warning = "Der Server befindet sich im Wartungsmodus!";
-    } else if ($_GET["logout"] === "deleted") {
-        $success = "Dein Account wurde erfolgreich gelöscht!";
-    } else if (empty($_GET["logout"])) {
+    $mode = "login";
+    $logout_type = $_GET["logout"];
+
+    $url_hash = $_GET["v"] ?? "";
+    $cookie_hash = $_COOKIE["logout_verify"] ?? "";
+
+    $is_system_logout = (!empty($url_hash) && $url_hash === $cookie_hash);
+    $is_manual_logout = (empty($logout_type) && $user->is_logged_in());
+
+    if ($is_system_logout) {
+        if ($logout_type === "inactive") {
+            $warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
+        } else if ($logout_type === "session") {
+            $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
+        } else if ($logout_type === "maintenance") {
+            $warning = "Der Server befindet sich im Wartungsmodus!";
+        } else if ($logout_type === "deleted") {
+            $success = "Dein Account wurde erfolgreich gelöscht!";
+        }
+    } else if ($is_manual_logout) {
         $success = "Du hast dich erfolgreich ausgeloggt!";
     }
 
     if ($user->is_logged_in()) {
+        // DB Cleanup
         $db_instance->execute_query("UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?",
                 [$_SESSION["message_count"] ?? 0, $_SESSION["message_timeframe_end"] ?? 0, $user->get_user_id()]);
 
-        session_unset();
+        // Stop Session safely
+        $_SESSION = array();
+
+//        if (ini_get("session.use_cookies")) {
+//            $params = session_get_cookie_params();
+//
+//            setcookie(session_name(), '', time() - 42000,
+//                    $params["path"], $params["domain"],
+//                    $params["secure"], $params["httponly"]
+//            );
+//        }
+
         session_destroy();
+    }
+
+    setcookie("logout_verify", "", time() - 3600, "/");
+
+    if (empty($success) && empty($warning)) {
+        header("Location: index.php");
+        exit;
     }
 } else {
     if ($user->is_logged_in()) {
@@ -155,11 +185,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $error .= "Bitte einen Benutzernamen angeben!<br>";
                 } else {
                     $pattern = '/^' . preg_quote(strtolower($name), '/') . '$/i';
-                    $bad_names_matches = preg_grep($pattern, get_bad_names());
+                    $bad_names_list = get_bad_names();
+                    $bad_names_matches = preg_grep($pattern, $bad_names_list);
 
-                    if (!preg_match("/^[a-zA-Z0-9 ]+$/", $name)) {
-                        $error .= "Benutzername darf nur Buchstaben/Zahlen enthalten!<br>";
-                    } else if (contains_bad_words($name) || preg_match_all(regex_pattern(), $name, $matches)) {
+                    if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $name)) {
+                        $error .= "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -<br>";
+                    } else if (!empty($bad_names_matches) || contains_bad_words($name, $bad_names_list) || preg_match_all(regex_pattern(), $name, $matches)) {
                         $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
                     } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
                         $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";

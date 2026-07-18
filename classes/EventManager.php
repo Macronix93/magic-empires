@@ -966,7 +966,7 @@ class EventManager
                 }
             } else {
                 // Defender was completely destroyed -> defender starts over again
-                $this->mysqli->execute_query("UPDATE users SET score = 2 WHERE id = ?", [$enemy_user->get_user_id()]);
+                $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [STARTING_SCORE, $enemy_user->get_user_id()]);
                 $this->mysqli->execute_query("DELETE FROM events WHERE userid = ?", [$enemy_user->get_user_id()]);
 
                 $new_k_id = new Kingdom($this->mysqli)->create_kingdom($enemy_user->get_user_id(), $enemy_user->get_user_name());
@@ -1402,7 +1402,7 @@ class EventManager
                 $score_per_raider = $res_score->fetch_column() ?: 1;
                 $total_score_loss = $losses * $score_per_raider;
 
-                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(2, score - ?) WHERE id = ?", [$total_score_loss, $attacker_user->get_user_id()]);
+                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(?, score - ?) WHERE id = ?", [STARTING_SCORE, $total_score_loss, $attacker_user->get_user_id()]);
 
                 // Reduce troops in event
                 if ($losses >= $raider_count) {

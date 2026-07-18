@@ -5,7 +5,10 @@ if ($user->is_logged_in()) {
 
     if (MAINTENANCE_MODE && !$user->is_admin()) {
         if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
-            change_location("index.php?logout=maintenance");
+            $token = bin2hex(random_bytes(16));
+
+            setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
+            change_location("index.php?logout=maintenance&v=" . $token);
             exit;
         }
     }
@@ -53,9 +56,10 @@ if ($user->is_logged_in()) {
     // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
     if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
         if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
-            session_unset();
-            session_destroy();
-            change_location("index.php?logout=session");
+            $token = bin2hex(random_bytes(16));
+
+            setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
+            change_location("index.php?logout=session&v=" . $token);
             exit;
         }
     } else {

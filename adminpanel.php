@@ -9,6 +9,181 @@ $user_id = -1;
 if (!$user->is_admin()) {
     $error = "Du bist kein Administrator!";
 } else {
+    if (isset($_POST["reset_round"])) {
+        $logger->admin("ROUND RESET STARTED by Admin " . $user->get_user_name() . " (ID " . $user->get_user_id() . ")");
+
+        // Set maintenance mode
+        $db_instance->execute_query("UPDATE system_settings SET value = '1' WHERE name = 'maintenance_mode'");
+
+        // Clear tables (Order is important dude to foreign keys)
+        $db_instance->query("DELETE FROM marketplace");
+        $db_instance->query("DELETE FROM events");
+        $db_instance->query("DELETE FROM sent_troops");
+        $db_instance->query("DELETE FROM kingdom_boosts");
+        $db_instance->query("DELETE FROM resource_tiles_data");
+        $db_instance->query("DELETE FROM kingdoms"); // Cascades Buildings, Soldiers, Techs
+        $db_instance->query("DELETE FROM game_logs");
+
+        // Reset Auto Increments
+        $tables = ["kingdoms", "events", "marketplace", "server_messages", "game_logs"];
+        foreach ($tables as $t) {
+            $db_instance->query("ALTER TABLE $t AUTO_INCREMENT = 1");
+        }
+
+        // Reset User Scores and Main Kingdom
+        $db_instance->execute_query("UPDATE users SET score = ?, mainkingdom = -1, coins = 0", [STARTING_SCORE]);
+
+        // Generate a new random map
+        $db_instance->query("DELETE FROM map");
+        $db_instance->query("ALTER TABLE map AUTO_INCREMENT = 1");
+
+        $seed = rand(1000, 99999);
+        //$map_helper = new Map($db_instance, $user);
+
+        // Noise Functions
+        function noise_rand($x, $y, $s): float|int
+        {
+            $n = ($x * 374761393 + $y * 668265263 + $s * 1446645) & 0xFFFFFFFF;
+            $n = (($n ^ ($n >> 13)) * 1274126177) & 0xFFFFFFFF;
+            return (($n ^ ($n >> 16)) & 0x7FFFFFFF) / 2147483647;
+        }
+
+        function noise_lerp($a, $b, $t): float|int
+        {
+            return $a + $t * ($b - $a);
+        }
+
+        function noise_fade($t): float|int
+        {
+            return $t * $t * $t * ($t * ($t * 6 - 15) + 10);
+        }
+
+        function get_val_noise($x, $y, $s): float|int
+        {
+            $x0 = floor($x);
+            $y0 = floor($y);
+            $sx = noise_fade($x - $x0);
+            $sy = noise_fade($y - $y0);
+            $n0 = noise_rand($x0, $y0, $s);
+            $n1 = noise_rand($x0 + 1, $y0, $s);
+            $ix0 = noise_lerp($n0, $n1, $sx);
+            $n0 = noise_rand($x0, $y0 + 1, $s);
+            $n1 = noise_rand($x0 + 1, $y0 + 1, $s);
+            $ix1 = noise_lerp($n0, $n1, $sx);
+            return noise_lerp($ix0, $ix1, $sy);
+        }
+
+        function get_fractal($x, $y, $s, $oct, $pers, $scale): float|int
+        {
+            $total = 0;
+            $freq = $scale;
+            $amp = 1;
+            $maxV = 0;
+            for ($i = 0; $i < $oct; $i++) {
+                $total += get_val_noise($x * $freq, $y * $freq, $s + $i * 100) * $amp;
+                $maxV += $amp;
+                $amp *= $pers;
+                $freq *= 2;
+            }
+            return $total / $maxV;
+        }
+
+        // Write Map to DB
+        for ($y = 1; $y <= MAX_Y; $y++) {
+            for ($x = 1; $x <= MAX_X; $x++) {
+                $mt = get_fractal($x, $y, $seed + 8888, 5, 0.25, 0.15);
+                if ($mt > 0.70) $ft = 1; // Gebirge
+                else {
+                    $e = get_fractal($x, $y, $seed, 5, 0.5, 0.35);
+                    if ($e < 0.35) $ft = 2; // Küste
+                    else {
+                        $m = get_fractal($x, $y, $seed + 5555, 4, 0.5, 0.2);
+                        if ($m < 0.38) $ft = 4; // Wüste
+                        elseif ($m > 0.62) $ft = 3; // Wald
+                        else $ft = 5; // Hochland
+                    }
+                }
+
+                $db_instance->execute_query("INSERT INTO map (mapx, mapy, fieldtype, kingdomid) VALUES (?, ?, ?, -1)", [$x, $y, $ft]);
+            }
+        }
+
+        // Create new kingdom for every registered and activated user
+        $res_users = $db_instance->query("SELECT id, username FROM users WHERE status = 1");
+        $kingdom_manager = new Kingdom($db_instance);
+
+        while ($u = $res_users->fetch_assoc()) {
+            $new_k_id = $kingdom_manager->create_kingdom($u["id"], $u["username"]);
+
+            if ($new_k_id) {
+                $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $u["id"]]);
+
+                // Send server message to every user
+                $msg = "📢 <b>Runden-Reset erfolgt!</b><br>Ein Administrator hat die Welt neugestartet. Alle Gebäude, Truppen und Ressourcen wurden zurückgesetzt. Viel Erfolg in der neuen Runde!";
+                send_server_message($u["id"], $u["username"], $msg);
+            }
+        }
+
+        // Create initial resource tiles for map
+        $fields = $db_instance->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [MAX_RESOURCE_TILES]);
+
+        if ($fields->num_rows > 0) {
+            $insert_values = [];
+            $update_coords = [];
+
+            foreach ($fields as $f) {
+                $x = (int)$f["mapx"];
+                $y = (int)$f["mapy"];
+
+                $total = mt_rand(MIN_RESOURCES_FOR_TILE, MAX_RESOURCES_FOR_TILE);
+                $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
+                $active_keys = [];
+
+                foreach ($res_values as $key => $val) {
+                    if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
+                }
+
+                if (empty($active_keys)) $active_keys[] = array_rand($res_values);
+
+                $temp_total = $total;
+                $count_keys = count($active_keys);
+
+                for ($i = 0; $i < $count_keys; $i++) {
+                    $key = $active_keys[$i];
+                    if ($i == $count_keys - 1) {
+                        $res_values[$key] = $temp_total;
+                    } else {
+                        $share = mt_rand(10, 80) / 100;
+                        $val = (int)($temp_total * $share);
+                        $res_values[$key] = $val;
+                        $temp_total -= $val;
+                    }
+                }
+
+                $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]})";
+                $update_coords[] = "(mapx = $x AND mapy = $y)";
+            }
+
+            if (!empty($insert_values)) {
+                $sql_insert = "INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold) VALUES " . implode(', ', $insert_values);
+                $db_instance->query($sql_insert);
+            }
+
+            if (!empty($update_coords)) {
+                $sql_update = "UPDATE map SET kingdomid = -2 WHERE " . implode(' OR ', $update_coords);
+                $db_instance->query($sql_update);
+            }
+        }
+
+        // Remove maintenance mode
+        $db_instance->execute_query("UPDATE system_settings SET value = '0' WHERE name = 'maintenance_mode'");
+
+        $_SESSION["admin_flash_msg"] = show_passed_box("Runden-Reset erfolgreich durchgeführt! Alle Spieler haben ein neues Königreich erhalten.");
+
+        change_location("adminpanel.php");
+        exit;
+    }
+
     if (isset($_POST["toggle_maintenance"])) {
         $new_val = (MAINTENANCE_MODE ? "0" : "1");
         $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$new_val]);
@@ -427,14 +602,24 @@ if (!$user->is_admin()) {
     $m_button = MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren";
 
     $settings_list = "<div class='box-container' style='margin-bottom: 20px;'>
-                <div class='box-header'>System-Steuerung</div>
-                <div class='box-content box-content-bg' style='padding: 15px;'>
-                    <b>Wartungsmodus:</b> $m_status 
-                    <form method='POST' style='display:inline; margin-left: 20px;'>
-                        <input type='submit' name='toggle_maintenance' value='$m_button'>
-                    </form>
-                </div>
-            </div>";
+                        <div class='box-header'>System-Steuerung</div>
+                        <div class='box-content box-content-bg' style='padding: 15px;'>
+                            <b>Wartungsmodus:</b> $m_status 
+                            <form method='POST' style='display:inline; margin-left: 20px;'>
+                                <input type='submit' name='toggle_maintenance' value='$m_button'>
+                            </form>
+                        </div>
+                    </div>";
+    $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
+                        <div class='box-header' style='background: #a62121; color: white;'>Gefahrenzone: Welt-Reset</div>
+                        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+                            <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
+                            <form method='POST'>
+                                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='background: #a62121; color: white;'>
+                                <input type='hidden' name='reset_round' id='hidden_reset_submit'>
+                            </form>
+                        </div>
+                    </div>";
 
     // Display all users
     $result = $db_instance->execute_query("SELECT * FROM users");

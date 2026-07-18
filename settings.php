@@ -117,15 +117,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if (preg_match('/\s/', $raw_name)) {
                     $error = "Benutzername darf keine Leerzeichen enthalten!";
                 } else {
-                    $new_name = make_secure($raw_name);
+                    $new_name = trim($raw_name);
+
+                    $bad_names_list = get_bad_names();
+                    $pattern_exact = '/^' . preg_quote(strtolower($new_name), '/') . '$/i';
+                    $bad_names_matches = preg_grep($pattern_exact, $bad_names_list);
 
                     if (empty($new_name)) {
                         $error = "Bitte einen Benutzernamen angeben!";
-                    } else if (!preg_match("/^[a-zA-Z0-9]+$/", $new_name)) {
-                        $error = "Benutzername darf nur Buchstaben und Zahlen enthalten!";
+                    } else if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $new_name)) {
+                        $error = "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -";
                     } else if (strlen($new_name) < MIN_USERNAME_LENGTH || strlen($new_name) > MAX_USERNAME_LENGTH) {
                         $error = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
-                    } else if (contains_bad_words($new_name) || preg_match_all(regex_pattern(), $new_name, $matches)) {
+                    } else if (!empty($bad_names_matches)) {
+                        $error = "Dieser Name ist reserviert oder nicht erlaubt!";
+                    } else if (contains_bad_words($new_name, $bad_names_list) || preg_match_all(regex_pattern(), $new_name, $matches)) {
                         $error = "Dieser Benutzername ist nicht erlaubt!";
                     } else {
                         $check = $db_instance->execute_query("SELECT id FROM users WHERE username = ? AND id != ?", [$new_name, $uid]);
@@ -261,6 +267,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $logger->log_game("ACCOUNT", "SELF_DELETION", ["user" => $u_data['username']]);
 
                 session_destroy();
+                setcookie("logout_token", "deleted", time() + 20, "/", "", false, true);
                 change_location("index.php?logout=deleted");
                 exit;
             }

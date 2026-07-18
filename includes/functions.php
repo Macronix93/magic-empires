@@ -191,15 +191,21 @@ function regex_pattern(): string
 
 function get_bad_names(): array
 {
-    $filename = __DIR__ . '/bad_names.txt';
+    static $bad_names_cache = null;
+
+    if ($bad_names_cache !== null) {
+        return $bad_names_cache;
+    }
+
+    $filename = __DIR__ . "/bad_names.txt";
 
     if (!file_exists($filename)) {
-        echo "File for bad names not found!";
+        $bad_names_cache = [];
         return [];
     }
 
-    // Convert all names to lowercase to ensure case-insensitive comparison
-    return file($filename, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $bad_names_cache = file($filename, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    return $bad_names_cache;
 }
 
 function send_mail(string $to, string $subject, string $body): bool
@@ -478,9 +484,9 @@ function check_user_login($user): void
 }
 
 // Bad words checker
-function contains_bad_words($name): bool
+function contains_bad_words($name, ?array $list = null): bool
 {
-    $bad_words = get_bad_names();
+    $bad_words = $list ?? get_bad_names();
 
     foreach ($bad_words as $bad) {
         $bad = trim($bad);
@@ -498,8 +504,14 @@ function contains_bad_words($name): bool
 function get_bad_word_pattern($bad_word): string
 {
     $leet_map = [
-        'a' => '[a4@]', 'e' => '[e3]', 'i' => '[i1!|]',
-        'o' => '[o0]', 's' => '[s5$]', 't' => '[t7+]', 'b' => '[b8]'
+        'a' => '[a4@ä]',
+        'e' => '[e3]',
+        'i' => '[i1!|]',
+        'o' => '[o0ö]',
+        's' => '[s5$]',
+        't' => '[t7+]',
+        'b' => '[b8]',
+        'u' => '[uü]'
     ];
 
     $bad_word = mb_strtolower($bad_word, 'UTF-8');
