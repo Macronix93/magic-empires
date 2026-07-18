@@ -197,6 +197,10 @@ body {
     background-color: rgb(54, 46, 38);
 }
 
+.box-content-bg-danger {
+    background-color: rgba(166, 33, 33, 0.1);
+}
+
 /* Emoji-Container */
 .emoji-picker-container {
     position: relative;

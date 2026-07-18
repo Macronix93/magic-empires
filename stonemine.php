@@ -10,17 +10,18 @@ $kingdom = $result['kingdom'];
 
 $res_type = ResourceTypes::RESOURCE_TYPE_STONE;
 $lvl = $building->get_building_level();
-$boost_cost = $lvl * BOOST_COST_PER_LEVEL;
+$boost_cost = $lvl * BOOST_COIN_BASE;
 $active_boosts = $kingdom->get_active_boosts($res_type);
 $this_boost = $active_boosts[$res_type] ?? null;
 $boost_amount = $this_boost["amount"] ?? 0;
 $expiry = $kingdom->get_boost_expiry($res_type);
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . fnum($boost_amount) . ")</span>" : "";
+$boost_hours = $lvl * BOOST_DURATION_MULTIPLIER;
 
 if (isset($_POST["activate_boost"])) {
     if ($expiry == 0) {
-        if ($kingdom->get_kingdom_stone() >= $boost_cost) {
-            $kingdom->give_kingdom_stone(-$boost_cost);
+        if ($user->get_user_coins() >= $boost_cost) {
+            $user->give_user_coins(-$boost_cost);
 
             $res_ft = $db_instance->execute_query("SELECT ft.stonerate FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$current_kingdom]);
             $ft = $res_ft->fetch_assoc();
@@ -49,14 +50,22 @@ if (isset($_POST["activate_boost"])) {
 /*
  * HTML Content Part
  */
+$can_afford = ($user->get_user_coins() >= $boost_cost);
+$disabled = ($can_afford && $lvl > 0) ? "" : "disabled";
+$cost_display_html = get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . ($can_afford ? $boost_cost : "<b class='error'>$boost_cost</b>");
+
 $view .= "<div style='margin-bottom: 15px;'><b>Steinertrag pro Stunde:</b> " . fnum($kingdom->get_base_stone_rate()) . " $boost_display</div>";
 
 if ($expiry > 0) {
     $view .= "Ertragsboost aktiv!<br>Ende in: <span class='js-countdown' data-seconds='" . ($expiry - time()) . "'></span>";
 } else {
+    $view .= "<p style='font-size: 14px; opacity: 0.8; margin-bottom: 10px;'>
+                <i>Ein Boost verdoppelt den Basis-Ertrag dieses Gebäudes für <b>$boost_hours Stunden</b>.</i>
+              </p>";
+
     $view .= "<form method='POST'>
-                <button type='submit' name='activate_boost'>
-                    Boost für " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($boost_cost) . "
+                <button type='submit' name='activate_boost' $disabled>
+                    Boost aktivieren für $cost_display_html
                 </button>
             </form>";
 }

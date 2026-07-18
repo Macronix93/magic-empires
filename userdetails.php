@@ -17,6 +17,13 @@ $user_rank = $rank_res->fetch_column();
 
 $time_diff = time() - $_SESSION["currlogin"];
 
+$role = match ($data["adminlevel"]) {
+    ADMIN_LEVEL_SUPPORTER => "Supporter",
+    ADMIN_LEVEL_LIGHT_ADMIN => 'Light Admin',
+    ADMIN_LEVEL_FULL_ADMIN => 'Full Admin',
+    default => "User",
+};
+
 $view = "
 <div style='text-align: center; margin-bottom: 20px;'>
     <img src='{$user->get_avatar()}' class='user-image' style='width: 80px; height: 80px; border-radius: 10px; border: 2px solid var(--border-gold);' alt='Avatar'>
@@ -40,7 +47,7 @@ $view = "
     <tr><td><b>Globaler Rang:</b></td><td>$user_rank</td></tr>
     <tr><td><b>Haupt-Königreich:</b></td><td>{$data["kingdomname"]} ({$data["mapx"]}:{$data["mapy"]})</td></tr>
     <tr><td><b>Gilde:</b></td><td>" . ($data["guildid"] == -1 ? "Keine Gilde" : $data["guildid"]) . "</td></tr>
-    <tr><td><b>Admin-Level:</b></td><td>{$data["adminlevel"]}</td></tr>
+    <tr><td><b>Account-Level:</b></td><td>{$data["adminlevel"]} ($role)</td></tr>
 </table>
 ";
 

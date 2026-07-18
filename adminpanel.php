@@ -23,6 +23,7 @@ if (!$user->is_admin()) {
         $db_instance->query("DELETE FROM resource_tiles_data");
         $db_instance->query("DELETE FROM kingdoms"); // Cascades Buildings, Soldiers, Techs
         $db_instance->query("DELETE FROM game_logs");
+        $db_instance->query("DELETE FROM server_messages");
 
         // Reset Auto Increments
         $tables = ["kingdoms", "events", "marketplace", "server_messages", "game_logs"];
@@ -531,8 +532,6 @@ if (!$user->is_admin()) {
                 }
 
                 if ($found_kingdom !== null) {
-                    $view .= '<h3>Event-Info</h3>';
-
                     if (!empty($found_kingdom['events'])) {
                         $view .= '<h3>Event-Info</h3>';
                         $view .= '<table class="table">
@@ -611,11 +610,11 @@ if (!$user->is_admin()) {
                         </div>
                     </div>";
     $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
-                        <div class='box-header' style='background: #a62121; color: white;'>Gefahrenzone: Welt-Reset</div>
-                        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+                        <div class='box-header' style='background: #a62121; color: white;'>Welt-Reset</div>
+                        <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
                             <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
                             <form method='POST'>
-                                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='background: #a62121; color: white;'>
+                                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
                                 <input type='hidden' name='reset_round' id='hidden_reset_submit'>
                             </form>
                         </div>
@@ -640,28 +639,27 @@ if (!$user->is_admin()) {
                   </div>';
     }
     $user_list .= '</div>';
-}
 
-$view .= "<br><hr><div class='title-border'>System Logs</div>";
+    $view .= "<br><hr><div class='title-border'>System Logs</div>";
 
-$rows_per_page_logs = 20;
-$current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
+    $rows_per_page_logs = 20;
+    $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
 
 // Get total number of logs
-$total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM game_logs")->fetch_row()[0];
-$total_pages_logs = ceil($total_logs / $rows_per_page_logs);
-$offset_logs = ($current_page_logs - 1) * $rows_per_page_logs;
+    $total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM game_logs")->fetch_row()[0];
+    $total_pages_logs = ceil($total_logs / $rows_per_page_logs);
+    $offset_logs = ($current_page_logs - 1) * $rows_per_page_logs;
 
 // Load Data for current page
-$logs = $db_instance->execute_query(
-    "SELECT l.*, u.username 
+    $logs = $db_instance->execute_query(
+        "SELECT l.*, u.username 
      FROM game_logs l 
      LEFT JOIN users u ON l.userid = u.id 
      ORDER BY l.id DESC LIMIT ?, ?",
-    [$offset_logs, $rows_per_page_logs]
-);
+        [$offset_logs, $rows_per_page_logs]
+    );
 
-$view .= "<table class='table'>
+    $view .= "<table class='table'>
             <tr>
                 <td class='td-gradient'><b>ID</b></td>
                 <td class='td-gradient'><b>Spieler</b></td>
@@ -671,11 +669,11 @@ $view .= "<table class='table'>
                 <td class='td-gradient'><b></b></td>
             </tr>";
 
-if ($logs->num_rows > 0) {
-    foreach ($logs as $l) {
-        $user_display = $l['username'] ? e($l['username']) . " <small>({$l['userid']})</small>" : "<i>System / Gast</i>";
+    if ($logs->num_rows > 0) {
+        foreach ($logs as $l) {
+            $user_display = $l['username'] ? e($l['username']) . " <small>({$l['userid']})</small>" : "<i>System / Gast</i>";
 
-        $view .= "<tr>
+            $view .= "<tr>
                     <td>{$l['id']}</td>
                     <td>$user_display</td>
                     <td><small>{$l['category']}</small></td>
@@ -689,46 +687,47 @@ if ($logs->num_rows > 0) {
                         </a>
                     </td>
                   </tr>";
+        }
+    } else {
+        $view .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";
     }
-} else {
-    $view .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";
-}
-$view .= "</table>";
+    $view .= "</table>";
 
 // Pagination Bar
-if ($total_pages_logs > 1) {
-    $view .= '<div class="pagination-container"><div class="pagination-bar">';
+    if ($total_pages_logs > 1) {
+        $view .= '<div class="pagination-container"><div class="pagination-bar">';
 
-    $get_params = $_GET;
+        $get_params = $_GET;
 
-    if ($current_page_logs > 1) {
-        $get_params['logpage'] = 1;
-        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&laquo;</a>";
-        $get_params['logpage'] = $current_page_logs - 1;
-        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&lsaquo;</a>";
-    }
+        if ($current_page_logs > 1) {
+            $get_params['logpage'] = 1;
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&laquo;</a>";
+            $get_params['logpage'] = $current_page_logs - 1;
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&lsaquo;</a>";
+        }
 
-    $range = 2;
-    for ($i = ($current_page_logs - $range); $i <= ($current_page_logs + $range); $i++) {
-        if ($i > 0 && $i <= $total_pages_logs) {
-            $get_params['logpage'] = $i;
-            $active = ($i == $current_page_logs) ? "active" : "";
-            if ($i == $current_page_logs) {
-                $view .= "<span class='page-link active'>$i</span>";
-            } else {
-                $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>$i</a>";
+        $range = 2;
+        for ($i = ($current_page_logs - $range); $i <= ($current_page_logs + $range); $i++) {
+            if ($i > 0 && $i <= $total_pages_logs) {
+                $get_params['logpage'] = $i;
+                $active = ($i == $current_page_logs) ? "active" : "";
+                if ($i == $current_page_logs) {
+                    $view .= "<span class='page-link active'>$i</span>";
+                } else {
+                    $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>$i</a>";
+                }
             }
         }
-    }
 
-    if ($current_page_logs < $total_pages_logs) {
-        $get_params['logpage'] = $current_page_logs + 1;
-        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&rsaquo;</a>";
-        $get_params['logpage'] = $total_pages_logs;
-        $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&raquo;</a>";
-    }
+        if ($current_page_logs < $total_pages_logs) {
+            $get_params['logpage'] = $current_page_logs + 1;
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&rsaquo;</a>";
+            $get_params['logpage'] = $total_pages_logs;
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&raquo;</a>";
+        }
 
-    $view .= "</div></div>";
+        $view .= "</div></div>";
+    }
 }
 
 

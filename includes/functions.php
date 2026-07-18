@@ -523,7 +523,7 @@ function get_bad_word_pattern($bad_word): string
         $regex_parts[] = $pattern . '+';
     }
 
-    $stretchy_pattern = implode('[.\s_\-\d]*', $regex_parts);
+    $stretchy_pattern = implode('[.\s_\-\d\p{C}]*', $regex_parts);
 
     return "/(?<![a-zäöüß])" . $stretchy_pattern . "(?![a-zäöüß])/iu";
 }
@@ -531,6 +531,16 @@ function get_bad_word_pattern($bad_word): string
 function filter_chat_message($text)
 {
     $bad_words = get_bad_names();
+
+    static $sorted_bad_words = null;
+
+    if ($sorted_bad_words === null) {
+        $sorted_bad_words = $bad_words;
+        usort($sorted_bad_words, function ($a, $b) {
+            return mb_strlen($b) - mb_strlen($a);
+        });
+    }
+
     $filtered_text = $text;
 
     foreach ($bad_words as $bad) {
@@ -543,6 +553,7 @@ function filter_chat_message($text)
             return str_repeat('*', mb_strlen($matches[0]));
         }, $filtered_text);
     }
+
     return $filtered_text;
 }
 

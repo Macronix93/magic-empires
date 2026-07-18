@@ -276,7 +276,7 @@ function applyZoom(newZoom, mouseX = null, mouseY = null) {
     /** @type {HTMLElement} */
     const viewport = document.getElementById("map-viewport");
     const oldZoom = zoom;
-    zoom = Math.max(0.5, Math.min(2.0, newZoom));
+    zoom = Math.max(0.3, Math.min(2.0, newZoom));
 
     if (oldZoom === zoom) return;
 

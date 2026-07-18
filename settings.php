@@ -397,7 +397,7 @@ $view .= '
 $view .= '
 <div class="box-container">
     <div class="box-header" style="background: #a62121; color: white; border-color: transparent;">Account löschen</div>
-    <div class="box-content" style="padding: 10px; background: rgba(166,33,33,0.1);">
+    <div class="box-content box-content-bg-danger" style="padding: 10px;">
         <p class="error"><b>Vorsicht:</b> Das Löschen deines Accounts kann nicht rückgängig gemacht werden!</p>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">

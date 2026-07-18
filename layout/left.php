@@ -54,7 +54,7 @@ $unread_news = get_unread_news_count($user, $db_instance);
         <div class="box-header">Allgemeines</div>
         <div class="box-content">
             <?php
-            if ($user->get_user_admin_level() > 0) {
+            if ($user->is_admin()) {
                 echo '<div class="box' . ($current_page === "adminpanel.php" ? " active" : '') . '" 
                 data-on-click="navigate" data-url="adminpanel.php">
                 <img src="images/icons/icon_adminpanel.png" class="menu-icons" alt="Admin-Bereich"/> Admin-Bereich

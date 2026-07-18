@@ -11,6 +11,16 @@ registerAction("confirmCloseTicket", (el) => {
         });
 });
 
+function scrollSupportToBottom() {
+    const messageSection = document.getElementById("messages-section");
+
+    if (messageSection) {
+        messageSection.scrollTop = messageSection.scrollHeight;
+    }
+}
+
+window.addEventListener("load", scrollSupportToBottom);
+
 document.addEventListener("DOMContentLoaded", () => {
     const input = document.getElementById("message-input");
     const form = document.getElementById("newmessage");
