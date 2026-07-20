@@ -165,6 +165,9 @@ class Map
             $field_y = $my_y;
         }
 
+        $check_query = "SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?";
+        $check_res = $this->mysqli->execute_query($check_query, [$field_x, $field_y]);
+        $field = $check_res->fetch_column();
         $target_url = "sendtroops.php?x=" . e($field_x) . "&y=" . e($field_y);
 
         if ($field == -2) {

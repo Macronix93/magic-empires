@@ -42,6 +42,55 @@ registerAction("confirmDeleteConversation", (el) => {
         conversationDeletionDialog(partnerId, partnerName);
     }
 });
+registerAction("sendWorldMessage", () => {
+    const messageInput = document.getElementById("message-input");
+    const text = messageInput.value;
+
+    if (text.trim() === "") return;
+
+    const formData = new URLSearchParams();
+    formData.append("text", text);
+
+    fetch("ajax/chat_insert_world.php", {
+        method: "POST",
+        headers: {"X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded"},
+        body: formData.toString()
+    })
+        .then(r => r.json())
+        .then(response => {
+            if (response.error) {
+                alert(response.error);
+            } else if (response.html) {
+                const section = document.getElementById("messages-section");
+
+                removeEmptyPlaceholder();
+
+                section.insertAdjacentHTML("beforeend", response.html);
+                messageInput.value = "";
+
+                lastSeenId = response.lastId;
+
+                scrollDown();
+            }
+        });
+});
+registerAction("deleteWorldChatMsg", (el) => {
+    const msgId = el.dataset.id;
+
+    fetch(`ajax/chat_delete_world.php?m_id=${msgId}`, {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const bubble = document.getElementById("world-msg-" + msgId);
+
+                if (bubble) bubble.remove();
+            }
+        })
+        .catch(err => console.error("Fehler beim Löschen:", err));
+});
+
 
 function scrollToLatestMessage() {
     /** @type {HTMLDivElement} */
@@ -63,13 +112,6 @@ function scrollDown() {
     }
 }
 
-function sendUpdateChatRequest() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const chatPartner = urlParams.get("s");
-
-    if (chatPartner) updateChat(chatPartner);
-}
-
 function checkSessionSync() {
     const urlParams = new URLSearchParams(window.location.search);
     const chatPartnerInTab = urlParams.get("s");
@@ -86,11 +128,21 @@ window.addEventListener("focus", function () {
 function updateChat(chatPartner) {
     if (isUpdatingChat) return;
 
+    const messageSection = document.getElementById("messages-section");
+    if (!messageSection) return;
+
     const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
+
+    const isWorld = messageSection.dataset.chatType === 'world';
+    const endpoint = isWorld ? 'ajax/chat_update_world.php' : 'ajax/chat_update.php';
+
+    const queryParams = isWorld
+        ? `?last_id=${lastSeenId}`
+        : `?s=${encodeURIComponent(chatPartner)}&last_id=${lastSeenId}&token=${tabToken}`;
 
     isUpdatingChat = true;
 
-    fetch(`ajax/chat_update.php?s=${encodeURIComponent(chatPartner)}&last_id=${lastSeenId}&token=${tabToken}`, {
+    fetch(`${endpoint}${queryParams}`, {
         method: "GET",
         headers: {
             "X-Requested-With": "XMLHttpRequest",
@@ -133,7 +185,7 @@ function updateChat(chatPartner) {
 
                 let temp = document.createElement("div");
                 temp.innerHTML = response.html;
-                let newBubbles = temp.querySelectorAll("[id^='msg-']");
+                let newBubbles = temp.querySelectorAll("[id^='msg-'], [id^='world-msg-']");
 
                 newBubbles.forEach(bubble => {
                     if (!document.getElementById(bubble.id)) {
@@ -160,18 +212,19 @@ function updateChat(chatPartner) {
             }
         })
         .catch(error => {
+            isUpdatingChat = false;
             console.error("Error:", error);
         });
 }
 
 function removeChatBubble(bubbleID) {
-    const el = document.getElementById("msg-" + bubbleID);
+    const el = document.getElementById("msg-" + bubbleID) || document.getElementById("world-msg-" + bubbleID);
 
     if (el) {
         const parent = el.parentNode;
         el.remove();
 
-        const remainingMessages = parent.querySelectorAll("[id^='msg-']");
+        const remainingMessages = parent.querySelectorAll("[id^='msg-'], [id^='world-msg-']");
 
         if (remainingMessages.length === 0) {
             const placeholder = document.createElement("div");
@@ -272,6 +325,7 @@ function insertNewChatMessage(e) {
     const formData = new URLSearchParams();
     formData.append("receiver", receiver);
     formData.append("text", text);
+    formData.append("token", tabToken);
 
     fetch("ajax/chat_insert.php", {
         method: "POST",
@@ -279,7 +333,7 @@ function insertNewChatMessage(e) {
             "X-Requested-With": "XMLHttpRequest",
             "Content-Type": "application/x-www-form-urlencoded"
         },
-        body: formData + `&token=${tabToken}`
+        body: formData.toString()
     })
         .then(response => response.json())
         .then(response => {
@@ -369,11 +423,22 @@ function deleteConversation(url) {
 function initializeChat() {
     /** @type {HTMLInputElement} */
     const messageInput = document.getElementById("message-input");
-    const messageForm = document.getElementById("newmessage");
+    const messageForm = document.getElementById("newmessage") || document.getElementById("world-chat-form");
     const messageSection = document.getElementById("messages-section");
-    const allMsgs = document.querySelectorAll("[id^='msg-']");
+
+    const allMsgs = document.querySelectorAll("[id^='msg-'], [id^='world-msg-']");
     const loadMoreBtn = document.getElementById("load-older-btn");
+
     const chatCfg = document.getElementById("chat-config");
+
+    if (allMsgs.length > 0) {
+        const lastMsg = allMsgs[allMsgs.length - 1];
+        const idMatch = lastMsg.id.match(/\d+$/);
+
+        if (idMatch) lastSeenId = parseInt(idMatch[0]);
+    } else {
+        lastSeenId = 0;
+    }
 
     if (chatCfg) {
         canLoadMore = chatCfg.dataset.hasMore === "true";
@@ -381,11 +446,6 @@ function initializeChat() {
 
     if (loadMoreBtn && !canLoadMore) {
         loadMoreBtn.style.display = "none";
-    }
-
-    if (allMsgs.length > 0) {
-        const lastMsg = allMsgs[allMsgs.length - 1];
-        lastSeenId = parseInt(lastMsg.id.replace("msg-", ""));
     }
 
     if (messageSection) {
@@ -399,19 +459,30 @@ function initializeChat() {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
 
-                messageForm.requestSubmit();
+                if (messageSection.dataset.chatType === "world") {
+                    const sendBtn = messageForm.querySelector('input[type="button"]');
+
+                    if (sendBtn) sendBtn.click();
+                } else {
+                    messageForm.requestSubmit();
+                }
             }
         });
     }
 
     // Add event listener for form submission
-    messageForm.addEventListener("submit", e => {
-        insertNewChatMessage(e);
-    });
+    if (messageForm && messageForm.id === "newmessage") {
+        messageForm.addEventListener("submit", e => {
+            insertNewChatMessage(e);
+        });
+    }
 
     // Chat update function
     setInterval(() => {
-        sendUpdateChatRequest();
+        const urlParams = new URLSearchParams(window.location.search);
+        const chatPartner = urlParams.get("s") || "0";
+
+        updateChat(chatPartner);
     }, CHAT_UPDATE_INTERVAL);
 
     // Scroll to latest message at the bottom

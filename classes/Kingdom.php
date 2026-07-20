@@ -559,10 +559,10 @@ class Kingdom
     public function get_active_boosts(?int $res_type = null): array
     {
         $boosts = [];
-        $query = "SELECT resource_type, boost_amount, expires_at 
+        $query = "SELECT resource_type, boost_amount, ticks_remaining  
               FROM kingdom_boosts 
-              WHERE kingdomid = ? AND expires_at > ?";
-        $params = [$this->kingdom_id, time()];
+              WHERE kingdomid = ? AND ticks_remaining  > 0";
+        $params = [$this->kingdom_id];
 
         if ($res_type !== null) {
             $query .= " AND resource_type = ?";
@@ -574,22 +574,11 @@ class Kingdom
         while ($row = $res->fetch_assoc()) {
             $boosts[(int)$row["resource_type"]] = [
                 "amount" => (int)$row["boost_amount"],
-                "expiry" => (int)$row["expires_at"]
+                "ticks" => (int)$row["ticks_remaining"]
             ];
         }
 
         return $boosts;
-    }
-
-    public function get_boost_expiry(int $res_type): int
-    {
-        $res = $this->mysqli->execute_query(
-            "SELECT expires_at FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
-            [$this->kingdom_id, $res_type]
-        );
-        $row = $res->fetch_assoc();
-
-        return ($row && $row["expires_at"] > time()) ? $row["expires_at"] : 0;
     }
 
     public function recalculate_production(): void

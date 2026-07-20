@@ -44,19 +44,32 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 
 
         if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS) {
-            $total_duration = $event["arrivaltime"] - $event["buildingtime"];
-            $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
-            $new_arrival_time = $now + $already_marched;
+            if ($event["is_processing"] == 1) {
+                $error = "Truppen sind bereits in ein Gefecht verwickelt oder am Ziel angekommen!";
+            } else {
+                $total_duration = $event["arrivaltime"] - $event["buildingtime"];
+                $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
+                $new_arrival_time = $now + $already_marched;
 
-            $update = $db_instance->execute_query("UPDATE events SET actionid = ?, arrivaltime = ? WHERE eventid = ?",
-                [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
-            );
+                $update = $db_instance->execute_query(
+                    "UPDATE events SET 
+                                actionid = ?, 
+                                arrivaltime = ?, 
+                                loot_food = 0, 
+                                loot_wood = 0, 
+                                loot_stone = 0, 
+                                loot_gold = 0,
+                                is_processing = 0
+                             WHERE eventid = ? AND userid = ?",
+                    [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id, $user->get_user_id()]
+                );
 
-            $logger->log_game("COMBAT", "ATTACK_RECALL", [
-                "event_id" => $event_id,
-                "target_x" => $event["targetx"],
-                "target_y" => $event["targety"]
-            ], $event["kingdomid"]);
+                $logger->log_game("COMBAT", "ATTACK_RECALL", [
+                    "event_id" => $event_id,
+                    "target_x" => $event["targetx"],
+                    "target_y" => $event["targety"]
+                ], $event["kingdomid"]);
+            }
         } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == "Interner Transport") {
             $total_duration = $event["arrivaltime"] - $event["buildingtime"];
             $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
@@ -166,14 +179,13 @@ if ($result && $result->num_rows > 0) {
                 <col style='width: 15%;'> <!-- Art -->
                 <col style='width: 38%;'> <!-- Truppen -->
                 <col style='width: 18%;'> <!-- Koordinaten -->
-                <col style='width: 22%;'> <!-- Ankunft -->
-                <col style='width: 7%;'>  <!-- Button -->
+                <col style='width: 29%;'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
             <td class='td-center td-gradient'>Truppen</td>
             <td class='td-center td-gradient'>Koordinaten</td>
-            <td class='td-center td-gradient' colspan='2'>Ankunft</td>
+            <td class='td-center td-gradient'>Ankunft</td>
         </tr>";
 
     $action_type = "Angriff";
@@ -194,6 +206,7 @@ if ($result && $result->num_rows > 0) {
                 "targetx" => $row["targetx"],
                 "targety" => $row["targety"],
                 "arrivaltime" => $row["arrivaltime"],
+                "is_processing" => $row["is_processing"],
                 "soldiers" => []
             ];
         }
@@ -223,8 +236,8 @@ if ($result && $result->num_rows > 0) {
                                data-seconds='$difference_time' 
                                data-no-reload='true'></span></b>";
 
-        if ($action_id != ActionTypes::ACTION_RETURN_TROOPS) {
-            $action_button = "<form action='overview.php' method='GET'>
+        if ($action_id != ActionTypes::ACTION_RETURN_TROOPS && $event_data["is_processing"] == 0) {
+            $action_button = "<form action='overview.php' method='GET' style='display: inline;'>
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>
                                     <input type='submit' value='' class='btn-delete'>
@@ -233,6 +246,8 @@ if ($result && $result->num_rows > 0) {
 
         if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $event_data["targetid"] == -1) {
             $action_type = "Eroberung";
+        } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $event_data["targetid"] == -2) {
+            $action_type = "Plündern";
         } else if ($action_id == ActionTypes::ACTION_RETURN_TROOPS) {
             $action_type = "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
@@ -259,14 +274,14 @@ if ($result && $result->num_rows > 0) {
                 <td class='td-center'>$action_type</td>
                 <td class='td-center'>$soldiers_str</td>
                 <td class='td-center'>$coords_str</td>";
+        $view .= "<td class='td-center' style='position: relative; min-width: 130px;'>
+            <b>$action_counter</b>";
 
         if ($action_button !== "") {
-            $view .= "<td class='td-center'>$action_counter</td>";
-            $view .= "<td class='td-center'>$action_button</td>";
-        } else {
-            $view .= "<td class='td-center' colspan='2'>$action_counter</td>";
+            $view .= "<div style='position: absolute; right: 8px; top: 50%; transform: translateY(-50%); line-height: 0;'>
+                $action_button
+              </div>";
         }
-
         $view .= "</tr>";
     }
 
@@ -420,7 +435,7 @@ if ($result_events && $result_events->num_rows > 0) {
         $view .= "<tr>
                 <td class='td-center'>$type_text</td>
                 <td class='td-center'>
-                    <div class='popup' id='event_pop_{$event_id}'>
+                    <div class='popup' id='event_pop_$event_id'>
                         $project_text
                         <div id='event_pop_{$event_id}_box' class='popupbox'>
                             <b>" . e($hover_name) . "</b>
@@ -509,14 +524,13 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <col style='width: 18%;'> <!-- Art -->
                 <col style='width: 25%;'> <!-- Ressourcen -->
                 <col style='width: 27%;'> <!-- Ziel -->
-                <col style='width: 22%;'> <!-- Ankunft -->
-                <col style='width: 8%;'>  <!-- Button -->
+                <col style='width: 30%;'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
             <td class='td-center td-gradient'>Ressourcen</td>
             <td class='td-center td-gradient'>Ziel</td>
-            <td class='td-center td-gradient' colspan='2'>Ankunft</td>
+            <td class='td-center td-gradient'>Ankunft</td>
         </tr>";
 
     foreach ($result_trades as $row) {
@@ -537,30 +551,25 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <td class='td-center'>
                     $target_name
                     <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($target_coords) . ")</a>
-                </td>";
+                </td>
+                <td class='td-center' style='position: relative; min-width: 130px;'>
+                    <b><span class='js-countdown' 
+                             id='$counter_id' 
+                             data-seconds='$arrival_diff' 
+                             data-no-reload='true'>
+                    </span></b>";
 
         if ($is_cancelable) {
-            $view .= "<td class='td-center'>
-                        <b><span id='$counter_id'></span></b>
-                      </td>
-                      <td class='td-center'>
-                        <form action='overview.php' method='GET'>
+            $view .= "<div style='position: absolute; right: 8px; top: 50%; transform: translateY(-50%); line-height: 0;'>
+                        <form action='overview.php' method='GET' style='display: inline;'>
                             <input type='hidden' name='action' value='cancel'>
                             <input type='hidden' name='eid' value='$event_id'>
-                            <input type='submit' value='' class='btn-delete' style='margin-top: 5px;'>
+                            <input type='submit' value='' class='btn-delete' style='width: 10px; height: 10px;'>
                         </form>
-                      </td>";
-        } else {
-            $view .= "<td class='td-center' colspan='2'>
-                        <b><span id='$counter_id'></span></b>
-                      </td>";
+                      </div>";
         }
 
-        $view .= "<span class='js-countdown' 
-                       id='$counter_id' 
-                       data-seconds='$arrival_diff' 
-                       data-no-reload='true'></span>
-            </tr>";
+        $view .= "</td></tr>";
     }
 
     $view .= "</table>";

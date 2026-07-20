@@ -1,6 +1,6 @@
 *.bat
 test.*
-testfile.*
+aba_map_gen.php
 
 ##### Windows
 # Windows thumbnail cache files

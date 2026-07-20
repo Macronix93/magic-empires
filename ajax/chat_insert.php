@@ -18,14 +18,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     $raw_text = $_POST["text"];
 
-//    if (is_message_blocked($raw_text)) {
-//        echo json_encode(["error" => "Deine Nachricht enthält blockierte Begriffe oder Umgehungsversuche!"]);
-//        exit;
-//    }
-
     $message = nl2br(e($raw_text));
     $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
-    //$message = filter_chat_message($message);
 
     // Render the conversation HTML
     ob_start();
@@ -76,6 +70,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $message_id = $row["id"];
             $response["lastId"] = $message_id;
             $display_text = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
+            $display_text = wrap_emojis($display_text);
 
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>

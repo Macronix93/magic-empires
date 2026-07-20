@@ -6,15 +6,25 @@ $_SERVER["REQUEST_METHOD"] = "GET";
 require_once("../includes/core.php");
 
 $db = Database::get_instance()->get_connection();
+$activity_threshold = time() - INACTIVITY_DELAY;
 
 $query = "SELECT u.id, u.username, u.mainkingdom, k.kingdomname 
           FROM users u 
           JOIN kingdoms k ON u.mainkingdom = k.id 
-          WHERE u.status = 1 AND u.is_banned = 0 
+          WHERE u.status = 1 
+            AND u.is_banned = 0 
+            AND u.lastactivity > ? 
           ORDER BY RAND() LIMIT 1";
 
-$res = $db->execute_query($query);
+$res = $db->execute_query($query [$activity_threshold]);
 $winner = $res->fetch_assoc();
+
+if (!$winner) {
+    echo "Kein Spieler aktiv. Wähle zufälligen Spieler...\n";
+    $fallback_threshold = time();
+    $res = $db->execute_query($query);
+    $winner = $res->fetch_assoc();
+}
 
 if ($winner) {
     $uid = $winner["id"];
@@ -30,6 +40,8 @@ if ($winner) {
     send_server_message($uid, $uname, $msg);
 
     echo "Held vergeben an $uname im Königreich $kname";
+} else {
+    echo "Kein berechtigter Spieler gefunden.\n";
 }
 
 // Delete closed support tickets

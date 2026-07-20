@@ -94,7 +94,7 @@
             <?php
             foreach ($resource_config as $type => $data) {
                 $item_boost = $active_boosts[$type]["amount"] ?? 0;
-                $expiry = $active_boosts[$type]["expiry"] ?? 0;
+                $ticks_left = $active_boosts[$type]["ticks"] ?? 0;
 
                 // Actual difference of shrine bonus
                 $actual_shrine_diff = $data["total_prod_with_shrine"] - $data["base_prod"];
@@ -129,8 +129,8 @@
 
                 if ($show_popup) {
                     echo "<div id='{$prod_id}_box' class='popupbox'>
-                <b>Aktive Boosts:</b><br>
-                Basis & Forschung: " . fnum($data["base_prod"]) . "/h<br>";
+                            <b>Aktive Boosts:</b><br>
+                            Basis & Forschung: " . fnum($data["base_prod"]) . "/h<br>";
 
                     if ($has_shrine_effect) {
                         if ($actual_shrine_diff > 0) {
@@ -141,7 +141,7 @@
                     }
 
                     if ($has_item_boost) {
-                        echo "<span class='passed'>Gebäude-Boost: +" . fnum($item_boost) . "/h</span> <small>(Bis " . date("H:i", $expiry) . " Uhr)</small>";
+                        echo "<span class='passed'>Gebäude-Boost: +" . fnum($item_boost) . "/h</span> <small>(Noch $ticks_left Erträge)</small>";
                     }
 
                     echo "</div>";

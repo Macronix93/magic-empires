@@ -13,6 +13,8 @@ const SUPPORT_TICKET_ROWS_PER_PAGE = 10;
 const MAX_SUPPORT_TICKET_SUBJECT_LENGTH = 16;
 const USERNAME_CHANGE_COOLDOWN_DAYS = 7;
 const KINGDOM_NAME_CHANGE_COOLDOWN_DAYS = 7;
+const NUM_NAME_LENGTH_CHECK = 6;
+const NUM_UNIQUE_CHARS = 3;
 const MIN_KINGDOM_NAME_LENGTH = 3;
 const MAX_KINGDOM_NAME_LENGTH = 32;
 const BASE_SEND_TROOPS_LIMIT = 2;
@@ -101,10 +103,10 @@ const THIEF_BASE_CAPACITY = 500;
 const STORAGE_SECURE_PERCENT_STEP = 0.015;
 const RAIDER_BASE_CAPACITY = 300;
 const RAIDER_LOSS_CHANCE = 10;
-const BOOST_DURATION_MULTIPLIER = 1.0;  // 1.0 = 1 hour per Level
+const BASE_BOOST_DURATION = 2;
 const BOOST_PRODUCTION_BONUS = 1.0;
 const BOOST_COIN_BASE = 25;
-const BOOST_COIN_FACTOR = 5;
+const BOOST_COIN_FACTOR = 10;
 const MAX_DAILY_TRADES = 5;
 const SMITHY_INF_ATK_BONUS = 2;
 const SMITHY_INF_DEF_BONUS = 2;
@@ -116,6 +118,7 @@ const SMITHY_WEIGHT_REDUCTION = 0.25;
 const SMITHY_SIEGE_BONUS = 0.20;
 const MAX_NEWS_TITLE_LENGTH = 50;
 const MAX_NEWS_CONTENT_LENGTH = 500;
+const MAX_WORLD_CHAT_MESSAGES_SHOWN = 30;
 
 /*
  * Interfaces
@@ -132,7 +135,7 @@ interface AlignmentTypes
 interface MessageCategories
 {
     const string CATEGORY_DEFAULT = "Default";
-    const string CATEGORY_WAR = "Krieg";
+    const string CATEGORY_WAR = "Militärisch";
     const string CATEGORY_TRADE = "Handel";
 }
 

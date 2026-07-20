@@ -202,6 +202,17 @@ body {
 }
 
 /* Emoji-Container */
+.emoji-fix {
+    text-shadow: none !important;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif !important;
+    font-variant-emoji: emoji;
+}
+
+.emoji-menu span {
+    text-shadow: none !important;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif !important;
+}
+
 .emoji-picker-container {
     position: relative;
     display: flex;
@@ -214,6 +225,9 @@ body {
     padding: 5px 8px !important;
     line-height: 1;
     height: 100%;
+    text-shadow: none !important;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif !important;
+    font-variant-emoji: emoji;
 }
 
 /* Emoji Menu */
@@ -504,6 +518,11 @@ hr {
     background-color: rgba(3, 2, 1, 0.2);
 }
 
+#messages-section.large-height {
+    max-height: 690px !important;
+    min-height: 500px;
+}
+
 #messages-section-loading {
     display: flex;
     flex-direction: column;
@@ -782,8 +801,8 @@ input[type=password]:focus {
 
 input.btn-delete,
 input.btn-accept {
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     background-size: 70% !important;
     background-repeat: no-repeat !important;
     background-position: center !important;
@@ -1208,7 +1227,7 @@ tr:first-child .td-center {
     z-index: 9999;
     pointer-events: none;
     max-width: 450px;
-    min-width: 150px;
+    min-width: 100px;
     white-space: normal;
     line-height: 1.4;
     border: 2px solid var(--border-gold);
@@ -1829,6 +1848,10 @@ tr:first-child .td-center {
         --map-viewport-height: 400px;
     }
 
+    #messages-section.large-height {
+        max-height: 70vh !important;
+    }
+
     .unit-badge {
         padding: 3px;
     }
@@ -2034,8 +2057,8 @@ tr:first-child .td-center {
 
     input.btn-delete,
     input.btn-accept {
-        width: 24px;
-        height: 24px;
+        width: 18px;
+        height: 18px;
     }
 
     .header-copyright {

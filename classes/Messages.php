@@ -251,6 +251,13 @@ class Messages
         return $result->fetch_assoc()["unreadcount"];
     }
 
+    public function get_unread_world_count(): int
+    {
+        $uid = $this->user->get_user_id();
+        $query = "SELECT COUNT(*) FROM world_chat WHERE id > (SELECT last_world_chat_id FROM users WHERE id = ?) AND userid != ? AND deleted = 0";
+        return (int)$this->mysqli->execute_query($query, [$uid, $uid])->fetch_row()[0];
+    }
+
     public function delete_marked_messages(int $sender_id): void
     {
         $this->mysqli->execute_query("DELETE FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (receiverid = ? AND senderid = ?)) AND deleted = 1",
@@ -291,12 +298,17 @@ class Messages
             return $this->view;
         }
 
+        $is_admin = $this->user->is_admin();
+
         foreach ($result as $row) {
             $message_id = $row["id"];
             $message = $row["message"];
             $display_message = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
+            $display_message = wrap_emojis($display_message);
             $has_read = $row["hasread"];
             $date = $row["date"];
+            $is_me = ($row["senderid"] == $this->user->get_user_id());
+            $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
 
             if ($row["senderid"] == $sender_id) {
                 if (empty($chat_partner_image)) {
@@ -314,6 +326,7 @@ class Messages
                                     <img class='user-image' src='$chat_partner_image' alt=''> 
                                     <span>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
                                 </span>
+                                $delete_icon
                             </div>
                             " . $display_message . "
                         </div>";
@@ -324,12 +337,7 @@ class Messages
                                     <img class='user-image' src='$my_chat_image' alt=''> 
                                     <span>Du am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
                                 </span>
-                                <img src='images/icons/icon_delete.png' 
-                                     class='ressource-icons' 
-                                     alt='Löschen' 
-                                     data-on-click='deleteChatMsg' 
-                                     data-id='" . e($message_id) . "' 
-                                     style='cursor: pointer;'>
+                                $delete_icon
                             </div>
                             " . $display_message . "
                         </div>";
@@ -346,5 +354,75 @@ class Messages
         }
 
         return $this->view;
+    }
+
+    public function show_world_chat(): string
+    {
+        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
+        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit]);
+        $rows = array_reverse($result->fetch_all(MYSQLI_ASSOC));
+
+        $html = "<div id='messages-section' data-chat-type='world'>";
+
+        if (empty($rows)) {
+            $html .= "
+            <div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>
+                Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
+            </div>";
+        } else {
+            foreach ($rows as $row) {
+                $is_me = ($row["userid"] == $this->user->get_user_id());
+                $class = $is_me ? "receiver-bubble" : "sender-bubble";
+
+                $is_admin = $this->user->is_admin();
+                $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' 
+                                                            data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
+
+                $use_filter = ($_SESSION["chat_filter"] ?? 1);
+                $msg = ($use_filter == 1) ? filter_chat_message($row["message"]) : $row["message"];
+                $msg = wrap_emojis($msg);
+
+                $u = new User($row["userid"], $row["username"]);
+                $avatar = $u->get_avatar();
+
+                $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
+                    <div class='message-border'>
+                        <span class='msg-header-left'>
+                            <img class='user-image' src='$avatar' alt=''> 
+                            <span>" . ($is_me ? 'Du' : $row["username"]) . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                        </span>
+                        $delete_icon
+                    </div>
+                    $msg
+                  </div>";
+            }
+        }
+        $html .= "</div>";
+        $html .= "
+                    <div id='newmessage-section'>
+                        <form id='world-chat-form'>
+                            <textarea id='message-input' 
+                                      name='text' 
+                                      rows='3' 
+                                      maxlength='" . MAX_MESSAGE_LENGTH . "' 
+                                      style='resize: vertical; margin-right: 10px;'></textarea>
+                            <div class='emoji-picker-container'>
+                                <div id='emoji-menu' class='emoji-menu'>";
+
+        foreach (get_chat_emojis() as $emoji) {
+            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
+        }
+
+        $html .= "      </div>
+                    <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
+                </div>
+                
+                <input type='button' 
+                       data-on-click='sendWorldMessage' 
+                       value='Absenden\n[ENTER]' />
+            </form>
+        </div>";
+
+        return $html;
     }
 }

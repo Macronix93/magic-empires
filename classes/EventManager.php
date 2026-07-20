@@ -189,7 +189,7 @@ class EventManager
         if ($row["buildingtime"] >= time()) return;
 
         $res = $this->mysqli->execute_query("SELECT buildingscore FROM building_list WHERE id = ?", [$row["buildingid"]]);
-        $score_gain = $res->fetch_assoc()["buildingscore"] * $row["buildinglevel"] + 1;
+        $score_gain = $res->fetch_assoc()["buildingscore"] * ($row["buildinglevel"] + 1);
 
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
@@ -323,10 +323,7 @@ class EventManager
         $attacker_name = $atk_data["username"] ?? "Unbekannt";
         $attacker_user_obj = new User($attacker_id, $attacker_name, (int)$row["kingdomid"]);
 
-        $map = new Map($this->mysqli, $attacker_user_obj);
         $home_kingdom = new Kingdom($this->mysqli, $row["kingdomid"]);
-        $my_x = $home_kingdom->get_kingdom_map_x();
-        $my_y = $home_kingdom->get_kingdom_map_y();
 
         $message = "";
         $return_time = (int)($row["arrivaltime"] - $row["buildingtime"]);
@@ -865,7 +862,6 @@ class EventManager
             }
         }
 
-        //$attacker_survived = ($conquest->get_initial_soldier_count() > $conquest->get_my_loss_count());
         $surviving_scouts = $conquest->get_surviving_count(Soldiers::SOLDIER_SCOUT);
 
         if ($surviving_scouts > 0) {
@@ -874,19 +870,15 @@ class EventManager
 
             $message .= $this->generate_scout_report($initial_scouts, $lost_scouts, $enemy_kingdom);
         }
-//        else if ($attacker_survived) {
-//            $enemy_survived = ($conquest->get_initial_enemy_count() > $conquest->get_enemy_loss_count());
-//
-//            if ($enemy_survived) {
-//                $message .= "<div class='battle-unit-card' style='margin-top:10px;'>
-//                        <div class='battle-unit-info'>🛡️ Unsere Soldaten berichten, dass der Gegner nach dem Kampf noch Truppen übrig hatte.</div>
-//                     </div>";
-//            } else {
-//                $message .= "<div class='battle-unit-card' style='margin-top:10px;'>
-//                        <div class='battle-unit-info'>🏰 Unsere Soldaten berichten, dass die feindliche Garnison vollständig vernichtet wurde.</div>
-//                     </div>";
-//            }
-//        }
+
+        $total_losses_in_this_battle = $conquest->get_my_loss_count() + $conquest->get_enemy_loss_count();
+
+        if ($total_losses_in_this_battle > 0) {
+            $this->mysqli->execute_query(
+                "UPDATE system_settings SET value = value + ? WHERE name = 'total_fallen_soldiers'",
+                [$total_losses_in_this_battle]
+            );
+        }
 
         $message .= "</div>";
         $enemy_msg .= "</div>";
@@ -1479,6 +1471,11 @@ class EventManager
             );
 
             if ($losses > 0) {
+                $this->mysqli->execute_query(
+                    "UPDATE system_settings SET value = value + ? WHERE name = 'total_fallen_soldiers'",
+                    [$losses]
+                );
+
                 $message .= "<br><span class='error'>⚠️ <b>Verluste:</b> $losses Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet oder verletzt.</span><br>";
             }
         } else {

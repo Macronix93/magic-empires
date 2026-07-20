@@ -325,10 +325,17 @@ function check_image_content($tempFilePath)
     return 0;
 }
 
+function wrap_emojis($text): array|string|null
+{
+    $emoji_pattern = '/[\x{1F300}-\x{1F9FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
+
+    return preg_replace($emoji_pattern, '<span class="emoji-fix">$0</span>', $text);
+}
+
 function get_chat_emojis(): array
 {
     return [
-        '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '⚒', '📜', '🗺️', '👑', '🏆', '💎',
+        '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
         '💰', '🤝', '⚖️', '📦', '🛒', '📈', '📉', '🍞', '🥩', '🌲', '⛏️',
         '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
@@ -408,6 +415,7 @@ function get_error(string $text, string $receiver_id): string
     $error = "";
     $line_breaks_count = substr_count($text, '<br />');
     $text_without_line_breaks = preg_replace('/<br\s*\/?>/i', '', $text);
+    $text_length = mb_strlen(strip_tags($text_without_line_breaks), 'UTF-8');
 
     // Check different errors
     if ($receiver_id == $_SESSION["userid"]) {
@@ -416,7 +424,7 @@ function get_error(string $text, string $receiver_id): string
         $error = "Bitte nutze nur einen Tab für Konversationen!";
     } else if (strlen(trim(strip_tags($text))) === 0) {
         $error = "Bitte alle Felder ausfüllen!";
-    } else if (strlen($text_without_line_breaks) > MAX_MESSAGE_LENGTH) {
+    } else if ($text_length > MAX_MESSAGE_LENGTH) {
         $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
     } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
         $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
@@ -640,4 +648,24 @@ function delete_user_avatar_files(int $user_id): void
             }
         }
     }
+}
+
+function is_name_monotonous($name): bool
+{
+    $name = mb_strtolower($name, "UTF-8");
+    $len = mb_strlen($name);
+
+    // Check: Too many identical characters in succession
+    if (preg_match('/(.)\1{3,}/u', $name)) {
+        return true;
+    }
+
+    // Check: No variety in name
+    $unique_chars = count(array_unique(preg_split('//u', $name, -1, PREG_SPLIT_NO_EMPTY)));
+
+    if ($len > NUM_NAME_LENGTH_CHECK && $unique_chars < NUM_UNIQUE_CHARS) {
+        return true;
+    }
+
+    return false;
 }

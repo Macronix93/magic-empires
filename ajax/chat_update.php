@@ -36,9 +36,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $chat_partner_image = "";
     $new_last_id = $last_id;
 
+    $is_admin = $user->is_admin();
+
     while ($row = $result->fetch_assoc()) {
         $message = nl2br(e($row["message"]));
         $display_message = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
+        $display_message = wrap_emojis($display_message);
         $new_last_id = $row["id"];
         $is_me = ((int)$row["senderid"] === $u_id);
 
@@ -46,7 +49,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $avatar = $is_me ? $user->get_avatar() : new User((int)$row["senderid"], $row["sender"])->get_avatar();
         $name = $is_me ? "Du" : e($row["sender"]);
 
-        $delete_icon = $is_me ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
+        $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
 
         $html .= "<div class='$class' id='msg-" . $row["id"] . "'>
                     <div class='message-border'>

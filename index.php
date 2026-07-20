@@ -161,6 +161,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($ip_check->num_rows > 0) {
             $error .= "Deine IP-Adresse ist für Neuregistrierungen gesperrt!<br>";
         } else {
+            if (!isset($_POST["accept_rules"])) {
+                $error .= "Du musst die Spielregeln akzeptieren!<br>";
+            }
+
             if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true) {
                 $response = $_POST["g-recaptcha-response"] ?? "";
                 $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("LOCALHOST_SERVER_KEY") . "&response=" . $response);
@@ -180,6 +184,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $name = make_secure($_POST["username"] ?? "");
                 $email = make_secure($_POST["email"] ?? "");
                 $pass = make_secure($_POST["password"] ?? "");
+                $pass_repeat = make_secure($_POST["password_repeat"] ?? "");
 
                 if (empty($name)) {
                     $error .= "Bitte einen Benutzernamen angeben!<br>";
@@ -194,6 +199,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
                     } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
                         $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
+                    } else if (is_name_monotonous($name)) {
+                        $error .= "Dieser Benutzername ist zu eintönig!<br>";
                     }
                 }
             }
@@ -216,6 +223,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             if (empty($pass)) {
                 $error .= "Bitte ein Passwort angeben!<br>";
+            } else if ($pass !== $pass_repeat) {
+                $error .= "Die Passwörter stimmen nicht überein!<br>";
             } else if (strlen($pass) < MIN_PASSWORD_LENGTH || strlen($pass) > MAX_PASSWORD_LENGTH) {
                 $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
             }
@@ -371,6 +380,23 @@ $count_online = $res_online->fetch_row()[0];
                                                 <input type="password" name="password" placeholder="Passwort"
                                                        style="width: 100%;">
                                             </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td><label>
+                                                <input type="password" name="password_repeat"
+                                                       placeholder="Passwort wiederholen"
+                                                       style="width: 100%;">
+                                            </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 10px; text-align: left; font-size: 14px;">
+                                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                                <input type="checkbox" name="accept_rules" value="1"
+                                                       style="width: auto;" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
+                                                <span>Ich akzeptiere die <a href="rules.php" target="_blank"
+                                                                            style="text-decoration: underline; color: var(--link-color);">Regeln</a> und Datenschutzbestimmungen.</span>
+                                            </label>
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td style="display: flex; justify-content: center; padding: 10px;">

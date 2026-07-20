@@ -212,6 +212,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $error = "Der Name muss zwischen " . MIN_KINGDOM_NAME_LENGTH . " und " . MAX_KINGDOM_NAME_LENGTH . " Zeichen lang sein.";
             } else if (contains_bad_words($new_k_name)) {
                 $error = "Der Name enthält unzulässige Begriffe.";
+            } else if (is_name_monotonous($new_k_name)) {
+                $error = "Der Name ist zu eintönig oder enthält zu viele Wiederholungen.";
             } else if (!preg_match('/^[a-zA-Z0-9\s\[\]\-_.]+$/u', $new_k_name)) {
                 $error = "Der Name enthält ungültige Sonderzeichen. Erlaubt sind: [ ] - _ .";
             } else {
@@ -403,7 +405,7 @@ $view .= '
     </div>
 </div>';
 
-$current_filter = ($_SESSION['chat_filter'] ?? 1);
+$current_filter = ($_SESSION["chat_filter"] ?? 1);
 $view .= '
 <div class="box-container">
     <div class="box-header">Privatsphäre & Chat</div>

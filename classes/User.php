@@ -236,44 +236,32 @@ class User
         unset($_SESSION["last_upgraded"][$kingdom_id]);
     }
 
-//    public function get_unread_messages(): int
-//    {
-//        $query = "
-//            SELECT COUNT(*) AS unread_count FROM (
-//                SELECT id FROM messages
-//                WHERE receiverid = ? AND hasread = 0 AND deleted = 0
-//                UNION ALL
-//                SELECT id FROM server_messages
-//                WHERE receiverid = ? AND hasread = 0
-//            ) AS combined_messages
-//        ";
-//
-//        $result = $this->mysqli->execute_query($query, [$this->get_user_id(), $this->get_user_id()]);
-//        return $result->fetch_assoc()["unread_count"];
-//    }
     public function get_unread_messages(): int
     {
         $uid = $this->get_user_id();
         $is_staff = ($this->get_user_admin_level() > 0);
 
-        $support_query = $is_staff
-            ? "SELECT m.id FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE m.is_admin_reply = 0 AND m.hasread = 0 AND t.status = 1"
-            : "SELECT m.id FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE t.userid = ? AND m.is_admin_reply = 1 AND m.hasread = 0";
+        $support_subquery = $is_staff
+            ? "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE m.is_admin_reply = 0 AND m.hasread = 0 AND t.status = 1"
+            : "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE t.userid = ? AND m.is_admin_reply = 1 AND m.hasread = 0";
 
         $query = "
-                    SELECT COUNT(*) AS unread_count FROM (
-                        SELECT id FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0
-                        UNION ALL
-                        SELECT id FROM server_messages WHERE receiverid = ? AND hasread = 0
-                        UNION ALL
-                        $support_query
-                    ) AS combined_messages
-                ";
+        SELECT 
+            (SELECT COUNT(*) FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0) +
+            (SELECT COUNT(*) FROM server_messages WHERE receiverid = ? AND hasread = 0) +
+            (SELECT COUNT(*) FROM world_chat WHERE id > (SELECT last_world_chat_id FROM users WHERE id = ?) AND userid != ? AND deleted = 0) +
+            ($support_subquery)
+        AS total";
 
-        $params = $is_staff ? [$uid, $uid] : [$uid, $uid, $uid];
+        $params = [$uid, $uid, $uid, $uid];
+        if (!$is_staff) {
+            $params[] = $uid;
+        }
+
         $result = $this->mysqli->execute_query($query, $params);
+        $row = $result->fetch_assoc();
 
-        return $result->fetch_assoc()["unread_count"];
+        return (int)($row["total"] ?? 0);
     }
 
     public function set_user_score(int $score): void

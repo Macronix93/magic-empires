@@ -183,6 +183,7 @@ if (isset($_GET["action"])) {
                                               style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? e($_POST["text"]) : '') . "</textarea>
                                         <div class=\"emoji-picker-container\">
                                         <div id=\"emoji-menu\" class=\"emoji-menu\">";
+
                     foreach (get_chat_emojis() as $emoji) {
                         $view .= "<span data-on-click=\"pickEmoji\">$emoji</span>";
                     }
@@ -222,7 +223,23 @@ if (isset($_GET["action"])) {
     }
 }
 
-if (isset($_GET["servermsgs"])) {
+if (isset($_GET["worldchat"])) {
+    $max_id_res = $db_instance->query("SELECT MAX(id) FROM world_chat");
+    $max_id = $max_id_res->fetch_row()[0] ?? 0;
+
+    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$max_id, $user->get_user_id()]);
+
+    $view .= "
+                <div class='msg-back-button-container'>
+                    <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>
+                        Zurück
+                    </button>
+                </div>
+    ";
+    $view .= $messages->show_world_chat();
+
+    $inbox_header = "Welt-Chat";
+} else if (isset($_GET["servermsgs"])) {
     $view .= "
                 <div class='msg-back-button-container'>
                     <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>
@@ -234,11 +251,11 @@ if (isset($_GET["servermsgs"])) {
     // Category Tabs
     $view .= "<div class='tab'>
                     <div class='tablinks active' data-on-click='filterServer'>Alle</div>
-                    <div class='tablinks' data-on-click='filterServer'>Krieg</div>
+                    <div class='tablinks' data-on-click='filterServer'>Militärisch</div>
                     <div class='tablinks' data-on-click='filterServer'>Handel</div>
                 </div>";
 
-    $view .= "<div id='messages-section'>";
+    $view .= "<div id='messages-section' class='large-height'>";
     $view .= $messages->show_server_inbox();
     $view .= "</div>";
 
@@ -250,6 +267,7 @@ if (isset($_GET["servermsgs"])) {
 } else if (!isset($_GET["action"])) {
     $private = $messages->get_unread_private_count();
     $server = $messages->get_unread_server_count();
+    $world = $messages->get_unread_world_count();
 
     $view .= "<div class='msg-button-container'>";
 
@@ -272,6 +290,17 @@ if (isset($_GET["servermsgs"])) {
     </div>";
     if ($server > 0) {
         $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($server) . "</span>";
+    }
+    $view .= "</a>";
+
+    // World Messages Button
+    $view .= "<a href='messages.php?worldchat' class='msg-button'>
+    <div class='msg-left'>
+        <span>🌍</span>
+        <span>Welt-Chat</span>
+    </div>";
+    if ($world > 0) {
+        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($world) . "</span>";
     }
     $view .= "</a>";
 

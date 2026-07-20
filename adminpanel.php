@@ -624,7 +624,7 @@ if (!$user->is_admin()) {
                     </div>";
 
     // Display all users
-    $result = $db_instance->execute_query("SELECT * FROM users");
+    $result = $db_instance->execute_query("SELECT id, username FROM users");
 
     $user_list .= '<div class="box-container" style="max-height: 250px; width: 300px; overflow: auto; margin: 0 auto;">';
 
