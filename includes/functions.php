@@ -191,21 +191,23 @@ function regex_pattern(): string
 
 function get_bad_names(): array
 {
-    static $bad_names_cache = null;
+    static $cache = null;
+    if ($cache !== null) return $cache;
 
-    if ($bad_names_cache !== null) {
-        return $bad_names_cache;
-    }
+    $profanity = file_exists(__DIR__ . "/bad_words.txt") ? file(__DIR__ . "/bad_words.txt", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
+    $reserved = file_exists(__DIR__ . "/reserved_names.txt") ? file(__DIR__ . "/reserved_names.txt", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
 
-    $filename = __DIR__ . "/bad_names.txt";
+    $cache = array_merge($profanity, $reserved);
+    return $cache;
+}
 
-    if (!file_exists($filename)) {
-        $bad_names_cache = [];
-        return [];
-    }
+function get_bad_words_only(): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
 
-    $bad_names_cache = file($filename, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    return $bad_names_cache;
+    $cache = file_exists(__DIR__ . "/bad_words.txt") ? file(__DIR__ . "/bad_words.txt", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
+    return $cache;
 }
 
 function send_mail(string $to, string $subject, string $body): bool
@@ -530,7 +532,7 @@ function get_bad_word_pattern($bad_word): string
 
 function filter_chat_message($text)
 {
-    $bad_words = get_bad_names();
+    $bad_words = get_bad_words_only();
 
     static $sorted_bad_words = null;
 
@@ -623,4 +625,19 @@ function send_server_message(int $user_id, string $user_name, string $message, s
 function get_resource_text(int $cost, int $current_val): string
 {
     return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
+}
+
+function delete_user_avatar_files(int $user_id): void
+{
+    $hashedName = substr(hash("sha256", $user_id . AVATAR_SALT), 0, 12);
+    $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
+    $files = glob($directory . $hashedName . ".*");
+
+    if (!empty($files)) {
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+    }
 }

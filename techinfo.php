@@ -29,7 +29,7 @@ if ($building_id !== null) {
         $time_key = "timetobuild";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_TIME;
     }
-} elseif ($tech_id !== null) {
+} else if ($tech_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM tech_list WHERE id = ?", [$tech_id])->fetch_assoc();
 
     if ($row) {
@@ -39,7 +39,7 @@ if ($building_id !== null) {
         $time_key = "timetoresearch";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME;
     }
-} elseif ($soldier_id !== null) {
+} else if ($soldier_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM soldier_list WHERE id = ?", [$soldier_id])->fetch_assoc();
 
     if ($row) {
@@ -98,8 +98,6 @@ if ($row) {
 
         if ($is_hero) {
             $view .= "Helden können nicht ausgebildet werden. Sie werden alle 24 Stunden zufällig an einen Herrscher verteilt.";
-        } else {
-            $view .= "Voraussetzung: Kaserne Stufe {$row["requiredlevel"]} | Ranglisten-Punkte: " . fnum($row["scoregain"]);
         }
 
         $view .= "      </p>
@@ -108,6 +106,52 @@ if ($row) {
     } else {
         $m = $row["multiplicator"];
         $calc_cost = fn($base, $lvl) => ($base <= 0) ? 0 : (int)round($base * pow($m, $lvl));
+
+        $biome_info = "";
+        $is_prod_building = in_array($building_id, [
+                BuildingTypes::BUILDING_MILL,
+                BuildingTypes::BUILDING_SAWMILL,
+                BuildingTypes::BUILDING_STONEMINE,
+                BuildingTypes::BUILDING_GOLDMINE
+        ]);
+
+        if ($building_id !== null && $is_prod_building) {
+            $res_map = [
+                    BuildingTypes::BUILDING_MILL => ["field" => "foodrate", "base" => BASE_FOOD_GAIN],
+                    BuildingTypes::BUILDING_SAWMILL => ["field" => "woodrate", "base" => BASE_WOOD_GAIN],
+                    BuildingTypes::BUILDING_STONEMINE => ["field" => "stonerate", "base" => BASE_STONE_GAIN],
+                    BuildingTypes::BUILDING_GOLDMINE => ["field" => "goldrate", "base" => BASE_GOLD_GAIN]
+            ];
+
+            $config = $res_map[$building_id];
+            $ft_res = $db_instance->query("SELECT fieldname, {$config["field"]} as rate FROM field_types");
+
+            $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+            $biome_info .= "<b>Ertrag pro Stunde (Stufe 1) nach Gelände:</b><br>";
+            $items = [];
+
+            while ($ft = $ft_res->fetch_assoc()) {
+                $items[] = e($ft["fieldname"]) . ": <span class='passed'>+" . fnum((int)($config["base"] * $ft["rate"])) . "</span>";
+            }
+
+            $biome_info .= implode(" | ", $items) . "</div>";
+        }
+
+        $tech_bonus_info = "";
+        $res_techs = [
+                TechTypes::TECH_TYPE_FOOD_INC => ["name" => "Nahrung", "val" => RESEARCH_FOOD_INC],
+                TechTypes::TECH_TYPE_WOOD_INC => ["name" => "Holz", "val" => RESEARCH_WOOD_INC],
+                TechTypes::TECH_TYPE_STONE_INC => ["name" => "Stein", "val" => RESEARCH_STONE_INC],
+                TechTypes::TECH_TYPE_GOLD_INC => ["name" => "Gold", "val" => RESEARCH_GOLD_INC]
+        ];
+
+        if ($tech_id !== null && isset($res_techs[$tech_id])) {
+            $t_cfg = $res_techs[$tech_id];
+            $tech_bonus_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+            $tech_bonus_info .= "<b>Forschungs-Effekt:</b><br>";
+            $tech_bonus_info .= "Jede Stufe erhöht den Basis-Ertrag von {$t_cfg["name"]} dauerhaft um <span class='passed'>+" . fnum($t_cfg["val"]) . "</span> pro Stunde.";
+            $tech_bonus_info .= "</div>";
+        }
 
         $active_res = [];
         $res_map = [
@@ -135,9 +179,15 @@ if ($row) {
                     <div class='big-box-header'>$name</div>
                     <div class='big-box-content'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) . "</p>
+                        $biome_info
+                        $tech_bonus_info
                         <table class='table' style='width: 100%;'>
                             <tr>
                                 <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>";
+
+        if ($building_id === BuildingTypes::BUILDING_STORAGE) {
+            $view .= "<td class='td-center td-gradient'>Kapazität</td>";
+        }
 
         foreach ($active_res as $res_id) {
             $view .= "<td class='td-center td-gradient'>" . get_resource_icon($res_id) . "</td>";
@@ -149,7 +199,13 @@ if ($row) {
         for ($i = 0; $i < $max_lvl_to_show; $i++) {
             $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
             $time_val = convert_sec_to_str((int)round($row[$time_key] * pow($m, $i)));
+
             $view .= "<tr><td class='td-center' $style>$i &rarr; " . ($i + 1) . "</td>";
+
+            if ($building_id === BuildingTypes::BUILDING_STORAGE) {
+                $cap = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $i));
+                $view .= "<td class='td-center' $style>" . fnum($cap) . "</td>";
+            }
 
             foreach ($active_res as $col => $res_id) {
                 $view .= "<td class='td-center' $style>" . fnum($calc_cost($row[$col . "cost"], $i)) . "</td>";

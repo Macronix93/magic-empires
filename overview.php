@@ -365,6 +365,7 @@ if ($result_events && $result_events->num_rows > 0) {
         $type_text = "";
         $project_text = "";
         $finish_time = 0;
+        $hover_name = "";
 
         switch ($action_id) {
             case ActionTypes::ACTION_BUILD_BUILDING:
@@ -374,14 +375,17 @@ if ($result_events && $result_events->num_rows > 0) {
                 $icon = "<img src='images/icons/icon_building" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
                 $project_text = "$icon ($next_lvl)";
                 $finish_time = $row["buildingtime"];
+                $hover_name = $row["buildingname"];
                 break;
             case ActionTypes::ACTION_RESEARCH_TECH:
-                $type_text = "Forschung";
+            case ActionTypes::ACTION_SMITHY_UPGRADE:
+                $type_text = ($action_id == ActionTypes::ACTION_RESEARCH_TECH) ? "Forschung" : "Verbesserung";
                 $next_lvl = $row["buildinglevel"] + 1;
 
                 $icon = "<img src='images/icons/icon_tech" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
                 $project_text = "$icon ($next_lvl)";
                 $finish_time = $row["buildingtime"];
+                $hover_name = $row["buildingname"];
                 break;
             case ActionTypes::ACTION_BUILD_TROOPS:
                 $type_text = "Rekrutierung";
@@ -392,6 +396,7 @@ if ($result_events && $result_events->num_rows > 0) {
 
                 $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
                 $finish_time = $row["recruittime"];
+                $hover_name = $row["soldiername"];
                 break;
             case ActionTypes::ACTION_UPGRADE_TROOPS:
                 $type_text = "Aufwertung";
@@ -414,7 +419,14 @@ if ($result_events && $result_events->num_rows > 0) {
 
         $view .= "<tr>
                 <td class='td-center'>$type_text</td>
-                <td class='td-center'>$project_text</td>
+                <td class='td-center'>
+                    <div class='popup' id='event_pop_{$event_id}'>
+                        $project_text
+                        <div id='event_pop_{$event_id}_box' class='popupbox'>
+                            <b>" . e($hover_name) . "</b>
+                        </div>
+                    </div>
+                </td>
                 <td class='td-center'>
                     $k_name 
                     <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($k_coords) . ")</a>

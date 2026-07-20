@@ -16,7 +16,7 @@ $example_secure_units = floor($kingdom->get_kingdom_max_food() * $secure_percent
 /*
  * HTML Content Part
  */
-$view .= "<div style='margin: auto; width: 170px;'>
+$view .= "<div style='margin: auto; width: 200px;'>
         <div class='split-content'>
             <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($kingdom->get_kingdom_food()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_food()) . "</div>

@@ -18,7 +18,12 @@ $occupied_fields = $db_instance->execute_query("SELECT COUNT(*) FROM map WHERE k
 $resource_tiles = $db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_row()[0];
 $map_percentage = round(($occupied_fields / $total_fields) * 100, 2);
 
-$total_soldiers = $db_instance->execute_query("SELECT SUM(soldiercount) FROM soldiers")->fetch_row()[0] ?? 0;
+$total_soldiers_query = "
+    SELECT 
+        (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers) + 
+        (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops) 
+    AS total";
+$total_soldiers = $db_instance->execute_query($total_soldiers_query)->fetch_assoc()["total"];
 $avg_building_lvl = $db_instance->execute_query("SELECT AVG(buildinglevel) FROM buildings")->fetch_row()[0] ?? 0;
 
 $view = "
@@ -64,7 +69,7 @@ $view = "
         <td class='td-center td-gradient'><b>Punkte</b></td>
     </tr>";
 
-$top5 = $db_instance->execute_query("SELECT username, score FROM users WHERE status = 1 ORDER BY score DESC LIMIT 5");
+$top5 = $db_instance->execute_query("SELECT username, score FROM users WHERE status = 1 ORDER BY score DESC, id LIMIT 5");
 $rank = 1;
 
 foreach ($top5 as $row) {

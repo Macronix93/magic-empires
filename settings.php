@@ -249,6 +249,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
 
+        // Update privacy settings
+        if (isset($_POST['update_privacy'])) {
+            $filter_val = isset($_POST['chat_filter']) ? 1 : 0;
+            $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
+            $_SESSION['chat_filter'] = $filter_val;
+
+            $view .= show_passed_box("Privatsphäre-Einstellungen gespeichert.");
+        }
+
         // Delete Account
         if (isset($_POST['delete_account'])) {
             $confirm_pw = $_POST['confirm_pw_delete'] ?? "";
@@ -259,7 +268,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             if (!password_verify($confirm_pw, $u_data['password'])) {
                 $error = "Passwort-Bestätigung zur Löschung fehlgeschlagen.";
-            } else if ($confirm_word !== "LÖSCHEN") {
+            } else if ($confirm_word !== "LOESCHEN") {
                 $error = "Bestätigungswort falsch.";
             } else {
                 $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
@@ -394,6 +403,22 @@ $view .= '
     </div>
 </div>';
 
+$current_filter = ($_SESSION['chat_filter'] ?? 1);
+$view .= '
+<div class="box-container">
+    <div class="box-header">Privatsphäre & Chat</div>
+    <div class="box-content box-content-bg" style="padding: 10px;">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <label style="cursor:pointer;">
+                <input type="checkbox" name="chat_filter" value="1" ' . ($current_filter ? "checked" : "") . '> 
+                Schimpfwort-Filter in privaten Nachrichten aktivieren
+            </label><br><br>
+            <input type="submit" name="update_privacy" value="Speichern">
+        </form>
+    </div>
+</div>';
+
 $view .= '
 <div class="box-container">
     <div class="box-header" style="background: #a62121; color: white; border-color: transparent;">Account löschen</div>
@@ -403,7 +428,7 @@ $view .= '
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Passwort zur Bestätigung:</td><td><input type="password" name="confirm_pw_delete" required></td></tr>
-                <tr><td>Tippe das Wort <b>LÖSCHEN</b>:</td><td><input type="text" name="confirm_word" required></td></tr>
+                <tr><td>Tippe das Wort <b>LOESCHEN</b>:</td><td><input type="text" name="confirm_word" required></td></tr>
             </table><br>
             <input type="submit" name="delete_account" value="Account unwiderruflich löschen">
         </form>

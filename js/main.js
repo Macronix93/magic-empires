@@ -1,4 +1,7 @@
 const ClickActions = new Map();
+let titleInterval = null;
+const originalTitle = document.title;
+const TITLE_INTERVAL = 2000;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -222,6 +225,10 @@ function updateServerTime(initialServerTimestamp) {
         const secondsIntoHour = (currentServerTime.getMinutes() * 60) + currentServerTime.getSeconds();
         const secondsUntilFull = 3600 - secondsIntoHour;
 
+        if (secondsUntilFull <= 5 && document.hidden) {
+            startTitleFlash("+++ Ressourcen-Ertrag fällig! +++");
+        }
+
         const displayMin = Math.floor(secondsUntilFull / 60);
         const displaySec = secondsUntilFull % 60;
         const displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
@@ -343,9 +350,14 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
     document.addEventListener("keydown", handleKeyDown);
     document.body.append(infoBoxBg, infoBoxOverlay);
 
-    // Optional: Fokus direkt auf den "Ja"-Button setzen für schnellere Bedienung
     buttonYes.focus();
 }
+
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+        stopTitleFlash();
+    }
+});
 
 window.addEventListener("DOMContentLoaded", function () {
     const leftTrigger = document.getElementById("nav-left-trigger");
@@ -473,4 +485,19 @@ function insertEmoji(emoji) {
     input.value = text.substring(0, start) + emoji + text.substring(end);
     input.selectionStart = input.selectionEnd = start + emoji.length;
     input.focus();
+}
+
+function startTitleFlash(message) {
+    if (titleInterval) return;
+
+    titleInterval = setInterval(() => {
+        document.title = (document.title === originalTitle) ? message : originalTitle;
+    }, TITLE_INTERVAL);
+}
+
+function stopTitleFlash() {
+    clearInterval(titleInterval);
+
+    titleInterval = null;
+    document.title = originalTitle;
 }

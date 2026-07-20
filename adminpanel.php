@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection ALL */
 require_once("includes/core.php");
 
 check_user_login($user);
@@ -577,6 +577,9 @@ if (!$user->is_admin()) {
         if ($result && $result->num_rows > 0) {
             $row = $result->fetch_assoc();
             $username = $row['username'];
+
+            // Remove users avatar(s)
+            delete_user_avatar_files($user_id);
 
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);

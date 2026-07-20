@@ -37,11 +37,13 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $new_last_id = $last_id;
 
     while ($row = $result->fetch_assoc()) {
+        $message = nl2br(e($row["message"]));
+        $display_message = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
         $new_last_id = $row["id"];
         $is_me = ((int)$row["senderid"] === $u_id);
 
         $class = $is_me ? "receiver-bubble" : "sender-bubble";
-        $avatar = $is_me ? $user->get_avatar() : (new User((int)$row["senderid"], $row["sender"]))->get_avatar();
+        $avatar = $is_me ? $user->get_avatar() : new User((int)$row["senderid"], $row["sender"])->get_avatar();
         $name = $is_me ? "Du" : e($row["sender"]);
 
         $delete_icon = $is_me ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
@@ -54,7 +56,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         </span>
                         $delete_icon
                     </div>
-                    " . nl2br(e($row["message"])) . "
+                    " . $message . "
                   </div>";
 
         if (!$is_me) {

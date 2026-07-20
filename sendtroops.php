@@ -2,8 +2,12 @@
 require_once("includes/core.php");
 
 // Barracks required for sending troops
-//check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_BARRACKS);
 check_user_login($user);
+
+$current_k_id = $user->get_current_kingdom();
+$kingdom = new Kingdom($db_instance, $current_k_id);
+$barracks_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
+
 
 $map = new Map($db_instance, $user);
 $kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
@@ -14,6 +18,12 @@ $send_title = "Erobern";
 
 if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     $error = "Diese Koordinaten gibt es nicht!";
+
+    change_location("map.php?startx=$target_x&starty=$target_y", 3);
+} else if ($barracks_level <= 0) {
+    $error = "Dein Königreich benötigt eine Kaserne, um Truppenbewegungen zu koordinieren!";
+
+    change_location("map.php?startx=$target_x&starty=$target_y", 3);
 } else {
     // Check if the user already sent troops to that kingdom
     $result = $db_instance->execute_query("SELECT COUNT(*) AS alreadysent FROM events 
@@ -63,93 +73,97 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
         // Check if sent troop was clicked
         if (!empty($_POST["soldiers"])) {
-            $event_id = null;
-            $has_soldiers = false;
-
-            foreach ($_POST["soldiers"] as $soldier_id => $count) {
-                $soldier_id = intval($soldier_id);
-                $soldier_count = intval($count);
-
-                if ($soldier_count > 0) {
-                    $has_soldiers = true;
-
-                    if ($soldier_count > ($kingdom_soldiers[$soldier_id] ?? 0)) {
-                        $error = "Du hast zu wenig Soldaten vom Typ " . $soldiers[$soldier_id]->get_soldier_name() . "!";
-                        break;
-                    }
-                }
-            }
-
-            $tc_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
-            $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
-            $active_res = $db_instance->execute_query(
-                "SELECT COUNT(*) as total FROM events WHERE kingdomid = ? AND (actionid = ? OR actionid = ?)",
-                [$user->get_current_kingdom(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]
-            );
-            $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
-            $imp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
-            $max_settled_slots = BASE_SETTLEMENT_LIMIT + $imp_lvl;
-            $current_k_count = ($settler_wagon_count > 0 ? $db_instance->execute_query(
-                "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
-                [$user->get_user_id()])->fetch_assoc()["total"]
-                : 0);
-
-            if (!$has_soldiers) {
-                $error = "Du musst mindestens einen Soldaten auswählen!";
-            } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
-                $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
-            } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_k_count >= $max_settled_slots) {
-                $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
-            } else if (empty($error)) {
-                $now = time();
-
-                $result = $db_instance->execute_query(
-                    "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
-                    [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
-                );
-                $event_id = $result->fetch_assoc()["eventid"];
+            if ($barracks_level <= 0) {
+                $error = "Befehl verweigert: Du besitzt keine Kaserne!";
+            } else {
+                $event_id = null;
+                $has_soldiers = false;
 
                 foreach ($_POST["soldiers"] as $soldier_id => $count) {
                     $soldier_id = intval($soldier_id);
                     $soldier_count = intval($count);
 
                     if ($soldier_count > 0) {
-                        // Insert troop record
-                        $db_instance->execute_query(
-                            "INSERT INTO sent_troops (eventid, soldierid, soldiercount) VALUES (?, ?, ?)",
-                            [$event_id, $soldier_id, $soldier_count]
-                        );
+                        $has_soldiers = true;
 
-                        // Subtract soldiers from kingdom
-                        $query = "UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?";
-                        $db_instance->execute_query($query, [$soldier_count, $user->get_current_kingdom(), $soldier_id]);
-
-                        // Update local count
-                        $kingdom_soldiers[$soldier_id] -= $soldier_count;
+                        if ($soldier_count > ($kingdom_soldiers[$soldier_id] ?? 0)) {
+                            $error = "Du hast zu wenig Soldaten vom Typ " . $soldiers[$soldier_id]->get_soldier_name() . "!";
+                            break;
+                        }
                     }
                 }
 
-                if ($event_id !== null) {
-                    $log_troops = [];
+                $tc_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+                $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
+                $active_res = $db_instance->execute_query(
+                    "SELECT COUNT(*) as total FROM events WHERE kingdomid = ? AND (actionid = ? OR actionid = ?)",
+                    [$user->get_current_kingdom(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]
+                );
+                $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
+                $imp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
+                $max_settled_slots = BASE_SETTLEMENT_LIMIT + $imp_lvl;
+                $current_k_count = ($settler_wagon_count > 0 ? $db_instance->execute_query(
+                    "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
+                    [$user->get_user_id()])->fetch_assoc()["total"]
+                    : 0);
 
-                    foreach ($_POST["soldiers"] as $s_id => $count) {
-                        $count = (int)$count;
+                if (!$has_soldiers) {
+                    $error = "Du musst mindestens einen Soldaten auswählen!";
+                } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
+                    $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
+                } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_k_count >= $max_settled_slots) {
+                    $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
+                } else if (empty($error)) {
+                    $now = time();
 
-                        if ($count > 0) {
-                            $name = $soldiers[$s_id]->get_soldier_name();
-                            $log_troops[$name] = $count;
+                    $result = $db_instance->execute_query(
+                        "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
+                        [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
+                    );
+                    $event_id = $result->fetch_assoc()["eventid"];
+
+                    foreach ($_POST["soldiers"] as $soldier_id => $count) {
+                        $soldier_id = intval($soldier_id);
+                        $soldier_count = intval($count);
+
+                        if ($soldier_count > 0) {
+                            // Insert troop record
+                            $db_instance->execute_query(
+                                "INSERT INTO sent_troops (eventid, soldierid, soldiercount) VALUES (?, ?, ?)",
+                                [$event_id, $soldier_id, $soldier_count]
+                            );
+
+                            // Subtract soldiers from kingdom
+                            $query = "UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?";
+                            $db_instance->execute_query($query, [$soldier_count, $user->get_current_kingdom(), $soldier_id]);
+
+                            // Update local count
+                            $kingdom_soldiers[$soldier_id] -= $soldier_count;
                         }
                     }
 
-                    $logger->log_game("COMBAT", "ATTACK_SEND", [
-                        "target_x" => $target_x,
-                        "target_y" => $target_y,
-                        "target_kingdom_id" => $kingdom_id,
-                        "arrival_in" => $arrival_time,
-                        "troops" => $log_troops
-                    ], $user->get_current_kingdom());
+                    if ($event_id !== null) {
+                        $log_troops = [];
 
-                    $view .= show_passed_box("Truppen erfolgreich gesendet!");
+                        foreach ($_POST["soldiers"] as $s_id => $count) {
+                            $count = (int)$count;
+
+                            if ($count > 0) {
+                                $name = $soldiers[$s_id]->get_soldier_name();
+                                $log_troops[$name] = $count;
+                            }
+                        }
+
+                        $logger->log_game("COMBAT", "ATTACK_SEND", [
+                            "target_x" => $target_x,
+                            "target_y" => $target_y,
+                            "target_kingdom_id" => $kingdom_id,
+                            "arrival_in" => $arrival_time,
+                            "troops" => $log_troops
+                        ], $user->get_current_kingdom());
+
+                        $view .= show_passed_box("Truppen erfolgreich gesendet!");
+                    }
                 }
             }
         }
@@ -229,29 +243,31 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     $send_title = "Erobern";
                 }
                 $view .= "</table>";
-                $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
+
+                if ($barracks_level > 0) {
+                    $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
                             <div id="troop-summary-container" style="display: none; flex-direction: column;">
                                 <div style="font-weight: bold; margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen:</div>
                                 <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center;"></div>
                             </div>
                             <input type="submit" style="margin: 10px;" value="Truppen schicken">';
 
-                $categories = [
-                    SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
-                    SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
-                    SoldierTypes::SOLDIER_TYPE_ARCHERS => "Schützen",
-                    SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezial"
-                ];
+                    $categories = [
+                        SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
+                        SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+                        SoldierTypes::SOLDIER_TYPE_ARCHERS => "Schützen",
+                        SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezial"
+                    ];
 
-                $view .= "<div class='tab'>";
-                foreach ($categories as $id => $name) {
-                    $active_class = ($id === 0) ? "active" : "";
-                    $view .= "<div class='tablinks $active_class' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
-                }
-                $view .= "</div>";
+                    $view .= "<div class='tab'>";
+                    foreach ($categories as $id => $name) {
+                        $active_class = ($id === 0) ? "active" : "";
+                        $view .= "<div class='tablinks $active_class' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
+                    }
+                    $view .= "</div>";
 
-                // Show users soldiers
-                $view .= '<table class="table" style="max-width: 500px;">
+                    // Show users soldiers
+                    $view .= '<table class="table" style="max-width: 500px;">
                                                         <colgroup>
                                 <col style="width: auto;">
                                 <col style="width: 130px;">
@@ -261,16 +277,20 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
 
-                foreach ($soldiers as $soldier_id => $s_obj) {
-                    $soldier_id = $s_obj->get_soldier_id();
-                    $soldier_name = $s_obj->get_soldier_name();
-                    $unit_cat = $s_obj->get_soldier_category();
-                    $icon_name = $s_obj->get_soldier_icon_name();
-                    $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
+                    foreach ($soldiers as $soldier_id => $s_obj) {
+                        $soldier_id = $s_obj->get_soldier_id();
+                        $soldier_name = $s_obj->get_soldier_name();
+                        $unit_cat = $s_obj->get_soldier_category();
+                        $icon_name = $s_obj->get_soldier_icon_name();
+                        $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
 
-                    $row_style = ($unit_cat === 0) ? "" : "display: none;";
+                        if ($owned_count <= 0) {
+                            continue;
+                        }
 
-                    $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
+                        $row_style = ($unit_cat === 0) ? "" : "display: none;";
+
+                        $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
                                 <td>
                                     <div class='image-and-user' style='margin-bottom: 5px;'>" . $s_obj->get_soldier_icon() . " <b>" . $soldier_name . " (" . $owned_count . ")</b></div>
                                     <div class='map-legend' style='justify-content: left;'>
@@ -311,9 +331,14 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                     </div>
                                 </td>
                               </tr>";
-                }
+                    }
 
-                $view .= '</table></form>';
+                    $view .= '</table></form>';
+                } else {
+                    $view .= "<div style='margin-top: 20px;'>" .
+                        show_warning_box("Du kannst keine Truppen versenden, da du in diesem Königreich noch keine Kaserne errichtet hast.") .
+                        "</div>";
+                }
             }
         }
     }

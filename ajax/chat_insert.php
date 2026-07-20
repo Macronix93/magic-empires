@@ -25,7 +25,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     $message = nl2br(e($raw_text));
     $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
-    $message = filter_chat_message($message);
+    //$message = filter_chat_message($message);
 
     // Render the conversation HTML
     ob_start();
@@ -75,6 +75,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $row = $result->fetch_assoc();
             $message_id = $row["id"];
             $response["lastId"] = $message_id;
+            $display_text = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
 
             // Return the new message bubble HTML
             $response["html"] = "<div class='receiver-bubble' id='msg-" . $message_id . "'>
@@ -90,7 +91,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                              data-id='" . e($message_id) . "' 
                                              style='cursor: pointer;'>
                                     </div>
-                                    " . $message . "
+                                    " . $display_text . "
                                 </div>";
         }
     } else {

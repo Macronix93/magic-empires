@@ -549,7 +549,7 @@ hr {
 
 .sender-bubble {
     align-self: flex-start;
-    max-width: 450px;
+    max-width: 500px;
     background-color: var(--sender-bubble);
     border-radius: 4px;
     border: 1px solid rgba(0, 0, 0, 0.4);
@@ -575,7 +575,7 @@ hr {
 .receiver-bubble {
     flex-direction: column;
     align-self: flex-end;
-    max-width: 450px;
+    max-width: 500px;
     background-color: var(--receiver-bubble);
     border-radius: 4px;
     border: 1px solid rgba(0, 0, 0, 0.4);
@@ -1316,11 +1316,16 @@ tr:first-child .td-center {
     background-color: #1a120b;
     user-select: none;
     touch-action: none;
-    contain: paint;
 }
 
 .map-viewport:active {
     cursor: grabbing;
+}
+
+#map-canvas {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .map-coords-overlay {
@@ -1335,21 +1340,6 @@ tr:first-child .td-center {
     z-index: 100;
     pointer-events: none;
     font-family: monospace;
-}
-
-#map-grid {
-    display: grid;
-    grid-template-columns: repeat(100, var(--map-tile-size));
-    grid-template-rows: repeat(100, var(--map-tile-size));
-    width: calc(100 * var(--map-tile-size));
-    height: calc(100 * var(--map-tile-size));
-    position: absolute;
-    top: 0;
-    left: 0;
-    visibility: hidden;
-    will-change: transform;
-    transform-origin: 0 0;
-    backface-visibility: hidden;
 }
 
 .map-tile {

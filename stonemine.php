@@ -10,7 +10,7 @@ $kingdom = $result['kingdom'];
 
 $res_type = ResourceTypes::RESOURCE_TYPE_STONE;
 $lvl = $building->get_building_level();
-$boost_cost = $lvl * BOOST_COIN_BASE;
+$boost_cost = BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $lvl - 1);
 $active_boosts = $kingdom->get_active_boosts($res_type);
 $this_boost = $active_boosts[$res_type] ?? null;
 $boost_amount = $this_boost["amount"] ?? 0;
@@ -40,7 +40,7 @@ if (isset($_POST["activate_boost"])) {
             change_location("stonemine.php");
             exit;
         } else {
-            $error = "Zu wenig Gold!";
+            $error = "Zu wenig Münzen!";
         }
     } else {
         $error = "Der Boost ist bereits aktiv!";

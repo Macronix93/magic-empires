@@ -56,7 +56,7 @@ echo '<div id="map-loader">
 echo '<div id="coords-display" class="map-coords-overlay">X: ' . $x . ' | Y: ' . $y . '</div>';
 
 echo '<div class="map-viewport" id="map-viewport">
-            <div id="map-grid"></div>
+            <canvas id="map-canvas" style="display: block;"></canvas>
           </div>';
 echo '</div>';
 

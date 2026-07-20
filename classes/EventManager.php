@@ -585,7 +585,7 @@ class EventManager
                 break;
             case BuildingTypes::BUILDING_ESTATE:
                 $new_level = $lvl + 1;
-                $limit_increase = ESTATE_MAX_VILLAGER_INC;
+                $new_limit = (int)round(ESTATE_VILLAGER_BASE_INC + pow($new_level, 1.25) * ESTATE_VILLAGER_BASE_STEP);
                 $growth_increase = 0;
 
                 if ($new_level % ESTATE_VILLAGER_GROWTH_STEP === 0) {
@@ -593,7 +593,7 @@ class EventManager
                 }
 
                 $this->mysqli->execute_query("UPDATE kingdoms SET maxvillager = maxvillager + ?, villagerperhour = villagerperhour + ? WHERE id = ?",
-                    [$limit_increase, $growth_increase, $kid]
+                    [$new_limit, $growth_increase, $kid]
                 );
                 break;
         }
@@ -1382,12 +1382,38 @@ class EventManager
             $loot_f = (int)floor($tile["food"] * $take_factor);
             $loot_w = (int)floor($tile["wood"] * $take_factor);
             $loot_s = (int)floor($tile["stone"] * $take_factor);
-            $loot_g = $total_to_take - ($loot_f + $loot_w + $loot_s);
+            $loot_g = (int)floor($tile["gold"] * $take_factor);
 
-            if ($loot_g > $tile["gold"]) {
-                $loot_g = $tile["gold"];
+            $loot_array = [
+                "food" => $loot_f,
+                "wood" => $loot_w,
+                "stone" => $loot_s,
+                "gold" => $loot_g
+            ];
+
+            $randomized_total = 0;
+            foreach ($loot_array as $res_key => $amount) {
+                if ($amount > 0) {
+                    $variation = mt_rand(MIN_PLUNDER_PERC, MAX_PLUNDER_PERC) / 100;
+                    $new_amount = (int)round($amount * $variation);
+                    $new_amount = min($new_amount, $tile[$res_key]);
+                    $loot_array[$res_key] = $new_amount;
+                }
+
+                $randomized_total += $loot_array[$res_key];
             }
 
+            if ($randomized_total > $max_capacity) {
+                $correction_factor = $max_capacity / $randomized_total;
+                foreach ($loot_array as $res_key => $amount) {
+                    $loot_array[$res_key] = (int)floor($amount * $correction_factor);
+                }
+            }
+
+            $loot_f = $loot_array["food"];
+            $loot_w = $loot_array["wood"];
+            $loot_s = $loot_array["stone"];
+            $loot_g = $loot_array["gold"];
             $total_actually_looted = $loot_f + $loot_w + $loot_s + $loot_g;
 
             // Base risk: 5% of plunder

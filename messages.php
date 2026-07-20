@@ -9,7 +9,7 @@ if (isset($_POST["sendpm"])) {
     $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
     $_SESSION["msgreceiver"] = $receiver_name;
     $text = nl2br(e($_POST["text"]));
-    $text = filter_chat_message($text);
+    //$text = filter_chat_message($text);
     $error = get_error($text, $receiver_name);
 
     if ($error == null) {

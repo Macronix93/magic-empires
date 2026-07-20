@@ -294,6 +294,7 @@ class Messages
         foreach ($result as $row) {
             $message_id = $row["id"];
             $message = $row["message"];
+            $display_message = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
             $has_read = $row["hasread"];
             $date = $row["date"];
 
@@ -314,7 +315,7 @@ class Messages
                                     <span>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
                                 </span>
                             </div>
-                            " . $message . "
+                            " . $display_message . "
                         </div>";
             } else {
                 $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
@@ -330,7 +331,7 @@ class Messages
                                      data-id='" . e($message_id) . "' 
                                      style='cursor: pointer;'>
                             </div>
-                            " . $message . "
+                            " . $display_message . "
                         </div>";
             }
 
