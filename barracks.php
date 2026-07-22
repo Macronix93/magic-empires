@@ -338,6 +338,7 @@ $view .= '<div id="kingdom-resources"
     data-stone="' . $kingdom_stone . '" 
     data-gold="' . $kingdom_gold . '" 
     data-villager="' . $kingdom_villager . '"
+    data-dynamic-limit="' . $dynamic_limit . '"
     data-smithy-multiplier="' . $smithy_multiplier . '"></div>';
 $view .= "<div class='tab'>";
 
@@ -470,11 +471,12 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                     <div style='display: flex; gap: 3px;'>
                         <input type='text' name='count' id='count$i' size='2' maxlength='2' 
                                class='js-recruit-input' data-id='$i'
+                               data-owned='" . ($kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0) . "'
                                data-cost-food='$cost_food' data-cost-gold='$cost_gold'
                                data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
                                data-cost-villager='$cost_villager' data-time-per-unit='$time_needed'
                                placeholder='0' $disabled>
-                        <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' data-value='$max_soldiers' $disabled>
+                        <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled>
                     </div>";
 
         // Upgrade-Dropdown

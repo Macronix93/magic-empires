@@ -37,14 +37,66 @@ registerAction("filterBarracks", (el) => {
 });
 registerAction("fillMaxAndCalc", (el) => {
     const targetId = el.dataset.target;
-    const maxValue = el.dataset.value;
     const input = document.getElementById(targetId);
+    if (!input) return;
 
-    if (input) {
-        input.value = maxValue;
+    const resDiv = document.getElementById("kingdom-resources");
+    const dynamicLimit = parseInt(resDiv.dataset.dynamicLimit);
+    const multiplier = parseFloat(resDiv.dataset.smithyMultiplier);
 
-        updateRecruitCosts(input);
+    const resources = {
+        food: parseInt(resDiv.dataset.food),
+        wood: parseInt(resDiv.dataset.wood),
+        stone: parseInt(resDiv.dataset.stone),
+        gold: parseInt(resDiv.dataset.gold),
+        villager: parseInt(resDiv.dataset.villager)
+    };
+
+    const form = input.closest("form");
+    const upgradeSelect = form.querySelector(".js-upgrade-select");
+    const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
+
+    let maxCanAfford = dynamicLimit;
+
+    if (isUpgrade) {
+        const selectedOpt = upgradeSelect.selectedOptions[0];
+        const ownedUnits = parseInt(input.dataset.owned);
+
+        const diffs = {
+            food: Math.max(0, parseInt(selectedOpt.dataset.ufood) - parseInt(input.dataset.costFood)),
+            wood: Math.max(0, parseInt(selectedOpt.dataset.uwood) - parseInt(input.dataset.costWood)),
+            stone: Math.max(0, parseInt(selectedOpt.dataset.ustone) - parseInt(input.dataset.costStone)),
+            gold: Math.max(0, parseInt(selectedOpt.dataset.ugold) - parseInt(input.dataset.costGold))
+        };
+
+        for (const [res, cost] of Object.entries(diffs)) {
+            if (cost > 0) {
+                const affordable = Math.floor(resources[res] / (cost * multiplier));
+                maxCanAfford = Math.min(maxCanAfford, affordable);
+            }
+        }
+
+        maxCanAfford = Math.min(maxCanAfford, ownedUnits);
+    } else {
+        const costs = {
+            food: parseInt(input.dataset.costFood),
+            wood: parseInt(input.dataset.costWood),
+            stone: parseInt(input.dataset.costStone),
+            gold: parseInt(input.dataset.costGold),
+            villager: parseInt(input.dataset.costVillager)
+        };
+
+        for (const [res, cost] of Object.entries(costs)) {
+            if (cost > 0) {
+                const resMultiplier = (res === 'villager') ? 1 : multiplier;
+                const affordable = Math.floor(resources[res] / (cost * resMultiplier));
+                maxCanAfford = Math.min(maxCanAfford, affordable);
+            }
+        }
     }
+
+    input.value = Math.max(0, maxCanAfford);
+    updateRecruitCosts(input);
 });
 
 function updateRecruitCosts(input) {

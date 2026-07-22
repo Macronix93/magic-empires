@@ -90,6 +90,9 @@ registerAction("deleteWorldChatMsg", (el) => {
         })
         .catch(err => console.error("Fehler beim Löschen:", err));
 });
+registerAction("loadOlderWorldChat", () => {
+    loadOlderWorldMessages();
+});
 
 
 function scrollToLatestMessage() {
@@ -517,19 +520,67 @@ function checkScrollPosition() {
     if (!messageSection || isFetchingOlder || !canLoadMore) return;
 
     const isServerInbox = window.location.search.includes("servermsgs");
+    const isWorldChat = messageSection.dataset.chatType === 'world';
 
     if (isServerInbox) {
         const scrollPos = messageSection.scrollTop + messageSection.clientHeight;
+
         if (scrollPos > messageSection.scrollHeight - 20) {
             loadOlderServerMessages();
+        }
+    } else if (isWorldChat) {
+        if (messageSection.scrollTop < 20) {
+            loadOlderWorldMessages();
         }
     } else {
         if (messageSection.scrollTop < 20) {
             const urlParams = new URLSearchParams(window.location.search);
             const chatPartner = urlParams.get("s");
+
             if (chatPartner) loadOlderMessages(chatPartner);
         }
     }
+}
+
+function loadOlderWorldMessages() {
+    if (isFetchingOlder || !canLoadMore) return;
+
+    const section = document.getElementById("messages-section");
+    const firstMsg = section.querySelector("[id^='world-msg-']");
+    if (!firstMsg) return;
+
+    const oldestId = firstMsg.id.replace("world-msg-", "");
+    const btn = document.getElementById("load-older-btn");
+
+    isFetchingOlder = true;
+    if (btn) {
+        btn.style.display = "block";
+        btn.innerText = "Lade ältere Welt-Nachrichten...";
+    }
+
+    fetch(`ajax/chat_load_more_world.php?oldest_id=${oldestId}`, {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.count > 0) {
+                const oldHeight = section.scrollHeight;
+                btn.insertAdjacentHTML("afterend", data.html);
+
+                const newHeight = section.scrollHeight;
+                section.scrollTop = newHeight - oldHeight;
+
+                canLoadMore = data.hasMore;
+            } else {
+                canLoadMore = false;
+            }
+            finishLoading(btn);
+        })
+        .catch(err => {
+            console.error("Fehler:", err);
+            isFetchingOlder = false;
+            if (btn) btn.innerText = "Fehler beim Laden";
+        });
 }
 
 function loadOlderServerMessages() {

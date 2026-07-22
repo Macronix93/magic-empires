@@ -53,9 +53,10 @@ if (isset($_GET["action"])) {
                             $error = "Dieses Gebäude kannst du nur auf deinem Hauptkönigreich ausbauen!";
                         } else {
                             $target_level = $building_level + 1;
+                            $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
 
-                            if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $tc_level) {
-                                $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe $target_level benötigt)";
+                            if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $max_allowed_level) {
+                                $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe " . ($build_id == BuildingTypes::BUILDING_STORAGE ? $target_level - 1 : $target_level) . " benötigt)";
                             }
 
                             $building_dependencies = $buildings[$build_id]->get_building_dependencies();
@@ -220,11 +221,12 @@ if ($count_maxed_buildings === $building_count) {
                         $text_build = "-";
                     }
                 } else {
-                    $is_tc_limit_reached = ($i != BuildingTypes::BUILDING_TOWNCENTER && ($level + 1) > $tc_level);
+                    $current_max_by_tc = ($i == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
+                    $is_tc_limit_reached = ($i != BuildingTypes::BUILDING_TOWNCENTER && ($level + 1) > $current_max_by_tc);
 
                     $restriction_note = "";
                     if ($is_tc_limit_reached) {
-                        $needed_tc = $level + 1;
+                        $needed_tc = ($i == BuildingTypes::BUILDING_STORAGE) ? $level : $level + 1;
                         $restriction_note = "<br><span class='error' style='font-size: 11px;'>Dorfzentrum Stufe $needed_tc benötigt</span>";
                     }
 

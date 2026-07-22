@@ -12,37 +12,6 @@ class Map
         $this->user = $user;
     }
 
-    public function render_map(): void
-    {
-        $query = "SELECT m.*, IFNULL(b.buildinglevel, 1) AS buildinglevel 
-              FROM map m 
-              LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = 0
-              ORDER BY m.mapy, m.mapx";
-        $result = $this->mysqli->execute_query($query);
-
-        foreach ($result as $row) {
-            $color = $this->get_field_type_color($row["fieldtype"]);
-            $kingdom_id = $row["kingdomid"];
-            $content = "";
-
-            if ($kingdom_id == -2) {
-                $content = "<img src='images/icons/icon_gems.png' style='max-width: 24px; max-height: 24px;' alt='Schätze' title='Schätze'>";
-            } else if ($kingdom_id != -1) {
-                $icon = $this->get_kingdom_icon_by_level($row["buildinglevel"]);
-                $content = "<img src='$icon' alt=''>";
-            }
-
-            echo "<div class='map-tile' 
-                   data-x='" . e($row["mapx"]) . "' 
-                   data-y='" . e($row["mapy"]) . "' 
-                   data-kingdomid='" . e($kingdom_id) . "' 
-                   style='background-color: " . e($color) . ";'
-                   data-on-click='selectField'>$content</div>";
-        }
-    }
-
-    // In classes/Map.php
-
     public function render_minimap(int $target_x, int $target_y, int $radius = 6): string
     {
         $view_size = ($radius * 2) + 1;
@@ -132,145 +101,94 @@ class Map
         };
     }
 
-    private function get_kingdom_icon_by_level(int $building_level): string
+    public function render_field_info(): void
     {
-        return match (true) {
-            $building_level >= 3 && $building_level < 6 => "images/icons/town.png",
-            $building_level >= 6 && $building_level < 8 => "images/icons/tower2.png",
-            $building_level >= 8 => "images/icons/castle.png",
-            default => "images/icons/house.png",
-        };
-    }
+        $current_k_id = $this->user->get_current_kingdom();
 
-    public function render_field_info(int $field): void
-    {
-        $result = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$this->user->get_current_kingdom()]);
-        $row = $result->fetch_assoc();
-        $my_x = $row["mapx"];
-        $my_y = $row["mapy"];
+        if (!isset($_SESSION["current_k_coords"]) || $_SESSION["current_k_coords"]["id"] != $current_k_id) {
+            $res = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$current_k_id]);
+            $row = $res->fetch_assoc();
+            $_SESSION["current_k_coords"] = ["id" => $current_k_id, "x" => $row["mapx"], "y" => $row["mapy"]];
+        }
+        $my_x = $_SESSION["current_k_coords"]["x"];
+        $my_y = $_SESSION["current_k_coords"]["y"];
 
-        if (isset($_GET["x"]) && $_GET["x"] != -1) {
-            $field_x = intval($_GET["x"]);
-        } elseif (isset($_GET["startx"]) && $_GET["startx"] != -1) {
-            $field_x = intval($_GET["startx"]);
-        } else {
-            $field_x = $my_x;
+        $field_x = intval($_GET["x"] ?? $_GET["startx"] ?? $my_x);
+        $field_y = intval($_GET["y"] ?? $_GET["starty"] ?? $my_y);
+        if ($field_x == -1) $field_x = $my_x;
+        if ($field_y == -1) $field_y = $my_y;
+
+        $res_units = $this->mysqli->execute_query(
+            "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid IN (?, ?)",
+            [$current_k_id, Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_RAIDER]
+        );
+        $my_troops = [Soldiers::SOLDIER_SETTLER_WAGON => 0, Soldiers::SOLDIER_RAIDER => 0];
+        while ($u = $res_units->fetch_assoc()) {
+            $my_troops[(int)$u["soldierid"]] = (int)$u["soldiercount"];
         }
 
-        if (isset($_GET["y"]) && $_GET["y"] != -1) {
-            $field_y = intval($_GET["y"]);
-        } elseif (isset($_GET["starty"]) && $_GET["starty"] != -1) {
-            $field_y = intval($_GET["starty"]);
-        } else {
-            $field_y = $my_y;
-        }
+        $query = "
+        SELECT m.kingdomid, ft.fieldname, 
+               k.username, k.kingdomname, k.userid, u.score
+        FROM map m
+        JOIN field_types ft ON m.fieldtype = ft.fieldid
+        LEFT JOIN kingdoms k ON m.kingdomid = k.id
+        LEFT JOIN users u ON k.userid = u.id
+        WHERE m.mapx = ? AND m.mapy = ?
+    ";
+        $target = $this->mysqli->execute_query($query, [$field_x, $field_y])->fetch_assoc();
 
-        $check_query = "SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?";
-        $check_res = $this->mysqli->execute_query($check_query, [$field_x, $field_y]);
-        $field = $check_res->fetch_column();
-        $target_url = "sendtroops.php?x=" . e($field_x) . "&y=" . e($field_y);
+        if (!$target) return;
 
-        if ($field == -2) {
+        $field_id = $target["kingdomid"];
+        $target_url = "sendtroops.php?x=$field_x&y=$field_y";
+        $arrival_str = convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y));
+
+        if ($field_id == -2) { // Resource Field
+            $can_do = ($my_troops[Soldiers::SOLDIER_RAIDER] > 0);
+            $btn = $can_do ? "<button data-on-click='redirect' data-url='$target_url'>Plündern</button>"
+                : "<button disabled title='Keine Räuber!'>Plündern</button><br><small class='error'>Räuber benötigt</small>";
+
             echo '<div class="title-border">Verlassenes Vorratslager</div>
-                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                  <tr>
-                      <td class="td-mapinfo" colspan="2" style="text-align: center;">Hier befinden sich Schätze, die geplündert werden können.</td>
-                  <tr>
-                      <td class="td-mapinfo"><b>Koordinaten</b></td>
-                      <td>' . $field_x . ':' . $field_y . '</td>
-                  </tr>
-                  <tr>
-                      <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                      <td>' . convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y)) . '</td>
-                  </tr>
-                  <tr>
-                      <td colspan="2" class="td-mapinfo" style="text-align: center;">
-                          <button data-on-click="redirect" data-url="' . $target_url . '">Plündern</button>
-                      </td>
-                  </tr>
-              </table>';
-        } else if ($field == -1) {
-            $query = "SELECT m.fieldtype, f.fieldname FROM map m JOIN field_types f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
-            $result = $this->mysqli->execute_query($query, [$field_x, $field_y]);
-            $field_name = $result->fetch_assoc()["fieldname"];
-
-            echo '<div class="title-border">' . $field_name . '</div>
               <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                  <tr>
-                      <td class="td-mapinfo"><b>Koordinaten</b></td>
-                      <td>' . $field_x . ':' . $field_y . '</td>
-                  </tr>
-                  <tr>
-                      <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                      <td>' . convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y)) . '</td>
-                  </tr>
-                  <tr>
-                      <td colspan="2" class="td-mapinfo" style="text-align: center;">
-                          <button data-on-click="redirect" data-url="' . $target_url . '">Erobern</button>
-                      </td>
-                  </tr>
+                  <tr><td class="td-mapinfo" colspan="2" style="text-align: center;">Hier befinden sich Schätze zum Plündern.</td></tr>
+                  <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
+                  <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . $arrival_str . '</td></tr>
+                  <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">' . $btn . '</td></tr>
               </table>';
-        } else {
-            $query = "SELECT k.userid, k.username, k.kingdomname, k.mapx, k.mapy, u.score FROM kingdoms k JOIN users u ON k.userid = u.id WHERE k.id = ?";
-            $result_2 = $this->mysqli->execute_query($query, [$field]);
-            $row_2 = $result_2->fetch_assoc();
 
-            if (!$row_2) {
-                echo '<div class="title-border">Verlassenes Dorf</div>
-                        <p style="text-align:center;">Dieses Königreich wurde aufgegeben oder zerstört.</p>';
+        } else if ($field_id == -1) { // Empty Field
+            $can_do = ($my_troops[Soldiers::SOLDIER_SETTLER_WAGON] > 0);
+            $btn = $can_do ? "<button data-on-click='redirect' data-url='$target_url'>Erobern</button>"
+                : "<button disabled title='Kein Gründungskarren!'>Erobern</button><br><small class='error'>Gründungskarren benötigt</small>";
+
+            echo '<div class="title-border">' . $target["fieldname"] . '</div>
+              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                  <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
+                  <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . $arrival_str . '</td></tr>
+                  <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">' . $btn . '</td></tr>
+              </table>';
+
+        } else { // Other Kingdoms
+            if (!$target["username"]) {
+                echo '<div class="title-border">Verlassenes Dorf</div><p style="text-align:center;">Dieses Königreich ist verlassen.</p>';
                 return;
             }
 
-            $field_x = $row_2["mapx"];
-            $field_y = $row_2["mapy"];
-
-            $kingdom_name = $row_2["kingdomname"];
-            $user_name = $row_2["username"];
-            $user_id = $row_2["userid"];
-            $user_score = "<img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte' title='Punkte'/>" . fnum($row_2["score"]);
-
-            $query = "SELECT f.fieldname FROM map m JOIN field_types f ON m.fieldtype = f.fieldid WHERE mapx = ? AND mapy = ?";
-            $result_3 = $this->mysqli->execute_query($query, [$field_x, $field_y]);
-            $field_name = $result_3->fetch_assoc()["fieldname"];
-
-            echo '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
+            $user_score = "<img src='images/icons/icon_score.png' class='ressource-icons' alt=''> " . fnum($target["score"]);
+            echo '<div class="title-border">Königreich-Info (' . $target["fieldname"] . ')</div>
               <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                  <tr>
-                      <td class="td-mapinfo"><b>Koordinaten</b></td>
-                      <td>' . $field_x . ':' . $field_y . '</td>
-                  </tr>
-                  <tr>
-                      <td class="td-mapinfo"><b>Königreich</b></td>
-                      <td>' . $kingdom_name . '</td>
-                  </tr>
-                  <tr>
-                      <td class="td-mapinfo"><b>Besitzer</b></td>
-                      <td><a href="#" 
-                           data-on-click="openOverlay" 
-                           data-url="userinfo.php?userid=' . e($user_id) . '" 
-                           data-title="Spieler-Info">' . e($user_name) . '</a>
-                        ' . $user_score . '
-                      </td>
-                  </tr>';
+                  <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
+                  <tr><td class="td-mapinfo"><b>Königreich</b></td><td><div class="map-info-value" title="' . e($target["kingdomname"]) . '">' . e($target["kingdomname"]) . '</div></td></tr>
+                  <tr><td class="td-mapinfo"><b>Besitzer</b></td><td><a href="#" data-on-click="openOverlay" data-url="userinfo.php?userid=' . $target["userid"] . '" data-title="Spieler-Info">' . e($target["username"]) . '</a> ' . $user_score . '</td></tr>';
 
-            if ($field != $this->user->get_current_kingdom()) {
-                echo '<tr>
-                    <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                    <td>' . convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y)) . '</td>
-                </tr>';
-            }
+            if ($field_id != $current_k_id) {
+                echo '<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . $arrival_str . '</td></tr>';
 
-            // Buttons
-            if ($user_name != $this->user->get_user_name()) {
+                $btn_text = ($target["username"] != $this->user->get_user_name()) ? "Angreifen" : "Truppen stationieren";
                 echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                        <button data-on-click='redirect' data-url='$target_url'>Angreifen</button>
-                    </td></tr>";
-            } else {
-                if ($field != $this->user->get_current_kingdom()) {
-                    echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                        <button data-on-click='redirect' data-url='$target_url'>Truppen stationieren</button>
-                    </td></tr>";
-                }
+                    <button data-on-click='redirect' data-url='$target_url'>$btn_text</button>
+                  </td></tr>";
             }
             echo "</table>";
         }

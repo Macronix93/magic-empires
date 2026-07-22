@@ -1,6 +1,7 @@
 *.bat
 test.*
 aba_map_gen.php
+sync_xahz63.php
 
 ##### Windows
 # Windows thumbnail cache files

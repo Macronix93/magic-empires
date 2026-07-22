@@ -127,7 +127,7 @@ if ($row) {
             $ft_res = $db_instance->query("SELECT fieldname, {$config["field"]} as rate FROM field_types");
 
             $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
-            $biome_info .= "<b>Ertrag pro Stunde (Stufe 1) nach Gelände:</b><br>";
+            $biome_info .= "<b>Ertrag pro Stunde nach Gelände:</b><br>";
             $items = [];
 
             while ($ft = $ft_res->fetch_assoc()) {

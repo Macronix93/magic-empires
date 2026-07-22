@@ -64,7 +64,7 @@ registerAction("pickEmoji", (el) => {
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
-    const selector = `[data-on-click="${name}"], [data-on-submit="${name}"], [data-on-change="${name}"]`;
+    const selector = `[data-on-click="${name}"], [data-on-submit="${name}"], [data-on-change="${name}"], [data-on-input="${name}"]`;
     document.querySelectorAll(selector).forEach(bindActions);
 }
 
@@ -102,6 +102,15 @@ function bindActions(el) {
             el.dataset.boundChange = "true";
         }
     }
+
+    if (el.dataset.onInput && !el.dataset.boundInput) {
+        const callback = ClickActions.get(el.dataset.onInput);
+
+        if (callback) {
+            el.addEventListener("input", (e) => callback(el, e));
+            el.dataset.boundInput = "true";
+        }
+    }
 }
 
 const observer = new MutationObserver((mutations) => {
@@ -122,6 +131,16 @@ observer.observe(document.body, {
     attributes: true,
     attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
 });
+
+function formatNumJS(number) {
+    if (number >= 1000000) {
+        return (Math.floor(number / 10000) / 100).toFixed(2).replace(/\.00$/, '') + 'M';
+    }
+    if (number >= 10000) {
+        return (Math.floor(number / 100) / 10).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return number.toLocaleString();
+}
 
 function setup() {
     const popups = document.querySelectorAll('.popup');
@@ -226,7 +245,7 @@ function updateServerTime(initialServerTimestamp) {
         const secondsUntilFull = 3600 - secondsIntoHour;
 
         if (secondsUntilFull <= 5 && document.hidden) {
-            startTitleFlash("+++ Ressourcen-Ertrag fällig! +++");
+            startTitleFlash("+++ Ress.-Ertrag fällig! +++");
         }
 
         const displayMin = Math.floor(secondsUntilFull / 60);

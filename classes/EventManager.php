@@ -703,7 +703,7 @@ class EventManager
         $conquest->get_enemy_soldiers();
         $conquest->set_initial_soldiers();
         $conquest->calculate_wall_bonus();
-        $conquest->set_soldier_stats($home_kingdom);
+        $conquest->set_soldier_stats($home_kingdom, $enemy_kingdom);
         $conquest->calculate_battle_outcome();
         $conquest->calculate_wall_damage();
         $conquest->calculate_loss_counts();
@@ -766,8 +766,8 @@ class EventManager
         }
 
         // Score & Wall-Updates
-        $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$conquest->get_my_score_loss(), $attacker_id]);
-        $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$conquest->get_enemy_score_loss(), $enemy_user_id]);
+        $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_my_score_loss(), $attacker_id]);
+        $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_enemy_score_loss(), $enemy_user_id]);
         $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$conquest->calculate_wall_damage(), $enemy_kingdom->get_kingdom_id()]);
 
         // Event-Handling: Delete troops or send back
@@ -915,7 +915,7 @@ class EventManager
             $score_loss = $soldier_types[$c_id]["score"];
 
             // Score decrease for losing one Conquerer
-            $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$score_loss, $attacker_user->get_user_id()]);
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$score_loss, $attacker_user->get_user_id()]);
 
             $this->mysqli->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?"
                 : "UPDATE sent_troops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?", [$row["eventid"], $c_id]);
@@ -933,7 +933,7 @@ class EventManager
             if ($has_more_kingdoms) {
                 // Defender still has some other kingdoms
                 $this->mysqli->execute_query("DELETE FROM events WHERE kingdomid = ? AND userid = ?", [$enemy_kingdom->get_kingdom_id(), $enemy_user->get_user_id()]);
-                $this->mysqli->execute_query("UPDATE users SET score = score - ? WHERE id = ?", [$total_building_score_loss, $enemy_user->get_user_id()]);
+                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_building_score_loss, $enemy_user->get_user_id()]);
 
                 if ($enemy_kingdom->get_kingdom_id() == $enemy_user->get_main_kingdom()) {
                     $new_main_id = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE userid = ? AND id != ? LIMIT 1",
@@ -1432,6 +1432,27 @@ class EventManager
                 }
             }
 
+            $survivors = $raider_count - $losses;
+
+            if ($survivors > 0) {
+                $survivor_max_cap = (int)($survivors * RAIDER_BASE_CAPACITY * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
+
+                if ($total_actually_looted > $survivor_max_cap && $total_actually_looted > 0) {
+                    $reduction_factor = $survivor_max_cap / $total_actually_looted;
+
+                    $loot_f = (int)floor($loot_f * $reduction_factor);
+                    $loot_w = (int)floor($loot_w * $reduction_factor);
+                    $loot_s = (int)floor($loot_s * $reduction_factor);
+                    $loot_g = (int)floor($loot_g * $reduction_factor);
+
+                    $total_actually_looted = $loot_f + $loot_w + $loot_s + $loot_g;
+                }
+            } else {
+                // No one survived -> no loot
+                $loot_f = $loot_w = $loot_s = $loot_g = 0;
+                $total_actually_looted = 0;
+            }
+
             // Build message
             $message = "<div class='battle-report'>";
 
@@ -1441,14 +1462,13 @@ class EventManager
             if ($loot_s > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_STONE] = $loot_s;
             if ($loot_g > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_GOLD] = $loot_g;
 
-            $survivors = $raider_count - $losses;
             $coords = "($target_x:$target_y)";
             $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
             $sub_text = ($survivors > 0) ? "Die Überlebenden treten mit der Beute den Rückweg an." : "Niemand kehrte lebend zurück, die Beute ging verloren!";
 
             $message .= BattleReportRenderer::render_outcome_box("Erfolgreiche Plünderung", $main_text, 0, 0, $sub_text, "normal", $loot_data);
 
-            $message .= "<div style='max-width: 350px; margin: 10px auto; width: 100%;'>";
+            $message .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
             $message .= BattleReportRenderer::render_unit_card("Räuber", $raider_count, $losses, "icon_robber");
             $message .= "</div>";
             $message .= "</div>";

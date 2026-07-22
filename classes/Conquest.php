@@ -5,8 +5,9 @@ class Conquest
     private object $mysqli;
     private array $soldiers = [];
     private array $enemy_soldiers = [];
-    private array $my_total_atk = [];
-    private array $enemy_total_def = [];
+    private int $enemy_def_without_wall = 0;
+    private array $enemy_soldier_type_atk = [];
+    private array $enemy_soldier_type_def = [];
     private array $soldier_type_atk = [];
     private array $soldier_type_def = [];
     private array $soldier_types = [];
@@ -100,34 +101,18 @@ class Conquest
     {
         $current_wall_hp = $this->enemy_kingdom->get_wall_hp();
         $wall_level = $this->enemy_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
-
-        // 1. Mauer-Eigenschutz (Soak)
-        // Jede Mauerstufe schluckt einen festen Betrag an Schaden, bevor die HP sinken.
         $wall_absorption = $wall_level * 100;
 
-        $enemy_defense_without_wall = 0;
-        foreach ($this->soldier_types as $id => $soldier) {
-            $enemy_defense_without_wall += $this->enemy_soldiers[$id] * $soldier["defense"];
-        }
-
-        // Die Differenz zwischen Angriffs-Pool und Truppen-Verteidigung
-        $damage_diff = $this->accumulated_damage - $enemy_defense_without_wall;
+        $damage_diff = $this->accumulated_damage - $this->enemy_def_without_wall;
 
         if ($damage_diff > 0) {
-            // Angreifer hat gewonnen:
-            // Wir ziehen erst den Eigenschutz der Mauer ab
             $effective_damage = max(0, $damage_diff - $wall_absorption);
 
-            // 2. Faktor massiv senken (von 40% auf z.B. 3%)
-            // Ohne Belagerungswaffen sollten Soldaten kaum eine Steinmauer einreißen.
             $damage_to_wall = $effective_damage * 0.03;
         } else {
-            // Angreifer hat verloren oder Gleichstand:
-            // Nur minimaler Abnutzungsschaden (0,1% statt 5%)
             $damage_to_wall = $this->accumulated_damage * 0.001;
         }
 
-        // 3. Belagerungs-Bonus (Schmiede/Technik) einrechnen
         $res_atk = $this->mysqli->execute_query("SELECT kingdomid FROM events WHERE eventid = ?", [$this->event_id]);
         $attacker_kingdom_id = $res_atk->fetch_column();
 
@@ -135,11 +120,8 @@ class Conquest
             [$attacker_kingdom_id, TechTypes::TECH_TYPE_SIEGE]);
         $siege_lvl = ($res_siege->num_rows > 0) ? $res_siege->fetch_column() : 0;
 
-        // Belagerungstechnik erhöht den Schaden an der Mauer
         $multiplier = 1 + ($siege_lvl * SMITHY_SIEGE_BONUS);
         $final_damage = (int)round($damage_to_wall * $multiplier);
-
-        // Sicherheitscheck: Mindestens 0, maximal aktuelle HP
         $final_damage = max(0, min($current_wall_hp, $final_damage));
 
         return $current_wall_hp - $final_damage;
@@ -176,10 +158,10 @@ class Conquest
                 $this->soldiers[$id]["count"] = 0;
             }
 
-            $this->my_total_atk[$id] = 0;
-            $this->enemy_total_def[$id] = 0;
             $this->soldier_type_atk[$id] = 0;
             $this->soldier_type_def[$id] = 0;
+            $this->enemy_soldier_type_atk[$id] = 0;
+            $this->enemy_soldier_type_def[$id] = 0;
         }
     }
 
@@ -195,53 +177,58 @@ class Conquest
         }
     }
 
-    public function set_soldier_stats(Kingdom $home_kingdom): void
+    public function set_soldier_stats(Kingdom $attacker_kingdom, Kingdom $defender_kingdom): void
     {
-        $bonus_defense = $this->calculate_wall_bonus();
+        // TECHS ATTACKER
+        $atk_techs = [
+            "inf_a" => $attacker_kingdom->get_kingdom_tech_level(13) * SMITHY_INF_ATK_BONUS,
+            "inf_d" => $attacker_kingdom->get_kingdom_tech_level(14) * SMITHY_INF_DEF_BONUS,
+            "cav_a" => $attacker_kingdom->get_kingdom_tech_level(15) * SMITHY_CAV_ATK_BONUS,
+            "cav_d" => $attacker_kingdom->get_kingdom_tech_level(16) * SMITHY_CAV_DEF_BONUS,
+            "arc_a" => $attacker_kingdom->get_kingdom_tech_level(17) * SMITHY_ARC_ATK_BONUS,
+            "arc_d" => $attacker_kingdom->get_kingdom_tech_level(18) * SMITHY_ARC_DEF_BONUS
+        ];
 
-        // Attacker Bonus (War God)
-        $atk_multiplier = 1.0;
+        // TECHS DEFENDER
+        $def_techs = [
+            "inf_a" => $defender_kingdom->get_kingdom_tech_level(13) * SMITHY_INF_ATK_BONUS,
+            "inf_d" => $defender_kingdom->get_kingdom_tech_level(14) * SMITHY_INF_DEF_BONUS,
+            "cav_a" => $defender_kingdom->get_kingdom_tech_level(15) * SMITHY_CAV_ATK_BONUS,
+            "cav_d" => $defender_kingdom->get_kingdom_tech_level(16) * SMITHY_CAV_DEF_BONUS,
+            "arc_a" => $defender_kingdom->get_kingdom_tech_level(17) * SMITHY_ARC_ATK_BONUS,
+            "arc_d" => $defender_kingdom->get_kingdom_tech_level(18) * SMITHY_ARC_DEF_BONUS
+        ];
 
-        if ($home_kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-            $atk_multiplier += $home_kingdom->get_shrine_modifier();
+        // Shrine Boni
+        $atk_shrine = 1.0;
+        if ($attacker_kingdom->get_kingdom_alignment() == 1) {
+            $atk_shrine += $attacker_kingdom->get_shrine_modifier();
         }
 
-        $inf_atk = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
-        $inf_def = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
-        $cav_atk = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
-        $cav_def = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
-        $arc_atk = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
-        $arc_def = $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
-
         foreach ($this->soldier_types as $id => $soldier) {
-            $my_soldier_count = $this->initial_soldiers[$id]["initial_my_soldiers"];
-            $enemy_soldier_count = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
+            $cat = $soldier["category"];
 
-            $t_atk = 0;
-            $t_def = 0;
-            if ($soldier["category"] == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
-                $t_atk = $inf_atk;
-                $t_def = $inf_def;
-            } else if ($soldier["category"] == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
-                $t_atk = $cav_atk;
-                $t_def = $cav_def;
-            } else if ($soldier["category"] == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
-                $t_atk = $arc_atk;
-                $t_def = $arc_def;
+            $prefix = match ($cat) {
+                0 => "inf_",
+                1 => "cav_",
+                2 => "arc_",
+                default => null
+            };
+
+            if ($prefix) {
+                // Stats Attacker Troops
+                $this->soldier_type_atk[$id] = (int)(($soldier["attack"] + $atk_techs[$prefix . 'a']) * $atk_shrine);
+                $this->soldier_type_def[$id] = $soldier["defense"] + $atk_techs[$prefix . 'd'];
+                // Stats Defender Troops
+                $this->enemy_soldier_type_atk[$id] = $soldier["attack"] + $def_techs[$prefix . 'a'];
+                $this->enemy_soldier_type_def[$id] = $soldier["defense"] + $def_techs[$prefix . 'd'];
+            } else {
+                // Special Units
+                $this->soldier_type_atk[$id] = $soldier["attack"];
+                $this->soldier_type_def[$id] = $soldier["defense"];
+                $this->enemy_soldier_type_atk[$id] = $soldier["attack"];
+                $this->enemy_soldier_type_def[$id] = $soldier["defense"];
             }
-
-            $soldier_atk = (int)(($soldier["attack"] + $t_atk) * $atk_multiplier);
-            $soldier_def = $soldier["defense"] + $t_def + $bonus_defense;
-
-            $this->enemy_soldiers[$id] = $enemy_soldier_count;
-            $this->initial_soldier_count += $my_soldier_count;
-            $this->initial_enemy_count += $enemy_soldier_count;
-
-            $this->my_total_atk[$id] += $my_soldier_count * $soldier_atk;
-            $this->enemy_total_def[$id] += $enemy_soldier_count * $soldier_def;
-
-            $this->soldier_type_atk[$id] = $soldier_atk;
-            $this->soldier_type_def[$id] = $soldier_def;
         }
     }
 
@@ -259,76 +246,93 @@ class Conquest
 
     public function calculate_battle_outcome(): void
     {
-        $player_atk_pool = 0;
-        $player_def_pool = 0;
-        $enemy_atk_pool = 0;
-        $enemy_def_pool = 0;
+        $attacker_atk_pool = 0;
+        $attacker_def_pool = 0;
+        $defender_atk_pool = 0;
+        $defender_def_pool = 0;
+        $defender_def_no_wall = 0;
 
-        $total_own_units = array_sum(array_column($this->initial_soldiers, "initial_my_soldiers"));
-        $total_enemy_units = array_sum(array_column($this->initial_soldiers, "initial_enemy_soldiers"));
+        $total_attacker_units = array_sum(array_column($this->initial_soldiers, "initial_my_soldiers"));
+        $total_defender_units = array_sum(array_column($this->initial_soldiers, "initial_enemy_soldiers"));
 
-        if ($total_own_units <= 0 || $total_enemy_units <= 0) return;
+        if ($total_attacker_units <= 0 || $total_defender_units <= 0) return;
 
         foreach ($this->soldier_types as $id => $unit) {
-            $ownCount = $this->initial_soldiers[$id]["initial_my_soldiers"];
-            $enemyCount = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
+            $count_own = $this->initial_soldiers[$id]["initial_my_soldiers"];
+            $count_enemy = $this->initial_soldiers[$id]["initial_enemy_soldiers"];
 
-            if ($ownCount > 0) {
+            // Attacker Pool Player
+            if ($count_own > 0) {
                 $bonus = 1.0;
+                foreach ($this->soldier_types as $target_id => $target_unit) {
+                    if ($this->initial_soldiers[$target_id]["initial_enemy_soldiers"] > 0) {
+                        $share = $this->initial_soldiers[$target_id]["initial_enemy_soldiers"] / $total_defender_units;
 
-                foreach ($this->soldier_types as $id_target => $unit_target) {
-                    if ($this->initial_soldiers[$id_target]["initial_enemy_soldiers"] > 0) {
-                        $share = $this->initial_soldiers[$id_target]["initial_enemy_soldiers"] / $total_enemy_units;
-
-                        if (($unit["category"] == 0 && $unit_target["category"] == 1) ||
-                            ($unit["category"] == 1 && $unit_target["category"] == 2) ||
-                            ($unit["category"] == 2 && $unit_target["category"] == 0)) {
+                        // RPS
+                        if (($unit["category"] == 0 && $target_unit["category"] == 1) ||
+                            ($unit["category"] == 1 && $target_unit["category"] == 2) ||
+                            ($unit["category"] == 2 && $target_unit["category"] == 0)) {
                             $bonus += (0.5 * $share);
                         }
                     }
                 }
-                $player_atk_pool += ($ownCount * $this->soldier_type_atk[$id] * $bonus);
+                $attacker_atk_pool += ($count_own * $this->soldier_type_atk[$id] * $bonus);
             }
 
-            if ($enemyCount > 0) {
+            // Attacker Pool Enemy
+            if ($count_enemy > 0) {
                 $bonus = 1.0;
+                foreach ($this->soldier_types as $target_id => $target_unit) {
+                    if ($this->initial_soldiers[$target_id]["initial_my_soldiers"] > 0) {
+                        $share = $this->initial_soldiers[$target_id]["initial_my_soldiers"] / $total_attacker_units;
 
-                foreach ($this->soldier_types as $id_target => $unit_target) {
-                    if ($this->initial_soldiers[$id_target]["initial_my_soldiers"] > 0) {
-                        $share = $this->initial_soldiers[$id_target]["initial_my_soldiers"] / $total_enemy_units;
-
-                        if (($unit["category"] == 0 && $unit_target["category"] == 1) ||
-                            ($unit["category"] == 1 && $unit_target["category"] == 2) ||
-                            ($unit["category"] == 2 && $unit_target["category"] == 0)) {
+                        // RPS
+                        if (($unit["category"] == 0 && $target_unit["category"] == 1) ||
+                            ($unit["category"] == 1 && $target_unit["category"] == 2) ||
+                            ($unit["category"] == 2 && $target_unit["category"] == 0)) {
                             $bonus += (0.5 * $share);
                         }
                     }
                 }
-
-                $enemy_atk_pool += ($enemyCount * $unit["attack"] * $bonus);
+                $defender_atk_pool += ($count_enemy * $this->enemy_soldier_type_atk[$id] * $bonus);
             }
 
-            $player_def_pool += ($ownCount * $this->soldier_type_def[$id]);
-            $enemy_def_pool += ($enemyCount * $this->soldier_type_def[$id]);
+            // Calc Defender Pool
+            $attacker_def_pool += ($count_own * $this->soldier_type_def[$id]);
+
+            $current_unit_def_enemy = ($count_enemy * $this->enemy_soldier_type_def[$id]);
+            $defender_def_pool += $current_unit_def_enemy;
+            $defender_def_no_wall += $current_unit_def_enemy;
         }
 
-        $player_loss_ratio = ($player_def_pool > 0) ? min(1.0, $enemy_atk_pool / $player_def_pool) : 1.0;
-        $enemy_loss_ratio = ($enemy_def_pool > 0) ? min(1.0, $player_atk_pool / $enemy_def_pool) : 1.0;
-        $player_loss_ratio = round($player_loss_ratio, 6);
-        $enemy_loss_ratio = round($enemy_loss_ratio, 6);
+        // Wall Bonus
+        $wall_bonus = $this->calculate_wall_bonus();
+        if ($defender_def_pool > 0) {
+            $defender_def_pool += $wall_bonus;
+        }
 
+        $lethality = 2.0;
+
+        $attacker_loss_ratio = ($attacker_def_pool > 0) ? min(1.0, $defender_atk_pool / ($attacker_def_pool * $lethality)) : 1.0;
+        $defender_loss_ratio = ($defender_def_pool > 0) ? min(1.0, $attacker_atk_pool / ($defender_def_pool * $lethality)) : 1.0;
+
+        $attacker_loss_ratio = round($attacker_loss_ratio, 6);
+        $defender_loss_ratio = round($defender_loss_ratio, 6);
+
+        // Apply losses
         foreach ($this->soldier_types as $id => $unit) {
-            $my_losses = round($this->initial_soldiers[$id]["initial_my_soldiers"] * $player_loss_ratio);
-            $en_losses = round($this->initial_soldiers[$id]["initial_enemy_soldiers"] * $enemy_loss_ratio);
+            $attacker_losses = round($this->initial_soldiers[$id]["initial_my_soldiers"] * $attacker_loss_ratio);
+            $defender_losses = round($this->initial_soldiers[$id]["initial_enemy_soldiers"] * $defender_loss_ratio);
 
-            $this->initial_soldiers[$id]["my_losses"] = (int)$my_losses;
-            $this->initial_soldiers[$id]["enemy_losses"] = (int)$en_losses;
+            $this->initial_soldiers[$id]["my_losses"] = (int)$attacker_losses;
+            $this->initial_soldiers[$id]["enemy_losses"] = (int)$defender_losses;
 
-            $this->soldiers[$id]["count"] = $this->initial_soldiers[$id]["initial_my_soldiers"] - (int)$my_losses;
-            $this->enemy_soldiers[$id] = $this->initial_soldiers[$id]["initial_enemy_soldiers"] - (int)$en_losses;
+            $this->soldiers[$id]["count"] = $this->initial_soldiers[$id]["initial_my_soldiers"] - (int)$attacker_losses;
+            $this->enemy_soldiers[$id] = $this->initial_soldiers[$id]["initial_enemy_soldiers"] - (int)$defender_losses;
         }
 
-        $this->accumulated_damage = $player_atk_pool;
+        $this->accumulated_damage = $attacker_atk_pool;
+        $this->enemy_def_without_wall = $defender_def_no_wall;
     }
 
     public function calculate_loss_counts(): void

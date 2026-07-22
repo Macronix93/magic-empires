@@ -799,6 +799,14 @@ input[type=password]:focus {
     border-color: var(--link-color);
 }
 
+.delete-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    line-height: 0;
+}
+
 input.btn-delete,
 input.btn-accept {
     width: 24px;
@@ -1400,6 +1408,25 @@ tr:first-child .td-center {
     margin: 0 auto;
 }
 
+/* Live Power Container Warsim */
+#live-power-container {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+#live-power-container .box-container {
+    flex: 1;
+    min-width: 120px;
+    max-width: 250px;
+}
+
+.warsim-table {
+    max-width: 535px;
+}
+
 /* Map-Tabelle */
 #field-info {
     margin-top: 20px;
@@ -1848,6 +1875,51 @@ tr:first-child .td-center {
         --map-viewport-height: 400px;
     }
 
+    .warsim-table {
+        table-layout: fixed;
+        width: 100% !important;
+    }
+
+    .warsim-table colgroup col:nth-child(1) {
+        width: 60%;
+    }
+
+    .warsim-table colgroup col:nth-child(2) {
+        width: 20%;
+    }
+
+    .warsim-table colgroup col:nth-child(3) {
+        width: 20%;
+    }
+
+    .warsim-table td {
+        padding: 2px 4px;
+    }
+
+    .warsim-table input {
+        width: 100% !important;
+        padding: 2px;
+    }
+
+    .warsim-stats-wrap {
+        width: 90px !important;
+    }
+
+    .warsim-stats-wrap div {
+        width: 45px !important;
+        gap: 2px !important;
+    }
+
+    #live-power-container {
+        gap: 5px;
+        font-size: 13px;
+    }
+
+    #live-power-container .box-header {
+        height: 25px;
+        font-size: 13px !important;
+    }
+
     #messages-section.large-height {
         max-height: 70vh !important;
     }
@@ -2059,6 +2131,10 @@ tr:first-child .td-center {
     input.btn-accept {
         width: 18px;
         height: 18px;
+    }
+
+    .delete-btn {
+        right: 5px;
     }
 
     .header-copyright {

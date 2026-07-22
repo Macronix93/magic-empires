@@ -212,7 +212,7 @@ class Messages
 
             $html .= "<div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
                             <div class='message-border'>
-                                Am " . date("d.m.Y H:i:s", $row["date"]) . "
+                                Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
                                 <img src='images/icons/icon_delete.png' 
                                  class='ressource-icons' 
                                  data-on-click='deleteServerMsg' 
@@ -359,10 +359,22 @@ class Messages
     public function show_world_chat(): string
     {
         $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
-        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit]);
-        $rows = array_reverse($result->fetch_all(MYSQLI_ASSOC));
+        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+
+        $has_more = (count($rows) > $limit);
+        if ($has_more) {
+            array_pop($rows);
+        }
+
+        $rows = array_reverse($rows);
 
         $html = "<div id='messages-section' data-chat-type='world'>";
+        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
+        $html .= "<button id='load-older-btn' 
+                      data-on-click='loadOlderWorldChat' 
+                      class='msg-load-more' 
+                      style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
 
         if (empty($rows)) {
             $html .= "

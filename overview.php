@@ -42,7 +42,6 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
     if ($result && $result->num_rows > 0) {
         $event = $result->fetch_assoc();
 
-
         if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS) {
             if ($event["is_processing"] == 1) {
                 $error = "Truppen sind bereits in ein Gefecht verwickelt oder am Ziel angekommen!";
@@ -51,14 +50,11 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
                 $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
                 $new_arrival_time = $now + $already_marched;
 
-                $update = $db_instance->execute_query(
+                $db_instance->execute_query(
                     "UPDATE events SET 
                                 actionid = ?, 
                                 arrivaltime = ?, 
-                                loot_food = 0, 
-                                loot_wood = 0, 
-                                loot_stone = 0, 
-                                loot_gold = 0,
+                                loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0,
                                 is_processing = 0
                              WHERE eventid = ? AND userid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id, $user->get_user_id()]
@@ -69,6 +65,9 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
                     "target_x" => $event["targetx"],
                     "target_y" => $event["targety"]
                 ], $event["kingdomid"]);
+
+                change_location("overview.php");
+                exit;
             }
         } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == "Interner Transport") {
             $total_duration = $event["arrivaltime"] - $event["buildingtime"];
@@ -88,6 +87,9 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
             );
 
             $logger->log_game("TRADE", "TRANSPORT_CANCEL", ["res" => $event["buildingid"], "amount" => $event["buildinglevel"]], $event["targetid"]);
+
+            change_location("overview.php");
+            exit;
         }
     } else {
         $error = "Diese Aktion ist ungültig!";
@@ -163,7 +165,7 @@ $view .= '<div class="title-border">Gesendete Truppen</div>';
 
 $query = "
     SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
-           e.*, k.mapx, k.mapy, kt.userid AS target_userid
+           e.*, k.mapx, k.mapy, kt.userid AS target_userid, kt.username AS target_username
     FROM (SELECT * FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?) ORDER BY arrivaltime LIMIT $offset_tp, $limit) e
     JOIN sent_troops st ON st.eventid = e.eventid
     JOIN kingdoms k ON e.kingdomid = k.id
@@ -177,8 +179,8 @@ if ($result && $result->num_rows > 0) {
     $view .= "<table class='table' style='width: 100%;'>";
     $view .= "<colgroup>
                 <col style='width: 15%;'> <!-- Art -->
-                <col style='width: 38%;'> <!-- Truppen -->
-                <col style='width: 18%;'> <!-- Koordinaten -->
+                <col style='width: 35%;'> <!-- Truppen -->
+                <col style='width: 21%;'> <!-- Koordinaten -->
                 <col style='width: 29%;'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
@@ -188,7 +190,6 @@ if ($result && $result->num_rows > 0) {
             <td class='td-center td-gradient'>Ankunft</td>
         </tr>";
 
-    $action_type = "Angriff";
     $grouped_events = [];
 
     // Group each sent soldier type, so that no extra rows are created with multiple soldiers
@@ -201,12 +202,17 @@ if ($result && $result->num_rows > 0) {
                 "actionid" => $row["actionid"],
                 "targetid" => $row["targetid"],
                 "target_userid" => $row["target_userid"],
+                "target_username" => $row["target_username"],
                 "mapx" => $row["mapx"],
                 "mapy" => $row["mapy"],
                 "targetx" => $row["targetx"],
                 "targety" => $row["targety"],
                 "arrivaltime" => $row["arrivaltime"],
                 "is_processing" => $row["is_processing"],
+                "loot_food" => $row["loot_food"],
+                "loot_wood" => $row["loot_wood"],
+                "loot_stone" => $row["loot_stone"],
+                "loot_gold" => $row["loot_gold"],
                 "soldiers" => []
             ];
         }
@@ -222,14 +228,22 @@ if ($result && $result->num_rows > 0) {
 
     foreach ($grouped_events as $event_id => $event_data) {
         $action_id = $event_data["actionid"];
+        $action_type = "Angriff";
         $action_button = "";
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
         $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"], $row["kingdomid"]);
         $difference_time = max(0, $event_data["arrivaltime"] - $now);
         $counter_id = "counter_" . $event_id;
+
         $my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
         $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
-        $coords_str = "$my_coords → $target_coords";
+
+        $target_name_info = "";
+        if ($event_data["targetid"] > 0 && !empty($event_data["target_username"])) {
+            $target_name_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
+        }
+
+        $coords_str = "$my_coords → $target_coords" . $target_name_info;
 
         $action_counter = "<b><span class='js-countdown' 
                                id='$counter_id' 
@@ -244,17 +258,20 @@ if ($result && $result->num_rows > 0) {
                                 </form>";
         }
 
-        if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $event_data["targetid"] == -1) {
-            $action_type = "Eroberung";
-        } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $event_data["targetid"] == -2) {
-            $action_type = "Plündern";
-        } else if ($action_id == ActionTypes::ACTION_RETURN_TROOPS) {
+        if ($action_id == ActionTypes::ACTION_RETURN_TROOPS) {
             $action_type = "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
-        } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS && $is_target_my_kingdom) {
-            $action_type = "Truppen stationieren";
+        } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS) {
+            if ($event_data["targetid"] == -1) {
+                $action_type = "Eroberung";
+            } else if ($event_data["targetid"] == -2) {
+                $action_type = "Plündern";
+            } else if ($is_target_my_kingdom) {
+                $action_type = "Stationieren";
+            } else {
+                $action_type = "Angriff";
+            }
         }
-
         // Build soldiers string
         $soldiers_str = "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
         foreach ($event_data["soldiers"] as $soldier) {
@@ -263,9 +280,32 @@ if ($result && $result->num_rows > 0) {
             $soldier_obj->set_soldier_icon($soldier["icon"]);
             $soldier_obj->set_soldier_name($soldier["name"]);
 
-            $soldiers_str .= "<div class='unit-badge' title='" . e($soldier["name"]) . "'>
-                                " . $soldier_obj->get_soldier_icon("ressource-icons") . "
+            $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0 || $event_data["loot_gold"] > 0);
+            $is_carrier = ($soldier["soldierid"] == Soldiers::SOLDIER_THIEF || $soldier["soldierid"] == Soldiers::SOLDIER_RAIDER);
+
+            $popup_class = "";
+            $popup_content = "";
+
+            if ($action_id == ActionTypes::ACTION_RETURN_TROOPS && $has_loot && $is_carrier) {
+                $popup_class = " popup";
+                $p_id = "loot_" . $event_id . "_" . $soldier["soldierid"];
+
+                $popup_content = "<div id='{$p_id}_box' class='popupbox' style='text-align:left;'>";
+                $popup_content .= "<b>Beute:</b><br>";
+                if ($event_data["loot_food"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($event_data["loot_food"]) . " ";
+                if ($event_data["loot_wood"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($event_data["loot_wood"]) . " ";
+                if ($event_data["loot_stone"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($event_data["loot_stone"]) . " ";
+                if ($event_data["loot_gold"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($event_data["loot_gold"]) . " ";
+                $popup_content .= "</div>";
+
+                $soldiers_str .= "<div class='unit-badge$popup_class' id='$p_id' title=''>";
+            } else {
+                $soldiers_str .= "<div class='unit-badge' title='" . e($soldier["name"]) . "'>";
+            }
+
+            $soldiers_str .= $soldier_obj->get_soldier_icon("ressource-icons") . "
                                 <b>" . fnum($soldier["soldiercount"]) . "x</b>
+                                $popup_content
                             </div>";
         }
         $soldiers_str .= "</div>";
@@ -278,7 +318,7 @@ if ($result && $result->num_rows > 0) {
             <b>$action_counter</b>";
 
         if ($action_button !== "") {
-            $view .= "<div style='position: absolute; right: 8px; top: 50%; transform: translateY(-50%); line-height: 0;'>
+            $view .= "<div class='delete-btn'>
                 $action_button
               </div>";
         }
@@ -409,7 +449,10 @@ if ($result_events && $result_events->num_rows > 0) {
                 $sol_obj->set_soldier_icon($row["soldier_icon"]);
                 $sol_obj->set_soldier_name($row["soldiername"]);
 
-                $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
+                $project_text = "<div class='unit-badge' title='" . e($row["soldiername"]) . "'>
+                            " . $sol_obj->get_soldier_icon("ressource-icons") . "
+                            <b>" . fnum($row["soldiergoal"]) . "x</b>
+                         </div>";
                 $finish_time = $row["recruittime"];
                 $hover_name = $row["soldiername"];
                 break;
@@ -420,12 +463,16 @@ if ($result_events && $result_events->num_rows > 0) {
                 $sol_obj->set_soldier_icon($row["soldier_icon"]);
                 $sol_obj->set_soldier_name($row["soldiername"]);
 
-                $project_text = $sol_obj->get_soldier_icon("ressource-icons") . " {$row["soldiergoal"]}x";
+                $project_text = "<div class='unit-badge' title='Upgrade zu " . e($row["soldiername"]) . "'>
+                            " . $sol_obj->get_soldier_icon("ressource-icons") . "
+                            <b>" . fnum($row["soldiergoal"]) . "x</b>
+                         </div>";
 
                 $res_s = $db_instance->execute_query("SELECT requiredtime FROM soldier_list WHERE id = ?", [$row["soldierid"]]);
                 $u_time = $res_s->fetch_assoc()["requiredtime"];
 
                 $finish_time = $row["recruittime"];
+                $hover_name = $row["soldiername"];
                 break;
         }
 
@@ -560,7 +607,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
                     </span></b>";
 
         if ($is_cancelable) {
-            $view .= "<div style='position: absolute; right: 8px; top: 50%; transform: translateY(-50%); line-height: 0;'>
+            $view .= "<div class='delete-btn'>
                         <form action='overview.php' method='GET' style='display: inline;'>
                             <input type='hidden' name='action' value='cancel'>
                             <input type='hidden' name='eid' value='$event_id'>

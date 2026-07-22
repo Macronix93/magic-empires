@@ -27,8 +27,6 @@ $command = sprintf(
 exec($command, $output, $return_var);
 
 if ($return_var === 0) {
-    echo "Backup erfolgreich: $filename\n";
-
     // Delete Old Backups (older than 14 days)
     foreach (glob($backup_folder . "*.sql") as $file) {
         if (time() - filemtime($file) > (86400 * 14)) unlink($file);

@@ -28,6 +28,7 @@ $stats_query = "
         
         -- Other
         (SELECT COUNT(*) FROM messages) as total_msgs,
+        (SELECT COUNT(*) FROM game_logs WHERE action = 'OFFER_ACCEPT') as total_trades,
         (SELECT IFNULL(SUM(supplyvalue), 0) FROM marketplace) as market_volume
         
     FROM kingdoms k";
@@ -56,6 +57,7 @@ $view = "
             </div>
             <hr>
             <div class='split-content'><span>Markt-Angebote:</span> <b>" . fnum($stats["market_volume"]) . " Res.</b></div>
+            <div class='split-content'><span>Handelsabschlüsse:</span> <b>" . fnum($stats["total_trades"]) . "</b></div>
         </div>
     </div>
     <div class='box-container' style='width: 350px;'>
@@ -79,7 +81,7 @@ $view = "
             <div class='split-content'><span>Registrierte Nutzer:</span> <b>{$stats['total_users']}</b></div>
             <div class='split-content'><span>Aktive Nutzer (24h):</span> <b>{$stats['active_users_24h']}</b></div>
             <div class='split-content'><span>Gesamtbevölkerung:</span> <b>" . fnum($stats["total_pop"]) . "</b></div>
-            <div class='split-content'><span>Verschickte Nachrichten:</span> <b>" . fnum($stats["total_msgs"]) . "</b></div>
+            <div class='split-content'><span>Privatnachrichten:</span> <b>" . fnum($stats["total_msgs"]) . "</b></div>
         </div>
     </div>
 </div>

@@ -228,6 +228,13 @@ foreach ($techs as $i => $tech) {
         $text_food = get_resource_text($cost_food, $kingdom_food);
         $text_stone = get_resource_text($cost_stone, $kingdom_stone);
         $text_gold = get_resource_text($cost_gold, $kingdom_gold);
+
+        $res_html = "";
+        if ($cost_food > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
+        if ($cost_wood > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
+        if ($cost_stone > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
+        if ($cost_gold > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
+
         $text_build = "";
 
         if ($kingdom_is_researching) {
@@ -269,10 +276,7 @@ foreach ($techs as $i => $tech) {
                     </div>
                 </div>
                 <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
-                    <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>
-                    <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>
-                    <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>
-                    <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>
+                    $res_html
                 </div>
                 " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
                 " . convert_sec_to_str((int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level))) . "

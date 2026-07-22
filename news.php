@@ -1,9 +1,38 @@
 <?php
 require_once("includes/core.php");
 
-$is_admin = ($user->is_logged_in() && $user->get_user_admin_level() > 0);
+$is_admin = ($user->is_logged_in() && $user->is_admin());
 
 if ($is_admin) {
+    if (isset($_POST["edit_news"])) {
+        $news_id = (int)$_POST["news_id"];
+        $raw_title = trim($_POST["title"] ?? "");
+        $raw_content = trim($_POST["content"] ?? "");
+
+        if (empty($raw_title) || empty($raw_content)) {
+            $view .= show_error_box("Bitte alle Felder ausfüllen!");
+        } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
+            $view .= show_error_box("Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!");
+        } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
+            $view .= show_error_box("Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
+        } else {
+            $title = e($raw_title);
+            $content = nl2br(e($raw_content));
+
+            $db_instance->execute_query(
+                "UPDATE news SET title = ?, content = ? WHERE id = ?",
+                [$title, $content, $news_id]
+            );
+
+            $db_instance->execute_query(
+                "UPDATE news SET id = (SELECT m FROM (SELECT MAX(id) + 1 AS m FROM news) t) WHERE id = ?",
+                [$news_id]
+            );
+
+            $view .= show_passed_box("News-Beitrag aktualisiert!");
+        }
+    }
+
     if (isset($_POST["post_news"])) {
         $raw_title = trim($_POST["title"] ?? "");
         $raw_content = trim($_POST["content"] ?? "");
@@ -84,13 +113,22 @@ if ($result->num_rows > 0) {
         $del_button = "";
 
         if ($is_admin) {
-            $del_button = "<div class='news-admin-tools'>
-                                <a href='#' 
-                                   data-on-click='confirmDeleteNews' 
-                                   data-id='{$row["id"]}'>
-                                    <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' title='Eintrag löschen'>
-                                </a>
-                            </div>";
+            $raw_content = str_replace(['<br>', '<br />'], '', $row["content"]);
+
+            $del_button = "<div class='news-admin-tools' style='gap: 10px; display: flex;'>
+                        <a href='#' 
+                           data-on-click='editNewsInline' 
+                           data-id='{$row["id"]}'
+                           data-title='" . e($row["title"]) . "'
+                           data-content='" . e($raw_content) . "'>
+                            <img src='images/icons/icon_edit.png' class='ressource-icons' alt='Edit' title='Eintrag bearbeiten'>
+                        </a>
+                        <a href='#' 
+                           data-on-click='confirmDeleteNews' 
+                           data-id='{$row["id"]}'>
+                            <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' title='Eintrag löschen'>
+                        </a>
+                    </div>";
         }
 
         $view .= "
@@ -101,8 +139,8 @@ if ($result->num_rows > 0) {
                     </div>
                     $del_button
                 </div>
-                <div class='box-content news-content box-content-bg' style='padding: 15px; text-align: center;'>
-                    <p>" . $row["content"] . "</p>
+                <div class='box-content news-content box-content-bg' style='padding-bottom: 15px; padding-left: 15px; padding-right: 15px; text-align: center;'>
+                    <p style='margin-top: 0; padding-top: 15px;'>" . $row["content"] . "</p>
                     <div style='font-size: 12px; margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; text-align: left;'>
                         Verfasst von: <b>" . e($row["username"]) . "</b> am $date
                     </div>
@@ -147,7 +185,7 @@ if ($result->num_rows > 0) {
  */
 $title = "Neuigkeiten";
 $header = "Neuigkeiten";
-$script_files = ["adminpanel"];
+$script_files = ["adminpanel", "news"];
 
 if ($user->is_logged_in()) {
     include("layout/base.php");

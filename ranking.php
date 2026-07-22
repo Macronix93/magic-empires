@@ -17,7 +17,7 @@ if ($current_page > $total_pages && $total_pages > 0) $current_page = $total_pag
 $offset = ($current_page - 1) * $rows_per_page;
 
 // Get the data for the current page
-$result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users WHERE status = 1 ORDER BY score DESC LIMIT ?, ?",
+$result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users WHERE status = 1 ORDER BY score DESC, id LIMIT ?, ?",
     [$offset, $rows_per_page]);
 $view .= '<table class="table">
             <tr>

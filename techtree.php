@@ -37,7 +37,7 @@ for ($i = 0; $i < count($buildings); $i++) {
             }
         }
     } else {
-        $dependency_text = " <span class='passed'>Dorfzentrum (1)</span>";
+        $dependency_text = " - ";
     }
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
@@ -49,7 +49,7 @@ for ($i = 0; $i < count($buildings); $i++) {
                 " . $buildings[$i]->get_building_name() . " ($current_building_level)
                 </a>
                 </td>
-                <td>" . (!empty($dependency_text) ? $dependency_text : "Dorfzentrum (1)") . "</td>
+                <td>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td>
                 </tr>
     ";
 
