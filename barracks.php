@@ -462,22 +462,25 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         if ($vill_cost > 0) $max_soldiers = min($max_soldiers, floor($kingdom_villager / $vill_cost));
 
         $max_soldiers = max(0, $max_soldiers);
-        $disabled = ($max_soldiers == 0) ? "disabled" : "";
+        $owned_count = $kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0;
+
+        $is_completely_broke = ($max_soldiers == 0 && $owned_count == 0);
+        $disabled_attr = $is_completely_broke ? "disabled" : "";
 
         $text_build = "<form action='barracks.php' method='GET' style='display: flex; flex-direction: column; gap: 5px; align-items: center;'>
-                    <input type='hidden' name='recruit' value='$i'>
-                    <input type='hidden' name='cat' value='$unit_cat'>
-                    
-                    <div style='display: flex; gap: 3px;'>
-                        <input type='text' name='count' id='count$i' size='2' maxlength='2' 
-                               class='js-recruit-input' data-id='$i'
-                               data-owned='" . ($kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0) . "'
-                               data-cost-food='$cost_food' data-cost-gold='$cost_gold'
-                               data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
-                               data-cost-villager='$cost_villager' data-time-per-unit='$time_needed'
-                               placeholder='0' $disabled>
-                        <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled>
-                    </div>";
+            <input type='hidden' name='recruit' value='$i'>
+            <input type='hidden' name='cat' value='$unit_cat'>
+            
+            <div style='display: flex; gap: 3px;'>
+                <input type='text' name='count' id='count$i' size='2' maxlength='2' 
+                       class='js-recruit-input' data-id='$i'
+                       data-owned='$owned_count'
+                       data-cost-food='$cost_food' data-cost-gold='$cost_gold'
+                       data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
+                       data-cost-villager='$cost_villager' data-time-per-unit='$unit_time'
+                       placeholder='0' $disabled_attr>
+                <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled_attr>
+            </div>";
 
         // Upgrade-Dropdown
         if ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && ($kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0) > 0) {
@@ -508,7 +511,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
         }
 
-        $text_build .= "<input type='submit' value='Starten' $disabled>
+        $text_build .= "<input type='submit' name='start_action' value='Starten' $disabled_attr>
                   </form>";
     }
 

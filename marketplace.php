@@ -398,8 +398,8 @@ if ($result->num_rows > 0) {
     $view .= '<table class="table">
                 <colgroup>
                     <col style="width: 20%;"> <!-- Spieler -->
-                    <col style="width: 30%;"> <!-- Bietet/Benötigt -->
-                    <col style="width: 20%;"> <!-- Ankunft -->
+                    <col style="width: 15%;"> <!-- Bietet/Benötigt -->
+                    <col style="width: 35%;"> <!-- Ankunft -->
                     <col style="width: 20%;"> <!-- Endet in -->
                     <col style="width: 12%;"> <!-- Gebühr -->
                     <col style="width: 8%;">  <!-- Aktion -->
@@ -409,7 +409,7 @@ if ($result->num_rows > 0) {
                         <b>Spieler</b>
                     </td>
                     <td class="td-center td-gradient">
-                        <b>Bietet / Benötigt</b>
+                        <b>Bietet ⟺ Benöt.</b>
                     </td>
                     <td class="td-center td-gradient">
                         <b>Ankunft</b>

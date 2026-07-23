@@ -129,21 +129,32 @@ class EventManager
             case TechTypes::TECH_TYPE_WOOD_INC:
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_wood_rate = base_wood_rate + ? WHERE id = ?",
                     [RESEARCH_WOOD_INC, $kingdom_id]);
+
+                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
                 $kingdom->recalculate_production();
                 break;
+
             case TechTypes::TECH_TYPE_FOOD_INC:
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_food_rate = base_food_rate + ? WHERE id = ?",
                     [RESEARCH_FOOD_INC, $kingdom_id]);
+
+                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
                 $kingdom->recalculate_production();
                 break;
+
             case TechTypes::TECH_TYPE_STONE_INC:
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_stone_rate = base_stone_rate + ? WHERE id = ?",
                     [RESEARCH_STONE_INC, $kingdom_id]);
+
+                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
                 $kingdom->recalculate_production();
                 break;
+
             case TechTypes::TECH_TYPE_GOLD_INC:
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_gold_rate = base_gold_rate + ? WHERE id = ?",
                     [RESEARCH_GOLD_INC, $kingdom_id]);
+
+                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
                 $kingdom->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_STORAGE_INC:
@@ -439,31 +450,17 @@ class EventManager
             $field_name = $res->fetch_assoc()["fieldname"] ?? "Unbekannt";
         } else {
             $enemy_k = new Kingdom($this->mysqli, $row["targetid"]);
-
             $field_name = " {$enemy_k->get_kingdom_owner_name()} ({$enemy_k->get_kingdom_name()})";
         }
 
+        // Prepare loot
         $loot = [];
         if ($row["loot_food"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_FOOD] = $row["loot_food"];
         if ($row["loot_wood"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_WOOD] = $row["loot_wood"];
         if ($row["loot_stone"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_STONE] = $row["loot_stone"];
         if ($row["loot_gold"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_GOLD] = $row["loot_gold"];
 
-        $msg = "<div class='battle-report'>";
-        $sub_text = !empty($loot) ? "Die Heimkehrer haben wertvolle Beute im Gepäck!" : "Die Soldaten beziehen wieder ihre Quartiere.";
-        $main_text = "Deine Truppen sind vom Feldzug zu <b>$field_name</b> ($target_x:$target_y) zurückgekehrt. $sub_text";
-
-        $msg .= BattleReportRenderer::render_outcome_box(
-            "Truppenrückkehr",
-            $main_text,
-            0, 0,
-            "",
-            "neutral",
-            $loot
-        );
-
-        $msg .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
-
+        // Generate troop cards
         $res_troops = $this->mysqli->execute_query(
             "SELECT sl.soldiername, st.soldiercount, sl.icon 
              FROM sent_troops st 
@@ -472,29 +469,45 @@ class EventManager
             [$row["eventid"]]
         );
 
+        $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; justify-content: center;'>";
         while ($t = $res_troops->fetch_assoc()) {
-            $msg .= "<div style='flex: 0 1 fit-content;'>" . BattleReportRenderer::render_unit_card($t["soldiername"], $t["soldiercount"], 0, $t["icon"]) . "</div>";
+            $units_html .= BattleReportRenderer::render_unit_card($t["soldiername"], $t["soldiercount"], 0, $t["icon"]);
         }
-        $msg .= "</div>";
+        $units_html .= "</div>";
+
+        $main_text = "Deine Truppen sind vom Feldzug zu <b>$field_name</b> ($target_x:$target_y) zurückgekehrt. ";
+        $main_text .= !empty($loot) ? "Die Heimkehrer haben wertvolle Beute im Gepäck!" : "Die Soldaten beziehen wieder ihre Quartiere.";
+        $main_text .= BattleReportRenderer::render_resource_list($loot);
+        $main_text .= $units_html;
+
+        // Render box
+        $msg = "<div class='battle-report'>";
+        $msg .= BattleReportRenderer::render_outcome_box(
+            "Truppenrückkehr",
+            $main_text
+        );
         $msg .= "</div>";
 
-        $res = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
-        while ($sol = $res->fetch_assoc()) {
+        // Set troops back to kingdom
+        $res_update = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
+        while ($sol = $res_update->fetch_assoc()) {
             $this->mysqli->execute_query("UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?",
                 [$sol["soldiercount"], $row["kingdomid"], $sol["soldierid"]]);
         }
 
-        if ($row["loot_food"] > 0 || $row["loot_wood"] > 0 || $row["loot_stone"] > 0 || $row["loot_gold"] > 0) {
+        // Give looted resources to kingdom
+        if (!empty($loot)) {
             $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
-            $home_k->give_kingdom_food($row["loot_food"]);
-            $home_k->give_kingdom_wood($row["loot_wood"]);
-            $home_k->give_kingdom_stone($row["loot_stone"]);
-            $home_k->give_kingdom_gold($row["loot_gold"]);
+            if ($row["loot_food"] > 0) $home_k->give_kingdom_food($row["loot_food"]);
+            if ($row["loot_wood"] > 0) $home_k->give_kingdom_wood($row["loot_wood"]);
+            if ($row["loot_stone"] > 0) $home_k->give_kingdom_stone($row["loot_stone"]);
+            if ($row["loot_gold"] > 0) $home_k->give_kingdom_gold($row["loot_gold"]);
         }
 
+        // Send server message to owner
         send_server_message($owner_id, $u_name, $msg, MessageCategories::CATEGORY_WAR);
 
-        // Delete the event and sent troops
+        // Cleanup
         $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
     }
@@ -727,16 +740,25 @@ class EventManager
         $enemy_msg .= BattleReportRenderer::render_vs_grid($def_units, $atk_units, "Deine Verteidigung", "Angreifer");
 
         // Battle Outcome Logic
+        $no_defenders = ($conquest->get_initial_enemy_count() == 0);
         $attacker_total_loss = ($conquest->get_initial_soldier_count() == $conquest->get_my_loss_count());
         $surviving_scouts = $conquest->get_surviving_count(Soldiers::SOLDIER_SCOUT);
 
-        // Attacker Box
-        if ($attacker_total_loss && $surviving_scouts <= 0) {
+        // Attacker Box Logic
+        if ($no_defenders) {
+            // CASE A: No Defenders -> Troops always survive
+            $atk_title = "Kampfausgang: Ungehinderter Vorstoß";
+            $atk_main = "Es waren keine feindlichen Truppen zur Verteidigung bereit.";
+            $atk_sub = "Unsere Soldaten haben das Gebiet gesichert und kehren nun um.";
+            $atk_type = "success";
+        } else if ($attacker_total_loss && $surviving_scouts <= 0) {
+            // CASE B: Normal Battle, but all troops lost
             $atk_title = "Kampfausgang: Totale Niederlage";
             $atk_main = "Die Schlacht war ein totaler Fehlschlag!";
             $atk_sub = "Kein einziger Soldat kehrt lebend zurück.";
             $atk_type = "error";
         } else {
+            // CASE C: Normal Battle against troops
             $atk_title = "Kampfausgang";
             $atk_main = $victory ? "Der Sieg ist unser! Die Verteidigung wurde durchbrochen." : "Unser Angriff wurde zurückgeschlagen!";
             $atk_sub = ($conquest->get_initial_soldier_count() > $conquest->get_my_loss_count())
@@ -748,11 +770,19 @@ class EventManager
         $message .= BattleReportRenderer::render_outcome_box($atk_title, $atk_main, $wall_before, $wall_after, $atk_sub, $atk_type);
 
         // Defender Box
-        if ($victory) {
+        if ($no_defenders) {
+            // CASE A: No Defenders
+            $def_main = "Ein feindlicher Trupp wurde vor unseren Toren gesichtet.";
+            $def_sub = "Der Angreifer konnte ungehindert vordringen. 
+                        Da sie jedoch keine Eroberungsabsichten hatten, zogen sie nach einer Machtdemonstration wieder ab.";
+            $def_type = "neutral";
+        } else if ($victory) {
+            // CASE B: Normal Battle and Defender lost all troops
             $def_main = "<span class='error'>Das Königreich wurde überrannt!</span>";
             $def_sub = "Die Verteidiger wurden bis auf den letzten Mann aufgerieben.";
             $def_type = "error";
         } else {
+            // FALL C: Defended successfully
             $def_main = "<span class='passed'>Die Angreifer wurden erfolgreich abgewehrt!</span>";
             $def_sub = "Unsere Garnison hält die Stellung.";
             $def_type = "success";
@@ -1454,31 +1484,35 @@ class EventManager
             }
 
             // Build message
-            $message = "<div class='battle-report'>";
-
             $loot_data = [];
             if ($loot_f > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_FOOD] = $loot_f;
             if ($loot_w > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_WOOD] = $loot_w;
             if ($loot_s > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_STONE] = $loot_s;
             if ($loot_g > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_GOLD] = $loot_g;
 
+            $is_empty = (($tile_total - $total_actually_looted) < 10);
             $coords = "($target_x:$target_y)";
+
             $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
+            if ($is_empty) {
+                $main_text .= "<br><span class='error' style='font-weight:bold;'>Das Lager wurde komplett geleert.</span>";
+            }
+
+            $main_text .= BattleReportRenderer::render_resource_list($loot_data);
+            $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
+            $main_text .= BattleReportRenderer::render_unit_card("Räuber", $raider_count, $losses, "icon_robber");
+            $main_text .= "</div>";
+
             $sub_text = ($survivors > 0) ? "Die Überlebenden treten mit der Beute den Rückweg an." : "Niemand kehrte lebend zurück, die Beute ging verloren!";
 
-            $message .= BattleReportRenderer::render_outcome_box("Erfolgreiche Plünderung", $main_text, 0, 0, $sub_text, "normal", $loot_data);
-
-            $message .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
-            $message .= BattleReportRenderer::render_unit_card("Räuber", $raider_count, $losses, "icon_robber");
-            $message .= "</div>";
+            $message = "<div class='battle-report'>";
+            $message .= BattleReportRenderer::render_outcome_box("Erfolgreiche Plünderung", $main_text, 0, 0, $sub_text, "normal");
             $message .= "</div>";
 
             // If we could take everything (or the field is now empty), we remove the field
-            if (($tile_total - $total_actually_looted) < 10) {
+            if ($is_empty) {
                 $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
                 $this->mysqli->execute_query("DELETE FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
-
-                $message .= "Das Lager wurde komplett geleert.<br>";
             } else {
                 $this->mysqli->execute_query("UPDATE resource_tiles_data SET food = food - ?, wood = wood - ?, stone = stone - ?, gold = gold - ? WHERE mapx = ? AND mapy = ?",
                     [$loot_f, $loot_w, $loot_s, $loot_g, $target_x, $target_y]);

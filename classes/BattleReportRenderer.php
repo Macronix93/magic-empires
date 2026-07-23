@@ -171,4 +171,18 @@ class BattleReportRenderer
 
         return $html;
     }
+
+    public static function render_resource_list(array $resources): string
+    {
+        if (empty($resources)) return "";
+
+        $html = "<div style='display: flex; gap: 15px; justify-content: center; margin-top: 10px;'>";
+
+        foreach ($resources as $res_id => $amount) {
+            $html .= "<div>" . get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
+        }
+
+        $html .= "</div>";
+        return $html;
+    }
 }

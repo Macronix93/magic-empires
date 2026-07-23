@@ -167,13 +167,24 @@ class Conquest
 
     public function set_initial_soldiers(): void
     {
+        $this->initial_soldier_count = 0;
+        $this->initial_enemy_count = 0;
+
         foreach ($this->soldier_types as $id => $soldier) {
+            $own = isset($this->soldiers[$id]["count"]) ? (int)$this->soldiers[$id]["count"] : 0;
+
+            $enemy_raw = $this->enemy_soldiers[$id] ?? 0;
+            $enemy = is_array($enemy_raw) ? (int)($enemy_raw["count"] ?? 0) : (int)$enemy_raw;
+
             $this->initial_soldiers[$id] = [
-                "initial_my_soldiers" => $this->soldiers[$id]["count"] ?? 0,
-                "initial_enemy_soldiers" => $this->enemy_soldiers[$id] ?? 0,
+                "initial_my_soldiers" => $own,
+                "initial_enemy_soldiers" => $enemy,
                 "my_losses" => 0,
                 "enemy_losses" => 0
             ];
+
+            $this->initial_soldier_count += $own;
+            $this->initial_enemy_count += $enemy;
         }
     }
 

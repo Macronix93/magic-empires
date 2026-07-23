@@ -29,7 +29,7 @@ if ($level < MAX_BUILDING_LEVEL) {
 }
 
 $view .= "<p style='font-size: 14px; opacity: 0.8; text-align: center;'>
-            <i>Der Wachturm ermöglicht es deinen Grenzreitern, herannahende Feinde frühzeitig zu entdecken. 
+            <i>Der Wachturm ermöglicht es, herannahende Feinde frühzeitig zu entdecken. 
             Je höher der Turm, desto eher wird die Stadtwache Alarm schlagen.</i>
         </p>
 </div>";

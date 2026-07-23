@@ -175,20 +175,29 @@
     <div class="box-content">
         <div id="kingdom-buildings">
             <?php
+            // Number of marketplace offers
+            $res_market = $db_instance->query("SELECT COUNT(*) FROM marketplace");
+            $total_market_offers = $res_market->fetch_row()[0] ?? 0;
+
             // Show kingdom buildings
             $kingdom_buildings = $kingdom->get_kingdom_buildings($user->get_current_kingdom());
             $current_page = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 
             foreach ($kingdom_buildings as $building) {
-                $building_file = $building['buildingfile'] . ".php";
+                $building_file = $building["buildingfile"] . ".php";
                 $building_obj = new Building();
                 $building_obj->set_building_id($building["buildingid"]);
                 $building_obj->set_building_name($building["buildingname"]);
 
+                $display_name = e($building["buildingname"]);
+                if ($building["buildingid"] == BuildingTypes::BUILDING_MARKETPLACE && $total_market_offers > 0) {
+                    $display_name .= "&nbsp;($total_market_offers)";
+                }
+
                 echo "<div class='menu-icons-small box" . ($current_page === $building_file ? ' active' : '') . "' 
                            data-on-click='navigate' 
                            data-url='" . e($building_file) . "'>" .
-                        $building_obj->get_building_icon("menu-icons") . " " . e($building['buildingname']) . "</div>";
+                        $building_obj->get_building_icon("menu-icons") . " " . $display_name . "</div>";
             }
             ?>
         </div>
