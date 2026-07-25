@@ -93,6 +93,18 @@ function getLatestKingdomResources() {
     };
 }
 
+function formatRecruitTime(totalSec) {
+    if (totalSec <= 0) return "0 Sek.";
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    let parts = [];
+    if (h > 0) parts.push(h + " Std.");
+    if (m > 0) parts.push(m + " Min.");
+    if (s > 0) parts.push(s + " Sek.");
+    return parts.join(" ");
+}
+
 function updateRecruitCosts(input) {
     const val = parseInt(input.value);
     const amount = isNaN(val) ? 0 : val;
@@ -104,6 +116,8 @@ function updateRecruitCosts(input) {
     const smithyMultiplier = kRes.multiplier;
     const id = input.dataset.id;
     const form = input.closest("form");
+    if (!form) return;
+
     const upgradeSelect = form.querySelector(".js-upgrade-select");
     const selectedUpgrade = (upgradeSelect && upgradeSelect.value !== "") ? upgradeSelect.selectedOptions[0] : null;
 
@@ -111,23 +125,16 @@ function updateRecruitCosts(input) {
     if (selectedUpgrade) {
         rawTimePerUnit = parseInt(selectedUpgrade.dataset.utime) || 0;
     }
-
     let discountedUnitTime = Math.round(rawTimePerUnit * smithyMultiplier);
 
     const timeEl = document.getElementById(`time-${id}`);
     if (timeEl) {
-        const totalSec = discountedUnitTime * displayAmount;
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = totalSec % 60;
-        let timeParts = [];
-        if (h > 0) timeParts.push(h + " Std.");
-        if (m > 0) timeParts.push(m + " Min.");
-        if (s > 0) timeParts.push(s + " Sek.");
-        timeEl.innerText = timeParts.length > 0 ? timeParts.join(" ") : "0 Sek.";
+        timeEl.innerText = formatRecruitTime(discountedUnitTime * displayAmount);
     }
 
     const resources = ["food", "gold", "stone", "wood", "villager"];
+    let hasRelevantError = false;
+    let canAffordOne = true;
 
     resources.forEach(res => {
         let baseCostPerUnit = parseInt(input.dataset["cost" + res.charAt(0).toUpperCase() + res.slice(1)]) || 0;
@@ -135,51 +142,49 @@ function updateRecruitCosts(input) {
 
         if (selectedUpgrade) {
             const targetCost = parseInt(selectedUpgrade.dataset["u" + res.toLowerCase()]) || 0;
-            finalUnitCost = Math.max(0, targetCost - baseCostPerUnit);
+            finalUnitCost = (res === "villager") ? 0 : Math.max(0, targetCost - baseCostPerUnit);
         } else {
             finalUnitCost = baseCostPerUnit;
         }
 
-        let currentMultiplier = (res === "villager") ? 1.0 : smithyMultiplier;
-        const totalCost = Math.floor(finalUnitCost * currentMultiplier) * displayAmount;
+        let currentMultiplier = 1.0;
+        const totalCostForSelectedAmount = Math.floor(finalUnitCost * currentMultiplier) * amount;
+        const previewCostForOne = Math.floor(finalUnitCost * currentMultiplier) * displayAmount;
 
         const displayEl = document.getElementById(`cost-${res}-${id}`);
         if (displayEl) {
-            displayEl.innerText = totalCost.toLocaleString("de-DE");
+            displayEl.innerText = previewCostForOne.toLocaleString("de-DE");
 
-            if (amount > 0 && totalCost > kRes[res]) {
+            if ((amount > 0 && totalCostForSelectedAmount > kRes[res]) || (amount === 0 && previewCostForOne > kRes[res])) {
                 displayEl.classList.add("error");
+                if (amount > 0) hasRelevantError = true;
             } else {
                 displayEl.classList.remove("error");
+            }
+
+            if (previewCostForOne > kRes[res]) {
+                canAffordOne = false;
             }
         }
     });
 
     const submitBtn = form.querySelector('input[type="submit"]');
-    const maxBtn = form.querySelector('input[type="button"]');
-    let hasRelevantError = false;
+    const maxBtn = form.querySelector('input[data-on-click="fillMaxAndCalc"]');
 
-    resources.forEach(res => {
-        const displayEl = document.getElementById(`cost-${res}-${id}`);
-        if (displayEl && displayEl.classList.contains("error")) {
-            if (res !== "villager" || !selectedUpgrade) {
-                hasRelevantError = true;
-            }
-        }
-    });
+    const noUnitsToUpgrade = selectedUpgrade && (parseInt(input.dataset.owned) <= 0);
 
-    if (parseInt(input.dataset.owned) > 0) {
-        input.disabled = false;
-        if (maxBtn) maxBtn.disabled = false;
+    if (maxBtn) {
+        maxBtn.disabled = !canAffordOne || noUnitsToUpgrade;
     }
 
     if (submitBtn) {
-        submitBtn.disabled = (hasRelevantError || amount <= 0);
+        submitBtn.disabled = (amount <= 0 || hasRelevantError || !canAffordOne || noUnitsToUpgrade);
     }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".js-recruit-input").forEach(input => {
+        updateRecruitCosts(input);
         input.addEventListener("input", () => updateRecruitCosts(input));
     });
 

@@ -80,7 +80,9 @@ define("MAINTENANCE_MODE", ($maintenance_res->fetch_assoc()["value"] === "1"));
 // Create User instance
 $user = new User($_SESSION["userid"] ?? -1, $_SESSION["username"] ?? "", $_SESSION["kingdomid"] ?? -1);
 
-require_once("sessions.php");
+if (!$is_cli) {
+    require_once("sessions.php");
+}
 
 $error = "";
 $view = "";

@@ -1073,6 +1073,10 @@ select:-webkit-autofill {
     display: flex;
     flex-direction: column;
     width: 265px;
+    position: sticky;
+    top: 20px;
+    height: fit-content;
+    align-self: flex-start;
 }
 
 .middle-container {
@@ -1118,7 +1122,7 @@ td {
     text-align: left;
 }
 
-tr:first-child .td-center {
+tr:first-child td.td-gradient {
     border-bottom: 2px solid var(--box-header);
 }
 
@@ -1198,7 +1202,7 @@ tr:first-child .td-center {
     min-width: 0;
     max-width: 650px;
     margin: 0 auto;
-    padding: 5px 10px;
+    padding: 5px 0;
 }
 
 .info-box .weighted {
@@ -1855,15 +1859,20 @@ tr:first-child .td-center {
 }
 
 /* Landscape Modus */
-@media screen and (max-height: 500px) {
+@media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
         min-height: 200px;
         max-height: 60vh;
         font-size: 13px;
     }
 
-    .header img {
-        max-height: 150px;
+    .middle-container {
+        margin-top: 10px;
+    }
+
+    .landing-main {
+        padding: 10px;
+        gap: 10px;
     }
 }
 
@@ -1872,6 +1881,81 @@ tr:first-child .td-center {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    table:has(#sv) {
+        display: block !important;
+        width: 100% !important;
+        border-collapse: collapse;
+        margin: 0 auto;
+    }
+
+    table:has(#sv) tbody {
+        display: block;
+        width: 100%;
+    }
+
+    table:has(#sv) tr {
+        display: flex;
+        flex-direction: column;
+    }
+
+    table:has(#sv) td {
+        display: block;
+        width: 100% !important;
+        background-color: var(--table-color);
+        border: 1px solid rgba(0, 0, 0, 0.2) !important;
+        margin: 0;
+        padding: 12px 10px !important;
+        box-sizing: border-box;
+        text-align: center;
+    }
+
+    table:has(#sv) input[type="text"],
+    table:has(#sv) select {
+        max-width: 300px;
+        margin: 5px auto !important;
+    }
+
+    table:has(#sv) td:last-child {
+        border-bottom: 2px solid var(--box-header) !important;
+    }
+
+    table:has(#sv) input[type="submit"] {
+        width: 150px;
+        margin: 5px auto;
+    }
+
+    .form {
+        padding: 0;
+    }
+
+    .login-register {
+        max-width: 100%;
+        width: 100%;
+        margin: 0;
+    }
+
+    fieldset {
+        padding: 15px 10px;
+    }
+
+    .landing-login-box {
+        width: 100%;
+        padding: 0;
+    }
+
+    .login-register table {
+        width: 100% !important;
+        table-layout: fixed;
+    }
+
+    .col-description {
+        width: 360px;
+    }
+
+    .col-action {
+        width: auto;
     }
 
     .warsim-table {
@@ -1966,7 +2050,8 @@ tr:first-child .td-center {
     }
 
     .landing-hero {
-        font-size: 0.8em;
+        padding: 15px;
+        font-size: 0.85em;
     }
 
     .news-header-title {
@@ -2053,10 +2138,6 @@ tr:first-child .td-center {
     body {
         font-size: 16px;
         padding: 0 0 20px 0;
-    }
-
-    .header {
-        height: 120px;
     }
 
     .ressource-icons,

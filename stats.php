@@ -41,7 +41,7 @@ $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 /* --- VIEW --- */
 $view = "
 <div style='display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;'>
-    <div class='box-container' style='width: 350px;'>
+    <div class='box-container' style='width: 310px;'>
         <div class='box-header'>Globale Wirtschaft</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <div style='text-align:center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
@@ -60,7 +60,7 @@ $view = "
             <div class='split-content'><span>Handelsabschlüsse:</span> <b>" . fnum($stats["total_trades"]) . "</b></div>
         </div>
     </div>
-    <div class='box-container' style='width: 350px;'>
+    <div class='box-container' style='width: 310px;'>
         <div class='box-header'>Globale Entwicklung</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <div class='split-content'><span>Besiedelte Fläche:</span> <b>$map_percentage %</b></div>
@@ -75,7 +75,7 @@ $view = "
             <div class='split-content'><span>Schlachten:</span> <b>" . fnum($stats['total_battles']) . "</b></div>
         </div>
     </div>
-    <div class='box-container' style='width: 350px;'>
+    <div class='box-container' style='width: 310px;'>
         <div class='box-header'>Server-Statistiken</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <div class='split-content'><span>Registrierte Nutzer:</span> <b>{$stats['total_users']}</b></div>

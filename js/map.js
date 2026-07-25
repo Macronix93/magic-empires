@@ -42,7 +42,8 @@ document.addEventListener("DOMContentLoaded", () => {
         town: 'images/icons/town.png',
         tower2: 'images/icons/tower2.png',
         castle: 'images/icons/castle.png',
-        gems: 'images/icons/icon_gems.png'
+        gems: 'images/icons/icon_gems.png',
+        fire: 'images/icons/icon_fire.png'
     };
 
     let loadedCount = 0;
@@ -60,15 +61,22 @@ document.addEventListener("DOMContentLoaded", () => {
         selectedX = parseInt(mapCont.dataset.startX) || 1;
         selectedY = parseInt(mapCont.dataset.startY) || 1;
 
+        if (window.innerWidth < 600) {
+            zoom = 0.5;
+        } else {
+            zoom = 1.0;
+        }
+
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(r => r.json())
             .then(data => {
                 mapData = data;
                 mapCache = null;
+
                 resizeCanvas();
                 centerMapOn(selectedX, selectedY, true);
-                document.getElementById("map-loader").style.display = "none";
 
+                document.getElementById("map-loader").style.display = "none";
                 selectField(selectedX, selectedY, false);
             });
     }
@@ -233,7 +241,7 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level] = tile;
+            const [x, y, , kid, level, isBurning] = tile;
 
             if (kid === -1) return;
 
@@ -250,6 +258,10 @@ function draw() {
                 else if (level >= 6) img = images.tower2;
                 else if (level >= 3) img = images.town;
                 ctx.drawImage(img, posX, posY, scaledTile, scaledTile);
+
+                if (isBurning === 1) {
+                    ctx.drawImage(images.fire, posX + scaledTile * 0.4, posY - scaledTile * 0.1, scaledTile * 0.7, scaledTile * 0.7);
+                }
             }
         });
     }
@@ -290,6 +302,7 @@ function applyMomentum() {
     velocityY *= friction;
     currentTranslateX += velocityX;
     currentTranslateY += velocityY;
+
     clampMapPosition();
     draw();
 
@@ -300,6 +313,7 @@ function applyMomentum() {
 
 function dragStart(e) {
     cancelAnimationFrame(momentumID);
+    
     isDragging = true;
     wasDragged = false;
     startX = e.pageX - currentTranslateX;
@@ -402,8 +416,10 @@ function drawPath(scaledTile) {
 
 function centerMapOn(x, y) {
     const scaledTile = BASE_TILE_SIZE * zoom;
-    currentTranslateX = (canvas.width / 2) - (x - 0.5) * scaledTile;
-    currentTranslateY = (canvas.height / 2) - (y - 0.5) * scaledTile;
+
+    currentTranslateX = (viewport.offsetWidth / 2) - (x - 0.5) * scaledTile;
+    currentTranslateY = (viewport.offsetHeight / 2) - (y - 0.5) * scaledTile;
+
     clampMapPosition();
     draw();
 }

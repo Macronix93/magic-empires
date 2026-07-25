@@ -59,16 +59,13 @@ class EventManager
 
             if (!$is_due) continue;
 
-            if ($row["is_processing"] == 1) {
-                $grace_period = 30;
-                $event_time = max($row["buildingtime"], $row["recruittime"], $row["arrivaltime"]);
+            $lock_timeout = 10;
 
-                if (($now - $event_time) < $grace_period) {
-                    continue;
-                }
+            if ($row["is_processing"] > 0 && ($now - $row["is_processing"]) < $lock_timeout) {
+                continue;
             }
 
-            $this->mysqli->execute_query("UPDATE events SET is_processing = 1 WHERE eventid = ?", [$row["eventid"]]);
+            $this->mysqli->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ?", [$now, $row["eventid"]]);
 
             try {
                 $this->handle_event($row);
@@ -79,7 +76,7 @@ class EventManager
         }
     }
 
-    private function handle_event(array $row): void
+    public function handle_event(array $row): void
     {
         switch ($row["actionid"]) {
             case ActionTypes::ACTION_RESEARCH_TECH:
@@ -109,7 +106,7 @@ class EventManager
 
     private function handle_research(array $row): void
     {
-        if ($row["buildingtime"] >= time()) return;
+        if ($row["buildingtime"] > time()) return;
 
         $kingdom_id = $row["kingdomid"];
         $tech_id = $row["buildingid"];
@@ -186,7 +183,7 @@ class EventManager
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
         $this->user->set_last_researched_tech($kingdom_id, $row["buildingname"], $row["buildinglevel"]);
-        $this->update_user_score($score_gain, $this->user);
+        $this->update_user_score((int)$score_gain, $this->user);
 
         Logger::get_instance()->log_game("ECONOMY", "RESEARCH_FINISH", [
             "tech_id" => $tech_id,
@@ -197,7 +194,7 @@ class EventManager
 
     private function handle_building(array $row): void
     {
-        if ($row["buildingtime"] >= time()) return;
+        if ($row["buildingtime"] > time()) return;
 
         $res = $this->mysqli->execute_query("SELECT buildingscore FROM building_list WHERE id = ?", [$row["buildingid"]]);
         $score_gain = $res->fetch_assoc()["buildingscore"] * ($row["buildinglevel"] + 1);
@@ -213,7 +210,7 @@ class EventManager
         }
 
         $this->user->set_last_built_building($row["kingdomid"], $row["buildingname"], $row["buildinglevel"]);
-        $this->update_user_score($score_gain, $this->user);
+        $this->update_user_score((int)$score_gain, $this->user);
 
         // Special effects for a building after construction
         $this->apply_building_effects($row["buildingid"], $row["buildinglevel"], $row["kingdomid"]);
@@ -261,7 +258,7 @@ class EventManager
             $score_difference = ($target_score - $source_score) * $units_to_add;
 
             if ($score_difference != 0) {
-                $this->update_user_score($score_difference, $this->user);
+                $this->update_user_score((int)$score_difference, $this->user);
             }
         }
 
@@ -311,7 +308,7 @@ class EventManager
                 );
 
                 $this->user->set_last_recruited_soldier($row["kingdomid"], $soldier_name, $units_to_deliver);
-                $this->update_user_score($units_to_deliver * $soldiers[$s_id]->get_soldier_score_gain(), $this->user);
+                $this->update_user_score((int)($units_to_deliver * $soldiers[$s_id]->get_soldier_score_gain()), $this->user);
             }
         }
 
@@ -498,10 +495,10 @@ class EventManager
         // Give looted resources to kingdom
         if (!empty($loot)) {
             $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
-            if ($row["loot_food"] > 0) $home_k->give_kingdom_food($row["loot_food"]);
-            if ($row["loot_wood"] > 0) $home_k->give_kingdom_wood($row["loot_wood"]);
-            if ($row["loot_stone"] > 0) $home_k->give_kingdom_stone($row["loot_stone"]);
-            if ($row["loot_gold"] > 0) $home_k->give_kingdom_gold($row["loot_gold"]);
+
+            foreach ($loot as $type => $amount) {
+                $home_k->modify_resource((int)$type, (int)$amount);
+            }
         }
 
         // Send server message to owner
@@ -514,7 +511,7 @@ class EventManager
 
     private function handle_resource_transfer(array $row): void
     {
-        if ($row["arrivaltime"] >= time()) return;
+        if ($row["arrivaltime"] > time()) return;
 
         $original_recipient_id = (int)$row["userid"];
         $target_kingdom_id = (int)$row["kingdomid"];
@@ -535,10 +532,11 @@ class EventManager
                     [$new_target_id, $delay, $row["eventid"]]
                 );
 
-                $msg = "<b>Handels-Info:</b> Deine Karawane konnte <b>" . e($k_data["kingdomname"] ?? "das Ziel") . "</b> nicht erreichen, 
-                            da es den Besitzer gewechselt hat. Die Waren wurden zu deinem Haupt-Königreich umgeleitet.";
+                $msg = "<b>Handels-Info:</b> Deine Karawane wurde zu deinem Haupt-Königreich umgeleitet, da das ursprüngliche Ziel den Besitzer gewechselt hat.";
                 send_server_message($original_recipient_id, $u_data["username"], $msg, MessageCategories::CATEGORY_TRADE);
             } else {
+                $msg = "<b>Handels-Info:</b> Eine Warenlieferung ging verloren, da du über keine Königreiche mehr verfügst, die die Waren aufnehmen könnten.";
+                send_server_message($original_recipient_id, $u_data["username"] ?? "Spieler", $msg, MessageCategories::CATEGORY_TRADE);
                 $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             }
             return;
@@ -550,8 +548,6 @@ class EventManager
 
         $target_k->modify_resource($res_type, $amount);
 
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
-
         $loot = [$res_type => $amount];
         $msg = "<div class='battle-report'>";
         $main_text = "Eine Karawane ist in deinem Königreich <b>" . e($target_k->get_kingdom_name()) . "</b> eingetroffen.";
@@ -562,6 +558,8 @@ class EventManager
         $u_name = $res_u->fetch_column() ?: "Spieler";
 
         send_server_message($original_recipient_id, $u_name, $msg, MessageCategories::CATEGORY_TRADE);
+
+        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
     }
 
     // Helper functions
@@ -1217,7 +1215,6 @@ class EventManager
             [$enemy_k->get_kingdom_id(), Soldiers::SOLDIER_SCOUT]
         );
         $def_scouts = ($res_def->num_rows > 0) ? (int)$res_def->fetch_column() : 0;
-
         $wt_level = $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
 
         // Pool calc (like in Conquest)
@@ -1258,25 +1255,57 @@ class EventManager
         // Scout report
         $survivors = $atk_scouts - $atk_losses;
 
+        // Message Attacker
         if ($survivors > 0) {
             $msg_atk = $this->generate_scout_report($atk_scouts, $atk_losses, $enemy_k);
 
-            $msg_def = "⚠️ <b>Spionage-Warnung!</b><br>Späher aus <b>{$home_k->get_kingdom_name()}</b> ({$home_k->get_kingdom_map_x()}:{$home_k->get_kingdom_map_y()}) wurden dabei ertappt, wie sie unsere Stadt auskundschafteten.";
-            if ($def_losses > 0) $msg_def .= "<br>Unsere Grenzwache verlor dabei $def_losses Späher.";
-
-            $this->mysqli->execute_query(
-                "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
-                [ActionTypes::ACTION_RETURN_TROOPS, time() + 20, $event_id]
-            );
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + 20, $event_id]);
         } else {
-            $msg_atk = "❌ <b>Spionage fehlgeschlagen!</b><br>Unsere Späher wurden in {$enemy_k->get_kingdom_name()} entdeckt und abgefangen. Alle Späher sind gefallen.";
-            $msg_def = "⚔️ <b>Spionage abgewehrt!</b><br>Wir haben feindliche Späher von <b>$attacker_name</b> entdeckt und vernichtet. Unsere Geheimnisse sind sicher.";
+            $msg_atk = "<div class='battle-report'>";
+            $msg_atk .= BattleReportRenderer::render_outcome_box(
+                "Spionage gescheitert",
+                "Unsere Späher wurden in <b>" . e($enemy_k->get_kingdom_name()) . "</b> entdeckt und abgefangen.",
+                0, 0,
+                "Kein einziger Späher kehrte lebend zurück.",
+                "error"
+            );
+            $msg_atk .= "<div style='display: flex; justify-content: center; margin-top: 10px;'>" . BattleReportRenderer::render_unit_card("Deine Späher", $atk_scouts, $atk_losses, "icon_scout", true) . "</div>";
+            $msg_atk .= "</div>";
 
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
+        // Defender Message
+        $msg_def = "<div class='battle-report'>";
+        $def_sub = ($atk_losses >= $atk_scouts) ? "Unsere Wachen konnten alle Spione eliminieren." : "Einigen Spionen gelang die Flucht.";
+        $msg_def .= BattleReportRenderer::render_outcome_box(
+            "Grenzwache: Eindringlinge!",
+            "Späher aus <b>" . e($home_k->get_kingdom_name()) . "</b> wurden dabei ertappt, wie sie unsere Stadt ausspionierten.",
+            0, 0,
+            $def_sub
+        );
+
+        if ($def_scouts > 0) {
+            $msg_def .= "<div style='display: flex; justify-content: center; margin-top: 10px;'>" . BattleReportRenderer::render_unit_card("Deine Späher", $def_scouts, $def_losses, "icon_scout", true) . "</div>";
+        }
+
+        $msg_def .= "</div>";
+
         send_server_message($attacker_id, $attacker_name, $msg_atk, MessageCategories::CATEGORY_WAR);
         send_server_message($enemy_owner_id, $enemy_owner_name, $msg_def, MessageCategories::CATEGORY_WAR);
+
+        if ($atk_losses + $def_losses > 0) {
+            $this->mysqli->execute_query("UPDATE system_settings SET value = value + ? WHERE name = 'total_fallen_soldiers'", [$atk_losses + $def_losses]);
+        }
+
+        Logger::get_instance()->log_game("MILITARY", "SPY_RESULT", [
+            "attacker_id" => $attacker_id,
+            "defender_id" => $enemy_owner_id,
+            "target_coords" => $row["targetx"] . ":" . $row["targety"],
+            "scouts_sent" => $atk_scouts,
+            "scouts_lost" => $atk_losses,
+            "success" => ($survivors > 0)
+        ], $home_k->get_kingdom_id());
     }
 
     private function generate_scout_report(int $atk_scouts, int $atk_losses, Kingdom $enemy_k): string
@@ -1336,6 +1365,26 @@ class EventManager
                 }
             } else {
                 $report .= "<i>Keine Truppen stationiert.</i>";
+            }
+            $report .= "</div>";
+        }
+
+        // TIER 4: Techs
+        if ($survivors >= 20) {
+            $report .= "<div class='report-section-title' style='margin-top: 10px;'>Erforschte Technologien</div>";
+            $report .= "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left;'>";
+
+            $t_res = $this->mysqli->execute_query(
+                "SELECT techname, techlevel FROM techs WHERE kingdomid = ? ORDER BY techlevel DESC",
+                [$enemy_k->get_kingdom_id()]
+            );
+
+            if ($t_res->num_rows > 0) {
+                while ($t = $t_res->fetch_assoc()) {
+                    $report .= "<div>• {$t["techname"]} (Stufe " . (int)$t["techlevel"] . ")</div>";
+                }
+            } else {
+                $report .= "<i>Keine nennenswerten Forschungen gefunden.</i>";
             }
             $report .= "</div>";
         }
@@ -1494,14 +1543,27 @@ class EventManager
             $coords = "($target_x:$target_y)";
 
             $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
+            $main_text .= BattleReportRenderer::render_resource_list($loot_data);
+
             if ($is_empty) {
-                $main_text .= "<br><span class='error' style='font-weight:bold;'>Das Lager wurde komplett geleert.</span>";
+                $main_text .= "<br><b>Das Lager wurde komplett geleert.</b>";
             }
 
-            $main_text .= BattleReportRenderer::render_resource_list($loot_data);
+            // Unit Badge
             $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
             $main_text .= BattleReportRenderer::render_unit_card("Räuber", $raider_count, $losses, "icon_robber");
             $main_text .= "</div>";
+
+            if ($losses > 0) {
+                $this->mysqli->execute_query(
+                    "UPDATE system_settings SET value = value + ? WHERE name = 'total_fallen_soldiers'",
+                    [$losses]
+                );
+
+                $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;'>";
+                $main_text .= "⚠️ <b>Verluste:</b> $losses Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet oder verletzt.";
+                $main_text .= "</div>";
+            }
 
             $sub_text = ($survivors > 0) ? "Die Überlebenden treten mit der Beute den Rückweg an." : "Niemand kehrte lebend zurück, die Beute ging verloren!";
 
@@ -1523,15 +1585,6 @@ class EventManager
                 "UPDATE events SET loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ? WHERE eventid = ?",
                 [$loot_f, $loot_w, $loot_s, $loot_g, $event_id]
             );
-
-            if ($losses > 0) {
-                $this->mysqli->execute_query(
-                    "UPDATE system_settings SET value = value + ? WHERE name = 'total_fallen_soldiers'",
-                    [$losses]
-                );
-
-                $message .= "<br><span class='error'>⚠️ <b>Verluste:</b> $losses Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet oder verletzt.</span><br>";
-            }
         } else {
             $message = "<div class='battle-report'>";
             $message .= BattleReportRenderer::render_outcome_box("Keine Räuber", "Ohne spezialisierte Räuber können wir diese massiven Vorräte nicht abtransportieren.", 0, 0,

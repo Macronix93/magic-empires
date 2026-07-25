@@ -128,13 +128,12 @@ if ($row) {
 
             $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
             $biome_info .= "<b>Ertrag pro Stunde nach Gelände:</b><br>";
-            $items = [];
-
+            
             while ($ft = $ft_res->fetch_assoc()) {
-                $items[] = e($ft["fieldname"]) . ": <span class='passed'>+" . fnum((int)($config["base"] * $ft["rate"])) . "</span>";
+                $biome_info .= e($ft["fieldname"]) . ": <span class='passed'>+" . fnum((int)($config["base"] * $ft["rate"])) . "</span><br>";
             }
 
-            $biome_info .= implode(" | ", $items) . "</div>";
+            $biome_info .= "</div>";
         }
 
         $tech_bonus_info = "";
@@ -175,10 +174,59 @@ if ($row) {
         }
 
         $name = $row["buildingname"] ?? $row["techname"];
+        $dynamic_effect_sentence = "";
+        if ($tech_id !== null) {
+            $res = match ($tech_id) {
+                TechTypes::TECH_TYPE_ARCHITECTURE => [(ARCHITECTURE_TIME_REDUCTION * 100) . "%", "Reduktion der Bauzeit"],
+                TechTypes::TECH_TYPE_CARTOGRAPHY => [(CARTOGRAPHY_SPEED_BONUS * 100) . "%", "höhere Marschgeschwindigkeit"],
+                TechTypes::TECH_TYPE_MAINTENANCE => [(MAINTENANCE_REPAIR_REDUCTION * 100) . "%", "Reduktion der Reparaturkosten"],
+                TechTypes::TECH_TYPE_PLUNDER => [(PLUNDER_CAPACITY_BONUS * 100) . "%", "mehr Beute-Kapazität"],
+                TechTypes::TECH_TYPE_ANCESTRAL_RITES => [(SHRINE_TECH_STEP * 100) . "%", "stärkerer Schrein-Effekt"],
+                TechTypes::TECH_TYPE_WALL_HP_INC => [RESEARCH_WALL_HP_INC, "zusätzliche HP pro Mauerstufe"],
+                TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
+                TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht den Bau einer weiteren Siedlung"],
+                TechTypes::TECH_TYPE_ARCANE_INTEL => ["", "Erweitert die Informationen herannahender Truppen im Wachturm:<br>" .
+                        "<div style='margin-top: 5px;'>" .
+                        "• <span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
+                        "• <span class='passed'>Stufe 2:</span> Name & Herkunft des Angreifers<br>" .
+                        "• <span class='passed'>Stufe 3:</span> Grobe Schätzung der Truppenzahl<br>" .
+                        "• <span class='passed'>Stufe 4:</span> Exakte Einheitenliste & Anzahl<br>" .
+                        "• <span class='passed'>Stufe 5:</span> Berechnung der gegnerischen Kampfkraft" .
+                        "</div>"
+                ],
+
+                TechTypes::TECH_TYPE_BLADES => ["+" . SMITHY_INF_ATK_BONUS, "Angriff für Infanterie-Einheiten"],
+                TechTypes::TECH_TYPE_SHIELDWALL => ["+" . SMITHY_INF_DEF_BONUS, "Verteidigung für Infanterie-Einheiten"],
+                TechTypes::TECH_TYPE_LANCE_RIDING => ["+" . SMITHY_CAV_ATK_BONUS, "Angriff für Kavallerie-Einheiten"],
+                TechTypes::TECH_TYPE_CUIRASS => ["+" . SMITHY_CAV_DEF_BONUS, "Verteidigung für Kavallerie-Einheiten"],
+                TechTypes::TECH_TYPE_ARROWHEADS => ["+" . SMITHY_ARC_ATK_BONUS, "Angriff für Schützen-Einheiten"],
+                TechTypes::TECH_TYPE_DOUBLET => ["+" . SMITHY_ARC_DEF_BONUS, "Verteidigung für Schützen-Einheiten"],
+                TechTypes::TECH_TYPE_WEIGHT => [(SMITHY_WEIGHT_REDUCTION * 100) . "%", "Reduktion der Rekrutierungszeit"],
+                TechTypes::TECH_TYPE_SIEGE => ["+" . (SMITHY_SIEGE_BONUS * 100) . "%", "zusätzlicher Schaden an Mauern"],
+
+                default => null
+            };
+
+            if ($res) {
+                $value = $res[0];
+                $text = $res[1];
+
+                $formatted_value = !empty($value) ? "<span class='passed'>$value</span> " : "";
+                $suffix = ($tech_id === TechTypes::TECH_TYPE_ARCANE_INTEL) ? "" : " pro Stufe.";
+
+                $tech_bonus_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+                $tech_bonus_info .= "<b>Forschungs-Effekt:</b><br>";
+                $tech_bonus_info .= "$formatted_value$text$suffix";
+                $tech_bonus_info .= "</div>";
+            }
+        }
+
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>$name</div>
                     <div class='big-box-content'>
-                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) . "</p>
+                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>
+                            " . e($row["description"]) . " $dynamic_effect_sentence
+                        </p>
                         $biome_info
                         $tech_bonus_info
                         <table class='table' style='width: 100%;'>

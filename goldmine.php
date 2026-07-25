@@ -52,12 +52,20 @@ $can_afford = ($user->get_user_coins() >= $boost_cost);
 $disabled = ($can_afford && $lvl > 0) ? "" : "disabled";
 $cost_display_html = get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . ($can_afford ? $boost_cost : "<b class='error'>$boost_cost</b>");
 
+$res_ft = $db_instance->execute_query("
+    SELECT ft.goldrate 
+    FROM map m 
+    JOIN field_types ft ON m.fieldtype = ft.fieldid 
+    WHERE m.kingdomid = ?", [$current_kingdom]);
+$ft_res = $res_ft->fetch_assoc();
+$boost_value = (int)($ft_res["goldrate"] * BASE_GOLD_GAIN);
+
 $view .= "<div style='margin-bottom: 15px;'><b>Goldertrag pro Stunde:</b> " . fnum($kingdom->get_base_gold_rate()) . " $boost_display</div>";
 
 if ($ticks_left > 0) {
     $view .= "Ertragsboost aktiv!<br>Verbleibende Erträge: <span>$ticks_left</span>";
 } else {
-    $view .= "<p>Ein Boost verdoppelt den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b>.</p>";
+    $view .= "<p>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
 
     $view .= "<form method='POST'>
                 <button type='submit' name='activate_boost' $disabled>

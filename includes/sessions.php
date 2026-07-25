@@ -63,26 +63,28 @@ if ($user->is_logged_in()) {
             exit;
         }
     } else {
-        if (!isset($_SESSION["last_db_update"])) {
-            $_SESSION["last_db_update"] = 0;
+        if (!MAINTENANCE_MODE || $user->is_admin()) {
+            if (!isset($_SESSION["last_db_update"])) {
+                $_SESSION["last_db_update"] = 0;
+            }
+
+            if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
+                $db_instance->execute_query("UPDATE users SET lastactivity = $timestamp WHERE id = ?", [$user->get_user_id()]);
+
+                $_SESSION["last_db_update"] = $timestamp;
+            }
+
+            $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
+
+            if (!$is_ajax) {
+                $_SESSION["lastactivity"] = $timestamp;
+            }
+
+            // Process all events for the user
+            $user->process_user_events();
+
+            // Update villager count after events were processed (villager cap)
+            apply_villager_cap($user->get_current_kingdom());
         }
-
-        if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
-            $db_instance->execute_query("UPDATE users SET lastactivity = $timestamp WHERE id = ?", [$user->get_user_id()]);
-
-            $_SESSION["last_db_update"] = $timestamp;
-        }
-
-        $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
-
-        if (!$is_ajax) {
-            $_SESSION["lastactivity"] = $timestamp;
-        }
-
-        // Process all events for the user
-        $user->process_user_events();
-
-        // Update villager count after events were processed (villager cap)
-        apply_villager_cap($user->get_current_kingdom());
     }
 }

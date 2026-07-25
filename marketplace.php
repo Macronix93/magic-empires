@@ -103,11 +103,19 @@ if (isset($_GET["accept"])) {
                     );
 
                     $arrival_str = convert_sec_to_str($seconds);
-                    $seller_message = "Dein Handelsangebot<br><br>" .
-                        get_resource_icon($supply) . " " . fnum($supply_value) . " gegen " .
-                        get_resource_icon($demand) . " " . fnum($demand_value) . "<br><br>" .
-                        "wurde vom Spieler \"" . $user->get_user_name() . "\"(Königreich: " . $kingdom->get_kingdom_name() . ") angenommen!<br><br>" .
-                        "Die Karawane trifft in " . $arrival_str . " in deinem Königreich ein.";
+                    $loot = [$supply => $supply_value];
+                    $cost = [$demand => $demand_value];
+
+                    $seller_message = "<div class='battle-report'>";
+                    $seller_message .= BattleReportRenderer::render_outcome_box(
+                        "Handelsangebot angenommen",
+                        "Der Spieler <b>" . $user->get_user_name() . "</b> hat deine Warenlieferung aus " . $kingdom->get_kingdom_name() . " akzeptiert.",
+                        0, 0,
+                        "Deine Karawane bringt den Erlös in <b>$arrival_str</b> zurück.",
+                        "success",
+                        $cost
+                    );
+                    $seller_message .= "</div>";
 
                     send_server_message($creator_id, $creator_name, $seller_message, MessageCategories::CATEGORY_TRADE);
 
@@ -168,7 +176,7 @@ if (isset($_GET["accept"])) {
     } else {
         $error = "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
     }
-} else if (!empty($_GET["sv"]) && !empty($_GET["dv"])) {
+} else if (isset($_GET["sv"]) && isset($_GET["dv"]) && $_GET["sv"] !== "" && $_GET["dv"] !== "") {
     $supply_value = (int)$_GET["sv"];
     $demand_value = (int)$_GET["dv"];
     $supply = (int)$_GET["s"];
@@ -179,7 +187,9 @@ if (isset($_GET["accept"])) {
     } else if ($supply == $demand) {
         $error = "Die Ressourcentypen dürfen nicht gleich sein!";
     } else {
-        if ($supply_value <= 0 || !is_numeric($supply_value) || $demand_value <= 0 || !is_numeric($demand_value) || $supply_value > $max_capacity || $demand_value > $max_capacity) {
+        if ($supply_value <= 0 || $demand_value <= 0) {
+            $error = "Die Mengen müssen größer als 0 sein!";
+        } else if ($supply_value > $max_capacity || $demand_value > $max_capacity) {
             $error = "Dein Marktplatz kann maximal " . fnum($max_capacity) . " Ressourcen pro Angebot handhaben!";
         } else {
             // Check if kingdom has enough ressources to handle the trade
@@ -331,12 +341,12 @@ $view .= "<div class='info-box' style='background-color: rgba(212, 175, 55, 0.1)
     </span>
 </div>";
 
-$view .= '<table class="table">
-<form action="marketplace.php" method="GET" 
+$view .= '<form action="marketplace.php" method="GET" 
       data-on-submit="checkMarket" 
       data-type-field="d" 
       data-amount-field="dv"
       data-is-listing="true">
+    <table class="table">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>
@@ -345,7 +355,8 @@ $view .= '<table class="table">
                    name="sv"
                    id="sv"
                    size="5"
-                   maxlength="6">
+                   maxlength="6"
+                   inputmode="numeric" pattern="[0-9]*" placeholder="0">
             <label>
                 <select name="s" id="s">
                     <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
@@ -362,7 +373,8 @@ $view .= '<table class="table">
                    name="dv"
                    id="dv"
                    size="5"
-                   maxlength="6">
+                   maxlength="6"
+                   inputmode="numeric" pattern="[0-9]*" placeholder="0">
             <label>
                 <select name="d" id="d">
                     <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>

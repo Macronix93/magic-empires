@@ -191,13 +191,13 @@
 
                 $display_name = e($building["buildingname"]);
                 if ($building["buildingid"] == BuildingTypes::BUILDING_MARKETPLACE && $total_market_offers > 0) {
-                    $display_name .= "&nbsp;($total_market_offers)";
+                    $display_name .= "&nbsp;<span style='color: var(--link-color); font-weight: bold;'>($total_market_offers)</span>";
                 }
 
                 echo "<div class='menu-icons-small box" . ($current_page === $building_file ? ' active' : '') . "' 
                            data-on-click='navigate' 
-                           data-url='" . e($building_file) . "'>" .
-                        $building_obj->get_building_icon("menu-icons") . " " . $display_name . "</div>";
+                           data-url='" . e($building_file) . "'>
+                           " . $building_obj->get_building_icon("menu-icons") . " " . $display_name . "</div>";
             }
             ?>
         </div>

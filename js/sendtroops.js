@@ -39,11 +39,23 @@ registerAction("resetUnitAndRefresh", (el) => {
         updateTroopSummary();
     }
 });
+registerAction("clearAllTroops", () => {
+    const inputs = document.querySelectorAll(".js-unit-input");
+
+    inputs.forEach(input => {
+        input.value = "";
+    });
+
+    if (typeof updateTroopSummary === "function") {
+        updateTroopSummary();
+    }
+});
 
 function updateTroopSummary() {
     const inputs = document.querySelectorAll(".js-unit-input");
     const summaryList = document.getElementById("troop-summary-list");
     const summaryContainer = document.getElementById("troop-summary-container");
+    const actionButtons = document.getElementById("troop-action-buttons");
 
     if (!summaryList || !summaryContainer) return;
 
@@ -87,8 +99,12 @@ function updateTroopSummary() {
     summaryList.style.flexWrap = "wrap";
     summaryList.style.justifyContent = "center";
     summaryList.style.gap = "5px";
-    
+
     summaryContainer.style.display = (totalUnits > 0) ? "flex" : "none";
+
+    if (actionButtons) {
+        actionButtons.style.display = (totalUnits > 0) ? "flex" : "none";
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {

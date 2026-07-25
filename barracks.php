@@ -215,13 +215,12 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                     }
                 } else {
                     $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
-                    $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
 
                     $count = (int)$_GET["count"];
-                    $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost() * $discount);
-                    $unit_cost_gold = (int)($soldiers[$s_id]->get_soldier_gold_cost() * $discount);
-                    $unit_cost_wood = (int)($soldiers[$s_id]->get_soldier_wood_cost() * $discount);
-                    $unit_cost_stone = (int)($soldiers[$s_id]->get_soldier_stone_cost() * $discount);
+                    $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost());
+                    $unit_cost_gold = (int)($soldiers[$s_id]->get_soldier_gold_cost());
+                    $unit_cost_wood = (int)($soldiers[$s_id]->get_soldier_wood_cost());
+                    $unit_cost_stone = (int)($soldiers[$s_id]->get_soldier_stone_cost());
 
                     $total_food = $unit_cost_food * $count;
                     $total_gold = $unit_cost_gold * $count;
@@ -464,23 +463,26 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         $max_soldiers = max(0, $max_soldiers);
         $owned_count = $kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0;
 
-        $is_completely_broke = ($max_soldiers == 0 && $owned_count == 0);
-        $disabled_attr = $is_completely_broke ? "disabled" : "";
+        $can_recruit_at_least_one = ($max_soldiers > 0);
+        $can_upgrade_from_this = ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && $owned_count > 0);
+
+        $is_disabled = (!$can_recruit_at_least_one && !$can_upgrade_from_this);
+        $disabled_attr = $is_disabled ? "disabled" : "";
 
         $text_build = "<form action='barracks.php' method='GET' style='display: flex; flex-direction: column; gap: 5px; align-items: center;'>
-            <input type='hidden' name='recruit' value='$i'>
-            <input type='hidden' name='cat' value='$unit_cat'>
-            
-            <div style='display: flex; gap: 3px;'>
-                <input type='text' name='count' id='count$i' size='2' maxlength='2' 
-                       class='js-recruit-input' data-id='$i'
-                       data-owned='$owned_count'
-                       data-cost-food='$cost_food' data-cost-gold='$cost_gold'
-                       data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
-                       data-cost-villager='$cost_villager' data-time-per-unit='$unit_time'
-                       placeholder='0' $disabled_attr>
-                <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled_attr>
-            </div>";
+                        <input type='hidden' name='recruit' value='$i'>
+                        <input type='hidden' name='cat' value='$unit_cat'>
+                        
+                        <div style='display: flex; gap: 3px;'>
+                            <input type='text' name='count' id='count$i' size='2' maxlength='2' 
+                                   class='js-recruit-input' data-id='$i'
+                                   data-owned='$owned_count'
+                                   data-cost-food='$cost_food' data-cost-gold='$cost_gold'
+                                   data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
+                                   data-cost-villager='$cost_villager' data-time-per-unit='$unit_time'
+                                   placeholder='0' $disabled_attr>
+                            <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled_attr>
+                        </div>";
 
         // Upgrade-Dropdown
         if ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && ($kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0) > 0) {

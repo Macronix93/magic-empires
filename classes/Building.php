@@ -118,7 +118,7 @@ class Building
     public function create_building(Building $building, array $row, array $buildings, mixed $building_id): array
     {
         $building->set_building_id($building_id);
-        $building->set_building_kingdom_id($_SESSION["kingdomid"]);
+        //$building->set_building_kingdom_id($_SESSION["kingdomid"]);
         $building->set_building_name($row["buildingname"]);
         $building->set_building_score($row["buildingscore"]);
         $building->set_building_wood_cost($row["woodcost"]);

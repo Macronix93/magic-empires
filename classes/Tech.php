@@ -147,7 +147,7 @@ class Tech
     public function create_tech(array $row): Tech
     {
         $this->set_tech_id($row["id"]);
-        $this->set_tech_kingdom_id($_SESSION["kingdomid"]);
+        //$this->set_tech_kingdom_id($_SESSION["kingdomid"]);
         $this->set_tech_name($row["techname"]);
         $this->set_tech_score($row["techscore"]);
         $this->set_tech_description($row["description"]);

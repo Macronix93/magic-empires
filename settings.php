@@ -129,6 +129,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         $error = "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -";
                     } else if (strlen($new_name) < MIN_USERNAME_LENGTH || strlen($new_name) > MAX_USERNAME_LENGTH) {
                         $error = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
+                    } else if (is_name_monotonous($new_name)) {
+                        $error = "Dieser Benutzername ist zu eintönig!";
                     } else if (!empty($bad_names_matches)) {
                         $error = "Dieser Name ist reserviert oder nicht erlaubt!";
                     } else if (contains_bad_words($new_name, $bad_names_list) || preg_match_all(regex_pattern(), $new_name, $matches)) {

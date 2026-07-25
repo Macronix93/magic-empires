@@ -161,7 +161,7 @@ if ($arrow_lvl > 0 || $wams_lvl > 0) {
 $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
 if ($weight_lvl > 0) {
     $percent = $weight_lvl * (SMITHY_WEIGHT_REDUCTION * 100);
-    $smithy_boni_view .= "<tr><td>Waffengewicht:</td><td class='passed'>-$percent% Rekrutierungskosten & -zeit</td></tr>";
+    $smithy_boni_view .= "<tr><td>Waffengewicht:</td><td class='passed'>-$percent% Rekrutierungszeit</td></tr>";
 }
 
 $siege_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SIEGE);

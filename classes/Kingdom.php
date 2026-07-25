@@ -643,6 +643,8 @@ class Kingdom
             if (!isset($buildings[$building_id])) {
                 $building = new Building();
                 $buildings = $building->create_building($building, $row, $buildings, $building_id);
+
+                $buildings[$building_id]->set_building_kingdom_id($this->kingdom_id);
             }
 
             // Process dependencies if any exist
@@ -684,6 +686,8 @@ class Kingdom
         foreach ($result_techs as $row) {
             $tech = new Tech($this->mysqli);
             $techs[$row["id"]] = $tech->create_tech($row);
+
+            $techs[$row["id"]]->set_tech_kingdom_id($this->kingdom_id);
         }
 
         // Building dependencies

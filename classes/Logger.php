@@ -32,7 +32,10 @@ class Logger
     // Game Activities (DB-based)
     public function log_game(string $category, string $action, array $details = [], ?int $kid = null): void
     {
-        $user_id = $_SESSION["userid"] ?? null;
+        global $user;
+
+        $user_id = ($user && $user->get_user_id() > 0) ? $user->get_user_id() : null;
+
         $details_json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $ip = $_SERVER["REMOTE_ADDR"] ?? "0.0.0.0";
 

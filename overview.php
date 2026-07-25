@@ -19,7 +19,7 @@ $q_ack = "
     FROM events e
     JOIN kingdoms k ON e.targetid = k.id
     JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = 12
-    WHERE k.userid = ? AND e.actionid = 2 AND e.arrivaltime > ? AND is_processing = 0
+    WHERE k.userid = ? AND e.actionid = 2 AND e.arrivaltime > ?
 ";
 $current_visible = $db_instance->execute_query($q_ack, [$user->get_user_id(), $now]);
 
@@ -250,7 +250,7 @@ if ($result && $result->num_rows > 0) {
                                data-seconds='$difference_time' 
                                data-no-reload='true'></span></b>";
 
-        if ($action_id != ActionTypes::ACTION_RETURN_TROOPS && $event_data["is_processing"] == 0) {
+        if ($action_id != ActionTypes::ACTION_RETURN_TROOPS && ($event_data["is_processing"] ?? 0) == 0) {
             $action_button = "<form action='overview.php' method='GET' style='display: inline;'>
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>

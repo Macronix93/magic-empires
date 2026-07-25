@@ -275,27 +275,29 @@ $count_online = $res_online->fetch_row()[0];
 
 <div class="middle-container" style="margin: auto; width: 1100px; max-width: 95%;">
     <div class="big-box-container">
-        <div class="landing-messages">
-            <?php
-            if (!empty($success)) {
-                echo (str_contains($success, "info-box")) ? $success : show_passed_box($success);
-            }
-
-            if (!empty($error)) {
-                $errors = explode("<br>", $error);
-                foreach ($errors as $e) {
-                    if (trim($e) !== "") echo show_error_box($e);
+        <?php if (!empty($success) || !empty($error) || !empty($warning)): ?>
+            <div class="landing-messages">
+                <?php
+                if (!empty($success)) {
+                    echo (str_contains($success, "info-box")) ? $success : show_passed_box($success);
                 }
-            }
 
-            if (!empty($warning)) {
-                $warning_messages = explode("<br>", $warning);
-                foreach ($warning_messages as $w) {
-                    if (trim($w) !== "") echo show_warning_box($w);
+                if (!empty($error)) {
+                    $errors = explode("<br>", $error);
+                    foreach ($errors as $e) {
+                        if (trim($e) !== "") echo show_error_box($e);
+                    }
                 }
-            }
-            ?>
-        </div>
+
+                if (!empty($warning)) {
+                    $warning_messages = explode("<br>", $warning);
+                    foreach ($warning_messages as $w) {
+                        if (trim($w) !== "") echo show_warning_box($w);
+                    }
+                }
+                ?>
+            </div>
+        <?php endif; ?>
 
         <div class="landing-main">
             <div class="landing-hero">

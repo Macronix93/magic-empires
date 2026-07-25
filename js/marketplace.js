@@ -35,60 +35,51 @@ registerAction("checkMarket", (form, event) => {
 document.addEventListener("DOMContentLoaded", function () {
     const supplySelect = document.querySelector("select[name='s']");
     const demandSelect = document.querySelector("select[name='d']");
+    const inputs = [document.getElementById("sv"), document.getElementById("dv")];
 
-    function updateDropdowns() {
-        let supplyValue = supplySelect.value;
-        let demandValue = demandSelect.value;
+    inputs.forEach(input => {
+        if (!input) return;
 
-        // Enable all options first and deselect them
-        Array.from(supplySelect.options).forEach(option => {
-            option.hidden = false;
-            option.selected = false;
-        });
-        Array.from(demandSelect.options).forEach(option => {
-            option.hidden = false;
-            option.selected = false;
-        });
+        input.dataset.lastValidValue = input.value;
 
-        // Hide the selected supply from demand dropdown
-        if (supplyValue) {
-            let demandOption = demandSelect.querySelector(`option[value='${supplyValue}']`);
-            if (demandOption) demandOption.hidden = true;
-        }
+        input.addEventListener("input", function () {
+            let cleanValue = this.value.replace(/[^0-9]/g, '');
 
-        // Hide the selected demand from supply dropdown
-        if (demandValue) {
-            let supplyOption = supplySelect.querySelector(`option[value='${demandValue}']`);
-            if (supplyOption) supplyOption.hidden = true;
-        }
-
-        // Mark the current selection as selected
-        Array.from(supplySelect.options).forEach(option => {
-            if (option.value === supplyValue) {
-                option.selected = true;
+            if (cleanValue !== this.dataset.lastValidValue) {
+                this.value = cleanValue;
+                this.dataset.lastValidValue = cleanValue;
+                calculateLiveFee();
+            } else {
+                this.value = cleanValue;
             }
         });
-
-        Array.from(demandSelect.options).forEach(option => {
-            if (option.value === demandValue) {
-                option.selected = true;
-            }
-        });
-    }
-
-    supplySelect.addEventListener("change", updateDropdowns);
-    demandSelect.addEventListener("change", updateDropdowns);
-
-    const fields = ["sv", "s", "dv", "d"];
-    fields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener("input", calculateLiveFee);
-            el.addEventListener("change", calculateLiveFee);
-        }
     });
 
-    // Initial call
+    [supplySelect, demandSelect].forEach(select => {
+        if (!select) return;
+        select.addEventListener("change", function () {
+            updateDropdowns();
+            calculateLiveFee();
+        });
+    });
+
+    function updateDropdowns() {
+        if (!supplySelect || !demandSelect) return;
+        let supplyValue = supplySelect.value;
+        let demandValue = demandSelect.value;
+        Array.from(supplySelect.options).forEach(o => o.hidden = false);
+        Array.from(demandSelect.options).forEach(o => o.hidden = false);
+
+        if (supplyValue) {
+            let opt = demandSelect.querySelector(`option[value='${supplyValue}']`);
+            if (opt) opt.hidden = true;
+        }
+        if (demandValue) {
+            let opt = supplySelect.querySelector(`option[value='${demandValue}']`);
+            if (opt) opt.hidden = true;
+        }
+    }
+
     updateDropdowns();
 });
 
@@ -100,7 +91,6 @@ document.addEventListener("DOMContentLoaded", function () {
  * @returns {boolean}
  */
 function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
-    /** @type {Object<number, {cur: string|number, max: number}>} */
     const storageData = window.curKingdomStorage;
     const typeKey = parseInt(resType);
 
@@ -116,13 +106,10 @@ function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
     if (current + amount > max) {
         const overflow = (current + amount) - max;
         const msg = isListing
-            ? `Wenn dieses Angebot angenommen wird, würde dein Lager für ${resNames[resType]} überlaufen (Verlust von ca. ${overflow} ${resNames[resType]}). 
-            Trotzdem erstellen?`
-            : `Warnung: Durch diesen Handel wird dein Lager für ${resNames[resType]} überlaufen. Du verlierst ca. ${overflow} Einheiten.
-            Trotzdem annehmen?`;
+            ? `Wenn dieses Angebot angenommen wird, würde dein Lager für ${resNames[resType]} überlaufen (Verlust von ca. ${overflow} ${resNames[resType]}). Trotzdem erstellen?`
+            : `Warnung: Durch diesen Handel wird dein Lager für ${resNames[resType]} überlaufen. Du verlierst ca. ${overflow} Einheiten. Trotzdem annehmen?`;
 
         showConfirmationDialog(msg, "Ja", "Abbrechen", () => {
-            form.onsubmit = null;
             form.submit();
         });
         return false;
@@ -131,28 +118,36 @@ function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
 }
 
 function calculateLiveFee() {
-    /** @type {HTMLInputElement} */
-    const amountInputS = document.getElementById("sv"); // Supply Value
-    /** @type {HTMLSelectElement} */
-    const typeSelectS = document.getElementById('s');   // Supply Type
-    /** @type {HTMLInputElement} */
-    const amountInputD = document.getElementById("dv"); // Demand Value
-    /** @type {HTMLSelectElement} */
-    const typeSelectD = document.getElementById('d');   // Demand Type
+    const amountInputS = document.getElementById("sv");
+    const amountInputD = document.getElementById("dv");
     const feeDisplay = document.getElementById("live-fee");
-    /** @type {{base: number, factors: Object<number, number>}} */
     const config = window.marketConfig;
 
-    if (!amountInputS || !typeSelectS || !amountInputD || !typeSelectD || !feeDisplay || !config) return;
+    if (!amountInputS || !amountInputD || !feeDisplay || !config) return;
 
-    const valS = parseInt(amountInputS.value) || 0;
-    const typeS = typeSelectS.value;
-    const valD = parseInt(amountInputD.value) || 0;
-    const typeD = typeSelectD.value;
+    const valS_raw = amountInputS.value;
+    const valD_raw = amountInputD.value;
+
+    if (valS_raw === "" || valD_raw === "" || /\D/.test(valS_raw) || /\D/.test(valD_raw)) {
+        feeDisplay.innerText = "1";
+        return;
+    }
+
+    const valS = parseInt(valS_raw);
+    const valD = parseInt(valD_raw);
+
+    if (valS === 0 || valD === 0) {
+        feeDisplay.innerText = "1";
+        return;
+    }
+
+    const typeS = document.getElementById('s').value;
+    const typeD = document.getElementById('d').value;
 
     const feeS = Math.floor(valS * (config.factors[typeS] || 0));
     const feeD = Math.floor(valD * (config.factors[typeD] || 0));
 
     const maxVarFee = Math.max(feeS, feeD);
-    feeDisplay.innerText = config.base + maxVarFee;
+
+    feeDisplay.innerText = (config.base + maxVarFee).toLocaleString();
 }
