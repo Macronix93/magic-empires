@@ -1199,8 +1199,6 @@ tr:first-child td.td-gradient {
     white-space: normal;
     flex: 1;
     text-align: center;
-    min-width: 0;
-    max-width: 650px;
     margin: 0 auto;
     padding: 5px 0;
 }

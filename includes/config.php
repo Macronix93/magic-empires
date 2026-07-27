@@ -117,8 +117,29 @@ const SMITHY_ARC_DEF_BONUS = 7;
 const SMITHY_WEIGHT_REDUCTION = 0.05;
 const SMITHY_SIEGE_BONUS = 0.10;
 const MAX_NEWS_TITLE_LENGTH = 50;
-const MAX_NEWS_CONTENT_LENGTH = 500;
+const MAX_NEWS_CONTENT_LENGTH = 2000;
 const MAX_WORLD_CHAT_MESSAGES_SHOWN = 30;
+const MAX_MONSTER_CAMPS = 150;           // Maximum camps on the map
+const MONSTER_CAMP_SPAWN_RATE = 10;      // How many camps spawn every tick
+const MAX_MONSTER_CAMP_LEVEL = 10;       // Max Level of camps
+const MONSTER_CAMP_TRAVEL_BOOST = 0.2;   // X% of the normal time needed
+const MONSTER_CAMP_SCOUT_BOOST = 0.0085;  // X% for espionage
+const MONSTER_CAMP_COIN_REWARD_BASE = 2; // Base coins for monster camp
+const MIN_NUM_MONSTERS_PER_TYPE = 6;
+const MAX_NUM_MONSTERS_PER_TYPE = 15;
+const MONSTER_CAMP_EXTRA_LEVEL_CAP = 2;
+const MONSTER_CAMP_EXTRA_SLOTS = 4; // Extra monster slots for a level
+const MONSTER_CAMP_EXTRA_MONSTER = 18; // Up to X extra monster per creation
+const MONSTER_CAMP_BASE_RESOURCE_LOOT = 1344;
+const MIN_MONSTER_CAMP_RESOURCE_PERC = 90;
+const MAX_MONSTER_CAMP_RESOURCE_PERC = 130;
+const BASE_DANGER_RATE_SCOUTING = 40;
+const MONSTER_CAMP_COIN_MIN_PER_LVL = 1;
+const MONSTER_CAMP_COIN_MAX_PER_LVL = 3;
+const MONSTER_CAMP_RES_CHANCE = 70;
+const MONSTER_CAMP_WEIGHT_LOW = 40; // Level 1-3
+const MONSTER_CAMP_WEIGHT_MID = 30; // Level 4-6
+const MONSTER_CAMP_WEIGHT_HIGH = 20; // Level 7-9
 
 /*
  * Interfaces

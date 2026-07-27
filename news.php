@@ -90,7 +90,7 @@ if ($is_admin) {
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <form method='POST'>
                 <input type='text' maxlength='" . MAX_NEWS_TITLE_LENGTH . "' name='title' placeholder='Titel' style='width: 100%; margin-bottom: 10px;' required><br>
-                <textarea id='message-input' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='3' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
+                <textarea id='new-news-content' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='3' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
                 <div style='display: flex; justify-content: center; align-items: center; gap: 10px;'>
                     <div class='emoji-picker-container'>
                         <div id='emoji-menu' class='emoji-menu bottom'>";
@@ -139,7 +139,7 @@ if ($result->num_rows > 0) {
                     </div>
                     $del_button
                 </div>
-                <div class='box-content news-content box-content-bg' style='padding-bottom: 15px; padding-left: 15px; padding-right: 15px; text-align: center;'>
+                <div class='box-content news-content box-content-bg' style='padding-bottom: 15px; padding-left: 15px; padding-right: 15px; text-align: left;'>
                     <p style='margin-top: 0; padding-top: 15px;'>" . $row["content"] . "</p>
                     <div style='font-size: 12px; margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; text-align: left;'>
                         Verfasst von: <b>" . e($row["username"]) . "</b> am $date

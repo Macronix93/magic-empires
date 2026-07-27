@@ -568,32 +568,50 @@ class Conquest
     {
         $data = [];
 
-        foreach ($this->soldier_types as $id => $soldier) {
+        foreach ($this->initial_soldiers as $id => $stats) {
             $initial = $for_attacker
-                ? ($this->initial_soldiers[$id]["initial_my_soldiers"] ?? 0)
-                : ($this->initial_soldiers[$id]["initial_enemy_soldiers"] ?? 0);
+                ? ($stats["initial_my_soldiers"] ?? 0)
+                : ($stats["initial_enemy_soldiers"] ?? 0);
 
             $losses = $for_attacker
-                ? ($this->initial_soldiers[$id]["my_losses"] ?? 0)
-                : ($this->initial_soldiers[$id]["enemy_losses"] ?? 0);
+                ? ($stats["my_losses"] ?? 0)
+                : ($stats["enemy_losses"] ?? 0);
 
             if ($initial === 0 && $for_attacker && isset($this->soldiers[$id]["count"])) {
                 $initial = $this->soldiers[$id]["count"];
             }
 
             if ($initial > 0) {
-                $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
-                $icon = $res->fetch_column() ?: "icon_error";
+                if (is_string($id) && str_starts_with($id, 'm')) {
+                    // Monster Logic
+                    $m_id = (int)substr($id, 1);
+                    $m_info = $this->enemy_soldiers[$m_id];
 
-                $data[] = [
-                    "id" => $id,
-                    "name" => $soldier["soldiername"],
-                    "initial" => (int)$initial,
-                    "losses" => (int)$losses,
-                    "icon" => $icon,
-                    "atk" => $soldier["attack"],
-                    "def" => $soldier["defense"]
-                ];
+                    $data[] = [
+                        "id" => $id,
+                        "name" => $m_info["name"],
+                        "initial" => (int)$initial,
+                        "losses" => (int)$losses,
+                        "icon" => $m_info["icon"],
+                        "atk" => $m_info["atk"], // Monster ATK
+                        "def" => $m_info["def"]  // Monster DEF
+                    ];
+                } else if (isset($this->soldier_types[$id])) {
+                    // Soldier Logic
+                    $soldier = $this->soldier_types[$id];
+                    $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
+                    $icon = $res->fetch_column() ?: "icon_error";
+
+                    $data[] = [
+                        "id" => $id,
+                        "name" => $soldier["soldiername"],
+                        "initial" => (int)$initial,
+                        "losses" => (int)$losses,
+                        "icon" => $icon,
+                        "atk" => $soldier["attack"],
+                        "def" => $soldier["defense"]
+                    ];
+                }
             }
         }
         return $data;
@@ -604,5 +622,62 @@ class Conquest
         return (int)($is_attacker
             ? ($this->initial_soldiers[$soldierId]["initial_my_soldiers"] ?? 0)
             : ($this->initial_soldiers[$soldierId]["initial_enemy_soldiers"] ?? 0));
+    }
+
+    public function get_monster_defenders(int $x, int $y): void
+    {
+        $res = $this->mysqli->execute_query("
+        SELECT mcu.count, ml.id as monster_id, ml.monster_name, ml.attack, ml.defense, ml.icon
+        FROM monster_camp_units mcu
+        JOIN monster_list ml ON mcu.monster_id = ml.id
+        WHERE mcu.mapx = ? AND mcu.mapy = ?", [$x, $y]);
+
+        foreach ($res as $row) {
+            $this->enemy_soldiers[$row["monster_id"]] = [
+                "count" => (int)$row["count"],
+                "name" => $row["monster_name"],
+                "atk" => (int)$row["attack"],
+                "def" => (int)$row["defense"],
+                "icon" => $row["icon"]
+            ];
+        }
+    }
+
+    public function set_initial_monster_battle(): void
+    {
+        $this->initial_soldier_count = 0;
+        $this->initial_enemy_count = 0;
+        $this->initial_soldiers = [];
+
+        // Attacker troops
+        foreach ($this->soldier_types as $id => $soldier) {
+            $own = isset($this->soldiers[$id]["count"]) ? (int)$this->soldiers[$id]["count"] : 0;
+
+            $this->initial_soldiers[$id] = [
+                "initial_my_soldiers" => $own,
+                "initial_enemy_soldiers" => 0,
+                "my_losses" => 0,
+                "enemy_losses" => 0
+            ];
+            $this->initial_soldier_count += $own;
+        }
+
+        // Defender troops (monsters)
+        foreach ($this->enemy_soldiers as $m_id => $m_data) {
+            $key = "m" . $m_id;
+
+            $this->initial_soldiers[$key] = [
+                "initial_my_soldiers" => 0,
+                "initial_enemy_soldiers" => (int)$m_data["count"],
+                "my_losses" => 0,
+                "enemy_losses" => 0
+            ];
+            $this->initial_enemy_count += $m_data["count"];
+        }
+    }
+
+    public function get_monster_enemy_data(): array
+    {
+        return $this->enemy_soldiers;
     }
 }

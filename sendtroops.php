@@ -89,7 +89,8 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             ";
         $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);
         $field_name = $result2->fetch_assoc()["fieldname"];
-        $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(), $target_x, $target_y, $user->get_current_kingdom());
+        $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(),
+            $target_x, $target_y, $user->get_current_kingdom(), $kingdom_id);
 
         // Check if sent troop was clicked
         if (!empty($_POST["soldiers"])) {
@@ -144,6 +145,17 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
                 } else if (empty($error)) {
                     $now = time();
+
+                    $is_pure_scouting = ($has_soldiers && !$has_non_scout_units);
+                    $arrival_time = $map->get_arrival_time(
+                        $kingdom->get_kingdom_map_x(),
+                        $kingdom->get_kingdom_map_y(),
+                        $target_x,
+                        $target_y,
+                        $user->get_current_kingdom(),
+                        $kingdom_id,
+                        $is_pure_scouting
+                    );
 
                     $result = $db_instance->execute_query(
                         "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
@@ -211,7 +223,33 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 $only_scouts_allowed = false;
             }
 
-            if ($row) {
+            if ($kingdom_id == -3) {
+                $send_title = "Monstercamp angreifen";
+
+                $res_m = $db_instance->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+                $m_lvl = $res_m->fetch_column() ?: 1;
+
+                $view .= '<div class="title-border">Monstercamp</div>
+                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                      <tr>
+                          <td class="td-mapinfo"><b>Koordinaten</b></td>
+                          <td>' . $target_x . ':' . $target_y . '</td>
+                      </tr>
+                      <tr>
+                          <td class="td-mapinfo"><b>Gefahrenstufe</b></td>
+                          <td>Stufe ' . $m_lvl . '</td>
+                      </tr>
+                      <tr>
+                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                          <td>' . convert_sec_to_str($arrival_time) . '</td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="font-size: 14px; opacity: 0.8; text-align: center; padding: 10px;">
+                            <i>Hinweis: Die Marschzeit beträgt bei Camps ' . (MONSTER_CAMP_TRAVEL_BOOST * 100) . '% des normalen Werts.</i>
+                        </td>
+                      </tr>
+                  </table>';
+            } else if ($row) {
                 if ($enemy_user_id == $user->get_user_id()) {
                     $send_title = "Truppen stationieren";
                 } else {
@@ -242,7 +280,15 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                   ';
 
             } else {
-                $view .= '<div class="title-border">' . $field_name . '</div>
+                if ($kingdom_id == -2) {
+                    $send_title = "Vorratslager plündern";
+                    $display_name = "Verlassenes Vorratslager";
+                } else {
+                    $send_title = "Erobern";
+                    $display_name = $field_name;
+                }
+
+                $view .= '<div class="title-border">' . $display_name . '</div>
                                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                                       <tr>
                                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -253,8 +299,6 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                           <td>' . convert_sec_to_str($arrival_time) . '</td>
                                       </tr>
                                 ';
-
-                $send_title = "Erobern";
             }
             $view .= "</table>";
 
@@ -344,11 +388,13 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                                data-icon='$icon_name'
                                                data-max='$owned_count'>
                                         <input type='button' 
+                                               $is_input_disabled
                                                value='Max.' 
                                                data-on-click='fillMaxAndRefresh' 
                                                data-target='sol_$soldier_id' 
                                                data-value='$owned_count'>
-                                        <input type='button' 
+                                        <input type='button'
+                                               $is_input_disabled
                                                value='X' 
                                                title='Feld leeren'
                                                data-on-click='resetUnitAndRefresh' 

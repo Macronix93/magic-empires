@@ -10,7 +10,6 @@ class User
     private string $user_name;
     private int $current_kingdom;
 
-
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
         $this->mysqli = Database::get_instance()->get_connection();
@@ -26,9 +25,9 @@ class User
     {
         $password = password_hash($pass, PASSWORD_BCRYPT);
         $activation_key = md5($email . $name);
-
         $ip = $_SERVER["REMOTE_ADDR"];
         $device_id = $_COOKIE["me_device_id"] ?? bin2hex(random_bytes(16));
+        $timestamp = time();
 
         if (!isset($_COOKIE["me_device_id"])) {
             setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
@@ -46,9 +45,9 @@ class User
         ";
 
         if (send_mail($email, $subject, $message)) {
-            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, sessionid, ip, device_id) 
-                                                VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(NOW()), ?, ?, ?)",
-                [$name, $password, $activation_key, $email, session_id(), $ip, $device_id]);
+            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, lastactivity, sessionid, ip, device_id) 
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [$name, $password, $activation_key, $email, $timestamp, $timestamp, session_id(), $ip, $device_id]);
 
             unset($_POST);
             unset($_SESSION["captcha_passed"]);

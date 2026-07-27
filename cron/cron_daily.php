@@ -48,7 +48,16 @@ if ($winner) {
                         ON DUPLICATE KEY UPDATE soldiercount = soldiercount + 1",
         [$kid, Soldiers::SOLDIER_HERO, $hero_db_name]);
 
-    $msg = "✨ <b>Göttliche Fügung!</b> ✨<br>Ein legendärer Held hat von deinen Taten gehört und sich entschlossen, deinem Königreich <b>" . e($kname) . "</b> beizutreten!";
+    $msg = "<div class='battle-report'>";
+    $msg .= BattleReportRenderer::render_outcome_box(
+        "Göttliche Fügung",
+        "Ein legendärer Held hat von deinen Taten gehört und sich entschlossen, deinem Königreich <b>" . e($kname) . "</b> beizutreten!",
+        0, 0,
+        "Er steht ab sofort in deiner Garnison zur Verfügung.",
+        "success"
+    );
+    $msg .= "</div>";
+
     send_server_message($uid, $uname, $msg);
 
     echo "[" . date("H:i:s") . "] Held vergeben an $uname im Königreich $kname (ID: $kid)\n";
@@ -135,4 +144,92 @@ if ($res_count < MAX_RESOURCE_TILES) {
     }
 
     echo "[" . date("H:i:s") . "] " . $limit . " neue Rohstofffelder per Batch generiert.\n";
+}
+
+//// Generate Monstercamps
+
+// Delete camps that aren't on the map anymore
+$db->execute_query("DELETE FROM monster_camps WHERE (mapx, mapy) NOT IN (SELECT mapx, mapy FROM map WHERE kingdomid = -3)");
+
+$current_camp_count = $db->execute_query("SELECT COUNT(*) as total FROM map WHERE kingdomid = -3")->fetch_assoc()["total"];
+
+if ($current_camp_count < MAX_MONSTER_CAMPS) {
+    $needed = MAX_MONSTER_CAMPS - $current_camp_count;
+    $spawn_limit = min(MONSTER_CAMP_SPAWN_RATE, $needed);
+
+    $monster_pool = [];
+    $res_all_m = $db->execute_query("SELECT id, level FROM monster_list");
+    while ($m = $res_all_m->fetch_assoc()) {
+        $monster_pool[(int)$m["level"]][] = (int)$m["id"];
+    }
+
+    $free_fields = $db->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [$spawn_limit]);
+
+    if ($free_fields->num_rows > 0) {
+        $insert_camps = [];
+        $insert_units = [];
+        $update_map_coords = [];
+
+        foreach ($free_fields as $f) {
+            $x = (int)$f["mapx"];
+            $y = (int)$f["mapy"];
+
+            $roll = mt_rand(1, 100);
+            if ($roll <= MONSTER_CAMP_WEIGHT_LOW) {
+                $camp_level = mt_rand(1, 3);
+            } else if ($roll <= (MONSTER_CAMP_WEIGHT_LOW + MONSTER_CAMP_WEIGHT_MID)) {
+                $camp_level = mt_rand(4, 6);
+            } else if ($roll <= (MONSTER_CAMP_WEIGHT_LOW + MONSTER_CAMP_WEIGHT_MID + MONSTER_CAMP_WEIGHT_HIGH)) {
+                $camp_level = mt_rand(7, 9);
+            } else {
+                $camp_level = 10;
+            }
+
+            $insert_camps[] = "($x, $y, $camp_level)";
+            $update_map_coords[] = "($x, $y)";
+
+            if (!empty($monster_pool[$camp_level])) {
+                $this_camp_types = [];
+
+                // Main Monster
+                $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
+                $this_camp_types[$main_m_id] = mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE);
+
+                // Extra Monsters (from lower tiers)
+                $num_extra_types = mt_rand(2, MONSTER_CAMP_EXTRA_SLOTS);
+                $min_allowed_lvl = max(1, $camp_level - MONSTER_CAMP_EXTRA_LEVEL_CAP);
+                $possible_levels = range($min_allowed_lvl, $camp_level);
+
+                for ($i = 0; $i < $num_extra_types; $i++) {
+                    $rand_lvl = $possible_levels[array_rand($possible_levels)];
+
+                    if (!empty($monster_pool[$rand_lvl])) {
+                        $extra_m_id = $monster_pool[$rand_lvl][array_rand($monster_pool[$rand_lvl])];
+                        $count_roll = mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4);
+
+                        if (!isset($this_camp_types[$extra_m_id])) {
+                            $this_camp_types[$extra_m_id] = 0;
+                        }
+                        $this_camp_types[$extra_m_id] += $count_roll;
+                    }
+                }
+
+                foreach ($this_camp_types as $m_id => $m_count) {
+                    $insert_units[] = "($x, $y, $m_id, $m_count)";
+                }
+            }
+        }
+
+        // Batch-Execution
+        if (!empty($insert_camps)) {
+            $db->query("INSERT INTO monster_camps (mapx, mapy, level) VALUES " . implode(',', $insert_camps));
+            $db->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
+
+            if (!empty($insert_units)) {
+                $db->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " 
+                            ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
+            }
+        }
+        echo "[" . date("H:i:s") . "] " . count($insert_camps) . " Monstercamps gewichtet generiert.\n";
+    }
 }

@@ -43,7 +43,10 @@ document.addEventListener("DOMContentLoaded", () => {
         tower2: 'images/icons/tower2.png',
         castle: 'images/icons/castle.png',
         gems: 'images/icons/icon_gems.png',
-        fire: 'images/icons/icon_fire.png'
+        fire: 'images/icons/icon_fire.png',
+        monster1: 'images/icons/icon_goblin.png',  // Level 1-3
+        monster2: 'images/icons/icon_golem_small.png',  // Level 4-7
+        monster3: 'images/icons/icon_dragon_small.png'  // Level 8-10
     };
 
     let loadedCount = 0;
@@ -241,7 +244,7 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel] = tile;
 
             if (kid === -1) return;
 
@@ -252,6 +255,12 @@ function draw() {
 
             if (kid === -2) {
                 ctx.drawImage(images.gems, posX + scaledTile * 0.2, posY + scaledTile * 0.2, scaledTile * 0.6, scaledTile * 0.6);
+            } else if (kid === -3) {
+                let mIcon = images.monster1;
+                if (monsterLevel >= 8) mIcon = images.monster3;
+                else if (monsterLevel >= 4) mIcon = images.monster2;
+
+                ctx.drawImage(mIcon, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
             } else {
                 let img = images.house;
                 if (level >= 8) img = images.castle;
@@ -313,7 +322,7 @@ function applyMomentum() {
 
 function dragStart(e) {
     cancelAnimationFrame(momentumID);
-    
+
     isDragging = true;
     wasDragged = false;
     startX = e.pageX - currentTranslateX;
@@ -385,14 +394,19 @@ function selectField(x, y, shouldCenter = false) {
 
     const tile = mapData.find(t => t[0] === x && t[1] === y);
     const kid = tile ? tile[3] : -1;
+    const owner = tile[7] || "";
+    const kname = tile[8] || "";
+    const score = tile[9] || 0;
+    const ownerId = tile[10] || 0;
 
-    fetch(`ajax/field_info.php?clickedfield=${kid}&x=${x}&y=${y}`, {
+    fetch(`ajax/field_info.php?clickedfield=${kid}&x=${x}&y=${y}&owner=${encodeURIComponent(owner)}&kname=${encodeURIComponent(kname)}&score=${score}&owner_id=${ownerId}`, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.json())
         .then(data => {
             document.getElementById("field-info").innerHTML = data.html;
             currentPath = data.path || [];
+
             draw();
         });
 }

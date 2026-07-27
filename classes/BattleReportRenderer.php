@@ -124,7 +124,7 @@ class BattleReportRenderer
                 <img src='$icon_path' style='width: 24px; height: 24px; vertical-align: middle;' alt=''>
                 <div class='battle-unit-info'>
                     <span class='battle-unit-name' style='color:#3498db;'>Eigene Späher</span>
-                    <span class='battle-unit-count'>$survivors <small>/ $initial</small> $losses_text</span>
+                    <span class='battle-unit-count'>$survivors $losses_text</span>
                 </div>
             </div>";
     }

@@ -24,6 +24,7 @@ $stats_query = "
         (SELECT IFNULL(AVG(buildinglevel), 0) FROM buildings) as avg_building_lvl,
         (SELECT IFNULL(SUM(techlevel), 0) FROM techs) as total_tech_lvls,
         (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_fallen_soldiers') as total_fallen,
+        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_slain_monsters') as total_monsters_slain,
         (SELECT COUNT(*) FROM game_logs WHERE action = 'RESULT') as total_battles,
         
         -- Other
@@ -72,6 +73,7 @@ $view = "
             <div style='text-align:center; margin-bottom: 5px;'><b>Militär</b></div>
             <div class='split-content'><span>Truppen:</span> <b>" . fnum($stats['total_soldiers']) . "</b></div>
             <div class='split-content'><span>Gefallene Truppen:</span> <b>" . fnum($stats['total_fallen']) . "</b></div>
+            <div class='split-content'><span>Besiegte Monster:</span> <b>" . fnum($stats['total_monsters_slain']) . "</b></div> 
             <div class='split-content'><span>Schlachten:</span> <b>" . fnum($stats['total_battles']) . "</b></div>
         </div>
     </div>

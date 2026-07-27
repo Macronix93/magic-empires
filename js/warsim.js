@@ -18,6 +18,25 @@ const W_CONF = {
 };
 let currentSimWallHp = null;
 
+registerAction("switchSimTab", (el) => {
+    const target = el.dataset.tab;
+    document.querySelectorAll(".sim-tab-content").forEach(c => c.style.display = "none");
+    document.querySelectorAll(".tablinks").forEach(t => t.classList.remove("active"));
+
+    document.getElementById("sim-" + target).style.display = "block";
+    el.classList.add("active");
+
+    const enemyTechBox = document.getElementById("enemy-tech-box");
+    if (target === "monsters") {
+        enemyTechBox.style.opacity = "0.3";
+        enemyTechBox.style.pointerEvents = "none";
+    } else {
+        enemyTechBox.style.opacity = "1";
+        enemyTechBox.style.pointerEvents = "auto";
+    }
+
+    updateLivePowerSummary();
+});
 registerAction("calculateWarOutcome", () => {
     if (typeof calculateWarOutcome === "function" && typeof soldierTypes !== "undefined") {
         calculateWarOutcome(soldierTypes);
@@ -42,18 +61,26 @@ registerAction("resetFields", () => {
         }
     });
 
+    document.querySelectorAll(".js-mon-input").forEach(i => {
+        i.value = "";
+        i.style.color = "";
+    });
+
     updateLivePowerSummary();
 });
 
-document.querySelectorAll('.js-tech-input, #en_wall_lvl, .warsim-table input').forEach(input => {
+document.querySelectorAll(".js-tech-input, #en_wall_lvl, .warsim-table input, .js-mon-input").forEach(input => {
     input.addEventListener("input", () => {
+        if (input.type === "text") {
+            input.value = input.value.replace(/\D/g, "");
+        }
+
         let val = parseInt(input.value);
         if (isNaN(val) || val < 0) val = 0;
 
-        if (input.classList.contains('js-tech-input') || input.id === "en_wall_lvl") {
+        if (input.classList.contains("js-tech-input") || input.id === "en_wall_lvl") {
             const maxVal = parseInt(input.max) || W_CONF.maxLvl;
             if (val > maxVal) val = maxVal;
-
             if (input.id === "en_wall_lvl" && val < 1) val = 1;
 
             input.value = val;
@@ -91,6 +118,7 @@ function calculateWallDefenseBonus(hp, lvl) {
 }
 
 function calculateWarOutcome(soldierTypes) {
+    const isMonsterMode = document.querySelector(".tablinks[data-tab='monsters']").classList.contains("active");
     let myUnits = {};
     let enemyUnits = {};
 
@@ -110,86 +138,94 @@ function calculateWarOutcome(soldierTypes) {
     // Collect data
     soldierTypes.forEach(type => {
         const countOwn = parseInt(document.getElementById(`${type}_own`).value) || 0;
-        const countEnemy = parseInt(document.getElementById(`${type}_enemy`).value) || 0;
         const statsEl = document.getElementById(`${type}_atk`);
-        const baseAtk = parseInt(statsEl.getAttribute("data-attack"));
-        const baseDef = parseInt(document.getElementById(`${type}_def`).getAttribute("data-defense"));
+        const defEl = document.getElementById(`${type}_def`);
         const cat = parseInt(statsEl.getAttribute("data-category"));
-
-        // Tech Boni
         let myAtkLvl = parseInt(document.getElementById("my_tech_" + (13 + (cat * 2)))?.value) || 0;
         let myDefLvl = parseInt(document.getElementById("my_tech_" + (14 + (cat * 2)))?.value) || 0;
-        let enAtkLvl = parseInt(document.getElementById("en_tech_" + (13 + (cat * 2)))?.value) || 0;
-        let enDefLvl = parseInt(document.getElementById("en_tech_" + (14 + (cat * 2)))?.value) || 0;
-
         let aBonus = (cat === 0) ? W_CONF.infAtk : (cat === 1 ? W_CONF.cavAtk : W_CONF.arcAtk);
         let dBonus = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
 
         myUnits[type] = {
-            atk: baseAtk + (myAtkLvl * aBonus),
-            def: baseDef + (myDefLvl * dBonus),
+            atk: parseInt(statsEl.getAttribute("data-attack")) + (myAtkLvl * aBonus),
+            def: parseInt(defEl.getAttribute("data-defense")) + (myDefLvl * dBonus),
             count: countOwn, initial: countOwn, cat: cat
-        };
-        enemyUnits[type] = {
-            atk: baseAtk + (enAtkLvl * aBonus),
-            def: baseDef + (enDefLvl * dBonus),
-            count: countEnemy, initial: countEnemy, cat: cat
         };
 
         totalOwnUnits += countOwn;
-        totalEnemyUnits += countEnemy;
-        enemyDefWithoutWall += countEnemy * (baseDef + (enDefLvl * dBonus));
     });
+
+    if (isMonsterMode) {
+        document.querySelectorAll('.js-mon-input').forEach(input => {
+            const count = parseInt(input.value) || 0;
+
+            enemyUnits[input.id] = {
+                atk: parseInt(input.dataset.atk), def: parseInt(input.dataset.def),
+                count: count, initial: count, cat: -1
+            };
+
+            totalEnemyUnits += count;
+            enemyDefWithoutWall += count * parseInt(input.dataset.def);
+        });
+    } else {
+        soldierTypes.forEach(type => {
+            const countEnemy = parseInt(document.getElementById(`${type}_enemy`).value) || 0;
+            const statsEl = document.getElementById(`${type}_atk`);
+            const cat = parseInt(statsEl.dataset.category);
+            let enAtkLvl = parseInt(document.getElementById("en_tech_" + (13 + (cat * 2)))?.value) || 0;
+            let enDefLvl = parseInt(document.getElementById("en_tech_" + (14 + (cat * 2)))?.value) || 0;
+            let aB = (cat === 0) ? W_CONF.infAtk : (cat === 1 ? W_CONF.cavAtk : W_CONF.arcAtk);
+            let dB = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
+
+            enemyUnits[type] = {
+                atk: parseInt(statsEl.dataset.attack) + (enAtkLvl * aB),
+                def: parseInt(document.getElementById(`${type}_def`).dataset.defense) + (enDefLvl * dB),
+                count: countEnemy, initial: countEnemy, cat: cat
+            };
+
+            totalEnemyUnits += countEnemy;
+            enemyDefWithoutWall += countEnemy * enemyUnits[type].def;
+        });
+    }
 
     if (totalOwnUnits === 0 && totalEnemyUnits === 0) return;
 
     // Calculate Attack Pools (Rock-Paper-Scissors)
-    soldierTypes.forEach(atkType => {
-        // Player attacks
-        if (myUnits[atkType].count > 0) {
-            let bonus = 1.0;
+    for (let pId in myUnits) {
+        let bonus = 1.0;
 
-            soldierTypes.forEach(defType => {
-                if (enemyUnits[defType].initial > 0) {
-                    let enemyShare = enemyUnits[defType].initial / totalEnemyUnits;
-                    let aCat = myUnits[atkType].cat;
-                    let dCat = enemyUnits[defType].cat;
-
-                    // RPS Logic
-                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) {
-                        bonus += (0.5 * enemyShare);
-                    }
+        if (!isMonsterMode && myUnits[pId].count > 0) {
+            for (let eId in enemyUnits) {
+                if (enemyUnits[eId].initial > 0) {
+                    let enemyShare = enemyUnits[eId].initial / totalEnemyUnits;
+                    let aCat = myUnits[pId].cat, dCat = enemyUnits[eId].cat;
+                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) bonus += (0.5 * enemyShare);
                 }
-            });
-            playerAtkPool += (myUnits[atkType].count * myUnits[atkType].atk * bonus);
+            }
         }
 
-        // Enemy attacks
-        if (enemyUnits[atkType].count > 0) {
-            let bonus = 1.0;
-
-            soldierTypes.forEach(defType => {
-                if (myUnits[defType].initial > 0) {
-                    let ownShare = myUnits[defType].initial / totalOwnUnits;
-                    let aCat = enemyUnits[atkType].cat;
-                    let dCat = myUnits[defType].cat;
-
-                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) {
-                        bonus += (0.5 * ownShare);
-                    }
-                }
-            });
-            enemyAtkPool += (enemyUnits[atkType].count * enemyUnits[atkType].atk * bonus);
-        }
-
-        // Defender Pools
-        playerDefPool += (myUnits[atkType].count * myUnits[atkType].def);
-        enemyDefPool += (enemyUnits[atkType].count * enemyUnits[atkType].def);
-    });
-
-    if (totalEnemyUnits > 0) {
-        enemyDefPool += wallBonus;
+        playerAtkPool += (myUnits[pId].count * myUnits[pId].atk * bonus);
+        playerDefPool += (myUnits[pId].count * myUnits[pId].def);
     }
+
+    for (let eId in enemyUnits) {
+        let bonus = 1.0;
+
+        if (!isMonsterMode && enemyUnits[eId].count > 0) {
+            for (let pId in myUnits) {
+                if (myUnits[pId].initial > 0) {
+                    let ownShare = myUnits[pId].initial / totalOwnUnits;
+                    let aCat = enemyUnits[eId].cat, dCat = myUnits[pId].cat;
+                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) bonus += (0.5 * ownShare);
+                }
+            }
+        }
+
+        enemyAtkPool += (enemyUnits[eId].count * enemyUnits[eId].atk * bonus);
+        enemyDefPool += (enemyUnits[eId].count * enemyUnits[eId].def);
+    }
+
+    enemyDefPool += wallBonus;
 
     // 1.0 = Original (very deadly!)
     // 2.0 = Troops can sustain double the amount
@@ -200,36 +236,47 @@ function calculateWarOutcome(soldierTypes) {
     let pRatio = (playerDefPool > 0) ? Math.min(1.0, enemyAtkPool / (playerDefPool * lethality)) : 1.0;
     let eRatio = (enemyDefPool > 0) ? Math.min(1.0, playerAtkPool / (enemyDefPool * lethality)) : 1.0;
 
-    const wallAbsorption = lvl * 100;
-    const damageDiff = playerAtkPool - enemyDefWithoutWall;
-    let wallDmgBase;
-
-    if (damageDiff > 0) {
-        wallDmgBase = Math.max(0, damageDiff - wallAbsorption) * 0.03;
-    } else {
-        wallDmgBase = playerAtkPool * 0.001;
+    if (isMonsterMode && playerAtkPool > 0) {
+        let overpower = enemyDefPool / playerAtkPool;
+        pRatio = Math.min(1.0, pRatio * overpower);
     }
 
-    const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
-    const finalWallDmg = Math.round(wallDmgBase * (1 + (siegeLvl * W_CONF.siegeBonus)));
-    currentSimWallHp = Math.max(0, currentSimWallHp - finalWallDmg);
-
-    // UI Update
     soldierTypes.forEach(type => {
         let oIn = document.getElementById(`${type}_own`);
-        let eIn = document.getElementById(`${type}_enemy`);
+        let losses = Math.round(myUnits[type].initial * pRatio);
+        oIn.value = myUnits[type].initial - losses;
+        oIn.style.color = (losses > 0) ? "#F55353" : "";
 
-        if (myUnits[type].initial > 0) {
-            let losses = Math.round(myUnits[type].initial * pRatio);
-            oIn.value = myUnits[type].initial - losses;
-            oIn.style.color = (losses > 0) ? "#F55353" : "";
-        }
-        if (enemyUnits[type].initial > 0) {
-            let losses = Math.round(enemyUnits[type].initial * eRatio);
-            eIn.value = enemyUnits[type].initial - losses;
-            eIn.style.color = (losses > 0) ? "#F55353" : "";
+        if (!isMonsterMode) {
+            let eIn = document.getElementById(`${type}_enemy`);
+            let eLosses = Math.round(enemyUnits[type].initial * eRatio);
+
+            eIn.value = enemyUnits[type].initial - eLosses;
+            eIn.style.color = (eLosses > 0) ? "#F55353" : "";
         }
     });
+
+    if (isMonsterMode) {
+        document.querySelectorAll('.js-mon-input').forEach(i => {
+            const initial = parseInt(i.value) || 0;
+
+            if (initial > 0) {
+                const losses = Math.round(initial * eRatio);
+                i.value = initial - losses;
+                i.style.color = (losses > 0) ? "#F55353" : "";
+            }
+        });
+    }
+
+    // Wall Damage (only PvP)
+    if (!isMonsterMode) {
+        const wallAbsorption = lvl * 100;
+        const damageDiff = playerAtkPool - enemyDefWithoutWall;
+        let wallDmgBase = (damageDiff > 0) ? Math.max(0, damageDiff - wallAbsorption) * 0.03 : playerAtkPool * 0.001;
+        const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
+
+        currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(wallDmgBase * (1 + (siegeLvl * W_CONF.siegeBonus))));
+    }
 
     updateLivePowerSummary();
 }
@@ -238,40 +285,54 @@ function updateLivePowerSummary() {
     let tAtkO = 0, tDefO = 0, tAtkE = 0, tDefE = 0;
     let totalEn = 0;
 
+    const isMonsterMode = document.querySelector(".tablinks[data-tab='monsters']").classList.contains("active");
+
     const lvl = parseInt(document.getElementById("en_wall_lvl").value) || 1;
     const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
     const maxHp = (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc);
 
     if (currentSimWallHp === null) currentSimWallHp = maxHp;
-
     const wallBonus = calculateWallDefenseBonus(currentSimWallHp, lvl);
+
     document.getElementById("wall_hp_display").innerText = formatNumJS(currentSimWallHp);
     document.getElementById("wall_hp_display_max").innerText = formatNumJS(maxHp);
     document.getElementById("wall_def_display").innerText = wallBonus;
 
     soldierTypes.forEach(type => {
         const cO = parseInt(document.getElementById(type + "_own").value) || 0;
-        const cE = parseInt(document.getElementById(type + "_enemy").value) || 0;
         const stats = document.getElementById(type + "_atk").dataset;
-
-        totalEn += cE;
-
         let myA = parseInt(document.getElementById("my_tech_" + (13 + (parseInt(stats.category) * 2)))?.value) || 0;
         let myD = parseInt(document.getElementById("my_tech_" + (14 + (parseInt(stats.category) * 2)))?.value) || 0;
-        let enA = parseInt(document.getElementById("en_tech_" + (13 + (parseInt(stats.category) * 2)))?.value) || 0;
-        let enD = parseInt(document.getElementById("en_tech_" + (14 + (parseInt(stats.category) * 2)))?.value) || 0;
-
         let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
         let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
 
         tAtkO += cO * (parseInt(stats.attack) + myA * aB);
         tDefO += cO * (parseInt(document.getElementById(type + "_def").dataset.defense) + myD * dB);
-        tAtkE += cE * (parseInt(stats.attack) + enA * aB);
-        tDefE += cE * (parseInt(document.getElementById(type + "_def").dataset.defense) + enD * dB);
     });
 
-    if (totalEn > 0) {
-        tDefE += wallBonus;
+    if (isMonsterMode) {
+        document.querySelectorAll('.js-mon-input').forEach(input => {
+            const count = parseInt(input.value) || 0;
+
+            tAtkE += count * parseInt(input.dataset.atk);
+            tDefE += count * parseInt(input.dataset.def);
+        });
+    } else {
+        soldierTypes.forEach(type => {
+            const cE = parseInt(document.getElementById(type + "_enemy").value) || 0;
+            const stats = document.getElementById(type + "_atk").dataset;
+            totalEn += cE;
+
+            let enA = parseInt(document.getElementById("en_tech_" + (13 + (parseInt(stats.category) * 2)))?.value) || 0;
+            let enD = parseInt(document.getElementById("en_tech_" + (14 + (parseInt(stats.category) * 2)))?.value) || 0;
+            let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
+            let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
+
+            tAtkE += cE * (parseInt(stats.attack) + enA * aB);
+            tDefE += cE * (parseInt(document.getElementById(type + "_def").dataset.defense) + enD * dB);
+        });
+
+        if (totalEn > 0) tDefE += wallBonus;
     }
 
     document.getElementById("live-atk-own").innerText = formatNumJS(tAtkO);

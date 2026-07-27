@@ -357,6 +357,15 @@ class EventManager
             }
         }
 
+        if ($row["targetid"] == -3) {
+            if ($combat_units === 0 && $scout_count > 0) {
+                $this->process_monster_spy_mission($row, $scout_count, $attacker_user_obj, $return_time);
+            } else {
+                $this->process_monster_battle($row, $home_kingdom, $attacker_user_obj, $return_time);
+            }
+            return;
+        }
+
         if ($row["targetid"] == -1 || $row["targetid"] == -2) {
             $this->process_empty_field_conquest($row, $message, $attacker_user_obj);
 
@@ -440,11 +449,15 @@ class EventManager
         $res = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$owner_id]);
         $u_name = $res->fetch_assoc()["username"] ?? "Spieler";
 
-        if ($row["targetid"] == -1 || $row["targetid"] == -2) {
-            $res = $this->mysqli->execute_query("SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
-                [$target_x, $target_y]);
+        if ($row["targetid"] == -1 || $row["targetid"] == -2 || $row["targetid"] == -3) {
+            if ($row["targetid"] == -3) {
+                $field_name = "Monstercamp";
+            } else {
+                $res = $this->mysqli->execute_query("SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
+                    [$target_x, $target_y]);
 
-            $field_name = $res->fetch_assoc()["fieldname"] ?? "Unbekannt";
+                $field_name = $res->fetch_assoc()["fieldname"] ?? "Unbekannt";
+            }
         } else {
             $enemy_k = new Kingdom($this->mysqli, $row["targetid"]);
             $field_name = " {$enemy_k->get_kingdom_owner_name()} ({$enemy_k->get_kingdom_name()})";
@@ -456,6 +469,8 @@ class EventManager
         if ($row["loot_wood"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_WOOD] = $row["loot_wood"];
         if ($row["loot_stone"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_STONE] = $row["loot_stone"];
         if ($row["loot_gold"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_GOLD] = $row["loot_gold"];
+        if ($row["loot_coins"] > 0) $loot[ResourceTypes::RESOURCE_TYPE_COINS] = $row["loot_coins"];
+        $loot_coins = (int)($row["loot_coins"] ?? 0);
 
         // Generate troop cards
         $res_troops = $this->mysqli->execute_query(
@@ -499,6 +514,10 @@ class EventManager
             foreach ($loot as $type => $amount) {
                 $home_k->modify_resource((int)$type, (int)$amount);
             }
+        }
+        // Coins
+        if ($loot_coins > 0) {
+            $this->user->give_user_coins($loot_coins);
         }
 
         // Send server message to owner
@@ -1590,6 +1609,320 @@ class EventManager
             $message .= BattleReportRenderer::render_outcome_box("Keine Räuber", "Ohne spezialisierte Räuber können wir diese massiven Vorräte nicht abtransportieren.", 0, 0,
                 "Die Truppen kehren unverrichteter Dinge um.");
             $message .= "</div>";
+        }
+    }
+
+    public function process_monster_battle(array $row, Kingdom $home_k, User $attacker_user, int $return_time): void
+    {
+        $attacker_id = $attacker_user->get_user_id();
+        $tx = (int)$row["targetx"];
+        $ty = (int)$row["targety"];
+        $event_id = (int)$row["eventid"];
+
+        $conquest = new Conquest($this->mysqli);
+        $conquest->set_event_id($event_id);
+        $conquest->fetch_sent_troops();
+        $conquest->initialize_soldier_types();
+        $conquest->get_monster_defenders($tx, $ty);
+        $conquest->initialize_soldier_values();
+        $conquest->set_initial_monster_battle();
+
+        $soldier_types = $conquest->get_soldier_types();
+        $monster_data = $conquest->get_monster_enemy_data();
+
+        $atk_atk_pool = 0;
+        $atk_def_pool = 0;
+        $mon_atk_pool = 0;
+        $mon_def_pool = 0;
+
+        foreach ($soldier_types as $id => $s) {
+            $initial_own = $conquest->get_initial_count_by_id($id, true);
+            if ($initial_own > 0) {
+                $cat = (int)$s["category"];
+                $lvl_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES + ($cat * 2));
+                $lvl_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL + ($cat * 2));
+
+                $bonus_atk = match ($cat) {
+                    0 => SMITHY_INF_ATK_BONUS,
+                    1 => SMITHY_CAV_ATK_BONUS,
+                    2 => SMITHY_ARC_ATK_BONUS,
+                    default => 0
+                };
+                $bonus_def = match ($cat) {
+                    0 => SMITHY_INF_DEF_BONUS,
+                    1 => SMITHY_CAV_DEF_BONUS,
+                    2 => SMITHY_ARC_DEF_BONUS,
+                    default => 0
+                };
+
+                $atk_atk_pool += ($initial_own * ($s["attack"] + ($lvl_atk * $bonus_atk)));
+                $atk_def_pool += ($initial_own * ($s["defense"] + ($lvl_def * $bonus_def)));
+            }
+        }
+
+        foreach ($monster_data as $m) {
+            $mon_atk_pool += ($m["count"] * $m["atk"]);
+            $mon_def_pool += ($m["count"] * $m["def"]);
+        }
+
+        $lethality = 2.0;
+        $atk_loss_ratio = ($atk_def_pool > 0) ? min(1.0, $mon_atk_pool / ($atk_def_pool * $lethality)) : 1.0;
+        $mon_loss_ratio = ($mon_def_pool > 0) ? min(1.0, $atk_atk_pool / ($mon_def_pool * $lethality)) : 1.0;
+
+        if ($atk_atk_pool > 0) {
+            $overpower = $mon_def_pool / $atk_atk_pool;
+            $atk_loss_ratio = min(1.0, $atk_loss_ratio * $overpower);
+        }
+
+        $total_score_loss = 0;
+        $monsters_slain = 0;
+        $surviving_attacker_units = 0;
+        $total_monsters_remaining = 0;
+
+        $report_attacker_units = [];
+        $report_monster_units = [];
+
+        // Attacker Losses
+        foreach ($soldier_types as $id => $s) {
+            $initial = $conquest->get_initial_count_by_id($id, true);
+            if ($initial > 0) {
+                $loss = (int)round($initial * $atk_loss_ratio);
+                $survivors = $initial - $loss;
+                $surviving_attacker_units += $survivors;
+                $total_score_loss += ($loss * $s["score"]);
+
+                $res_icon = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
+
+                $report_attacker_units[] = [
+                    "name" => $s["soldiername"],
+                    "initial" => $initial,
+                    "losses" => $loss,
+                    "icon" => $res_icon->fetch_column() ?: "icon_error",
+                    "atk" => $s["attack"],
+                    "def" => $s["defense"]
+                ];
+
+                if ($loss > 0) {
+                    $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                        [$loss, $event_id, $id]);
+                }
+            }
+        }
+
+        // Monster Losses
+        foreach ($monster_data as $m) {
+            $initial = $m["count"];
+            $loss = (int)round($initial * $mon_loss_ratio);
+
+            if ($mon_loss_ratio < 1.0 && $loss >= $initial) {
+                $loss = $initial - 1;
+            }
+
+            $survivors = $initial - $loss;
+            $monsters_slain += $loss;
+            $total_monsters_remaining += $survivors;
+
+            $report_monster_units[] = [
+                "name" => $m["name"],
+                "initial" => $initial,
+                "losses" => $loss,
+                "icon" => $m["icon"],
+                "atk" => $m["atk"],
+                "def" => $m["def"]
+            ];
+        }
+
+        $looted_coins = 0;
+        $loot_res = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
+        $victory = ($total_monsters_remaining <= 0);
+
+        if (!$victory) {
+            $monster_ids = array_keys($monster_data);
+
+            foreach ($report_monster_units as $index => $rep_m) {
+                $current_m_id = $monster_ids[$index];
+                $rem_count = $rep_m["initial"] - $rep_m["losses"];
+
+                if ($rep_m["losses"] > 0) {
+                    if ($rem_count <= 0) {
+                        $this->mysqli->execute_query("DELETE FROM monster_camp_units WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$tx, $ty, $current_m_id]);
+                    } else {
+                        $this->mysqli->execute_query("UPDATE monster_camp_units SET count = ? WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$rem_count, $tx, $ty, $current_m_id]);
+                    }
+                }
+            }
+        } else {
+            $camp_res = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $camp_lvl = (int)($camp_res->fetch_column() ?: 1);
+
+            $looted_coins = mt_rand(
+                MONSTER_CAMP_COIN_MIN_PER_LVL * $camp_lvl,
+                MONSTER_CAMP_COIN_MAX_PER_LVL * $camp_lvl
+            );
+
+            $res_keys = ["food", "wood", "stone", "gold"];
+            foreach ($res_keys as $key) {
+                if (mt_rand(1, 100) <= MONSTER_CAMP_RES_CHANCE) {
+                    $base_amount = $camp_lvl * MONSTER_CAMP_BASE_RESOURCE_LOOT;
+                    $loot_res[$key] = (int)round($base_amount * (mt_rand(MIN_MONSTER_CAMP_RESOURCE_PERC, MAX_MONSTER_CAMP_RESOURCE_PERC) / 100));
+                } else {
+                    $loot_res[$key] = 0;
+                }
+            }
+
+            if (array_sum($loot_res) === 0) {
+                $random_key = $res_keys[array_rand($res_keys)];
+                $loot_res[$random_key] = (int)($camp_lvl * MONSTER_CAMP_BASE_RESOURCE_LOOT);
+            }
+
+            $this->mysqli->execute_query("DELETE FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+        }
+
+        $message = "<div class='battle-report'>";
+        $message .= "<div class='title-border'>Kampfbericht: Monstercamp ($tx:$ty)</div>";
+        $message .= BattleReportRenderer::render_vs_grid($report_attacker_units, $report_monster_units, "Deine Truppen", "Monsterhorde");
+
+        if ($victory) {
+            $sub = ($surviving_attacker_units > 0)
+                ? "Deine Truppen haben überlebt und bringen die Beute nach Hause!"
+                : "Das Camp wurde gesäubert, aber alle deine Truppen fielen im Kampf. Die Beute ist verloren!";
+
+            $loot_display = [];
+            if ($surviving_attacker_units > 0) {
+                $loot_display = [
+                    ResourceTypes::RESOURCE_TYPE_COINS => $looted_coins,
+                    ResourceTypes::RESOURCE_TYPE_FOOD => $loot_res['food'],
+                    ResourceTypes::RESOURCE_TYPE_WOOD => $loot_res['wood'],
+                    ResourceTypes::RESOURCE_TYPE_STONE => $loot_res['stone'],
+                    ResourceTypes::RESOURCE_TYPE_GOLD => $loot_res['gold']
+                ];
+            }
+
+            $message .= BattleReportRenderer::render_outcome_box("Sieg!", "Das Camp wurde gesäubert.", 0, 0, $sub, "success",
+                ($surviving_attacker_units > 0 ? $loot_display : []));
+        } else {
+            $res_title = ($surviving_attacker_units > 0) ? "Rückzug" : "Niederlage";
+            $res_text = ($surviving_attacker_units > 0) ? "Die Monster waren zu stark!" : "Deine Armee wurde vollständig vernichtet!";
+            $res_sub = ($surviving_attacker_units > 0) ? "Unsere Truppen mussten fliehen." : "Kein Soldat kehrte lebend zurück.";
+
+            $message .= BattleReportRenderer::render_outcome_box($res_title, $res_text, 0, 0, $res_sub, "error");
+        }
+        $message .= "</div>";
+
+        send_server_message($attacker_id, $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
+
+        $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+        $this->mysqli->execute_query("UPDATE system_settings SET value = value + ? WHERE name = 'total_slain_monsters'", [$monsters_slain]);
+
+        if ($surviving_attacker_units > 0) {
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, loot_coins = ?, 
+                    loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $looted_coins,
+                    $loot_res["food"], $loot_res["wood"], $loot_res["stone"], $loot_res["gold"], $event_id]
+            );
+        } else {
+            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+        }
+    }
+
+    public function process_monster_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void
+    {
+        $attacker_id = $attacker_user->get_user_id();
+        $event_id = (int)$row["eventid"];
+        $tx = (int)$row["targetx"];
+        $ty = (int)$row["targety"];
+
+        $res_camp = $this->mysqli->execute_query("
+                SELECT mc.level, mcu.count, ml.monster_name, ml.icon, ml.attack, ml.defense
+                FROM monster_camps mc
+                JOIN monster_camp_units mcu ON mc.mapx = mcu.mapx AND mc.mapy = mcu.mapy
+                JOIN monster_list ml ON mcu.monster_id = ml.id
+                WHERE mc.mapx = ? AND mc.mapy = ?", [$tx, $ty]);
+
+        $units = $res_camp->fetch_all(MYSQLI_ASSOC);
+        $camp_lvl = $units[0]["level"] ?? 1;
+
+        $base_danger = BASE_DANGER_RATE_SCOUTING;
+        $safety_bonus = sqrt($atk_scouts);
+        $detection_chance = $base_danger / $safety_bonus;
+
+        $losses = 0;
+        if (mt_rand(1, 100) <= $detection_chance) {
+            $losses = 1;
+        }
+
+        $survivors = $atk_scouts - $losses;
+
+        if ($losses > 0) {
+            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
+            $total_score_loss = $losses * $scout_score_val;
+
+            $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                [$losses, $event_id, Soldiers::SOLDIER_SCOUT]);
+
+            $this->mysqli->execute_query("UPDATE system_settings SET value = value + ? WHERE name = 'total_fallen_soldiers'", [$losses]);
+
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+        }
+
+        $message = "<div class='battle-report'>";
+        $message .= "<div class='battle-column'>";
+        $message .= "<div class='title-border'>Spionagebericht: Monstercamp ($tx:$ty)</div>";
+
+        if ($survivors > 0) {
+            $message .= "<div class='report-section-title'>Gesichtete Kreaturen (Stufe $camp_lvl)</div>";
+            $message .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; justify-content: center;'>";
+
+            foreach ($units as $u) {
+                $message .= BattleReportRenderer::render_unit_card(
+                    $u["monster_name"],
+                    (int)$u["count"],
+                    0,
+                    $u["icon"],
+                    true
+                );
+            }
+            $message .= "</div>";
+
+            $est_min_coins = MONSTER_CAMP_COIN_MIN_PER_LVL * $camp_lvl;
+            $est_max_coins = MONSTER_CAMP_COIN_MAX_PER_LVL * $camp_lvl;
+            $base_res_amount = $camp_lvl * MONSTER_CAMP_BASE_RESOURCE_LOOT;
+            $est_min_res = (int)($base_res_amount * (MIN_MONSTER_CAMP_RESOURCE_PERC / 100));
+            $est_max_res = (int)($base_res_amount * (MAX_MONSTER_CAMP_RESOURCE_PERC / 100));
+
+            $message .= "<div class='report-section-title'>Geschätzte Beute</div>";
+            $message .= "<div style='background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: left;'>";
+            $message .= "<b>Münzen:</b> $est_min_coins bis $est_max_coins " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . "<br>";
+            $message .= "<b>Ressourcen:</b> " . fnum($est_min_res) . " bis " . fnum($est_max_res) . " pro Typ<br>";
+            $message .= "<div style='margin-top: 5px; font-size: 13px; opacity: 0.8;'>";
+            $message .= "<i>Hinweis: Jeder Ressourcentyp (Nahrung, Holz, Stein, Gold) generiert zu " . MONSTER_CAMP_RES_CHANCE . "%.</i>";
+            $message .= "</div>";
+            $message .= "</div>";
+
+            $atk_main = "Erfolg!";
+            $atk_sub = "Unsere Späher konnten die Monster aus sicherer Entfernung beobachten und die Schätze sichten.";
+            $atk_type = "success";
+        } else {
+            $atk_main = "Mission gescheitert!";
+            $atk_sub = "Keiner der Späher kehrte aus dem Camp zurück.";
+            $atk_type = "error";
+        }
+
+        $message .= BattleReportRenderer::render_outcome_box($atk_main, "Lagebericht der Kundschafter", 0, 0, $atk_sub, $atk_type);
+        $message .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
+        $message .= "</div></div>";
+
+        send_server_message($attacker_id, $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
+
+        if ($survivors > 0) {
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+        } else {
+            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
     }
 }

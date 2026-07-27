@@ -213,12 +213,13 @@ if ($result && $result->num_rows > 0) {
                 "loot_wood" => $row["loot_wood"],
                 "loot_stone" => $row["loot_stone"],
                 "loot_gold" => $row["loot_gold"],
+                "loot_coins" => $row["loot_coins"],
                 "soldiers" => []
             ];
         }
 
         // Append this troop type to the troops list
-        $grouped_events[$event_id]['soldiers'][] = [
+        $grouped_events[$event_id]["soldiers"][] = [
             "soldierid" => $row["st_soldierid"],
             "soldiercount" => $row["soldiercount"],
             "icon" => $row["soldier_icon"],
@@ -266,12 +267,15 @@ if ($result && $result->num_rows > 0) {
                 $action_type = "Eroberung";
             } else if ($event_data["targetid"] == -2) {
                 $action_type = "Plündern";
+            } else if ($event_data["targetid"] == -3) {
+                $action_type = "Monstercamp";
             } else if ($is_target_my_kingdom) {
                 $action_type = "Stationieren";
             } else {
                 $action_type = "Angriff";
             }
         }
+
         // Build soldiers string
         $soldiers_str = "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
         foreach ($event_data["soldiers"] as $soldier) {
@@ -286,7 +290,7 @@ if ($result && $result->num_rows > 0) {
             $popup_class = "";
             $popup_content = "";
 
-            if ($action_id == ActionTypes::ACTION_RETURN_TROOPS && $has_loot && $is_carrier) {
+            if ($action_id == ActionTypes::ACTION_RETURN_TROOPS && $has_loot) {
                 $popup_class = " popup";
                 $p_id = "loot_" . $event_id . "_" . $soldier["soldierid"];
 
@@ -296,6 +300,7 @@ if ($result && $result->num_rows > 0) {
                 if ($event_data["loot_wood"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($event_data["loot_wood"]) . " ";
                 if ($event_data["loot_stone"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($event_data["loot_stone"]) . " ";
                 if ($event_data["loot_gold"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($event_data["loot_gold"]) . " ";
+                if ($event_data["loot_coins"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . fnum($event_data["loot_coins"]) . " ";
                 $popup_content .= "</div>";
 
                 $soldiers_str .= "<div class='unit-badge$popup_class' id='$p_id' title=''>";

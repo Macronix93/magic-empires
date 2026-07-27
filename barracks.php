@@ -43,6 +43,7 @@ foreach ($result as $row) {
     $soldiers[] = $soldier;
     $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
 }
+
 $total_k_atk = 0;
 $total_k_def = 0;
 $total_k_units = 0;
@@ -268,21 +269,52 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
  * HTML Content Part
  */
 // Get soldiers of kingdom
-$result = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
+$result_s = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
+
+$inf_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
+$inf_def_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL);
+$cav_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
+$cav_def_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS);
+$arc_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
+$arc_def_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET);
+
+$shrine_atk_mult = 1.0;
+if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+    $shrine_atk_mult += $kingdom->get_shrine_modifier();
+}
 
 $total_k_atk = 0;
 $total_k_def = 0;
+$total_k_units = 0;
 
-foreach ($result as $row) {
-    $soldier_id = $row["soldierid"] ?? -1;
-    $sol_count = $row["soldiercount"] ?? 0;
+foreach ($result_s as $row) {
+    $soldier_id = (int)($row["soldierid"] ?? -1);
+    $sol_count = (int)($row["soldiercount"] ?? 0);
     $kingdom_soldiers[$soldier_id] = $sol_count;
+    if ($sol_count <= 0) continue;
 
     $total_k_units += $sol_count;
 
     if (isset($soldiers[$soldier_id])) {
-        $total_k_atk += $sol_count * $soldiers[$soldier_id]->get_soldier_attack();
-        $total_k_def += $sol_count * $soldiers[$soldier_id]->get_soldier_defense();
+        $s_obj = $soldiers[$soldier_id];
+        $cat = $s_obj->get_soldier_category();
+
+        $b_atk = 0;
+        $b_def = 0;
+
+        if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
+            $b_atk = $inf_atk_lvl * SMITHY_INF_ATK_BONUS;
+            $b_def = $inf_def_lvl * SMITHY_INF_DEF_BONUS;
+        } elseif ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+            $b_atk = $cav_atk_lvl * SMITHY_CAV_ATK_BONUS;
+            $b_def = $cav_def_lvl * SMITHY_CAV_DEF_BONUS;
+        } elseif ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+            $b_atk = $arc_atk_lvl * SMITHY_ARC_ATK_BONUS;
+            $b_def = $arc_def_lvl * SMITHY_ARC_DEF_BONUS;
+        }
+
+        $total_k_atk += $sol_count * ($s_obj->get_soldier_attack() + $b_atk) * $shrine_atk_mult;
+        $total_k_def += $sol_count * ($s_obj->get_soldier_defense() + $b_def);
     }
 }
 
@@ -309,6 +341,9 @@ if (!empty($last_recruited_soldier)) {
     $user->clear_last_recruited_soldier($current_kingdom);
 }
 
+$atk_class = ($shrine_atk_mult > 1.0 || ($inf_atk_lvl + $cav_atk_lvl + $arc_atk_lvl) > 0) ? "passed" : "";
+$def_class = (($inf_def_lvl + $cav_def_lvl + $arc_def_lvl) > 0) ? "passed" : "";
+
 $view .= "
 <div style='max-width: 420px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-gold); border-radius: 5px; 
             margin-left: auto; margin-right: auto; margin-bottom: 15px; padding: 10px; display: flex; flex-direction: column; gap: 5px;'>
@@ -317,10 +352,10 @@ $view .= "
             <b>Garnisons-Stärke:</b>
         </div>
         <div class='legend-item' style='flex: 1;' title='Gesamter Angriffswert'>
-            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_k_atk) . "
+            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span class='$atk_class'>" . fnum($total_k_atk) . "</span>
         </div>
         <div class='legend-item' style='flex: 1;' title='Gesamter Verteidigungswert'>
-            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_k_def) . "
+            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span class='$def_class'>" . fnum($total_k_def) . "</span>
         </div>
     </div>
     <div style='display: flex; align-items: center; width: 100%;'>
