@@ -51,8 +51,10 @@
                 <td class="td-gradient"><b>Wozu dient das Dorfzentrum?</b></td>
                 <td>Das Dorfzentrum ist das Herz deines Reiches. Die Stufe deines Dorfzentrums limitiert die maximale
                     Stufe aller anderen Gebäude. Möchtest du also ein Gebäude auf Stufe 5 ausbauen, muss dein
-                    Dorfzentrum ebenfalls mindestens Stufe 5 sein. Außerdem schaltet es unter anderem weitere Gebäude
-                    frei.
+                    Dorfzentrum ebenfalls mindestens Stufe 5 sein (ausgenommen von dieser Regel ist das Lager - dieses
+                    kann immer eine Stufe höher als das aktuelle Dorfzentrum ausgebaut werden). Außerdem schaltet es
+                    unter anderem weitere Gebäude
+                    frei (siehe <a href="techtree.php">Techtree</a>).
                 </td>
             </tr>
             <tr>
@@ -74,6 +76,15 @@
                 <td>Überschüssige Rohstoffe gehen verloren. Baue dein <b>Lager</b> aus, um die Kapazität zu erhöhen,
                     oder investiere Rohstoffe in Truppen und Forschung. Das Lager schützt zudem einen Teil deiner
                     Vorräte vor Plünderungen.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Gibt es noch andere Möglichkeiten, um an Ressourcen zu kommen?</b></td>
+                <td><b>Ja!</b> Auf der Karte sind bestimmte Kacheln mit einem Diamanten-Symbol versehen. Hier befinden
+                    sich plünderbare Lager. Mit <b>Räubern</b> können diese Lager geplündert werden, wobei jedes Lager
+                    unterschiedliche Ressourcen besitzt. Aber Achtung: Während eines Raubzugs kann es vorkommen, dass
+                    deine
+                    Räuber durch lauernde Diebe in den Hinterhalt geraten...
                 </td>
             </tr>
         </table>

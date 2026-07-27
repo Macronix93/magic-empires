@@ -204,7 +204,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
         } else {
             // Noob protection check
             if ($is_noob_protected && $enemy_user_id != -1) {
-                $view .= show_warning_box("<b>Noob-Schutz aktiv:</b> Ein Angriff ist nicht möglich. Du kannst jedoch reine Spionage-Trupps (nur Späher) entsenden.");
+                $view .= show_warning_box("<b>Punktestand zu unterschiedlich:</b> Ein Angriff ist nicht möglich. Du kannst jedoch reine Spionage-Trupps (nur Späher) entsenden.");
 
                 $only_scouts_allowed = true;
             } else {

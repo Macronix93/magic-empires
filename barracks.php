@@ -45,6 +45,7 @@ foreach ($result as $row) {
 }
 $total_k_atk = 0;
 $total_k_def = 0;
+$total_k_units = 0;
 
 $soldiers_count = count($soldiers);
 
@@ -277,6 +278,8 @@ foreach ($result as $row) {
     $sol_count = $row["soldiercount"] ?? 0;
     $kingdom_soldiers[$soldier_id] = $sol_count;
 
+    $total_k_units += $sol_count;
+
     if (isset($soldiers[$soldier_id])) {
         $total_k_atk += $sol_count * $soldiers[$soldier_id]->get_soldier_attack();
         $total_k_def += $sol_count * $soldiers[$soldier_id]->get_soldier_defense();
@@ -307,20 +310,31 @@ if (!empty($last_recruited_soldier)) {
 }
 
 $view .= "
-<div style='max-width: 550px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-gold); border-radius: 5px; 
-            margin-left: auto; margin-right: auto; margin-bottom: 15px; display: flex; 
-            justify-content: flex-start; align-items: center; flex-wrap: wrap; padding: 10px;'>
-    <div class='legend-item' style='flex: 2;'>
-        <b>Garnisons-Stärke:</b>
+<div style='max-width: 420px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-gold); border-radius: 5px; 
+            margin-left: auto; margin-right: auto; margin-bottom: 15px; padding: 10px; display: flex; flex-direction: column; gap: 5px;'>
+    <div style='display: flex; align-items: center; width: 100%;'>
+        <div class='legend-item' style='flex: 2;'>
+            <b>Garnisons-Stärke:</b>
+        </div>
+        <div class='legend-item' style='flex: 1;' title='Gesamter Angriffswert'>
+            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_k_atk) . "
+        </div>
+        <div class='legend-item' style='flex: 1;' title='Gesamter Verteidigungswert'>
+            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_k_def) . "
+        </div>
     </div>
-    <div class='legend-item' style='flex: 1;' title='Gesamter Angriffswert aller stationierten Truppen'>
-        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_k_atk) . "
-    </div>
-    <div class='legend-item' style='flex: 1;'  title='Gesamter Verteidigungswert aller stationierten Truppen'>
-        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_k_def) . "
+    <div style='display: flex; align-items: center; width: 100%;'>
+        <div style='flex: 2; text-align: left;'>
+            <b>Truppen insgesamt:</b>
+        </div>
+        <div style='flex: 1; display: flex; align-items: center;'>
+            <div style='width: 29px;'></div> 
+            " . fnum($total_k_units) . "
+        </div>
+        <div style='flex: 1;'>
+        </div>
     </div>
 </div>";
-
 $categories = [
     SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
     SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",

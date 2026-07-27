@@ -1560,7 +1560,7 @@ class EventManager
                     [$losses]
                 );
 
-                $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;'>";
+                $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
                 $main_text .= "⚠️ <b>Verluste:</b> $losses Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet oder verletzt.";
                 $main_text .= "</div>";
             }
