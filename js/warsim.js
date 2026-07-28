@@ -341,7 +341,41 @@ function updateLivePowerSummary() {
     document.getElementById("live-def-enemy").innerText = formatNumJS(tDefE);
 }
 
+function checkMonsterImport() {
+    const importEl = document.getElementById("monster-import-data");
+
+    if (!importEl || !importEl.dataset.import) return;
+
+    try {
+        const monsterData = JSON.parse(decodeURIComponent(importEl.dataset.import));
+
+        const monsterTabBtn = document.querySelector(".tablinks[data-tab='monsters']");
+        if (monsterTabBtn) {
+            monsterTabBtn.click();
+        }
+
+        for (const [id, count] of Object.entries(monsterData)) {
+            const input = document.getElementById(`m_${id}_count`);
+            if (input) {
+                input.value = count;
+            }
+        }
+
+        if (typeof updateLivePowerSummary === "function") {
+            updateLivePowerSummary();
+        }
+
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path: cleanUrl}, '', cleanUrl);
+
+    } catch (e) {
+        console.error("Fehler beim Monster-Import:", e);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     resetWallToMax();
     updateLivePowerSummary();
+
+    setTimeout(checkMonsterImport, 100);
 });

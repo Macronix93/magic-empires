@@ -24,10 +24,6 @@ if ($user_id) {
     $result = $db_instance->execute_query($query, [$user_id]);
     $row = $result->fetch_assoc();
 
-    // Get sorted list of players and calculate the rank
-    $result = $db_instance->execute_query("SELECT COUNT(*) + 1 AS rank FROM users WHERE score > (SELECT score FROM users WHERE id = ?)", [$user_id]);
-    $user_rank = $result->fetch_column();
-
     if (!$row) {
         echo "<div style='text-align: center;'>
         <p style='background-color: rgba(0, 0, 0, 0.7); display: inline-block;'>Dieser Spieler existiert nicht!
@@ -36,11 +32,22 @@ if ($user_id) {
     }
 
     $user_name = $row["username"];
+    $user_id = $row["id"];
     $last_activity = $row["lastactivity"];
     $score = $row["score"];
     $guild_id = $row["guildid"];
     $x = $row["mapx"];
     $y = $row["mapy"];
+
+    // Get sorted list of players and calculate the rank
+    $rank_query = "
+        SELECT COUNT(*) + 1 AS rank 
+        FROM users 
+        WHERE (score > ?) 
+           OR (score = ? AND id < ?)
+    ";
+    $result = $db_instance->execute_query($rank_query, [$score, $score, $user_id]);
+    $user_rank = $result->fetch_column();
 
     $map = new Map($db_instance, $user);
     $minimap_html = $map->render_minimap($x, $y);

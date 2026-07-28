@@ -4,6 +4,12 @@ use Random\RandomException;
 
 require_once("includes/core.php");
 
+$maintenance_text = "Der Server befindet sich im Wartungsmodus!";
+
+if (!empty(MAINTENANCE_REASON)) {
+    $maintenance_text .= " Grund: " . e(MAINTENANCE_REASON);
+}
+
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     unset($_SESSION["captcha_passed"]);
 }
@@ -72,7 +78,7 @@ if (isset($_GET["logout"])) {
         } else if ($logout_type === "session") {
             $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
         } else if ($logout_type === "maintenance") {
-            $warning = "Der Server befindet sich im Wartungsmodus!";
+            $warning = $maintenance_text;
         } else if ($logout_type === "deleted") {
             $success = "Dein Account wurde erfolgreich gelöscht!";
         }
@@ -130,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($row["is_banned"] == 1) {
                     $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
                 } else if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
-                    $warning = "Der Server befindet sich im Wartungsmodus!";
+                    $warning = $maintenance_text;
                 } else {
                     if (!$row["status"]) {
                         $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
@@ -217,6 +223,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                     if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
                         $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
+                    } else {
+                        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$email, time()]);
+
+                        if ($res_block->num_rows > 0) {
+                            $row_block = $res_block->fetch_assoc();
+                            $wait_until = date("d.m.Y", $row_block["blocked_until"]);
+
+                            $error .= "Diese E-Mail Adresse ist noch bis zum $wait_until gesperrt.<br>";
+                        }
                     }
                 }
             }
@@ -253,11 +268,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 if (MAINTENANCE_MODE) {
-    $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
-
     if (empty($warning)) {
         $warning = $maintenance_text;
-    } else if (!str_contains($warning, $maintenance_text)) {
+    } else if (!str_contains($warning, "Wartungsmodus")) {
         $warning .= "<br>" . $maintenance_text;
     }
 }

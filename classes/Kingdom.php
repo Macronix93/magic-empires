@@ -41,6 +41,10 @@ class Kingdom
         $this->alignment = 0;
         $this->wall_hp = 0;
 
+        $this->kingdom_owner = "";
+        $this->kingdom_name = "Unbekannt";
+        $this->kingdom_owner_id = -1;
+
         if ($kingdom_id != -1) {
             $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
 
@@ -782,5 +786,35 @@ class Kingdom
     public function get_base_gold_rate(): int
     {
         return $this->base_gold_rate;
+    }
+
+    public function get_troop_limit(): int
+    {
+        $barracks_lvl = $this->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
+        if ($barracks_lvl <= 0) return TROOP_LIMIT_BASE;
+
+        return (int)(TROOP_LIMIT_BASE + TROOP_LIMIT_FACTOR * pow($barracks_lvl, TROOP_LIMIT_EXPONENT));
+    }
+
+    public function get_current_troop_count(): int
+    {
+        $query = "
+        SELECT (
+            (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?) +
+            (SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ?) +
+            (SELECT IFNULL(SUM(st.soldiercount), 0) 
+             FROM sent_troops st 
+             JOIN events e ON st.eventid = e.eventid 
+             WHERE e.kingdomid = ?)
+        ) AS total";
+
+        $res = $this->mysqli->execute_query($query, [
+            $this->kingdom_id,
+            $this->kingdom_id,
+            ActionTypes::ACTION_BUILD_TROOPS,
+            $this->kingdom_id
+        ]);
+
+        return (int)($res->fetch_row()[0] ?? 0);
     }
 }

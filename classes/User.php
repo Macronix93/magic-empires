@@ -300,9 +300,22 @@ class User
         return $result->fetch_assoc()["mainkingdom"];
     }
 
-    public function give_user_coins(int $coins): void
+    public function give_user_coins(int $amount): void
     {
-        $this->mysqli->execute_query("UPDATE users SET coins = coins + ? WHERE id = ?", [$coins, $this->user_id]);
+        $current_coins = $this->get_user_coins();
+        $limit = $this->get_coin_limit();
+
+        if ($amount > 0) {
+            if ($current_coins >= $limit) {
+                return;
+            }
+
+            $new_coins = min($limit, $current_coins + $amount);
+        } else {
+            $new_coins = max(0, $current_coins + $amount);
+        }
+
+        $this->mysqli->execute_query("UPDATE users SET coins = ? WHERE id = ?", [$new_coins, $this->user_id]);
     }
 
     public function get_user_coins(): int
@@ -324,5 +337,25 @@ class User
     public function is_supporter(): bool
     {
         return $this->get_user_admin_level() == ADMIN_LEVEL_SUPPORTER;
+    }
+
+    public function get_coin_limit(): int
+    {
+        $result = $this->mysqli->execute_query("
+                SELECT MAX(b.buildinglevel) AS max_lvl 
+                FROM buildings b 
+                JOIN kingdoms k ON b.kingdomid = k.id 
+                WHERE k.userid = ? AND b.buildingid IN (?, ?, ?, ?)",
+            [$this->user_id, BuildingTypes::BUILDING_MILL, BuildingTypes::BUILDING_SAWMILL,
+                BuildingTypes::BUILDING_STONEMINE, BuildingTypes::BUILDING_GOLDMINE]);
+
+        $row = $result->fetch_assoc();
+
+        if ($row["max_lvl"] === null) {
+            return BOOST_COIN_BASE;
+        }
+
+        $max_lvl = (int)$row["max_lvl"];
+        return 2 * (BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $max_lvl - 1));
     }
 }

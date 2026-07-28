@@ -275,6 +275,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else if ($confirm_word !== "LOESCHEN") {
                 $error = "Bestätigungswort falsch.";
             } else {
+                $block_until = time() + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
+                $db_instance->execute_query("INSERT INTO blocked_emails (email, blocked_until) VALUES (?, ?)", [$u_data['email'], $block_until]);
                 $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
                 $logger->log_game("ACCOUNT", "SELF_DELETION", ["user" => $u_data['username']]);

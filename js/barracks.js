@@ -74,6 +74,10 @@ registerAction("fillMaxAndCalc", (el) => {
         }
     }
 
+    if (!isUpgrade) {
+        maxCanAfford = Math.min(maxCanAfford, kRes.spaceLeft);
+    }
+
     input.value = Math.max(0, maxCanAfford);
     updateRecruitCosts(input);
 });
@@ -89,7 +93,8 @@ function getLatestKingdomResources() {
         gold: parseInt(resEl.dataset.gold) || 0,
         villager: parseInt(resEl.dataset.villager) || 0,
         dynamicLimit: parseInt(resEl.dataset.dynamicLimit) || 10,
-        multiplier: parseFloat(resEl.dataset.smithyMultiplier) || 1.0
+        multiplier: parseFloat(resEl.dataset.smithyMultiplier) || 1.0,
+        spaceLeft: parseInt(resEl.dataset.spaceLeft) || 0
     };
 }
 
@@ -120,6 +125,7 @@ function updateRecruitCosts(input) {
 
     const upgradeSelect = form.querySelector(".js-upgrade-select");
     const selectedUpgrade = (upgradeSelect && upgradeSelect.value !== "") ? upgradeSelect.selectedOptions[0] : null;
+    const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
 
     let rawTimePerUnit = parseInt(input.dataset.timePerUnit) || 0;
     if (selectedUpgrade) {
@@ -169,6 +175,14 @@ function updateRecruitCosts(input) {
     });
 
     const submitBtn = form.querySelector('input[type="submit"]');
+
+    if (!isUpgrade && amount > kRes.spaceLeft) {
+        input.style.color = "#ff4d4d";
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        input.style.color = "";
+    }
+
     const maxBtn = form.querySelector('input[data-on-click="fillMaxAndCalc"]');
 
     const noUnitsToUpgrade = selectedUpgrade && (parseInt(input.dataset.owned) <= 0);

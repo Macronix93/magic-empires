@@ -8,6 +8,10 @@ $building = $result["building"];
 $building_name = $building->get_building_name();
 $kingdom = $result["kingdom"];
 
+$troop_limit = $kingdom->get_troop_limit();
+$current_troops = $kingdom->get_current_troop_count();
+$space_left = max(0, $troop_limit - $current_troops);
+
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();
 $kingdom_stone = $kingdom->get_kingdom_stone();
@@ -139,6 +143,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                 $error = "Keine Angabe der Anzahl!";
             } else if ($_GET["count"] > $dynamic_limit) {
                 $error = "Deine Kaserne erlaubt aktuell maximal $dynamic_limit Einheiten gleichzeitig!";
+            } else if (empty($_GET["upgrade_to"]) && $count > $space_left) {
+                $error = "Nicht genug Platz! Dein Truppenlimit lässt nur noch $space_left Einheiten zu.";
             } else if ($_GET["recruit"] < 0 || $_GET["recruit"] > $soldiers_count) {
                 $error = "Diese Einheit existiert nicht!";
             } else if ($soldiers[$s_id]->get_soldier_required_level() > $building->get_building_level()) {
@@ -219,6 +225,7 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                     $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
 
                     $count = (int)$_GET["count"];
+
                     $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost());
                     $unit_cost_gold = (int)($soldiers[$s_id]->get_soldier_gold_cost());
                     $unit_cost_wood = (int)($soldiers[$s_id]->get_soldier_wood_cost());
@@ -359,13 +366,10 @@ $view .= "
         </div>
     </div>
     <div style='display: flex; align-items: center; width: 100%;'>
-        <div style='flex: 2; text-align: left;'>
+        <div style='flex: 3; text-align: left;'>
             <b>Truppen insgesamt:</b>
         </div>
-        <div style='flex: 1; display: flex; align-items: center;'>
-            <div style='width: 29px;'></div> 
-            " . fnum($total_k_units) . "
-        </div>
+        " . fnum($current_troops) . " / " . fnum($troop_limit) . "
         <div style='flex: 1;'>
         </div>
     </div>
@@ -387,7 +391,8 @@ $view .= '<div id="kingdom-resources"
     data-gold="' . $kingdom_gold . '" 
     data-villager="' . $kingdom_villager . '"
     data-dynamic-limit="' . $dynamic_limit . '"
-    data-smithy-multiplier="' . $smithy_multiplier . '"></div>';
+    data-smithy-multiplier="' . $smithy_multiplier . '"
+    data-space-left="' . $space_left . '"></div>';
 $view .= "<div class='tab'>";
 
 foreach ($categories as $id => $name) {

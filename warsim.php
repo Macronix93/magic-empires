@@ -266,6 +266,10 @@ $view .= '<div id="warsim-data" data-soldiers="' . e(json_encode(array_map(fn($s
                 data-max_lvl="' . MAX_BUILDING_LEVEL . '">
             </div>';
 
+$monster_import = $_GET["import_monsters"] ?? "";
+
+$view .= '<div id="monster-import-data" data-import="' . e($monster_import) . '"></div>';
+
 /*
  * HTML Section
  */

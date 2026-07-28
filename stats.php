@@ -18,6 +18,7 @@ $stats_query = "
         -- Map Data
         (SELECT COUNT(*) FROM map WHERE kingdomid > 0) as occupied_fields,
         (SELECT COUNT(*) FROM map WHERE kingdomid = -2) as resource_tiles,
+        (SELECT COUNT(*) FROM map WHERE kingdomid = -3) as monster_camps,
         
         -- Military
         ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers) + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)) as total_soldiers,
@@ -67,6 +68,7 @@ $view = "
             <div class='split-content'><span>Besiedelte Fläche:</span> <b>$map_percentage %</b></div>
             <div class='split-content'><span>Königreiche:</span> <b>{$stats['occupied_fields']}</b></div>
             <div class='split-content'><span>Vorratslager (Karte):</span> <b>{$stats['resource_tiles']}</b></div>
+            <div class='split-content'><span>Monstercamps (Karte):</span> <b>{$stats['monster_camps']}</b></div>
             <div class='split-content'><span>Ø Gebäude-Stufe:</span> <b>" . round($stats['avg_building_lvl'], 1) . "</b></div>
             <div class='split-content'><span>Erforschte Tech-Stufen:</span> <b>" . fnum($stats['total_tech_lvls']) . "</b></div>
             <hr>

@@ -224,6 +224,7 @@ class Map
         $field_x = (int)($_GET["x"] ?? $my_x);
         $field_y = (int)($_GET["y"] ?? $my_y);
         $field_id = (int)($_GET["clickedfield"] ?? -1);
+        $now = time();
 
         $res_units = $this->mysqli->execute_query(
             "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid IN (?, ?)",
@@ -255,11 +256,23 @@ class Map
             echo '</td></tr></table>';
 
         } else if ($field_id == -2) {
+            $res_data = $this->mysqli->execute_query("SELECT expires_at FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$field_x, $field_y])->fetch_assoc();
+            $lifetime = $res_data["expires_at"] - $now;
+
+            if ($lifetime <= 0) {
+                echo '<div class="title-border">Verschwunden</div>
+                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                      <tr><td class="td-mapinfo" style="text-align:center;">Das Vorkommen ist bereits erschöpft.</td></tr>
+                  </table>';
+                return;
+            }
+
             // --- RESOURCE TILE ---
             echo '<div class="title-border">Verlassenes Vorratslager</div>
           <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
               <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
               <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time_atk) . '</td></tr>
+              <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime) . '</td></tr>
               <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">';
             if ($my_troops[Soldiers::SOLDIER_RAIDER] > 0) {
                 echo "<button data-on-click='redirect' data-url='$target_url'>Plündern</button>";
@@ -270,17 +283,26 @@ class Map
 
         } else if ($field_id == -3) {
             // --- MONSTERCAMP ---
-            $res_camp = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$field_x, $field_y]);
-            $camp_level = $res_camp->fetch_column() ?: 0;
+            $res_camp = $this->mysqli->execute_query("SELECT level, expires_at FROM monster_camps WHERE mapx = ? AND mapy = ?", [$field_x, $field_y]);
+            $camp_data = $res_camp->fetch_assoc();
+            $lifetime = $camp_data["expires_at"] - $now;
+
+            if ($lifetime <= 0) {
+                echo '<div class="title-border">Verschwunden</div>
+              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                  <tr><td class="td-mapinfo" style="text-align:center;">Das Lager wurde bereits aufgegeben.</td></tr>
+              </table>';
+                return;
+            }
 
             $arrival_time_scout = (int)round(($arrival_time_atk / MONSTER_CAMP_TRAVEL_BOOST) * MONSTER_CAMP_SCOUT_BOOST);
 
-            echo '<div class="title-border">Monstercamp (Stufe ' . $camp_level . ')</div>
+            echo '<div class="title-border">Monstercamp (Stufe ' . $camp_data["level"] . ')</div>
             <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                 <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
                 <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' .
-                convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small>
-                </td></tr>
+                convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small></td></tr>
+                <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime) . '</td></tr>
                 <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">
                     <button data-on-click="redirect" data-url="' . $target_url . '">Camp angreifen</button>
                 </td></tr>

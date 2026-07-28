@@ -120,7 +120,7 @@ class BattleReportRenderer
         $icon_path = "images/icons/icon_scout.png";
         $losses_text = ($losses > 0) ? "<span class='loss-red'>(-$losses)</span>" : "";
 
-        return "<div class='battle-unit-card' style='border-left: 3px solid #3498db; background: rgba(52, 152, 219, 0.2); margin-top: 10px;'>
+        return "<div class='battle-unit-card' style='border-left: 3px solid #3498db; background: rgba(52, 152, 219, 0.2);'>
                 <img src='$icon_path' style='width: 24px; height: 24px; vertical-align: middle;' alt=''>
                 <div class='battle-unit-info'>
                     <span class='battle-unit-name' style='color:#3498db;'>Eigene Späher</span>

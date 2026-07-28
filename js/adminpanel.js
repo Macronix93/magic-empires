@@ -91,6 +91,20 @@ registerAction("confirmResetRound", (el) => {
         }
     );
 });
+registerAction("confirmMaintenance", (el) => {
+    const isCurrentlyOn = el.value === "Deaktivieren";
+
+    if (isCurrentlyOn) {
+        el.closest('form').submit();
+    } else {
+        const reason = prompt("Bitte gib einen Grund für die Wartung an:", "Wartungsarbeiten & Updates");
+        
+        if (reason !== null) {
+            document.getElementById('maint_reason_input').value = reason;
+            el.closest('form').submit();
+        }
+    }
+});
 
 function editField(userID, fieldID, currentValue, formattedValue) {
     const td = document.getElementById("td_" + fieldID);

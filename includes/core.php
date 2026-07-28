@@ -75,6 +75,8 @@ $logger = Logger::get_instance();
 
 // Server Settings
 $maintenance_res = $db_instance->execute_query("SELECT value FROM system_settings WHERE name = 'maintenance_mode'");
+$m_reason_res = $db_instance->execute_query("SELECT value FROM system_settings WHERE name = 'maintenance_reason'");
+define("MAINTENANCE_REASON", ($m_reason_res->fetch_assoc()["value"] ?? "Wartungsarbeiten"));
 define("MAINTENANCE_MODE", ($maintenance_res->fetch_assoc()["value"] === "1"));
 
 // Create User instance

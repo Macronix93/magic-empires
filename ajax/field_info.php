@@ -12,7 +12,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $target_x = isset($_GET["x"]) ? intval($_GET["x"]) : $my_x;
     $target_y = isset($_GET["y"]) ? intval($_GET["y"]) : $my_y;
 
-    $pathData = $map->calculate_path($my_row["mapx"], $my_row["mapy"], $target_x, $target_y);
+    $path_data = $map->calculate_path($my_row["mapx"], $my_row["mapy"], $target_x, $target_y);
 
     ob_start();
     $map->render_field_info();
@@ -20,7 +20,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo json_encode([
         "html" => $html,
-        "path" => $pathData["path"] ?? []
+        "path" => $path_data["path"] ?? []
     ]);
 } else {
     change_location("map.php");

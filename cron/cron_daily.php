@@ -7,7 +7,8 @@ require_once("../includes/core.php");
 
 $db = Database::get_instance()->get_connection();
 
-$activity_threshold = time() - INACTIVITY_DELAY;
+$now = time();
+$activity_threshold = $now - INACTIVITY_DELAY;
 
 $query_active = "SELECT u.id, u.username, u.mainkingdom, k.kingdomname 
           FROM users u 
@@ -66,7 +67,7 @@ if ($winner) {
 }
 
 // Support Cleanup
-$delete_limit = time() - (SUPPORT_TICKET_AUTO_DELETE_DAYS * 86400);
+$delete_limit = $now - (SUPPORT_TICKET_AUTO_DELETE_DAYS * 86400);
 $db->execute_query("DELETE FROM support_tickets WHERE status = 0 AND closed_at < ?", [$delete_limit]);
 
 $deleted_count = $db->affected_rows;
@@ -100,6 +101,8 @@ if ($res_count < MAX_RESOURCE_TILES) {
             $x = (int)$f["mapx"];
             $y = (int)$f["mapy"];
 
+            $expires = time() + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
+
             $total = mt_rand(MIN_RESOURCES_FOR_TILE, MAX_RESOURCES_FOR_TILE);
             $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
             $active_keys = [];
@@ -128,12 +131,12 @@ if ($res_count < MAX_RESOURCE_TILES) {
                 }
             }
 
-            $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]})";
+            $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]}, $expires)";
             $update_coords[] = "(mapx = $x AND mapy = $y)";
         }
 
         if (!empty($insert_values)) {
-            $sql_insert = "INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold) VALUES " . implode(', ', $insert_values);
+            $sql_insert = "INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold, expires_at) VALUES " . implode(', ', $insert_values);
             $db->execute_query($sql_insert);
         }
 
@@ -174,6 +177,8 @@ if ($current_camp_count < MAX_MONSTER_CAMPS) {
             $x = (int)$f["mapx"];
             $y = (int)$f["mapy"];
 
+            $expires = time() + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
+
             $roll = mt_rand(1, 100);
             if ($roll <= MONSTER_CAMP_WEIGHT_LOW) {
                 $camp_level = mt_rand(1, 3);
@@ -185,7 +190,7 @@ if ($current_camp_count < MAX_MONSTER_CAMPS) {
                 $camp_level = 10;
             }
 
-            $insert_camps[] = "($x, $y, $camp_level)";
+            $insert_camps[] = "($x, $y, $camp_level, $expires)";
             $update_map_coords[] = "($x, $y)";
 
             if (!empty($monster_pool[$camp_level])) {
@@ -222,7 +227,7 @@ if ($current_camp_count < MAX_MONSTER_CAMPS) {
 
         // Batch-Execution
         if (!empty($insert_camps)) {
-            $db->query("INSERT INTO monster_camps (mapx, mapy, level) VALUES " . implode(',', $insert_camps));
+            $db->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
             $db->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
 
             if (!empty($insert_units)) {

@@ -87,6 +87,14 @@
                     Räuber durch lauernde Diebe in den Hinterhalt geraten...
                 </td>
             </tr>
+            <tr>
+                <td class="td-gradient"><b>Was fange ich mit Münzen an?</b></td>
+                <td>Münzen sind dafür da, bei den Ressourcen-Gebäuden (Mühle, Sägewerk, Steinmine, Goldmine) die
+                    Ressourcen-Erträge
+                    pro Stunde zu erhöhen. Außerdem sind sie Bezahlwerkzeug im Marktplatz (bei Angebotsannahme). Münzen
+                    bekommt man pro Stunde automatisch, können aber auch durch Monstercamps erhalten werden.
+                </td>
+            </tr>
         </table>
     </div>
 </div>

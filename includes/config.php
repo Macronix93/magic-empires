@@ -4,6 +4,7 @@
     Constants (defines)
 */
 const STARTING_SCORE = 0;
+const EMAIL_BLOCK_DAYS_AFTER_DELETION = 7;
 const ADMIN_LEVEL_USER = 0;
 const ADMIN_LEVEL_SUPPORTER = 1;
 const ADMIN_LEVEL_LIGHT_ADMIN = 2;
@@ -60,7 +61,7 @@ const STORAGE_INC_FACTOR = 1.85;
 const BASE_FOOD_GAIN = 1000;
 const BASE_WOOD_GAIN = 1000;
 const BASE_STONE_GAIN = 800;
-const BASE_GOLD_GAIN = 500;
+const BASE_GOLD_GAIN = 600;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = "uploads/";
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . "default_avatar.jpg";
@@ -121,10 +122,8 @@ const MAX_NEWS_CONTENT_LENGTH = 2000;
 const MAX_WORLD_CHAT_MESSAGES_SHOWN = 30;
 const MAX_MONSTER_CAMPS = 150;           // Maximum camps on the map
 const MONSTER_CAMP_SPAWN_RATE = 10;      // How many camps spawn every tick
-const MAX_MONSTER_CAMP_LEVEL = 10;       // Max Level of camps
 const MONSTER_CAMP_TRAVEL_BOOST = 0.2;   // X% of the normal time needed
 const MONSTER_CAMP_SCOUT_BOOST = 0.0085;  // X% for espionage
-const MONSTER_CAMP_COIN_REWARD_BASE = 2; // Base coins for monster camp
 const MIN_NUM_MONSTERS_PER_TYPE = 6;
 const MAX_NUM_MONSTERS_PER_TYPE = 15;
 const MONSTER_CAMP_EXTRA_LEVEL_CAP = 2;
@@ -140,6 +139,11 @@ const MONSTER_CAMP_RES_CHANCE = 70;
 const MONSTER_CAMP_WEIGHT_LOW = 40; // Level 1-3
 const MONSTER_CAMP_WEIGHT_MID = 30; // Level 4-6
 const MONSTER_CAMP_WEIGHT_HIGH = 20; // Level 7-9
+const SPAWN_LIFETIME_MIN = 5; // In days
+const SPAWN_LIFETIME_MAX = 7; // In days
+const TROOP_LIMIT_BASE = 50;
+const TROOP_LIMIT_FACTOR = 50;
+const TROOP_LIMIT_EXPONENT = 2.3;
 
 /*
  * Interfaces

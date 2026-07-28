@@ -8,6 +8,7 @@ let currentTranslateX = 0;
 let currentTranslateY = 0;
 let zoom = 1.0;
 let mapCache = null;
+let isFetchingField = false;
 
 let velocityX = 0;
 let velocityY = 0;
@@ -90,14 +91,10 @@ document.addEventListener("DOMContentLoaded", () => {
     viewport.addEventListener("mousedown", dragStart);
     window.addEventListener("mousemove", dragMove);
     window.addEventListener("mouseup", dragEnd);
-
-    // Spezial-Logik für Mobile (Touch)
     viewport.addEventListener("touchstart", (e) => {
         if (e.touches.length === 1) {
-            // Ein Finger: Normales Verschieben starten
             dragStart(e.touches[0]);
         } else if (e.touches.length === 2) {
-            // Zwei Finger: Zoom-Start (Momentum stoppen)
             cancelAnimationFrame(momentumID);
             initialPinchDistance = Math.hypot(
                 e.touches[0].pageX - e.touches[1].pageX,
@@ -111,7 +108,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (e.cancelable) e.preventDefault();
             dragMove(e.touches[0]);
         } else if (e.touches.length === 2) {
-            // Zwei Finger: Zoomen
             if (e.cancelable) e.preventDefault();
             const currentDist = Math.hypot(
                 e.touches[0].pageX - e.touches[1].pageX,
@@ -122,7 +118,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 const factor = currentDist / initialPinchDistance;
                 const rect = canvas.getBoundingClientRect();
 
-                // Mittelpunkt zwischen den zwei Fingern berechnen
                 const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
                 const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
@@ -140,7 +135,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Suche & Pfad-Toggle (bleibt gleich)
     const searchForm = document.getElementById("update-map");
     if (searchForm) {
         searchForm.addEventListener("submit", (e) => {
@@ -335,10 +329,16 @@ function dragStart(e) {
 function dragMove(e) {
     if (!isDragging) return;
     const now = Date.now();
+
+    const moveX = Math.abs(e.pageX - (startX + currentTranslateX));
+    const moveY = Math.abs(e.pageY - (startY + currentTranslateY));
+
+    if (moveX > 2 || moveY > 2) {
+        wasDragged = true;
+    }
+
     velocityX = e.pageX - lastMouseX;
     velocityY = e.pageY - lastMouseY;
-
-    if (Math.abs(e.pageX - (startX + currentTranslateX)) > 5) wasDragged = true;
 
     currentTranslateX = e.pageX - startX;
     currentTranslateY = e.pageY - startY;
@@ -361,8 +361,10 @@ function dragEnd(e) {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.pageX - rect.left - window.scrollX;
         const mouseY = e.pageY - rect.top - window.scrollY;
+
         const tx = Math.floor((mouseX - currentTranslateX) / (BASE_TILE_SIZE * zoom)) + 1;
         const ty = Math.floor((mouseY - currentTranslateY) / (BASE_TILE_SIZE * zoom)) + 1;
+
         if (tx >= 1 && tx <= MAX_X && ty >= 1 && ty <= MAX_Y) selectField(tx, ty);
     }
 }
@@ -388,6 +390,9 @@ function handleWheel(e) {
 }
 
 function selectField(x, y, shouldCenter = false) {
+    if (x === selectedX && y === selectedY && !shouldCenter) return;
+    if (isFetchingField) return;
+
     selectedX = x;
     selectedY = y;
     if (shouldCenter) centerMapOn(x, y);
@@ -399,6 +404,8 @@ function selectField(x, y, shouldCenter = false) {
     const score = tile[9] || 0;
     const ownerId = tile[10] || 0;
 
+    isFetchingField = true;
+
     fetch(`ajax/field_info.php?clickedfield=${kid}&x=${x}&y=${y}&owner=${encodeURIComponent(owner)}&kname=${encodeURIComponent(kname)}&score=${score}&owner_id=${ownerId}`, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
@@ -408,6 +415,9 @@ function selectField(x, y, shouldCenter = false) {
             currentPath = data.path || [];
 
             draw();
+        })
+        .finally(() => {
+            isFetchingField = false;
         });
 }
 

@@ -187,8 +187,11 @@ if (!$user->is_admin()) {
 
     if (isset($_POST["toggle_maintenance"])) {
         $new_val = (MAINTENANCE_MODE ? "0" : "1");
+        $reason = $_POST["maintenance_reason"] ?? "Geplante Wartungsarbeiten";
+
         $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$new_val]);
-        $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON" : "OFF"));
+        $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_reason'", [$reason]);
+        $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON ($reason)" : "OFF"));
 
         change_location("adminpanel.php");
         exit;
@@ -604,11 +607,13 @@ if (!$user->is_admin()) {
     $m_button = MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren";
 
     $settings_list = "<div class='box-container' style='margin-bottom: 20px;'>
-                        <div class='box-header'>System-Steuerung</div>
+                    <div class='box-header'>System-Steuerung</div>
                         <div class='box-content box-content-bg' style='padding: 15px;'>
                             <b>Wartungsmodus:</b> $m_status 
-                            <form method='POST' style='display:inline; margin-left: 20px;'>
-                                <input type='submit' name='toggle_maintenance' value='$m_button'>
+                            <form method='POST' id='maint_form' style='display:inline; margin-left: 20px;'>
+                                <input type='hidden' name='toggle_maintenance' value='1'>
+                                <input type='hidden' name='maintenance_reason' id='maint_reason_input' value=''>
+                                <input type='button' data-on-click='confirmMaintenance' value='" . (MAINTENANCE_MODE ? 'Deaktivieren' : 'Aktivieren') . "'>
                             </form>
                         </div>
                     </div>";

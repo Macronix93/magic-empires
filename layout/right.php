@@ -40,6 +40,9 @@
                         "total_prod_with_shrine" => $kingdom->get_kingdom_gold_per_hour()
                 ],
         ];
+
+        $coin_limit = $user->get_coin_limit();
+        $current_coins = $user->get_user_coins();
         ?>
         <form method="POST">
             <div class="kingdom-switch-container">
@@ -162,8 +165,10 @@
             </div>
             <div class="split-content">
                 <div>
-                    <img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen'
-                         title='Münzen'/> <?= fnum($user->get_user_coins()); ?>
+                    <img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen' title='Münzen'/>
+                    <span class="<?= ($current_coins >= $coin_limit) ? "over-limit" : "under-limit" ?>">
+                        <?= fnum($current_coins); ?> / <?= fnum($coin_limit); ?>
+                    </span>
                 </div>
                 (5/h)
             </div>

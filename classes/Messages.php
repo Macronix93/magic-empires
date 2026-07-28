@@ -310,6 +310,8 @@ class Messages
             $is_me = ($row["senderid"] == $this->user->get_user_id());
             $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
 
+            $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
+
             if ($row["senderid"] == $sender_id) {
                 if (empty($chat_partner_image)) {
                     $chat_partner_image = $partner->get_avatar() ?? "";
@@ -324,7 +326,7 @@ class Messages
                             <div class='message-border'>
                                 <span class='msg-header-left'>
                                     <img class='user-image' src='$chat_partner_image' alt=''> 
-                                    <span>" . $row["sender"] . " am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
+                                    <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
                                 </span>
                                 $delete_icon
                             </div>
@@ -382,8 +384,17 @@ class Messages
                 Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
             </div>";
         } else {
+            $last_read_id = $this->mysqli->execute_query("SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()])->fetch_row()[0] ?? 0;
+            $unread_line_shown = false;
+
             foreach ($rows as $row) {
                 $is_me = ($row["userid"] == $this->user->get_user_id());
+
+                if (!$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
+                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
+                    $unread_line_shown = true;
+                }
+
                 $class = $is_me ? "receiver-bubble" : "sender-bubble";
 
                 $is_admin = $this->user->is_admin();
@@ -397,11 +408,13 @@ class Messages
                 $u = new User($row["userid"], $row["username"]);
                 $avatar = $u->get_avatar();
 
+                $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
+
                 $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
                     <div class='message-border'>
                         <span class='msg-header-left'>
                             <img class='user-image' src='$avatar' alt=''> 
-                            <span>" . ($is_me ? 'Du' : $row["username"]) . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                            <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
                         </span>
                         $delete_icon
                     </div>
