@@ -796,25 +796,51 @@ class Kingdom
         return (int)(TROOP_LIMIT_BASE + TROOP_LIMIT_FACTOR * pow($barracks_lvl, TROOP_LIMIT_EXPONENT));
     }
 
-    public function get_current_troop_count(): int
+    public function get_current_troop_count(bool $include_queue = true, bool $include_incoming = false): int
     {
-        $query = "
-        SELECT (
-            (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?) +
-            (SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ?) +
-            (SELECT IFNULL(SUM(st.soldiercount), 0) 
-             FROM sent_troops st 
-             JOIN events e ON st.eventid = e.eventid 
-             WHERE e.kingdomid = ?)
-        ) AS total";
+        $kid = $this->kingdom_id;
 
-        $res = $this->mysqli->execute_query($query, [
-            $this->kingdom_id,
-            $this->kingdom_id,
-            ActionTypes::ACTION_BUILD_TROOPS,
-            $this->kingdom_id
-        ]);
+        // Own troops (barracks + sent)
+        $query_own = "SELECT (
+                (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?) +
+                (SELECT IFNULL(SUM(st.soldiercount), 0) 
+                 FROM sent_troops st 
+                 JOIN events e ON st.eventid = e.eventid 
+                 WHERE e.kingdomid = ?)
+            ) AS total";
 
-        return (int)($res->fetch_row()[0] ?? 0);
+        $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid]);
+        $total = (int)$res_own->fetch_row()[0];
+
+        // Troops currently recruiting
+        if ($include_queue) {
+            $res_training = $this->mysqli->execute_query(
+                "SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ?",
+                [$kid, ActionTypes::ACTION_BUILD_TROOPS]
+            );
+            $total += (int)$res_training->fetch_row()[0];
+        }
+
+        // Station Troops
+        if ($include_incoming) {
+            $query_incoming = "
+            SELECT IFNULL(SUM(st.soldiercount), 0) 
+            FROM sent_troops st 
+            JOIN events e ON st.eventid = e.eventid 
+            WHERE e.targetid = ? 
+              AND e.actionid = ? 
+              AND e.kingdomid != ? 
+              AND e.userid = (SELECT userid FROM kingdoms WHERE id = ?)
+        ";
+            $res_incoming = $this->mysqli->execute_query($query_incoming, [
+                $kid,
+                ActionTypes::ACTION_SEND_TROOPS,
+                $kid,
+                $kid
+            ]);
+            $total += (int)$res_incoming->fetch_row()[0];
+        }
+
+        return $total;
     }
 }

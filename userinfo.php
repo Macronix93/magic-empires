@@ -16,10 +16,12 @@ $user_id = (int)($_GET["userid"] ?? 0);
 
 if ($user_id) {
     $query = "
-            SELECT users.*, kingdoms.mapx, kingdoms.mapy
-            FROM users
-            INNER JOIN kingdoms ON users.mainkingdom = kingdoms.id
-            WHERE users.id = ?
+        SELECT users.id, users.username, users.lastactivity, users.guildid, 
+               users.ranking_points AS score,
+               kingdoms.mapx, kingdoms.mapy
+        FROM users
+        INNER JOIN kingdoms ON users.mainkingdom = kingdoms.id
+        WHERE users.id = ?
     ";
     $result = $db_instance->execute_query($query, [$user_id]);
     $row = $result->fetch_assoc();
@@ -107,11 +109,9 @@ if ($user_id) {
     </table>
     <br>
     <div style="text-align:center">
-        <a href="#"
-           data-on-click="closeOverlay"
-           style="background-color: rgba(0, 0, 0, 0.7); display: inline-block;">
-            [Schließen]
-        </a>
+        <button data-on-click="closeOverlay">
+            Schließen
+        </button>
     </div>
     <title>Magic Empires - <?= $user_name ?></title>
     <?php

@@ -9,8 +9,9 @@ $building_name = $building->get_building_name();
 $kingdom = $result["kingdom"];
 
 $troop_limit = $kingdom->get_troop_limit();
-$current_troops = $kingdom->get_current_troop_count();
-$space_left = max(0, $troop_limit - $current_troops);
+$total_occupied_space = $kingdom->get_current_troop_count(true, true);
+$space_left = max(0, $troop_limit - $total_occupied_space);
+$current_troops = $kingdom->get_current_troop_count(false, false);
 
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();
@@ -137,6 +138,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                 $error = "Du rekrutierst gerade nicht oder wertest nicht auf!";
             }
         } else {
+            $count = (int)$_GET["count"];
+
             if ($kingdom_is_recruiting || $kingdom_is_upgrading) {
                 $error = "Du bist bereits am Rekrutieren oder Aufwerten!";
             } else if (!is_numeric($_GET["count"]) || $_GET["count"] < 1) {
@@ -152,7 +155,6 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
             } else if ($s_id == Soldiers::SOLDIER_HERO) {
                 $error = "Helden können nicht ausgebildet werden!";
             } else {
-                $count = (int)$_GET["count"];
                 $source_soldier = $soldiers[(int)$_GET["recruit"]];
                 $source_db_id = $source_soldier->get_soldier_id();
 
@@ -517,10 +519,22 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         $max_soldiers = max(0, $max_soldiers);
         $owned_count = $kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0;
 
-        $can_recruit_at_least_one = ($max_soldiers > 0);
-        $can_upgrade_from_this = ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && $owned_count > 0);
+        $can_train_at_least_one = ($max_soldiers > 0);
 
-        $is_disabled = (!$can_recruit_at_least_one && !$can_upgrade_from_this);
+        $can_upgrade_to_anything = false;
+        if ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && $owned_count > 0) {
+            foreach ($soldiers as $target_soldier) {
+                if ($target_soldier->get_soldier_category() == $unit_cat &&
+                    $target_soldier->get_soldier_required_level() > $soldiers[$i]->get_soldier_required_level() &&
+                    $target_soldier->get_soldier_required_level() <= $building->get_building_level()) {
+
+                    $can_upgrade_to_anything = true;
+                    break;
+                }
+            }
+        }
+
+        $is_disabled = (!$can_train_at_least_one && !$can_upgrade_to_anything);
         $disabled_attr = $is_disabled ? "disabled" : "";
 
         $text_build = "<form action='barracks.php' method='GET' style='display: flex; flex-direction: column; gap: 5px; align-items: center;'>

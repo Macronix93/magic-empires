@@ -10,9 +10,11 @@
             <?= $header ?? "Information" ?>
         </div>
         <div class="big-box-content">
+            <a href="index.php">
+                <button type="button">Zurück zur Startseite</button>
+            </a>
+            <br><br>
             <?= $view ?? "" ?>
-            <br>
-            <hr>
             <br>
             <a href="index.php">
                 <button type="button">Zurück zur Startseite</button>

@@ -450,6 +450,11 @@ function centerMapOn(x, y) {
 
 function jumpTo(x, y) {
     if (x >= 1 && x <= MAX_X && y >= 1 && y <= MAX_Y) {
+        if (mapData.length === 0) {
+            setTimeout(() => jumpTo(x, y), 100);
+            return;
+        }
+
         selectField(x, y, true);
     }
 }

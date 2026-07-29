@@ -93,8 +93,10 @@ if (isset($_GET["action"])) {
             }
         } else if ($_GET["action"] == "cancel") { // The action that was set is "cancel research"
             if ($kingdom_is_researching) {
-                $db_instance->execute_query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$tech_id' AND kingdomid = ?",
-                    [$user->get_current_kingdom()]);
+                $db_instance->execute_query(
+                    "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
+                    [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_SMITHY_UPGRADE]
+                );
 
                 // Refund the player
                 $kingdom->give_kingdom_wood($cost_wood);

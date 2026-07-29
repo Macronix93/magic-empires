@@ -3,6 +3,7 @@
 /*
     Constants (defines)
 */
+const MAX_PLAYER_LIMIT = 100;
 const STARTING_SCORE = 0;
 const EMAIL_BLOCK_DAYS_AFTER_DELETION = 7;
 const ADMIN_LEVEL_USER = 0;
@@ -64,6 +65,7 @@ const BASE_STONE_GAIN = 800;
 const BASE_GOLD_GAIN = 600;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = "uploads/";
+const JS_PATH = "js/";
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . "default_avatar.jpg";
 const AVATAR_SALT = "Dpf89!jkl#45mAlmDlp";
 const MAX_UPLOAD_FILE_SIZE = 128; // In KB
@@ -127,7 +129,10 @@ const MONSTER_CAMP_SCOUT_BOOST = 0.0085;  // X% for espionage
 const MIN_NUM_MONSTERS_PER_TYPE = 6;
 const MAX_NUM_MONSTERS_PER_TYPE = 15;
 const MONSTER_CAMP_EXTRA_LEVEL_CAP = 2;
-const MONSTER_CAMP_EXTRA_SLOTS = 4; // Extra monster slots for a level
+const MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH = 2;
+const MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH = 4;
+const MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW = 0;
+const MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW = 2;
 const MONSTER_CAMP_EXTRA_MONSTER = 18; // Up to X extra monster per creation
 const MONSTER_CAMP_BASE_RESOURCE_LOOT = 1344;
 const MIN_MONSTER_CAMP_RESOURCE_PERC = 90;

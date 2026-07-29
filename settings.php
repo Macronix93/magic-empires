@@ -75,7 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                     array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
 
                                     if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                                        $view = "Nutzerbild wurde erfolgreich hochgeladen!";
+                                        $view = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
 
                                         $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
                                             "filename" => $file_name,

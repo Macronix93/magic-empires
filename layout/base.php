@@ -9,7 +9,7 @@ if ($user->is_logged_in()) {
     $not_in_clause = "";
 
     if (!empty($ack_ids)) {
-        $clean_ids = array_map('intval', $ack_ids);
+        $clean_ids = array_map("intval", $ack_ids);
         $not_in_clause = "AND e.eventid NOT IN (" . implode(',', $clean_ids) . ")";
     }
 
@@ -53,11 +53,11 @@ if ($user->is_logged_in()) {
     <noscript>
         <meta http-equiv="refresh" content="0;url=nojs.php">
     </noscript>
-    <script type="text/javascript" src="js/main.js" defer></script>
+    <script type="text/javascript" src="<?= JS_PATH ?>main.js" defer></script>
     <?php
     if (!empty($script_files)) {
         foreach ($script_files as $script_file) {
-            echo '<script type="text/javascript" src="js/' . $script_file . '.js" defer></script>';
+            echo '<script type="text/javascript" src="' . JS_PATH . $script_file . '.js" defer></script>';
         }
     }
     echo $head_extra ?? '';

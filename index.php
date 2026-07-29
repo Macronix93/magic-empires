@@ -7,7 +7,7 @@ require_once("includes/core.php");
 $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
 
 if (!empty(MAINTENANCE_REASON)) {
-    $maintenance_text .= " Grund: " . e(MAINTENANCE_REASON);
+    $maintenance_text .= "<br>Grund: " . e(MAINTENANCE_REASON);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
@@ -22,6 +22,7 @@ $success = "";
 $error = "";
 $warning = "";
 $mode = $_GET["action"] ?? "login";
+$now = time();
 
 // ACCOUNT ACTIVATION
 if (!empty($_GET["key"])) {
@@ -94,19 +95,10 @@ if (isset($_GET["logout"])) {
         // Stop Session safely
         $_SESSION = array();
 
-//        if (ini_get("session.use_cookies")) {
-//            $params = session_get_cookie_params();
-//
-//            setcookie(session_name(), '', time() - 42000,
-//                    $params["path"], $params["domain"],
-//                    $params["secure"], $params["httponly"]
-//            );
-//        }
-
         session_destroy();
     }
 
-    setcookie("logout_verify", "", time() - 3600, "/");
+    setcookie("logout_verify", "", $now - 3600, "/");
 
     if (empty($success) && empty($warning)) {
         header("Location: index.php");
@@ -160,12 +152,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // REGISTER
     if (isset($_POST["register"])) {
         $mode = "register";
-
         $current_ip = $_SERVER["REMOTE_ADDR"];
-        $ip_check = $db_instance->execute_query("SELECT id FROM users WHERE ip = ? AND is_banned = 1 LIMIT 1", [$current_ip]);
 
-        if ($ip_check->num_rows > 0) {
+        $query_check = "
+            SELECT 
+                (SELECT COUNT(*) FROM users WHERE status = 1) AS active_players,
+                (SELECT 1 FROM users WHERE ip = ? AND is_banned = 1 LIMIT 1) AS is_ip_banned
+        ";
+        $res_check = $db_instance->execute_query($query_check, [$current_ip]);
+        $check_data = $res_check->fetch_assoc();
+
+        $current_active_players = (int)($check_data["active_players"] ?? 0);
+        $is_ip_banned = !empty($check_data["is_ip_banned"]);
+
+        if ($is_ip_banned) {
             $error .= "Deine IP-Adresse ist für Neuregistrierungen gesperrt!<br>";
+        } else if ($current_active_players >= MAX_PLAYER_LIMIT) {
+            $error .= "Das Spielerlimit von " . MAX_PLAYER_LIMIT . " wurde erreicht. Aktuell sind leider keine Neuanmeldungen möglich.<br>";
         } else {
             if (!isset($_POST["accept_rules"])) {
                 $error .= "Du musst die Spielregeln akzeptieren!<br>";
@@ -224,7 +227,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
                         $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
                     } else {
-                        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$email, time()]);
+                        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$email, $now]);
 
                         if ($res_block->num_rows > 0) {
                             $row_block = $res_block->fetch_assoc();
@@ -274,7 +277,7 @@ if (MAINTENANCE_MODE) {
         $warning .= "<br>" . $maintenance_text;
     }
 }
-$online_limit = time() - AFK_SECONDS;
+$online_limit = $now - TIMEOUT_MAX_SECONDS;
 $res_online = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE lastactivity > ?", [$online_limit]);
 $count_online = $res_online->fetch_row()[0];
 ?>
@@ -373,66 +376,83 @@ $count_online = $res_online->fetch_row()[0];
                             </fieldset>
                         </form>
                     <?php else: ?>
-                        <form class="login-register" method="POST" action="index.php?action=register"
-                              style="max-width: 100%;">
-                            <fieldset class="box-content-bg">
-                                <legend><b>Registrieren</b></legend>
-                                <table class="table" style="width: 100%;">
-                                    <tr>
-                                        <td><label>
-                                                <input type="text" name="username" placeholder="Benutzername"
-                                                       style="width: 100%;" value="<?= e($_POST["username"] ?? "") ?>">
-                                            </label></td>
-                                    </tr>
-                                    <tr>
-                                        <td><label>
-                                                <input type="text" name="email" placeholder="E-Mail Adresse"
-                                                       style="width: 100%;" value="<?= e($_POST["email"] ?? "") ?>">
-                                            </label></td>
-                                    </tr>
-                                    <tr>
-                                        <td><label>
-                                                <input type="password" name="password" placeholder="Passwort"
-                                                       style="width: 100%;">
-                                            </label></td>
-                                    </tr>
-                                    <tr>
-                                        <td><label>
-                                                <input type="password" name="password_repeat"
-                                                       placeholder="Passwort wiederholen"
-                                                       style="width: 100%;">
-                                            </label></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 10px; text-align: left; font-size: 14px;">
-                                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                                <input type="checkbox" name="accept_rules" value="1"
-                                                       style="width: auto;" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
-                                                <span>Ich akzeptiere die <a href="rules.php" target="_blank"
-                                                                            style="text-decoration: underline; color: var(--link-color);">Regeln</a> und Datenschutzbestimmungen.</span>
-                                            </label>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="display: flex; justify-content: center; padding: 10px;">
-                                            <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
-                                                <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
-                                                    <span class="passed">✔</span> <b>Botschutz verifiziert</b>
-                                                </div>
-                                                <input type="hidden" name="captcha_already_passed" value="1">
-                                            <?php else: ?>
-                                                <div class="g-recaptcha"
-                                                     data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"></div>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <input type="submit" name="register" value="Registrieren"
-                                       style="height:40px; margin: 10px 0;"/>
-                                <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück zum
-                                    Login</a>
-                            </fieldset>
-                        </form>
+                        <?php
+                        $res_ui_count = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE status = 1");
+                        $ui_count = (int)$res_ui_count->fetch_row()[0];
+                        ?>
+
+                        <?php if ($ui_count >= MAX_PLAYER_LIMIT): ?>
+                            <div class="info-box event-warning" style="margin-top: 20px;">
+                                <span>
+                                    <b>Server voll:</b><br>Wir haben aktuell die maximale Kapazität von <b><?= MAX_PLAYER_LIMIT ?></b> Spielern erreicht.
+                                    Bitte versuche es später erneut oder schau in die <a href="news.php"
+                                                                                         style="text-decoration: underline;">News</a>.
+                                </span>
+                            </div>
+                        <?php else: ?>
+                            <form class="login-register" method="POST" action="index.php?action=register"
+                                  style="max-width: 100%;">
+                                <fieldset class="box-content-bg">
+                                    <legend><b>Registrieren</b></legend>
+                                    <table class="table" style="width: 100%;">
+                                        <tr>
+                                            <td><label>
+                                                    <input type="text" name="username" placeholder="Benutzername"
+                                                           style="width: 100%;"
+                                                           value="<?= e($_POST["username"] ?? "") ?>">
+                                                </label></td>
+                                        </tr>
+                                        <tr>
+                                            <td><label>
+                                                    <input type="text" name="email" placeholder="E-Mail Adresse"
+                                                           style="width: 100%;" value="<?= e($_POST["email"] ?? "") ?>">
+                                                </label></td>
+                                        </tr>
+                                        <tr>
+                                            <td><label>
+                                                    <input type="password" name="password" placeholder="Passwort"
+                                                           style="width: 100%;">
+                                                </label></td>
+                                        </tr>
+                                        <tr>
+                                            <td><label>
+                                                    <input type="password" name="password_repeat"
+                                                           placeholder="Passwort wiederholen"
+                                                           style="width: 100%;">
+                                                </label></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px; text-align: left; font-size: 14px;">
+                                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                                    <input type="checkbox" name="accept_rules" value="1"
+                                                           style="width: auto;" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
+                                                    <span>Ich akzeptiere die <a href="rules.php" target="_blank"
+                                                                                style="text-decoration: underline; color: var(--link-color);">Regeln</a> und Datenschutzbestimmungen.</span>
+                                                </label>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="display: flex; justify-content: center; padding: 10px;">
+                                                <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
+                                                    <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
+                                                        <span class="passed">✔</span> <b>Botschutz verifiziert</b>
+                                                    </div>
+                                                    <input type="hidden" name="captcha_already_passed" value="1">
+                                                <?php else: ?>
+                                                    <div class="g-recaptcha"
+                                                         data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"></div>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <input type="submit" name="register" value="Registrieren"
+                                           style="height:40px; margin: 10px 0;"/>
+                                    <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück
+                                        zum
+                                        Login</a>
+                                </fieldset>
+                            </form>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
 

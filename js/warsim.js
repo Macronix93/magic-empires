@@ -17,7 +17,26 @@ const W_CONF = {
     maxLvl: parseInt(warsimConstEl.dataset.max_lvl)
 };
 let currentSimWallHp = null;
+let lastSimState = null;
 
+registerAction("undoWarSim", () => {
+    if (!lastSimState) return;
+
+    lastSimState.inputs.forEach(item => {
+        const el = document.getElementById(item.id);
+
+        if (el) {
+            el.value = item.value;
+            el.style.color = "";
+        }
+    });
+
+    currentSimWallHp = lastSimState.wallHp;
+
+    updateLivePowerSummary();
+
+    document.getElementById("btn-undo").disabled = true;
+});
 registerAction("switchSimTab", (el) => {
     const target = el.dataset.tab;
     document.querySelectorAll(".sim-tab-content").forEach(c => c.style.display = "none");
@@ -67,6 +86,17 @@ registerAction("resetFields", () => {
     });
 
     updateLivePowerSummary();
+});
+registerAction("fillSimMax", (el) => {
+    const targetId = el.dataset.target;
+    const value = el.dataset.value;
+    const input = document.getElementById(targetId);
+
+    if (input) {
+        input.value = value;
+
+        updateLivePowerSummary();
+    }
 });
 
 document.querySelectorAll(".js-tech-input, #en_wall_lvl, .warsim-table input, .js-mon-input").forEach(input => {
@@ -134,6 +164,17 @@ function calculateWarOutcome(soldierTypes) {
 
     const lvl = parseInt(document.getElementById("en_wall_lvl").value) || 1;
     const wallBonus = calculateWallDefenseBonus(currentSimWallHp, lvl);
+
+    // Save old inputs
+    const inputs = [];
+    document.querySelectorAll(".warsim-table input, .js-mon-input").forEach(i => {
+        inputs.push({id: i.id, value: i.value});
+    });
+    lastSimState = {
+        inputs: inputs,
+        wallHp: currentSimWallHp
+    };
+    document.getElementById("btn-undo").disabled = false;
 
     // Collect data
     soldierTypes.forEach(type => {

@@ -137,13 +137,30 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     [$user->get_user_id()])->fetch_assoc()["total"]
                     : 0);
 
+                $total_units_in_request = 0;
+                foreach ($_POST["soldiers"] as $count) {
+                    $total_units_in_request += (int)$count;
+                }
+
                 if (!$has_soldiers) {
                     $error = "Du musst mindestens einen Soldaten auswählen!";
                 } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
                     $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
                 } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_k_count >= $max_settled_slots) {
                     $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
-                } else if (empty($error)) {
+                } else if ($enemy_user_id == $user->get_user_id() && $target_x != -1) {
+                    $target_k_obj = new Kingdom($db_instance, $kingdom_id);
+                    $target_limit = $target_k_obj->get_troop_limit();
+
+                    $target_occupied = $target_k_obj->get_current_troop_count(true, true);
+                    $free_space = max(0, $target_limit - $target_occupied);
+
+                    if ($total_units_in_request > $free_space) {
+                        $error = "Im Zielkönigreich ist nicht genug Platz für die Stationierung! Frei: " . fnum($free_space) . " Plätze.";
+                    }
+                }
+
+                if (empty($error)) {
                     $now = time();
 
                     $is_pure_scouting = ($has_soldiers && !$has_non_scout_units);
@@ -170,8 +187,8 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                         if ($soldier_count > 0) {
                             // Insert troop record
                             $db_instance->execute_query(
-                                "INSERT INTO sent_troops (eventid, soldierid, soldiercount) VALUES (?, ?, ?)",
-                                [$event_id, $soldier_id, $soldier_count]
+                                "INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count) VALUES (?, ?, ?, ?)",
+                                [$event_id, $soldier_id, $soldier_count, $soldier_count]
                             );
 
                             // Subtract soldiers from kingdom
@@ -223,8 +240,25 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 $only_scouts_allowed = false;
             }
 
+            $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy");
+
+            if (!empty($_POST["soldiers"])) {
+                $is_spying = true;
+
+                foreach ($_POST["soldiers"] as $s_id => $count) {
+                    if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && (int)$count > 0) {
+                        $is_spying = false;
+                        break;
+                    }
+                }
+            }
+
+            if ($only_scouts_allowed) {
+                $is_spying = true;
+            }
+
             if ($kingdom_id == -3) {
-                $send_title = "Monstercamp angreifen";
+                $send_title = $is_spying ? "Monstercamp spionieren" : "Monstercamp angreifen";
 
                 $res_m = $db_instance->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
                 $m_lvl = $res_m->fetch_column() ?: 1;
@@ -253,7 +287,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                 if ($enemy_user_id == $user->get_user_id()) {
                     $send_title = "Truppen stationieren";
                 } else {
-                    $send_title = "Königreich angreifen";
+                    $send_title = $is_spying ? "Königreich spionieren" : "Königreich angreifen";
                 }
 
                 $view .= '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
@@ -281,7 +315,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
             } else {
                 if ($kingdom_id == -2) {
-                    $send_title = "Vorratslager plündern";
+                    $send_title = $is_spying ? "Vorratslager spionieren" : "Vorratslager plündern";
                     $display_name = "Verlassenes Vorratslager";
                 } else {
                     $send_title = "Erobern";

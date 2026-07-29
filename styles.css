@@ -1410,6 +1410,14 @@ tr:first-child td.td-gradient {
 }
 
 /* Live Power Container Warsim */
+.troop-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90px;
+    display: inline-block;
+}
+
 #live-power-container {
     display: flex;
     justify-content: center;
@@ -1879,6 +1887,10 @@ tr:first-child td.td-gradient {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .troop-text {
+        max-width: fit-content;
     }
 
     table:has(#sv) {

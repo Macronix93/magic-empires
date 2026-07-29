@@ -29,6 +29,13 @@ $map = new Map($db_instance, $user);
 $default_supply = ResourceTypes::RESOURCE_TYPE_FOOD;
 $default_demand = ResourceTypes::RESOURCE_TYPE_WOOD;
 
+$res_map = [
+    ResourceTypes::RESOURCE_TYPE_FOOD => "food",
+    ResourceTypes::RESOURCE_TYPE_WOOD => "wood",
+    ResourceTypes::RESOURCE_TYPE_STONE => "stone",
+    ResourceTypes::RESOURCE_TYPE_GOLD => "gold"
+];
+
 if (isset($_GET["accept"])) {
     $accept_id = (int)$_GET["accept"];
 
@@ -136,6 +143,17 @@ if (isset($_GET["accept"])) {
                         "from_kingdom" => $row["kingdomid"],
                         "to_kingdom" => $kingdom->get_kingdom_id()
                     ], $current_kingdom);
+
+                    update_global_stat("total_trades");
+
+                    $s_name = $res_map[$supply];
+                    $d_name = $res_map[$demand];
+                    update_player_stat($u_id, "trades_count");
+                    update_player_stat($u_id, "trade_received_" . $s_name, $supply_value);
+                    update_player_stat($u_id, "trade_sent_" . $d_name, $demand_value);
+                    update_player_stat($creator_id, "trades_count");
+                    update_player_stat($creator_id, "trade_sent_" . $s_name, $supply_value);
+                    update_player_stat($creator_id, "trade_received_" . $d_name, $demand_value);
 
                     $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . convert_sec_to_str($seconds));
                 }

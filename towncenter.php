@@ -89,8 +89,15 @@ if (isset($_GET["action"])) {
             }
         } else if ($_GET["action"] == "cancel") { // The action that was set is "cancel building"
             if ($kingdom_is_building) {
-                $db_instance->execute_query("DELETE FROM events WHERE userid = '{$user->get_user_id()}' AND buildingid = '$build_id' AND kingdomid = ?",
-                    [$user->get_current_kingdom()]);
+                $db_instance->execute_query(
+                    "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
+                    [
+                        $user->get_user_id(),
+                        $build_id,
+                        $user->get_current_kingdom(),
+                        ActionTypes::ACTION_BUILD_BUILDING
+                    ]
+                );
 
                 // Refund the player
                 $kingdom->give_kingdom_wood($cost_wood);

@@ -68,7 +68,7 @@ function make_secure(string $data): string
 }
 
 // Convert seconds to a string
-function convert_sec_to_str(int $secs, bool $short_format = false): string
+function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_seconds = true): string
 {
     if ($secs <= 0) return "0s";
 
@@ -92,7 +92,9 @@ function convert_sec_to_str(int $secs, bool $short_format = false): string
     if ($days > 0) $output .= $days . "T ";
     if ($hours > 0) $output .= $hours . " Std. ";
     if ($minutes > 0) $output .= $minutes . " Min. ";
-    if ($seconds > 0 || empty($output)) $output .= $seconds . " Sek.";
+    if ($show_seconds && ($seconds > 0 || empty($output))) {
+        $output .= $seconds . " Sek.";
+    }
 
     return trim($output);
 }
@@ -668,4 +670,22 @@ function is_name_monotonous($name): bool
     }
 
     return false;
+}
+
+function update_global_stat(string $name, int $increment = 1): void
+{
+    global $db_instance;
+
+    $query = "UPDATE system_settings SET value = value + ? WHERE name = ?";
+    $db_instance->execute_query($query, [$increment, $name]);
+}
+
+function update_player_stat(int $user_id, string $column, $increment = 1): void
+{
+    global $db_instance;
+
+    $query = "INSERT INTO player_stats (userid, `$column`) VALUES (?, ?) 
+              ON DUPLICATE KEY UPDATE `$column` = `$column` + VALUES(`$column`)";
+
+    $db_instance->execute_query($query, [$user_id, $increment]);
 }

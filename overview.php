@@ -214,8 +214,13 @@ if ($result && $result->num_rows > 0) {
                 "loot_stone" => $row["loot_stone"],
                 "loot_gold" => $row["loot_gold"],
                 "loot_coins" => $row["loot_coins"],
+                "is_scouting" => true,
                 "soldiers" => []
             ];
+        }
+
+        if ((int)$row["st_soldierid"] !== Soldiers::SOLDIER_SCOUT) {
+            $grouped_events[$event_id]["is_scouting"] = false;
         }
 
         // Append this troop type to the troops list
@@ -259,6 +264,8 @@ if ($result && $result->num_rows > 0) {
                                 </form>";
         }
 
+        $is_pure_scout = $event_data["is_scouting"];
+
         if ($action_id == ActionTypes::ACTION_RETURN_TROOPS) {
             $action_type = "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
@@ -266,9 +273,9 @@ if ($result && $result->num_rows > 0) {
             if ($event_data["targetid"] == -1) {
                 $action_type = "Eroberung";
             } else if ($event_data["targetid"] == -2) {
-                $action_type = "Plündern";
+                $action_type = $is_pure_scout ? "Spionage" : "Plündern";
             } else if ($event_data["targetid"] == -3) {
-                $action_type = "Monstercamp";
+                $action_type = $is_pure_scout ? "Spionage" : "Monstercamp";
             } else if ($is_target_my_kingdom) {
                 $action_type = "Stationieren";
             } else {

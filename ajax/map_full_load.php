@@ -8,7 +8,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                 WHEN m.kingdomid = -3 AND (mc.expires_at < UNIX_TIMESTAMP()) THEN -1
                 ELSE m.kingdomid 
             END AS kingdomid, 
-            k.username, k.kingdomname, u.score,
+            k.username, k.kingdomname, u.ranking_points,
             IFNULL(b_tc.buildinglevel, 1) AS buildinglevel,
             CASE WHEN m.kingdomid > 0 AND k.wallhp <= (
                (IFNULL(b_wall.buildinglevel, 1) * " . DEFAULT_WALL_HP . " + 

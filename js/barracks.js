@@ -175,24 +175,30 @@ function updateRecruitCosts(input) {
     });
 
     const submitBtn = form.querySelector('input[type="submit"]');
+    const maxBtn = form.querySelector('input[data-on-click="fillMaxAndCalc"]');
+
+    const noUnitsToUpgrade = isUpgrade && (parseInt(input.dataset.owned) <= 0);
 
     if (!isUpgrade && amount > kRes.spaceLeft) {
         input.style.color = "#ff4d4d";
-        if (submitBtn) submitBtn.disabled = true;
     } else {
         input.style.color = "";
     }
-
-    const maxBtn = form.querySelector('input[data-on-click="fillMaxAndCalc"]');
-
-    const noUnitsToUpgrade = selectedUpgrade && (parseInt(input.dataset.owned) <= 0);
 
     if (maxBtn) {
         maxBtn.disabled = !canAffordOne || noUnitsToUpgrade;
     }
 
     if (submitBtn) {
-        submitBtn.disabled = (amount <= 0 || hasRelevantError || !canAffordOne || noUnitsToUpgrade);
+        const isOverLimit = !isUpgrade && amount > kRes.spaceLeft;
+
+        submitBtn.disabled = (
+            amount <= 0 ||
+            hasRelevantError ||
+            !canAffordOne ||
+            noUnitsToUpgrade ||
+            isOverLimit
+        );
     }
 }
 

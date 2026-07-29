@@ -17,7 +17,7 @@ if ($current_page > $total_pages && $total_pages > 0) $current_page = $total_pag
 $offset = ($current_page - 1) * $rows_per_page;
 
 // Get the data for the current page
-$result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, score FROM users WHERE status = 1 ORDER BY score DESC, id LIMIT ?, ?",
+$result = $db_instance->execute_query("SELECT id, username, lastactivity, lastrank, ranking_points AS score FROM users WHERE status = 1 ORDER BY ranking_points  DESC, id LIMIT ?, ?",
     [$offset, $rows_per_page]);
 $view .= '<table class="table">
             <tr>
@@ -33,14 +33,16 @@ $view .= '<table class="table">
             </tr>';
 $position = ($current_page - 1) * $rows_per_page + 1;
 
+$now = time();
+
 foreach ($result as $row) {
     $user_id = $row["id"];
     $user_name = $row["username"];
     $last_active = $row["lastactivity"];
-    $inactive = (time() - $last_active > INACTIVITY_DELAY && $last_active != 0);
+    $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $icon = "";
     $change = "";
-    $color = (time() - $last_active > TIMEOUT_MAX_SECONDS) ? "#F55353" : (time() - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
+    $color = ($now - $last_active > TIMEOUT_MAX_SECONDS) ? "#F55353" : ($now - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
     $last_activity = ($last_active == 0) ? "Nicht verfügbar" : (date("d.m.Y", $last_active) . " um " . date("H:i:s", $last_active) . " " . ($inactive ? "(Inaktiv)" : ""));
     $diff = $row["lastrank"] - $position; // Check last rank (since 00:00) and compare with current rank
 
@@ -95,6 +97,7 @@ foreach ($result as $row) {
     $position++;
 }
 $view .= "</table>";
+$view .= "<div style='margin-top: 10px; opacity: 0.7;'><small>Hinweis: Punkte-Updates finden alle <b>5</b> Minuten statt.</small></div>";
 
 // Pagination Styling
 $view .= '<div class="pagination-container">';

@@ -76,6 +76,30 @@ $soldiers_array = json_encode(array_map(function ($soldier) {
     return $soldier->get_soldier_name();
 }, $soldiers));
 
+// Owned Troops
+$owned_troops = [];
+$query_all_troops = "
+    SELECT s_name, SUM(amount) as total
+    FROM (
+        SELECT soldiername AS s_name, soldiercount AS amount FROM soldiers WHERE kingdomid = ?
+
+        UNION ALL
+
+        SELECT sl.soldiername AS s_name, st.soldiercount AS amount 
+        FROM sent_troops st 
+        JOIN events e ON st.eventid = e.eventid 
+        JOIN soldier_list sl ON st.soldierid = sl.id 
+        WHERE e.kingdomid = ?
+    ) AS combined_troops
+    GROUP BY s_name";
+$res_owned = $db_instance->execute_query($query_all_troops, [
+    $user->get_current_kingdom(),
+    $user->get_current_kingdom()
+]);
+while ($row = $res_owned->fetch_assoc()) {
+    $owned_troops[$row["s_name"]] = (int)$row["total"];
+}
+
 // Monsterlist
 $monsters = [];
 $res_m = $db_instance->execute_query("SELECT id, monster_name, attack, defense, icon FROM monster_list ORDER BY level, id");
@@ -140,8 +164,11 @@ $view .= '<div id="live-power-container" style="display: flex; justify-content: 
                 </div>
             </div>';
 
-$view .= '<button type="button" style="margin: 10px;" data-on-click="calculateWarOutcome">Berechnen</button>
-          <button type="button" data-on-click="resetFields">Reset</button>';
+$view .= '<div style="display: flex; justify-content: center; gap: 5px; margin-bottom: 10px;">
+              <button type="button" data-on-click="calculateWarOutcome">Berechnen</button>
+              <button type="button" id="btn-undo" data-on-click="undoWarSim" disabled>Rückgängig</button>
+              <button type="button" data-on-click="resetFields">Reset</button>
+          </div>';
 
 $view .= '<div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">';
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">
@@ -152,99 +179,119 @@ $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0
 foreach ($soldiers as $s) {
     $name = $s->get_soldier_name();
     $cat = $s->get_soldier_category();
+
+    $owned_count = $owned_troops[$name] ?? 0;
+
     $view .= "<tr>
-                    <td style='padding: 0;'>
-                        <div style='display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; min-height: 38px;'>
-                            <div style='display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;'>
-                                " . $s->get_soldier_icon("ressource-icons") . "
-                                <span>$name</span>
+                <td style='padding: 0; max-width: 0;'>
+                    <div style='display: flex; align-items: center; padding: 5px 10px; min-height: 38px; width: 100%;'>
+                        <div style='flex: 0 0 28px;'>" . $s->get_soldier_icon("ressource-icons") . "</div>
+                        <div style='cursor: pointer; display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0; overflow: hidden; margin-right: 10px;' 
+                             title='Klicken zum Befüllen: $name'
+                             data-on-click='fillSimMax' 
+                             data-target='{$name}_own' 
+                             data-value='$owned_count'>
+                            <div class='popup' id='pop_own_{$name}' style='min-width: 0; flex: 1; overflow: hidden;'>
+                                <span style='white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;'>$name</span>
+                                <div id='pop_own_{$name}_box' class='popupbox'>$name</div>
                             </div>
-                            <div id='{$name}_atk' data-attack='{$s->get_soldier_attack()}' data-category='$cat' style='display:none;'></div>
-                            <div id='{$name}_def' data-defense='{$s->get_soldier_defense()}' style='display:none;'></div>
-                            
-                            <div class='warsim-stats-wrap' style='display: flex; gap: 5px; width: 120px; justify-content: flex-end;'>
-                                <div style='display: flex; align-items: center; gap: 4px; width: 55px;'>
-                                    <img src='images/icons/icon_sword.png' style='width: 16px; height: 16px;' title='Angriff' alt=''>
-                                    <span>" . $s->get_soldier_attack() . "</span>
-                                </div>
-                                <div style='display: flex; align-items: center; gap: 4px; width: 55px;'>
-                                    <img src='images/icons/icon_shield.png' style='width: 16px; height: 16px;' title='Verteidigung' alt=''>
-                                    <span>" . $s->get_soldier_defense() . "</span>
-                                </div>
+                            <small style='opacity: 0.7; flex-shrink: 0;'>(" . fnum($owned_count) . ")</small>
+                        </div>
+
+                        <div style='flex: 0 0 50px; display: flex; justify-content: flex-end;'>
+                            <div style='display: flex; align-items: center; gap: 2px; width: 55px;'>
+                                <img src='images/icons/icon_sword.png' style='width: 16px; height: 16px;' alt=''>
+                                <span>" . $s->get_soldier_attack() . "</span>
+                            </div>
+                            <div style='display: flex; align-items: center; gap: 2px; width: 55px;'>
+                                <img src='images/icons/icon_shield.png' style='width: 16px; height: 16px;' alt=''>
+                                <span>" . $s->get_soldier_defense() . "</span>
                             </div>
                         </div>
-                    </td>
-                    <td class='td-center'>
-                        <input type='text' id='{$name}_own' size='4' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' data-on-input='updateLivePower' style='width: 100%;'>
-                    </td>
-                  </tr>";
+                    </div>
+                </td>
+                <td class='td-center'>
+                    <input type='text' id='{$name}_own' size='4' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' data-on-input='updateLivePower' style='width: 100%;'>
+                </td>
+                <div id='{$name}_atk' data-attack='{$s->get_soldier_attack()}' data-category='$cat' style='display:none;'></div>
+                <div id='{$name}_def' data-defense='{$s->get_soldier_defense()}' style='display:none;'></div>
+              </tr>";
 }
 $view .= '</table></div>';
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">
                 <div class="tab" style="margin-bottom: 0; border-bottom: none; padding: 0;">
-                    <div class=' . "'tablinks active' data-on-click='switchSimTab' data-tab='players' style='padding: 2px;'>Spieler</div>
-                    <div class='tablinks' data-on-click='switchSimTab' data-tab='monsters' style='padding: 2px;'>Monster</div>
+                    <div class=' . "'tablinks active' data-on-click='switchSimTab' data-tab='players' style='padding: 7px;'>Spieler</div>
+                    <div class='tablinks' data-on-click='switchSimTab' data-tab='monsters' style='padding: 7px;'>Monster</div>
                 </div>";
 
 // TAB 1: Normal Enemy
-$view .= "<div id='sim-players' class='sim-tab-content' style='background: var(--box-content-color); padding-top: 10px;'>";
+$view .= "<div id='sim-players' class='sim-tab-content' style='background: var(--box-content-color);'>";
 $view .= '<table class="table warsim-table" style="width: 100%;">
                     <tr><td class="td-center td-gradient">Einheit</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
 foreach ($soldiers as $s) {
     $name = $s->get_soldier_name();
+
     $view .= "<tr>
-                        <td style='padding: 0;'>
-                            <div style='display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; min-height: 38px;'>
-                                <div style='display: flex; align-items: center; gap: 8px;'>
-                                    " . $s->get_soldier_icon("ressource-icons") . "
-                                    <span>$name</span>
-                                </div>
-                                <div class='warsim-stats-wrap' style='display: flex; gap: 5px; width: 120px; justify-content: flex-end;'>
-                                    <div style='display: flex; align-items: center; gap: 4px; width: 55px;'>
-                                        <img src='images/icons/icon_sword.png' style='width: 16px; height: 16px;' alt=''>
-                                        <span>" . $s->get_soldier_attack() . "</span>
-                                    </div>
-                                    <div style='display: flex; align-items: center; gap: 4px; width: 55px;'>
-                                        <img src='images/icons/icon_shield.png' style='width: 16px; height: 16px;' alt=''>
-                                        <span>" . $s->get_soldier_defense() . "</span>
-                                    </div>
-                                </div>
+                <td style='padding: 0; width: auto; max-width: 0;'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; min-height: 38px;'>
+                        <div style='display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;'>
+                            " . $s->get_soldier_icon("ressource-icons") . "
+                            <span style='white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>$name</span>
+                        </div>
+                        <div class='warsim-stats-wrap' style='display: flex; gap: 12px; flex: 0 0 125px; justify-content: flex-end; margin-left: 10px;'>
+                            <div style='display: flex; align-items: center; gap: 4px; width: 55px; flex-shrink: 0;'>
+                                <img src='images/icons/icon_sword.png' style='width: 16px; height: 16px;' alt=''>
+                                <span>" . $s->get_soldier_attack() . "</span>
                             </div>
-                        </td>
-                        <td class='td-center'><input type='text' id='{$name}_enemy' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' data-on-input='updateLivePower' style='width: 100%;'></td>
-                      </tr>";
+                            <div style='display: flex; align-items: center; gap: 4px; width: 55px; flex-shrink: 0;'>
+                                <img src='images/icons/icon_shield.png' style='width: 16px; height: 16px;' alt=''>
+                                <span>" . $s->get_soldier_defense() . "</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class='td-center' style='width: 80px;'>
+                    <input type='text' id='{$name}_enemy' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' 
+                            data-on-input='updateLivePower' style='width: 100%;'>
+                </td>
+              </tr>";
 }
 $view .= '</table></div>';
 
 // TAB 2: Monster
-$view .= "<div id='sim-monsters' class='sim-tab-content' style='display:none; background: var(--box-content-color); padding-top: 10px;'>";
+$view .= "<div id='sim-monsters' class='sim-tab-content' style='display:none; background: var(--box-content-color);'>";
 $view .= '<table class="table warsim-table" style="width: 100%;">
                     <tr><td class="td-center td-gradient">Monster</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
 foreach ($monsters as $m) {
+    $m_name = e($m["monster_name"]);
+
     $view .= "<tr>
-                        <td style='padding: 0;'>
-                            <div style='display:flex; justify-content:space-between; align-items:center; padding: 5px 10px; min-height: 38px;'>
-                                <div style='display:flex; align-items:center; gap:8px;'>
-                                    <img src='images/icons/{$m["icon"]}.png' class='ressource-icons' alt=''>
-                                    <span>{$m["monster_name"]}</span>
-                                </div>
-                                <div class='warsim-stats-wrap' style='display: flex; gap: 5px; width: 120px; justify-content: flex-end;'>
-                                    <div style='display: flex; align-items: center; gap: 4px; width: 55px;'>
-                                        <img src='images/icons/icon_sword.png' style='width: 16px; height: 16px;' alt=''>
-                                        <span>{$m["attack"]}</span>
-                                    </div>
-                                    <div style='display: flex; align-items: center; gap: 4px; width: 55px;'>
-                                        <img src='images/icons/icon_shield.png' style='width: 16px; height: 16px;' alt=''>
-                                        <span>{$m["defense"]}</span>
-                                    </div>
-                                </div>
+                <td style='padding: 0; width: auto; max-width: 0;'>
+                    <div style='display:flex; justify-content:space-between; align-items:center; padding: 5px 10px; min-height: 38px;'>
+                        <div style='display:flex; align-items:center; gap: 8px; min-width: 0; flex: 1;'>
+                            <img src='images/icons/{$m["icon"]}.png' class='ressource-icons' alt=''>
+                            <div class='popup' id='pop_mon_{$m["id"]}' style='min-width: 0; flex: 1; overflow: hidden;'>
+                                <span style='white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;'>$m_name</span>
+                                <div id='pop_mon_{$m["id"]}_box' class='popupbox'>$m_name</div>
                             </div>
-                        </td>
-                        <td class='td-center'>
-                            <input type='text' id='m_{$m["id"]}_count' class='js-mon-input' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' 
-                                   data-atk='{$m["attack"]}' data-def='{$m["defense"]}' data-on-input='updateLivePower' style='width: 100%;'>
-                        </td>
-                      </tr>";
+                        </div>
+                        <div class='warsim-stats-wrap' style='display: flex; gap: 12px; flex: 0 0 125px; justify-content: flex-end; margin-left: 10px;'>
+                            <div style='display: flex; align-items: center; gap: 4px; width: 55px; flex-shrink: 0;'>
+                                <img src='images/icons/icon_sword.png' style='width: 16px; height: 16px;' alt=''>
+                                <span>{$m["attack"]}</span>
+                            </div>
+                            <div style='display: flex; align-items: center; gap: 4px; width: 55px; flex-shrink: 0;'>
+                                <img src='images/icons/icon_shield.png' style='width: 16px; height: 16px;' alt=''>
+                                <span>{$m["defense"]}</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td class='td-center' style='width: 80px;'>
+                    <input type='text' id='m_{$m["id"]}_count' class='js-mon-input' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' 
+                           data-atk='{$m["attack"]}' data-def='{$m["defense"]}' data-on-input='updateLivePower' style='width: 100%;'>
+                </td>
+              </tr>";
 }
 $view .= '</table></div>';
 

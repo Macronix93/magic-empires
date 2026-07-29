@@ -101,115 +101,7 @@ class Map
         };
     }
 
-//    public function render_field_info(): void
-//    {
-//        $current_k_id = $this->user->get_current_kingdom();
-//
-//        if (!isset($_SESSION["current_k_coords"]) || $_SESSION["current_k_coords"]["id"] != $current_k_id) {
-//            $res = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$current_k_id]);
-//            $row = $res->fetch_assoc();
-//            $_SESSION["current_k_coords"] = ["id" => $current_k_id, "x" => $row["mapx"], "y" => $row["mapy"]];
-//        }
-//        $my_x = $_SESSION["current_k_coords"]["x"];
-//        $my_y = $_SESSION["current_k_coords"]["y"];
-//
-//        $field_x = intval($_GET["x"] ?? $_GET["startx"] ?? $my_x);
-//        $field_y = intval($_GET["y"] ?? $_GET["starty"] ?? $my_y);
-//        if ($field_x == -1) $field_x = $my_x;
-//        if ($field_y == -1) $field_y = $my_y;
-//
-//        $res_units = $this->mysqli->execute_query(
-//            "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid IN (?, ?)",
-//            [$current_k_id, Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_RAIDER]
-//        );
-//        $my_troops = [Soldiers::SOLDIER_SETTLER_WAGON => 0, Soldiers::SOLDIER_RAIDER => 0];
-//        while ($u = $res_units->fetch_assoc()) {
-//            $my_troops[(int)$u["soldierid"]] = (int)$u["soldiercount"];
-//        }
-//
-//        $query = "
-//            SELECT m.kingdomid, ft.fieldname,
-//                   k.username, k.kingdomname, k.userid, u.score
-//            FROM map m
-//            JOIN field_types ft ON m.fieldtype = ft.fieldid
-//            LEFT JOIN kingdoms k ON m.kingdomid = k.id
-//            LEFT JOIN users u ON k.userid = u.id
-//            WHERE m.mapx = ? AND m.mapy = ?
-//        ";
-//        $target = $this->mysqli->execute_query($query, [$field_x, $field_y])->fetch_assoc();
-//
-//        if (!$target) return;
-//
-//        $field_id = $target["kingdomid"];
-//        $target_url = "sendtroops.php?x=$field_x&y=$field_y";
-//        $arrival_str = convert_sec_to_str($this->get_arrival_time($my_x, $my_y, $field_x, $field_y, $current_k_id, $field_id));
-//
-//        if ($field_id == -1) { // Empty Field
-//            $can_do = ($my_troops[Soldiers::SOLDIER_SETTLER_WAGON] > 0);
-//            $btn = $can_do ? "<button data-on-click='redirect' data-url='$target_url'>Erobern</button>"
-//                : "<button disabled title='Kein Gründungskarren!'>Erobern</button><br><small class='error'>Gründungskarren benötigt</small>";
-//
-//            echo '<div class="title-border">' . $target["fieldname"] . '</div>
-//              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-//                  <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-//                  <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . $arrival_str . '</td></tr>
-//                  <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">' . $btn . '</td></tr>
-//              </table>';
-//        } else if ($field_id == -2) { // Resource Field
-//            $can_do = ($my_troops[Soldiers::SOLDIER_RAIDER] > 0);
-//            $btn = $can_do ? "<button data-on-click='redirect' data-url='$target_url'>Plündern</button>"
-//                : "<button disabled title='Keine Räuber!'>Plündern</button><br><small class='error'>Räuber benötigt</small>";
-//
-//            echo '<div class="title-border">Verlassenes Vorratslager</div>
-//              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-//                  <tr><td class="td-mapinfo" colspan="2" style="text-align: center;">Hier befinden sich Schätze zum Plündern.</td></tr>
-//                  <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-//                  <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . $arrival_str . '</td></tr>
-//                  <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">' . $btn . '</td></tr>
-//              </table>';
-//        } else if ($field_id == -3) { // Monstercamp Field
-//            $res_camp = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$field_x, $field_y]);
-//            $camp_data = $res_camp->fetch_assoc();
-//            $camp_level = $camp_data["level"] ?? 0;
-//
-//            $arrival_time_atk = $this->get_arrival_time($my_x, $my_y, $field_x, $field_y, $current_k_id, $field_id);
-//            $arrival_time_scout = $this->get_arrival_time($my_x, $my_y, $field_x, $field_y, $current_k_id, $field_id, true);
-//
-//            echo '<div class="title-border">Monstercamp (Stufe ' . $camp_level . ')</div>
-//                <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-//                    <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-//                    <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' .
-//                convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small>
-//                    </td></tr>
-//                    <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">
-//                        <button data-on-click="redirect" data-url=' . $target_url . '>Camp angreifen</button>
-//                    </td></tr>
-//                </table>';
-//        } else { // Other Kingdoms
-//            if (!$target["username"]) {
-//                echo '<div class="title-border">Verlassenes Dorf</div><p style="text-align:center;">Dieses Königreich ist verlassen.</p>';
-//                return;
-//            }
-//
-//            $user_score = "<img src='images/icons/icon_score.png' class='ressource-icons' alt=''> " . fnum($target["score"]);
-//            echo '<div class="title-border">Königreich-Info (' . $target["fieldname"] . ')</div>
-//              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-//                  <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-//                  <tr><td class="td-mapinfo"><b>Königreich</b></td><td><div class="map-info-value" title="' . e($target["kingdomname"]) . '">' . e($target["kingdomname"]) . '</div></td></tr>
-//                  <tr><td class="td-mapinfo"><b>Besitzer</b></td><td><a href="#" data-on-click="openOverlay" data-url="userinfo.php?userid=' . $target["userid"] . '" data-title="Spieler-Info">' . e($target["username"]) . '</a> ' . $user_score . '</td></tr>';
-//
-//            if ($field_id != $current_k_id) {
-//                echo '<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . $arrival_str . '</td></tr>';
-//
-//                $btn_text = ($target["username"] != $this->user->get_user_name()) ? "Angreifen" : "Truppen stationieren";
-//                echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-//                    <button data-on-click='redirect' data-url='$target_url'>$btn_text</button>
-//                  </td></tr>";
-//            }
-//            echo "</table>";
-//        }
-//    }
-    public function render_field_info(): void
+    public function render_field_info(?int $field_id = null): void
     {
         $current_k_id = $this->user->get_current_kingdom();
 
@@ -221,16 +113,23 @@ class Map
         $my_x = $_SESSION["current_k_coords"]["x"];
         $my_y = $_SESSION["current_k_coords"]["y"];
 
-        $field_x = (int)($_GET["x"] ?? $my_x);
-        $field_y = (int)($_GET["y"] ?? $my_y);
-        $field_id = (int)($_GET["clickedfield"] ?? -1);
+        $field_x = (int)($_GET["x"] ?? $_GET["startx"] ?? $my_x);
+        $field_y = (int)($_GET["y"] ?? $_GET["starty"] ?? $my_y);
+
+        if ($field_id === null) {
+            $field_id = (int)($_GET["clickedfield"] ?? -1);
+        }
         $now = time();
 
         $res_units = $this->mysqli->execute_query(
-            "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid IN (?, ?)",
-            [$current_k_id, Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_RAIDER]
+            "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid IN (?, ?, ?)",
+            [$current_k_id, Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_RAIDER, Soldiers::SOLDIER_SCOUT]
         );
-        $my_troops = [Soldiers::SOLDIER_SETTLER_WAGON => 0, Soldiers::SOLDIER_RAIDER => 0];
+        $my_troops = [
+            Soldiers::SOLDIER_SETTLER_WAGON => 0,
+            Soldiers::SOLDIER_RAIDER => 0,
+            Soldiers::SOLDIER_SCOUT => 0
+        ];
         while ($u = $res_units->fetch_assoc()) {
             $my_troops[(int)$u["soldierid"]] = (int)$u["soldiercount"];
         }
@@ -251,7 +150,7 @@ class Map
             if ($my_troops[Soldiers::SOLDIER_SETTLER_WAGON] > 0) {
                 echo "<button data-on-click='redirect' data-url='$target_url'>Erobern</button>";
             } else {
-                echo "<small class='error'>Siedlungskarren benötigt</small>";
+                echo "<small class='error'>Gründungskarren benötigt!</small>";
             }
             echo '</td></tr></table>';
 
@@ -267,18 +166,30 @@ class Map
                 return;
             }
 
+            $can_plunder = ($my_troops[Soldiers::SOLDIER_RAIDER] > 0);
+            $can_spy = ($my_troops[Soldiers::SOLDIER_SCOUT] > 0);
+            $arrival_time_scout = (int)round($arrival_time_atk * MONSTER_CAMP_SCOUT_BOOST);
+
+            $mode = $can_plunder ? "plunder" : "spy";
+            $target_url = "sendtroops.php?x=$field_x&y=$field_y&mode=$mode";
+
             // --- RESOURCE TILE ---
             echo '<div class="title-border">Verlassenes Vorratslager</div>
           <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
               <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-              <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time_atk) . '</td></tr>
-              <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime) . '</td></tr>
+              <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>
+              ' . convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small></td></tr>
+              <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime, false, false) . '</td></tr>
               <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">';
-            if ($my_troops[Soldiers::SOLDIER_RAIDER] > 0) {
-                echo "<button data-on-click='redirect' data-url='$target_url'>Plündern</button>";
+
+            if ($can_plunder || $can_spy) {
+                $label = $can_plunder ? "Plündern" : "Spionieren";
+
+                echo "<button data-on-click='redirect' data-url='$target_url'>$label</button>";
             } else {
-                echo "<small class='error'>Räuber benötigt</small>";
+                echo "<small class='error'>Räuber oder Späher benötigt!</small>";
             }
+
             echo '</td></tr></table>';
 
         } else if ($field_id == -3) {
@@ -302,17 +213,40 @@ class Map
                 <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
                 <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' .
                 convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small></td></tr>
-                <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime) . '</td></tr>
+                <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime, false, false) . '</td></tr>
                 <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">
                     <button data-on-click="redirect" data-url="' . $target_url . '">Camp angreifen</button>
                 </td></tr>
             </table>';
 
         } else {
-            $owner_name = $_GET["owner"] ?? "Unbekannt";
-            $owner_id = (int)($_GET["owner_id"] ?? 0);
-            $kname = $_GET["kname"] ?? "Königreich";
-            $score = (int)($_GET["score"] ?? 0);
+            if (!isset($_GET["owner"])) {
+                $query_details = "
+                    SELECT k.username, k.userid, k.kingdomname, u.ranking_points AS score
+                    FROM kingdoms k 
+                    JOIN users u ON k.userid = u.id 
+                    WHERE k.id = ?
+                ";
+                $res_details = $this->mysqli->execute_query($query_details, [$field_id]);
+                $details = $res_details->fetch_assoc();
+
+                if ($details) {
+                    $owner_name = $details["username"];
+                    $owner_id = (int)$details["userid"];
+                    $kname = $details["kingdomname"];
+                    $score = (int)$details["score"];
+                } else {
+                    $owner_name = "Unbekannt";
+                    $owner_id = 0;
+                    $kname = "Verlassenes Königreich";
+                    $score = 0;
+                }
+            } else {
+                $owner_name = $_GET["owner"];
+                $owner_id = (int)($_GET["owner_id"] ?? 0);
+                $kname = $_GET["kname"];
+                $score = (int)($_GET["score"] ?? 0);
+            }
 
             $score_icon = "<img src='images/icons/icon_score.png' class='ressource-icons' alt=''>";
             $owner_display = "<a href='#' 
@@ -351,6 +285,8 @@ class Map
         if ($actual_target_id === -3) {
             $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
             $modified_time *= $boost;
+        } else if ($actual_target_id === -2 && $is_scouting) {
+            $modified_time *= MONSTER_CAMP_SCOUT_BOOST;
         }
 
         return (int)round($modified_time);

@@ -32,9 +32,9 @@ include_once("layout/head.html");
 </table>
 <br>
 <div style="text-align:center">
-    <a href="#"
-       data-on-click="closeOverlay"
-       style="background-color: rgba(0, 0, 0, 0.7); display: inline-block; padding: 10px;">[Schließen]</a>
+    <button data-on-click="closeOverlay">
+        Schließen
+    </button>
 </div>
 </body>
 </html>

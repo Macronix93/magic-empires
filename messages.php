@@ -238,12 +238,10 @@ if (isset($_GET["worldchat"])) {
 
     $inbox_header = "Welt-Chat";
 } else if (isset($_GET["servermsgs"])) {
-    $view .= "
-                <div class='msg-back-button-container'>
-                    <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>
-                        Zurück
-                    </button>
-                </div>
+    $view .= "<div class='msg-back-button-container'>
+                <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
+                <button class='btn-delete' style='width: auto; height: auto; padding: 5px 10px;' data-on-click='confirmDeleteAllServer'>Alle löschen</button>
+            </div>
     ";
 
     // Category Tabs

@@ -128,7 +128,7 @@ if ($row) {
 
             $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
             $biome_info .= "<b>Ertrag pro Stunde nach Gelände:</b><br>";
-            
+
             while ($ft = $ft_res->fetch_assoc()) {
                 $biome_info .= e($ft["fieldname"]) . ": <span class='passed'>+" . fnum((int)($config["base"] * $ft["rate"])) . "</span><br>";
             }
@@ -270,8 +270,9 @@ echo $view;
 ?>
 <br>
 <div style="text-align:center">
-    <a href="#" data-on-click="closeOverlay"
-       style="background-color: rgba(0, 0, 0, 0.7); display: inline-block; padding: 10px;">[Schließen]</a>
+    <button data-on-click="closeOverlay">
+        Schließen
+    </button>
 </div>
 </body>
 </html>

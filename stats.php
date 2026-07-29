@@ -26,22 +26,89 @@ $stats_query = "
         (SELECT IFNULL(SUM(techlevel), 0) FROM techs) as total_tech_lvls,
         (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_fallen_soldiers') as total_fallen,
         (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_slain_monsters') as total_monsters_slain,
-        (SELECT COUNT(*) FROM game_logs WHERE action = 'RESULT') as total_battles,
+        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_battles') as total_battles,
         
         -- Other
         (SELECT COUNT(*) FROM messages) as total_msgs,
-        (SELECT COUNT(*) FROM game_logs WHERE action = 'OFFER_ACCEPT') as total_trades,
+        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_trades') as total_trades,
         (SELECT IFNULL(SUM(supplyvalue), 0) FROM marketplace) as market_volume
         
     FROM kingdoms k";
 
 $stats = $db_instance->execute_query($stats_query)->fetch_assoc();
 
+$uid = $user->get_user_id();
+$my_stats = $db_instance->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$uid])->fetch_assoc();
+
+if (!$my_stats) {
+    $cols = ["units_produced", "units_fallen_pvp", "units_fallen_pve", "monster_kills", "buildings_upgraded", "trades_count",
+        "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen", "resources_looted"];
+    $my_stats = array_fill_keys($cols, 0);
+
+    $res_keys = ["food", "wood", "stone", "gold"];
+
+    foreach ($res_keys as $rk) {
+        $my_stats["trade_sent_" . $rk] = 0;
+        $my_stats["trade_received_" . $rk] = 0;
+    }
+}
+
 $total_fields = MAX_X * MAX_Y;
 $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 
 /* --- VIEW --- */
+
 $view = "
+<div style='display: flex; justify-content: center; margin-bottom: 30px;'>
+    <div class='box-container' style='width: 540px;'> <!-- Breite angepasst -->
+        <div class='box-header'>Persönliche Statistik</div>
+        <div class='box-content box-content-bg' style='padding: 15px; display: flex; gap: 20px;'>
+            <div style='flex: 3;'>
+                <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
+                    <b>Militär & Kampf</b>
+                </div>
+                <div class='split-content'><span>Monster besiegt:</span> <b>" . fnum($my_stats["monster_kills"]) . "</b></div>
+                <div class='split-content'><span>Camps gesäubert:</span> <b>" . fnum($my_stats["camps_cleared"]) . "</b></div>
+                <div class='split-content'><span>Lager geplündert:</span> <b>" . fnum($my_stats["res_tiles_cleared"]) . "</b></div>
+                <div class='split-content'><span>Spionagen:</span> <b>" . fnum($my_stats["spy_count"]) . "</b></div>
+                <div class='split-content'><span style='text-align: left;'>Verluste (PvP/PvE):</span> <b><span>" . fnum($my_stats["units_fallen_pvp"]) . "</span> / <span>" . fnum($my_stats["units_fallen_pve"]) . "</span></b></div>
+                <hr>
+                <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
+                    <b>Wirtschaft & Expansion</b>
+                </div>
+                <div class='split-content'><span>Gebäude-Upgrades:</span> <b>" . fnum($my_stats["buildings_upgraded"]) . "</b></div>
+                <div class='split-content'><span>Truppen rekrutiert:</span> <b>" . fnum($my_stats["units_produced"]) . "</b></div>
+                <div class='split-content'><span>Truppen aufgewertet:</span> <b>" . fnum($my_stats["units_upgraded"]) . "</b></div>
+                <div class='split-content'><span>Beute (Camps/Lager):</span> <b>" . fnum($my_stats["resources_looted"]) . "</b></div>
+                <div class='split-content'><span>Spieler beklaut:</span> <b>" . fnum($my_stats["resources_stolen"]) . "</b></div>
+            </div>
+            <div style='width: 1px; background: rgba(255,255,255,0.1); align-self: stretch;'></div>
+            <div style='flex: 0;'>
+                <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
+                    <b>Handel</b>
+                </div>
+                <div class='split-content'><span>Handelsabschlüsse:</span> <b>" . fnum($my_stats["trades_count"]) . "</b></div>
+                <div style='margin-top: 15px;'>
+                    <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Exportiert (Gesendet):</div>
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;'>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_sent_food']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_sent_wood']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_sent_stone']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_sent_gold']) . "</span></div>
+                    </div>
+                    
+                    <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Importiert (Erhalten):</div>
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px;'>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_received_food']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_received_wood']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_received_stone']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_received_gold']) . "</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <div style='display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;'>
     <div class='box-container' style='width: 310px;'>
         <div class='box-header'>Globale Wirtschaft</div>
@@ -100,7 +167,7 @@ $view = "
     </tr>";
 
 // Top 5 Query
-$top5 = $db_instance->execute_query("SELECT username, score FROM users WHERE status = 1 ORDER BY score DESC, id LIMIT 5");
+$top5 = $db_instance->execute_query("SELECT username, ranking_points AS score FROM users WHERE status = 1 ORDER BY ranking_points DESC, id LIMIT 5");
 $rank = 1;
 foreach ($top5 as $row) {
     $rank_class = match ($rank) {

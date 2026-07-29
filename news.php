@@ -90,7 +90,7 @@ if ($is_admin) {
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <form method='POST'>
                 <input type='text' maxlength='" . MAX_NEWS_TITLE_LENGTH . "' name='title' placeholder='Titel' style='width: 100%; margin-bottom: 10px;' required><br>
-                <textarea id='new-news-content' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='3' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
+                <textarea id='new-news-content' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='10' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
                 <div style='display: flex; justify-content: center; align-items: center; gap: 10px;'>
                     <div class='emoji-picker-container'>
                         <div id='emoji-menu' class='emoji-menu bottom'>";

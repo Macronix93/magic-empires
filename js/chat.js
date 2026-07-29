@@ -93,6 +93,28 @@ registerAction("deleteWorldChatMsg", (el) => {
 registerAction("loadOlderWorldChat", () => {
     loadOlderWorldMessages();
 });
+registerAction("confirmDeleteAllServer", () => {
+    const activeTab = document.querySelector(".tablinks.active");
+    const category = activeTab ? activeTab.textContent.trim() : "Alle";
+    const catText = category === "Alle" ? "ALLE Nachrichten" : `alle Nachrichten der Kategorie "${category}"`;
+
+    showConfirmationDialog(
+        `Möchtest du wirklich ${catText} unwiderruflich löschen?`,
+        "Ja",
+        "Abbrechen",
+        () => {
+            fetch(`ajax/chat_srv_delete_all.php?category=${encodeURIComponent(category)}`, {
+                headers: {"X-Requested-With": "XMLHttpRequest"}
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();
+                    }
+                });
+        }
+    );
+});
 
 
 function scrollToLatestMessage() {
