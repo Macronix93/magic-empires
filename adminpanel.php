@@ -701,7 +701,7 @@ if (!$user->is_admin()) {
     }
     $view .= "</table>";
 
-// Pagination Bar
+    // Pagination Bar
     if ($total_pages_logs > 1) {
         $view .= '<div class="pagination-container"><div class="pagination-bar">';
 

@@ -100,9 +100,8 @@ $view .= "</table>";
 $view .= "<div style='margin-top: 10px; opacity: 0.7;'><small>Hinweis: Punkte-Updates finden alle <b>5</b> Minuten statt.</small></div>";
 
 // Pagination Styling
-$view .= '<div class="pagination-container">';
-
 if ($total_pages > 1) {
+    $view .= '<div class="pagination-container">';
     $view .= '<div class="pagination-bar">';
 
     // First and Back
@@ -132,8 +131,9 @@ if ($total_pages > 1) {
     }
 
     $view .= "</div>";
+    $view .= "</div>";
 }
-$view .= "</div>";
+
 
 /*
  * HTML Section

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /index.php
+Allow: /news.php
+Allow: /imprint.php
+Allow: /privacy.php
+Disallow: /ajax/
+Disallow: /includes/
+Disallow: /classes/

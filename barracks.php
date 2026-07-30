@@ -11,7 +11,8 @@ $kingdom = $result["kingdom"];
 $troop_limit = $kingdom->get_troop_limit();
 $total_occupied_space = $kingdom->get_current_troop_count(true, true);
 $space_left = max(0, $troop_limit - $total_occupied_space);
-$current_troops = $kingdom->get_current_troop_count(false, false);
+$res_available = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
+$available_troops = (int)$res_available->fetch_row()[0];
 
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();
@@ -369,9 +370,17 @@ $view .= "
     </div>
     <div style='display: flex; align-items: center; width: 100%;'>
         <div style='flex: 3; text-align: left;'>
-            <b>Truppen insgesamt:</b>
+            <b>Truppen (gesamt):</b>
         </div>
-        " . fnum($current_troops) . " / " . fnum($troop_limit) . "
+        " . fnum($total_occupied_space) . " / " . fnum($troop_limit) . "
+        <div style='flex: 1;'>
+        </div>
+    </div>
+    <div style='display: flex; align-items: center; width: 100%;'>
+        <div style='flex: 3; text-align: left;'>
+            <b>Truppen (verfügbar):</b>
+        </div>
+        " . fnum($available_troops) . " / " . fnum($total_occupied_space) . "
         <div style='flex: 1;'>
         </div>
     </div>
@@ -575,7 +584,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                     data-uwood='" . $pt->get_soldier_wood_cost() . "'
                                     data-uvillager='" . $pt->get_soldier_villager_cost() . "'
                                     data-utime='" . $pt->get_soldier_time() . "'>
-                                    Upgrade: " . $pt->get_soldier_name() . "</option>";
+                                    Aufwertung: " . $pt->get_soldier_name() . "</option>";
                 }
                 $text_build .= "</select>";
             }

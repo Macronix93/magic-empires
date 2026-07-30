@@ -106,12 +106,25 @@ class BattleReportRenderer
 
     public static function render_scout_resource_bar(array $res): string
     {
+        $html = "";
+        $types = [
+            "food" => ResourceTypes::RESOURCE_TYPE_FOOD,
+            "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
+            "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
+            "gold" => ResourceTypes::RESOURCE_TYPE_GOLD
+        ];
+
+        foreach ($types as $key => $constant) {
+            $val = $res[$key] ?? 0;
+
+            if ($val > 0) {
+                $html .= "<div>" . get_resource_icon($constant) . " " . fnum($val) . "</div>";
+            }
+        }
+
         return "<div style='display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 5px; border: 1px solid #555;'>
-                <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($res["food"]) . "</div>
-                <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($res["wood"]) . "</div>
-                <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($res["stone"]) . "</div>
-                <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($res["gold"]) . "</div>
-            </div>";
+            $html
+        </div>";
     }
 
     public static function render_own_scout_status(int $initial, int $losses): string

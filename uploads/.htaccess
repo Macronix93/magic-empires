@@ -1,8 +1,7 @@
 php_flag engine off
 
 <FilesMatch "\.(php|phtml|php3|php4|php5|php7|php8|phps|pl|py|cgi|sh|asp|aspx|shtml)$">
-    Order Allow,Deny
-    Deny from all
+    Require all denied
 </FilesMatch>
 
 Options -Indexes

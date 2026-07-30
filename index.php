@@ -176,7 +176,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true) {
                 $response = $_POST["g-recaptcha-response"] ?? "";
-                $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("LOCALHOST_SERVER_KEY") . "&response=" . $response);
+                $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("SERVER_KEY") . "&response=" . $response);
                 $data = json_decode($json);
 
                 if ($data->success) {
@@ -440,7 +440,7 @@ $count_online = $res_online->fetch_row()[0];
                                                     <input type="hidden" name="captcha_already_passed" value="1">
                                                 <?php else: ?>
                                                     <div class="g-recaptcha"
-                                                         data-sitekey="<?= getenv("LOCALHOST_CLIENT_KEY") ?>"></div>
+                                                         data-sitekey="<?= getenv("CLIENT_KEY") ?>"></div>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -478,6 +478,13 @@ $count_online = $res_online->fetch_row()[0];
                             </a>
                             <a href="faq.php" class="box">
                                 <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
+                            </a>
+                            <a href="imprint.php" class="box">
+                                <img src="images/icons/icon_imprint.png" class="menu-icons" alt="Impressum"/> Impressum
+                            </a>
+                            <a href="privacy.php" class="box">
+                                <img src="images/icons/icon_privacy.png" class="menu-icons" alt="Datenschutz"/>
+                                Datenschutz
                             </a>
                         </div>
                     </div>

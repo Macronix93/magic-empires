@@ -91,7 +91,7 @@ $unread_news = get_unread_news_count($user, $db_instance);
             </div>
         </div>
     </div>
-    <div class="box-container">
+    <div class="box-container" style="margin-bottom: 0;">
         <div class="box-header">Sonstiges</div>
         <div class="box-content">
             <div class="box box-disabled" data-on-click="navigate" data-url="https://board.magic-empires.de">
@@ -104,6 +104,14 @@ $unread_news = get_unread_news_count($user, $db_instance);
             <div class="box<?= $current_page === 'disclaimer.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="disclaimer.php">
                 <img src="images/icons/icon_disclaimer.png" class="menu-icons" alt="Credits"/> Credits
+            </div>
+            <div class="box<?= $current_page === 'imprint.php' ? ' active' : '' ?>"
+                 data-on-click="navigate" data-url="imprint.php">
+                <img src="images/icons/icon_imprint.png" class="menu-icons" alt="Impressum"/> Impressum
+            </div>
+            <div class="box<?= $current_page === 'privacy.php' ? ' active' : '' ?>"
+                 data-on-click="navigate" data-url="privacy.php">
+                <img src="images/icons/icon_privacy.png" class="menu-icons" alt="Datenschutz"/> Datenschutz
             </div>
         </div>
     </div>

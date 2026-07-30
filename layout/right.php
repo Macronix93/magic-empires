@@ -175,7 +175,7 @@
         </div>
     </div>
 </div>
-<div class="box-container">
+<div class="box-container" style="margin-bottom: 0;">
     <div class="box-header">Gebäude</div>
     <div class="box-content">
         <div id="kingdom-buildings">

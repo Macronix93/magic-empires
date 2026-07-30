@@ -597,7 +597,7 @@ class EventManager
         $loot = [$res_type => $amount];
         $msg = "<div class='battle-report'>";
         $main_text = "Eine Karawane ist in deinem Königreich <b>" . e($target_k->get_kingdom_name()) . "</b> eingetroffen.";
-        $msg .= BattleReportRenderer::render_outcome_box("Warenlieferung", $main_text, 0, 0, "Die Vorräte wurden in die Lager eingelagert.", "success", $loot);
+        $msg .= BattleReportRenderer::render_outcome_box("Warenlieferung", $main_text, 0, 0, "Die Vorräte wurden in die Lager eingelagert.", "neutral", $loot);
         $msg .= "</div>";
 
         $res_u = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$original_recipient_id]);
@@ -1702,11 +1702,11 @@ class EventManager
             $message .= BattleReportRenderer::render_scout_resource_bar($loot);
 
             $outcome_title = "Erfolg!";
-            $outcome_text = ($losses > 0)
-                ? "Ein Späher verunglückte bei der Mission, aber die anderen konnten die Vorräte schätzen."
-                : "Unsere Späher konnten die Vorräte unbemerkt schätzen.";
 
-            $message .= BattleReportRenderer::render_outcome_box($outcome_title, $outcome_text, 0, 0, "", "success");
+            if ($losses > 0) {
+                $message .= BattleReportRenderer::render_outcome_box($outcome_title,
+                    "Ein Späher verunglückte bei der Mission, aber die anderen konnten die Vorräte schätzen.", 0, 0, "", "success");
+            }
 
             $message .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
 

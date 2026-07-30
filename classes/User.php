@@ -66,7 +66,7 @@ class User
         setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, msgcount, lastsentmsgend, adminlevel, device_id, chat_filter FROM users WHERE id = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, msgcount, lastsentmsgend, adminlevel, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
@@ -79,6 +79,7 @@ class User
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
         $_SESSION["device_id"] = $device_id;
         $_SESSION["chat_filter"] = $row["chat_filter"];
+        $_SESSION["tutorial_done"] = (int)$row["tutorial_done"];
 
         // Update login time and session id
         $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ?, device_id = ? WHERE id = ?",

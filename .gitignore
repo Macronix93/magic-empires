@@ -2,6 +2,9 @@
 test.*
 aba_map_gen.php
 sync_xahz63.php
+/logs/*
+/backups/*
+/uploads/*
 
 ##### Windows
 # Windows thumbnail cache files

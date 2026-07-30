@@ -49,8 +49,13 @@ if (isset($_GET["action"])) {
                     if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                         $error = "Nicht genügend Ressourcen!";
                     } else {
-                        if ($build_id == BuildingTypes::BUILDING_EMBASSY && $current_kingdom != $user->get_main_kingdom()) {
-                            $error = "Dieses Gebäude kannst du nur auf deinem Hauptkönigreich ausbauen!";
+                        if ($build_id == BuildingTypes::BUILDING_EMBASSY) {
+                            if ($current_kingdom != $user->get_main_kingdom()) {
+                                $error = "Dieses Gebäude kannst du nur auf deinem Hauptkönigreich ausbauen!";
+                            }
+                            if ($building_level >= 1) {
+                                $error = "Die Botschaft kann maximal auf Stufe 1 ausgebaut werden!";
+                            }
                         } else {
                             $target_level = $building_level + 1;
                             $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
@@ -182,7 +187,9 @@ if ($count_maxed_buildings === $building_count) {
 
         $level = $buildings[$i]->get_building_level();
 
-        if ($level < MAX_BUILDING_LEVEL) {
+        $max_allowed_for_this_building = ($buildings[$i]->get_building_id() == BuildingTypes::BUILDING_EMBASSY) ? 1 : MAX_BUILDING_LEVEL;
+
+        if ($level < $max_allowed_for_this_building) {
             if ($show_building) {
                 if ($buildings[$i]->get_building_id() == BuildingTypes::BUILDING_EMBASSY) {
                     if ($current_kingdom != $user->get_main_kingdom()) {
@@ -238,7 +245,7 @@ if ($count_maxed_buildings === $building_count) {
                     }
 
                     $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-                    $is_disabled = ($res_disabled || $is_tc_limit_reached) ? "disabled" : "";
+                    $is_disabled = ($res_disabled || $is_tc_limit_reached || $kingdom_building_id == BuildingTypes::BUILDING_EMBASSY) ? "disabled" : "";
 
                     $text_build = "<form action='towncenter.php' method='GET'>
                                     <input type='hidden' name='action' value='build'>

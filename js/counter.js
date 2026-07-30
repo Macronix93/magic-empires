@@ -1,6 +1,6 @@
 const activeCountdowns = {};
 
-function formatTime(totalSeconds, short = true) {
+function formatTime(totalSeconds) {
     if (totalSeconds <= 0) return "00:00";
 
     const days = Math.floor(totalSeconds / 86400);
@@ -13,7 +13,7 @@ function formatTime(totalSeconds, short = true) {
     const sDisplay = String(seconds).padStart(2, '0');
 
     if (days > 0) {
-        let dayLabel = short ? "d " : "T ";
+        let dayLabel = "T ";
         return days + dayLabel + hDisplay + ":" + mDisplay + ":" + sDisplay;
     } else if (hours > 0) {
         return hDisplay + ":" + mDisplay + ":" + sDisplay;

@@ -674,6 +674,50 @@ if ($result_trades && $result_trades->num_rows > 0) {
     $view .= "Derzeit sind keine Warenlieferungen unterwegs.";
 }
 
+// Tutorial Check
+if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
+    $k_info = $db_instance->execute_query("
+        SELECT ft.fieldname, ft.foodrate, ft.woodrate, ft.stonerate, ft.goldrate 
+        FROM map m 
+        JOIN field_types ft ON m.fieldtype = ft.fieldid 
+        WHERE m.kingdomid = ?", [$user->get_current_kingdom()])->fetch_assoc();
+
+    $view .= "
+    <div id='tutorial-overlay' class='info-box-bg' style='display:flex;'>
+        <div class='big-box-container' style='max-width: 500px; margin: auto; position: relative; z-index: 1001;'>
+            <div class='big-box-header'>Willkommen, Herrscher!</div>
+            <div class='big-box-content' style='text-align: left; padding: 20px;'>
+                <p>Seid gegrüßt! Euer Volk hat sich auf einem Feld vom Typ<div style='display: flex; justify-content: center; margin: 10px;'>
+                <b class='passed'>{$k_info["fieldname"]}</b></div>niedergelassen. Hier sind eure ersten Schritte:</p>
+                
+                <div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 15px;'>
+                    <b style='color: var(--link-color);'>1. Checkt eure Umgebung:</b><br>
+                    Jedes Gelände hat andere Boni. Euer aktuelles Land produziert besonders gut:
+                    <div style='display: flex; justify-content: space-evenly; margin-top: 5px;'>
+                        <small>
+                            " . ($k_info["foodrate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " Nahrung " : "") . "
+                            " . ($k_info["woodrate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " Holz " : "") . "
+                            " . ($k_info["stonerate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " Stein " : "") . "
+                            " . ($k_info["goldrate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " Gold " : "") . "
+                        </small>
+                    </div>
+                </div>
+                <b style='color: var(--link-color);'>2. Empfohlene Baureihenfolge:</b>
+                <ul>
+                    <li>Baue zuerst die <b>Mühle</b> oder das <b>Sägewerk</b> (Stufe 1 & 2), um die Produktion zu sichern.</li>
+                    <li>Das <b>Dorfzentrum</b> begrenzt das Level aller anderen Gebäude. Baue es frühzeitig aus!</li>
+                    <li>Vergiss das <b>Lager</b> nicht – ohne Kapazität gehen Rohstoffe verloren.</li>
+                </ul>
+                <b style='color: var(--link-color);'>3. Schutz:</b>
+                <p>Eure <b>Mauer</b> gibt einen Verteidigungsbonus und hält Feinde für den Anfang sehr gut ab. Haltet sie repariert, falls euch jemand angreift!</p>
+                <div style='text-align: center; margin-top: 20px;'>
+                    <button id='close-tutorial' data-on-click='finishTutorial' style='padding: 10px 30px; font-weight: bold;'>In die Schlacht!</button>
+                </div>
+            </div>
+        </div>
+    </div>";
+}
+
 
 /*
  * HTML Section

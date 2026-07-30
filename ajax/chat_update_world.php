@@ -30,12 +30,14 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $sender = new User($row["userid"], $row["username"]);
         $avatar = $sender->get_avatar();
 
+        $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
+
         $html .= "
             <div class='$class' id='world-msg-{$row["id"]}'>
                 <div class='message-border'>
                     <span class='msg-header-left'>
                         <img class='user-image' src='$avatar' alt=''> 
-                        <span>" . e($row["username"]) . " am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                        <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
                     </span>
                     $del_icon
                 </div>

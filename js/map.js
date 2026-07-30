@@ -39,10 +39,10 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx = canvas.getContext("2d", {alpha: false});
 
     const iconSources = {
-        house: 'images/icons/house.png',
-        town: 'images/icons/town.png',
-        tower2: 'images/icons/tower2.png',
-        castle: 'images/icons/castle.png',
+        house: 'images/icons/icon_house.png',
+        town: 'images/icons/icon_town.png',
+        tower2: 'images/icons/icon_tower2.png',
+        castle: 'images/icons/icon_castle.png',
         gems: 'images/icons/icon_gems.png',
         fire: 'images/icons/icon_fire.png',
         monster1: 'images/icons/icon_goblin.png',  // Level 1-3

@@ -669,7 +669,6 @@ hr {
 }
 
 .header {
-    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -681,7 +680,7 @@ hr {
 
 .header img {
     max-width: 95%;
-    height: auto;
+    height: 250px;
     display: block;
     margin: 0 auto;
 }
@@ -830,7 +829,7 @@ input[type=button],
 button {
     cursor: pointer;
     background: linear-gradient(0deg, #4b140a 0%, #781e14 39%);
-    border: 2px outset #5a4b35;
+    border: 2px solid rgba(0, 0, 0, 0.63);
     border-radius: 3px;
     padding: 5px;
 }
@@ -966,7 +965,6 @@ select:-webkit-autofill {
     display: flex;
     justify-content: center;
     gap: 50px;
-    padding-bottom: 20px;
 }
 
 /* Box in mid */
@@ -1081,6 +1079,7 @@ select:-webkit-autofill {
 
 .middle-container {
     width: 850px;
+    padding-bottom: 20px;
 }
 
 /* Misc. */
@@ -1889,6 +1888,10 @@ tr:first-child td.td-gradient {
         --map-viewport-height: 400px;
     }
 
+    .header img {
+        height: auto;
+    }
+
     .troop-text {
         max-width: fit-content;
     }
@@ -2267,5 +2270,14 @@ tr:first-child td.td-gradient {
     .table tr:first-child td {
         white-space: normal !important;
         word-break: break-word;
+    }
+}
+
+/* Smaller PC Monitor */
+@media screen and (min-width: 601px) and (max-width: 1920px) {
+    .header img {
+        width: 650px;
+        max-width: 80%;
+        height: auto;
     }
 }

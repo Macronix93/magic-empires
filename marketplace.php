@@ -90,9 +90,12 @@ if (isset($_GET["accept"])) {
                     $creator_id = $row["userid"];
                     $creator_name = $row["username"];
 
-                    $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $row["mapx"], $row["mapy"]);
-                    $seconds = $arrival_data["seconds"];
-                    $arrival_time = $arrival_data["timestamp"];
+                    $now = time();
+
+                    $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $current_kingdom);
+                    $buyer_arrival_time = $now + $buyer_seconds;
+                    $seller_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $row["kingdomid"]);
+                    $seller_arrival_time = $now + $seller_seconds;
 
                     $kingdom->modify_resource((int)$demand, -$demand_value);
                     $user->give_user_coins(-$coins_cost);
@@ -100,16 +103,17 @@ if (isset($_GET["accept"])) {
                     // Buyer receives supply
                     $db_instance->execute_query(
                         "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $current_kingdom, $supply, $supply_value, "Warenlieferung", $arrival_time]
+                        [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $current_kingdom, $supply, $supply_value, "Warenlieferung", $buyer_arrival_time]
                     );
 
                     // Seller receives demand
                     $db_instance->execute_query(
                         "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, "Handelserlös", $arrival_time]
+                        [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, "Handelserlös", $seller_arrival_time]
                     );
 
-                    $arrival_str = convert_sec_to_str($seconds);
+                    $buyer_arrival_str = convert_sec_to_str($buyer_seconds);
+                    $seller_arrival_str = convert_sec_to_str($seller_seconds);
                     $loot = [$supply => $supply_value];
                     $cost = [$demand => $demand_value];
 
@@ -118,8 +122,8 @@ if (isset($_GET["accept"])) {
                         "Handelsangebot angenommen",
                         "Der Spieler <b>" . $user->get_user_name() . "</b> hat deine Warenlieferung aus " . $kingdom->get_kingdom_name() . " akzeptiert.",
                         0, 0,
-                        "Deine Karawane bringt den Erlös in <b>$arrival_str</b> zurück.",
-                        "success",
+                        "Deine Karawane bringt den Erlös in <b>$seller_arrival_str</b> zurück.",
+                        "neutral",
                         $cost
                     );
                     $seller_message .= "</div>";
@@ -155,7 +159,7 @@ if (isset($_GET["accept"])) {
                     update_player_stat($creator_id, "trade_sent_" . $s_name, $supply_value);
                     update_player_stat($creator_id, "trade_received_" . $d_name, $demand_value);
 
-                    $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . convert_sec_to_str($seconds));
+                    $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $buyer_arrival_str);
                 }
             }
         }

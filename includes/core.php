@@ -15,7 +15,7 @@ require __DIR__ . "/../vendor/autoload.php"; // Composer Autoloader
 require_once("config.php");
 require_once("functions.php");
 
-$is_cli = (php_sapi_name() === 'cli');
+$is_cli = (php_sapi_name() === "cli");
 
 if (!$is_cli) {
     if (str_contains($_SERVER["HTTP_HOST"] ?? '', "localhost") || str_contains($_SERVER["HTTP_HOST"] ?? '', "127.0.0.1")) {
@@ -60,11 +60,21 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
  * AutoLoad classes
  */
 spl_autoload_register(function ($class_name) {
-    include(__DIR__ . '/../classes/' . $class_name . '.php');
+    include(__DIR__ . "/../classes/" . $class_name . ".php");
 });
 
 // Load .env file
 new DotEnv(__DIR__ . "/.env")->load();
+
+// Key Mapping
+$prefix = IS_DEV ? "LOCALHOST_" : "ME_";
+
+$client_key = getenv($prefix . "CLIENT_KEY");
+$server_key = getenv($prefix . "SERVER_KEY");
+putenv("CLIENT_KEY=$client_key");
+putenv("SERVER_KEY=$server_key");
+$_ENV["CLIENT_KEY"] = $client_key;
+$_ENV["SERVER_KEY"] = $server_key;
 
 // Database instance for classes
 $db = Database::get_instance();

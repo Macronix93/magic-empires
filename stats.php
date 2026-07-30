@@ -10,6 +10,13 @@ $stats_query = "
         SUM(k.foodperhour) as ph_f, SUM(k.woodperhour) as ph_w, SUM(k.stoneperhour) as ph_s, SUM(k.goldperhour) as ph_g,
         SUM(k.villager) as total_pop,
         
+        -- Resource Tiles
+        (SELECT IFNULL(SUM(food), 0) FROM resource_tiles_data) as map_food,
+        (SELECT IFNULL(SUM(wood), 0) FROM resource_tiles_data) as map_wood,
+        (SELECT IFNULL(SUM(stone), 0) FROM resource_tiles_data) as map_stone,
+        (SELECT IFNULL(SUM(gold), 0) FROM resource_tiles_data) as map_gold,
+        (SELECT IFNULL(SUM(food + wood + stone + gold), 0) FROM resource_tiles_data) as map_total,
+        
         -- User Data
         (SELECT COUNT(*) FROM users WHERE status = 1) as total_users,
         (SELECT COUNT(*) FROM users WHERE lastactivity > (UNIX_TIMESTAMP() - 86400)) as active_users_24h,
@@ -59,7 +66,7 @@ $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 /* --- VIEW --- */
 
 $view = "
-<div style='display: flex; justify-content: center; margin-bottom: 30px;'>
+<div style='display: flex; justify-content: center; margin-bottom: 30px; text-align:left;'>
     <div class='box-container' style='width: 540px;'> <!-- Breite angepasst -->
         <div class='box-header'>Persönliche Statistik</div>
         <div class='box-content box-content-bg' style='padding: 15px; display: flex; gap: 20px;'>
@@ -71,7 +78,7 @@ $view = "
                 <div class='split-content'><span>Camps gesäubert:</span> <b>" . fnum($my_stats["camps_cleared"]) . "</b></div>
                 <div class='split-content'><span>Lager geplündert:</span> <b>" . fnum($my_stats["res_tiles_cleared"]) . "</b></div>
                 <div class='split-content'><span>Spionagen:</span> <b>" . fnum($my_stats["spy_count"]) . "</b></div>
-                <div class='split-content'><span style='text-align: left;'>Verluste (PvP/PvE):</span> <b><span>" . fnum($my_stats["units_fallen_pvp"]) . "</span> / <span>" . fnum($my_stats["units_fallen_pve"]) . "</span></b></div>
+                <div class='split-content'><span>Verluste (PvP/PvE):</span> <b><span>" . fnum($my_stats["units_fallen_pvp"]) . "</span> / <span>" . fnum($my_stats["units_fallen_pve"]) . "</span></b></div>
                 <hr>
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Wirtschaft & Expansion</b>
@@ -87,7 +94,7 @@ $view = "
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Handel</b>
                 </div>
-                <div class='split-content'><span>Handelsabschlüsse:</span> <b>" . fnum($my_stats["trades_count"]) . "</b></div>
+                <div class='split-content'><span style='margin-right: 5px;'>Handelsabschlüsse:</span><b>" . fnum($my_stats["trades_count"]) . "</b></div>
                 <div style='margin-top: 15px;'>
                     <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Exportiert (Gesendet):</div>
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;'>
@@ -121,8 +128,19 @@ $view = "
             <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>Stein:</span></div><b>" . fnum($stats["total_s"]) . "</b></div>
             <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>Gold:</span></div><b>" . fnum($stats["total_g"]) . "</b></div>
             <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " <span>Münzen:</span></div><b>" . fnum($stats["total_coins"]) . "</b></div>
+            <hr>
             <div style='font-size: 13px; opacity: 0.8; text-align: center; margin-top: 10px;'>
                 Globale Produktion: " . fnum($stats["ph_f"] + $stats["ph_w"] + $stats["ph_s"] + $stats["ph_g"]) . " Res./Std.
+            </div>
+            <div style='text-align:center; margin: 15px 0 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
+                <b>Vorratslager (Karte)</b>
+            </div>
+            <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " <span>Nahrung:</span></div><b>" . fnum($stats["map_food"]) . "</b></div>
+            <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " <span>Holz:</span></div><b>" . fnum($stats["map_wood"]) . "</b></div>
+            <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>Stein:</span></div><b>" . fnum($stats["map_stone"]) . "</b></div>
+            <div class='split-content'><div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>Gold:</span></div><b>" . fnum($stats["map_gold"]) . "</b></div>
+            <div class='split-content' style='margin-top: 5px;'>
+                <span>Gesamt auf Karte:</span> <b>" . fnum($stats["map_total"]) . "</b>
             </div>
             <hr>
             <div class='split-content'><span>Markt-Angebote:</span> <b>" . fnum($stats["market_volume"]) . " Res.</b></div>

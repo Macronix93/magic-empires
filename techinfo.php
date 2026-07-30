@@ -25,7 +25,7 @@ if ($building_id !== null) {
     if ($row) {
         $building = new Kingdom($db_instance)->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
         $current_level_value = $building ? $building->get_building_level() : 0;
-        $max_lvl_to_show = MAX_BUILDING_LEVEL;
+        $max_lvl_to_show = ($building_id == BuildingTypes::BUILDING_EMBASSY) ? 1 : MAX_BUILDING_LEVEL;
         $time_key = "timetobuild";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_TIME;
     }
@@ -51,6 +51,7 @@ if ($building_id !== null) {
 if ($row) {
     if ($is_soldier) {
         $is_hero = ($row["id"] == Soldiers::SOLDIER_HERO);
+        $is_raider = ($row["id"] == Soldiers::SOLDIER_RAIDER);
 
         $active_res = [];
         if ($row["food"] > 0) $active_res["food"] = ResourceTypes::RESOURCE_TYPE_FOOD;
@@ -61,7 +62,8 @@ if ($row) {
         $view .= "<div class='big-box-container'>
                     <div class='big-box-header'>Einheit: {$row["soldiername"]}</div>
                     <div class='big-box-content'>
-                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) . "</p>
+                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) .
+                ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") . "</p>
                         
                         <table class='table' style='width: 100%;'>
                             <tr>

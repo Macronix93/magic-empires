@@ -61,6 +61,18 @@ registerAction("toggleEmojis", () => {
 registerAction("pickEmoji", (el) => {
     insertEmoji(el.innerText);
 });
+registerAction("finishTutorial", () => {
+    fetch("ajax/tutorial_done.php", {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const overlay = document.getElementById("tutorial-overlay");
+                if (overlay) overlay.remove();
+            }
+        });
+});
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
@@ -227,10 +239,12 @@ function updateServerTime(initialServerTimestamp) {
     const clientStartTime = Date.now();
     const serverStartTime = initialServerTimestamp * 1000;
 
+    const startHour = new Date(serverStartTime).getHours();
+    let tickReached = false;
+
     function updateDisplay() {
         const now = Date.now();
         const elapsed = now - clientStartTime;
-
         const currentServerTime = new Date(serverStartTime + elapsed);
 
         const timeString = currentServerTime.toTimeString().split(' ')[0];
@@ -241,23 +255,37 @@ function updateServerTime(initialServerTimestamp) {
             }
         }
 
-        const secondsIntoHour = (currentServerTime.getMinutes() * 60) + currentServerTime.getSeconds();
+        const currentHour = currentServerTime.getHours();
+
+        if (currentHour !== startHour) {
+            tickReached = true;
+        }
+
+        const minutes = currentServerTime.getMinutes();
+        const seconds = currentServerTime.getSeconds();
+        const secondsIntoHour = (minutes * 60) + seconds;
         const secondsUntilFull = 3600 - secondsIntoHour;
 
-        if (secondsUntilFull <= 5 && document.hidden) {
+        if (secondsUntilFull <= 5 && !tickReached && document.hidden) {
             startTitleFlash("+++ Ress.-Ertrag fällig! +++");
         }
 
-        const displayMin = Math.floor(secondsUntilFull / 60);
-        const displaySec = secondsUntilFull % 60;
-        const displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
+        let displayTime;
+
+        if (tickReached) {
+            displayTime = "Jetzt";
+        } else {
+            const displayMin = Math.floor(secondsUntilFull / 60);
+            const displaySec = secondsUntilFull % 60;
+            displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
+        }
 
         const tickTimers = document.getElementsByClassName("tick-timer");
         for (let i = 0; i < tickTimers.length; i++) {
-            tickTimers[i].innerText = (secondsUntilFull <= 0) ? "Jetzt" : displayTime;
+            tickTimers[i].innerText = displayTime;
         }
 
-        const percent = (secondsIntoHour / 3600) * 100;
+        const percent = tickReached ? 100 : (secondsIntoHour / 3600) * 100;
         const tickFills = document.getElementsByClassName("tick-progress-fill");
         for (let i = 0; i < tickFills.length; i++) {
             tickFills[i].style.width = percent + "%";

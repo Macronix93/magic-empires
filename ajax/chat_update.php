@@ -47,15 +47,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
         $class = $is_me ? "receiver-bubble" : "sender-bubble";
         $avatar = $is_me ? $user->get_avatar() : new User((int)$row["senderid"], $row["sender"])->get_avatar();
-        $name = $is_me ? "Du" : e($row["sender"]);
 
         $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
+        $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
 
         $html .= "<div class='$class' id='msg-" . $row["id"] . "'>
                     <div class='message-border'>
                         <span class='msg-header-left'>
                             <img class='user-image' src='" . e($avatar) . "' alt=''> 
-                            <span>$name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                            <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
                         </span>
                         $delete_icon
                     </div>
