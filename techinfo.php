@@ -52,6 +52,22 @@ if ($row) {
     if ($is_soldier) {
         $is_hero = ($row["id"] == Soldiers::SOLDIER_HERO);
         $is_raider = ($row["id"] == Soldiers::SOLDIER_RAIDER);
+        $is_thief = ($row["id"] == Soldiers::SOLDIER_THIEF);
+
+        $chance_info = "";
+        if ($soldier_id === Soldiers::SOLDIER_CONQUEROR) {
+            $base = (BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100;
+            $step = MIN_CONQUEST_CHANCE * 100;
+            $max = MAX_CONQUEST_CHANCE * 100;
+            $chance_info = "Ein Eroberer hat eine Erfolgschance von <b>$base%</b>. " .
+                    "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
+        } else if ($soldier_id === Soldiers::SOLDIER_SETTLER_WAGON) {
+            $base = BASE_SETTLER_CHANCE * 100;
+            $step = SETTLER_CHANCE_STEP * 100;
+            $max = MAX_SETTLER_CHANCE * 100;
+            $chance_info = "Ein Karren hat eine Erfolgschance von <b>$base%</b>. " .
+                    "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
+        }
 
         $active_res = [];
         if ($row["food"] > 0) $active_res["food"] = ResourceTypes::RESOURCE_TYPE_FOOD;
@@ -60,11 +76,11 @@ if ($row) {
         if ($row["gold"] > 0) $active_res["gold"] = ResourceTypes::RESOURCE_TYPE_GOLD;
 
         $view .= "<div class='big-box-container'>
-                    <div class='big-box-header'>Einheit: {$row["soldiername"]}</div>
+                    <div class='big-box-header'>{$row["soldiername"]}</div>
                     <div class='big-box-content'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) .
-                ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") . "</p>
-                        
+                ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
+                ($is_thief ? "<br>Der Dieb hat eine Tragekapazität von maximal " . THIEF_BASE_CAPACITY . " Ressourcen pro Einheit." : "") . " " . $chance_info . "</p>
                         <table class='table' style='width: 100%;'>
                             <tr>";
         if ($row["attack"] > 0) {

@@ -89,15 +89,13 @@ const ESTATE_VILLAGER_GROWTH_STEP = 2;
 const ESTATE_VILLAGER_BASE_INC = 10;
 const ESTATE_VILLAGER_BASE_STEP = 5;
 const WATCHTOWER_DETECTION_PER_LEVEL = 1200;
-const SHRINE_BONUS_BASE = 0.15;
-const SHRINE_MALUS_BASE = 0.08;
 const SHRINE_CHANGE_COST = 25000;
 const SHRINE_TECH_STEP = 0.05; // Every level of Ahnenritus increases Bonus by X %
 const CARTOGRAPHY_SPEED_BONUS = 0.075;
 const PLUNDER_CAPACITY_BONUS = 0.035;
 const MIN_PLUNDER_PERC = 85;
 const MAX_PLUNDER_PERC = 120;
-const ARCHITECTURE_TIME_REDUCTION = 0.03;
+const ARCHITECTURE_TIME_REDUCTION = 0.04;
 const MAINTENANCE_REPAIR_REDUCTION = 0.06;
 const BASE_SETTLER_CHANCE = 0.3; // 30% with one waggon
 const SETTLER_CHANCE_STEP = 0.2; // +20% for every additional waggon
@@ -159,9 +157,10 @@ const MAX_UNIT_BADGES_PER_ROW_MOBILE = 3;
 interface AlignmentTypes
 {
     const int ALIGN_NONE = 0;
-    const int ALIGN_WAR = 1;    // Bonus: Attack | Malus: Gold
-    const int ALIGN_TRADE = 2;  // Bonus: Gold | Malus: Defense (Wall)
-    const int ALIGN_NATURE = 3; // Bonus: Food/Wood | Malus: Stone
+    const int ALIGN_WAR = 1;
+    const int ALIGN_IDOL = 2;
+    const int ALIGN_NATURE = 3;
+    const int ALIGN_COINS = 4;
 }
 
 interface MessageCategories

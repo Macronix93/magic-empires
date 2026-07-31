@@ -33,6 +33,7 @@ class Kingdom
     private string $kingdom_name;
     private int $wall_hp;
     private int $alignment;
+    private ?array $shrine_cache = null;
 
     public function __construct(object $db_conn, int $kingdom_id = -1)
     {
@@ -338,11 +339,32 @@ class Kingdom
 
     public function get_shrine_modifier(): float
     {
-        if ($this->get_kingdom_building_level(BuildingTypes::BUILDING_SHRINE) <= 0) {
-            return 0.0;
-        }
+        $data = $this->get_shrine_data();
+        if (!$data) return 0.0;
+
+        return $this->calculate_shrine_bonus($data["base_bonus"]);
+    }
+
+    public function get_shrine_malus(): float
+    {
+        $data = $this->get_shrine_data();
+        return $data ? (float)$data["base_malus"] : 0.0;
+    }
+
+    public function get_shrine_data(): ?array
+    {
+        if ($this->alignment == 0) return null;
+
+        $res = $this->mysqli->execute_query("SELECT * FROM shrine_alignments WHERE id = ?", [$this->alignment]);
+        return $res->fetch_assoc();
+    }
+
+    public function calculate_shrine_bonus(float $base_from_db): float
+    {
+        if ($this->get_kingdom_building_level(BuildingTypes::BUILDING_SHRINE) <= 0) return 0.0;
+
         $tech_level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
-        return SHRINE_BONUS_BASE + ($tech_level * SHRINE_TECH_STEP);
+        return $base_from_db + ($tech_level * SHRINE_TECH_STEP);
     }
 
     public function get_kingdom_research_id(): int
@@ -553,10 +575,6 @@ class Kingdom
 
         $defense = floor(($wall_hp / $max_hp) * $scaled_max_defense);
 
-        if ($this->alignment == AlignmentTypes::ALIGN_TRADE) {
-            $defense *= (1 - SHRINE_MALUS_BASE);
-        }
-
         return max(MIN_WALL_DEFENSE, (int)$defense);
     }
 
@@ -587,36 +605,35 @@ class Kingdom
 
     public function recalculate_production(): void
     {
-        $has_shrine = ($this->get_kingdom_building_level(BuildingTypes::BUILDING_SHRINE) > 0);
-
-        $tech_mod = $has_shrine ? $this->get_shrine_modifier() : 0.0;
-        $active_align = $has_shrine ? $this->alignment : AlignmentTypes::ALIGN_NONE;
+        $shrine = $this->get_shrine_data();
+        $bonus = ($shrine) ? $this->calculate_shrine_bonus($shrine["base_bonus"]) : 0.0;
+        $malus = ($shrine) ? $shrine["base_malus"] : 0.0;
 
         $f_per_hour = $this->base_food_rate;
         $w_per_hour = $this->base_wood_rate;
         $s_per_hour = $this->base_stone_rate;
         $g_per_hour = $this->base_gold_rate;
 
-        if ($active_align == AlignmentTypes::ALIGN_NATURE) {
-            $f_per_hour *= (1 + $tech_mod);
-            $w_per_hour *= (1 + $tech_mod);
-        }
-
-        if ($active_align == AlignmentTypes::ALIGN_NATURE) {
-            $s_per_hour *= (1 - SHRINE_MALUS_BASE);
-        }
-
-        if ($active_align == AlignmentTypes::ALIGN_TRADE) {
-            $g_per_hour *= (1 + $tech_mod);
-        } else if ($active_align == AlignmentTypes::ALIGN_WAR) {
-            $g_per_hour *= (1 - SHRINE_MALUS_BASE);
+        if ($this->alignment == AlignmentTypes::ALIGN_WAR) { // Kriegsgott
+            $g_per_hour *= (1 - $malus);
+        } else if ($this->alignment == AlignmentTypes::ALIGN_IDOL) { // Götze
+            $g_per_hour *= (1 + $bonus);
+            $f_per_hour *= (1 + $malus);
+            $w_per_hour *= (1 + $malus);
+        } else if ($this->alignment == AlignmentTypes::ALIGN_NATURE) { // Naturgeist
+            $f_per_hour *= (1 + $bonus);
+            $w_per_hour *= (1 + $bonus);
+            $s_per_hour *= (1 - $malus);
         }
 
         $this->mysqli->execute_query("
         UPDATE kingdoms 
-        SET foodperhour = ?, woodperhour = ?, stoneperhour = ?, goldperhour = ? 
+        SET foodperhour = ?, woodperhour = ?, stoneperhour = ?, goldperhour = ?
         WHERE id = ?",
-            [(int)round($f_per_hour), (int)round($w_per_hour), (int)round($s_per_hour), (int)round($g_per_hour), $this->kingdom_id]
+            [
+                (int)round($f_per_hour), (int)round($w_per_hour), (int)round($s_per_hour),
+                (int)round($g_per_hour), $this->kingdom_id
+            ]
         );
 
         $this->food_per_hour = (int)round($f_per_hour);

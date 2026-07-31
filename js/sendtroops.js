@@ -61,6 +61,8 @@ function updateTroopSummary() {
 
     let html = "";
     let totalUnits = 0;
+    let totalAtk = 0;
+    let totalDef = 0;
 
     inputs.forEach(input => {
         let rawValue = input.value;
@@ -85,6 +87,11 @@ function updateTroopSummary() {
             const iconName = input.dataset.icon;
             const iconPath = `images/icons/${iconName}.png`;
 
+            const unitAtk = parseInt(input.dataset.atk) || 0;
+            const unitDef = parseInt(input.dataset.def) || 0;
+            totalAtk += val * unitAtk;
+            totalDef += val * unitDef;
+
             html += `<div class="unit-badge" title="${name}">
                         <img src="${iconPath}" alt=""> 
                         <b>${val.toLocaleString("de-DE")}x</b>
@@ -93,6 +100,20 @@ function updateTroopSummary() {
             totalUnits += val;
         }
     });
+
+    if (totalUnits > 0) {
+        html += `
+        <div style="width: 100%; padding-top: 8px; display: flex; justify-content: center; gap: 20px; font-weight: bold;">
+            <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Angriff">
+                <img src="images/icons/icon_sword.png" class="ressource-icons" alt="Angriff"> 
+                <span>${formatNumJS(totalAtk)}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Verteidigung">
+                <img src="images/icons/icon_shield.png" class="ressource-icons" alt="Verteidigung"> 
+                <span>${formatNumJS(totalDef)}</span>
+            </div>
+        </div>`;
+    }
 
     summaryList.innerHTML = html;
     summaryList.style.display = "flex";

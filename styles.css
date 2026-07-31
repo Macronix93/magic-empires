@@ -1026,7 +1026,7 @@ select:-webkit-autofill {
     display: flex;
     justify-content: flex-start;
     align-items: center;
-    height: 40px;
+    height: 36px;
     background-color: var(--box-content-color);
     transition: background-color 0.2s;
     padding: 0 10px;
@@ -1078,7 +1078,7 @@ select:-webkit-autofill {
 .right-container {
     display: flex;
     flex-direction: column;
-    width: 265px;
+    width: 225px;
     position: sticky;
     top: 20px;
     height: fit-content;
@@ -1119,7 +1119,6 @@ a:hover b {
     border-collapse: separate;
     border: 2px solid var(--box-header);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-    hyphens: auto;
 }
 
 td {
@@ -1574,12 +1573,12 @@ tr:first-child td.td-gradient {
 
 #nav-left-trigger {
     left: 0;
-    top: 0;
+    top: 1px;
 }
 
 #nav-right-trigger {
     right: 0;
-    top: 0;
+    top: 1px;
 }
 
 .mobile-trigger p {
@@ -1591,8 +1590,8 @@ tr:first-child td.td-gradient {
 .mobile-side-nav {
     position: fixed;
     top: 0;
-    width: 280px;
-    height: 100%;
+    width: 230px;
+    height: 100dvh;
     background-color: var(--table-color);
     background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3));
     z-index: 2900;
@@ -1605,12 +1604,14 @@ tr:first-child td.td-gradient {
     left: 0;
     transform: translateX(-100%);
     border-right: 3px ridge var(--border-gold);
+    border-bottom: 3px ridge var(--border-gold);
 }
 
 #nav-right-menu {
     right: 0;
     transform: translateX(100%);
     border-left: 3px ridge var(--border-gold);
+    border-bottom: 3px ridge var(--border-gold);
 }
 
 #nav-left-menu.open,
@@ -1619,11 +1620,11 @@ tr:first-child td.td-gradient {
 }
 
 #nav-left-trigger.open {
-    transform: translateX(280px);
+    transform: translateX(230px);
 }
 
 #nav-right-trigger.open {
-    transform: translateX(-280px);
+    transform: translateX(-230px);
 }
 
 #menu {
@@ -1895,8 +1896,20 @@ tr:first-child td.td-gradient {
     padding: 10px;
 }
 
-.badge-hide-mobile, .badge-hide-desktop {
+.badge-hide-mobile,
+.badge-hide-desktop {
     display: inline-flex;
+}
+
+.stats-box-main {
+    max-width: 700px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.stats-inner-column {
+    flex: 1;
+    min-width: 310px;
 }
 
 /* Landscape Modus */
@@ -1922,6 +1935,15 @@ tr:first-child td.td-gradient {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .stats-box-main {
+        width: 310px !important;
+    }
+
+    .stats-inner-column {
+        flex: 1 1 100%;
+        min-width: 0 !important;
     }
 
     .badge-hide-mobile {

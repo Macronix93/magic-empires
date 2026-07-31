@@ -18,13 +18,13 @@ $next_visibility = ($level + 1) * WATCHTOWER_DETECTION_PER_LEVEL;
 $view .= "<div style='margin: auto; width: 350px;'>
         <div class='split-content'>
             <div><b>Aktuelle Sichtweite:</b></div>
-            <div class='passed'>" . convert_sec_to_str($current_visibility) . "</div>
+            <div>" . convert_sec_to_str($current_visibility) . "</div>
         </div>";
 
 if ($level < MAX_BUILDING_LEVEL) {
     $view .= "<div class='split-content'>
                 <div><b>Nächste Stufe:</b></div>
-                <div>" . convert_sec_to_str($next_visibility) . "</div>
+                <div class='passed'>" . convert_sec_to_str($next_visibility) . "</div>
             </div>";
 }
 

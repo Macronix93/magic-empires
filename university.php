@@ -127,6 +127,30 @@ if (!empty($last_researched_tech)) {
 // Calculate and show tech boni
 $boni_view = "";
 
+$food_inc_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_FOOD_INC);
+if ($food_inc_lvl > 0) {
+    $val = fnum($food_inc_lvl * RESEARCH_FOOD_INC);
+    $boni_view .= "<tr><td>Nahrungs-Forschung:</td><td class='passed'>+$val / Std.</td></tr>";
+}
+
+$wood_inc_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WOOD_INC);
+if ($wood_inc_lvl > 0) {
+    $val = fnum($wood_inc_lvl * RESEARCH_WOOD_INC);
+    $boni_view .= "<tr><td>Holz-Forschung:</td><td class='passed'>+$val / Std.</td></tr>";
+}
+
+$stone_inc_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_STONE_INC);
+if ($stone_inc_lvl > 0) {
+    $val = fnum($stone_inc_lvl * RESEARCH_STONE_INC);
+    $boni_view .= "<tr><td>Stein-Forschung:</td><td class='passed'>+$val / Std.</td></tr>";
+}
+
+$gold_inc_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_GOLD_INC);
+if ($gold_inc_lvl > 0) {
+    $val = fnum($gold_inc_lvl * RESEARCH_GOLD_INC);
+    $boni_view .= "<tr><td>Gold-Forschung:</td><td class='passed'>+$val / Std.</td></tr>";
+}
+
 $arch_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCHITECTURE);
 if ($arch_lvl > 0) {
     $percent = $arch_lvl * ARCHITECTURE_TIME_REDUCTION * 100;

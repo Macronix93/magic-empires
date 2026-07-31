@@ -12,7 +12,7 @@
         $active_boosts = $kingdom->get_active_boosts(); // Get active resource boosts
         $current_align = $kingdom->get_kingdom_alignment();
         $shrine_mod = $kingdom->get_shrine_modifier();
-        $shrine_malus = SHRINE_MALUS_BASE;
+        $shrine_malus = $kingdom->get_shrine_malus();
 
         $resource_config = [
                 ResourceTypes::RESOURCE_TYPE_FOOD => [

@@ -66,11 +66,11 @@ $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 /* --- VIEW --- */
 
 $view = "
-<div style='display: flex; justify-content: center; margin-bottom: 30px; text-align:left;'>
-    <div class='box-container' style='width: 540px;'> <!-- Breite angepasst -->
+<div style='display: flex; justify-content: center; margin-bottom: 30px; text-align:left; padding: 0 10px;'>
+    <div class='box-container stats-box-main'>
         <div class='box-header'>Persönliche Statistik</div>
-        <div class='box-content box-content-bg' style='padding: 15px; display: flex; gap: 20px;'>
-            <div style='flex: 3;'>
+        <div class='box-content box-content-bg' style='padding: 15px; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;'>
+            <div class='stats-inner-column'>
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Militär & Kampf</b>
                 </div>
@@ -89,27 +89,31 @@ $view = "
                 <div class='split-content'><span>Beute (Camps/Lager):</span> <b>" . fnum($my_stats["resources_looted"]) . "</b></div>
                 <div class='split-content'><span>Spieler beklaut:</span> <b>" . fnum($my_stats["resources_stolen"]) . "</b></div>
             </div>
-            <div style='width: 1px; background: rgba(255,255,255,0.1); align-self: stretch;'></div>
-            <div style='flex: 0;'>
+
+            <div class='badge-hide-mobile' style='width: 1px; background: rgba(255,255,255,0.1); align-self: stretch;'></div>
+
+            <div class='stats-inner-column'>
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Handel</b>
                 </div>
-                <div class='split-content'><span style='margin-right: 5px;'>Handelsabschlüsse:</span><b>" . fnum($my_stats["trades_count"]) . "</b></div>
+                <div class='split-content'><span>Handelsabschlüsse:</span><b>" . fnum($my_stats["trades_count"]) . "</b></div>
+                <div class='split-content'><span>Angebote:</span> <b>" . fnum($stats["market_volume"]) . " Res.</b></div>
+                
                 <div style='margin-top: 15px;'>
                     <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Exportiert (Gesendet):</div>
-                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;'>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_sent_food']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_sent_wood']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_sent_stone']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_sent_gold']) . "</span></div>
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;'>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_sent_food']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_sent_wood']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_sent_stone']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_sent_gold']) . "</span></div>
                     </div>
                     
                     <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Importiert (Erhalten):</div>
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px;'>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_received_food']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_received_wood']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_received_stone']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_received_gold']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_received_food']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_received_wood']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_received_stone']) . "</span></div>
+                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_received_gold']) . "</span></div>
                     </div>
                 </div>
             </div>
@@ -142,9 +146,6 @@ $view = "
             <div class='split-content' style='margin-top: 5px;'>
                 <span>Gesamt auf Karte:</span> <b>" . fnum($stats["map_total"]) . "</b>
             </div>
-            <hr>
-            <div class='split-content'><span>Markt-Angebote:</span> <b>" . fnum($stats["market_volume"]) . " Res.</b></div>
-            <div class='split-content'><span>Handelsabschlüsse:</span> <b>" . fnum($stats["total_trades"]) . "</b></div>
         </div>
     </div>
     <div class='box-container' style='width: 310px;'>

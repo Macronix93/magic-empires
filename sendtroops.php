@@ -382,11 +382,33 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     $soldier_name = $s_obj->get_soldier_name();
                     $unit_cat = $s_obj->get_soldier_category();
                     $icon_name = $s_obj->get_soldier_icon_name();
+                    $cat = $s_obj->get_soldier_category();
+                    $atk_bonus = 0;
+                    $def_bonus = 0;
                     $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
 
                     if ($owned_count <= 0) {
                         continue;
                     }
+
+                    if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
+                        $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
+                        $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
+                    } elseif ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+                        $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
+                        $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
+                    } elseif ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+                        $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
+                        $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
+                    }
+
+                    $shrine_mult = 1.0;
+                    if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+                        $shrine_mult += $kingdom->get_shrine_modifier();
+                    }
+
+                    $real_atk = (int)round(($s_obj->get_soldier_attack() + $atk_bonus) * $shrine_mult);
+                    $real_def = (int)($s_obj->get_soldier_defense() + $def_bonus);
 
                     $row_style = ($unit_cat === 0) ? "" : "display: none;";
 
@@ -420,7 +442,9 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                                data-name='" . e($soldier_name) . "' 
                                                data-id='$soldier_id'
                                                data-icon='$icon_name'
-                                               data-max='$owned_count'>
+                                               data-max='$owned_count'
+                                               data-atk='$real_atk' 
+                                               data-def='$real_def'>
                                         <input type='button' 
                                                $is_input_disabled
                                                value='Max.' 

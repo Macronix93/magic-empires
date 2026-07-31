@@ -43,26 +43,7 @@ if (isset($_POST["reset_align"])) {
  * HTML Content
  */
 $current_align = $kingdom->get_kingdom_alignment();
-$current_mod = $kingdom->get_shrine_modifier() * 100;
-$malus_val = SHRINE_MALUS_BASE * 100;
-
-$aligns = [
-    AlignmentTypes::ALIGN_WAR => [
-        "name" => "Kriegsgott",
-        "desc" => "+$current_mod% Angriffskraft",
-        "malus" => "-$malus_val% Goldertrag"
-    ],
-    AlignmentTypes::ALIGN_TRADE => [
-        "name" => "Handelsgöttin",
-        "desc" => "+$current_mod% Goldertrag",
-        "malus" => "-$malus_val% Mauer-Verteidigung"
-    ],
-    AlignmentTypes::ALIGN_NATURE => [
-        "name" => "Naturgeist",
-        "desc" => "+$current_mod% Nahrung & Holz",
-        "malus" => "-$malus_val% Steinertrag"
-    ]
-];
+$res_aligns = $db_instance->query("SELECT * FROM shrine_alignments");
 
 $view .= "<h3>Wähle die Gesinnung für dieses Königreich</h3>";
 $view .= "<p>Ein Wechsel erfordert ein Opfer von " . fnum(SHRINE_CHANGE_COST) . " Gold.</p>";
@@ -76,23 +57,26 @@ $view .= "
         </form>
     </div>";
 
-foreach ($aligns as $id => $data) {
-    $active = ($current_align == $id) ? " border: 2px solid var(--link-color); background: var(--box-selected);" : "";
+while ($data = $res_aligns->fetch_assoc()) {
+    $active = ($current_align == $data["id"]) ? " border: 2px solid var(--link-color); background: var(--box-selected);" : "";
+
+    $display_bonus = $kingdom->calculate_shrine_bonus($data['base_bonus']) * 100;
+    $display_malus = $data["base_malus"] * 100;
 
     $view .= "
-    <div class='box-container' style='margin: 0;$active'>
-        <div class='box-header'>{$data['name']}</div>
+    <div class='box-container' style='margin-bottom: 15px;$active'>
+        <div class='box-header'>{$data["name"]}</div>
         <div class='box-content box-content-bg' style='padding: 10px;'>
-            <span class='passed'>{$data['desc']}</span><br>
-            <span class='error'>{$data['malus']}</span><br><br>
+            <span class='passed'>+{$display_bonus}% {$data["bonus_text"]}</span><br>
+            <span class='error'>-{$display_malus}% {$data["malus_text"]}</span><br><br>
             <form method='POST'>
-                <input type='hidden' name='choose_align' value='$id'>
-                <button type='submit' " . ($current_align == $id ? "disabled" : "") . ">
-                    " . ($current_align == $id ? "Bereits gewählt" : "Dienen") . "
+                <input type='hidden' name='choose_align' value='{$data['id']}'>
+                <button type='submit' " . ($current_align == $data["id"] ? "disabled" : "") . ">
+                    " . ($current_align == $data["id"] ? "Bereits gewählt" : "Dienen") . "
                 </button>
             </form>
         </div>
-    </div><br>";
+    </div>";
 }
 
 /*
