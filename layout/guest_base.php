@@ -10,10 +10,13 @@
             <?= $header ?? "Information" ?>
         </div>
         <div class="big-box-content">
-            <a href="index.php">
-                <button type="button">Zurück zur Startseite</button>
-            </a>
-            <br><br>
+            <?= str_contains($view, "Credits") ?
+                    "<a href='index.php'>
+                        <button type='button'>Zurück zur Startseite</button>
+                    </a><br><br>"
+                    :
+                    ""
+            ?>
             <?= $view ?? "" ?>
             <br>
             <a href="index.php">

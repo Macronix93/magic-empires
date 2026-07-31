@@ -22,7 +22,7 @@ if (!empty($_GET["startx"]) && !empty($_GET["starty"]) && is_numeric($_GET["star
 }
 
 // Map legend
-echo "<div class='map-legend'>
+echo "<div class='map-legend' id='map-legend-fieldtypes'>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>

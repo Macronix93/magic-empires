@@ -42,49 +42,60 @@ function applyOverlayStyles() {
 }
 
 function openOverlay(url, title = "Info") {
+    document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
 
-    if (url === currentOverlayUrl && overlay.style.display === "grid") {
-        return;
-    }
+    const isAlreadyOpen = (overlay.style.display === "grid");
 
-    if (overlay.style.display === "grid") {
-        content.style.height = content.offsetHeight + "px";
-    } else {
+    if (url === currentOverlayUrl && isAlreadyOpen) return;
+
+    if (!isAlreadyOpen) {
+        // Overlay wird NEU geöffnet -> Kein Fade-Out nötig
         xOffset = 0;
         yOffset = 0;
         setTranslate(0, 0, overlay);
         overlay.style.display = "grid";
         applyOverlayStyles();
+
+        content.style.transition = "none";
+        content.style.opacity = "1";
+        content.innerHTML = '<div class="spinner">Lade...</div>';
+    } else {
+        // Overlay ist BEREITS OFFEN -> Fade-Out für weichen Übergang
+        if (url !== currentOverlayUrl) {
+            content.style.minHeight = content.offsetHeight + "px";
+            content.style.transition = "opacity 0.15s ease";
+            content.style.opacity = "0";
+        }
     }
 
-    currentOverlayUrl = url;
-    overlayTitle.innerText = title;
-
-    content.style.opacity = "0";
+    if (url === currentOverlayUrl) {
+        overlayTitle.innerText = title;
+        return;
+    }
 
     setTimeout(() => {
-        content.innerHTML = '<div class="spinner">Lade...</div>';
-        content.style.opacity = "1";
+        if (isAlreadyOpen) content.innerHTML = '<div class="spinner">Lade...</div>';
+        currentOverlayUrl = url;
+        overlayTitle.innerText = title;
 
         fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(response => response.text())
             .then(html => {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
+                content.style.opacity = "0";
 
-                content.innerHTML = doc.body.innerHTML;
-                content.style.height = "auto";
-                content.scrollTop = 0;
-            })
-            .catch(() => {
-                content.textContent = "Fehler beim Laden.";
-                content.style.height = "auto";
-                currentOverlayUrl = "";
+                setTimeout(() => {
+                    content.innerHTML = doc.body.innerHTML;
+                    content.style.minHeight = "";
+                    content.style.transition = "opacity 0.15s ease";
+                    content.style.opacity = "1";
+                }, 25);
             });
-    }, 150);
+    }, isAlreadyOpen ? 100 : 0); // Nur warten, wenn es bereits offen war
 }
 
 function closeOverlay() {
@@ -93,8 +104,6 @@ function closeOverlay() {
 
     if (overlay) {
         overlay.style.display = "none";
-
-        currentOverlayUrl = "";
     }
 }
 

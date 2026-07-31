@@ -118,14 +118,28 @@ registerAction("confirmDeleteAllServer", () => {
 
 
 function scrollToLatestMessage() {
-    /** @type {HTMLDivElement} */
-    let newMessageLine = document.getElementById("new-message-line");
+    const newMessageLine = document.getElementById("new-message-line");
+    const parentContainer = document.getElementById("messages-section");
 
-    if (newMessageLine) {
-        let parentContainer = document.getElementById("messages-section");
+    if (!parentContainer) return;
 
-        // Scroll the parent container to the bottom of the new message line
-        parentContainer.scrollTop = newMessageLine.offsetTop - parentContainer.clientHeight + newMessageLine.clientHeight;
+    const isServerInbox = window.location.search.includes("servermsgs");
+
+    if (!newMessageLine) {
+        if (isServerInbox) {
+            parentContainer.scrollTop = 0;
+        } else {
+            parentContainer.scrollTop = parentContainer.scrollHeight;
+        }
+        return;
+    }
+
+    if (isServerInbox) {
+        let target = newMessageLine.offsetTop - parentContainer.clientHeight + newMessageLine.clientHeight;
+
+        parentContainer.scrollTop = target + 10;
+    } else {
+        parentContainer.scrollTop = newMessageLine.offsetTop - 10;
     }
 }
 
@@ -743,6 +757,8 @@ document.addEventListener("DOMContentLoaded", () => {
             initializeChat();
         } else {
             canLoadMore = !!document.getElementById("load-more-server-btn");
+
+            scrollToLatestMessage();
         }
     }
 });

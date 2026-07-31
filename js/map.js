@@ -9,6 +9,7 @@ let currentTranslateY = 0;
 let zoom = 1.0;
 let mapCache = null;
 let isFetchingField = false;
+let panAnimationID = null;
 
 let velocityX = 0;
 let velocityY = 0;
@@ -29,7 +30,11 @@ const BASE_TILE_SIZE = 60;
 let initialPinchDistance = null;
 
 const COLORS = {
-    1: "#B97A57", 2: "#00A2E8", 3: "#22B14C", 4: "#FFC90E", 5: "#B5E61D"
+    1: "#576574", // Gebirge
+    2: "#0984e3", // Küste
+    3: "#166733", // Wald
+    4: "#dca34b", // Wüste
+    5: "#78a55a"  // Hochland
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -280,6 +285,8 @@ function draw() {
     if (currentPath.length > 0 && document.getElementById("show-path-toggle")?.checked) {
         drawPath(scaledTile);
     }
+
+    updateCenterCoords();
 }
 
 function clampMapPosition() {
@@ -395,6 +402,8 @@ function selectField(x, y, shouldCenter = false) {
 
     selectedX = x;
     selectedY = y;
+    draw();
+
     if (shouldCenter) centerMapOn(x, y);
 
     const tile = mapData.find(t => t[0] === x && t[1] === y);
@@ -438,18 +447,69 @@ function drawPath(scaledTile) {
     ctx.setLineDash([]);
 }
 
-function centerMapOn(x, y) {
+function centerMapOn(x, y, immediate = false) {
     const scaledTile = BASE_TILE_SIZE * zoom;
 
-    currentTranslateX = (viewport.offsetWidth / 2) - (x - 0.5) * scaledTile;
-    currentTranslateY = (viewport.offsetHeight / 2) - (y - 0.5) * scaledTile;
+    const targetTX = (viewport.offsetWidth / 2) - (x - 0.5) * scaledTile;
+    const targetTY = (viewport.offsetHeight / 2) - (y - 0.5) * scaledTile;
 
-    clampMapPosition();
-    draw();
+    if (immediate) {
+        currentTranslateX = targetTX;
+        currentTranslateY = targetTY;
+
+        clampMapPosition();
+        draw();
+        return;
+    }
+
+    const animate = () => {
+        const dx = targetTX - currentTranslateX;
+        const dy = targetTY - currentTranslateY;
+
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+            currentTranslateX = targetTX;
+            currentTranslateY = targetTY;
+            clampMapPosition();
+            draw();
+            return;
+        }
+
+        currentTranslateX += dx * 0.15;
+        currentTranslateY += dy * 0.15;
+
+        clampMapPosition();
+        draw();
+        panAnimationID = requestAnimationFrame(animate);
+    };
+
+    cancelAnimationFrame(panAnimationID);
+    panAnimationID = requestAnimationFrame(animate);
+}
+
+function updateCenterCoords() {
+    const coordsDisplay = document.getElementById("coords-display");
+    if (!coordsDisplay || !mapData.length) return;
+
+    const scaledTile = BASE_TILE_SIZE * zoom;
+
+    const centerX = viewport.offsetWidth / 2;
+    const centerY = viewport.offsetHeight / 2;
+
+    const tx = Math.floor((centerX - currentTranslateX) / scaledTile) + 1;
+    const ty = Math.floor((centerY - currentTranslateY) / scaledTile) + 1;
+
+    if (tx >= 1 && tx <= MAX_X && ty >= 1 && ty <= MAX_Y) {
+        coordsDisplay.innerText = `X: ${tx} | Y: ${ty}`;
+    }
 }
 
 function jumpTo(x, y) {
     if (x >= 1 && x <= MAX_X && y >= 1 && y <= MAX_Y) {
+        cancelAnimationFrame(momentumID);
+        cancelAnimationFrame(panAnimationID);
+        velocityX = 0;
+        velocityY = 0;
+
         if (mapData.length === 0) {
             setTimeout(() => jumpTo(x, y), 100);
             return;

@@ -176,7 +176,7 @@ $query = "
 $result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]);
 
 if ($result && $result->num_rows > 0) {
-    $view .= "<table class='table' style='width: 100%;'>";
+    $view .= "<table class='table sent-troops-table' style='width: 100%;'>";
     $view .= "<colgroup>
                 <col style='width: 15%;'> <!-- Art -->
                 <col style='width: 35%;'> <!-- Truppen -->
@@ -284,8 +284,12 @@ if ($result && $result->num_rows > 0) {
         }
 
         // Build soldiers string
-        $soldiers_str = "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
+        $badge_count = 0;
+
+        $soldiers_str = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
         foreach ($event_data["soldiers"] as $soldier) {
+            $badge_count++;
+
             $soldier_obj = new Soldier();
             $soldier_obj->set_soldier_id($soldier["soldierid"]);
             $soldier_obj->set_soldier_icon($soldier["icon"]);
@@ -309,16 +313,26 @@ if ($result && $result->num_rows > 0) {
                 if ($event_data["loot_gold"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($event_data["loot_gold"]) . " ";
                 if ($event_data["loot_coins"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . fnum($event_data["loot_coins"]) . " ";
                 $popup_content .= "</div>";
-
-                $soldiers_str .= "<div class='unit-badge$popup_class' id='$p_id' title=''>";
-            } else {
-                $soldiers_str .= "<div class='unit-badge' title='" . e($soldier["name"]) . "'>";
             }
 
+            $responsive_class = "";
+            if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
+                $responsive_class .= " badge-hide-mobile";
+            }
+            if ($badge_count > MAX_UNIT_BADGES_PER_ROW_DESKTOP) {
+                $responsive_class .= " badge-hide-desktop";
+            }
+
+            $soldiers_str .= "<div class='unit-badge$popup_class $responsive_class' id='" . ($has_loot ? $p_id : "") . "' title='" . (empty($popup_class) ? e($soldier["name"]) : "") . "'>";
             $soldiers_str .= $soldier_obj->get_soldier_icon("ressource-icons") . "
                                 <b>" . fnum($soldier["soldiercount"]) . "x</b>
                                 $popup_content
                             </div>";
+        }
+
+        if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
+            $btn_extra = ($badge_count <= MAX_UNIT_BADGES_PER_ROW_DESKTOP) ? " hide-toggle-desktop" : "";
+            $soldiers_str .= "<span data-on-click='toggleBadges' class='badge-toggle$btn_extra' style='cursor: pointer; font-weight: bold; padding: 5px;'> (...)</span>";
         }
         $soldiers_str .= "</div>";
 
@@ -682,6 +696,16 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
         JOIN field_types ft ON m.fieldtype = ft.fieldid 
         WHERE m.kingdomid = ?", [$user->get_current_kingdom()])->fetch_assoc();
 
+    $good_res = "";
+    if ($k_info["foodrate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " Nahrung ";
+    if ($k_info["woodrate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " Holz ";
+    if ($k_info["stonerate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " Stein ";
+    if ($k_info["goldrate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " Gold ";
+
+    if (empty($good_res)) {
+        $good_res = "<i>Dieses Land ist ein Allrounder (ausgeglichene Erträge).</i>";
+    }
+
     $view .= "
     <div id='tutorial-overlay' class='info-box-bg' style='display:flex;'>
         <div class='big-box-container' style='max-width: 500px; margin: auto; position: relative; z-index: 1001;'>
@@ -689,16 +713,12 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
             <div class='big-box-content' style='text-align: left; padding: 20px;'>
                 <p>Seid gegrüßt! Euer Volk hat sich auf einem Feld vom Typ<div style='display: flex; justify-content: center; margin: 10px;'>
                 <b class='passed'>{$k_info["fieldname"]}</b></div>niedergelassen. Hier sind eure ersten Schritte:</p>
-                
                 <div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 15px;'>
                     <b style='color: var(--link-color);'>1. Checkt eure Umgebung:</b><br>
                     Jedes Gelände hat andere Boni. Euer aktuelles Land produziert besonders gut:
                     <div style='display: flex; justify-content: space-evenly; margin-top: 5px;'>
                         <small>
-                            " . ($k_info["foodrate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " Nahrung " : "") . "
-                            " . ($k_info["woodrate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " Holz " : "") . "
-                            " . ($k_info["stonerate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " Stein " : "") . "
-                            " . ($k_info["goldrate"] > 1 ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " Gold " : "") . "
+                            $good_res
                         </small>
                     </div>
                 </div>

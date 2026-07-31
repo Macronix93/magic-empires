@@ -58,10 +58,10 @@ foreach ($result as $row) {
 
     // Check if user rank went up or down since last update
     if ($position < $row["lastrank"]) {
-        $icon = "<img src='images/icons/icon_arrow_up.png' class='ressource-icons' alt='' style='width: 16px; height: 16px; position: absolute; top: -5px; right: -15px;'/>";
+        $icon = "<img src='images/icons/icon_arrow_up.png' class='ressource-icons rank-arrow' alt=''/>";
         $change = "+" . $diff;
     } else if ($position > $row["lastrank"]) {
-        $icon = "<img src='images/icons/icon_arrow_down.png' class='ressource-icons' alt='' style='width: 16px; height: 16px; position: absolute; top: -5px; right: -15px;'/>";
+        $icon = "<img src='images/icons/icon_arrow_down.png' class='ressource-icons rank-arrow' alt=''/>";
         $change = $diff;
     }
 

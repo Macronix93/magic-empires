@@ -66,9 +66,11 @@ if ($row) {
                 ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") . "</p>
                         
                         <table class='table' style='width: 100%;'>
-                            <tr>
-                                <td class='td-center td-gradient' title='Angriff'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . "</td>
-                                <td class='td-center td-gradient' title='Verteidigung'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . "</td>";
+                            <tr>";
+        if ($row["attack"] > 0) {
+            $view .= "<td class='td-center td-gradient' title='Angriff'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . "</td>";
+        }
+        $view .= "<td class='td-center td-gradient' title='Verteidigung'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . "</td>";
 
         if ($row["villager"] > 0) {
             $view .= "<td class='td-center td-gradient' title='Dorfbewohner'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . "</td>";
@@ -80,9 +82,11 @@ if ($row) {
 
         $view .= "              <td class='td-center td-gradient'>" . ($is_hero ? "Status" : get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME)) . "</td>
                             </tr>
-                            <tr>
-                                <td class='td-center'>" . fnum($row["attack"]) . "</td>
-                                <td class='td-center'>" . fnum($row["defense"]) . "</td>";
+                            <tr>";
+        if ($row["attack"] > 0) {
+            $view .= "<td class='td-center'>" . fnum($row["attack"]) . "</td>";
+        }
+        $view .= "<td class='td-center'>" . fnum($row["defense"]) . "</td>";
 
         if ($row["villager"] > 0) {
             $view .= "<td class='td-center'>{$row["villager"]}</td>";

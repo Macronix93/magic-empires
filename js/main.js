@@ -73,6 +73,17 @@ registerAction("finishTutorial", () => {
             }
         });
 });
+registerAction("toggleBadges", (el) => {
+    const container = el.closest('.badge-container');
+    if (!container) return;
+
+    container.querySelectorAll('.badge-hide-mobile, .badge-hide-desktop').forEach(item => {
+        item.classList.remove('badge-hide-mobile', 'badge-hide-desktop');
+        item.style.display = 'inline-flex';
+    });
+
+    el.remove(); // Button weg
+});
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
@@ -166,45 +177,60 @@ function setup() {
             const positionBox = function (e) {
                 let mousePos = getMouseLocation(e);
 
-                box.style.display = 'block';
-                box.style.position = 'absolute';
-                box.style.zIndex = '999999';
+                box.style.position = "absolute";
+                box.style.left = "-9999px";
+                box.style.top = "0px";
+                box.style.display = "block";
+                box.style.visibility = "hidden";
+                box.style.zIndex = "999999";
 
                 const boxWidth = box.offsetWidth;
                 const boxHeight = box.offsetHeight;
-                const windowWidth = window.innerWidth;
-                const windowHeight = window.innerHeight;
 
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+                const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+
+                // Horizontal
                 let left = mousePos[0] - (boxWidth / 2);
 
-                if (left < 10) left = 10;
-                if (left + boxWidth > windowWidth - 10) {
-                    left = windowWidth - boxWidth - 10;
+                if (left < scrollX + 10) {
+                    left = scrollX + 10;
+                }
+                if (left + boxWidth > scrollX + viewportWidth - 10) {
+                    left = scrollX + viewportWidth - boxWidth - 10;
                 }
 
+                // Vertical
                 let top = mousePos[1] + 25;
-                let checkY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
-                if (checkY + 25 + boxHeight > windowHeight) {
+                let clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+
+                if (clientY + 25 + boxHeight > viewportHeight) {
                     top = mousePos[1] - boxHeight - 20;
                 }
 
-                box.style.left = left + 'px';
-                box.style.top = top + 'px';
+                box.style.left = left + "px";
+                box.style.top = top + "px";
+                box.style.visibility = "visible";
             };
 
             // Mouse Events
             trigger.onmouseover = positionBox;
             trigger.onmousemove = positionBox;
             trigger.onmouseout = function () {
-                box.style.display = 'none';
+                box.style.display = "none";
             };
 
             // Touch Support
-            trigger.addEventListener('touchstart', function (e) {
-                if (box.style.display === 'block') {
-                    box.style.display = 'none';
+            trigger.addEventListener("touchstart", function (e) {
+                if (window.innerWidth <= 600 && trigger.id && trigger.id.startsWith("activity")) {
+                    return;
+                }
+
+                if (box.style.display === "block") {
+                    box.style.display = "none";
                 } else {
-                    document.querySelectorAll('.popupbox').forEach(b => b.style.display = 'none');
+                    document.querySelectorAll('.popupbox').forEach(b => b.style.display = "none");
                     positionBox(e);
                 }
             }, {passive: true});
@@ -460,6 +486,7 @@ window.addEventListener("DOMContentLoaded", function () {
             rightTrigger.classList.remove("open");
             leftMenu.classList.toggle("open");
             leftTrigger.classList.toggle("open");
+            closeOverlay();
         });
     }
 
@@ -470,6 +497,7 @@ window.addEventListener("DOMContentLoaded", function () {
             leftTrigger.classList.remove("open");
             rightMenu.classList.toggle("open");
             rightTrigger.classList.toggle("open");
+            closeOverlay();
         });
     }
 

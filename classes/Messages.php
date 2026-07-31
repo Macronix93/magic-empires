@@ -200,16 +200,15 @@ class Messages
             array_pop($rows);
         }
 
-        $html = "";
-        $first_unread_displayed = false;
-
-        foreach ($rows as $row) {
-            if ($row["hasread"] == 0 && !$first_unread_displayed) {
-                $first_unread_displayed = true;
-
-                $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
+        $last_unread_index = -1;
+        foreach ($rows as $index => $row) {
+            if ($row["hasread"] == 0) {
+                $last_unread_index = $index;
             }
+        }
 
+        $html = "";
+        foreach ($rows as $index => $row) {
             $html .= "<div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
                             <div class='message-border'>
                                 Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
@@ -221,6 +220,10 @@ class Messages
                             </div>
                             {$row["message"]}
                         </div>";
+
+            if ($index === $last_unread_index) {
+                $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
+            }
 
             if ($row["hasread"] == 0) {
                 $this->mysqli->execute_query("UPDATE server_messages SET hasread = 1 WHERE id = ?", [$row["id"]]);

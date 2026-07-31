@@ -65,14 +65,21 @@ class Map
                 if ($tile) {
                     $color = $this->get_field_type_color($tile["fieldtype"]);
                     $is_target = ($x == $target_x && $y == $target_y);
-                    $has_kingdom = ($tile["kingdomid"] != -1 && $tile["kingdomid"] != -2);
+                    $kid = (int)$tile["kingdomid"];
 
                     $class = "minimap-tile";
                     if ($is_target) $class .= " minimap-target";
 
                     $content = "";
-                    if ($is_target) $content = "⭐";
-                    else if ($has_kingdom) $content = "🏰";
+                    if ($is_target) {
+                        $content = "⭐";
+                    } elseif ($kid > 0) {
+                        $content = "🏰";
+                    } elseif ($kid === -2) {
+                        $content = "💎";
+                    } elseif ($kid === -3) {
+                        $content = "👹";
+                    }
 
                     $html .= "<div class='" . e($class) . "' style='background-color: " . e($color) . ";'>" . e($content) . "</div>";
                 } else {
@@ -93,11 +100,11 @@ class Map
     public function get_field_type_color(int $field_type): string
     {
         return match ($field_type) {
-            1 => "rgb(185, 122, 87)",
-            2 => "rgb(0, 162, 232)",
-            3 => "rgb(34, 177, 76)",
-            4 => "rgb(255, 201, 14)",
-            default => "rgb(181, 230, 29)",
+            1 => "#576574",
+            2 => "#0984e3",
+            3 => "#166733",
+            4 => "#dca34b",
+            default => "#78a55a",
         };
     }
 

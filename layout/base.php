@@ -90,6 +90,11 @@ if ($user->is_logged_in()) {
 </div>
 <div id="nav-left-trigger" class="mobile-trigger">
     <p>&#9776;</p>
+    <?php
+    $total_unread = ($user->is_logged_in()) ? $user->get_unread_messages() : 0;
+    if ($total_unread > 0): ?>
+        <span class="nav-notification-dot"></span>
+    <?php endif; ?>
 </div>
 <div id="nav-left-menu" class="mobile-side-nav">
     <?php include("layout/left.php"); ?>

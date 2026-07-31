@@ -95,7 +95,7 @@ if (isset($_GET["action"])) {
             if ($kingdom_is_researching) {
                 $db_instance->execute_query(
                     "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
-                    [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_SMITHY_UPGRADE]
+                    [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_RESEARCH_TECH]
                 );
 
                 // Refund the player

@@ -355,36 +355,45 @@ $atk_class = ($shrine_atk_mult > 1.0 || ($inf_atk_lvl + $cav_atk_lvl + $arc_atk_
 $def_class = (($inf_def_lvl + $cav_def_lvl + $arc_def_lvl) > 0) ? "passed" : "";
 
 $view .= "
-<div style='max-width: 420px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-gold); border-radius: 5px; 
-            margin-left: auto; margin-right: auto; margin-bottom: 15px; padding: 10px; display: flex; flex-direction: column; gap: 5px;'>
-    <div style='display: flex; align-items: center; width: 100%;'>
-        <div class='legend-item' style='flex: 2;'>
-            <b>Garnisons-Stärke:</b>
-        </div>
-        <div class='legend-item' style='flex: 1;' title='Gesamter Angriffswert'>
-            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span class='$atk_class'>" . fnum($total_k_atk) . "</span>
-        </div>
-        <div class='legend-item' style='flex: 1;' title='Gesamter Verteidigungswert'>
-            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span class='$def_class'>" . fnum($total_k_def) . "</span>
-        </div>
-    </div>
-    <div style='display: flex; align-items: center; width: 100%;'>
-        <div style='flex: 3; text-align: left;'>
-            <b>Truppen (gesamt):</b>
-        </div>
-        " . fnum($total_occupied_space) . " / " . fnum($troop_limit) . "
-        <div style='flex: 1;'>
-        </div>
-    </div>
-    <div style='display: flex; align-items: center; width: 100%;'>
-        <div style='flex: 3; text-align: left;'>
-            <b>Truppen (verfügbar):</b>
-        </div>
-        " . fnum($available_troops) . " / " . fnum($total_occupied_space) . "
-        <div style='flex: 1;'>
-        </div>
-    </div>
+<div class='garnison-box'>
+    <table style='width: 100%; border-collapse: collapse; border: none; background: transparent;'>
+        <tr>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: left;'>
+                <b>Garnisons-Stärke:</b>
+            </td>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: right; white-space: nowrap;'>
+                <span title='Gesamter Angriffswert'>
+                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span class='$atk_class'>" . fnum($total_k_atk) . "</span>
+                </span>
+                <span style='margin-left: 10px;' title='Gesamter Verteidigungswert'>
+                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span class='$def_class'>" . fnum($total_k_def) . "</span>
+                </span>
+            </td>
+        </tr>
+        <tr>
+            <td colspan='2' style='background: transparent; border: none; padding: 0;'>
+                <hr>
+            </td>
+        </tr>
+        <tr>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: left;'>
+                <b>Truppen (gesamt):</b>
+            </td>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
+                " . fnum($total_occupied_space) . " / " . fnum($troop_limit) . "
+            </td>
+        </tr>
+        <tr>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: left;'>
+                <b>Truppen (verfügbar):</b>
+            </td>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
+                " . fnum($available_troops) . "
+            </td>
+        </tr>
+    </table>
 </div>";
+
 $categories = [
     SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
     SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",

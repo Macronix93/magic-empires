@@ -31,9 +31,9 @@ for ($i = 0; $i < count($buildings); $i++) {
             $level_of_dependency_building = $buildings[$dependency["dependencyid"]]->get_building_level();
 
             if ($dependency["dependencylevel"] > $level_of_dependency_building) {
-                $dependency_text .= " <span class='error'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
+                $dependency_text .= " <span class='error' style='white-space: nowrap;'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
             } else {
-                $dependency_text .= " <span class='passed'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
+                $dependency_text .= " <span class='passed' style='white-space: nowrap;'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
             }
         }
     } else {
@@ -79,8 +79,8 @@ for ($i = 0; $i < count($techs); $i++) {
                 $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
 
                 $dependency_text .= $building_level_needed > $building_level_current
-                    ? " <span class='error'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>"
-                    : " <span class='passed'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>";
+                    ? " <span class='error' style='white-space: nowrap;'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>"
+                    : " <span class='passed' style='white-space: nowrap;'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>";
             }
 
             // Tech dependency
@@ -89,8 +89,8 @@ for ($i = 0; $i < count($techs); $i++) {
                 $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
 
                 $dependency_text .= $tech_level_needed > $tech_level_current
-                    ? " <span class='error'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>"
-                    : " <span class='passed'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>";
+                    ? " <span class='error' style='white-space: nowrap;'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>"
+                    : " <span class='passed' style='white-space: nowrap;'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>";
             }
         }
     }
