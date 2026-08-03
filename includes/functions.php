@@ -271,6 +271,11 @@ function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand
     return (int)(MARKET_BASE_FEE + $max_variable);
 }
 
+function calculate_listing_fee(int $supply_value): int
+{
+    return (int)max(1, ceil($supply_value / 20000));
+}
+
 function check_image_content($tempFilePath)
 {
     $api_url = getenv("CHECK_NSFW_API_URL");
@@ -375,12 +380,6 @@ function generate_safe_password($length = 12): string
 {
     $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?";
     return substr(str_shuffle(str_repeat($chars, 5)), 0, $length);
-}
-
-// Start inactivity counter
-function start_inactivity_check(int $seconds): string
-{
-    return 'data-timeout="' . $seconds . '" data-server-time="' . time() . '"';
 }
 
 // Apply villager cap
@@ -625,11 +624,18 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     ];
 }
 
-function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT): void
+function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT,
+                                 $data = null): void
 {
     $db = Database::get_instance();
-    $db->get_connection()->execute_query("INSERT INTO server_messages (receiverid, receiver, date, message, category) VALUES (?, ?, ?, ?, ?)",
-        [$user_id, $user_name, time(), $message, $category]);
+    $json = null;
+
+    if (is_array($data)) {
+        $json = json_encode($data);
+    }
+
+    $db->get_connection()->execute_query("INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
+        [$user_id, $user_name, time(), $message, $category, $json]);
 }
 
 function get_resource_text(int $cost, int $current_val): string

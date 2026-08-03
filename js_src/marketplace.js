@@ -11,26 +11,67 @@ if (mConfigEl) {
 registerAction("checkMarket", (form, event) => {
     event.preventDefault();
 
-    let resType, amount;
-
-    if (form.dataset.typeField && form.dataset.amountField) {
-        resType = document.getElementById(form.dataset.typeField).value;
-        amount = document.getElementById(form.dataset.amountField).value;
-    } else {
-        resType = form.dataset.resType;
-        amount = form.dataset.amount;
-    }
-
     const isListing = form.dataset.isListing === "true";
 
-    if (typeof checkMarketOverflow === "function") {
-        const noOverflowDetected = checkMarketOverflow(form, resType, amount, isListing);
+    let resType, amountToReceive;
 
-        if (noOverflowDetected === true) {
+    if (isListing) {
+        const valS = parseInt(document.getElementById("sv").value) || 0;
+        const valD = parseInt(document.getElementById("dv").value) || 0;
+
+        if (valS <= 0 || valD <= 0) {
+            showConfirmationDialog("Bitte gib gültige Mengen an.", "OK", "Schließen", () => {
+            });
+            return;
+        }
+
+        const listingFee = Math.max(1, Math.ceil(valS / 20000));
+        resType = document.getElementById("d").value;
+        amountToReceive = valD;
+
+        const overflowMsg = getOverflowWarning(resType, amountToReceive);
+        const confirmMsg = `${overflowMsg}Das Erstellen dieses Angebots kostet dich sofort ${listingFee} Münzen.\n\nMöchtest du das Angebot jetzt veröffentlichen?`;
+
+        showConfirmationDialog(confirmMsg, "Ja, Erstellen", "Abbrechen", () => {
+            form.submit();
+        });
+    } else {
+        resType = form.dataset.resType;
+        amountToReceive = parseInt(form.dataset.amount) || 0;
+
+        const overflowWarning = getOverflowWarning(resType, amountToReceive);
+
+        if (overflowWarning !== "") {
+            showConfirmationDialog(
+                overflowWarning + "Möchtest du das Angebot trotzdem annehmen?",
+                "Ja, Annehmen",
+                "Abbrechen",
+                () => {
+                    form.submit();
+                }
+            );
+        } else {
             form.submit();
         }
     }
 });
+
+function getOverflowWarning(resType, amount) {
+    const storageData = window.curKingdomStorage;
+    const resNames = ["Nahrung", "Holz", "Stein", "Gold"];
+
+    if (storageData && storageData[resType]) {
+        const storage = storageData[resType];
+        const current = parseInt(storage.cur);
+        const max = parseInt(storage.max);
+
+        if (current + amount > max) {
+            const diff = (current + amount) - max;
+            return `⚠️ ÜBERLAUF-WARNUNG:\nDein Lager für ${resNames[resType]} wird um ca. ${diff.toLocaleString()} Einheiten überlaufen!\n\n`;
+        }
+    }
+    return "";
+}
 
 document.addEventListener("DOMContentLoaded", function () {
     const supplySelect = document.querySelector("select[name='s']");
@@ -83,71 +124,31 @@ document.addEventListener("DOMContentLoaded", function () {
     updateDropdowns();
 });
 
-/**
- * @param {HTMLFormElement} form
- * @param {number|string} resType
- * @param {number|string} incomingAmount
- * @param {boolean} [isListing=false]
- * @returns {boolean}
- */
-function checkMarketOverflow(form, resType, incomingAmount, isListing = false) {
-    const storageData = window.curKingdomStorage;
-    const typeKey = parseInt(resType);
-
-    if (!storageData || !storageData[typeKey]) return true;
-
-    const storage = storageData[typeKey];
-    const current = parseInt(storage.cur);
-    const max = Number(storage.max);
-    const amount = Number(incomingAmount) || 0;
-
-    const resNames = ["Nahrung", "Holz", "Stein", "Gold"];
-
-    if (current + amount > max) {
-        const overflow = (current + amount) - max;
-        const msg = isListing
-            ? `Wenn dieses Angebot angenommen wird, würde dein Lager für ${resNames[resType]} überlaufen (Verlust von ca. ${overflow} ${resNames[resType]}). Trotzdem erstellen?`
-            : `Warnung: Durch diesen Handel wird dein Lager für ${resNames[resType]} überlaufen. Du verlierst ca. ${overflow} Einheiten. Trotzdem annehmen?`;
-
-        showConfirmationDialog(msg, "Ja", "Abbrechen", () => {
-            form.submit();
-        });
-        return false;
-    }
-    return true;
-}
-
 function calculateLiveFee() {
     const amountInputS = document.getElementById("sv");
     const amountInputD = document.getElementById("dv");
-    const feeDisplay = document.getElementById("live-fee");
+    const listingDisplay = document.getElementById("live-listing-fee");
+    const buyerDisplay = document.getElementById("live-buyer-fee");
     const config = window.marketConfig;
 
-    if (!amountInputS || !amountInputD || !feeDisplay || !config) return;
+    if (!amountInputS || !amountInputD || !listingDisplay || !buyerDisplay || !config) return;
 
-    const valS_raw = amountInputS.value;
-    const valD_raw = amountInputD.value;
+    const valS = parseInt(amountInputS.value) || 0;
+    const valD = parseInt(amountInputD.value) || 0;
 
-    if (valS_raw === "" || valD_raw === "" || /\D/.test(valS_raw) || /\D/.test(valD_raw)) {
-        feeDisplay.innerText = "1";
-        return;
+    const listingFee = valS > 0 ? Math.max(1, Math.ceil(valS / 20000)) : 1;
+    listingDisplay.innerText = listingFee.toLocaleString();
+
+    if (valS <= 0 || valD <= 0) {
+        buyerDisplay.innerText = "1";
+    } else {
+        const typeS = document.getElementById('s').value;
+        const typeD = document.getElementById('d').value;
+
+        const feeS = Math.floor(valS * (config.factors[typeS] || 0));
+        const feeD = Math.floor(valD * (config.factors[typeD] || 0));
+
+        const maxVarFee = Math.max(feeS, feeD);
+        buyerDisplay.innerText = (config.base + maxVarFee).toLocaleString();
     }
-
-    const valS = parseInt(valS_raw);
-    const valD = parseInt(valD_raw);
-
-    if (valS === 0 || valD === 0) {
-        feeDisplay.innerText = "1";
-        return;
-    }
-
-    const typeS = document.getElementById('s').value;
-    const typeD = document.getElementById('d').value;
-
-    const feeS = Math.floor(valS * (config.factors[typeS] || 0));
-    const feeD = Math.floor(valD * (config.factors[typeD] || 0));
-
-    const maxVarFee = Math.max(feeS, feeD);
-
-    feeDisplay.innerText = (config.base + maxVarFee).toLocaleString();
 }

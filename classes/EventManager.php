@@ -72,10 +72,41 @@ class EventManager
                     $this->handle_event($row);
                 } catch (Throwable $t) {
                     $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
-                    Logger::get_instance()->error("Event " . $row["eventid"] . " crashed: " . $t->getMessage());
+
+                    $action_name = $this->get_action_name((int)$row["actionid"]);
+                    $event_data = json_encode($row, JSON_UNESCAPED_UNICODE);
+
+                    $error_msg = sprintf(
+                        "Event ID %d crashed: Action: %s (ID: %d) | User: %d | Kingdom: %d | Error: %s | Data: %s",
+                        $row["eventid"],
+                        $action_name,
+                        $row["actionid"],
+                        $row["userid"],
+                        $row["kingdomid"],
+                        $t->getMessage(),
+                        $event_data
+                    );
+
+                    Logger::get_instance()->error($error_msg);
                 }
             }
         }
+    }
+
+    private function get_action_name(int $id): string
+    {
+        return match ($id) {
+            ActionTypes::ACTION_BUILD_BUILDING => "Gebäudebau",
+            ActionTypes::ACTION_BUILD_TROOPS => "Rekrutierung",
+            ActionTypes::ACTION_SEND_TROOPS => "Truppenversand (Angriff/Stationierung)",
+            ActionTypes::ACTION_RETURN_TROOPS => "Truppenrückkehr",
+            ActionTypes::ACTION_RESEARCH_TECH => "Forschung",
+            ActionTypes::ACTION_RECEIVE_RESOURCES => "Ressourcen-Eingang",
+            ActionTypes::ACTION_RETURN_RESOURCES => "Ressourcen-Rückkehr",
+            ActionTypes::ACTION_UPGRADE_TROOPS => "Truppen-Upgrade",
+            ActionTypes::ACTION_SMITHY_UPGRADE => "Schmiede-Verbesserung",
+            default => "Unbekannt"
+        };
     }
 
     public function handle_event(array $row): void
@@ -380,8 +411,6 @@ class EventManager
 
                 $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
-
-                send_server_message($attacker_id, $attacker_name, $message, MessageCategories::CATEGORY_WAR);
             }
             return;
         }
@@ -391,8 +420,6 @@ class EventManager
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
-
-            send_server_message($attacker_id, $attacker_name, $message, MessageCategories::CATEGORY_WAR);
             return;
         }
 
@@ -737,6 +764,8 @@ class EventManager
             $atk_sub = "Du hast zwar Truppen geschickt, aber keinen <b>Gründungskarren</b>. Ohne Siedler können wir dieses Land nicht beanspruchen.";
             $message .= BattleReportRenderer::render_outcome_box("Keine Siedler", $atk_main, 0, 0, $atk_sub);
         }
+
+        send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
     }
 
     private function process_battle(array $row, Conquest $conquest, Kingdom $home_kingdom, Kingdom $enemy_kingdom, User $attacker_user, int $return_time): void
@@ -1683,6 +1712,8 @@ class EventManager
             "loot" => $loot_data ?? [],
             "was_emptied" => $is_empty ?? false,
         ], $home_kingdom_id);
+
+        send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
     }
 
     private function process_resource_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void

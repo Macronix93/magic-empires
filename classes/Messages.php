@@ -209,6 +209,13 @@ class Messages
 
         $html = "";
         foreach ($rows as $index => $row) {
+            if (!empty($row["data_json"])) {
+                $data = json_decode($row["data_json"], true);
+                $content = $this->render_message_template($data);
+            } else {
+                $content = $row["message"];
+            }
+
             $html .= "<div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
                             <div class='message-border'>
                                 Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
@@ -218,7 +225,7 @@ class Messages
                                  data-id='{$row["id"]}' 
                                  style='cursor: pointer;' alt=''>
                             </div>
-                            {$row["message"]}
+                            $content
                         </div>";
 
             if ($index === $last_unread_index) {
@@ -452,5 +459,78 @@ class Messages
         </div>";
 
         return $html;
+    }
+
+    private function render_message_template(array $data): string
+    {
+        $type = $data["type"] ?? "text";
+
+        switch ($type) {
+            case "battle":
+                $html = "<div class='battle-report'>";
+                $html .= BattleReportRenderer::render_vs_grid($data["atk_units"], $data["def_units"], $data["atk_label"], $data["def_label"]);
+                $html .= BattleReportRenderer::render_outcome_box(
+                    $data["title"],
+                    $data["main_text"],
+                    $data["wall_before"] ?? 0,
+                    $data["wall_after"] ?? 0,
+                    $data["sub_text"] ?? "",
+                    $data["result_type"] ?? "neutral",
+                    $data["loot"] ?? []
+                );
+                $html .= "</div>";
+                return $html;
+
+            case "trade_received":
+                $html = "<div class='battle-report'>";
+                $html .= BattleReportRenderer::render_outcome_box(
+                    "Warenlieferung",
+                    $data["text"],
+                    0, 0, "", "neutral", $data["resources"]
+                );
+                $html .= "</div>";
+                return $html;
+
+            case "plunder":
+                $html = "<div class='battle-report'>";
+
+                $coords = "(<a href='#' data-on-click='mapJump' data-x='{$data['target_x']}' data-y='{$data['target_y']}'>{$data['target_x']}:{$data['target_y']}</a>)";
+
+                $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
+
+                $main_text .= BattleReportRenderer::render_resource_list($data["loot"]);
+
+                if ($data["is_empty"]) {
+                    $main_text .= "<br><b>Das Lager wurde komplett geleert.</b>";
+                }
+
+                $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
+                $main_text .= BattleReportRenderer::render_unit_card("Räuber", $data["raiders_sent"], $data["raiders_lost"], "icon_robber");
+                $main_text .= "</div>";
+
+                if ($data["raiders_lost"] > 0) {
+                    $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
+                    $main_text .= "⚠️ <b>Verluste:</b> {$data['raiders_lost']} Räuber wurden bei Kämpfen im Hinterhalt verletzt oder getötet.";
+                    $main_text .= "</div>";
+                }
+
+                $sub_text = ($data["raiders_sent"] > $data["raiders_lost"])
+                    ? "Die Überlebenden treten mit der Beute den Rückweg an."
+                    : "Niemand kehrte lebend zurück, die Beute ging verloren!";
+
+                $html .= BattleReportRenderer::render_outcome_box(
+                    "Erfolgreiche Plünderung",
+                    $main_text,
+                    0, 0,
+                    $sub_text,
+                    "normal"
+                );
+
+                $html .= "</div>";
+                return $html;
+
+            default:
+                return $data["text"] ?? "Keine Nachricht.";
+        }
     }
 }

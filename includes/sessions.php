@@ -1,4 +1,33 @@
 <?php
+// Cookie/Remember Me Check
+if (!$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
+    if (str_contains($_COOKIE["me_remember"], ':')) {
+        list($uid, $token) = explode(':', $_COOKIE["me_remember"], 2);
+        $uid = (int)$uid;
+        $token_hash = hash("sha256", $token);
+
+        $res = $db_instance->execute_query(
+            "SELECT userid FROM user_remember_tokens WHERE userid = ? AND token_hash = ? AND expires_at > ?",
+            [$uid, $token_hash, time()]
+        );
+
+        if ($row = $res->fetch_assoc()) {
+            $user->login_user($row["userid"]);
+
+            $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE token_hash = ?", [$token_hash]);
+            $user->create_remember_me_token();
+
+            $_SESSION["lastactivity"] = time();
+
+            header("Location: " . $_SERVER["REQUEST_URI"]);
+            exit;
+        } else {
+            setcookie("me_remember", '', time() - 3600, '/');
+        }
+    }
+}
+
+
 // Timeout and session ID check
 if ($user->is_logged_in()) {
     $user->check_session_id();
@@ -55,12 +84,16 @@ if ($user->is_logged_in()) {
 
     // last activity is more than TIMEOUT_MAX_SECONDS seconds ago
     if ($timestamp - $_SESSION["lastactivity"] > TIMEOUT_MAX_SECONDS) {
-        if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
-            $token = bin2hex(random_bytes(16));
+        if (isset($_COOKIE["me_remember"])) {
+            $_SESSION["lastactivity"] = $timestamp;
+        } else {
+            if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
+                $token = bin2hex(random_bytes(16));
 
-            setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
-            change_location("index.php?logout=session&v=" . $token);
-            exit;
+                setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
+                change_location("index.php?logout=session&v=" . $token);
+                exit;
+            }
         }
     } else {
         if (!MAINTENANCE_MODE || $user->is_admin()) {

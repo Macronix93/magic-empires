@@ -88,6 +88,15 @@ if (isset($_GET["logout"])) {
     }
 
     if ($user->is_logged_in()) {
+        if (isset($_COOKIE["me_remember"])) {
+            list($uid, $token) = explode(':', $_COOKIE["me_remember"], 2);
+            $token_hash = hash("sha256", $token);
+
+            $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ? AND token_hash = ?", [(int)$uid, $token_hash]);
+
+            setcookie("me_remember", '', time() - 3600, '/');
+        }
+
         // DB Cleanup
         $db_instance->execute_query("UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?",
                 [$_SESSION["message_count"] ?? 0, $_SESSION["message_timeframe_end"] ?? 0, $user->get_user_id()]);
@@ -137,9 +146,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                         $error .= "Nutzername oder Passwort ist falsch!";
                     } else {
+                        $keep_logged_in = isset($_POST["remember_me"]);
+
                         unset($_POST);
 
                         $user->login_user($row["id"]);
+
+                        if ($keep_logged_in) {
+                            $user->create_remember_me_token();
+                        }
+
+                        change_location("overview.php");
+                        exit;
                     }
                 }
             } else {
@@ -300,16 +318,14 @@ $count_online = $res_online->fetch_row()[0];
 
                 if (!empty($error)) {
                     $errors = explode("<br>", $error);
+
                     foreach ($errors as $e) {
                         if (trim($e) !== "") echo show_error_box($e);
                     }
                 }
 
                 if (!empty($warning)) {
-                    $warning_messages = explode("<br>", $warning);
-                    foreach ($warning_messages as $w) {
-                        if (trim($w) !== "") echo show_warning_box($w);
-                    }
+                    echo show_warning_box($warning);
                 }
                 ?>
             </div>
@@ -364,6 +380,14 @@ $count_online = $res_online->fetch_row()[0];
                                                 <input type="password" name="password" placeholder="Passwort"
                                                        style="width: 100%;">
                                             </label></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px 10px; text-align: left;">
+                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+                                                <input type="checkbox" name="remember_me" style="width: auto;">
+                                                Angemeldet bleiben
+                                            </label>
+                                        </td>
                                     </tr>
                                 </table>
                                 <input type="submit" name="login" value="Einloggen"

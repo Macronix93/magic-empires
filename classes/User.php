@@ -62,6 +62,8 @@ class User
     {
         $timestamp = time();
 
+        $this->user_id = $user_id;
+
         $device_id = $_COOKIE["me_device_id"] ?? bin2hex(random_bytes(16));
         setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
 
@@ -86,8 +88,6 @@ class User
             [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $device_id, $user_id]);
 
         Logger::get_instance()->log_game("ACCOUNT", "LOGIN_SUCCESS");
-
-        change_location("overview.php");
     }
 
     public function process_user_events(): void
@@ -358,5 +358,31 @@ class User
 
         $max_lvl = (int)$row["max_lvl"];
         return 2 * (BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $max_lvl - 1));
+    }
+
+    /**
+     * @throws RandomException
+     */
+    public function create_remember_me_token(): void
+    {
+        $random_token = bin2hex(random_bytes(32));
+        $token_hash = hash("sha256", $random_token);
+
+        $expires = time() + (86400 * REMEMBER_ME_COOKIE_DAYS);
+        $this->mysqli->execute_query(
+            "INSERT INTO user_remember_tokens (userid, token_hash, expires_at) VALUES (?, ?, ?)",
+            [$this->user_id, $token_hash, $expires]
+        );
+
+        $cookie_value = $this->user_id . ':' . $random_token;
+        setcookie(
+            "me_remember",
+            $cookie_value,
+            $expires,
+            '/',
+            '',
+            true,
+            true
+        );
     }
 }

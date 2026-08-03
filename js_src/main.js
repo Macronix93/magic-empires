@@ -441,7 +441,7 @@ window.addEventListener("DOMContentLoaded", function () {
     const serverTime = document.body.dataset.serverTime;
     document.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
 
-    if (timeoutSeconds > 0) {
+    if (!isNaN(timeoutSeconds) && timeoutSeconds > 0) {
         let lastActivityTimestamp = Date.now();
         const logoutLimitMs = timeoutSeconds * 1000;
 

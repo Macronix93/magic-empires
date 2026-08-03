@@ -59,10 +59,10 @@ foreach ($result as $row) {
     // Check if user rank went up or down since last update
     if ($position < $row["lastrank"]) {
         $icon = "<img src='images/icons/icon_arrow_up.png' class='rank-arrow' alt=''/>";
-        $change = "+" . $diff;
+        $change = "<span class='passed'>(+" . $diff . ")</span>";
     } else if ($position > $row["lastrank"]) {
         $icon = "<img src='images/icons/icon_arrow_down.png' class='rank-arrow' alt=''/>";
-        $change = $diff;
+        $change = "<span class='error'>($diff)</span>";
     }
 
     $view .= "<tr>
@@ -70,7 +70,7 @@ foreach ($result as $row) {
                     <div style='position: relative; display: inline-block;'>$position
                         <div class='popup' id='description" . $position . "'>
                         $icon
-                        <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row["lastrank"]} ($change)</div>
+                        <div id='description" . $position . "_box' class='popupbox'>Rang um 0 Uhr: {$row["lastrank"]} $change</div>
                         </div>
                     </div>
                 </td>

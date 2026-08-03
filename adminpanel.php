@@ -136,7 +136,7 @@ if (!$user->is_admin()) {
                 $x = (int)$f["mapx"];
                 $y = (int)$f["mapy"];
 
-                $total = mt_rand(MIN_RESOURCES_FOR_TILE, MAX_RESOURCES_FOR_TILE);
+                $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
                 $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
                 $active_keys = [];
 
@@ -242,6 +242,21 @@ if (!$user->is_admin()) {
         $redir = isset($_GET["userid"]) ? "?userid=" . (int)$_GET["userid"] : "";
 
         change_location("adminpanel.php" . $redir);
+        exit;
+    }
+
+    if (isset($_POST['clear_log']) && isset($_POST['log_to_clear'])) {
+        $f = $_POST['log_to_clear'];
+        $allowed_files = ['admin.log', 'error.log', 'security.log'];
+
+        if (in_array($f, $allowed_files) && $user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN) {
+            file_put_contents(__DIR__ . "/logs/" . $f, "");
+
+            $logger->admin("Log-Datei $f wurde über das Adminpanel geleert.");
+
+            $_SESSION["admin_flash_msg"] = show_passed_box("Datei $f wurde erfolgreich geleert.");
+        }
+        change_location("adminpanel.php");
         exit;
     }
 
@@ -368,12 +383,6 @@ if (!$user->is_admin()) {
                         ];
                     }
                 }
-            }
-
-            if (isset($_SESSION["admin_flash_msg"])) {
-                $view .= $_SESSION["admin_flash_msg"];
-
-                unset($_SESSION["admin_flash_msg"]);
             }
 
             // Display user info using a loop
@@ -638,6 +647,32 @@ if (!$user->is_admin()) {
                         </div>
                     </div>";
 
+    $view .= "<br><hr><div class='title-border'>System-Logfiles (.log)</div>";
+    $view .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
+
+    $files = ['admin.log', 'error.log', 'security.log'];
+    foreach ($files as $f) {
+        $url = "ajax/admin_log_view.php?file=$f";
+
+        $view .= "<div class='box-container' style='width: 200px; margin: 0;'>
+                    <div class='box-header' style='font-size: 14px;'>$f</div>
+                    <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
+                        <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
+                        
+                        <form method='POST' id='form-clear-$f'>
+                            <input type='hidden' name='log_to_clear' value='$f'>
+                            <input type='hidden' name='clear_log' value='1'>
+                            <input type='button' 
+                                   data-on-click='confirmClearLog' 
+                                   data-filename='$f' 
+                                   value='Leeren' 
+                                   style='width: 100%; font-size: 11px; background: #4b140a;'>
+                        </form>
+                    </div>
+                </div>";
+    }
+    $view .= "</div>";
+
     // Display all users
     $result = $db_instance->execute_query("SELECT id, username FROM users");
 
@@ -748,18 +783,24 @@ if (!$user->is_admin()) {
     }
 }
 
+$flash_html = "";
+if (isset($_SESSION["admin_flash_msg"])) {
+    $flash_html = $_SESSION["admin_flash_msg"];
+
+    unset($_SESSION["admin_flash_msg"]);
+}
 
 /*
  * HTML Section
  */
 $title = "Admin-Bereich";
 $header = "Admin-Bereich";
-$script_files = ["adminpanel"];
+$script_files = ["adminpanel", "userinfo"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;
 } else {
-    $view = $settings_list . $user_list . $view;
+    $view = $flash_html . $settings_list . $user_list . $view;
 }
 
 include("layout/base.php");

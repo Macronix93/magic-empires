@@ -24,9 +24,9 @@ const RPS_BONUS = 0.75;
 const BASE_SEND_TROOPS_LIMIT = 2;
 const BASE_SETTLEMENT_LIMIT = 5;
 const MAX_RESOURCE_TILES = 500;
-const RESOURCE_TILES_SPAWN_RATE = 125;
-const MIN_RESOURCES_FOR_TILE = 5890;
-const MAX_RESOURCES_FOR_TILE = 32334;
+const RESOURCE_TILES_SPAWN_RATE = 250;
+const MIN_RESOURCES_PER_TILE = 5890;
+const MAX_RESOURCES_PER_TILE = 32334;
 const MAX_ROWS_PER_RANKING_PAGE = 10;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MIN_CONQUEST_CHANCE = 0.05;
@@ -53,7 +53,7 @@ const MAX_MESSAGE_LENGTH = 400;
 const MAX_LINE_BREAK_COUNT = 10;
 const MESSAGES_RATE_INTERVAL = 60;
 const MAX_MESSAGES_RATELIMIT = 10;
-const SHOW_MESSAGES_LIMIT = 50;
+const SHOW_MESSAGES_LIMIT = 30;
 const INACTIVITY_DELAY = 864000;
 const STARTING_FOOD = 10000;
 const STARTING_WOOD = 10000;
@@ -67,7 +67,6 @@ const BASE_STONE_GAIN = 800;
 const BASE_GOLD_GAIN = 600;
 const CONV_INACTIVITY_TIME = 1209600; // In seconds (currently 1209600 seconds = 14 days)
 const UPLOADS_FILE_PATH = "uploads/";
-const JS_PATH = "js/";
 const DEFAULT_AVATAR = UPLOADS_FILE_PATH . "default_avatar.jpg";
 const AVATAR_SALT = "Dpf89!jkl#45mAlmDlp";
 const MAX_UPLOAD_FILE_SIZE = 128; // In KB
@@ -123,7 +122,7 @@ const MAX_NEWS_TITLE_LENGTH = 50;
 const MAX_NEWS_CONTENT_LENGTH = 2000;
 const MAX_WORLD_CHAT_MESSAGES_SHOWN = 30;
 const MAX_MONSTER_CAMPS = 150;           // Maximum camps on the map
-const MONSTER_CAMP_SPAWN_RATE = 30;      // How many camps spawn every daily tick
+const MONSTER_CAMP_SPAWN_RATE = 50;      // How many camps spawn every daily tick
 const MONSTER_CAMP_TRAVEL_BOOST = 0.2;   // X% of the normal time needed
 const MONSTER_CAMP_SCOUT_BOOST = 0.0085;  // X% for espionage
 const MIN_NUM_MONSTERS_PER_TYPE = 6;
@@ -152,6 +151,7 @@ const TROOP_LIMIT_FACTOR = 50;
 const TROOP_LIMIT_EXPONENT = 2.3;
 const MAX_UNIT_BADGES_PER_ROW_DESKTOP = 6;
 const MAX_UNIT_BADGES_PER_ROW_MOBILE = 3;
+const REMEMBER_ME_COOKIE_DAYS = 14;
 
 /*
  * Interfaces

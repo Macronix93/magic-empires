@@ -35,7 +35,7 @@ foreach ($result as $row) {
     if ($db->affected_rows > 0) {
         try {
             $event_owner = new User((int)$row["userid"], $row["username"]);
-            $GLOBALS['user'] = $event_owner;
+            $GLOBALS["user"] = $event_owner;
 
             $em = new EventManager($event_owner);
             $em->handle_event($row);
@@ -43,6 +43,7 @@ foreach ($result as $row) {
             $count++;
         } catch (Throwable $t) {
             $db->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+
             error_log("Cronjob Error in Event " . $row["eventid"] . ": " . $t->getMessage());
         }
     }

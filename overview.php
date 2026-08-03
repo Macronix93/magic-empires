@@ -271,7 +271,7 @@ if ($result && $result->num_rows > 0) {
             $coords_str = "$target_coords → $my_coords";
         } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS) {
             if ($event_data["targetid"] == -1) {
-                $action_type = "Eroberung";
+                $action_type = "Gründung";
             } else if ($event_data["targetid"] == -2) {
                 $action_type = $is_pure_scout ? "Spionage" : "Plündern";
             } else if ($event_data["targetid"] == -3) {
@@ -516,7 +516,9 @@ if ($result_events && $result_events->num_rows > 0) {
                     </div>
                 </td>
                 <td class='td-center'>
-                    $k_name 
+                    <div class='kingdom-name-break'>
+                        $k_name 
+                    </div>
                     <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($k_coords) . ")</a>
                 </td>
                 <td class='td-center'>
@@ -595,9 +597,9 @@ if ($result_trades && $result_trades->num_rows > 0) {
     $view .= "<table class='table' style='width: 100%;'>";
     $view .= "<colgroup>
                 <col style='width: 18%;'> <!-- Art -->
-                <col style='width: 25%;'> <!-- Ressourcen -->
-                <col style='width: 27%;'> <!-- Ziel -->
-                <col style='width: 30%;'> <!-- Ankunft -->
+                <col style='width: 15%;'> <!-- Ressourcen -->
+                <col style='width: 32%;'> <!-- Ziel -->
+                <col style='width: 10%;'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
@@ -622,7 +624,9 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <td class='td-center'>{$row["buildingname"]}</td>
                 <td class='td-center'>" . get_resource_icon($res_type) . " " . fnum($amount) . "</td>
                 <td class='td-center'>
-                    $target_name
+                    <div class='kingdom-name-break'>
+                        $target_name
+                    </div>
                     <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($target_coords) . ")</a>
                 </td>
                 <td class='td-center' style='position: relative; min-width: 130px;'>

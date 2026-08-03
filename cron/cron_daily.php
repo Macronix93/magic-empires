@@ -76,8 +76,34 @@ if ($deleted_count > 0) {
 }
 
 //// Generate resource tiles
+// Delete camps that aren't on the map anymore
+$expired_camps_res = $db->execute_query("SELECT mapx, mapy FROM monster_camps WHERE expires_at < ?", [$now]);
+$camps_to_delete = $expired_camps_res->fetch_all(MYSQLI_ASSOC);
 
-// First cleanup if a resource field doesn't have any resources left
+if (!empty($camps_to_delete)) {
+    $coords_queries = [];
+    foreach ($camps_to_delete as $camp) {
+        $coords_queries[] = "(mapx = {$camp['mapx']} AND mapy = {$camp['mapy']})";
+    }
+    $where_clause = implode(' OR ', $coords_queries);
+
+    $db->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -3 AND ($where_clause)");
+    $db->query("DELETE FROM monster_camps WHERE $where_clause");
+}
+
+$orphaned_camps = $db->query("
+    SELECT m.mapx, m.mapy FROM map m 
+    LEFT JOIN monster_camps mc ON m.mapx = mc.mapx AND m.mapy = mc.mapy 
+    WHERE m.kingdomid = -3 AND mc.mapx IS NULL
+");
+$orphans_c = $orphaned_camps->fetch_all(MYSQLI_ASSOC);
+if (!empty($orphans_c)) {
+    foreach ($orphans_c as $oc) {
+        $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$oc['mapx'], $oc['mapy']]);
+    }
+}
+
+// Cleanup if a resource field doesn't have any resources left
 $expired_tiles_res = $db->execute_query("SELECT mapx, mapy FROM resource_tiles_data WHERE expires_at < ?", [$now]);
 $tiles_to_delete = $expired_tiles_res->fetch_all(MYSQLI_ASSOC);
 
@@ -103,6 +129,9 @@ if (!empty($orphans)) {
     }
 }
 
+// CLEANUP FINISHED //
+
+// Spawn resource tiles
 $res_count = $db->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_column();
 
 if ($res_count < MAX_RESOURCE_TILES) {
@@ -121,7 +150,7 @@ if ($res_count < MAX_RESOURCE_TILES) {
 
             $expires = time() + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
 
-            $total = mt_rand(MIN_RESOURCES_FOR_TILE, MAX_RESOURCES_FOR_TILE);
+            $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
             $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
             $active_keys = [];
 
@@ -150,7 +179,7 @@ if ($res_count < MAX_RESOURCE_TILES) {
             }
 
             $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]}, $expires)";
-            $update_coords[] = "(mapx = $x AND mapy = $y)";
+            $update_coords[] = "($x, $y)";
         }
 
         if (!empty($insert_values)) {
@@ -159,7 +188,8 @@ if ($res_count < MAX_RESOURCE_TILES) {
         }
 
         if (!empty($update_coords)) {
-            $sql_update = "UPDATE map SET kingdomid = -2 WHERE " . implode(' OR ', $update_coords);
+            $coords_string = implode(',', $update_coords);
+            $sql_update = "UPDATE map SET kingdomid = -2 WHERE kingdomid = -1 AND (mapx, mapy) IN ($coords_string)";
             $db->execute_query($sql_update);
         }
     }
@@ -168,34 +198,6 @@ if ($res_count < MAX_RESOURCE_TILES) {
 }
 
 //// Generate Monstercamps
-
-// Delete camps that aren't on the map anymore
-$expired_camps_res = $db->execute_query("SELECT mapx, mapy FROM monster_camps WHERE expires_at < ?", [$now]);
-$camps_to_delete = $expired_camps_res->fetch_all(MYSQLI_ASSOC);
-
-if (!empty($camps_to_delete)) {
-    $coords_queries = [];
-    foreach ($camps_to_delete as $camp) {
-        $coords_queries[] = "(mapx = {$camp['mapx']} AND mapy = {$camp['mapy']})";
-    }
-    $where_clause = implode(' OR ', $coords_queries);
-
-    $db->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -3 AND ($where_clause)");
-    $db->query("DELETE FROM monster_camps WHERE $where_clause");
-}
-
-$orphaned_camps = $db->query("
-    SELECT m.mapx, m.mapy FROM map m 
-    LEFT JOIN monster_camps mc ON m.mapx = mc.mapx AND m.mapy = mc.mapy 
-    WHERE m.kingdomid = -3 AND mc.mapx IS NULL
-");
-$orphans_c = $orphaned_camps->fetch_all(MYSQLI_ASSOC);
-if (!empty($orphans_c)) {
-    foreach ($orphans_c as $oc) {
-        $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$oc['mapx'], $oc['mapy']]);
-    }
-}
-
 $count_res = $db->execute_query("
     SELECT 
         SUM(IF(level BETWEEN 1 AND 3, 1, 0)) as low,
@@ -296,7 +298,7 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
             $db->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
 
             $coords_string = implode(',', $update_map_coords);
-            $db->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN ($coords_string)");
+            $db->query("UPDATE map SET kingdomid = -3 WHERE kingdomid = -1 AND (mapx, mapy) IN ($coords_string)");
 
             if (!empty($insert_units)) {
                 $db->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " 

@@ -98,12 +98,25 @@ registerAction("confirmMaintenance", (el) => {
         el.closest('form').submit();
     } else {
         const reason = prompt("Bitte gib einen Grund für die Wartung an:", "Wartungsarbeiten & Updates");
-        
+
         if (reason !== null) {
             document.getElementById('maint_reason_input').value = reason;
             el.closest('form').submit();
         }
     }
+});
+registerAction("confirmClearLog", (el) => {
+    const filename = el.dataset.filename;
+    const form = el.closest('form');
+
+    showConfirmationDialog(
+        `Soll die Log-Datei "${filename}" wirklich unwiderruflich geleert werden?`,
+        "Ja, leeren",
+        "Abbrechen",
+        () => {
+            form.submit();
+        }
+    );
 });
 
 function editField(userID, fieldID, currentValue, formattedValue) {

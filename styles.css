@@ -1930,6 +1930,14 @@ tr:first-child td.td-gradient {
     margin-bottom: 40px;
 }
 
+.kingdom-name-break {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+    margin: 0 auto;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -1953,6 +1961,10 @@ tr:first-child td.td-gradient {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .kingdom-name-break {
+        max-width: 120px;
     }
 
     .big-box-content a {

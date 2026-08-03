@@ -211,63 +211,74 @@ if (isset($_GET["accept"])) {
     } else {
         if ($supply_value <= 0 || $demand_value <= 0) {
             $error = "Die Mengen müssen größer als 0 sein!";
-        } else if ($supply_value > $max_capacity || $demand_value > $max_capacity) {
-            $error = "Dein Marktplatz kann maximal " . fnum($max_capacity) . " Ressourcen pro Angebot handhaben!";
         } else {
-            // Check if kingdom has enough ressources to handle the trade
-            if ($supply == ResourceTypes::RESOURCE_TYPE_FOOD && $kingdom->get_kingdom_food() < $supply_value) {
-                $error = "Soviel Nahrung kannst du nicht bieten!";
-            } else if ($supply == ResourceTypes::RESOURCE_TYPE_WOOD && $kingdom->get_kingdom_wood() < $supply_value) {
-                $error = "Soviel Holz kannst du nicht bieten!";
-            } else if ($supply == ResourceTypes::RESOURCE_TYPE_STONE && $kingdom->get_kingdom_stone() < $supply_value) {
-                $error = "Soviel Stein kannst du nicht bieten!";
-            } else if ($supply == ResourceTypes::RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $supply_value) {
-                $error = "Soviel Gold kannst du nicht bieten!";
+            $listing_fee = calculate_listing_fee($supply_value);
+
+            if ($user->get_user_coins() < $listing_fee) {
+                $error = "Du hast nicht genug Münzen für die Einstellgebühr (Benötigt: $listing_fee " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ")!";
             } else {
-                // Check if there is already an offer for this kingdom
-                $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$current_kingdom]);
-                $offer_id = $result->fetch_assoc()['offerid'] ?? 0;
-
-                if ($offer_id != 0) {
-                    $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
+                if ($supply_value > $max_capacity || $demand_value > $max_capacity) {
+                    $error = "Dein Marktplatz kann maximal " . fnum($max_capacity) . " Ressourcen pro Angebot handhaben!";
                 } else {
-                    if ($daily_trades_count >= $max_trades) {
-                        $error = "Du hast heute bereits $max_trades Angebote erstellt oder angenommen!";
+                    // Check if kingdom has enough ressources to handle the trade
+                    if ($supply == ResourceTypes::RESOURCE_TYPE_FOOD && $kingdom->get_kingdom_food() < $supply_value) {
+                        $error = "Soviel Nahrung kannst du nicht bieten!";
+                    } else if ($supply == ResourceTypes::RESOURCE_TYPE_WOOD && $kingdom->get_kingdom_wood() < $supply_value) {
+                        $error = "Soviel Holz kannst du nicht bieten!";
+                    } else if ($supply == ResourceTypes::RESOURCE_TYPE_STONE && $kingdom->get_kingdom_stone() < $supply_value) {
+                        $error = "Soviel Stein kannst du nicht bieten!";
+                    } else if ($supply == ResourceTypes::RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $supply_value) {
+                        $error = "Soviel Gold kannst du nicht bieten!";
                     } else {
-                        // No offer found for the kingdom - insert to database
-                        $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
-                        $expires_at = time() + MARKET_OFFER_DURATION;
+                        // Check if there is already an offer for this kingdom
+                        $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$current_kingdom]);
+                        $offer_id = $result->fetch_assoc()['offerid'] ?? 0;
 
-                        $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);";
-                        $result = $db_instance->execute_query($query, [
-                            $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee, $expires_at]);
+                        if ($offer_id != 0) {
+                            $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
+                        } else {
+                            if ($daily_trades_count >= $max_trades) {
+                                $error = "Du hast heute bereits $max_trades Angebote erstellt oder angenommen!";
+                            } else {
+                                $user->give_user_coins(-$listing_fee);
 
-                        // Increase daily trades count
-                        $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$u_id]);
-                        $daily_trades_count++;
+                                // No offer found for the kingdom - insert to database
+                                $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
+                                $expires_at = time() + MARKET_OFFER_DURATION;
 
-                        switch ($supply) {
-                            case ResourceTypes::RESOURCE_TYPE_FOOD:
-                                $kingdom->give_kingdom_food(-$supply_value);
-                                break;
-                            case ResourceTypes::RESOURCE_TYPE_WOOD:
-                                $kingdom->give_kingdom_wood(-$supply_value);
-                                break;
-                            case ResourceTypes::RESOURCE_TYPE_STONE:
-                                $kingdom->give_kingdom_stone(-$supply_value);
-                                break;
-                            case ResourceTypes::RESOURCE_TYPE_GOLD:
-                                $kingdom->give_kingdom_gold(-$supply_value);
-                                break;
+                                $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);";
+                                $result = $db_instance->execute_query($query, [
+                                    $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee, $expires_at]);
+
+                                // Increase daily trades count
+                                $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$u_id]);
+                                $daily_trades_count++;
+
+                                switch ($supply) {
+                                    case ResourceTypes::RESOURCE_TYPE_FOOD:
+                                        $kingdom->give_kingdom_food(-$supply_value);
+                                        break;
+                                    case ResourceTypes::RESOURCE_TYPE_WOOD:
+                                        $kingdom->give_kingdom_wood(-$supply_value);
+                                        break;
+                                    case ResourceTypes::RESOURCE_TYPE_STONE:
+                                        $kingdom->give_kingdom_stone(-$supply_value);
+                                        break;
+                                    case ResourceTypes::RESOURCE_TYPE_GOLD:
+                                        $kingdom->give_kingdom_gold(-$supply_value);
+                                        break;
+                                }
+
+                                $logger->log_game("TRADE", "OFFER_CREATE", [
+                                    "supply_res" => $supply,
+                                    "supply_amount" => $supply_value,
+                                    "demand_res" => $demand,
+                                    "demand_amount" => $demand_value,
+                                    "fee" => $calculated_fee,
+                                    "listing_fee_paid" => $listing_fee
+                                ], $current_kingdom);
+                            }
                         }
-
-                        $logger->log_game("TRADE", "OFFER_CREATE", [
-                            "supply_res" => $supply,
-                            "supply_amount" => $supply_value,
-                            "demand_res" => $demand,
-                            "demand_amount" => $demand_value,
-                            "fee" => $calculated_fee
-                        ], $current_kingdom);
                     }
                 }
             }
@@ -406,8 +417,22 @@ $view .= '<form action="marketplace.php" method="GET"
                 </select>
             </label>
         </td>
-        <td style="width: 15%; text-align: center;">
-            ' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ' <b id="live-fee">1</b>
+        <td style="width: 20%; text-align: center; font-size: 13px;">
+            <div class="popup" id="fee_info">
+                <div style="margin-bottom: 5px; padding-bottom: 3px;">
+                    Gebühr: ' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ' <b id="live-listing-fee">1</b>
+                </div>
+                <div>
+                    Käufer: ' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ' <b id="live-buyer-fee">1</b>
+                </div>
+                <div id="fee_info_box" class="popupbox" style="text-align: left; min-width: 250px;">
+                    <b>Verkäufer (Einstellgebühr):</b><br>
+                    Wird sofort fällig. 1 Münze pro 20.000 Ressourcen (Angebot).<br>
+                    <i class="error">Wird bei Löschung/Ablauf NICHT erstattet.</i><br><br>
+                    <b>Käufer (Handelsgebühr):</b><br>
+                    Wird in das Angebot eingerechnet und vom Käufer bei Annahme bezahlt.
+                </div>
+            </div>
         </td>
         <td style="text-align: center">
             <input type="submit" value="Abschicken"/>
