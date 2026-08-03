@@ -10,7 +10,7 @@
             <?= $header ?? "Information" ?>
         </div>
         <div class="big-box-content">
-            <?= str_contains($view, "Credits") ?
+            <?= str_contains($view, "Credits") || str_contains($view, "Datenschutz") || str_contains($view, "Fragen") ?
                     "<a href='index.php'>
                         <button type='button'>Zurück zur Startseite</button>
                     </a><br><br>"

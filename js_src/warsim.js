@@ -14,7 +14,8 @@ const W_CONF = {
     wallMaxDef: parseInt(warsimConstEl.dataset.wall_max_def),
     wallFactor: parseFloat(warsimConstEl.dataset.wall_factor),
     siegeBonus: parseFloat(warsimConstEl.dataset.siege_bonus),
-    maxLvl: parseInt(warsimConstEl.dataset.max_lvl)
+    maxLvl: parseInt(warsimConstEl.dataset.max_lvl),
+    rpsBonus: parseFloat(warsimConstEl.dataset.rps_bonus)
 };
 let currentSimWallHp = null;
 let lastSimState = null;
@@ -240,7 +241,7 @@ function calculateWarOutcome(soldierTypes) {
                 if (enemyUnits[eId].initial > 0) {
                     let enemyShare = enemyUnits[eId].initial / totalEnemyUnits;
                     let aCat = myUnits[pId].cat, dCat = enemyUnits[eId].cat;
-                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) bonus += (0.5 * enemyShare);
+                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) bonus += (W_CONF.rpsBonus * enemyShare);
                 }
             }
         }
@@ -257,7 +258,7 @@ function calculateWarOutcome(soldierTypes) {
                 if (myUnits[pId].initial > 0) {
                     let ownShare = myUnits[pId].initial / totalOwnUnits;
                     let aCat = enemyUnits[eId].cat, dCat = myUnits[pId].cat;
-                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) bonus += (0.5 * ownShare);
+                    if ((aCat === 0 && dCat === 1) || (aCat === 1 && dCat === 2) || (aCat === 2 && dCat === 0)) bonus += (W_CONF.rpsBonus * ownShare);
                 }
             }
         }

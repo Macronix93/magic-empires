@@ -7,7 +7,7 @@ require_once("includes/core.php");
 check_user_login($user);
 
 $uid = $user->get_user_id();
-$res_user = $db_instance->execute_query("SELECT linked_user FROM users WHERE id = ?", [$uid]);
+$res_user = $db_instance->execute_query("SELECT linked_user, last_avatar_change FROM users WHERE id = ?", [$uid]);
 $user_data = $res_user->fetch_assoc();
 
 // Generate a random token
@@ -29,64 +29,73 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } else {
         if (isset($_POST['submit_avatar'])) {
             if (isset($_FILES['image'])) {
-                $file_name = $_FILES['image']['name'];
-                $file_tmp = $_FILES['image']['tmp_name'];
-                $file_size = $_FILES['image']['size'];
-                $file_error = $_FILES['image']['error'];
-                $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
-                $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes
+                $days_since_avatar = (time() - $user_data['last_avatar_change']) / 86400;
 
-                if ($file_error !== 0) {
-                    $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
-                } else if ($file_size > $max_file_size) {
-                    $error = "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!";
+                if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS) {
+                    $wait = ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
+                    $error = "Du kannst dein Profilbild erst in $wait Tagen wieder ändern.";
                 } else {
-                    $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+                    $file_name = $_FILES['image']['name'];
+                    $file_tmp = $_FILES['image']['tmp_name'];
+                    $file_size = $_FILES['image']['size'];
+                    $file_error = $_FILES['image']['error'];
+                    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+                    $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes
 
-                    if (!in_array($file_ext, $allowed_extensions)) {
-                        $error = "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.";
+                    if ($file_error !== 0) {
+                        $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
+                    } else if ($file_size > $max_file_size) {
+                        $error = "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!";
                     } else {
-                        $finfo = new finfo(FILEINFO_MIME_TYPE);
-                        $mime_type = $finfo->file($file_tmp);
-                        $allowed_mimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/gif'];
+                        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
-                        if (!in_array($mime_type, $allowed_mimes)) {
-                            $error = "Der Datei-Inhalt entspricht keinem gültigen Bild!";
-                        } else if (getimagesize($file_tmp) === false) {
-                            $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
+                        if (!in_array($file_ext, $allowed_extensions)) {
+                            $error = "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.";
                         } else {
-                            $nsfw_result = check_image_content($file_tmp);
+                            $finfo = new finfo(FILEINFO_MIME_TYPE);
+                            $mime_type = $finfo->file($file_tmp);
+                            $allowed_mimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/gif'];
 
-                            if ($nsfw_result === "loading") {
-                                $error = "Ladefehler... Bitte versuche es in 20 Sekunden nochmal.";
-                            } else if (is_string($nsfw_result) && str_starts_with($nsfw_result, "error")) {
-                                $error = "Inhaltsprüfung fehlgeschlagen: " . $nsfw_result;
+                            if (!in_array($mime_type, $allowed_mimes)) {
+                                $error = "Der Datei-Inhalt entspricht keinem gültigen Bild!";
+                            } else if (getimagesize($file_tmp) === false) {
+                                $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
                             } else {
-                                $nsfw_score = (float)$nsfw_result;
+                                $nsfw_result = check_image_content($file_tmp);
 
-                                if ($nsfw_score > 0.8) {
-                                    $error = "Dein Bild wurde als unangemessen eingestuft.";
-
-                                    //$logger->log_file("NSFW Blockiert", ["user" => $user->get_user_id(), "score" => $nsfw_score]);
+                                if ($nsfw_result === "loading") {
+                                    $error = "Ladefehler... Bitte versuche es in 20 Sekunden nochmal.";
+                                } else if (is_string($nsfw_result) && str_starts_with($nsfw_result, "error")) {
+                                    $error = "Inhaltsprüfung fehlgeschlagen: " . $nsfw_result;
                                 } else {
-                                    $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
-                                    $file_path = UPLOADS_FILE_PATH . $hashed_name;
+                                    $nsfw_score = (float)$nsfw_result;
 
-                                    array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
+                                    if ($nsfw_score > 0.8) {
+                                        $error = "Dein Bild wurde als unangemessen eingestuft.";
 
-                                    if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                                        $view = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
-
-                                        $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
-                                            "filename" => $file_name,
-                                            "extension" => $file_ext,
-                                            "mime" => $mime_type,
-                                            "size" => $file_size
-                                        ]);
-
-                                        unset($_SESSION['csrf_token']);
+                                        //$logger->log_file("NSFW Blockiert", ["user" => $user->get_user_id(), "score" => $nsfw_score]);
                                     } else {
-                                        $error = "Fehler beim Hochladen der Datei auf den Server!";
+                                        $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
+                                        $file_path = UPLOADS_FILE_PATH . $hashed_name;
+
+                                        array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
+
+                                        if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
+                                            $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [time(), $uid]);
+
+                                            $view = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
+
+                                            $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
+                                                "filename" => $file_name,
+                                                "extension" => $file_ext,
+                                                "mime" => $mime_type,
+                                                "size" => $file_size
+                                            ]);
+
+                                            unset($_SESSION['csrf_token']);
+                                        } else {
+                                            $error = "Fehler beim Hochladen der Datei auf den Server!";
+                                        }
                                     }
                                 }
                             }
@@ -318,6 +327,9 @@ $view .= '
             <input type="file" name="image" id="image" required><br><br>
             <input type="submit" name="submit_avatar" value="Bild hochladen">
         </form>
+        <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
+            Hinweis: Das Profilbild kann nur alle ' . AVATAR_CHANGE_COOLDOWN_DAYS . ' Tage geändert werden.
+        </p>
     </div>
 </div>';
 

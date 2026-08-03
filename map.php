@@ -3,17 +3,83 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
+$current_k_id = $user->get_current_kingdom();
+$kingdom = new Kingdom($db_instance, $current_k_id);
+
+// Load troops
+$res_troops = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_k_id]);
+$user_troops = [];
+while ($t = $res_troops->fetch_assoc()) {
+    $user_troops[(int)$t['soldierid']] = (int)$t['soldiercount'];
+}
+
+// Load marching times
+$res_ft_meta = $db_instance->query("SELECT fieldid, traversaltime FROM field_types");
+$field_meta = [];
+while ($ft = $res_ft_meta->fetch_assoc()) {
+    $field_meta[(int)$ft['fieldid']] = (int)$ft['traversaltime'];
+}
+
+$js_config = [
+    "currentKingdom" => [
+        "id" => $current_k_id,
+        "ownerId" => $user->get_user_id(),
+        "x" => $kingdom->get_kingdom_map_x(),
+        "y" => $kingdom->get_kingdom_map_y(),
+        "marchMultiplier" => $kingdom->get_march_speed_multiplier(),
+        "troops" => $user_troops
+    ],
+    "fieldMeta" => $field_meta,
+    "constants" => [
+        "SOLDIER_SETTLER" => Soldiers::SOLDIER_SETTLER_WAGON,
+        "SOLDIER_RAIDER" => Soldiers::SOLDIER_RAIDER,
+        "SOLDIER_SCOUT" => Soldiers::SOLDIER_SCOUT,
+        "MONSTER_CAMP_TRAVEL_BOOST" => MONSTER_CAMP_TRAVEL_BOOST,
+        "MONSTER_CAMP_SCOUT_BOOST" => MONSTER_CAMP_SCOUT_BOOST
+    ]
+];
+
 ob_start();
 
 $map = new Map($db_instance, $user);
 
+if (isset($_SESSION["game_success"])) {
+    echo show_passed_box($_SESSION["game_success"]);
+
+    unset($_SESSION["game_success"]);
+}
+
+if (isset($_SESSION["game_error"])) {
+    echo show_error_box($_SESSION["game_error"]);
+
+    unset($_SESSION["game_error"]);
+}
+
 // Coordinate logic
-if (!empty($_GET["startx"]) && !empty($_GET["starty"]) && is_numeric($_GET["startx"]) && is_numeric($_GET["starty"])) {
-    $x = (int)$_GET["startx"];
-    $y = (int)$_GET["starty"];
+$get_x = $_GET["startx"] ?? null;
+$get_y = $_GET["starty"] ?? null;
+$coords_valid = false;
+
+if (is_numeric($get_x) && is_numeric($get_y)) {
+    $get_x = (int)$get_x;
+    $get_y = (int)$get_y;
+
+    if ($get_x >= 1 && $get_x <= MAX_X && $get_y >= 1 && $get_y <= MAX_Y) {
+        $coords_valid = true;
+        $x = $get_x;
+        $y = $get_y;
+    }
+}
+
+if ($coords_valid) {
     $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
+
     $field_id = ($result->num_rows != 0) ? $result->fetch_assoc()["kingdomid"] : -1;
 } else {
+    if ($get_x !== null || $get_y !== null) {
+        $_SESSION["game_error"] = "Ungültige Koordinaten aufgerufen!";
+    }
+
     $field_id = $user->get_current_kingdom();
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$field_id]);
     $row = $result->fetch_assoc();
@@ -33,10 +99,10 @@ echo "<div class='map-legend' id='map-legend-fieldtypes'>
 // Search
 echo '<form id="update-map" style="display: flex; flex-wrap: wrap;">
         X:<label>
-            <input type="text" id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
+            <input type="text" inputmode="numeric"  id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
         </label>
         Y:<label>
-            <input type="text" id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
+            <input type="text" inputmode="numeric"  id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
         </label>
         <input type="submit" id="send-map-request" value="Los">
         <span style="display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;">
@@ -48,7 +114,11 @@ echo '<form id="update-map" style="display: flex; flex-wrap: wrap;">
     </form><br>';
 
 // Map Container
-echo '<div id="map-container" data-start-x="' . $x . '" data-start-y="' . $y . '" style="height: var(--map-viewport-height); overflow: hidden;">';
+echo '<div id="map-container" 
+            data-start-x="' . $x . '" 
+            data-start-y="' . $y . '" 
+            data-config=\'' . json_encode($js_config) . '\'
+            style="height: var(--map-viewport-height); overflow: hidden;">';
 echo '<div id="map-loader">
             <div class="loading-spinner"></div>
             <div class="loader-text">Kartograph zeichnet Karte...</div>

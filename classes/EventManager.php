@@ -673,6 +673,19 @@ class EventManager
         $target_x = $row["targetx"];
         $target_y = $row["targety"];
 
+        $check_field = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$target_x, $target_y])->fetch_assoc();
+
+        if ($check_field["kingdomid"] != -1) {
+            $message .= BattleReportRenderer::render_outcome_box(
+                "Gründung abgebrochen",
+                "Bei der Ankunft mussten unsere Siedler feststellen, dass das Land nicht mehr frei ist.",
+                0, 0,
+                "In der Zwischenzeit hat sich dort etwas anderes niedergelassen. Die Truppen kehren um.",
+                "error"
+            );
+            return;
+        }
+
         $res = $this->mysqli->execute_query(
             "SELECT soldiercount FROM sent_troops WHERE eventid = ? AND soldierid = ?",
             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
@@ -1648,6 +1661,14 @@ class EventManager
                 "Die Truppen kehren unverrichteter Dinge um.");
             $message .= "</div>";
         }
+
+        Logger::get_instance()->log_game("ECONOMY", "TILE_PLUNDER", [
+            "target_coords" => "$target_x:$target_y",
+            "raiders_sent" => $raider_count,
+            "raiders_lost" => $losses,
+            "loot" => $loot_data,
+            "was_emptied" => $is_empty
+        ], $home_kingdom_id);
     }
 
     private function process_resource_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void
@@ -1732,6 +1753,13 @@ class EventManager
         send_server_message($u_id, $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
 
         update_player_stat($u_id, "spy_count");
+
+        Logger::get_instance()->log_game("MILITARY", "TILE_SPY", [
+            "target_coords" => "$tx:$ty",
+            "scouts_sent" => $atk_scouts,
+            "scouts_lost" => $losses,
+            "success" => ($survivors > 0)
+        ], $row["kingdomid"]);
     }
 
     public function process_monster_battle(array $row, Kingdom $home_k, User $attacker_user, int $return_time): void
@@ -1984,6 +2012,15 @@ class EventManager
             $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
+
+        Logger::get_instance()->log_game("COMBAT", "MONSTER_CAMP_RESULT", [
+            "target_coords" => "$tx:$ty",
+            "victory" => $victory,
+            "attacker_losses" => $total_atk_loss,
+            "monsters_slain" => $monsters_slain,
+            "loot_res" => $loot_res,
+            "loot_coins" => $looted_coins
+        ], $row["kingdomid"]);
     }
 
     public function process_monster_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void

@@ -1,6 +1,15 @@
 <?php
 $show_attack_alert = false;
 
+if (IS_DEV) {
+    $js_folder = "js_src/";
+} else {
+    $js_folder = "js/";
+}
+
+$js_suffix = ".js";
+$js_main_file = "main.js";
+
 if ($user->is_logged_in()) {
     $now = time();
     $my_uid = $user->get_user_id();
@@ -53,11 +62,11 @@ if ($user->is_logged_in()) {
     <noscript>
         <meta http-equiv="refresh" content="0;url=nojs.php">
     </noscript>
-    <script type="text/javascript" src="<?= JS_PATH ?>main.js" defer></script>
+    <script type="text/javascript" src="<?= $js_folder . $js_main_file ?>" defer></script>
     <?php
     if (!empty($script_files)) {
         foreach ($script_files as $script_file) {
-            echo '<script type="text/javascript" src="' . JS_PATH . $script_file . '.js" defer></script>';
+            echo '<script type="text/javascript" src="' . $js_folder . $script_file . $js_suffix . '" defer></script>';
         }
     }
     echo $head_extra ?? '';

@@ -282,6 +282,11 @@ class Map
                                      ?int $target_id = null, bool $is_scouting = false): int
     {
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
+
+        if (empty($result) || !isset($result["totaltime"])) {
+            return 999999;
+        }
+
         $kid = ($origin_kingdom_id != -1) ? $origin_kingdom_id : $this->user->get_current_kingdom();
         $kingdom = new Kingdom($this->mysqli, $kid);
 

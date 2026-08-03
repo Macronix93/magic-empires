@@ -310,7 +310,8 @@ $view .= '<div id="warsim-data" data-soldiers="' . e(json_encode(array_map(fn($s
                 data-wall_max_def="' . MAX_WALL_DEFENSE . '"
                 data-wall_factor="' . WALL_DEFENSE_FACTOR . '"
                 data-siege_bonus="' . SMITHY_SIEGE_BONUS . '"
-                data-max_lvl="' . MAX_BUILDING_LEVEL . '">
+                data-max_lvl="' . MAX_BUILDING_LEVEL . '"
+                data-rps_bonus="' . RPS_BONUS . '">
             </div>';
 
 $monster_import = $_GET["import_monsters"] ?? "";

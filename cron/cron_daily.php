@@ -78,12 +78,30 @@ if ($deleted_count > 0) {
 //// Generate resource tiles
 
 // First cleanup if a resource field doesn't have any resources left
-$db->execute_query("
-    UPDATE map m
-    LEFT JOIN resource_tiles_data r ON m.mapx = r.mapx AND m.mapy = r.mapy
-    SET m.kingdomid = -1
+$expired_tiles_res = $db->execute_query("SELECT mapx, mapy FROM resource_tiles_data WHERE expires_at < ?", [$now]);
+$tiles_to_delete = $expired_tiles_res->fetch_all(MYSQLI_ASSOC);
+
+if (!empty($tiles_to_delete)) {
+    $coords_queries = [];
+    foreach ($tiles_to_delete as $tile) {
+        $coords_queries[] = "(mapx = {$tile['mapx']} AND mapy = {$tile['mapy']})";
+    }
+    $where_clause = implode(' OR ', $coords_queries);
+    $db->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -2 AND ($where_clause)");
+    $db->query("DELETE FROM resource_tiles_data WHERE $where_clause");
+}
+
+$orphaned_res = $db->query("
+    SELECT m.mapx, m.mapy FROM map m 
+    LEFT JOIN resource_tiles_data r ON m.mapx = r.mapx AND m.mapy = r.mapy 
     WHERE m.kingdomid = -2 AND r.mapx IS NULL
 ");
+$orphans = $orphaned_res->fetch_all(MYSQLI_ASSOC);
+if (!empty($orphans)) {
+    foreach ($orphans as $o) {
+        $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$o['mapx'], $o['mapy']]);
+    }
+}
 
 $res_count = $db->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_column();
 
@@ -152,20 +170,62 @@ if ($res_count < MAX_RESOURCE_TILES) {
 //// Generate Monstercamps
 
 // Delete camps that aren't on the map anymore
-$db->execute_query("DELETE FROM monster_camps WHERE (mapx, mapy) NOT IN (SELECT mapx, mapy FROM map WHERE kingdomid = -3)");
+$expired_camps_res = $db->execute_query("SELECT mapx, mapy FROM monster_camps WHERE expires_at < ?", [$now]);
+$camps_to_delete = $expired_camps_res->fetch_all(MYSQLI_ASSOC);
 
-$current_camp_count = $db->execute_query("SELECT COUNT(*) as total FROM map WHERE kingdomid = -3")->fetch_assoc()["total"];
+if (!empty($camps_to_delete)) {
+    $coords_queries = [];
+    foreach ($camps_to_delete as $camp) {
+        $coords_queries[] = "(mapx = {$camp['mapx']} AND mapy = {$camp['mapy']})";
+    }
+    $where_clause = implode(' OR ', $coords_queries);
 
-if ($current_camp_count < MAX_MONSTER_CAMPS) {
-    $needed = MAX_MONSTER_CAMPS - $current_camp_count;
+    $db->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -3 AND ($where_clause)");
+    $db->query("DELETE FROM monster_camps WHERE $where_clause");
+}
+
+$orphaned_camps = $db->query("
+    SELECT m.mapx, m.mapy FROM map m 
+    LEFT JOIN monster_camps mc ON m.mapx = mc.mapx AND m.mapy = mc.mapy 
+    WHERE m.kingdomid = -3 AND mc.mapx IS NULL
+");
+$orphans_c = $orphaned_camps->fetch_all(MYSQLI_ASSOC);
+if (!empty($orphans_c)) {
+    foreach ($orphans_c as $oc) {
+        $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$oc['mapx'], $oc['mapy']]);
+    }
+}
+
+$count_res = $db->execute_query("
+    SELECT 
+        SUM(IF(level BETWEEN 1 AND 3, 1, 0)) as low,
+        SUM(IF(level BETWEEN 4 AND 6, 1, 0)) as mid,
+        SUM(IF(level BETWEEN 7 AND 9, 1, 0)) as high,
+        SUM(IF(level = 10, 1, 0)) as boss,
+        COUNT(*) as total
+    FROM monster_camps
+")->fetch_assoc();
+
+$current_counts = [
+    "low" => (int)($count_res["low"] ?? 0),
+    "mid" => (int)($count_res["mid"] ?? 0),
+    "high" => (int)($count_res["high"] ?? 0),
+    "boss" => (int)($count_res["boss"] ?? 0)
+];
+$total_on_map = (int)($count_res["total"] ?? 0);
+
+if ($total_on_map < MAX_MONSTER_CAMPS) {
+    $needed = MAX_MONSTER_CAMPS - $total_on_map;
     $spawn_limit = min(MONSTER_CAMP_SPAWN_RATE, $needed);
 
+    // Load Monster Data
     $monster_pool = [];
     $res_all_m = $db->execute_query("SELECT id, level FROM monster_list");
     while ($m = $res_all_m->fetch_assoc()) {
         $monster_pool[(int)$m["level"]][] = (int)$m["id"];
     }
 
+    // Search free fields
     $free_fields = $db->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [$spawn_limit]);
 
     if ($free_fields->num_rows > 0) {
@@ -173,51 +233,54 @@ if ($current_camp_count < MAX_MONSTER_CAMPS) {
         $insert_units = [];
         $update_map_coords = [];
 
+        $targets = [
+            "low" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_LOW,
+            "mid" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_MID,
+            "high" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_HIGH,
+            "boss" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_BOSS
+        ];
+
         foreach ($free_fields as $f) {
             $x = (int)$f["mapx"];
             $y = (int)$f["mapy"];
 
-            $expires = time() + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
-
-            $roll = mt_rand(1, 100);
-            if ($roll <= MONSTER_CAMP_WEIGHT_LOW) {
-                $camp_level = mt_rand(1, 3);
-            } else if ($roll <= (MONSTER_CAMP_WEIGHT_LOW + MONSTER_CAMP_WEIGHT_MID)) {
-                $camp_level = mt_rand(4, 6);
-            } else if ($roll <= (MONSTER_CAMP_WEIGHT_LOW + MONSTER_CAMP_WEIGHT_MID + MONSTER_CAMP_WEIGHT_HIGH)) {
-                $camp_level = mt_rand(7, 9);
-            } else {
-                $camp_level = 10;
+            $fill_grades = [];
+            foreach ($targets as $key => $targetValue) {
+                $fill_grades[$key] = $current_counts[$key] / $targetValue;
             }
+            asort($fill_grades);
+            $chosen_group = array_key_first($fill_grades);
 
+            if ($chosen_group == "low") $camp_level = mt_rand(1, 3);
+            else if ($chosen_group == "mid") $camp_level = mt_rand(4, 6);
+            else if ($chosen_group == "high") $camp_level = mt_rand(7, 9);
+            else                              $camp_level = 10;
+
+            $current_counts[$chosen_group]++;
+
+            $expires = time() + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
             $insert_camps[] = "($x, $y, $camp_level, $expires)";
             $update_map_coords[] = "($x, $y)";
 
+            // Unit Generation
             if (!empty($monster_pool[$camp_level])) {
                 $this_camp_types = [];
-
-                // Main Monster
                 $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
                 $this_camp_types[$main_m_id] = mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE);
 
-                if ($camp_level <= 3) {
-                    $num_extra_types = mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW);
-                } else {
-                    $num_extra_types = mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
-                }
+                $num_extra_types = ($camp_level <= 3)
+                    ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW)
+                    : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
+
                 $min_allowed_lvl = max(1, $camp_level - MONSTER_CAMP_EXTRA_LEVEL_CAP);
                 $possible_levels = range($min_allowed_lvl, $camp_level);
 
                 for ($i = 0; $i < $num_extra_types; $i++) {
                     $rand_lvl = $possible_levels[array_rand($possible_levels)];
-
                     if (!empty($monster_pool[$rand_lvl])) {
                         $extra_m_id = $monster_pool[$rand_lvl][array_rand($monster_pool[$rand_lvl])];
                         $count_roll = mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4);
-
-                        if (!isset($this_camp_types[$extra_m_id])) {
-                            $this_camp_types[$extra_m_id] = 0;
-                        }
+                        if (!isset($this_camp_types[$extra_m_id])) $this_camp_types[$extra_m_id] = 0;
                         $this_camp_types[$extra_m_id] += $count_roll;
                     }
                 }
@@ -231,13 +294,15 @@ if ($current_camp_count < MAX_MONSTER_CAMPS) {
         // Batch-Execution
         if (!empty($insert_camps)) {
             $db->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
-            $db->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
+
+            $coords_string = implode(',', $update_map_coords);
+            $db->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN ($coords_string)");
 
             if (!empty($insert_units)) {
                 $db->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " 
-                            ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
+                    ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
             }
         }
-        echo "[" . date("H:i:s") . "] " . count($insert_camps) . " Monstercamps gewichtet generiert.\n";
+        echo "[" . date("H:i:s") . "] " . count($insert_camps) . " Monstercamps balance-optimiert generiert.\n";
     }
 }

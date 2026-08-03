@@ -440,7 +440,7 @@ if (!$user->is_admin()) {
             $ip_parts = explode('.', $row["ip"]);
             $subnet = "";
             if (count($ip_parts) === 4) {
-                $subnet = $ip_parts[0] . '.' . $ip_parts[1] . '.' . $ip_parts[2] . '.%';
+                $subnet = $ip_parts[0] . '.' . $ip_parts[1] . '.%';
             } else {
                 // Fallback for IPv6
                 $ipv6_parts = explode(':', $row["ip"]);
@@ -482,6 +482,16 @@ if (!$user->is_admin()) {
 
                     $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m["username"]) . '</a>'
                         . $is_exact . $link_status . '<br>';
+                }
+            } else {
+                $view .= '<span class="passed">Keine Treffer</span>';
+            }
+            $view .= '<tr><td style="width: 30%;">Gleiche Device-ID:</td><td>';
+
+            if ($multi_device->num_rows > 0) {
+                foreach ($multi_device as $d) {
+                    $view .= '<a href="adminpanel.php?userid=' . $d['id'] . '" class="error">' . e($d["username"]) . '</a>'
+                        . ' <b class="error">[HARDWARE MATCH!]</b><br>';
                 }
             } else {
                 $view .= '<span class="passed">Keine Treffer</span>';

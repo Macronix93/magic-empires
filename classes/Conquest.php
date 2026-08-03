@@ -283,7 +283,7 @@ class Conquest
                         if (($unit["category"] == 0 && $target_unit["category"] == 1) ||
                             ($unit["category"] == 1 && $target_unit["category"] == 2) ||
                             ($unit["category"] == 2 && $target_unit["category"] == 0)) {
-                            $bonus += (0.5 * $share);
+                            $bonus += (RPS_BONUS * $share);
                         }
                     }
                 }
@@ -301,7 +301,7 @@ class Conquest
                         if (($unit["category"] == 0 && $target_unit["category"] == 1) ||
                             ($unit["category"] == 1 && $target_unit["category"] == 2) ||
                             ($unit["category"] == 2 && $target_unit["category"] == 0)) {
-                            $bonus += (0.5 * $share);
+                            $bonus += (RPS_BONUS * $share);
                         }
                     }
                 }
@@ -602,14 +602,17 @@ class Conquest
                     $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
                     $icon = $res->fetch_column() ?: "icon_error";
 
+                    $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
+                    $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
+
                     $data[] = [
                         "id" => $id,
                         "name" => $soldier["soldiername"],
                         "initial" => (int)$initial,
                         "losses" => (int)$losses,
                         "icon" => $icon,
-                        "atk" => $soldier["attack"],
-                        "def" => $soldier["defense"]
+                        "atk" => $display_atk,
+                        "def" => $display_def
                     ];
                 }
             }

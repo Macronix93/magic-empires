@@ -8,8 +8,8 @@ let currentTranslateX = 0;
 let currentTranslateY = 0;
 let zoom = 1.0;
 let mapCache = null;
-let isFetchingField = false;
 let panAnimationID = null;
+let costGrid = {};
 
 let velocityX = 0;
 let velocityY = 0;
@@ -28,6 +28,8 @@ const MAX_X = MAP_DIMENSION;
 const MAX_Y = MAP_DIMENSION
 const BASE_TILE_SIZE = 60;
 let initialPinchDistance = null;
+
+let gameConfig = {};
 
 const COLORS = {
     1: "#576574", // Gebirge
@@ -67,6 +69,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function startMap() {
         const mapCont = document.getElementById("map-container");
+
+        gameConfig = JSON.parse(mapCont.dataset.config);
+
         selectedX = parseInt(mapCont.dataset.startX) || 1;
         selectedY = parseInt(mapCont.dataset.startY) || 1;
 
@@ -152,6 +157,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pathToggle) {
         pathToggle.addEventListener("change", () => draw());
     }
+
+    ["startx", "starty"].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', function () {
+                let val = this.value.replace(/\D/g, '');
+
+                if (val.length > 1 && val.startsWith('0')) {
+                    val = val.replace(/^0+/, '');
+                }
+
+                if (val !== '') {
+                    let num = parseInt(val);
+                    if (num > 100) val = '100';
+                    if (num < 1 && val.length >= 1) val = '1';
+                }
+
+                this.value = val;
+            });
+
+            input.addEventListener('keydown', function (e) {
+                const allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Enter'];
+
+                if (!allowedKeys.includes(e.key) && !/^\d$/.test(e.key)) {
+                    e.preventDefault();
+                }
+            });
+        }
+    });
 });
 
 function applyZoomAt(newZoom, mouseX, mouseY) {
@@ -323,6 +357,7 @@ function applyMomentum() {
 
 function dragStart(e) {
     cancelAnimationFrame(momentumID);
+    cancelAnimationFrame(panAnimationID);
 
     isDragging = true;
     wasDragged = false;
@@ -398,7 +433,6 @@ function handleWheel(e) {
 
 function selectField(x, y, shouldCenter = false) {
     if (x === selectedX && y === selectedY && !shouldCenter) return;
-    if (isFetchingField) return;
 
     selectedX = x;
     selectedY = y;
@@ -407,27 +441,95 @@ function selectField(x, y, shouldCenter = false) {
     if (shouldCenter) centerMapOn(x, y);
 
     const tile = mapData.find(t => t[0] === x && t[1] === y);
-    const kid = tile ? tile[3] : -1;
-    const owner = tile[7] || "";
-    const kname = tile[8] || "";
-    const score = tile[9] || 0;
-    const ownerId = tile[10] || 0;
+    if (!tile) return;
 
-    isFetchingField = true;
+    const [tx, ty, , kid, , , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt] = tile;
 
-    fetch(`ajax/field_info.php?clickedfield=${kid}&x=${x}&y=${y}&owner=${encodeURIComponent(owner)}&kname=${encodeURIComponent(kname)}&score=${score}&owner_id=${ownerId}`, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
-        .then(r => r.json())
-        .then(data => {
-            document.getElementById("field-info").innerHTML = data.html;
-            currentPath = data.path || [];
+    const pathResult = calculatePathLocal(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y, tx, ty);
+    currentPath = pathResult.path;
 
-            draw();
-        })
-        .finally(() => {
-            isFetchingField = false;
-        });
+    let baseTravelTime = pathResult.totalTime * gameConfig.currentKingdom.marchMultiplier;
+    const now = Math.floor(Date.now() / 1000);
+
+    let html = "";
+
+    if (kid === -1) {
+        // --- EMPTY FIELD
+        html += `<div class="title-border">${fieldName}</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}</td></tr>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+
+        if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">Erobern</button>`;
+        } else {
+            html += `<small class="error">Gründungskarren benötigt!</small>`;
+        }
+
+        html += `</td></tr></table>`;
+    } else if (kid === -2) {
+        // --- RESOURCE TILE
+        const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
+        const lifetime = expiresAt - now;
+
+        html += `<div class="title-border">Verlassenes Vorratslager</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(${formatTimeJS(arrivalScout)} Spionage)</small></td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+
+        const canPlunder = gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_RAIDER] > 0;
+        const canSpy = gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SCOUT] > 0;
+
+        if (canPlunder || canSpy) {
+            const mode = canPlunder ? "plunder" : "spy";
+            const label = canPlunder ? "Plündern" : "Spionieren";
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&mode=${mode}">${label}</button>`;
+        } else {
+            html += `<small class="error">Räuber oder Späher benötigt!</small>`;
+        }
+
+        html += `</td></tr></table>`;
+    } else if (kid === -3) {
+        // --- MONSTER CAMP
+        const travelMonster = baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST;
+        const arrivalScout = (travelMonster / gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST) * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST;
+        const lifetime = expiresAt - now;
+
+        html += `<div class="title-border">Monstercamp (Stufe ${m_lvl})</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(${formatTimeJS(Math.round(arrivalScout))} Spionage)</small></td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+        html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">Camp angreifen</button>`;
+        html += `</td></tr></table>`;
+    } else {
+        // --- PLAYER KINGDOM
+        const scoreIcon = `<img src="../images/icons/icon_score.png" class="ressource-icons" alt="">`;
+        const ownerDisplay = `<a href="#" data-on-click="openOverlay" data-url="userinfo.php?userid=${ownerId}" data-title="Spieler-Info">${owner}</a>`;
+
+        html += `<div class="title-border">Königreich-Info</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Königreich</b></td><td>${kname}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString('de-DE')}</td></tr>`;
+
+        if (kid !== gameConfig.currentKingdom.id) {
+            html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}</td></tr>`;
+            const btnText = (ownerId === gameConfig.currentKingdom.ownerId) ? "Stationieren" : "Angreifen";
+            html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">${btnText}</button>`;
+            html += `</td></tr>`;
+        }
+
+        html += `</table>`;
+    }
+
+    document.getElementById("field-info").innerHTML = html;
+    draw();
 }
 
 function drawPath(scaledTile) {
@@ -449,11 +551,29 @@ function drawPath(scaledTile) {
 
 function centerMapOn(x, y, immediate = false) {
     const scaledTile = BASE_TILE_SIZE * zoom;
+    const scaledSize = scaledTile * MAP_DIMENSION;
 
-    const targetTX = (viewport.offsetWidth / 2) - (x - 0.5) * scaledTile;
-    const targetTY = (viewport.offsetHeight / 2) - (y - 0.5) * scaledTile;
+    let targetTX = (viewport.offsetWidth / 2) - (x - 0.5) * scaledTile;
+    let targetTY = (viewport.offsetHeight / 2) - (y - 0.5) * scaledTile;
+
+    const minX = viewport.offsetWidth - scaledSize;
+    const minY = viewport.offsetHeight - scaledSize;
+
+    if (scaledSize < viewport.offsetWidth) {
+        targetTX = (viewport.offsetWidth - scaledSize) / 2;
+    } else {
+        targetTX = Math.min(0, Math.max(targetTX, minX));
+    }
+
+    if (scaledSize < viewport.offsetHeight) {
+        targetTY = (viewport.offsetHeight - scaledSize) / 2;
+    } else {
+        targetTY = Math.min(0, Math.max(targetTY, minY));
+    }
 
     if (immediate) {
+        cancelAnimationFrame(panAnimationID);
+
         currentTranslateX = targetTX;
         currentTranslateY = targetTY;
 
@@ -466,9 +586,10 @@ function centerMapOn(x, y, immediate = false) {
         const dx = targetTX - currentTranslateX;
         const dy = targetTY - currentTranslateY;
 
-        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+        if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
             currentTranslateX = targetTX;
             currentTranslateY = targetTY;
+
             clampMapPosition();
             draw();
             return;
@@ -503,8 +624,97 @@ function updateCenterCoords() {
     }
 }
 
+function formatTimeJS(s, showSeconds = true) {
+    if (s <= 0) return "0s";
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+
+    let parts = [];
+    if (d > 0) parts.push(d + "T");
+    if (h > 0) parts.push(h + " Std.");
+    if (m > 0) parts.push(m + " Min.");
+    if (showSeconds && (sec > 0 || parts.length === 0)) parts.push(sec + " Sek.");
+
+    return parts.join(" ");
+}
+
+function calculatePathLocal(sx, sy, ex, ey) {
+    if (Object.keys(costGrid).length === 0) {
+        mapData.forEach(tile => {
+            if (!costGrid[tile[0]]) costGrid[tile[0]] = {};
+            costGrid[tile[0]][tile[1]] = tile[2];
+        });
+    }
+
+    const start = {x: sx, y: sy};
+    const end = {x: ex, y: ey};
+
+    let openList = [];
+    let closedList = new Set();
+    let nodes = new Map();
+
+    const encode = (p) => `${p.x},${p.y}`;
+    const getCost = (p) => {
+        const type = costGrid[p.x] ? costGrid[p.x][p.y] : 5;
+        return gameConfig.fieldMeta[type] || 100;
+    };
+
+    const startKey = encode(start);
+    nodes.set(startKey, {g: 0, f: Math.abs(sx - ex) + Math.abs(sy - ey), x: sx, y: sy, parent: null});
+    openList.push(nodes.get(startKey));
+
+    while (openList.length > 0) {
+        openList.sort((a, b) => a.f - b.f);
+        let current = openList.shift();
+
+        if (current.x === end.x && current.y === end.y) {
+            let path = [];
+            let totalTime = current.g;
+            let temp = current;
+            while (temp) {
+                path.push({x: temp.x, y: temp.y});
+                temp = temp.parent;
+            }
+            return {path: path.reverse(), totalTime: totalTime};
+        }
+
+        closedList.add(encode(current));
+
+        const neighbors = [
+            {x: current.x, y: current.y + 1}, {x: current.x, y: current.y - 1},
+            {x: current.x + 1, y: current.y}, {x: current.x - 1, y: current.y}
+        ];
+
+        for (let n of neighbors) {
+            if (n.x < 1 || n.x > 100 || n.y < 1 || n.y > 100) continue;
+            if (closedList.has(encode(n))) continue;
+
+            let moveCost = getCost(n);
+            let gScore = current.g + moveCost;
+            let nKey = encode(n);
+            let neighborNode = nodes.get(nKey);
+
+            if (!neighborNode || gScore < neighborNode.g) {
+                let h = Math.abs(n.x - end.x) + Math.abs(n.y - end.y);
+                let newNode = {g: gScore, f: gScore + h, x: n.x, y: n.y, parent: current};
+                nodes.set(nKey, newNode);
+                if (!neighborNode) openList.push(newNode);
+            }
+        }
+    }
+    return {path: [], totalTime: 0};
+}
+
 function jumpTo(x, y) {
+    x = parseInt(x);
+    y = parseInt(y);
+
     if (x >= 1 && x <= MAX_X && y >= 1 && y <= MAX_Y) {
+        document.getElementById("startx").value = x;
+        document.getElementById("starty").value = y;
+
         cancelAnimationFrame(momentumID);
         cancelAnimationFrame(panAnimationID);
         velocityX = 0;

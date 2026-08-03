@@ -494,7 +494,7 @@ if ($result->num_rows > 0) {
 
         $view .= "<tr>
                     <td>{$row["username"]} (<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'>$kingdom_coords</a>)</td>
-                    <td class='td-center' style='white-space: nowrap;'>
+                    <td class='td-center'>
                         " . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . " 
                         <span style='color: #888;'>&#10234;</span> 
                         " . get_resource_icon($row["demand"]) . " " . fnum($row["demandvalue"]) . "

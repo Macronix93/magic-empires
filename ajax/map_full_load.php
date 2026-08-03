@@ -2,10 +2,10 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $query = "SELECT m.mapx, m.mapy, m.fieldtype, 
-            CASE 
-                WHEN m.kingdomid = -2 AND (r.expires_at < UNIX_TIMESTAMP()) THEN -1
-                WHEN m.kingdomid = -3 AND (mc.expires_at < UNIX_TIMESTAMP()) THEN -1
+    $query = "SELECT m.mapx, m.mapy, m.fieldtype, ft.fieldname,
+              CASE 
+                WHEN m.kingdomid = -2 AND (r.mapx IS NULL OR r.expires_at < UNIX_TIMESTAMP()) THEN -1
+                WHEN m.kingdomid = -3 AND (mc.mapx IS NULL OR mc.expires_at < UNIX_TIMESTAMP()) THEN -1
                 ELSE m.kingdomid 
             END AS kingdomid, 
             k.username, k.kingdomname, u.ranking_points AS score,
@@ -14,8 +14,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                (IFNULL(b_wall.buildinglevel, 1) * " . DEFAULT_WALL_HP . " + 
                 IFNULL(t_wall.techlevel, 0) * " . RESEARCH_WALL_HP_INC . ") / 2
             ) THEN 1 ELSE 0 END as is_burning,
-            IFNULL(mc.level, 0) AS monsterlevel
+            IFNULL(mc.level, 0) AS monsterlevel,
+            COALESCE(r.expires_at, mc.expires_at, 0) as expires_at,
+            k.userid as owner_id
           FROM map m 
+          JOIN field_types ft ON m.fieldtype = ft.fieldid
           LEFT JOIN kingdoms k ON m.kingdomid = k.id
           LEFT JOIN users u ON k.userid = u.id
           LEFT JOIN buildings b_tc ON m.kingdomid = b_tc.kingdomid AND b_tc.buildingid = 0
@@ -40,7 +43,9 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $row["username"] ?? "",
             $row["kingdomname"] ?? "",
             (int)($row["score"] ?? 0),
-            (int)($row["userid"] ?? 0)
+            (int)($row["owner_id"] ?? 0),
+            $row["fieldname"] ?? "",
+            (int)($row["expires_at"] ?? 0)
         ];
     }
 

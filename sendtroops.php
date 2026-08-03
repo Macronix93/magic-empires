@@ -11,19 +11,21 @@ $barracks_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_B
 
 $map = new Map($db_instance, $user);
 $kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
-$target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : -1;
-$target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : -1;
+$target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : 1;
+$target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : 1;
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
 $send_title = "Erobern";
 
 if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
-    $error = "Diese Koordinaten gibt es nicht!";
+    $_SESSION["game_error"] = "Diese Koordinaten gibt es nicht!";
 
-    change_location("map.php?startx=$target_x&starty=$target_y", 3);
+    change_location("map.php?startx=$target_x&starty=$target_y");
+    exit;
 } else if ($barracks_level <= 0) {
-    $error = "Dein Königreich benötigt eine Kaserne, um Truppenbewegungen zu koordinieren!";
+    $_SESSION["game_error"] = "Dein Königreich benötigt eine Kaserne, um Truppenbewegungen zu koordinieren!";
 
-    change_location("map.php?startx=$target_x&starty=$target_y", 3);
+    change_location("map.php?startx=$target_x&starty=$target_y");
+    exit;
 } else {
     // Get users kingdom and score + noob check
     $enemy_score = 0;
@@ -52,9 +54,10 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
     $already_sent = $result->fetch_assoc()["alreadysent"];
 
     if ($already_sent > 0) {
-        $error = "Du hast bereits Truppen zu diesen Koordinaten geschickt!";
+        $_SESSION["game_error"] = "Du hast bereits Truppen zu diesen Koordinaten geschickt!";
 
-        change_location("map.php?startx=$target_x&starty=$target_y", 3);
+        change_location("map.php?startx=$target_x&starty=$target_y");
+        exit;
     } else {
         // Get soldier data
         $soldiers = [];
@@ -220,16 +223,20 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                             "troops" => $log_troops
                         ], $user->get_current_kingdom());
 
-                        $view .= show_passed_box("Truppen erfolgreich gesendet!");
+                        $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
+
+                        change_location("map.php?startx=$target_x&starty=$target_y");
+                        exit;
                     }
                 }
             }
         }
 
         if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
-            $error = "Das ist dein aktuelles Königreich!";
+            $_SESSION["game_error"] = "Das ist dein aktuelles Königreich!";
 
-            change_location("map.php?startx=$target_x&starty=$target_y", 3);
+            change_location("map.php?startx=$target_x&starty=$target_y");
+            exit;
         } else {
             // Noob protection check
             if ($is_noob_protected && $enemy_user_id != -1) {
@@ -437,7 +444,8 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                                id='sol_$soldier_id' 
                                                name='soldiers[$soldier_id]' 
                                                size='5' 
-                                               maxlength='6' 
+                                               maxlength='6'
+                                               inputmode='numeric' pattern='[0-9]*'
                                                class='js-unit-input' 
                                                data-name='" . e($soldier_name) . "' 
                                                data-id='$soldier_id'

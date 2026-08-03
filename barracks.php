@@ -296,6 +296,8 @@ if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
 $total_k_atk = 0;
 $total_k_def = 0;
 $total_k_units = 0;
+$pure_base_atk = 0;
+$pure_base_def = 0;
 
 foreach ($result_s as $row) {
     $soldier_id = (int)($row["soldierid"] ?? -1);
@@ -308,6 +310,9 @@ foreach ($result_s as $row) {
     if (isset($soldiers[$soldier_id])) {
         $s_obj = $soldiers[$soldier_id];
         $cat = $s_obj->get_soldier_category();
+
+        $pure_base_atk += $sol_count * $s_obj->get_soldier_attack();
+        $pure_base_def += $sol_count * $s_obj->get_soldier_defense();
 
         $b_atk = 0;
         $b_def = 0;
@@ -354,6 +359,10 @@ if (!empty($last_recruited_soldier)) {
 $atk_class = ($shrine_atk_mult > 1.0 || ($inf_atk_lvl + $cav_atk_lvl + $arc_atk_lvl) > 0) ? "passed" : "";
 $def_class = (($inf_def_lvl + $cav_def_lvl + $arc_def_lvl) > 0) ? "passed" : "";
 
+$total_smithy_atk = ($total_k_atk / $shrine_atk_mult) - $pure_base_atk;
+$total_shrine_atk = $total_k_atk - ($total_k_atk / $shrine_atk_mult);
+$total_smithy_def = $total_k_def - $pure_base_def;
+
 $view .= "
 <div class='garnison-box'>
     <table style='width: 100%; border-collapse: collapse; border: none; background: transparent;'>
@@ -362,11 +371,22 @@ $view .= "
                 <b>Garnisons-Stärke:</b>
             </td>
             <td style='background: transparent; border: none; padding: 2px 0; text-align: right; white-space: nowrap;'>
-                <span title='Gesamter Angriffswert'>
-                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span class='$atk_class'>" . fnum($total_k_atk) . "</span>
+                <span class='popup $atk_class' id='total_atk_info'>
+                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span>" . fnum($total_k_atk) . "</span>
+                    <div id='total_atk_info_box' class='popupbox' style='text-align:left;'>
+                        <b>Angriffs-Bonus:</b><br>
+                        Basis: " . fnum($pure_base_atk) . "<br>
+                        " . ($total_smithy_atk > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_atk) . "</span><br>" : "") . "
+                        " . ($total_shrine_atk > 0 ? "<span class='passed'>Schrein: +" . fnum($total_shrine_atk) . "</span>" : "") . "
+                    </div>
                 </span>
-                <span style='margin-left: 10px;' title='Gesamter Verteidigungswert'>
-                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span class='$def_class'>" . fnum($total_k_def) . "</span>
+                <span style='margin-left: 10px;' class='popup $def_class' id='total_def_info'>
+                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span>" . fnum($total_k_def) . "</span>
+                    <div id='total_def_info_box' class='popupbox' style='text-align:left;'>
+                        <b>Verteidigungs-Bonus:</b><br>
+                        Basis: " . fnum($pure_base_def) . "<br>
+                        " . ($total_smithy_def > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_def) . "</span>" : "") . "
+                    </div>
                 </span>
             </td>
         </tr>
@@ -459,6 +479,30 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $text_stone = "<span id='cost-stone-$i'>" . fnum($cost_stone) . "</span>";
     $text_wood = "<span id='cost-wood-$i'>" . fnum($cost_wood) . "</span>";
     $text_villager = "<span id='cost-villager-$i'>" . fnum($cost_villager) . "</span>";
+
+    $s_id_internal = $soldiers[$i]->get_soldier_id();
+    $capacity_text = "";
+
+    $plunder_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
+
+    switch ($s_id_internal) {
+        case Soldiers::SOLDIER_THIEF:
+        case Soldiers::SOLDIER_RAIDER:
+            $base_cap = ($s_id_internal == Soldiers::SOLDIER_THIEF) ? THIEF_BASE_CAPACITY : RAIDER_BASE_CAPACITY;
+            $current_cap = floor($base_cap * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
+
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'><b>Aktuelle Kapazität:</b> " . fnum($current_cap) . " Ressourcen / Einheit</span>";
+
+            if ($plunder_lvl > 0) {
+                $capacity_text .= "<br><small style='opacity: 0.7;'>(Inkl. " . ($plunder_lvl * PLUNDER_CAPACITY_BONUS * 100) . "% Forschungs-Bonus)</small>";
+            }
+            break;
+        case Soldiers::SOLDIER_CONQUEROR:
+        case Soldiers::SOLDIER_SETTLER_WAGON:
+            $chance = ($s_id_internal == Soldiers::SOLDIER_CONQUEROR) ? (BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100 : BASE_SETTLER_CHANCE * 100;
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$chance%</b> Erfolgsrate</span>";
+            break;
+    }
 
     if ($is_hero) {
         $text_build = "<i>Einzigartig</i>";
@@ -613,6 +657,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                         <b class='popup' id='description" . $i . "'>" . $soldiers[$i]->get_soldier_name() . " 
                             <div id='description" . $i . "_box' class='popupbox'>
                                 " . $soldiers[$i]->get_soldier_description() . "
+                                " . $capacity_text . "
                             </div> (" . ($kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0) . ")
                         </b>
                     </div>

@@ -245,7 +245,7 @@ if ($count_maxed_buildings === $building_count) {
                     }
 
                     $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-                    $is_disabled = ($res_disabled || $is_tc_limit_reached || $kingdom_building_id == BuildingTypes::BUILDING_EMBASSY) ? "disabled" : "";
+                    $is_disabled = ($res_disabled || $is_tc_limit_reached || $buildings[$i]->get_building_id() == BuildingTypes::BUILDING_EMBASSY) ? "disabled" : "";
 
                     $text_build = "<form action='towncenter.php' method='GET'>
                                     <input type='hidden' name='action' value='build'>

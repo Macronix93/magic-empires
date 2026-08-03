@@ -105,11 +105,11 @@ function updateTroopSummary() {
         html += `
         <div style="width: 100%; padding-top: 8px; display: flex; justify-content: center; gap: 20px; font-weight: bold;">
             <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Angriff">
-                <img src="images/icons/icon_sword.png" class="ressource-icons" alt="Angriff"> 
+                <img src="../images/icons/icon_sword.png" class="ressource-icons" alt="Angriff"> 
                 <span>${formatNumJS(totalAtk)}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Verteidigung">
-                <img src="images/icons/icon_shield.png" class="ressource-icons" alt="Verteidigung"> 
+                <img src="../images/icons/icon_shield.png" class="ressource-icons" alt="Verteidigung"> 
                 <span>${formatNumJS(totalDef)}</span>
             </div>
         </div>`;

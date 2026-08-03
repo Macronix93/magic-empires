@@ -15,7 +15,7 @@ $stats_query = "
         (SELECT IFNULL(SUM(wood), 0) FROM resource_tiles_data) as map_wood,
         (SELECT IFNULL(SUM(stone), 0) FROM resource_tiles_data) as map_stone,
         (SELECT IFNULL(SUM(gold), 0) FROM resource_tiles_data) as map_gold,
-        (SELECT IFNULL(SUM(food + wood + stone + gold), 0) FROM resource_tiles_data) as map_total,
+        (SELECT IFNULL(SUM(food + wood + stone + gold), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_total,
         
         -- User Data
         (SELECT COUNT(*) FROM users WHERE status = 1) as total_users,
@@ -24,8 +24,8 @@ $stats_query = "
         
         -- Map Data
         (SELECT COUNT(*) FROM map WHERE kingdomid > 0) as occupied_fields,
-        (SELECT COUNT(*) FROM map WHERE kingdomid = -2) as resource_tiles,
-        (SELECT COUNT(*) FROM map WHERE kingdomid = -3) as monster_camps,
+        (SELECT COUNT(*) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as resource_tiles,
+        (SELECT COUNT(*) FROM monster_camps WHERE expires_at > UNIX_TIMESTAMP()) as monster_camps,
         
         -- Military
         ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers) + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)) as total_soldiers,
@@ -48,7 +48,7 @@ $uid = $user->get_user_id();
 $my_stats = $db_instance->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$uid])->fetch_assoc();
 
 if (!$my_stats) {
-    $cols = ["units_produced", "units_fallen_pvp", "units_fallen_pve", "monster_kills", "buildings_upgraded", "trades_count",
+    $cols = ["units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve", "monster_kills", "buildings_upgraded", "trades_count",
         "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen", "resources_looted"];
     $my_stats = array_fill_keys($cols, 0);
 
