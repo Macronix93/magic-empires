@@ -65,13 +65,15 @@ class EventManager
                 continue;
             }
 
-            $this->mysqli->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ?", [$now, $row["eventid"]]);
+            $this->mysqli->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ? AND is_processing = 0", [$now, $row["eventid"]]);
 
-            try {
-                $this->handle_event($row);
-            } catch (Throwable $t) {
-                $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
-                Logger::get_instance()->error("Event " . $row["eventid"] . " crashed: " . $t->getMessage());
+            if ($this->mysqli->affected_rows === 1) {
+                try {
+                    $this->handle_event($row);
+                } catch (Throwable $t) {
+                    $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+                    Logger::get_instance()->error("Event " . $row["eventid"] . " crashed: " . $t->getMessage());
+                }
             }
         }
     }
@@ -768,13 +770,13 @@ class EventManager
         $conquest->calculate_wall_damage();
         $conquest->calculate_loss_counts();
 
+        $atk_units = $conquest->get_battle_result_data(true);
+        $def_units = $conquest->get_battle_result_data(false);
+
         update_player_stat($attacker_id, "units_fallen_pvp", $conquest->get_my_loss_count());
         update_player_stat($enemy_user_id, "units_fallen_pvp", $conquest->get_enemy_loss_count());
 
         // Variables for Battle Log
-        $atk_units = $conquest->get_battle_result_data(true);
-        $def_units = $conquest->get_battle_result_data(false);
-
         $victory = ($conquest->get_enemy_loss_count() == $conquest->get_initial_enemy_count());
         $wall_before = $enemy_kingdom->get_wall_hp();
         $wall_after = $conquest->calculate_wall_damage();
@@ -785,7 +787,10 @@ class EventManager
         $message .= "<div class='title-border'>Kampfbericht: <b>" . e($enemy_user_name) . "</b> ($c_link)</div>";
 
         $enemy_msg = "<div class='battle-report'>";
-        $h_link = "<a href='#' data-on-click='mapJump' data-x='{$row["mapx"]}' data-y='{$row["mapy"]}'>{$row["mapx"]}:{$row["mapy"]}</a>";
+        $home_x = $home_kingdom->get_kingdom_map_x();
+        $home_y = $home_kingdom->get_kingdom_map_y();
+
+        $h_link = "<a href='#' data-on-click='mapJump' data-x='$home_x' data-y='$home_y'>$home_x:$home_y</a>";
         $enemy_msg .= "<div class='title-border'>Angriff von: <b>" . e($attacker_name) . "</b> ($h_link)</div>";
 
         $message .= BattleReportRenderer::render_vs_grid($atk_units, $def_units, "Deine Truppen", "Verteidiger");
@@ -1291,12 +1296,18 @@ class EventManager
             $def_losses = (int)round($def_scouts * $e_loss_ratio);
         }
 
+        $res_scout_stats = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+        $scout_score_val = (int)$res_scout_stats->fetch_column() ?: 1;
+
         // Attacker losses
         if ($atk_losses > 0) {
             $this->mysqli->execute_query(
                 "UPDATE sent_troops SET soldiercount = GREATEST(0, soldiercount - ?) WHERE eventid = ? AND soldierid = ?",
                 [$atk_losses, $event_id, Soldiers::SOLDIER_SCOUT]
             );
+
+            $atk_score_loss = $atk_losses * $scout_score_val;
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$atk_score_loss, $attacker_id]);
         }
 
         // Defender losses
@@ -1305,6 +1316,9 @@ class EventManager
                 "UPDATE soldiers SET soldiercount = GREATEST(0, soldiercount - ?) WHERE kingdomid = ? AND soldierid = ?",
                 [$def_losses, $enemy_k->get_kingdom_id(), Soldiers::SOLDIER_SCOUT]
             );
+
+            $def_score_loss = $def_losses * $scout_score_val;
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$def_score_loss, $enemy_owner_id]);
         }
 
         // Scout report
@@ -1665,9 +1679,9 @@ class EventManager
         Logger::get_instance()->log_game("ECONOMY", "TILE_PLUNDER", [
             "target_coords" => "$target_x:$target_y",
             "raiders_sent" => $raider_count,
-            "raiders_lost" => $losses,
-            "loot" => $loot_data,
-            "was_emptied" => $is_empty
+            "raiders_lost" => $losses ?? 0,
+            "loot" => $loot_data ?? [],
+            "was_emptied" => $is_empty ?? false,
         ], $home_kingdom_id);
     }
 

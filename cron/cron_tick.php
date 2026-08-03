@@ -30,7 +30,7 @@ $result = $db_instance->execute_query($query, [$now, $now, $now, $now]);
 $count = 0;
 foreach ($result as $row) {
     // Locking
-    $db->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ?", [$now, $row["eventid"]]);
+    $db->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ? AND is_processing = 0", [$now, $row["eventid"]]);
 
     if ($db->affected_rows > 0) {
         try {

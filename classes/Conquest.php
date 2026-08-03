@@ -49,7 +49,7 @@ class Conquest
     public function fetch_sent_troops(): void
     {
         $query = "
-                    SELECT s.id, s.soldiername, st.soldiercount 
+                    SELECT s.id, s.soldiername, st.soldiercount, st.initial_count 
                     FROM sent_troops st
                     JOIN soldier_list s ON st.soldierid = s.id
                     WHERE st.eventid = ?
@@ -63,7 +63,8 @@ class Conquest
 
             $this->soldiers[$soldier_id] = [
                 "name" => $soldier_name,
-                "count" => $soldier_count
+                "count" => $soldier_count,
+                "initial" => (int)$row["initial_count"]
             ];
 
             // Check if there is a conqueror and count them
@@ -171,7 +172,7 @@ class Conquest
         $this->initial_enemy_count = 0;
 
         foreach ($this->soldier_types as $id => $soldier) {
-            $own = isset($this->soldiers[$id]["count"]) ? (int)$this->soldiers[$id]["count"] : 0;
+            $own = isset($this->soldiers[$id]["initial"]) ? (int)$this->soldiers[$id]["initial"] : 0;
 
             $enemy_raw = $this->enemy_soldiers[$id] ?? 0;
             $enemy = is_array($enemy_raw) ? (int)($enemy_raw["count"] ?? 0) : (int)$enemy_raw;
