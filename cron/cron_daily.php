@@ -138,7 +138,19 @@ if ($res_count < MAX_RESOURCE_TILES) {
     $needed = MAX_RESOURCE_TILES - $res_count;
     $limit = min(RESOURCE_TILES_SPAWN_RATE, $needed);
 
-    $fields = $db->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [$limit]);
+    $query_free_res = "
+        SELECT m.mapx, m.mapy FROM map m 
+        WHERE m.kingdomid = -1 
+        AND NOT EXISTS (
+            SELECT 1 FROM events e 
+            WHERE e.actionid = 2 
+            AND e.targetid = -1 
+            AND e.targetx = m.mapx 
+            AND e.targety = m.mapy
+        )
+        ORDER BY RAND() LIMIT ?
+    ";
+    $fields = $db->execute_query($query_free_res, [$limit]);
 
     if ($fields->num_rows > 0) {
         $insert_values = [];
@@ -218,7 +230,7 @@ $total_on_map = (int)($count_res["total"] ?? 0);
 
 if ($total_on_map < MAX_MONSTER_CAMPS) {
     $needed = MAX_MONSTER_CAMPS - $total_on_map;
-    $spawn_limit = min(MONSTER_CAMP_SPAWN_RATE, $needed);
+    $limit = min(MONSTER_CAMP_SPAWN_RATE, $needed);
 
     // Load Monster Data
     $monster_pool = [];
@@ -228,7 +240,19 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
     }
 
     // Search free fields
-    $free_fields = $db->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [$spawn_limit]);
+    $query_free_camps = "
+        SELECT m.mapx, m.mapy FROM map m 
+        WHERE m.kingdomid = -1 
+        AND NOT EXISTS (
+            SELECT 1 FROM events e 
+            WHERE e.actionid = 2 
+            AND e.targetid = -1 
+            AND e.targetx = m.mapx 
+            AND e.targety = m.mapy
+        )
+        ORDER BY RAND() LIMIT ?
+    ";
+    $free_fields = $db->execute_query($query_free_camps, [$limit]);
 
     if ($free_fields->num_rows > 0) {
         $insert_camps = [];

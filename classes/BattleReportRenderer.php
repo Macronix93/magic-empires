@@ -104,7 +104,7 @@ class BattleReportRenderer
         return $html;
     }
 
-    public static function render_scout_resource_bar(array $res): string
+    public static function render_scout_resource_bar(array $stocks, array $production = []): string
     {
         $html = "";
         $types = [
@@ -114,17 +114,26 @@ class BattleReportRenderer
             "gold" => ResourceTypes::RESOURCE_TYPE_GOLD
         ];
 
-        foreach ($types as $key => $constant) {
-            $val = $res[$key] ?? 0;
+        $show_production = !empty($production);
 
-            if ($val > 0) {
-                $html .= "<div>" . get_resource_icon($constant) . " " . fnum($val) . "</div>";
+        foreach ($types as $key => $constant) {
+            $s_val = fnum($stocks[$key] ?? 0);
+
+            $html .= "<div style='display: flex; flex-direction: column; align-items: center; min-width: 70px;'>
+                    <div style='margin-bottom: 5px;'>" . get_resource_icon($constant) . "</div>
+                    <div style='font-weight: bold;'>$s_val</div>";
+
+            if ($show_production) {
+                $p_val = fnum($production[$key] ?? 0);
+                $html .= "<div style='font-size: 0.85em; color: #0BDA51; opacity: 0.9;'>$p_val/h</div>";
             }
+
+            $html .= "</div>";
         }
 
-        return "<div style='display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 5px; border: 1px solid #555;'>
-            $html
-        </div>";
+        return "<div style='display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.4); padding: 12px 5px; border-radius: 5px; border: 1px solid #555; margin-top: 5px;'>
+                $html
+            </div>";
     }
 
     public static function render_own_scout_status(int $initial, int $losses): string

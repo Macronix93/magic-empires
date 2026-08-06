@@ -296,7 +296,7 @@ if (MAINTENANCE_MODE) {
     }
 }
 $online_limit = $now - TIMEOUT_MAX_SECONDS;
-$res_online = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE lastactivity > ?", [$online_limit]);
+$res_online = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE lastactivity > ? AND status = 1", [$online_limit]);
 $count_online = $res_online->fetch_row()[0];
 ?>
 <!DOCTYPE html>

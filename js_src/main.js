@@ -355,6 +355,10 @@ function updateKingdom(selectElement) {
         let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4 && this.status === 200) {
+                if (window.innerWidth <= 1392) {
+                    sessionStorage.setItem("keepRightMenuOpen", "true");
+                }
+
                 let currentUrl = new URL(window.location.href);
 
                 // Check if we are on conquest page and keep x and y coordinates
@@ -517,6 +521,29 @@ window.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    document.addEventListener("mousedown", function (e) {
+        if (e.target.closest('.emoji-menu span')) {
+            e.preventDefault();
+        }
+    });
+
+    if (sessionStorage.getItem("keepRightMenuOpen") === "true") {
+        const rightTrigger = document.getElementById("nav-right-trigger");
+        const rightMenu = document.getElementById("nav-right-menu");
+
+        if (rightTrigger && rightMenu) {
+            document.body.classList.add("no-transition");
+
+            rightTrigger.classList.add("open");
+            rightMenu.classList.add("open");
+
+            void document.body.offsetHeight;
+
+            document.body.classList.remove("no-transition");
+        }
+        sessionStorage.removeItem("keepRightMenuOpen");
+    }
+
     observer.observe(document.body, {
         childList: true,
         subtree: true
@@ -527,6 +554,10 @@ window.addEventListener("DOMContentLoaded", function () {
 
     if (serverTime) updateServerTime(parseInt(serverTime));
     initAutomaticCountdowns();
+
+    setTimeout(() => {
+        document.body.classList.remove("preload");
+    }, 100);
 });
 
 function selectUser(id) {
@@ -553,13 +584,31 @@ function insertEmoji(emoji) {
     const input = document.getElementById("message-input");
     if (!input) return;
 
-    const start = input.selectionStart;
-    const end = input.selectionEnd;
     const text = input.value;
+    let start, end;
+
+    if (document.activeElement === input) {
+        start = input.selectionStart;
+        end = input.selectionEnd;
+    } else {
+        start = end = text.length;
+    }
 
     input.value = text.substring(0, start) + emoji + text.substring(end);
-    input.selectionStart = input.selectionEnd = start + emoji.length;
-    input.focus();
+    const newPos = start + emoji.length;
+
+    const isTouch = ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+    if (document.activeElement === input) {
+        input.setSelectionRange(newPos, newPos);
+    } else {
+        if (isTouch) {
+            input.selectionStart = input.selectionEnd = newPos;
+        } else {
+            input.focus();
+            input.setSelectionRange(newPos, newPos);
+        }
+    }
 }
 
 function startTitleFlash(message) {

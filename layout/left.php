@@ -3,6 +3,7 @@ $current_page = basename($_SERVER["PHP_SELF"]);
 $messages = new Messages($db_instance, $user);
 $unread = $user->get_unread_messages();
 $unread_news = get_unread_news_count($user, $db_instance);
+$unread_world = $messages->get_unread_world_count();
 ?>
     <div class="box-container">
         <div class="box-header">
@@ -18,13 +19,25 @@ $unread_news = get_unread_news_count($user, $db_instance);
                  data-on-click="navigate" data-url="index.php">
                 <img src="images/icons/icon_overview.png" class="menu-icons" alt="Übersicht"/> Übersicht
             </div>
-            <div class="box<?= $current_page === 'messages.php' ? ' active' : '' ?>"
+            <div class="box<?= ($current_page === 'messages.php' && !isset($_GET["worldchat"])) ? " active" : '' ?>"
                  data-on-click="navigate" data-url="messages.php">
                 <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
                 <span>Nachrichten</span>
-                <?php if ($unread > 0): ?>
+                <?php
+                $inbox_only_unread = $unread - $unread_world;
+                if ($inbox_only_unread > 0): ?>
                     <span class="msg-badge">
-                <?= $messages->show_messages_indicator($unread) ?>
+                <?= $messages->show_messages_indicator($inbox_only_unread) ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+            <div class="box<?= isset($_GET["worldchat"]) ? " active" : '' ?>"
+                 data-on-click="navigate" data-url="messages.php?worldchat">
+                <img src="images/icons/icon_worldchat.png" class="menu-icons" alt="Welt-Chat"/>
+                <span>Welt-Chat</span>
+                <?php if ($unread_world > 0): ?>
+                    <span class="msg-badge">
+                <?= $messages->show_messages_indicator($unread_world) ?>
             </span>
                 <?php endif; ?>
             </div>

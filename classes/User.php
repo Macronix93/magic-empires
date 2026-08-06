@@ -37,11 +37,24 @@ class User
         $actual_link = "https://$_SERVER[HTTP_HOST]" . BASE_URL . "index.php?key=" . $activation_key;
 
         $subject = 'Magic-Empires - Registrierung';
-        $message = "<h2>Willkommen bei Magic-Empires!</h2>
-                    <p>Hallo " . e($name) . ",</p>
-                    <p>vielen Dank für deine Registrierung. Bitte klicke auf den folgenden Button, um deinen Account freizuschalten:</p>
-                    <p><a href='" . $actual_link . "' style='display:inline-block; background:#781e14; color:#ffffff; padding:10px 20px; text-decoration:none; border-radius:5px;'>Account aktivieren</a></p>
-                    <p>Sollte der Button nicht funktionieren, kopiere diesen Link in deinen Browser:<br>" . $actual_link . "</p>
+        $message = "
+            <h2 style='color: #d4af37; text-align: center; margin-top: 0;'>Willkommen, Eure Hoheit!</h2>
+            <p>Seid gegrüßt, <b>" . e($name) . "</b>!</p>
+            <p>Vielen Dank für Eure Registrierung in der Welt von Magic Empires. Euer Volk wartet bereits sehnsüchtig darauf, dass Ihr den Thron besteigt.</p>
+            <p>Um Euer Königreich offiziell zu beanspruchen, klickt bitte auf den untenstehenden Button:</p>
+            
+            <div style='text-align: center; margin: 30px 0;'>
+                <a href='" . $actual_link . "' 
+                   style='background: #781e14; background: linear-gradient(0deg, #4b140a 0%, #781e14 100%);
+                          color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 3px; 
+                          border: 2px solid #a57c00; font-weight: bold; display: inline-block;
+                          text-shadow: 1px 1px 2px #000;'>
+                   ACCOUNT AKTIVIEREN
+                </a>
+            </div>
+            
+            <p style='font-size: 13px; opacity: 0.8;'>Sollte der Button nicht funktionieren, kopiert diesen Link in Euren Browser:<br>
+            <a href='$actual_link' style='color: #d4af37;'>$actual_link</a></p>
         ";
 
         if (send_mail($email, $subject, $message)) {
@@ -160,15 +173,14 @@ class User
         return $_SESSION["last_built_building"][$kingdom_id] ?? null;
     }
 
-    public function set_last_built_building(int $kingdom_id, string $building_name, int $building_level): void
+    public function set_last_built_building($kingdom_id, $name, $level)
     {
-        if (!isset($_SESSION["last_built_building"])) {
-            $_SESSION["last_built_building"] = array();
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION["last_built_building"][$kingdom_id] = [
+                "buildingname" => $name,
+                "buildinglevel" => $level
+            ];
         }
-        $_SESSION["last_built_building"][$kingdom_id] = [
-            "buildingname" => $building_name,
-            "buildinglevel" => $building_level
-        ];
     }
 
     public function clear_last_researched_tech(int $kingdom_id): void

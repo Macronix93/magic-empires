@@ -92,6 +92,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 document.getElementById("map-loader").style.display = "none";
                 selectField(selectedX, selectedY, false);
+
+                if (window.innerWidth <= 1392) {
+                    const statusMsg = document.querySelector(".big-box-content > .info-box");
+                    const legend = document.getElementById("map-legend-fieldtypes");
+
+                    const targetElement = statusMsg || legend;
+                    const yOffset = targetElement === statusMsg ? -60 : -20;
+
+                    if (targetElement) {
+                        const y = targetElement.getBoundingClientRect().top + window.pageYOffset + yOffset;
+
+                        window.scrollTo({top: y, behavior: "smooth"});
+                    }
+                }
             });
     }
 
@@ -264,6 +278,7 @@ function draw() {
         ctx.strokeStyle = "rgba(0,0,0,0.1)";
         ctx.lineWidth = 1;
         ctx.beginPath();
+
         mapData.forEach(tile => {
             const [x, y] = tile;
             const posX = (x - 1) * scaledTile + currentTranslateX;
@@ -272,12 +287,13 @@ function draw() {
                 ctx.rect(posX, posY, scaledTile, scaledTile);
             }
         });
+
         ctx.stroke();
     }
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id] = tile;
 
             if (kid === -1) return;
 
@@ -285,6 +301,15 @@ function draw() {
             const posY = (y - 1) * scaledTile + currentTranslateY;
 
             if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
+
+            if (owner_id === gameConfig.currentKingdom.ownerId) {
+                ctx.fillStyle = "rgba(11, 218, 81, 0.2)";
+                ctx.fillRect(posX, posY, scaledTile, scaledTile);
+
+                ctx.strokeStyle = "#0BDA51";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+            }
 
             if (kid === -2) {
                 ctx.drawImage(images.gems, posX + scaledTile * 0.2, posY + scaledTile * 0.2, scaledTile * 0.6, scaledTile * 0.6);
@@ -305,6 +330,8 @@ function draw() {
                     ctx.drawImage(images.fire, posX + scaledTile * 0.4, posY - scaledTile * 0.1, scaledTile * 0.7, scaledTile * 0.7);
                 }
             }
+
+
         });
     }
 

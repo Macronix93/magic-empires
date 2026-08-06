@@ -147,6 +147,8 @@ class Kingdom
         // Insert kingdom
         $random_name = $this->generate_random_name();
 
+        $this->kingdom_name = $random_name;
+
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
                                           woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate) 
@@ -157,11 +159,6 @@ class Kingdom
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
             $food_rate, $gold_rate, $stone_rate, $wood_rate]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
-
-//        $kingdom_name = $random_name . $insert_id;
-//
-//        // Update kingdom name with insert id
-//        $this->mysqli->execute_query("UPDATE kingdoms SET kingdomname = ? WHERE id = ?", [$kingdom_name, $insert_id]);
 
         // Update map properties of x and y
         $this->mysqli->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [$insert_id, $rand_x, $rand_y]);
@@ -770,7 +767,8 @@ class Kingdom
     public function get_march_speed_multiplier(): float
     {
         $level = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_CARTOGRAPHY);
-        return 1 / (1 + ($level * CARTOGRAPHY_SPEED_BONUS));
+        $multiplier = 1.0 - ($level * CARTOGRAPHY_SPEED_BONUS);
+        return (float)max(0.1, $multiplier);
     }
 
     public function get_construction_time_multiplier(): float

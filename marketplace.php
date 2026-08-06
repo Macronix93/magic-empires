@@ -454,21 +454,25 @@ $result = $db_instance->execute_query($query, [$offset, $rows_per_page]);
 
 if ($result->num_rows > 0) {
     $view .= "<h3>Aktuelle Handelsangebote</h3>";
-    $view .= '<table class="table">
+    $view .= '<table class="table marketplace-table">
                 <colgroup>
-                    <col style="width: 20%;"> <!-- Spieler -->
-                    <col style="width: 15%;"> <!-- Bietet/Benötigt -->
-                    <col style="width: 35%;"> <!-- Ankunft -->
+                    <col style="width: 30%;"> <!-- Spieler -->
+                    <col style="width: 20%;"> <!-- Bietet/Benötigt -->
+                    <col style="width: 20%;"> <!-- Ankunft -->
                     <col style="width: 20%;"> <!-- Endet in -->
-                    <col style="width: 12%;"> <!-- Gebühr -->
-                    <col style="width: 8%;">  <!-- Aktion -->
+                    <col style="width: 15%;"> <!-- Gebühr -->
+                    <col style="width: 5%;">  <!-- Aktion -->
                 </colgroup>
                 <tr>
                     <td class="td-center td-gradient">
                         <b>Spieler</b>
                     </td>
                     <td class="td-center td-gradient">
-                        <b>Bietet ⟺ Benöt.</b>
+                        <div class="header-stack">
+                            <span>Bietet</span>
+                            <span class="arrow">⟺</span>
+                            <span>Benöt.</span>
+                        </div>
                     </td>
                     <td class="td-center td-gradient">
                         <b>Ankunft</b>
@@ -492,7 +496,7 @@ if ($result->num_rows > 0) {
             $arrival_time_str = "-";
         } else {
             $seconds = $map->get_arrival_time($my_x, $my_y, $map_x, $map_y);
-            $arrival_time_str = convert_sec_to_str($seconds);
+            $arrival_time_str = convert_sec_to_str($seconds, true);
         }
 
         $kingdom_coords = "$map_x:$map_y";
@@ -518,15 +522,22 @@ if ($result->num_rows > 0) {
                         </form>";
 
         $view .= "<tr>
-                    <td>{$row["username"]} (<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'>$kingdom_coords</a>)</td>
+                    <td>
+                        <div class='player-info-stack'>
+                            <span class='p-name'>{$row["username"]}</span>
+                            <span class='p-coords'>(<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'>$kingdom_coords</a>)</span>
+                        </div>
+                    </td>
                     <td class='td-center'>
-                        " . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . " 
-                        <span style='color: #888;'>&#10234;</span> 
-                        " . get_resource_icon($row["demand"]) . " " . fnum($row["demandvalue"]) . "
+                        <div class='trade-item-stack'>
+                            <span>" . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . "</span>
+                            <span class='trade-arrow'>&#10234;</span> 
+                            <span>" . get_resource_icon($row["demand"]) . " " . fnum($row["demandvalue"]) . "</span>
+                        </div>
                     </td>
                     <td class='td-center'>$arrival_time_str</td>
                     <td class='td-center'>$time_str</td>
-                    <td class='td-center'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " {$row["coins"]}</td>
+                    <td class='td-center'><span style='display: inline-block; white-space: nowrap;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " {$row["coins"]}</span></td>
                     <td class='td-center'>$text_build</td>
                 </tr>";
     }
@@ -567,38 +578,45 @@ if ($result->num_rows > 0) {
 
 $other_kingdoms_res = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? AND id != ?", [$user->get_user_id(), $current_kingdom]);
 
+$arrival_times_cache = [];
+
 if ($other_kingdoms_res->num_rows > 0) {
     $view .= "<br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
-    $view .= '<table class="table">
-                    <form action="marketplace.php" method="GET">
-                        <input type="hidden" name="send_own" value="1">
-                        <tr>
-                            <td>
-                                <label for="target_k">Ziel:</label>
-                                <select name="target_k" id="target_k" style="width: 180px;">';
+    $view .= '<table class="table internal-transport-table">
+                <form action="marketplace.php" method="GET">
+                    <input type="hidden" name="send_own" value="1">
+                    <tr>
+                        <td>
+                            <label for="target_k">Ziel: <small id="target-arrival-display" style=" opacity: 0.7; margin-left: 10px;"></small></label><br>
+                            <select name="target_k" id="target_k" style="width: 100%; max-width: 300px;">';
 
     foreach ($other_kingdoms_res as $ok) {
+        $seconds = $map->get_arrival_time($my_x, $my_y, $ok["mapx"], $ok["mapy"], $current_kingdom);
+        $arrival_times_cache[$ok["id"]] = convert_sec_to_str($seconds, true);
+
         $view .= "<option value='{$ok["id"]}'>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
     }
 
-    $view .= '  </select>
-                    </td>
-                    <td>
-                        <label for="am">Menge:</label>
-                        <input type="text" name="am" id="am" size="6" maxlength="7">
-                        <select name="rt" id="rt">
-                            <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
-                            <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '">Holz</option>
-                            <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
-                            <option value="' . ResourceTypes::RESOURCE_TYPE_GOLD . '">Gold</option>
-                        </select>
-                    </td>
-                    <td style="text-align: center;">
-                        <input type="submit" value="Senden">
-                    </td>
-                </tr>
-            </form>
-            </table><br>';
+    $view .= '      </select>
+                </td>
+                <td>
+                    <label for="am">Menge:</label><br>
+                    <input type="text" name="am" id="am" size="6" maxlength="7" style="width: 80px;" inputmode="numeric" pattern="[0-9]*" placeholder="0">
+                    <select name="rt" id="rt" style="width: 110px;">
+                        <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
+                        <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '">Holz</option>
+                        <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
+                        <option value="' . ResourceTypes::RESOURCE_TYPE_GOLD . '">Gold</option>
+                    </select>
+                </td>
+                <td style="text-align: center;">
+                    <input type="submit" value="Senden" style="width: 150px;">
+                </td>
+            </tr>
+        </form>
+        </table>';
+
+    $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "'></div>";
 }
 
 $storage_info = [

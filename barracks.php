@@ -73,6 +73,15 @@ if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
     } else {
         $active_cat = (int)$_GET["cat"];
     }
+} else if ($kingdom_is_upgrading) {
+    $target_id = $upgrade_event["soldierid"];
+
+    foreach ($soldiers as $s) {
+        if ($s->get_soldier_id() == $target_id) {
+            $active_cat = $s->get_soldier_category();
+            break;
+        }
+    }
 } else if ($kingdom_is_recruiting) {
     if (isset($soldiers[$kingdom_recruiting_id])) {
         $active_cat = $soldiers[$kingdom_recruiting_id]->get_soldier_category();

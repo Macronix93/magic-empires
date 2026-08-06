@@ -42,6 +42,7 @@ function applyOverlayStyles() {
 }
 
 function openOverlay(url, title = "Info") {
+    document.body.classList.add("modal-open");
     document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
@@ -52,7 +53,6 @@ function openOverlay(url, title = "Info") {
     if (url === currentOverlayUrl && isAlreadyOpen) return;
 
     if (!isAlreadyOpen) {
-        // Overlay wird NEU geöffnet -> Kein Fade-Out nötig
         xOffset = 0;
         yOffset = 0;
         setTranslate(0, 0, overlay);
@@ -63,7 +63,6 @@ function openOverlay(url, title = "Info") {
         content.style.opacity = "1";
         content.innerHTML = '<div class="spinner">Lade...</div>';
     } else {
-        // Overlay ist BEREITS OFFEN -> Fade-Out für weichen Übergang
         if (url !== currentOverlayUrl) {
             content.style.minHeight = content.offsetHeight + "px";
             content.style.transition = "opacity 0.15s ease";
@@ -95,15 +94,17 @@ function openOverlay(url, title = "Info") {
                     content.style.opacity = "1";
                 }, 25);
             });
-    }, isAlreadyOpen ? 100 : 0); // Nur warten, wenn es bereits offen war
+    }, isAlreadyOpen ? 100 : 0);
 }
 
 function closeOverlay() {
+    document.body.classList.remove("modal-open");
     /** @type {HTMLElement} */
     const overlay = document.getElementById("onpage-overlay");
 
     if (overlay) {
         overlay.style.display = "none";
+        currentOverlayUrl = "";
     }
 }
 

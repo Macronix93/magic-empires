@@ -30,7 +30,8 @@ registerAction("checkMarket", (form, event) => {
         amountToReceive = valD;
 
         const overflowMsg = getOverflowWarning(resType, amountToReceive);
-        const confirmMsg = `${overflowMsg}Das Erstellen dieses Angebots kostet dich sofort ${listingFee} Münzen.\n\nMöchtest du das Angebot jetzt veröffentlichen?`;
+        const coinString = listingFee === 1 ? "Münze" : "Münzen";
+        const confirmMsg = `${overflowMsg}Das Erstellen dieses Angebots kostet dich sofort ${listingFee} ${coinString}.\n\nMöchtest du das Angebot jetzt veröffentlichen?`;
 
         showConfirmationDialog(confirmMsg, "Ja, Erstellen", "Abbrechen", () => {
             form.submit();
@@ -74,9 +75,16 @@ function getOverflowWarning(resType, amount) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+    const targetSelect = document.getElementById("target_k");
+    const arrivalDataEl = document.getElementById("internal-arrival-data");
+    const displayEl = document.getElementById("target-arrival-display");
     const supplySelect = document.querySelector("select[name='s']");
     const demandSelect = document.querySelector("select[name='d']");
-    const inputs = [document.getElementById("sv"), document.getElementById("dv")];
+    const inputs = [
+        document.getElementById("sv"),
+        document.getElementById("dv"),
+        document.getElementById("am")
+    ];
 
     inputs.forEach(input => {
         if (!input) return;
@@ -119,6 +127,23 @@ document.addEventListener("DOMContentLoaded", function () {
             let opt = supplySelect.querySelector(`option[value='${demandValue}']`);
             if (opt) opt.hidden = true;
         }
+    }
+
+    if (targetSelect && arrivalDataEl && displayEl) {
+        const times = JSON.parse(arrivalDataEl.dataset.times);
+
+        const updateTimeDisplay = () => {
+            const selectedId = targetSelect.value;
+
+            if (times[selectedId]) {
+                displayEl.innerText = "(Dauer: " + times[selectedId] + ")";
+            } else {
+                displayEl.innerText = "";
+            }
+        };
+
+        targetSelect.addEventListener("change", updateTimeDisplay);
+        updateTimeDisplay();
     }
 
     updateDropdowns();

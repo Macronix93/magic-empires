@@ -36,10 +36,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
             $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "resetpassword.php?token=" . $token;
 
             $subject = "Magic Empires - Passwort zurücksetzen";
-            $message = "Hallo " . e($row["username"]) . ",<br><br>
-                        du hast angefordert, dein Passwort zurückzusetzen. Klicke dazu auf den folgenden Link:<br>
-                        <a href='$reset_link'>$reset_link</a><br><br>
-                        Dieser Link ist für 1 Stunde gültig. Wenn du dies nicht warst, ignoriere diese Mail.";
+            $message = "
+                <h2 style='color: #d4af37; text-align: center; margin-top: 0;'>Passwort vergessen?</h2>
+                <p>Werte/r <b>" . e($row["username"]) . "</b>,</p>
+                <p>uns erreichte eine Anfrage, das Passwort für Euren Zugang zu Magic Empires zurückzusetzen.</p>
+                <p>Über diesen Button gelangt Ihr zur Seite, auf der Ihr ein neues Passwort generieren könnt:</p>
+                
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href='$reset_link' 
+                       style='background: #781e14; background: linear-gradient(0deg, #4b140a 0%, #781e14 100%);
+                              color: #ffffff; padding: 15px 25px; text-decoration: none; border-radius: 3px; 
+                              border: 2px solid #a57c00; font-weight: bold; display: inline-block;
+                              text-shadow: 1px 1px 2px #000;'>
+                       PASSWORT ZURÜCKSETZEN
+                    </a>
+                </div>
+                
+                <p style='font-size: 13px; opacity: 0.7;'>Hinweis: Dieser Link ist für 1 Stunde gültig. Falls Ihr diese Anfrage nicht gestellt habt, könnt Ihr diese E-Mail ignorieren.</p>
+            ";
 
             if (send_mail($email, $subject, $message)) {
                 $success = "Ein Link zum Zurücksetzen wurde an deine E-Mail gesendet.";

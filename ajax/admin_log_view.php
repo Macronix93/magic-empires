@@ -6,30 +6,35 @@ if (!$user->is_admin()) {
 }
 
 $log_dir = __DIR__ . "/../logs/";
-$allowed_files = ["admin.log", "error.log", "security.log"];
+$sub_dir = $_GET["sub"] ?? "";
 
+$allowed_system_files = ["admin.log", "error.log", "security.log"];
 $file = $_GET["file"] ?? '';
 $page = max(1, (int)($_GET["page"] ?? 1));
-$perPage = 50;
+$per_page = 50;
 
-if (!in_array($file, $allowed_files)) {
+$is_system_log = in_array($file, $allowed_system_files);
+$is_chat_backup = ($sub_dir === "chat_backups" && str_starts_with($file, "chat_log_"));
+
+if (!$is_system_log && !$is_chat_backup) {
     die("Ungültige Datei.");
 }
 
-$file_path = $log_dir . $file;
+$file_path = $log_dir . ($sub_dir ? $sub_dir . "/" : "") . $file;
 if (!file_exists($file_path)) {
     echo show_error_box("Datei existiert noch nicht.");
     return;
 }
 
 $all_lines = file($file_path);
+if ($sub_dir !== "chat_backups") {
+    $all_lines = array_reverse($all_lines);
+}
 $total_lines = count($all_lines);
-$total_pages = ceil($total_lines / $perPage);
+$total_pages = $page == 0 ? 0 : ceil($total_lines / $per_page);
 
-$all_lines = array_reverse($all_lines);
-
-$offset = ($page - 1) * $perPage;
-$lines_to_show = array_slice($all_lines, $offset, $perPage);
+$offset = ($page - 1) * $per_page;
+$lines_to_show = array_slice($all_lines, $offset, $per_page);
 
 echo "<h3>$file - Seite $page von $total_pages</h3>";
 
@@ -52,3 +57,8 @@ echo "</pre>";
 
 // Footer Info
 echo "<div style='margin-top: 10px; font-size: 12px; opacity: 0.7;'>Gesamtzeilen: $total_lines</div>";
+echo '<div style="text-align:center">
+            <button data-on-click="closeOverlay">
+                Schließen
+            </button>
+        </div>';

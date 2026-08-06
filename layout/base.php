@@ -72,13 +72,13 @@ if ($user->is_logged_in()) {
     echo $head_extra ?? '';
     ?>
 </head>
-<body
+<body class="preload"
         <?php
         if (!isset($_COOKIE["me_remember"])) {
             echo 'data-timeout="' . TIMEOUT_MAX_SECONDS . '"';
         }
         ?>
-        data-server-time="<?php echo time(); ?>"
+      data-server-time="<?php echo time(); ?>"
 >
 <?php if (isset($show_attack_alert) && $show_attack_alert): ?>
     <div class="attack-alert-overlay"></div>

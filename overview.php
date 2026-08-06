@@ -237,7 +237,6 @@ if ($result && $result->num_rows > 0) {
         $action_type = "Angriff";
         $action_button = "";
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
-        $arrival_time = $map->get_arrival_time($event_data["mapx"], $event_data["mapy"], $event_data["targetx"], $event_data["targety"], $row["kingdomid"]);
         $difference_time = max(0, $event_data["arrivaltime"] - $now);
         $counter_id = "counter_" . $event_id;
 
@@ -340,7 +339,7 @@ if ($result && $result->num_rows > 0) {
                 <td class='td-center'>$action_type</td>
                 <td class='td-center'>$soldiers_str</td>
                 <td class='td-center'>$coords_str</td>";
-        $view .= "<td class='td-center' style='position: relative; min-width: 130px;'>
+        $view .= "<td class='td-center td-timer-cell' style='position: relative;'>
             <b>$action_counter</b>";
 
         if ($action_button !== "") {
@@ -395,9 +394,9 @@ if ($result && $result->num_rows > 0) {
 }
 
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
-$count_bp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
+$count_bp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?, ?)",
     [$user->get_user_id(), ActionTypes::ACTION_BUILD_BUILDING, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_RESEARCH_TECH,
-        ActionTypes::ACTION_UPGRADE_TROOPS])->fetch_row()[0];
+        ActionTypes::ACTION_UPGRADE_TROOPS, ActionTypes::ACTION_SMITHY_UPGRADE])->fetch_row()[0];
 $pages_bp = ceil($count_bp / $limit);
 $curr_bp = isset($_GET["bp"]) ? max(1, (int)$_GET["bp"]) : 1;
 $offset_bp = ($curr_bp - 1) * $limit;
@@ -409,7 +408,7 @@ $query_events = "
     FROM events e 
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN soldier_list sl ON sl.id = e.soldierid
-    WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?)
+    WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?, ?)
     ORDER BY COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
     LIMIT $offset_bp, $limit
 ";
@@ -419,16 +418,17 @@ $result_events = $db_instance->execute_query($query_events, [
     ActionTypes::ACTION_BUILD_BUILDING,
     ActionTypes::ACTION_BUILD_TROOPS,
     ActionTypes::ACTION_RESEARCH_TECH,
-    ActionTypes::ACTION_UPGRADE_TROOPS
+    ActionTypes::ACTION_UPGRADE_TROOPS,
+    ActionTypes::ACTION_SMITHY_UPGRADE
 ]);
 
 if ($result_events && $result_events->num_rows > 0) {
     $view .= "<table class='table' style='width: 100%;'>";
     $view .= "<colgroup>
-                <col style='width: 25%;'> <!-- Art -->
-                <col style='width: 20%;'> <!-- Projekt -->
-                <col style='width: 30%;'> <!-- Königreich -->
-                <col style='width: 25%;'> <!-- Fertigstellung -->
+                <col style='width: 18%;'> <!-- Art -->
+                <col style='width: 15%;'> <!-- Projekt -->
+                <col style='width: 32%;'> <!-- Königreich -->
+                <col style='width: 20%;'> <!-- Fertigstellung -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
@@ -516,12 +516,12 @@ if ($result_events && $result_events->num_rows > 0) {
                     </div>
                 </td>
                 <td class='td-center'>
-                    <div class='kingdom-name-break'>
-                        $k_name 
+                    <div class='location-wrapper'>
+                        <div class='kingdom-name-break' style='min-width: 0;'>$k_name</div>
+                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($k_coords) . ")</a>
                     </div>
-                    <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($k_coords) . ")</a>
                 </td>
-                <td class='td-center'>
+                <td class='td-center td-timer-cell' style='position: relative;'>
                     <b><span class='js-countdown' 
                        id='$counter_id' 
                        data-seconds='$arrival_diff' 
@@ -599,7 +599,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <col style='width: 18%;'> <!-- Art -->
                 <col style='width: 15%;'> <!-- Ressourcen -->
                 <col style='width: 32%;'> <!-- Ziel -->
-                <col style='width: 10%;'> <!-- Ankunft -->
+                <col style='width: 20%;'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
@@ -621,15 +621,15 @@ if ($result_trades && $result_trades->num_rows > 0) {
         $is_cancelable = ($row["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $row["buildingname"] == "Interner Transport");
 
         $view .= "<tr>
-                <td class='td-center'>{$row["buildingname"]}</td>
+                <td class='td-center'><div class='type-name-break' title='{$row["buildingname"]}'>{$row["buildingname"]}</div></td>
                 <td class='td-center'>" . get_resource_icon($res_type) . " " . fnum($amount) . "</td>
                 <td class='td-center'>
-                    <div class='kingdom-name-break'>
-                        $target_name
+                    <div class='location-wrapper'>
+                        <div class='kingdom-name-break' style='min-width: 0;'>$target_name</div>
+                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($target_coords) . ")</a>
                     </div>
-                    <a href='#' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($target_coords) . ")</a>
                 </td>
-                <td class='td-center' style='position: relative; min-width: 130px;'>
+                <td class='td-center td-timer-cell' style='position: relative;'>
                     <b><span class='js-countdown' 
                              id='$counter_id' 
                              data-seconds='$arrival_diff' 
@@ -641,7 +641,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
                         <form action='overview.php' method='GET' style='display: inline;'>
                             <input type='hidden' name='action' value='cancel'>
                             <input type='hidden' name='eid' value='$event_id'>
-                            <input type='submit' value='' class='btn-delete' style='width: 10px; height: 10px;'>
+                            <input type='submit' value='' class='btn-delete'>
                         </form>
                       </div>";
         }

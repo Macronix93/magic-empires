@@ -14,7 +14,7 @@ echo "[" . date("Y-m-d H:i:s") . "] Starte Cron-Tick...\n";
 $query = "SELECT e.*, u.username 
           FROM events e
           JOIN users u ON e.userid = u.id
-          WHERE e.is_processing = 0 
+          WHERE (e.is_processing = 0 OR e.is_processing < " . (time() - 60) . ")
           AND (
               (e.actionid IN (0, 4, 8) AND e.buildingtime > 0 AND e.buildingtime <= ?) 
               OR
@@ -30,7 +30,10 @@ $result = $db_instance->execute_query($query, [$now, $now, $now, $now]);
 $count = 0;
 foreach ($result as $row) {
     // Locking
-    $db->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ? AND is_processing = 0", [$now, $row["eventid"]]);
+    $db->execute_query(
+        "UPDATE events SET is_processing = ? WHERE eventid = ? AND (is_processing = 0 OR is_processing = ? OR is_processing < ?)",
+        [$now, $row["eventid"], $row["is_processing"], ($now - 60)]
+    );
 
     if ($db->affected_rows > 0) {
         try {

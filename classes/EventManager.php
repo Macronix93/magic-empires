@@ -65,7 +65,10 @@ class EventManager
                 continue;
             }
 
-            $this->mysqli->execute_query("UPDATE events SET is_processing = ? WHERE eventid = ? AND is_processing = 0", [$now, $row["eventid"]]);
+            $this->mysqli->execute_query(
+                "UPDATE events SET is_processing = ? WHERE eventid = ? AND (is_processing = 0 OR is_processing < ?)",
+                [$now, $row["eventid"], ($now - 60)]
+            );
 
             if ($this->mysqli->affected_rows === 1) {
                 try {
@@ -130,6 +133,21 @@ class EventManager
                 break;
             case ActionTypes::ACTION_RECEIVE_RESOURCES:
                 $this->handle_resource_transfer($row);
+                break;
+            case ActionTypes::ACTION_RETURN_RESOURCES:
+                $origin_kingdom_id = (int)$row["kingdomid"];
+                $res_type = (int)$row["buildingid"];
+                $amount = (int)$row["buildinglevel"];
+
+                $kingdom = new Kingdom($this->mysqli, $origin_kingdom_id);
+                $kingdom->modify_resource($res_type, $amount);
+
+                Logger::get_instance()->log_game("TRADE", "TRANSPORT_RETURNED", [
+                    "res_type" => $res_type,
+                    "amount" => $amount
+                ], $origin_kingdom_id);
+
+                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
                 break;
             case ActionTypes::ACTION_UPGRADE_TROOPS:
                 $this->handle_upgrade_finish($row);
@@ -361,6 +379,7 @@ class EventManager
 
     public function handle_combat(array $row): void
     {
+        $target_id = (int)$row["targetid"];
         $attacker_id = (int)$row["userid"];
 
         $res_atk = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$attacker_id]);
@@ -394,7 +413,19 @@ class EventManager
             }
         }
 
-        if ($row["targetid"] == -3) {
+        if ($target_id > 0) {
+            $check = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ?", [$target_id]);
+
+            if ($check->num_rows === 0) {
+                $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, targetid = -1, is_processing = 0 WHERE eventid = ?",
+                    [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
+
+                send_server_message($row["userid"], "System", "Dein Ziel wurde aufgegeben. Deine Truppen kehren um.", MessageCategories::CATEGORY_WAR);
+                return;
+            }
+        }
+
+        if ($target_id == -3) {
             if ($combat_units === 0 && $scout_count > 0) {
                 $this->process_monster_spy_mission($row, $scout_count, $attacker_user_obj, $return_time);
             } else {
@@ -403,7 +434,7 @@ class EventManager
             return;
         }
 
-        if ($row["targetid"] == -2) {
+        if ($target_id == -2) {
             if ($combat_units === 0 && $scout_count > 0) {
                 $this->process_resource_spy_mission($row, $scout_count, $attacker_user_obj, $return_time);
             } else {
@@ -415,7 +446,7 @@ class EventManager
             return;
         }
 
-        if ($row["targetid"] == -1) {
+        if ($target_id == -1) {
             $this->process_empty_field_conquest($row, $message, $attacker_user_obj);
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
@@ -423,11 +454,11 @@ class EventManager
             return;
         }
 
-        $enemy_kingdom = new Kingdom($this->mysqli, $row["targetid"]);
+        $enemy_kingdom = new Kingdom($this->mysqli, $target_id);
 
         // User only sent spies to scout
         if ($combat_units === 0 && $scout_count > 0 && $attacker_id != $enemy_kingdom->get_kingdom_owner_id()) {
-            $this->process_spy_mission($row, $scout_count, $home_kingdom, $enemy_kingdom, $attacker_user_obj);
+            $this->process_spy_mission($row, $scout_count, $home_kingdom, $enemy_kingdom, $attacker_user_obj, $return_time);
             return;
         }
 
@@ -593,7 +624,25 @@ class EventManager
 
         $res_check = $this->mysqli->execute_query("SELECT userid, kingdomname FROM kingdoms WHERE id = ?", [$target_kingdom_id]);
         $k_data = $res_check->fetch_assoc();
-        $current_owner_id = $k_data ? (int)$k_data["userid"] : -1;
+
+        if (!$k_data) {
+            $res_user = $this->mysqli->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$original_recipient_id]);
+            $u_data = $res_user->fetch_assoc();
+
+            if ($u_data && $u_data["mainkingdom"] > 0) {
+                $this->mysqli->execute_query(
+                    "UPDATE events SET actionid = ?, arrivaltime = UNIX_TIMESTAMP() + 1800, is_processing = 0, buildingname = 'Transport-Fehlgeschlagen' WHERE eventid = ?",
+                    [ActionTypes::ACTION_RETURN_RESOURCES, $row["eventid"]]
+                );
+
+                send_server_message($original_recipient_id, $u_data["username"], "Deine Karawane konnte das Ziel nicht finden (Dorf existiert nicht mehr) und kehrt um.", MessageCategories::CATEGORY_TRADE);
+            } else {
+                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            }
+            return;
+        }
+
+        $current_owner_id = (int)$k_data["userid"];
 
         if ($current_owner_id !== $original_recipient_id) {
             $res_user = $this->mysqli->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$original_recipient_id]);
@@ -726,7 +775,8 @@ class EventManager
             $chance = min(MAX_SETTLER_CHANCE, $chance);
 
             if (mt_rand(0, 100) <= ($chance * 100)) {
-                $new_kingdom_id = new Kingdom($this->mysqli)->create_kingdom(
+                $new_kingdom_obj = new Kingdom($this->mysqli);
+                $new_kingdom_id = $new_kingdom_obj->create_kingdom(
                     $attacker_user->get_user_id(),
                     $attacker_user->get_user_name(),
                     true,
@@ -747,9 +797,18 @@ class EventManager
                         );
                     }
 
+                    $founded_name = $new_kingdom_obj->get_kingdom_name();
+
                     $atk_main = "<b>Erfolg!</b> Unsere Siedler haben fruchtbares Land erschlossen.";
-                    $atk_sub = "Das neue Königreich <b>ID: $new_kingdom_id</b> wurde erfolgreich gegründet und steht nun unter deinem Banner. Die restlichen Truppen kehren heim.";
+                    $atk_sub = "Das neue Königreich <b>" . e($founded_name) . "</b> wurde erfolgreich gegründet und steht nun unter deinem Banner. Die restlichen Truppen kehren heim.";
                     $message .= BattleReportRenderer::render_outcome_box("Neues Dorf gegründet", $atk_main, 0, 0, $atk_sub, "success");
+
+                    Logger::get_instance()->log_game("ECONOMY", "KINGDOM_FOUNDED", [
+                        "new_kingdom_id" => $new_kingdom_id,
+                        "new_name" => $founded_name,
+                        "x" => $target_x,
+                        "y" => $target_y
+                    ], $new_kingdom_id);
                 } else {
                     $message .= BattleReportRenderer::render_outcome_box("Gründungsfehler", "Obwohl das Land ideal schien, verhinderte ein Fehler den Bau.", 0, 0,
                         "Kontaktiere bitte den Support.", "error");
@@ -757,7 +816,13 @@ class EventManager
             } else {
                 $atk_main = "Die Gründung ist fehlgeschlagen.";
                 $atk_sub = "Die Siedler konnten sich nicht auf einen Standort einigen. Bei einer Erfolgschance von " . ($chance * 100) . "% haben sie aufgegeben und kehren um.";
-                $message .= BattleReportRenderer::render_outcome_box("Expedition gescheitert", $atk_main, 0, 0, $atk_sub, 'error');
+                $message .= BattleReportRenderer::render_outcome_box("Expedition gescheitert", $atk_main, 0, 0, $atk_sub, "error");
+
+                Logger::get_instance()->log_game("ECONOMY", "SETTLE_FAILED", [
+                    "x" => $target_x,
+                    "y" => $target_y,
+                    "reason" => "Error or not free"
+                ], $row["kingdomid"]);
             }
         } else {
             $atk_main = "Hier kann eine Siedlung errichtet werden.";
@@ -1284,7 +1349,8 @@ class EventManager
         }
     }
 
-    private function process_spy_mission(array $row, int $atk_scouts, Kingdom $home_k, Kingdom $enemy_k, User $attacker_user): void
+    private function process_spy_mission(array $row, int $atk_scouts, Kingdom $home_k, Kingdom $enemy_k, User $attacker_user,
+                                         int   $return_time): void
     {
         $enemy_owner_id = $enemy_k->get_kingdom_owner_id();
         $enemy_owner_name = $enemy_k->get_kingdom_owner_name();
@@ -1357,7 +1423,7 @@ class EventManager
         if ($survivors > 0) {
             $msg_atk = $this->generate_scout_report($atk_scouts, $atk_losses, $enemy_k);
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + 20, $event_id]);
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
             $msg_atk = "<div class='battle-report'>";
             $msg_atk .= BattleReportRenderer::render_outcome_box(
@@ -1396,7 +1462,7 @@ class EventManager
             update_global_stat("total_fallen_soldiers", ($atk_losses + $def_losses));
         }
 
-        Logger::get_instance()->log_game("MILITARY", "SPY_RESULT", [
+        Logger::get_instance()->log_game("COMBAT", "SPY_RESULT", [
             "attacker_id" => $attacker_id,
             "defender_id" => $enemy_owner_id,
             "target_coords" => $row["targetx"] . ":" . $row["targety"],
@@ -1429,7 +1495,14 @@ class EventManager
             "stone" => $enemy_k->get_kingdom_stone(),
             "gold" => $enemy_k->get_kingdom_gold()
         ];
-        $report .= BattleReportRenderer::render_scout_resource_bar($res);
+        $prod = [
+            "food" => $enemy_k->get_kingdom_food_per_hour(),
+            "wood" => $enemy_k->get_kingdom_wood_per_hour(),
+            "stone" => $enemy_k->get_kingdom_stone_per_hour(),
+            "gold" => $enemy_k->get_kingdom_gold_per_hour()
+        ];
+
+        $report .= BattleReportRenderer::render_scout_resource_bar($res, $prod);
 
         // TIER 2 & 3: Buildings
         if ($survivors >= 5) {
@@ -1455,7 +1528,7 @@ class EventManager
         // TIER 3: Troops
         if ($survivors >= 15) {
             $report .= "<div class='report-section-title' style='margin-top: 10px;'>Gegnerische Garnison</div>";
-            $report .= "<div style='display: flex; flex-wrap: wrap; gap: 10px;'>";
+            $report .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; justify-content: center;'>";
 
             $t_res = $this->mysqli->execute_query(
                 "SELECT s.soldiername, s.soldiercount, sl.icon 
@@ -1467,7 +1540,13 @@ class EventManager
 
             if ($t_res->num_rows > 0) {
                 while ($t = $t_res->fetch_assoc()) {
-                    $report .= "<div style='flex: 1 1 200px;'>" . BattleReportRenderer::render_unit_card($t["soldiername"], $t["soldiercount"], 0, $t["icon"], true) . "</div>";
+                    $report .= BattleReportRenderer::render_unit_card(
+                        $t["soldiername"],
+                        (int)$t["soldiercount"],
+                        0,
+                        $t["icon"],
+                        true
+                    );
                 }
             } else {
                 $report .= "<i>Keine Truppen stationiert.</i>";
@@ -1538,111 +1617,82 @@ class EventManager
         if ($raider_count > 0) {
             $home_k = new Kingdom($this->mysqli, $home_kingdom_id);
             $plunder_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
-            $max_capacity = (int)($raider_count * RAIDER_BASE_CAPACITY * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
-
-            // Plunder (proportional or all)
             $tile_total = $tile["food"] + $tile["wood"] + $tile["stone"] + $tile["gold"];
-            $total_to_take = min($max_capacity, $tile_total);
 
-            if ($total_to_take <= 0) {
-                $message = "<div class='battle-report'>";
-                $message .= BattleReportRenderer::render_outcome_box("Lager leer", "Das Lager ist bereits vollkommen leer.", 0, 0, "Rückzug ohne Beute.");
-                $message .= "</div>";
-
-                $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
-                return;
-            }
-
-            $can_clean_sweep = ($max_capacity >= $tile_total);
-
-            if ($can_clean_sweep) {
-                $loot_f = $tile["food"];
-                $loot_w = $tile["wood"];
-                $loot_s = $tile["stone"];
-                $loot_g = $tile["gold"];
-            } else {
-                $take_factor = $total_to_take / $tile_total;
-
-                $loot_f = (int)floor($tile["food"] * $take_factor);
-                $loot_w = (int)floor($tile["wood"] * $take_factor);
-                $loot_s = (int)floor($tile["stone"] * $take_factor);
-                $loot_g = (int)floor($tile["gold"] * $take_factor);
-
-                $loot_array = [
-                    "food" => $loot_f,
-                    "wood" => $loot_w,
-                    "stone" => $loot_s,
-                    "gold" => $loot_g
-                ];
-
-                foreach ($loot_array as $res_key => $amount) {
-                    if ($amount > 0) {
-                        $variation = mt_rand(MIN_PLUNDER_PERC, MAX_PLUNDER_PERC) / 100;
-                        $new_amount = (int)round($amount * $variation);
-                        $new_amount = min($new_amount, $tile[$res_key]);
-                        $loot_array[$res_key] = $new_amount;
-                    }
-                }
-
-                if (array_sum($loot_array) > $max_capacity) {
-                    $correction_factor = $max_capacity / array_sum($loot_array);
-                    foreach ($loot_array as $res_key => $amount) {
-                        $loot_array[$res_key] = (int)floor($amount * $correction_factor);
-                    }
-                }
-
-                $loot_f = $loot_array["food"];
-                $loot_w = $loot_array["wood"];
-                $loot_s = $loot_array["stone"];
-                $loot_g = $loot_array["gold"];
-            }
-            $total_actually_looted = $loot_f + $loot_w + $loot_s + $loot_g;
-
-            // Base risk: 5% of plunder
             $losses = 0;
 
-            if (mt_rand(1, 100) <= RAIDER_LOSS_CHANCE) { // 15% Danger chance
+            if (mt_rand(1, 100) <= RAIDER_LOSS_CHANCE) {
                 $loss_percent = mt_rand(5, RAIDER_LOSS_CHANCE) / 100;
                 $losses = (int)ceil($raider_count * $loss_percent);
 
-                // Score loss for fallen raiders
                 $res_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_RAIDER]);
-                $score_per_raider = $res_score->fetch_column() ?: 1;
-                $total_score_loss = $losses * $score_per_raider;
+                $total_score_loss = $losses * ($res_score->fetch_column() ?: 1);
+                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_user->get_user_id()]);
 
-                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(?, score - ?) WHERE id = ?", [STARTING_SCORE, $total_score_loss, $attacker_user->get_user_id()]);
-
-                // Reduce troops in event
                 if ($losses >= $raider_count) {
                     $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?", [$event_id, Soldiers::SOLDIER_RAIDER]);
 
-                    $losses = $raider_count; // Everyone dead
+                    $losses = $raider_count;
                 } else {
                     $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_RAIDER]);
                 }
             }
 
             $survivors = $raider_count - $losses;
+            $loot_f = $loot_w = $loot_s = $loot_g = 0;
+            $total_actually_looted = 0;
 
             if ($survivors > 0) {
-                $survivor_max_cap = (int)($survivors * RAIDER_BASE_CAPACITY * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
+                $survivor_base_cap = (int)($survivors * RAIDER_BASE_CAPACITY * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
 
-                if ($total_actually_looted > $survivor_max_cap && $total_actually_looted > 0) {
-                    $reduction_factor = $survivor_max_cap / $total_actually_looted;
+                if ($survivor_base_cap >= $tile_total) {
+                    $loot_f = $tile["food"];
+                    $loot_w = $tile["wood"];
+                    $loot_s = $tile["stone"];
+                    $loot_g = $tile["gold"];
+                } else {
+                    $efficiency = mt_rand(MIN_PLUNDER_PERC, MAX_PLUNDER_PERC) / 100;
+                    $total_to_take = min($tile_total, (int)($survivor_base_cap * $efficiency));
 
-                    $loot_f = (int)floor($loot_f * $reduction_factor);
-                    $loot_w = (int)floor($loot_w * $reduction_factor);
-                    $loot_s = (int)floor($loot_s * $reduction_factor);
-                    $loot_g = (int)floor($loot_g * $reduction_factor);
+                    $take_factor = $total_to_take / $tile_total;
 
-                    $total_actually_looted = $loot_f + $loot_w + $loot_s + $loot_g;
+                    $loot_f = (int)floor($tile["food"] * $take_factor);
+                    $loot_w = (int)floor($tile["wood"] * $take_factor);
+                    $loot_s = (int)floor($tile["stone"] * $take_factor);
+                    $loot_g = (int)floor($tile["gold"] * $take_factor);
 
-                    update_player_stat($attacker_user->get_user_id(), "resources_looted", $total_actually_looted);
+                    $loot_array = [
+                        "food" => $loot_f,
+                        "wood" => $loot_w,
+                        "stone" => $loot_s,
+                        "gold" => $loot_g
+                    ];
+
+                    foreach ($loot_array as $res_key => $amount) {
+                        if ($amount > 0) {
+                            $variation = mt_rand(MIN_PLUNDER_PERC, MAX_PLUNDER_PERC) / 100;
+                            $new_amount = (int)round($amount * $variation);
+                            $loot_array[$res_key] = min($new_amount, $tile[$res_key]);
+                        }
+                    }
+
+                    $current_total = array_sum($loot_array);
+                    if ($current_total > $survivor_base_cap) {
+                        $correction_factor = $survivor_base_cap / $current_total;
+                        foreach ($loot_array as $res_key => $amount) {
+                            $loot_array[$res_key] = (int)floor($amount * $correction_factor);
+                        }
+                    }
+
+                    $loot_f = $loot_array["food"];
+                    $loot_w = $loot_array["wood"];
+                    $loot_s = $loot_array["stone"];
+                    $loot_g = $loot_array["gold"];
                 }
-            } else {
-                // No one survived -> no loot
-                $loot_f = $loot_w = $loot_s = $loot_g = 0;
-                $total_actually_looted = 0;
+
+                $total_actually_looted = $loot_f + $loot_w + $loot_s + $loot_g;
+
+                update_player_stat($attacker_user->get_user_id(), "resources_looted", $total_actually_looted);
             }
 
             // Build message
@@ -1652,7 +1702,7 @@ class EventManager
             if ($loot_s > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_STONE] = $loot_s;
             if ($loot_g > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_GOLD] = $loot_g;
 
-            $is_empty = (($tile_total - $total_actually_looted) < 20);
+            $is_empty = (($tile_total - $total_actually_looted) <= 5);
             $coords = "(<a href='#' data-on-click='mapJump' data-x='$target_x' data-y='$target_y'>$target_x:$target_y</a>)";
 
             $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
@@ -1693,16 +1743,24 @@ class EventManager
                     [$loot_f, $loot_w, $loot_s, $loot_g, $target_x, $target_y]);
             }
 
-            // Save loot
-            $this->mysqli->execute_query(
-                "UPDATE events SET loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ? WHERE eventid = ?",
-                [$loot_f, $loot_w, $loot_s, $loot_g, $event_id]
-            );
+            // Save loot / Update event
+            if ($survivors > 0) {
+                $this->mysqli->execute_query(
+                    "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
+                    [ActionTypes::ACTION_RETURN_TROOPS, time() + (int)($row["arrivaltime"] - $row["buildingtime"]), $loot_f, $loot_w, $loot_s, $loot_g, $event_id]
+                );
+            } else {
+                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            }
         } else {
             $message = "<div class='battle-report'>";
-            $message .= BattleReportRenderer::render_outcome_box("Keine Räuber", "Ohne spezialisierte Räuber können wir diese massiven Vorräte nicht abtransportieren.", 0, 0,
+            $message .= BattleReportRenderer::render_outcome_box("Keine Räuber",
+                "Ohne spezialisierte Räuber können wir diese massiven Vorräte nicht abtransportieren.", 0, 0,
                 "Die Truppen kehren unverrichteter Dinge um.");
             $message .= "</div>";
+
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + (int)($row["arrivaltime"] - $row["buildingtime"]), $event_id]);
         }
 
         Logger::get_instance()->log_game("ECONOMY", "TILE_PLUNDER", [
@@ -1799,7 +1857,7 @@ class EventManager
 
         update_player_stat($u_id, "spy_count");
 
-        Logger::get_instance()->log_game("MILITARY", "TILE_SPY", [
+        Logger::get_instance()->log_game("COMBAT", "TILE_SPY", [
             "target_coords" => "$tx:$ty",
             "scouts_sent" => $atk_scouts,
             "scouts_lost" => $losses,

@@ -159,8 +159,8 @@ if ($arch_lvl > 0) {
 
 $carto_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CARTOGRAPHY);
 if ($carto_lvl > 0) {
-    $reduction = (1 - $kingdom->get_march_speed_multiplier()) * 100;
-    $boni_view .= "<tr><td>Kartografie:</td><td class='passed'>-" . round($reduction, 1) . "% Marschzeit</td></tr>";
+    $percent = ($carto_lvl * CARTOGRAPHY_SPEED_BONUS) * 100;
+    $boni_view .= "<tr><td>Kartografie:</td><td class='passed'>-$percent% Marschzeit</td></tr>";
 }
 
 $maint_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_MAINTENANCE);
@@ -183,8 +183,8 @@ if ($rites_lvl > 0) {
 
 $settlement_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
 if ($settlement_lvl > 0) {
-    $effekt = BASE_SETTLEMENT_LIMIT + $settlement_lvl;
-    $boni_view .= "<tr><td>Siedlungsgründungen:</td><td class='passed'>$effekt Siedlungen</td></tr>";
+    $effect = BASE_SETTLEMENT_LIMIT + $settlement_lvl;
+    $boni_view .= "<tr><td>Siedlungsgründungen:</td><td class='passed'>$effect Siedlungen</td></tr>";
 }
 
 if (!empty($boni_view)) {

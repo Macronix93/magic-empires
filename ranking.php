@@ -42,8 +42,8 @@ foreach ($result as $row) {
     $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $icon = "";
     $change = "";
-    $color = ($now - $last_active > TIMEOUT_MAX_SECONDS) ? "#F55353" : ($now - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
-    $last_activity = ($last_active == 0) ? "Nicht verfügbar" : (date("d.m.Y", $last_active) . " um " . date("H:i:s", $last_active) . " " . ($inactive ? "(Inaktiv)" : ""));
+    $color = ($now - $last_active > ONLINE_MAX_SECONDS) ? "#F55353" : ($now - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
+    $last_activity = ($last_active == 0) ? "Nicht verfügbar" : (date("d.m.Y", $last_active) . " um " . date("H:i:s", $last_active) . " Uhr " . ($inactive ? "(Inaktiv)" : ""));
     $diff = $row["lastrank"] - $position; // Check last rank (since 00:00) and compare with current rank
 
     // Get user image

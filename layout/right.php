@@ -194,15 +194,23 @@
                 $building_obj->set_building_id($building["buildingid"]);
                 $building_obj->set_building_name($building["buildingname"]);
 
-                $display_name = e($building["buildingname"]);
-                if ($building["buildingid"] == BuildingTypes::BUILDING_MARKETPLACE && $total_market_offers > 0) {
-                    $display_name .= "&nbsp;<span style='color: var(--link-color); font-weight: bold;'>($total_market_offers)</span>";
-                }
+                $is_market = ($building["buildingid"] == BuildingTypes::BUILDING_MARKETPLACE);
+                $active_class = ($current_page === $building_file ? ' active' : '');
 
-                echo "<div class='menu-icons-small box" . ($current_page === $building_file ? ' active' : '') . "' 
+                echo "<div class='menu-icons-small box$active_class' 
                            data-on-click='navigate' 
                            data-url='" . e($building_file) . "'>
-                           " . $building_obj->get_building_icon("menu-icons") . " " . $display_name . "</div>";
+                        <div class='split-content' style='width: 100%; align-items: center;'>
+                            <div style='display: flex; align-items: center;'>
+                                " . $building_obj->get_building_icon("menu-icons") . " 
+                                " . e($building["buildingname"]) . "
+                            </div>";
+
+                if ($is_market && $total_market_offers > 0) {
+                    echo "<span style='color: var(--link-color); font-weight: bold;'>($total_market_offers)</span>";
+                }
+
+                echo "</div></div>";
             }
             ?>
         </div>

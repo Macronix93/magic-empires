@@ -506,6 +506,22 @@ if (!$user->is_admin()) {
                 $view .= '<span class="passed">Keine Treffer</span>';
             }
             $view .= '</td></tr>';
+            $view .= '<tr><td style="width: 30%;">Proxy/VPN Info:</td><td>';
+
+            $proxy_data = check_ip_proxy($row["ip"]);
+
+            if ($proxy_data) {
+                if ($proxy_data["proxy"] === "yes") {
+                    $view .= '<b class="error">WARNUNG: Proxy/VPN erkannt!</b><br>';
+                    $view .= 'Typ: ' . e($proxy_data["type"]) . '<br>';
+                } else {
+                    $view .= '<span class="passed">Kein Proxy erkannt</span><br>';
+                }
+                $view .= '<small>Provider: ' . e($proxy_data["isp"]) . '</small>';
+            } else {
+                $view .= '<i>Check momentan nicht verfügbar.</i>';
+            }
+            $view .= '</td></tr>';
             $view .= "</table>";
 
             // Display kingdoms
@@ -672,6 +688,46 @@ if (!$user->is_admin()) {
                 </div>";
     }
     $view .= "</div>";
+    $view .= "<br><hr><div class='title-border'>Gelöschte Chats</div>";
+
+    $backup_dir = __DIR__ . "/logs/chat_backups/";
+    $backups = [];
+
+    if (is_dir($backup_dir)) {
+        $files = glob($backup_dir . "chat_log_*.log");
+
+        usort($files, function ($a, $b) {
+            return filemtime($b) - filemtime($a);
+        });
+
+        foreach ($files as $f) {
+            $backups[] = basename($f);
+        }
+    }
+
+    if (empty($backups)) {
+        $view .= "<p style='text-align:center; opacity:0.6;'>Keine Backups vorhanden.</p>";
+    } else {
+        $view .= "<div class='box-container' style='max-height: 300px; overflow-y: auto; margin: 0 auto; width: 90%;'>";
+        $view .= "<table class='table' style='width: 100%; border:none;'>";
+
+        foreach ($backups as $b_file) {
+            $parts = explode('_', $b_file);
+            $display_info = "Log: " . ($parts[2] ?? "?") . " vs " . ($parts[4] ?? "?");
+            $date_part = str_replace('.log', '', $parts[5] ?? "");
+
+            $url = "ajax/admin_log_view.php?file=$b_file&sub=chat_backups";
+
+            $view .= "<tr>
+                    <td style='font-size: 13px;'>$display_info</td>
+                    <td style='font-size: 11px; opacity:0.7;'>$b_file</td>
+                    <td class='td-center'>
+                        <button data-on-click='openOverlay' data-url='$url' data-title='Chat-Backup' style='font-size: 11px; padding: 2px 8px;'>Ansehen</button>
+                    </td>
+                  </tr>";
+        }
+        $view .= "</table></div>";
+    }
 
     // Display all users
     $result = $db_instance->execute_query("SELECT id, username FROM users");
@@ -712,34 +768,38 @@ if (!$user->is_admin()) {
         [$offset_logs, $rows_per_page_logs]
     );
 
-    $view .= "<table class='table'>
+    $view .= "<table class='table logs-table'>
+            <thead>
             <tr>
-                <td class='td-gradient'><b>ID</b></td>
-                <td class='td-gradient'><b>Spieler</b></td>
-                <td class='td-gradient'><b>Kat.</b></td>
-                <td class='td-gradient'><b>Aktion</b></td>
-                <td class='td-gradient'><b>Datum</b></td>
-                <td class='td-gradient'><b></b></td>
-            </tr>";
-
+                <th class='td-gradient'>ID</th>
+                <th class='td-gradient'>Spieler</th>
+                <th class='td-gradient'>Info / Aktion</th>
+                <th class='td-gradient'>Datum</th>
+                <th class='td-gradient'></th>
+            </tr>
+            </thead>";
     if ($logs->num_rows > 0) {
         foreach ($logs as $l) {
-            $user_display = $l['username'] ? e($l['username']) . " <small>({$l['userid']})</small>" : "<i>System / Gast</i>";
+            $user_display = $l['username'] ? e($l['username']) . " <small>({$l['userid']})</small>" : "<i>System</i>";
+
+            $action_clean = str_replace('_', ' ', $l['action']);
 
             $view .= "<tr>
-                    <td>{$l['id']}</td>
-                    <td>$user_display</td>
-                    <td><small>{$l['category']}</small></td>
-                    <td style='word-break: break-all'>{$l['action']}</td>
-                    <td style='font-size: 13px;'>" . date("d.m. H:i:s", $l['created_at']) . "</td>
-                    <td class='td-center'>
-                        <a href='#' 
-                           data-on-click='confirmDeleteLog' 
-                           data-id='{$l['id']}'>
-                            <img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'>
-                        </a>
-                    </td>
-                  </tr>";
+                <td class='log-id'>{$l['id']}</td>
+                <td class='log-player'>$user_display</td>
+                <td class='log-content'>
+                    <div class='log-stack'>
+                        <span class='log-cat'>[" . e($l['category']) . "]</span>
+                        <span class='log-action-text'>$action_clean</span>
+                    </div>
+                </td>
+                <td class='log-date'>" . date("d.m.Y H:i:s", $l['created_at']) . "</td>
+                <td class='td-center'>
+                    <a href='#' data-on-click='confirmDeleteLog' data-id='{$l['id']}'>
+                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='X'>
+                    </a>
+                </td>
+              </tr>";
         }
     } else {
         $view .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";

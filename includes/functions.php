@@ -81,10 +81,10 @@ function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_se
 
     if ($short_format) {
         if ($days > 0 && $hours == 0 && $minutes == 0 && $seconds == 0) {
-            return $days . "d";
+            return $days . "T";
         }
 
-        $out = ($days > 0) ? $days . "d " : "";
+        $out = ($days > 0) ? $days . "T " : "";
         return $out . sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
     }
 
@@ -233,15 +233,42 @@ function send_mail(string $to, string $subject, string $body): bool
             ]
         ];
 
-        $mail->setFrom(getenv('MAIL_FROM'), getenv('MAIL_NAME'));
+        $mail_name = trim(getenv("MAIL_NAME"), '"\'');
+        $mail->setFrom(getenv("MAIL_FROM"), $mail_name);
         $mail->addAddress($to);
 
         $mail->isHTML();
         $mail->CharSet = "UTF-8";
         $mail->Subject = $subject;
 
-        $mail->Body = "<html lang='de'><head><meta charset='UTF-8'></head><body>" . $body . "</body></html>";
-        $mail->AltBody = strip_tags(str_replace(['<br>', '<br />', '</h1>', '</h2>', '</p>'], ["\n", "\n", "\n\n", "\n\n", "\n\n"], $body));
+        $mail->Body = "
+        <div style='background-color: #1a120b; padding: 40px 10px; font-family: Georgia, serif; color: #e6dcce; text-align: center;'>
+            <table style='max-width: 600px; width: 100%; margin: 0 auto; background-color: #2d2a26; border: 3px double #a57c00; border-collapse: collapse; border-spacing: 0;'>
+                <thead>
+                    <tr>
+                        <th style='padding: 20px; border-bottom: 2px solid #a57c00; font-weight: normal;'>
+                            <h1 style='color: #d4af37; margin: 0; font-variant: small-caps; letter-spacing: 2px; font-size: 30px;'>Magic Empires</h1>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style='padding: 30px; line-height: 1.6; font-size: 16px; color: #e6dcce; text-align: left;'>
+                            $body
+                        </td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td style='padding: 15px; background-color: #23201c; font-size: 12px; color: rgba(230, 220, 200, 0.5); border-top: 1px solid rgba(165, 124, 0, 0.3); text-align: center;'>
+                            &copy; " . date("Y") . " Magic Empires
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>";
+
+        $mail->AltBody = strip_tags(str_replace(['<br>', '</p>'], ["\n", "\n\n"], $body));
 
         $mail->send();
         return true;
@@ -349,7 +376,7 @@ function get_chat_emojis(): array
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
         '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭',
         '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '🫡',
-        '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴'
+        '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
 }
 
@@ -694,4 +721,26 @@ function update_player_stat(int $user_id, string $column, $increment = 1): void
               ON DUPLICATE KEY UPDATE `$column` = `$column` + VALUES(`$column`)";
 
     $db_instance->execute_query($query, [$user_id, $increment]);
+}
+
+function check_ip_proxy($ip): array|null
+{
+    $api_url = "https://proxycheck.io/v2/" . $ip . "?vpn=1&asn=1";
+    $context = stream_context_create(["http" => ["timeout" => 2]]);
+    $response = @file_get_contents($api_url, false, $context);
+
+    if ($response === false) {
+        return null;
+    }
+
+    $details = json_decode($response);
+
+    if (isset($details->$ip)) {
+        return [
+            "proxy" => $details->$ip->proxy ?? "no",
+            "type" => $details->$ip->type ?? "none",
+            "isp" => $data->is ?? $data->asn ?? "Unbekannt"
+        ];
+    }
+    return null;
 }

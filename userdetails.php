@@ -34,8 +34,8 @@ $view = "
 <table class='table' style='max-width: 600px;'>
     <tr><td><b>Spieler-ID:</b></td><td>#{$data["id"]}</td></tr>
     <tr><td><b>E-Mail Adresse:</b></td><td>{$data["email"]}</td></tr>
-    <tr><td><b>Registriert seit:</b></td><td>" . date("d.m.Y H:i", $data["registerdate"]) . " Uhr</td></tr>
-    <tr><td><b>Letzter Login:</b></td><td>" . date("d.m.Y H:i", $data["lastlogin"]) . " Uhr</td></tr>
+    <tr><td><b>Registriert seit:</b></td><td>" . date("d.m.Y H:i:s", $data["registerdate"]) . " Uhr</td></tr>
+    <tr><td><b>Letzter Login:</b></td><td>" . date("d.m.Y H:i:s", $data["lastlogin"]) . " Uhr</td></tr>
     <tr><td><b>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
 </table>
 

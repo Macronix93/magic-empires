@@ -16,7 +16,7 @@ $user_id = (int)($_GET["userid"] ?? 0);
 
 if ($user_id) {
     $query = "
-        SELECT users.id, users.username, users.lastactivity, users.guildid, 
+        SELECT users.id, users.username, users.lastactivity, users.guildid, users.registerdate,
                users.ranking_points AS score,
                kingdoms.mapx, kingdoms.mapy
         FROM users
@@ -38,6 +38,7 @@ if ($user_id) {
     $last_activity = $row["lastactivity"];
     $score = $row["score"];
     $guild_id = $row["guildid"];
+    $register_date = $row["registerdate"];
     $x = $row["mapx"];
     $y = $row["mapy"];
 
@@ -69,7 +70,13 @@ if ($user_id) {
         </tr>
         <tr>
             <td><b>Letzte Aktivität</b></td>
-            <td><?= $last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y", $last_activity) . " um " . date("H:i:s", $last_activity) ?></td>
+            <td><?= $last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y \u\m  H:i:s", $last_activity) ?>
+                Uhr
+            </td>
+        </tr>
+        <tr>
+            <td><b>Registriert seit</b></td>
+            <td><?= date("d.m.Y H:i:s", $register_date) ?> Uhr</td>
         </tr>
         <tr>
             <td><b>Punkte</b></td>

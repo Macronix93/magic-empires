@@ -65,7 +65,7 @@
                     <b>Zugriffsschutz:</b> Die Sicherheit der Zugangsdaten liegt in der alleinigen Verantwortung des
                     Spielers. Dies gilt insbesondere für Schäden durch unbefugte Weitergabe oder die Wahl eines
                     unsicheren Passworts. Ein sicheres Passwort sollte mindestens 8 Zeichen lang sein und eine
-                    Kombination aus Buchstaben (Groß- und Kleinbuchstaben) und Zahlen enthalten.
+                    Kombination aus Buchstaben (Groß- und Kleinbuchstaben), Zahlen und Sonderzeichen enthalten.
                 </td>
             </tr>
             <tr>

@@ -205,13 +205,63 @@ if (isset($_GET["action"])) {
         if (empty($chat_partner_id)) {
             change_location("messages.php?privmsgs");
         } else {
-            $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?) LIMIT 1";
-            $result = $db_instance->execute_query($query, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
+            $res_p = $db_instance->execute_query("SELECT username, ip FROM users WHERE id = ?", [$chat_partner_id]);
+            $partner_data = $res_p->fetch_assoc();
+            $partner_name = $partner_data["username"] ?? "Unbekannt";
+            $partner_ip = $partner_data["ip"] ?? "0.0.0.0";
 
-            if ($result->num_rows == 0) {
+            $res_me = $db_instance->execute_query("SELECT username, ip FROM users WHERE id = ?", [$user_id]);
+            $me_data = $res_me->fetch_assoc();
+            $my_name = $me_data["username"];
+            $my_ip = $me_data["ip"] ?? "0.0.0.0";
+
+            $query_msgs = "SELECT sender, date, message FROM messages 
+                   WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?) 
+                   ORDER BY date";
+            $res_msgs = $db_instance->execute_query($query_msgs, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
+
+            if ($res_msgs->num_rows == 0) {
                 $error = "Du hast keine Konversation mit diesem Nutzer!";
                 $view = $messages->show_private_inbox();
             } else {
+                $log_dir = __DIR__ . "/logs/chat_backups/";
+
+                if (!is_dir($log_dir)) {
+                    mkdir($log_dir, 0755, true);
+                }
+
+                $filename = "chat_log_{$user_id}_vs_{$chat_partner_id}_" . date("Y-m-d_H-i-s") . ".log";
+
+                $log_text = "=== CHAT BACKUP (Geloescht am " . date("d.m.Y H:i:s") . ") ===\n";
+                $log_text .= "Loeschender User: $my_name (ID: $user_id | IP: $my_ip)\n";
+                $log_text .= "Chat-Partner:    $partner_name (ID: $chat_partner_id | IP: $partner_ip)\n";
+                $log_text .= "--------------------------------------------------\n\n";
+
+                foreach ($res_msgs as $m) {
+                    $msg_date = date("d.m.Y H:i:s", $m["date"]);
+
+                    $clean_msg = str_replace(["<br>", "<br />"], "\n", $m["message"]);
+                    $clean_msg = strip_tags($clean_msg);
+                    $clean_msg = trim($clean_msg);
+
+                    if ($clean_msg !== "") {
+                        $log_text .= "[$msg_date] {$m["sender"]}: $clean_msg\n";
+                    }
+                }
+
+                file_put_contents($log_dir . $filename, $log_text);
+
+                if ($partner_data) {
+                    $notice = "<div class='battle-report'>";
+                    $notice .= BattleReportRenderer::render_outcome_box(
+                        "Konversation beendet",
+                        "Der Spieler <b>$my_name</b> hat die Konversation mit dir gelöscht und den Chat beendet."
+                    );
+                    $notice .= "</div>";
+
+                    send_server_message($chat_partner_id, $partner_name, $notice);
+                }
+
                 $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
                 $db_instance->execute_query($query, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
 
@@ -224,13 +274,6 @@ if (isset($_GET["action"])) {
 }
 
 if (isset($_GET["worldchat"])) {
-    $view .= "
-                <div class='msg-back-button-container'>
-                    <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>
-                        Zurück
-                    </button>
-                </div>
-    ";
     $view .= $messages->show_world_chat();
 
     $max_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
@@ -240,7 +283,7 @@ if (isset($_GET["worldchat"])) {
 } else if (isset($_GET["servermsgs"])) {
     $view .= "<div class='msg-back-button-container'>
                 <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
-                <button class='btn-delete' style='width: auto; height: auto; padding: 5px 10px;' data-on-click='confirmDeleteAllServer'>Alle löschen</button>
+                <button class='btn-delete' data-on-click='confirmDeleteAllServer'>Alle löschen</button>
             </div>
     ";
 
@@ -286,17 +329,6 @@ if (isset($_GET["worldchat"])) {
     </div>";
     if ($server > 0) {
         $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($server) . "</span>";
-    }
-    $view .= "</a>";
-
-    // World Messages Button
-    $view .= "<a href='messages.php?worldchat' class='msg-button'>
-    <div class='msg-left'>
-        <span>🌍</span>
-        <span>Welt-Chat</span>
-    </div>";
-    if ($world > 0) {
-        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($world) . "</span>";
     }
     $view .= "</a>";
 

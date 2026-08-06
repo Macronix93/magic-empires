@@ -276,7 +276,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $confirm_pw = $_POST['confirm_pw_delete'] ?? "";
             $confirm_word = $_POST['confirm_word'] ?? "";
 
-            $res = $db_instance->execute_query("SELECT password, username FROM users WHERE id = ?", [$uid]);
+            $res = $db_instance->execute_query("SELECT password, username, email FROM users WHERE id = ?", [$uid]);
             $u_data = $res->fetch_assoc();
 
             if (!password_verify($confirm_pw, $u_data['password'])) {
@@ -284,11 +284,39 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else if ($confirm_word !== "LOESCHEN") {
                 $error = "Bestätigungswort falsch.";
             } else {
+                $deleted_username = $u_data['username'];
+
                 $block_until = time() + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
                 $db_instance->execute_query("INSERT INTO blocked_emails (email, blocked_until) VALUES (?, ?)", [$u_data['email'], $block_until]);
-                $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
-                $logger->log_game("ACCOUNT", "SELF_DELETION", ["user" => $u_data['username']]);
+                $db_instance->execute_query("
+                    UPDATE events SET 
+                        actionid = ?, 
+                        arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - buildingtime),
+                        targetid = -1, 
+                        is_processing = 0 
+                    WHERE targetid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                      AND actionid = ?", [ActionTypes::ACTION_RETURN_TROOPS, $uid, ActionTypes::ACTION_SEND_TROOPS]);
+
+                $db_instance->execute_query("
+                    UPDATE events e
+                    JOIN kingdoms k_source ON e.targetid = k_source.id
+                    SET 
+                        e.actionid = ?,
+                        e.arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - e.buildingtime),
+                        e.targetx = k_source.mapx,
+                        e.targety = k_source.mapy,
+                        e.kingdomid = e.targetid,
+                        e.targetid = -1,
+                        e.buildingname = 'Transport-Rückkehr',
+                        e.is_processing = 0 
+                    WHERE e.kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                      AND e.userid != ?
+                      AND e.actionid = ?", [ActionTypes::ACTION_RETURN_RESOURCES, $uid, $uid, ActionTypes::ACTION_RECEIVE_RESOURCES]);
+
+                $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $deleted_username, "email" => $u_data['email']]);
+
+                $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
                 session_destroy();
                 setcookie("logout_token", "deleted", time() + 20, "/", "", false, true);
