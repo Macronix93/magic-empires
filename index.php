@@ -35,7 +35,14 @@ if (!empty($_GET["key"])) {
         $username = $user_data["username"];
 
         if (!$user_data["status"]) {
-            $db_instance->execute_query("UPDATE users SET status = true, activationkey = '' WHERE id = ?", [$user_id]);
+            $max_news_id = $db_instance->query("SELECT MAX(id) FROM news")->fetch_row()[0] ?? 0;
+            $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
+
+            $db_instance->execute_query(
+                    "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ? WHERE id = ?",
+                    [$max_news_id, $max_chat_id, $user_id]
+            );
+
             $kingdom = new Kingdom($db_instance);
             $main_kingdom = $kingdom->create_kingdom($user_id, $username);
 
@@ -224,7 +231,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $error .= "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -<br>";
                     } else if (!empty($bad_names_matches) || contains_bad_words($name, $bad_names_list) || preg_match_all(regex_pattern(), $name, $matches)) {
                         $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
-                    } else if (strlen($name) < MIN_USERNAME_LENGTH || strlen($name) > MAX_USERNAME_LENGTH) {
+                    } else if (mb_strlen($name) < MIN_USERNAME_LENGTH || mb_strlen($name) > MAX_USERNAME_LENGTH) {
                         $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
                     } else if (is_name_monotonous($name)) {
                         $error .= "Dieser Benutzername ist zu eintönig!<br>";
@@ -236,8 +243,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error .= "Bitte E-Mail angeben!<br>";
             } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $error .= "Falsches E-Mail Format!<br>";
+            } else if (strlen($email) > MAX_EMAIL_LENGTH) {
+                $error .= "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!<br>";
             } else {
-                if (str_ends_with(strtolower($email), "@magic-empires.de")) {
+                if (str_ends_with(strtolower($email), "@magic-empires.de") ||
+                        str_ends_with(strtolower($email), "@sylvan-giese.de")) {
                     $error .= "Diese E-Mail-Adresse ist nicht gestattet!<br>";
                 } else {
                     $domain = substr(strrchr($email, "@"), 1);
@@ -451,7 +461,7 @@ $count_online = $res_online->fetch_row()[0];
                                                     <input type="checkbox" name="accept_rules" value="1"
                                                            style="width: auto;" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
                                                     <span>Ich akzeptiere die <a href="rules.php" target="_blank"
-                                                                                style="text-decoration: underline; color: var(--link-color);">Regeln</a> und Datenschutzbestimmungen.</span>
+                                                                                style="text-decoration: underline; color: var(--link-color);">Regeln</a>.</span>
                                                 </label>
                                             </td>
                                         </tr>

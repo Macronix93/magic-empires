@@ -736,11 +736,63 @@ function check_ip_proxy($ip): array|null
     $details = json_decode($response);
 
     if (isset($details->$ip)) {
+        $ip_info = $details->$ip;
+
         return [
-            "proxy" => $details->$ip->proxy ?? "no",
-            "type" => $details->$ip->type ?? "none",
-            "isp" => $data->is ?? $data->asn ?? "Unbekannt"
+            "proxy" => $ip_info->proxy ?? "no",
+            "type" => $ip_info->type ?? "none",
+            "isp" => $ip_info->is ?? $ip_info->asn ?? "Unbekannt"
         ];
     }
     return null;
+}
+
+function check_for_incoming_attacks(int $uid, mysqli $db): array
+{
+    $now = time();
+
+    $query = "
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety
+        FROM events e
+        JOIN kingdoms k ON e.targetid = k.id
+        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
+        WHERE k.userid = ? 
+          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+          AND e.is_processing = 0
+          AND e.arrivaltime > ?
+          AND (e.arrivaltime - ?) <= (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ")
+        ORDER BY e.arrivaltime
+    ";
+
+    $result = $db->execute_query($query, [$uid, $now, $now]);
+    $attacks = $result->fetch_all(MYSQLI_ASSOC);
+
+    $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
+    foreach ($attacks as &$attack) {
+        $attack["is_new"] = !in_array($attack["eventid"], $ack_ids);
+    }
+
+    return $attacks;
+}
+
+function format_time_for_js(int $totalSeconds): string
+{
+    if ($totalSeconds <= 0) return "00:00";
+
+    $days = floor($totalSeconds / 86400);
+    $hours = floor(($totalSeconds % 86400) / 3600);
+    $minutes = floor(($totalSeconds % 3600) / 60);
+    $seconds = $totalSeconds % 60;
+
+    $h_display = str_pad($hours, 2, '0', STR_PAD_LEFT);
+    $m_display = str_pad($minutes, 2, '0', STR_PAD_LEFT);
+    $s_display = str_pad($seconds, 2, '0', STR_PAD_LEFT);
+
+    if ($days > 0) {
+        return $days . "T " . $h_display . ":" . $m_display . ":" . $s_display;
+    } else if ($hours > 0) {
+        return $h_display . ":" . $m_display . ":" . $s_display;
+    } else {
+        return $m_display . ":" . $s_display;
+    }
 }

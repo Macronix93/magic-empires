@@ -377,10 +377,15 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
             }
 
             $first_active_cat = -1;
-            foreach ($category_counts as $cat_id => $count) {
-                if ($count > 0) {
-                    $first_active_cat = $cat_id;
-                    break;
+            $requested_mode = $_GET['mode'] ?? '';
+            if (in_array($requested_mode, ["plunder", "spy", "scout"])) {
+                $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
+            } else {
+                foreach ($category_counts as $cat_id => $count) {
+                    if ($count > 0) {
+                        $first_active_cat = $cat_id;
+                        break;
+                    }
                 }
             }
 

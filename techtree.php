@@ -14,6 +14,7 @@ $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
+$view .= '<div class="title-border">Gebäude-Struktur</div>';
 $view .= '<table class="table">
     <tr>
         <td class="td-center td-gradient" colspan="2">
@@ -58,60 +59,71 @@ for ($i = 0; $i < count($buildings); $i++) {
 
 $view .= '</table><br>';
 
-$view .= '<table class="table">
-    <tr>
-        <td class="td-center td-gradient" colspan="2">
-            <b>Forschung</b></td>
-        <td class="td-center td-gradient">
-            <b>Voraussetzungen</b></td>
-    </tr>';
+$uni_techs = [];
+$smithy_techs = [];
 
-for ($i = 0; $i < count($techs); $i++) {
-    $current_tech_level = $techs[$i]->get_tech_level();
-    $tech_dependencies = $techs[$i]->get_tech_dependencies();
-    $dependency_text = "";
-
-    if (!empty($tech_dependencies)) {
-        foreach ($tech_dependencies as $dependency) {
-            // Building dependency
-            if (isset($dependency["dependencyid"]) && $dependency["dependencyid"] !== -1) {
-                $building_level_needed = $dependency["dependencylevel"];
-                $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
-
-                $dependency_text .= $building_level_needed > $building_level_current
-                    ? " <span class='error' style='white-space: nowrap;'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>"
-                    : " <span class='passed' style='white-space: nowrap;'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($building_level_needed)</span>";
-            }
-
-            // Tech dependency
-            if (isset($dependency["techdepid"]) && $dependency["techdepid"] !== -1) {
-                $tech_level_needed = $dependency["techdeplevel"];
-                $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
-
-                $dependency_text .= $tech_level_needed > $tech_level_current
-                    ? " <span class='error' style='white-space: nowrap;'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>"
-                    : " <span class='passed' style='white-space: nowrap;'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($tech_level_needed)</span>";
-            }
-        }
+foreach ($techs as $t) {
+    if ($t->get_tech_id() >= TechTypes::TECH_TYPE_BLADES) {
+        $smithy_techs[] = $t;
+    } else {
+        $uni_techs[] = $t;
     }
-
-    $view .= "<tr>
-                <td class='td-center' style='width: 5%;'>{$techs[$i]->get_tech_icon()}</td>
-                <td style='width: 35%;'>
-                    <a href='#' 
-                       data-on-click='openOverlay' 
-                       data-url='techinfo.php?tid=" . e($i) . "' 
-                       data-title='Tech-Info'>
-                        {$techs[$i]->get_tech_name()} ($current_tech_level)
-                    </a>
-                </td>
-                <td>$dependency_text</td>
-              </tr>";
 }
 
-$view .= '</table>';
+$renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, $techs) {
+    $html = '<div class="title-border">' . $title . '</div>';
+    $html .= '<table class="table">
+        <tr>
+            <td class="td-center td-gradient" colspan="2"><b>Forschung</b></td>
+            <td class="td-center td-gradient"><b>Voraussetzungen</b></td>
+        </tr>';
 
-$view .= '<br><table class="table">
+    foreach ($tech_array as $t) {
+        $current_tech_level = $t->get_tech_level();
+        $tech_dependencies = $t->get_tech_dependencies();
+        $dependency_text = "";
+
+        if (!empty($tech_dependencies)) {
+            foreach ($tech_dependencies as $dependency) {
+                // Building dependencies
+                if (isset($dependency["dependencyid"]) && $dependency["dependencyid"] !== -1) {
+                    $needed = $dependency["dependencylevel"];
+                    $current = $buildings[$dependency["dependencyid"]]->get_building_level();
+                    $class = ($needed > $current) ? 'error' : 'passed';
+                    $dependency_text .= " <span class='$class' style='white-space: nowrap;'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($needed)</span>";
+                }
+                // Tech dependencies
+                if (isset($dependency["techdepid"]) && $dependency["techdepid"] !== -1) {
+                    $needed = $dependency["techdeplevel"];
+                    $current = $techs[$dependency["techdepid"]]->get_tech_level();
+                    $class = ($needed > $current) ? 'error' : 'passed';
+                    $dependency_text .= " <span class='$class' style='white-space: nowrap;'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($needed)</span>";
+                }
+            }
+        } else {
+            $dependency_text = " - ";
+        }
+
+        $html .= "<tr>
+                    <td class='td-center' style='width: 5%;'>{$t->get_tech_icon()}</td>
+                    <td style='width: 35%;'>
+                        <a href='#' data-on-click='openOverlay' data-url='techinfo.php?tid=" . e($t->get_tech_id()) . "' data-title='$info_title'>
+                            {$t->get_tech_name()} ($current_tech_level)
+                        </a>
+                    </td>
+                    <td>$dependency_text</td>
+                  </tr>";
+    }
+    $html .= '</table><br>';
+
+    return $html;
+};
+
+$view .= $renderTechTable($uni_techs, "Universitäts-Forschungen", "Tech-Info");
+$view .= $renderTechTable($smithy_techs, "Schmiede-Verbesserungen", "Schmiede-Info");
+
+$view .= '<div class="title-border">Einheiten</div>';
+$view .= '<table class="table">
     <tr>
         <td class="td-center td-gradient" colspan="2"><b>Einheiten</b></td>
         <td class="td-center td-gradient"><b>Voraussetzungen</b></td>

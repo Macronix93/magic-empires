@@ -1,4 +1,5 @@
-const activeCountdowns = {};
+const countdownRegistry = new Map();
+let masterTimerInterval = null;
 
 function formatTime(totalSeconds) {
     if (totalSeconds <= 0) return "00:00";
@@ -13,8 +14,7 @@ function formatTime(totalSeconds) {
     const sDisplay = String(seconds).padStart(2, '0');
 
     if (days > 0) {
-        let dayLabel = "T ";
-        return days + dayLabel + hDisplay + ":" + mDisplay + ":" + sDisplay;
+        return days + "T " + hDisplay + ":" + mDisplay + ":" + sDisplay;
     } else if (hours > 0) {
         return hDisplay + ":" + mDisplay + ":" + sDisplay;
     } else {
@@ -22,13 +22,12 @@ function formatTime(totalSeconds) {
     }
 }
 
-function startCountdown(target, initialSeconds, timerType = 0, hideID = null,
-                        keepParams = false, noReload = false) {
+function startCountdown(target, initialSeconds, timerType = 0, hideID = null, keepParams = false, noReload = false) {
     let el = (typeof target === "string") ? document.getElementById(target) : target;
     if (!el) return;
 
     if (!el.id) {
-        el.id = "cd-" + Math.random().toString(36).substr(2, 9);
+        el.id = "cd-" + Math.random().toString(36).substring(2, 11);
     }
     const key = el.id;
 
@@ -37,46 +36,89 @@ function startCountdown(target, initialSeconds, timerType = 0, hideID = null,
 
     const endTime = Date.now() + (seconds * 1000);
 
-    if (activeCountdowns[key]) {
-        const timeDiff = Math.abs(activeCountdowns[key].endTime - endTime);
-        if (timeDiff < 1500) {
-            return;
-        }
-        clearInterval(activeCountdowns[key].interval);
+    if (countdownRegistry.has(key)) {
+        const existing = countdownRegistry.get(key);
+
+        if (Math.abs(existing.endTime - endTime) < 1500) return;
     }
 
-    const update = () => {
+    const msLeftInitial = endTime - Date.now();
+    const secLeftInitial = Math.ceil(msLeftInitial / 1000);
+
+    if (msLeftInitial <= 0) {
+        el.textContent = (timerType === 0) ? "Fertig!" : "00:00";
+    } else {
+        el.textContent = formatTime(secLeftInitial);
+    }
+
+    countdownRegistry.set(key, {
+        element: el,
+        endTime: endTime,
+        timerType: timerType,
+        hideID: hideID,
+        keepParams: keepParams,
+        noReload: noReload,
+        lastTickValue: secLeftInitial
+    });
+
+    if (!masterTimerInterval) {
+        startMasterTimer();
+    }
+}
+
+function startMasterTimer() {
+    masterTimerInterval = setInterval(() => {
         const now = Date.now();
-        const msLeft = endTime - now;
-        const secLeft = Math.ceil(msLeft / 1000);
+        let needsReload = false;
+        let anyKeepParams = false;
+        let anyTimerActive = false;
 
-        if (msLeft <= 0) {
-            clearInterval(activeCountdowns[key].interval);
-            delete activeCountdowns[key];
-            el.textContent = (timerType === 0) ? "Fertig!" : "00:00";
+        countdownRegistry.forEach((timer, key) => {
+            const msLeft = timer.endTime - now;
+            const secLeft = Math.ceil(msLeft / 1000);
 
-            if (hideID) {
-                const hideEl = document.getElementById(hideID);
-                if (hideEl) hideEl.style.display = "none";
+            if (msLeft <= 0) {
+                timer.element.textContent = (timer.timerType === 0) ? "Fertig!" : "00:00";
+
+                if (timer.hideID) {
+                    const hideEl = document.getElementById(timer.hideID);
+                    if (hideEl) hideEl.style.display = "none";
+                }
+
+                if (!timer.noReload) {
+                    needsReload = true;
+
+                    if (timer.keepParams) anyKeepParams = true;
+                }
+
+                countdownRegistry.delete(key);
+            } else {
+                if (timer.lastTickValue !== secLeft) {
+                    timer.element.textContent = formatTime(secLeft);
+                    timer.lastTickValue = secLeft;
+                }
+
+                anyTimerActive = true;
             }
+        });
 
-            if (!noReload) {
-                setTimeout(() => {
-                    if (keepParams) location.reload();
-                    else window.location.href = window.location.pathname;
-                }, 1000);
-            }
-            return;
+        if (!anyTimerActive) {
+            clearInterval(masterTimerInterval);
+            masterTimerInterval = null;
         }
 
-        el.textContent = formatTime(secLeft);
-    };
+        if (needsReload) {
+            needsReload = false;
 
-    update();
-    activeCountdowns[key] = {
-        interval: setInterval(update, 200),
-        endTime: endTime
-    };
+            setTimeout(() => {
+                if (anyKeepParams || window.location.search.includes("logpage")) {
+                    location.reload();
+                } else {
+                    window.location.href = window.location.pathname;
+                }
+            }, 1000);
+        }
+    }, 500);
 }
 
 function startCountup(target, initialSeconds) {
@@ -109,5 +151,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (el) {
         startCountup(el, parseInt(el.dataset.start));
+    }
+});
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        const now = Date.now();
+
+        countdownRegistry.forEach((timer) => {
+            const msLeft = timer.endTime - now;
+            const secLeft = Math.ceil(msLeft / 1000);
+
+            if (msLeft > 0) {
+                timer.element.textContent = formatTime(secLeft);
+                timer.lastTickValue = secLeft;
+            }
+        });
     }
 });

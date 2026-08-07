@@ -43,6 +43,15 @@
 
         $coin_limit = $user->get_coin_limit();
         $current_coins = $user->get_user_coins();
+
+        $now = time();
+        $seconds_into_hour = $now % 3600;
+        $seconds_until_full = 3600 - $seconds_into_hour;
+
+        $display_min = floor($seconds_until_full / 60);
+        $display_sec = $seconds_until_full % 60;
+        $php_tick_timer_text = sprintf("%02d:%02d", $display_min, $display_sec);
+        $php_tick_percent = ($seconds_into_hour / 3600) * 100;
         ?>
         <form method="POST">
             <div class="kingdom-switch-container">
@@ -81,10 +90,10 @@
         <div class="resource-tick-wrapper">
             <div class="tick-label">
                 <span>Nächster Ertrag in:</span>
-                <span class="tick-timer">--:--</span>
+                <span class="tick-timer"><?php echo $php_tick_timer_text; ?></span>
             </div>
             <div class="tick-progress-bg">
-                <div class="tick-progress-fill"></div>
+                <div class="tick-progress-fill" style="width: <?php echo $php_tick_percent; ?>%;"></div>
             </div>
         </div>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>

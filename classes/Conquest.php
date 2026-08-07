@@ -343,8 +343,8 @@ class Conquest
             $this->enemy_soldiers[$id] = $this->initial_soldiers[$id]["initial_enemy_soldiers"] - (int)$defender_losses;
         }
 
-        $this->accumulated_damage = $attacker_atk_pool;
-        $this->enemy_def_without_wall = $defender_def_no_wall;
+        $this->accumulated_damage = (int)round($attacker_atk_pool);
+        $this->enemy_def_without_wall = (int)round($defender_def_no_wall);
     }
 
     public function calculate_loss_counts(): void

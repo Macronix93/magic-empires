@@ -10,25 +10,42 @@ $main_kingdom = $row_main["mainkingdom"];
 $now = time();
 $kingdom = new Kingdom($db_instance, $main_kingdom);
 
+$tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
+$bp_actions = [
+    ActionTypes::ACTION_BUILD_BUILDING,
+    ActionTypes::ACTION_BUILD_TROOPS,
+    ActionTypes::ACTION_RESEARCH_TECH,
+    ActionTypes::ACTION_UPGRADE_TROOPS,
+    ActionTypes::ACTION_SMITHY_UPGRADE
+];
+$wp_actions = [ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES];
+
+$tp_list = implode(',', $tp_actions);
+$bp_list = implode(',', $bp_actions);
+$wp_list = implode(',', $wp_actions);
+
+$counts = $db_instance->execute_query("
+    SELECT 
+        COUNT(CASE WHEN actionid IN ($tp_list) THEN 1 END) AS count_tp,
+        COUNT(CASE WHEN actionid IN ($bp_list) THEN 1 END) AS count_bp,
+        COUNT(CASE WHEN actionid IN ($wp_list) THEN 1 END) AS count_wp,
+        COUNT(CASE WHEN kingdomid = ? AND actionid IN (" . implode(',', $tp_actions) . ") THEN 1 END) as count_tp_current_k
+    FROM events 
+    WHERE userid = ?", [$user->get_current_kingdom(), $user->get_user_id()])->fetch_assoc();
+
+$count_tp = (int)($counts["count_tp"] ?? 0);
+$count_bp = (int)($counts["count_bp"] ?? 0);
+$count_wp = (int)($counts["count_wp"] ?? 0);
+$current_k_tp_count = (int)($counts["count_tp_current_k"] ?? 0);
+
 if (!isset($_SESSION["acknowledged_attacks"])) {
     $_SESSION["acknowledged_attacks"] = [];
 }
 
-$q_ack = "
-    SELECT e.eventid, b.buildinglevel, e.arrivaltime
-    FROM events e
-    JOIN kingdoms k ON e.targetid = k.id
-    JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = 12
-    WHERE k.userid = ? AND e.actionid = 2 AND e.arrivaltime > ?
-";
-$current_visible = $db_instance->execute_query($q_ack, [$user->get_user_id(), $now]);
-
-foreach ($current_visible as $row) {
-    $vis = $row["buildinglevel"] * WATCHTOWER_DETECTION_PER_LEVEL;
-
-    if (($row["arrivaltime"] - $now) <= $vis) {
-        if (!in_array($row["eventid"], $_SESSION["acknowledged_attacks"])) {
-            $_SESSION["acknowledged_attacks"][] = $row["eventid"];
+if (!empty($_SESSION["active_attacks"])) {
+    foreach ($_SESSION["active_attacks"] as $attack) {
+        if (!in_array($attack["eventid"], $_SESSION["acknowledged_attacks"])) {
+            $_SESSION["acknowledged_attacks"][] = $attack["eventid"];
         }
     }
 }
@@ -99,69 +116,45 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 $map = new Map($db_instance, $user);
 $limit = 7;
 
-
 // -- INCOMING ENEMIES OVERVIEW ---
-$my_uid = $user->get_user_id();
-if (!isset($_SESSION["acknowledged_attacks"])) {
-    $_SESSION["acknowledged_attacks"] = [];
-}
+$incoming_data = $_SESSION["active_attacks"] ?? [];
 
-$query_incoming = "
-    SELECT e.eventid, e.arrivaltime, k.kingdomname
-    FROM events e
-    JOIN kingdoms k ON e.targetid = k.id
-    JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ?
-    WHERE k.userid = ? 
-      AND e.actionid = ?
-      AND b.buildinglevel > 0
-      AND e.arrivaltime > ?
-      AND (e.arrivaltime - ?) <= (b.buildinglevel * ?)
-    ORDER BY e.arrivaltime
-";
-
-$incoming_attacks = $db_instance->execute_query($query_incoming, [
-    BuildingTypes::BUILDING_WATCHTOWER,
-    $my_uid,
-    ActionTypes::ACTION_SEND_TROOPS,
-    $now,
-    $now,
-    WATCHTOWER_DETECTION_PER_LEVEL
-]);
-
-if ($incoming_attacks->num_rows > 0) {
+if (!empty($_SESSION["active_attacks"])) {
     $incoming_html = "";
 
-    while ($attack = $incoming_attacks->fetch_assoc()) {
+    foreach ($_SESSION["active_attacks"] as &$attack) {
         if (!in_array($attack["eventid"], $_SESSION["acknowledged_attacks"])) {
             $_SESSION["acknowledged_attacks"][] = $attack["eventid"];
+
+            $attack["is_new"] = false;
         }
 
         $diff = $attack["arrivaltime"] - $now;
         $incoming_html .= "<tr>
             <td style='color: var(--link-color);'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>!</td>
             <td class='td-center'><b>Ankunft in: 
-                    <span class='js-countdown' 
-                          data-seconds='$diff' 
-                          data-no-reload='true'>
-                          " . convert_sec_to_str($diff) . "
+                    <span class='js-countdown' data-seconds='$diff' data-no-reload='true'>
+                          " . format_time_for_js($diff) . "
                     </span>
                 </b>
             </td>
         </tr>";
     }
+    unset($attack);
 
     $view .= '<div class="title-border error">Feindliche Truppenbewegung</div>';
-    $view .= '<table class="table" style=" max-width: 550px">' . $incoming_html . '</table><br>';
+    $view .= '<table class="table" style="max-width: 550px">' . $incoming_html . '</table><br>';
 }
 
 // --- TROOP OVERVIEW ---
-$count_tp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?)",
-    [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS])->fetch_row()[0];
 $pages_tp = ceil($count_tp / $limit);
 $curr_tp = isset($_GET["tp"]) ? max(1, (int)$_GET["tp"]) : 1;
 $offset_tp = ($curr_tp - 1) * $limit;
 
-$view .= '<div class="title-border">Gesendete Truppen</div>';
+$tc_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+$max_tp = BASE_SEND_TROOPS_LIMIT + $tc_lvl;
+
+$view .= '<div class="title-border">Gesendete Truppen (' . $current_k_tp_count . '/' . $max_tp . ')</div>';
 
 $query = "
     SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
@@ -253,7 +246,7 @@ if ($result && $result->num_rows > 0) {
         $action_counter = "<b><span class='js-countdown' 
                                id='$counter_id' 
                                data-seconds='$difference_time' 
-                               data-no-reload='true'></span></b>";
+                               data-no-reload='true'>" . format_time_for_js($difference_time) . "</span></b>";
 
         if ($action_id != ActionTypes::ACTION_RETURN_TROOPS && ($event_data["is_processing"] ?? 0) == 0) {
             $action_button = "<form action='overview.php' method='GET' style='display: inline;'>
@@ -289,10 +282,9 @@ if ($result && $result->num_rows > 0) {
         foreach ($event_data["soldiers"] as $soldier) {
             $badge_count++;
 
-            $soldier_obj = new Soldier();
-            $soldier_obj->set_soldier_id($soldier["soldierid"]);
-            $soldier_obj->set_soldier_icon($soldier["icon"]);
-            $soldier_obj->set_soldier_name($soldier["name"]);
+            $s_id = (int)$soldier["soldierid"];
+            $soldier_name = e($soldier["name"]);
+            $icon_path = "images/icons/" . e($soldier["icon"]) . ".png";
 
             $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0 || $event_data["loot_gold"] > 0);
             $is_carrier = ($soldier["soldierid"] == Soldiers::SOLDIER_THIEF || $soldier["soldierid"] == Soldiers::SOLDIER_RAIDER);
@@ -322,8 +314,8 @@ if ($result && $result->num_rows > 0) {
                 $responsive_class .= " badge-hide-desktop";
             }
 
-            $soldiers_str .= "<div class='unit-badge$popup_class $responsive_class' id='" . ($has_loot ? $p_id : "") . "' title='" . (empty($popup_class) ? e($soldier["name"]) : "") . "'>";
-            $soldiers_str .= $soldier_obj->get_soldier_icon("ressource-icons") . "
+            $soldiers_str .= "<div class='unit-badge$popup_class $responsive_class' id='" . ($has_loot ? $p_id : "") . "' title='" . (empty($popup_class) ? $soldier_name : "") . "'>";
+            $soldiers_str .= "<img src='$icon_path' class='ressource-icons' alt='$soldier_name'>
                                 <b>" . fnum($soldier["soldiercount"]) . "x</b>
                                 $popup_content
                             </div>";
@@ -394,9 +386,6 @@ if ($result && $result->num_rows > 0) {
 }
 
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
-$count_bp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?, ?)",
-    [$user->get_user_id(), ActionTypes::ACTION_BUILD_BUILDING, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_RESEARCH_TECH,
-        ActionTypes::ACTION_UPGRADE_TROOPS, ActionTypes::ACTION_SMITHY_UPGRADE])->fetch_row()[0];
 $pages_bp = ceil($count_bp / $limit);
 $curr_bp = isset($_GET["bp"]) ? max(1, (int)$_GET["bp"]) : 1;
 $offset_bp = ($curr_bp - 1) * $limit;
@@ -525,7 +514,7 @@ if ($result_events && $result_events->num_rows > 0) {
                     <b><span class='js-countdown' 
                        id='$counter_id' 
                        data-seconds='$arrival_diff' 
-                       data-no-reload='true'></span></b>
+                       data-no-reload='true'>" . format_time_for_js($arrival_diff) . "</span></b>
                 </td>
             </tr>";
     }
@@ -574,8 +563,6 @@ if ($result_events && $result_events->num_rows > 0) {
 }
 
 // --- MARKETPLACE AND TRANSPORTS OVERVIEW ---
-$count_wp = $db_instance->execute_query("SELECT COUNT(*) FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?)",
-    [$user->get_user_id(), ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])->fetch_row()[0];
 $pages_wp = ceil($count_wp / $limit);
 $curr_wp = isset($_GET["wp"]) ? max(1, (int)$_GET["wp"]) : 1;
 $offset_wp = ($curr_wp - 1) * $limit;
@@ -634,6 +621,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
                              id='$counter_id' 
                              data-seconds='$arrival_diff' 
                              data-no-reload='true'>
+                             " . format_time_for_js($arrival_diff) . "
                     </span></b>";
 
         if ($is_cancelable) {
@@ -713,8 +701,8 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
     $view .= "
     <div id='tutorial-overlay' class='info-box-bg' style='display:flex;'>
         <div class='big-box-container' style='max-width: 500px; margin: auto; position: relative; z-index: 1001;'>
-            <div class='big-box-header'>Willkommen, Herrscher!</div>
-            <div class='big-box-content' style='text-align: left; padding: 20px;'>
+            <div class='big-box-header'>Willkommen, Eure Hoheit!</div>
+            <div class='big-box-content' style='text-align: left; padding: 0 20px 20px;'>
                 <p>Seid gegrüßt! Euer Volk hat sich auf einem Feld vom Typ<div style='display: flex; justify-content: center; margin: 10px;'>
                 <b class='passed'>{$k_info["fieldname"]}</b></div>niedergelassen. Hier sind eure ersten Schritte:</p>
                 <div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 15px;'>
@@ -728,7 +716,7 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
                 </div>
                 <b style='color: var(--link-color);'>2. Empfohlene Baureihenfolge:</b>
                 <ul>
-                    <li>Baue zuerst die <b>Mühle</b> oder das <b>Sägewerk</b> (Stufe 1 & 2), um die Produktion zu sichern.</li>
+                    <li>Baue zuerst die <b>Mühle</b>, das <b>Sägewerk</b> oder die <b>Steinmine</b> (Stufe 1 & 2), um die Produktion zu sichern.</li>
                     <li>Das <b>Dorfzentrum</b> begrenzt das Level aller anderen Gebäude. Baue es frühzeitig aus!</li>
                     <li>Vergiss das <b>Lager</b> nicht – ohne Kapazität gehen Rohstoffe verloren.</li>
                 </ul>

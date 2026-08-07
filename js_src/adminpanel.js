@@ -119,6 +119,28 @@ registerAction("confirmClearLog", (el) => {
     );
 });
 
+if (window.location.href.indexOf("adminpanel.php") > -1) {
+    if ("scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        if (window.location.hash === "#logs") {
+            window.scrollTo(0, document.body.scrollHeight);
+        } else {
+            const scrollPos = sessionStorage.getItem("admin_scroll_pos");
+
+            if (scrollPos) {
+                window.scrollTo(0, parseInt(scrollPos));
+            }
+        }
+    });
+
+    window.addEventListener("scroll", () => {
+        sessionStorage.setItem("admin_scroll_pos", window.scrollY);
+    });
+}
+
 function editField(userID, fieldID, currentValue, formattedValue) {
     const td = document.getElementById("td_" + fieldID);
 
@@ -185,11 +207,11 @@ function cancelEdit(td, originalValue) {
 
 function userDeletionDialog(userID) {
     showConfirmationDialog(
-        'Willst du den Benutzer wirklich löschen?',
-        'Ja',
-        'Nein',
+        "Willst du den Benutzer wirklich löschen?",
+        "Ja",
+        "Nein",
         () => {
-            deleteUser('adminpanel.php?deleteuser=' + userID);
+            deleteUser("adminpanel.php?deleteuser=" + userID);
         }
     );
 }

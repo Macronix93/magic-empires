@@ -140,7 +140,7 @@ function scrollToLatestMessage() {
         parentContainer.scrollTop = target + 10;
 
         if (window.innerWidth <= 600) {
-            parentContainer.scrollIntoView({behavior: 'auto', block: 'center'});
+            parentContainer.scrollIntoView({behavior: "smooth", block: "center"});
         }
     } else {
         parentContainer.scrollTop = newMessageLine.offsetTop - 10;
@@ -148,10 +148,17 @@ function scrollToLatestMessage() {
 }
 
 function scrollDown() {
-    let messagesSection = document.getElementById("messages-section");
+    const messagesSection = document.getElementById("messages-section");
 
     if (messagesSection) {
-        messagesSection.scrollTop = messagesSection.scrollHeight - messagesSection.clientHeight;
+        const isAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
+
+        if (isAtBottom) {
+            messagesSection.scrollTo({
+                top: messagesSection.scrollHeight,
+                behavior: "smooth"
+            });
+        }
     }
 }
 
@@ -334,7 +341,7 @@ function deleteServerMessage(messageID) {
                 const remainingBubbles = messageSection.querySelectorAll(".server-bubble").length;
 
                 if (remainingBubbles === 0) {
-                    messageSection.innerHTML = `<div id="chat-empty-placeholder" class="info-box">Du hast keine Servernachrichten!</div>`;
+                    messageSection.innerHTML = `<div id="chat-empty-placeholder">Du hast keine Servernachrichten!</div>`;
                     messageSection.style.display = "flex";
                     messageSection.style.alignItems = "center";
                 }

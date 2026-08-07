@@ -1,6 +1,4 @@
 <?php
-$show_attack_alert = false;
-
 if (IS_DEV) {
     $js_folder = "js_src/";
 } else {
@@ -11,42 +9,17 @@ $js_suffix = ".js";
 $js_main_file = "main.js";
 
 if ($user->is_logged_in()) {
-    $now = time();
-    $my_uid = $user->get_user_id();
+    $show_attack_alert = false;
 
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
-    $not_in_clause = "";
 
-    if (!empty($ack_ids)) {
-        $clean_ids = array_map("intval", $ack_ids);
-        $not_in_clause = "AND e.eventid NOT IN (" . implode(',', $clean_ids) . ")";
-    }
-
-    $q_alert = "
-        SELECT e.eventid
-        FROM events e
-        JOIN kingdoms k ON e.targetid = k.id
-        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ?
-        WHERE k.userid = ? 
-          AND e.actionid = ?
-          AND e.is_processing = 0
-          AND e.arrivaltime > ?
-          AND (e.arrivaltime - ?) <= (b.buildinglevel * ?)
-          $not_in_clause
-        LIMIT 1
-    ";
-
-    $res_alert = $db_instance->execute_query($q_alert, [
-            BuildingTypes::BUILDING_WATCHTOWER,
-            $my_uid,
-            ActionTypes::ACTION_SEND_TROOPS,
-            $now,
-            $now,
-            WATCHTOWER_DETECTION_PER_LEVEL
-    ]);
-
-    if ($res_alert->num_rows > 0) {
-        $show_attack_alert = true;
+    if (!empty($_SESSION["active_attacks"])) {
+        foreach ($_SESSION["active_attacks"] as $atk) {
+            if ($atk["is_new"] && !in_array($atk["eventid"], $ack_ids)) {
+                $show_attack_alert = true;
+                break;
+            }
+        }
     }
 }
 ?>
@@ -81,7 +54,10 @@ if ($user->is_logged_in()) {
       data-server-time="<?php echo time(); ?>"
 >
 <?php if (isset($show_attack_alert) && $show_attack_alert): ?>
-    <div class="attack-alert-overlay"></div>
+    <?php
+    $sync_offset = fmod(microtime(true), 2);
+    ?>
+    <div class="attack-alert-overlay" style="animation-delay: -<?php echo $sync_offset; ?>s;"></div>
 <?php endif; ?>
 <div class="header img">
     <img src="images/header.png" alt="Header"/>

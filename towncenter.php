@@ -225,6 +225,7 @@ if ($count_maxed_buildings === $building_count) {
                                         <span class='js-countdown' 
                                                        data-seconds='$difference_time' 
                                                        data-hide-id='cancel-form'>
+                                                       " . format_time_for_js($difference_time) . "
                                         </span></b><br>
                                       <form id='cancel-form' action='towncenter.php' method='GET'>
                                         <input type='hidden' name='action' value='cancel'>

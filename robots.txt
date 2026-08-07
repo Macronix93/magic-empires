@@ -6,3 +6,5 @@ Allow: /privacy.php
 Disallow: /ajax/
 Disallow: /includes/
 Disallow: /classes/
+Disallow: /logs/
+Disallow: /backups/

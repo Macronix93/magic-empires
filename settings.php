@@ -136,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         $error = "Bitte einen Benutzernamen angeben!";
                     } else if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $new_name)) {
                         $error = "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -";
-                    } else if (strlen($new_name) < MIN_USERNAME_LENGTH || strlen($new_name) > MAX_USERNAME_LENGTH) {
+                    } else if (mb_strlen($new_name) < MIN_USERNAME_LENGTH || mb_strlen($new_name) > MAX_USERNAME_LENGTH) {
                         $error = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
                     } else if (is_name_monotonous($new_name)) {
                         $error = "Dieser Benutzername ist zu eintönig!";
@@ -187,21 +187,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // Change Mail
         if (isset($_POST['change_email'])) {
-            $new_email = trim($_POST['new_email']);
+            $new_email = trim($_POST['new_email'] ?? "");
             $confirm_pw = $_POST['confirm_pw_email'] ?? "";
+            $now = time();
 
             $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
             $current_hash = $res->fetch_column();
 
             if (!password_verify($confirm_pw, $current_hash)) {
                 $error = "Passwort-Bestätigung fehlgeschlagen.";
+            } else if (empty($new_email)) {
+                $error = "Bitte eine neue E-Mail Adresse angeben.";
             } else if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
-                $error = "Ungültiges E-Mail Format.";
+                $error = "Falsches E-Mail Format!";
+            } else if (strlen($new_email) > MAX_EMAIL_LENGTH) {
+                $error = "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!";
             } else {
-                $db_instance->execute_query("UPDATE users SET email = ? WHERE id = ?", [$new_email, $uid]);
-                $view .= show_passed_box("Deine E-Mail Adresse wurde auf " . e($new_email) . " geändert.");
+                $lower_mail = strtolower($new_email);
 
-                $logger->log_game("ACCOUNT", "EMAIL_CHANGE", ["email" => $new_email]);
+                if (str_ends_with($lower_mail, "@magic-empires.de") || str_ends_with($lower_mail, "@sylvan-giese.de")) {
+                    $error = "Diese E-Mail-Adresse ist nicht gestattet!";
+                } else {
+                    $domain = substr(strrchr($new_email, "@"), 1);
+
+                    if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
+                        $error = "Die E-Mail Domain existiert nicht oder kann keine Mails empfangen!";
+                    } else {
+                        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$new_email, $now]);
+
+                        if ($res_block->num_rows > 0) {
+                            $row_block = $res_block->fetch_assoc();
+                            $wait_until = date("d.m.Y", $row_block["blocked_until"]);
+                            $error = "Diese E-Mail Adresse ist noch bis zum $wait_until gesperrt.";
+                        } else {
+                            $check_unique = $db_instance->execute_query("SELECT id FROM users WHERE email = ? AND id != ?", [$new_email, $uid]);
+
+                            if ($check_unique->num_rows > 0) {
+                                $error = "Diese E-Mail Adresse wird bereits von einem anderen Account verwendet.";
+                            } else {
+                                $db_instance->execute_query("UPDATE users SET email = ? WHERE id = ?", [$new_email, $uid]);
+
+                                $view .= show_passed_box("Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.");
+                                $logger->log_game("ACCOUNT", "EMAIL_CHANGE", ["new_email" => $new_email]);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -219,13 +250,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $wait_k = ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
 
                 $error = "Dieses Königreich wurde erst kürzlich umbenannt. Du musst noch $wait_k Tage warten.";
-            } else if (strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
+            } else if (mb_strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || mb_strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
                 $error = "Der Name muss zwischen " . MIN_KINGDOM_NAME_LENGTH . " und " . MAX_KINGDOM_NAME_LENGTH . " Zeichen lang sein.";
             } else if (contains_bad_words($new_k_name)) {
                 $error = "Der Name enthält unzulässige Begriffe.";
             } else if (is_name_monotonous($new_k_name)) {
                 $error = "Der Name ist zu eintönig oder enthält zu viele Wiederholungen.";
-            } else if (!preg_match('/^[a-zA-Z0-9\s\[\]\-_.]+$/u', $new_k_name)) {
+            } else if (!preg_match('/^[a-zA-Z0-9äöüÄÖÜß\s\[\]\-_.]+$/u', $new_k_name)) {
                 $error = "Der Name enthält ungültige Sonderzeichen. Erlaubt sind: [ ] - _ .";
             } else {
                 $db_instance->execute_query("UPDATE kingdoms SET kingdomname = ?, last_name_change = ? WHERE id = ?",
@@ -425,7 +456,7 @@ $view .= '
         </form>
         <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
             Hinweis: Königreiche können nur alle ' . KINGDOM_NAME_CHANGE_COOLDOWN_DAYS . ' Tage umbenannt werden.<br>
-            Erlaubte Sonderzeichen: [ ] - _ . (sowie Zahlen & Buchstaben)
+            Erlaubte Sonderzeichen: [ ] - _ . (sowie Zahlen, Buchstaben & Umlaute)
         </p>
     </div>
 </div>';

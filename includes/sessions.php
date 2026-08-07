@@ -118,6 +118,8 @@ if ($user->is_logged_in()) {
 
             // Update villager count after events were processed (villager cap)
             apply_villager_cap($user->get_current_kingdom());
+
+            $_SESSION["active_attacks"] = check_for_incoming_attacks($user->get_user_id(), $db_instance);
         }
     }
 }

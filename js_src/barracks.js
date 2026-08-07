@@ -51,7 +51,7 @@ registerAction("fillMaxAndCalc", (el) => {
 
         for (const [res, cost] of Object.entries(diffs)) {
             if (cost > 0) {
-                const affordable = Math.floor(kRes[res] / (cost * kRes.multiplier));
+                const affordable = Math.floor(kRes[res] / cost);
                 maxCanAfford = Math.min(maxCanAfford, affordable);
             }
         }
@@ -67,8 +67,7 @@ registerAction("fillMaxAndCalc", (el) => {
 
         for (const [res, cost] of Object.entries(costs)) {
             if (cost > 0) {
-                const resMultiplier = (res === 'villager') ? 1 : kRes.multiplier;
-                const affordable = Math.floor(kRes[res] / (cost * resMultiplier));
+                const affordable = Math.floor(kRes[res] / cost);
                 maxCanAfford = Math.min(maxCanAfford, affordable);
             }
         }

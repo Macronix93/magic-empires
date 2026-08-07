@@ -11,6 +11,11 @@ $now = time();
 
 echo "[" . date("Y-m-d H:i:s") . "] Starte Cron-Tick...\n";
 
+$system_user = new User(-1, "System");
+$global_em = new EventManager($system_user);
+$global_em->cleanup_marketplace();
+$global_em->check_watchtower_notifications();
+
 $query = "SELECT e.*, u.username 
           FROM events e
           JOIN users u ON e.userid = u.id

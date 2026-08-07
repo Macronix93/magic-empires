@@ -249,7 +249,7 @@ foreach ($techs as $i => $tech) {
 
                 $text_build = "Forschungszeit:<br><b><span class='js-countdown' 
                                        data-seconds='$difference_time' 
-                                       data-hide-id='cancel-form'></span></b><br>
+                                       data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span></b><br>
                               <form id='cancel-form' action='blacksmith.php' method='GET'>
                                 <input type='hidden' name='action' value='cancel'>
                                 <input type='hidden' name='tid' value='" . $i . "'>

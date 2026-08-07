@@ -117,11 +117,18 @@ class BattleReportRenderer
         $show_production = !empty($production);
 
         foreach ($types as $key => $constant) {
-            $s_val = fnum($stocks[$key] ?? 0);
+            $raw_stock = $stocks[$key] ?? 0;
 
-            $html .= "<div style='display: flex; flex-direction: column; align-items: center; min-width: 70px;'>
-                    <div style='margin-bottom: 5px;'>" . get_resource_icon($constant) . "</div>
-                    <div style='font-weight: bold;'>$s_val</div>";
+            if (!$show_production && $raw_stock <= 0) {
+                continue;
+            }
+
+            $s_val = fnum($raw_stock);
+
+            $html .= "<div style='display: flex; flex-direction: column; align-items: center; min-width: 85px;'>
+                    <div style='display: flex; align-items: center; gap: 5px; font-size: 1.05em;'>
+                        " . get_resource_icon($constant) . " <span>$s_val</span>
+                    </div>";
 
             if ($show_production) {
                 $p_val = fnum($production[$key] ?? 0);
@@ -131,9 +138,11 @@ class BattleReportRenderer
             $html .= "</div>";
         }
 
+        if (empty($html)) return "";
+
         return "<div style='display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.4); padding: 12px 5px; border-radius: 5px; border: 1px solid #555; margin-top: 5px;'>
-                $html
-            </div>";
+            $html
+        </div>";
     }
 
     public static function render_own_scout_status(int $initial, int $losses): string

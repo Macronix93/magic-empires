@@ -1005,9 +1005,11 @@ select:-webkit-autofill {
 
 /* Wrapper for content (left, right, mid) */
 .content-box {
-    display: flex;
+    display: grid;
+    grid-template-columns: 225px 850px 225px;
     justify-content: center;
     gap: 50px;
+    align-items: start;
 }
 
 /* Box in mid */
@@ -1544,7 +1546,6 @@ tr:first-child td.td-gradient {
     font-size: 18px;
     padding: 5px 10px;
     text-align: left;
-    height: 50px;
     width: 40%;
     box-sizing: border-box;
 }
@@ -1797,12 +1798,7 @@ body.modal-open footer {
 }
 
 .arrow-nav:hover {
-    transform: scale(1.2);
     filter: brightness(1.2);
-}
-
-.arrow-nav:active {
-    transform: scale(0.9);
 }
 
 .arrow-left {
@@ -1810,7 +1806,7 @@ body.modal-open footer {
 }
 
 .arrow-left:hover {
-    transform: scaleX(-1) scale(1.2);
+    transform: scaleX(-1);
 }
 
 .resource-tick-wrapper {
@@ -2726,6 +2722,11 @@ img[data-on-click] {
 }
 
 @media screen and (max-width: 1392px) {
+    .content-box {
+        display: block;
+        width: 98%;
+    }
+
     .left-container,
     .right-container {
         display: none;

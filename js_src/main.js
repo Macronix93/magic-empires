@@ -2,6 +2,7 @@ const ClickActions = new Map();
 let titleInterval = null;
 const originalTitle = document.title;
 const TITLE_INTERVAL = 2000;
+let isKingdomSwitching = false;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -32,10 +33,12 @@ registerAction("switchKingdom", (el) => {
     }
 });
 registerAction("switchKingdomPrev", () => {
+    if (isKingdomSwitching) return;
     if (typeof switchKingdom === "function") switchKingdom(-1);
 });
 
 registerAction("switchKingdomNext", () => {
+    if (isKingdomSwitching) return;
     if (typeof switchKingdom === "function") switchKingdom(1);
 });
 registerAction("pickUser", (el) => {
@@ -319,6 +322,13 @@ function updateServerTime(initialServerTimestamp) {
     }
 
     setInterval(updateDisplay, 500);
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            updateDisplay();
+        }
+    });
+
     updateDisplay();
 }
 
@@ -342,6 +352,10 @@ function switchKingdom(direction) {
 }
 
 function updateKingdom(selectElement) {
+    if (isKingdomSwitching) return;
+
+    isKingdomSwitching = true;
+
     // Get the selected kingdom ID from the dropdown
     const chosenKingdom = selectElement;
 
@@ -354,18 +368,22 @@ function updateKingdom(selectElement) {
         // Make an AJAX request to update the kingdom info
         let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
-            if (this.readyState === 4 && this.status === 200) {
-                if (window.innerWidth <= 1392) {
-                    sessionStorage.setItem("keepRightMenuOpen", "true");
-                }
+            if (this.readyState === 4) {
+                if (this.status === 200) {
+                    if (window.innerWidth <= 1392) {
+                        sessionStorage.setItem("keepRightMenuOpen", "true");
+                    }
 
-                let currentUrl = new URL(window.location.href);
+                    let currentUrl = new URL(window.location.href);
 
-                // Check if we are on conquest page and keep x and y coordinates
-                if (currentUrl.pathname.includes("sendtroops.php")) {
-                    window.location.href = currentUrl.pathname + currentUrl.search;
+                    // Check if we are on conquest page and keep x and y coordinates
+                    if (currentUrl.pathname.includes("sendtroops.php")) {
+                        window.location.href = currentUrl.pathname + currentUrl.search;
+                    } else {
+                        window.location.href = currentUrl.pathname;
+                    }
                 } else {
-                    window.location.href = currentUrl.pathname;
+                    isKingdomSwitching = false;
                 }
             }
         };

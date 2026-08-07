@@ -99,14 +99,11 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                     [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $s_id]);
                 $soldier_goal = $result->fetch_assoc()["soldiergoal"];
 
-                $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
-                $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
-
                 // Refund player
-                $refund_food = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_food_cost() * $discount);
-                $refund_gold = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_gold_cost() * $discount);
-                $refund_wood = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_wood_cost() * $discount);
-                $refund_stone = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_stone_cost() * $discount);
+                $refund_food = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_food_cost());
+                $refund_gold = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_gold_cost());
+                $refund_wood = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_wood_cost());
+                $refund_stone = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_stone_cost());
 
                 $kingdom->give_kingdom_food($refund_food);
                 $kingdom->give_kingdom_gold($refund_gold);
@@ -121,6 +118,9 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                     "soldier_name" => $soldiers[$s_id]->get_soldier_name(),
                     "amount_cancelled" => $soldier_goal
                 ], $current_kingdom);
+
+                change_location("barracks.php?cat=$active_cat");
+                exit;
             } else if ($kingdom_is_upgrading && $upgrade_event["buildingid"] == $soldiers[$s_id]->get_soldier_id()) {
                 $from_id = $upgrade_event["buildingid"];
                 $to_id = $upgrade_event["soldierid"];
@@ -277,6 +277,9 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                         $kingdom->give_kingdom_gold(-$total_gold);
                         $kingdom->give_kingdom_stone(-$total_stone);
                         $kingdom->give_kingdom_wood(-$total_wood);
+
+                        change_location("barracks.php?cat=$active_cat");
+                        exit;
                     }
                 }
             }
@@ -339,6 +342,34 @@ foreach ($result_s as $row) {
 
         $total_k_atk += $sol_count * ($s_obj->get_soldier_attack() + $b_atk) * $shrine_atk_mult;
         $total_k_def += $sol_count * ($s_obj->get_soldier_defense() + $b_def);
+    }
+}
+
+$category_availability = [
+    SoldierTypes::SOLDIER_TYPE_INFANTRY => false,
+    SoldierTypes::SOLDIER_TYPE_CAVALRY => false,
+    SoldierTypes::SOLDIER_TYPE_ARCHERS => false,
+    SoldierTypes::SOLDIER_TYPE_SPECIAL => false
+];
+
+$barracks_lvl = $building->get_building_level();
+
+foreach ($soldiers as $s) {
+    $cat = $s->get_soldier_category();
+    $owned = $kingdom_soldiers[$s->get_soldier_id()] ?? 0;
+    $req = $s->get_soldier_required_level();
+
+    if ($req <= $barracks_lvl || $owned > 0) {
+        $category_availability[$cat] = true;
+    }
+}
+
+if (!$category_availability[$active_cat]) {
+    foreach ($category_availability as $id => $available) {
+        if ($available) {
+            $active_cat = $id;
+            break;
+        }
     }
 }
 
@@ -445,8 +476,13 @@ $view .= '<div id="kingdom-resources"
 $view .= "<div class='tab'>";
 
 foreach ($categories as $id => $name) {
-    $active_class = ($id === $active_cat) ? "active" : "";
-    $view .= "<div class='tablinks $active_class' data-on-click='filterBarracks' data-category='$id'>$name</div>";
+    if ($category_availability[$id]) {
+        $active_class = ($id === $active_cat) ? "active" : "";
+
+        $view .= "<div class='tablinks $active_class' data-on-click='filterBarracks' data-category='$id'>$name</div>";
+    } else {
+        $view .= "<div class='tablinks tab-disabled' title='Hier gibt es noch keine Einheiten'>$name</div>";
+    }
 }
 
 $view .= "</div>";
@@ -468,19 +504,29 @@ if ($kingdom_is_recruiting) {
 }
 
 for ($i = 0; $i < $soldiers_count; $i++) {
-    $is_hero = ($soldiers[$i]->get_soldier_id() == Soldiers::SOLDIER_HERO);
+    $s_id_internal = $soldiers[$i]->get_soldier_id();
+    $owned_count = $kingdom_soldiers[$s_id_internal] ?? 0;
+    $req_lvl = $soldiers[$i]->get_soldier_required_level();
+    $barracks_lvl = $building->get_building_level();
 
-    if ($soldiers[$i]->get_soldier_required_level() > $building->get_building_level()) {
+    if ($req_lvl > $barracks_lvl && $owned_count <= 0) {
         continue;
     }
+
+    $can_train = ($req_lvl <= $barracks_lvl);
+    $is_hero = ($soldiers[$i]->get_soldier_id() == Soldiers::SOLDIER_HERO);
+
+//    if ($soldiers[$i]->get_soldier_required_level() > $building->get_building_level()) {
+//        continue;
+//    }
 
     $unit_cat = $soldiers[$i]->get_soldier_category();
     $unit_time = (int)($soldiers[$i]->get_soldier_time() * $smithy_multiplier);
 
-    $cost_food = (int)($soldiers[$i]->get_soldier_food_cost() * $smithy_multiplier);
-    $cost_gold = (int)($soldiers[$i]->get_soldier_gold_cost() * $smithy_multiplier);
-    $cost_stone = (int)($soldiers[$i]->get_soldier_stone_cost() * $smithy_multiplier);
-    $cost_wood = (int)($soldiers[$i]->get_soldier_wood_cost() * $smithy_multiplier);
+    $cost_food = (int)($soldiers[$i]->get_soldier_food_cost());
+    $cost_gold = (int)($soldiers[$i]->get_soldier_gold_cost());
+    $cost_stone = (int)($soldiers[$i]->get_soldier_stone_cost());
+    $cost_wood = (int)($soldiers[$i]->get_soldier_wood_cost());
     $cost_villager = $soldiers[$i]->get_soldier_villager_cost();
 
     $text_food = "<span id='cost-food-$i'>" . fnum($cost_food) . "</span>";
@@ -489,7 +535,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $text_wood = "<span id='cost-wood-$i'>" . fnum($cost_wood) . "</span>";
     $text_villager = "<span id='cost-villager-$i'>" . fnum($cost_villager) . "</span>";
 
-    $s_id_internal = $soldiers[$i]->get_soldier_id();
     $capacity_text = "";
 
     $plunder_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
@@ -515,6 +560,10 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
     if ($is_hero) {
         $text_build = "<i>Einzigartig</i>";
+    } else if (!$can_train) {
+        $text_build = "<div style='font-size: 11px;'>
+                        <span class='error' style='font-size: 11px;'>Benötigt Kaserne Stufe $req_lvl</span>
+                      </div>";
     } else if ($kingdom_is_recruiting || $kingdom_is_upgrading) {
         if ($kingdom_recruiting_id == $i) {
             $result = $db_instance->execute_query("SELECT buildingtime, recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
@@ -535,7 +584,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
 
             $text_build = "In Ausbildung: " . $soldier_goal . "<br>
-                            <b><span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form'></span></b><br> 
+                            <b><span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form'>" . format_time_for_js($remaining_for_this_unit) . "</span></b><br> 
                               <form id='cancel-form' action='barracks.php' method='GET'>
                                 <input type='hidden' name='recruit' value='$i'>
                                 <input type='hidden' name='count' value='cancel'>
@@ -560,7 +609,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             if ($rem == 0) $rem = $unit_time;
 
             $text_build = "Aufwertung zu $target_name: " . $upgrade_event["soldiergoal"] . "<br>
-            <b><span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg'></span></b><br>
+            <b><span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg'>" . format_time_for_js($rem) . "</span></b><br>
             <form id='cancel-form-upg' action='barracks.php' method='GET'>
                 <input type='hidden' name='recruit' value='$i'>
                 <input type='hidden' name='count' value='cancel'>
@@ -657,8 +706,9 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     }
 
     $row_style = ($unit_cat === $active_cat) ? "" : "display: none;";
+    $row_class = "unit-row" . (!$can_train ? " unit-not-trainable" : "");
 
-    $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
+    $view .= "<tr class='$row_class' data-unit-category='$unit_cat' style='$row_style'>
             <td>
                 <div class='map-legend' style='justify-content: left;'>
                     <div class='legend-item'>" . $soldiers[$i]->get_soldier_icon() . "</div>

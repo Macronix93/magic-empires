@@ -14,8 +14,7 @@ class EventManager
 
     public function process_all(): void
     {
-        $this->cleanup_marketplace();
-        $this->check_watchtower_notifications();
+        $this->check_watchtower_notifications($this->user->get_user_id());
 
         $uid = $this->user->get_user_id();
         if ($uid <= 0) return;
@@ -474,7 +473,8 @@ class EventManager
                 "Verstärkung angekommen",
                 $main_text,
                 0, 0,
-                $sub_text
+                $sub_text,
+                "success"
             );
 
             $message .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
@@ -1246,19 +1246,22 @@ class EventManager
         return $soldiers;
     }
 
-    private function check_watchtower_notifications(): void
+    public function check_watchtower_notifications(?int $specific_user_id = null): void
     {
         $current_time = time();
+
+        $user_filter = $specific_user_id ? " AND k.userid = " . $specific_user_id : "";
+
         $query = "
             SELECT e.eventid, e.arrivaltime, e.targetid, e.kingdomid AS source_id,
                    k.userid, k.username, k.kingdomname
             FROM events e
             JOIN kingdoms k ON e.targetid = k.id
-            WHERE e.actionid = ? 
+            WHERE e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
               AND e.notification_sent = 0
+              $user_filter
         ";
-
-        $results = $this->mysqli->execute_query($query, [ActionTypes::ACTION_SEND_TROOPS]);
+        $results = $this->mysqli->query($query);
 
         foreach ($results as $row) {
             $target_kingdom = new Kingdom($this->mysqli, $row["targetid"]);
@@ -1270,6 +1273,15 @@ class EventManager
             $detection_time = $row["arrivaltime"] - $visibility_window;
 
             if ($current_time >= $detection_time) {
+                $this->mysqli->execute_query(
+                    "UPDATE events SET notification_sent = 1 WHERE eventid = ? AND notification_sent = 0",
+                    [$row["eventid"]]
+                );
+
+                if ($this->mysqli->affected_rows !== 1) {
+                    continue;
+                }
+
                 $intel_level = $target_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
                 $time_to_arrival = convert_sec_to_str($row["arrivaltime"] - $current_time);
 
@@ -1317,8 +1329,8 @@ class EventManager
                     while ($t = $res_troops->fetch_assoc()) {
                         $count = (int)$t["soldiercount"];
 
-                        $total_atk += $count * $t["attack"];
-                        $total_def += $count * $t["defense"];
+                        $total_atk += (int)round($count * $t["attack"]);
+                        $total_def += (int)round($count * $t["defense"]);
 
                         $icon_path = "images/icons/" . $t["icon"] . ".png";
                         $main_text .= "<div class='unit-badge' title='" . e($t["soldiername"]) . "'>";
@@ -1343,8 +1355,6 @@ class EventManager
                 $msg .= "</div>";
 
                 send_server_message($row["userid"], $row["username"], $msg, MessageCategories::CATEGORY_WAR);
-
-                $this->mysqli->execute_query("UPDATE events SET notification_sent = 1 WHERE eventid = ?", [$row["eventid"]]);
             }
         }
     }
@@ -2116,7 +2126,7 @@ class EventManager
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
-        Logger::get_instance()->log_game("COMBAT", "MONSTER_CAMP_RESULT", [
+        Logger::get_instance()->log_game("COMBAT", "MONSTER_BATTLE", [
             "target_coords" => "$tx:$ty",
             "victory" => $victory,
             "attacker_losses" => $total_atk_loss,

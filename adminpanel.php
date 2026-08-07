@@ -185,6 +185,147 @@ if (!$user->is_admin()) {
         exit;
     }
 
+    if (isset($_POST["spawn_map_entities"])) {
+        $spawn_type = $_POST["spawn_type"];
+        $report = [];
+        $now = time();
+
+        // --- RESSOURCES ---
+        if ($spawn_type === "all" || $spawn_type === "resources") {
+            $res_count = $db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_column();
+            if ($res_count < MAX_RESOURCE_TILES) {
+                $limit = min(RESOURCE_TILES_SPAWN_RATE, MAX_RESOURCE_TILES - $res_count);
+                $fields = $db_instance->execute_query("
+                SELECT m.mapx, m.mapy FROM map m 
+                WHERE m.kingdomid = -1 
+                AND NOT EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy)
+                ORDER BY RAND() LIMIT ?", [$limit]);
+
+                if ($fields->num_rows > 0) {
+                    $insert_values = [];
+                    $update_coords = [];
+
+                    foreach ($fields as $f) {
+                        $x = (int)$f["mapx"];
+                        $y = (int)$f["mapy"];
+                        $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
+                        $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
+                        $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
+                        $active_keys = [];
+
+                        foreach ($res_values as $key => $val) {
+                            if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
+                        }
+
+                        if (empty($active_keys)) $active_keys[] = array_rand($res_values);
+
+                        $temp_total = $total;
+                        $count_keys = count($active_keys);
+
+                        for ($i = 0; $i < $count_keys; $i++) {
+                            $key = $active_keys[$i];
+                            if ($i == $count_keys - 1) {
+                                $res_values[$key] = $temp_total;
+                            } else {
+                                $share = mt_rand(10, 80) / 100;
+                                $val = (int)($temp_total * $share);
+                                $res_values[$key] = $val;
+                                $temp_total -= $val;
+                            }
+                        }
+
+                        $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]}, $expires)";
+                        $update_coords[] = "($x, $y)";
+                    }
+                    $db_instance->query("INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold, expires_at) VALUES " . implode(',', $insert_values));
+                    $db_instance->query("UPDATE map SET kingdomid = -2 WHERE (mapx, mapy) IN (" . implode(',', $update_coords) . ")");
+
+                    $report[] = count($update_coords) . " Ressourcenfelder generiert.";
+                }
+            } else {
+                $report[] = "Ressourcenlimit bereits erreicht.";
+            }
+        }
+
+        // --- MONSTER CAMPS ---
+        if ($spawn_type === "all" || $spawn_type === "monsters") {
+            $db_instance->execute_query("DELETE FROM monster_camps WHERE expires_at < ?", [$now]);
+            $db_instance->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -3 AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM monster_camps)");
+            $count_res = $db_instance->query("SELECT SUM(IF(level BETWEEN 1 AND 3, 1, 0)) AS low, SUM(IF(level BETWEEN 4 AND 6, 1, 0)) AS mid, 
+                                                           SUM(IF(level BETWEEN 7 AND 9, 1, 0)) AS high, 
+                                                           SUM(IF(level = 10, 1, 0)) AS boss, 
+                                                           COUNT(*) AS total FROM monster_camps")->fetch_assoc();
+            $total_on_map = (int)($count_res["total"] ?? 0);
+
+            if ($total_on_map < MAX_MONSTER_CAMPS) {
+                $limit = min(MONSTER_CAMP_SPAWN_RATE, MAX_MONSTER_CAMPS - $total_on_map);
+                $current_counts = ["low" => (int)$count_res["low"], "mid" => (int)$count_res["mid"], "high" => (int)$count_res["high"], "boss" => (int)$count_res["boss"]];
+                $targets = ["low" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_LOW, "mid" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_MID, "high" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_HIGH, "boss" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_BOSS];
+
+                $monster_pool = [];
+                $res_all_m = $db_instance->query("SELECT id, level FROM monster_list");
+                while ($m = $res_all_m->fetch_assoc()) {
+                    $monster_pool[(int)$m["level"]][] = (int)$m["id"];
+                }
+
+                $free_fields = $db_instance->execute_query("SELECT m.mapx, m.mapy FROM map m WHERE m.kingdomid = -1 AND NOT 
+                                                                    EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy) 
+                                                                    ORDER BY RAND() LIMIT ?", [$limit]);
+
+                if ($free_fields->num_rows > 0) {
+                    $insert_camps = [];
+                    $insert_units = [];
+                    $update_map_coords = [];
+
+                    foreach ($free_fields as $f) {
+                        $x = (int)$f["mapx"];
+                        $y = (int)$f["mapy"];
+                        $fill_grades = [];
+
+                        foreach ($targets as $key => $targetV) {
+                            $fill_grades[$key] = ($targetV > 0) ? $current_counts[$key] / $targetV : 1;
+                        }
+
+                        asort($fill_grades);
+
+                        $chosen_group = array_key_first($fill_grades);
+                        $camp_level = ($chosen_group == "low") ? mt_rand(1, 3) : (($chosen_group == "mid") ? mt_rand(4, 6) : (($chosen_group == "high") ? mt_rand(7, 9) : 10));
+                        $current_counts[$chosen_group]++;
+                        $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
+                        $insert_camps[] = "($x, $y, $camp_level, $expires)";
+                        $update_map_coords[] = "($x, $y)";
+
+                        if (!empty($monster_pool[$camp_level])) {
+                            $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
+                            $insert_units[] = "($x, $y, $main_m_id, " . mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE) . ")";
+                            $num_extra = ($camp_level <= 3) ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW) : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
+
+                            for ($i = 0; $i < $num_extra; $i++) {
+                                $rand_lvl = mt_rand(max(1, $camp_level - MONSTER_CAMP_EXTRA_LEVEL_CAP), $camp_level);
+
+                                if (!empty($monster_pool[$rand_lvl])) {
+                                    $ex_id = $monster_pool[$rand_lvl][array_rand($monster_pool[$rand_lvl])];
+                                    $insert_units[] = "($x, $y, $ex_id, " . mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4) . ")";
+                                }
+                            }
+                        }
+                    }
+                    $db_instance->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
+                    $db_instance->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
+                    $db_instance->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
+                    $report[] = count($insert_camps) . " Monstercamps balance-optimiert generiert.";
+                }
+            } else {
+                $report[] = "Monsterlimit ($total_on_map/" . MAX_MONSTER_CAMPS . ") bereits erreicht.";
+            }
+        }
+
+        $logger->admin("MANUAL MAP SPAWN: $spawn_type");
+        $_SESSION["admin_flash_msg"] = show_passed_box(implode("<br>", $report));
+        change_location("adminpanel.php");
+        exit;
+    }
+
     if (isset($_POST["toggle_maintenance"])) {
         $new_val = (MAINTENANCE_MODE ? "0" : "1");
         $reason = $_POST["maintenance_reason"] ?? "Geplante Wartungsarbeiten";
@@ -662,6 +803,20 @@ if (!$user->is_admin()) {
                             </form>
                         </div>
                     </div>";
+    $settings_list .= "<div class='box-container' style='margin-top: 20px;'>
+                    <div class='box-header'>Karten-Wartung</div>
+                    <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+                        <p style='font-size: 14px;'>Manuelle Generierung von Objekten auf freien Feldern.</p>
+                        <form method='POST' style='display: flex; gap: 10px; justify-content: center;'>
+                            <select name='spawn_type' style='width: 200px;'>
+                                <option value='all'>Alles füllen</option>
+                                <option value='resources'>Nur Ressourcen</option>
+                                <option value='monsters'>Nur Monster</option>
+                            </select>
+                            <input type='submit' name='spawn_map_entities' value='Generieren'>
+                        </form>
+                    </div>
+                </div>";
 
     $view .= "<br><hr><div class='title-border'>System-Logfiles (.log)</div>";
     $view .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
@@ -749,17 +904,17 @@ if (!$user->is_admin()) {
     }
     $user_list .= '</div>';
 
-    $view .= "<br><hr><div class='title-border'>System Logs</div>";
+    $view .= "<br><hr><div id='logs' class='title-border'>Game Logs</div>";
 
     $rows_per_page_logs = 20;
     $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
 
-// Get total number of logs
+    // Get total number of logs
     $total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM game_logs")->fetch_row()[0];
     $total_pages_logs = ceil($total_logs / $rows_per_page_logs);
     $offset_logs = ($current_page_logs - 1) * $rows_per_page_logs;
 
-// Load Data for current page
+    // Load Data for current page
     $logs = $db_instance->execute_query(
         "SELECT l.*, u.username 
      FROM game_logs l 
@@ -814,9 +969,9 @@ if (!$user->is_admin()) {
 
         if ($current_page_logs > 1) {
             $get_params['logpage'] = 1;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&laquo;</a>";
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&laquo;</a>";
             $get_params['logpage'] = $current_page_logs - 1;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&lsaquo;</a>";
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&lsaquo;</a>";
         }
 
         $range = 2;
@@ -827,16 +982,16 @@ if (!$user->is_admin()) {
                 if ($i == $current_page_logs) {
                     $view .= "<span class='page-link active'>$i</span>";
                 } else {
-                    $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>$i</a>";
+                    $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>$i</a>";
                 }
             }
         }
 
         if ($current_page_logs < $total_pages_logs) {
             $get_params['logpage'] = $current_page_logs + 1;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&rsaquo;</a>";
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&rsaquo;</a>";
             $get_params['logpage'] = $total_pages_logs;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "' class='page-link'>&raquo;</a>";
+            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&raquo;</a>";
         }
 
         $view .= "</div></div>";
@@ -856,6 +1011,7 @@ if (isset($_SESSION["admin_flash_msg"])) {
 $title = "Admin-Bereich";
 $header = "Admin-Bereich";
 $script_files = ["adminpanel", "userinfo"];
+$head_extra = '<style>html { scroll-behavior: auto !important; }</style>';
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

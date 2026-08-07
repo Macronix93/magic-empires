@@ -30,13 +30,16 @@ $all_lines = file($file_path);
 if ($sub_dir !== "chat_backups") {
     $all_lines = array_reverse($all_lines);
 }
+
 $total_lines = count($all_lines);
-$total_pages = $page == 0 ? 0 : ceil($total_lines / $per_page);
+$total_pages = ceil($total_lines / $per_page);
 
 $offset = ($page - 1) * $per_page;
 $lines_to_show = array_slice($all_lines, $offset, $per_page);
 
-echo "<h3>$file - Seite $page von $total_pages</h3>";
+$current_page_display = ($total_lines > 0) ? $page : 0;
+
+echo "<h3>$file - Seite $current_page_display von $total_pages</h3>";
 
 if ($total_pages > 1) {
     echo '<div class="pagination-container" style="margin-bottom: 10px;"><div class="pagination-bar">';
