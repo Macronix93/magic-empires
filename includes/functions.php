@@ -757,6 +757,7 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
         JOIN kingdoms k ON e.targetid = k.id
         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
         WHERE k.userid = ? 
+          AND e.userid != k.userid
           AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
           AND e.is_processing = 0
           AND e.arrivaltime > ?

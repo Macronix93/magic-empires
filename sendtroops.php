@@ -481,7 +481,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                                                 <img src='images/icons/icon_sword.png' class='ressource-icons' alt='Angriff'> " . $s_obj->get_soldier_attack() . "
                                             </div>
                                         </div>
-                                        <div class='legend-item' style='width: 80px;'>
+                                        <div class='legend-item'>
                                             <div style='margin-left: 15px;'>
                                                 <img src='images/icons/icon_shield.png' class='ressource-icons' alt='Verteidigung'> " . $s_obj->get_soldier_defense() . "
                                             </div>

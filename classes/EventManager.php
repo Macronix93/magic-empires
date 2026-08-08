@@ -1258,6 +1258,7 @@ class EventManager
             FROM events e
             JOIN kingdoms k ON e.targetid = k.id
             WHERE e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+              AND e.userid != k.userid
               AND e.notification_sent = 0
               $user_filter
         ";

@@ -31,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if (isset($_FILES['image'])) {
                 $days_since_avatar = (time() - $user_data['last_avatar_change']) / 86400;
 
-                if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS) {
+                if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS && !$user->is_admin()) {
                     $wait = ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
                     $error = "Du kannst dein Profilbild erst in $wait Tagen wieder ändern.";
                 } else {

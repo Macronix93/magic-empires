@@ -2542,6 +2542,7 @@ img[data-on-click] {
 
     .table {
         table-layout: auto;
+        width: 100%;
     }
 
     td, .td-mapinfo {
