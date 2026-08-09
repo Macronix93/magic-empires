@@ -200,6 +200,15 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
     });
+
+    const filters = ["filter-players", "filter-resources", "filter-monsters"];
+    filters.forEach(id => {
+        const el = document.getElementById(id);
+
+        if (el) {
+            el.addEventListener("change", () => draw());
+        }
+    });
 });
 
 function applyZoomAt(newZoom, mouseX, mouseY) {
@@ -302,7 +311,20 @@ function draw() {
 
             if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
 
-            if (owner_id === gameConfig.currentKingdom.ownerId) {
+            const isOwn = (owner_id === gameConfig.currentKingdom.ownerId);
+            const filterPlayers = document.getElementById("filter-players").checked;
+            const filterResources = document.getElementById("filter-resources").checked;
+            const filterMonsters = document.getElementById("filter-monsters").checked;
+
+            if (kid > 0) {
+                if (!filterPlayers) return;
+            } else if (kid === -2) {
+                if (!filterResources) return;
+            } else if (kid === -3) {
+                if (!filterMonsters) return;
+            }
+
+            if (isOwn) {
                 ctx.fillStyle = "rgba(11, 218, 81, 0.2)";
                 ctx.fillRect(posX, posY, scaledTile, scaledTile);
 

@@ -217,6 +217,11 @@ class Conquest
             $atk_shrine += $attacker_kingdom->get_shrine_modifier();
         }
 
+        $def_atk_shrine = 1.0;
+        if ($defender_kingdom->get_kingdom_alignment() == 1) {
+            $def_atk_shrine += $defender_kingdom->get_shrine_modifier();
+        }
+
         foreach ($this->soldier_types as $id => $soldier) {
             $cat = $soldier["category"];
 
@@ -229,10 +234,10 @@ class Conquest
 
             if ($prefix) {
                 // Stats Attacker Troops
-                $this->soldier_type_atk[$id] = (int)(($soldier["attack"] + $atk_techs[$prefix . 'a']) * $atk_shrine);
+                $this->soldier_type_atk[$id] = (int)(($soldier["attack"] * $atk_shrine) + $atk_techs[$prefix . 'a']);
                 $this->soldier_type_def[$id] = $soldier["defense"] + $atk_techs[$prefix . 'd'];
                 // Stats Defender Troops
-                $this->enemy_soldier_type_atk[$id] = $soldier["attack"] + $def_techs[$prefix . 'a'];
+                $this->enemy_soldier_type_atk[$id] = (int)(($soldier["attack"] * $def_atk_shrine) + $def_techs[$prefix . 'a']);
                 $this->enemy_soldier_type_def[$id] = $soldier["defense"] + $def_techs[$prefix . 'd'];
             } else {
                 // Special Units

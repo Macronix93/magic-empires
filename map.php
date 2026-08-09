@@ -111,7 +111,12 @@ echo '<form id="update-map" style="display: flex; flex-wrap: wrap;">
                 Laufweg
             </label>
         </span>
-    </form><br>';
+    </form>
+    <div id="map-filters" style="display: flex; justify-content: center; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; font-size: 14px; padding: 8px; border-radius: 5px;">
+        <label style="cursor:pointer;"><input type="checkbox" id="filter-players" checked> Spieler</label>
+        <label style="cursor:pointer;"><input type="checkbox" id="filter-resources" checked> Vorratslager</label>
+        <label style="cursor:pointer;"><input type="checkbox" id="filter-monsters" checked> Monstercamps</label>
+    </div>';
 
 // Map Container
 echo '<div id="map-container" 

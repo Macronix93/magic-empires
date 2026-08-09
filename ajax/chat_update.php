@@ -39,15 +39,25 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $is_admin = $user->is_admin();
 
     while ($row = $result->fetch_assoc()) {
-        $message = nl2br(e($row["message"]));
-        $display_message = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
-        $display_message = wrap_emojis($display_message);
+        $text = e($row["message"]);
+        $text = parse_chat_quotes($text);
+        $text = nl2br($text);
+        if (!empty($_SESSION["chat_filter"])) {
+            $text = filter_chat_message($text);
+        }
+        $display_message = wrap_emojis($text);
+
         $new_last_id = $row["id"];
         $is_me = ((int)$row["senderid"] === $u_id);
 
         $class = $is_me ? "receiver-bubble" : "sender-bubble";
         $avatar = $is_me ? $user->get_avatar() : new User((int)$row["senderid"], $row["sender"])->get_avatar();
 
+        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
+                         data-on-click='quoteMessage' 
+                         data-author='" . e($row["sender"]) . "' 
+                         data-text='" . e($row["message"]) . "' 
+                         title='Zitieren' alt=''>";
         $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
         $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
 
@@ -57,9 +67,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                             <img class='user-image' src='" . e($avatar) . "' alt=''> 
                             <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
                         </span>
-                        $delete_icon
+                        <span style='display: flex; gap: 5px; align-items: center;'>
+                            $quote_icon
+                            $delete_icon
+                        </span>
                     </div>
-                    " . $message . "
+                    " . $display_message . "
                   </div>";
 
         if (!$is_me) {

@@ -20,12 +20,23 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         if ((int)$row["userid"] === $u_id) continue;
 
         $is_me = false;
+        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
+                         data-on-click='quoteMessage' 
+                         data-author='" . e($row["username"]) . "' 
+                         data-text='" . e($row["message"]) . "' 
+                         title='Zitieren' alt=''>";
         $del_icon = $is_admin ? "<img src='images/icons/icon_delete.png' class='ressource-icons' 
                                         data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt=''>" : "";
         $class = "sender-bubble";
 
-        $display_message = ($use_filter == 1) ? filter_chat_message($row["message"]) : $row["message"];
-        $display_message = wrap_emojis($display_message);
+        $text = $row["message"];
+        $text = e($text);
+        $text = parse_chat_quotes($text);
+        $text = nl2br($text);
+        if ($use_filter == 1) {
+            $text = filter_chat_message($text);
+        }
+        $display_message = wrap_emojis($text);
 
         $sender = new User($row["userid"], $row["username"]);
         $avatar = $sender->get_avatar();
@@ -39,7 +50,10 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         <img class='user-image' src='$avatar' alt=''> 
                         <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
                     </span>
-                    $del_icon
+                    <span style='display: flex; gap: 5px; align-items: center;'>
+                        $quote_icon
+                        $del_icon
+                    </span>
                 </div>
                 $display_message
             </div>";

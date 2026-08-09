@@ -31,7 +31,15 @@ if ($user->is_logged_in()) {
     <meta name="viewport" content="width=device-width, initial-scale:1.0">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
     <link rel="stylesheet" type="text/css" href="styles.css">
-    <title><?php echo (!empty($title)) ? "Magic Empires - $title" : "Magic Empires"; ?></title>
+    <title>
+        <?php
+        if (IS_DEV) {
+            echo "[LOKAL]" . (!empty($title) ? " - $title" : "");
+        } else {
+            echo((!empty($title)) ? "Magic Empires - $title" : "Magic Empires");
+        }
+        ?>
+    </title>
     <noscript>
         <meta http-equiv="refresh" content="0;url=nojs.php">
     </noscript>

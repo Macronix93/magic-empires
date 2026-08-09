@@ -46,7 +46,7 @@ foreach ($result as $row) {
     $soldier = new Soldier();
     $soldier->fill_from_row($row);
 
-    $soldiers[] = $soldier;
+    $soldiers[$soldier->get_soldier_id()] = $soldier;
     $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
 }
 
@@ -310,6 +310,8 @@ $total_k_def = 0;
 $total_k_units = 0;
 $pure_base_atk = 0;
 $pure_base_def = 0;
+$total_smithy_atk = 0;
+$total_shrine_atk = 0;
 
 foreach ($result_s as $row) {
     $soldier_id = (int)($row["soldierid"] ?? -1);
@@ -317,6 +319,8 @@ foreach ($result_s as $row) {
     $kingdom_soldiers[$soldier_id] = $sol_count;
     if ($sol_count <= 0) continue;
 
+    $b_atk = 0;
+    $b_def = 0;
     $total_k_units += $sol_count;
 
     if (isset($soldiers[$soldier_id])) {
@@ -326,22 +330,25 @@ foreach ($result_s as $row) {
         $pure_base_atk += $sol_count * $s_obj->get_soldier_attack();
         $pure_base_def += $sol_count * $s_obj->get_soldier_defense();
 
-        $b_atk = 0;
-        $b_def = 0;
-
         if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
             $b_atk = $inf_atk_lvl * SMITHY_INF_ATK_BONUS;
             $b_def = $inf_def_lvl * SMITHY_INF_DEF_BONUS;
-        } elseif ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+        } else if ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
             $b_atk = $cav_atk_lvl * SMITHY_CAV_ATK_BONUS;
             $b_def = $cav_def_lvl * SMITHY_CAV_DEF_BONUS;
-        } elseif ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+        } else if ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
             $b_atk = $arc_atk_lvl * SMITHY_ARC_ATK_BONUS;
             $b_def = $arc_def_lvl * SMITHY_ARC_DEF_BONUS;
         }
 
-        $total_k_atk += $sol_count * ($s_obj->get_soldier_attack() + $b_atk) * $shrine_atk_mult;
+        $unit_atk_with_shrine = (int)($s_obj->get_soldier_attack() * $shrine_atk_mult);
+        $unit_shrine_gain = $unit_atk_with_shrine - $s_obj->get_soldier_attack();
+
+        $total_k_atk += $sol_count * ($unit_atk_with_shrine + $b_atk);
         $total_k_def += $sol_count * ($s_obj->get_soldier_defense() + $b_def);
+
+        $total_smithy_atk += ($sol_count * $b_atk);
+        $total_shrine_atk += ($sol_count * $unit_shrine_gain);
     }
 }
 
@@ -399,8 +406,6 @@ if (!empty($last_recruited_soldier)) {
 $atk_class = ($shrine_atk_mult > 1.0 || ($inf_atk_lvl + $cav_atk_lvl + $arc_atk_lvl) > 0) ? "passed" : "";
 $def_class = (($inf_def_lvl + $cav_def_lvl + $arc_def_lvl) > 0) ? "passed" : "";
 
-$total_smithy_atk = ($total_k_atk / $shrine_atk_mult) - $pure_base_atk;
-$total_shrine_atk = $total_k_atk - ($total_k_atk / $shrine_atk_mult);
 $total_smithy_def = $total_k_def - $pure_base_def;
 
 $view .= "
@@ -668,6 +673,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                    data-cost-food='$cost_food' data-cost-gold='$cost_gold'
                                    data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
                                    data-cost-villager='$cost_villager' data-time-per-unit='$unit_time'
+                                   inputmode='numeric' pattern='[0-9]*'
                                    placeholder='0' $disabled_attr>
                             <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled_attr>
                         </div>";

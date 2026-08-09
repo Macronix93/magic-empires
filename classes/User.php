@@ -111,8 +111,9 @@ class User
     public function check_session_id(): void
     {
         $result = $this->mysqli->execute_query("SELECT sessionid FROM users WHERE id = ?", [$this->get_user_id()]);
+        $row = $result->fetch_assoc();
 
-        if ($result->fetch_assoc()["sessionid"] !== session_id()) {
+        if (!$row || $row["sessionid"] !== session_id()) {
             session_destroy();
             change_location("index.php?logout");
             exit;

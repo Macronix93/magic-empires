@@ -351,6 +351,11 @@ body {
     border: 1px solid rgba(212, 175, 55, 0.2);
 }
 
+.battle-column .ressource-icons {
+    width: 16px !important;
+    height: 16px !important;
+}
+
 .battle-vs-divider {
     display: flex;
     align-items: center;
@@ -528,6 +533,23 @@ hr {
 .tablinks.tab-disabled:hover {
     background-color: rgba(0, 0, 0, 0.2);
     color: rgba(230, 220, 200, 0.4);
+}
+
+.chat-quote {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 8px 12px;
+    border-radius: 3px;
+    color: #ccc;
+    text-align: left;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.chat-quote-author {
+    color: var(--link-color);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 16px;
 }
 
 #messages-section {
@@ -2041,6 +2063,14 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .chat-quote {
+        font-size: 12px;
+    }
+
+    .chat-quote-author {
+        font-size: 14px;
     }
 
     #message-input {

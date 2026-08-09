@@ -935,7 +935,15 @@ if (!$user->is_admin()) {
             </thead>";
     if ($logs->num_rows > 0) {
         foreach ($logs as $l) {
-            $user_display = $l['username'] ? e($l['username']) . " <small>({$l['userid']})</small>" : "<i>System</i>";
+            $details = json_decode($l['details'], true);
+
+            if ($l['username']) {
+                $user_display = e($l['username']) . " <small>({$l['userid']})</small>";
+            } else if (isset($details['username'])) {
+                $user_display = e($details['username']);
+            } else {
+                $user_display = "<i>System</i>";
+            }
 
             $action_clean = str_replace('_', ' ', $l['action']);
 

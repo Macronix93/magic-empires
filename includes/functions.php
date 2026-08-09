@@ -375,7 +375,7 @@ function get_chat_emojis(): array
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
         '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭',
-        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '🫡',
+        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '🫡', '👀',
         '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
 }
@@ -796,4 +796,52 @@ function format_time_for_js(int $totalSeconds): string
     } else {
         return $m_display . ":" . $s_display;
     }
+}
+
+function parse_chat_quotes(string $text): string
+{
+    $max_depth = 5;
+    $depth = 0;
+    $open_divs = 0;
+    $output = '';
+
+    $pattern = '#(\[quote=[^\[\]]+]|\[/quote])#iu';
+    $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+    foreach ($parts as $part) {
+        if ($part === '' || $part === null) continue;
+
+        if (preg_match('#^\[quote=([^]]+)]$#i', $part, $m)) {
+            $depth++;
+
+            if ($depth <= $max_depth) {
+                $name = trim(strip_tags(preg_replace('/\p{C}/u', '', $m[1])));
+
+                if (preg_match('/^[a-zA-Z0-9äöüÄÖÜß \-_]{1,24}$/u', $name)) {
+                    $output .= '<div class="chat-quote"><span class="chat-quote-author">' . e($name) . ' schrieb:</span>';
+                    $open_divs++;
+                } else {
+                    $output .= e($part);
+                    $depth--;
+                }
+            }
+        } elseif ($part === '[/quote]') {
+            if ($depth > 0) {
+                if ($depth <= $max_depth && $open_divs > 0) {
+                    $output .= '</div>';
+                    $open_divs--;
+                }
+                $depth--;
+            }
+        } else {
+            $output .= $part;
+        }
+    }
+
+    while ($open_divs > 0) {
+        $output .= '</div>';
+        $open_divs--;
+    }
+
+    return $output;
 }

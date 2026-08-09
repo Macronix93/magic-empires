@@ -177,19 +177,23 @@ function calculateWarOutcome(soldierTypes) {
     };
     document.getElementById("btn-undo").disabled = false;
 
+    const myShrineBonus = getDynamicShrineMult("my");
+    const enShrineBonus = getDynamicShrineMult("en");
+
     // Collect data
     soldierTypes.forEach(type => {
         const countOwn = parseInt(document.getElementById(`${type}_own`).value) || 0;
         const statsEl = document.getElementById(`${type}_atk`);
         const defEl = document.getElementById(`${type}_def`);
         const cat = parseInt(statsEl.getAttribute("data-category"));
+
         let myAtkLvl = parseInt(document.getElementById("my_tech_" + (13 + (cat * 2)))?.value) || 0;
         let myDefLvl = parseInt(document.getElementById("my_tech_" + (14 + (cat * 2)))?.value) || 0;
         let aBonus = (cat === 0) ? W_CONF.infAtk : (cat === 1 ? W_CONF.cavAtk : W_CONF.arcAtk);
         let dBonus = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
 
         myUnits[type] = {
-            atk: parseInt(statsEl.getAttribute("data-attack")) + (myAtkLvl * aBonus),
+            atk: Math.floor(parseInt(statsEl.getAttribute("data-attack")) * (1.0 + myShrineBonus)) + (myAtkLvl * aBonus),
             def: parseInt(defEl.getAttribute("data-defense")) + (myDefLvl * dBonus),
             count: countOwn, initial: countOwn, cat: cat
         };
@@ -220,7 +224,7 @@ function calculateWarOutcome(soldierTypes) {
             let dB = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
 
             enemyUnits[type] = {
-                atk: parseInt(statsEl.dataset.attack) + (enAtkLvl * aB),
+                atk: Math.floor(parseInt(statsEl.dataset.attack) * (1.0 + enShrineBonus)) + (enAtkLvl * aB),
                 def: parseInt(document.getElementById(`${type}_def`).dataset.defense) + (enDefLvl * dB),
                 count: countEnemy, initial: countEnemy, cat: cat
             };
@@ -269,18 +273,23 @@ function calculateWarOutcome(soldierTypes) {
 
     enemyDefPool += wallBonus;
 
+    playerAtkPool = Math.round(playerAtkPool);
+    enemyAtkPool = Math.round(enemyAtkPool);
+
     // 1.0 = Original (very deadly!)
     // 2.0 = Troops can sustain double the amount
     // 3.0 = Troops can sustain triple the amount
-    const lethality = 2.0;
+    const lethality = isMonsterMode ? 5.0 : 2.0;
 
     // Calculate losses
     let pRatio = (playerDefPool > 0) ? Math.min(1.0, enemyAtkPool / (playerDefPool * lethality)) : 1.0;
     let eRatio = (enemyDefPool > 0) ? Math.min(1.0, playerAtkPool / (enemyDefPool * lethality)) : 1.0;
 
-    if (isMonsterMode && playerAtkPool > 0) {
-        let overpower = enemyDefPool / playerAtkPool;
-        pRatio = Math.min(1.0, pRatio * overpower);
+    if (isMonsterMode && playerAtkPool > 0 && enemyAtkPool > 0) {
+        const ratio = playerAtkPool / enemyAtkPool;
+        const lossMultiplier = Math.pow(1.0 - Math.max(0.0, Math.min(1.0, ratio / 4.0)), 1.15);
+
+        pRatio = pRatio * lossMultiplier;
     }
 
     soldierTypes.forEach(type => {
@@ -333,6 +342,9 @@ function updateLivePowerSummary() {
     const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
     const maxHp = (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc);
 
+    const myShrineBonus = getDynamicShrineMult("my");
+    const enShrineBonus = getDynamicShrineMult("en");
+
     if (currentSimWallHp === null) currentSimWallHp = maxHp;
     const wallBonus = calculateWallDefenseBonus(currentSimWallHp, lvl);
 
@@ -348,7 +360,7 @@ function updateLivePowerSummary() {
         let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
         let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
 
-        tAtkO += cO * (parseInt(stats.attack) + myA * aB);
+        tAtkO += cO * (Math.floor(parseInt(stats.attack) * (1.0 + myShrineBonus)) + (myA * aB));
         tDefO += cO * (parseInt(document.getElementById(type + "_def").dataset.defense) + myD * dB);
     });
 
@@ -370,17 +382,27 @@ function updateLivePowerSummary() {
             let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
             let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
 
-            tAtkE += cE * (parseInt(stats.attack) + enA * aB);
+            tAtkE += cE * (Math.floor(parseInt(stats.attack) * (1.0 + enShrineBonus)) + (enA * aB));
             tDefE += cE * (parseInt(document.getElementById(type + "_def").dataset.defense) + enD * dB);
         });
 
         if (totalEn > 0) tDefE += wallBonus;
     }
 
-    document.getElementById("live-atk-own").innerText = formatNumJS(tAtkO);
+    const ownAtkEl = document.getElementById("live-atk-own");
+    const enemyAtkEl = document.getElementById("live-atk-enemy");
+
+    ownAtkEl.innerText = formatNumJS(tAtkO);
+    ownAtkEl.title = tAtkO.toLocaleString("de-DE");
+
+    enemyAtkEl.innerText = formatNumJS(tAtkE);
+    enemyAtkEl.title = tAtkE.toLocaleString("de-DE");
+
     document.getElementById("live-def-own").innerText = formatNumJS(tDefO);
-    document.getElementById("live-atk-enemy").innerText = formatNumJS(tAtkE);
+    document.getElementById("live-def-own").title = tDefO.toLocaleString("de-DE");
+
     document.getElementById("live-def-enemy").innerText = formatNumJS(tDefE);
+    document.getElementById("live-def-enemy").title = tDefE.toLocaleString("de-DE");
 }
 
 function checkMonsterImport() {
@@ -409,10 +431,20 @@ function checkMonsterImport() {
 
         const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: cleanUrl}, '', cleanUrl);
-
     } catch (e) {
         console.error("Fehler beim Monster-Import:", e);
     }
+}
+
+function getDynamicShrineMult(prefix) {
+    const checkbox = document.getElementById(prefix + "_shrine_war");
+    if (!checkbox || !checkbox.checked) return 0.0;
+
+    const base = parseFloat(warsimConstEl.dataset.shrine_base) || 0.08;
+    const step = parseFloat(warsimConstEl.dataset.shrine_step) || 0.05;
+    const techLevel = parseInt(document.getElementById(prefix + "_tech_10")?.value) || 0;
+
+    return base + (techLevel * step);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

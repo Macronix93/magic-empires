@@ -12,7 +12,8 @@ $mil_tech_ids_attacker = [
     TechTypes::TECH_TYPE_CUIRASS,
     TechTypes::TECH_TYPE_ARROWHEADS,
     TechTypes::TECH_TYPE_DOUBLET,
-    TechTypes::TECH_TYPE_SIEGE
+    TechTypes::TECH_TYPE_SIEGE,
+    TechTypes::TECH_TYPE_ANCESTRAL_RITES
 ];
 $mil_tech_ids_defender = [
     TechTypes::TECH_TYPE_BLADES,
@@ -21,11 +22,12 @@ $mil_tech_ids_defender = [
     TechTypes::TECH_TYPE_CUIRASS,
     TechTypes::TECH_TYPE_ARROWHEADS,
     TechTypes::TECH_TYPE_DOUBLET,
-    TechTypes::TECH_TYPE_WALL_HP_INC
+    TechTypes::TECH_TYPE_WALL_HP_INC,
+    TechTypes::TECH_TYPE_ANCESTRAL_RITES
 ];
 
 $tech_meta = [];
-$res_meta = $db_instance->execute_query("SELECT id, techname, maxlevel FROM tech_list WHERE id IN (?, ?, ?, ?, ?, ?, ?, ?)", [
+$res_meta = $db_instance->execute_query("SELECT id, techname, maxlevel FROM tech_list WHERE id IN (?, ?, ?, ?, ?, ?, ?, ?, ?)", [
     TechTypes::TECH_TYPE_BLADES,
     TechTypes::TECH_TYPE_SHIELDWALL,
     TechTypes::TECH_TYPE_LANCE_RIDING,
@@ -33,7 +35,8 @@ $res_meta = $db_instance->execute_query("SELECT id, techname, maxlevel FROM tech
     TechTypes::TECH_TYPE_ARROWHEADS,
     TechTypes::TECH_TYPE_DOUBLET,
     TechTypes::TECH_TYPE_WALL_HP_INC,
-    TechTypes::TECH_TYPE_SIEGE
+    TechTypes::TECH_TYPE_SIEGE,
+    TechTypes::TECH_TYPE_ANCESTRAL_RITES
 ]);
 foreach ($res_meta as $row) {
     $tech_meta[$row["id"]] = $row;
@@ -107,6 +110,12 @@ foreach ($res_m as $row) {
     $monsters[] = $row;
 }
 
+// Shrine bonus
+$res_war_data = $db_instance->execute_query("SELECT base_bonus FROM shrine_alignments WHERE id = 1");
+$war_base_bonus = $res_war_data->fetch_column() ?: 0.08;
+
+$is_war_god = ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR);
+
 $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
 $view .= '<div style="display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">';
@@ -114,6 +123,10 @@ $view .= '<div class="box-container" style="max-width: 250px; margin: 0;">
     <div class="box-header">Deine Forschung</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         ' . $render_tech_side("my", $tech_meta, $mil_tech_ids_attacker, $kingdom) . '
+        <div class="split-content" style="margin-top: 8px; padding-top: 5px; border-top: 1px solid #555;">
+            <span>Kriegsgott aktiv:</span>
+            <input type="checkbox" id="my_shrine_war" class="js-tech-input" ' . ($is_war_god ? "checked" : "") . '>
+        </div>
     </div>
 </div>';
 
@@ -121,6 +134,10 @@ $view .= '<div class="box-container" id="enemy-tech-box" style="max-width: 250px
     <div class="box-header">Gegnerische Boni</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         ' . $render_tech_side("en", $tech_meta, $mil_tech_ids_defender) . '
+        <div class="split-content" style="margin-top: 8px; padding-top: 5px; border-top: 1px solid #555;">
+            <span>Kriegsgott aktiv:</span>
+            <input type="checkbox" id="en_shrine_war" class="js-tech-input">
+        </div>
         <div style="margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--border-gold);">
             <b>Mauer-Zustand</b>
             <div class="split-content" style="margin-top: 5px;">
@@ -299,7 +316,14 @@ $view .= '</div>';
 $view .= '</div>';
 
 // --- BUTTONS & DATA ---
-$view .= '<div id="warsim-data" data-soldiers="' . e(json_encode(array_map(fn($s) => $s->get_soldier_name(), $soldiers))) . '"></div> 
+$shrine_atk_mult = 1.0;
+if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+    $shrine_atk_mult += $kingdom->get_shrine_modifier();
+}
+
+$view .= '<div id="warsim-data" 
+                data-soldiers="' . e(json_encode(array_map(fn($s) => $s->get_soldier_name(), $soldiers))) . '"
+                data-shrine-atk-mult="' . $shrine_atk_mult . '"></div> 
           <div id="warsim-const" 
                 data-inf_atk="' . SMITHY_INF_ATK_BONUS . '" data-inf_def="' . SMITHY_INF_DEF_BONUS . '"
                 data-cav_atk="' . SMITHY_CAV_ATK_BONUS . '" data-cav_def="' . SMITHY_CAV_DEF_BONUS . '"
@@ -310,6 +334,8 @@ $view .= '<div id="warsim-data" data-soldiers="' . e(json_encode(array_map(fn($s
                 data-wall_max_def="' . MAX_WALL_DEFENSE . '"
                 data-wall_factor="' . WALL_DEFENSE_FACTOR . '"
                 data-siege_bonus="' . SMITHY_SIEGE_BONUS . '"
+                data-shrine_base="' . $war_base_bonus . '" 
+                data-shrine_step="' . SHRINE_TECH_STEP . '" 
                 data-max_lvl="' . MAX_BUILDING_LEVEL . '"
                 data-rps_bonus="' . RPS_BONUS . '">
             </div>';

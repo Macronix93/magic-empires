@@ -5,6 +5,7 @@ class Messages
     private object $mysqli;
     private User $user;
     private string $view = "";
+    private int $max_loops = MAX_QUOTE_LOOPS;
 
     public function __construct(object $db_conn, User $user)
     {
@@ -312,14 +313,27 @@ class Messages
 
         foreach ($result as $row) {
             $message_id = $row["id"];
-            $message = $row["message"];
-            $display_message = ($_SESSION["chat_filter"]) ? filter_chat_message($message) : $message;
+
+            $display_message = e($row["message"]);
+            $display_message = parse_chat_quotes($display_message);
+            $display_message = nl2br($display_message);
+            if ($_SESSION["chat_filter"]) {
+                $display_message = filter_chat_message($display_message);
+            }
             $display_message = wrap_emojis($display_message);
+
             $has_read = $row["hasread"];
             $date = $row["date"];
             $is_me = ($row["senderid"] == $this->user->get_user_id());
-            $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
 
+            $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
+            $raw_message_for_quote = str_replace(['"', "'", "\r", "\n"], ['', '', '', ' '], $row["message"]);
+            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
+                     style='cursor: pointer; margin-left: 5px;' 
+                     data-on-click='quoteMessage' 
+                     data-author='" . e($row["sender"]) . "' 
+                     data-text='" . e($row["message"]) . "' 
+                     title='Nachricht zitieren' alt=''>";
             $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
 
             if ($row["senderid"] == $sender_id) {
@@ -338,7 +352,10 @@ class Messages
                                     <img class='user-image' src='$chat_partner_image' alt=''> 
                                     <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
                                 </span>
-                                $delete_icon
+                                <span style='display: flex; gap: 5px; align-items: center;'>
+                                    $quote_icon
+                                    $delete_icon
+                                </span>
                             </div>
                             " . $display_message . "
                         </div>";
@@ -349,7 +366,10 @@ class Messages
                                     <img class='user-image' src='$my_chat_image' alt=''> 
                                     <span>Du am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
                                 </span>
-                                $delete_icon
+                                <span style='display: flex; gap: 5px; align-items: center;'>
+                                    $quote_icon
+                                    $delete_icon
+                                </span>
                             </div>
                             " . $display_message . "
                         </div>";
@@ -381,7 +401,8 @@ class Messages
 
         $rows = array_reverse($rows);
 
-        $html = "<div id='messages-section' data-chat-type='world'>";
+        $html = "<div class='info-box event-error' style='display: none;'></div>";
+        $html .= "<div id='messages-section' data-chat-type='world'>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
         $html .= "<button id='load-older-btn' 
                       data-on-click='loadOlderWorldChat' 
@@ -411,8 +432,19 @@ class Messages
                 $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' 
                                                             data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
 
-                $use_filter = ($_SESSION["chat_filter"] ?? 1);
-                $msg = ($use_filter == 1) ? filter_chat_message($row["message"]) : $row["message"];
+                $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
+                     style='cursor: pointer; margin-left: 5px;' 
+                     data-on-click='quoteMessage' 
+                     data-author='" . e($row["username"]) . "' 
+                     data-text='" . e($row["message"]) . "' 
+                     title='Nachricht zitieren' alt=''>";
+
+                $msg = e($row["message"]);
+                $msg = parse_chat_quotes($msg);
+                $msg = nl2br($msg);
+                if ($_SESSION["chat_filter"]) {
+                    $msg = filter_chat_message($msg);
+                }
                 $msg = wrap_emojis($msg);
 
                 $u = new User($row["userid"], $row["username"]);
@@ -426,7 +458,10 @@ class Messages
                             <img class='user-image' src='$avatar' alt=''> 
                             <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
                         </span>
-                        $delete_icon
+                        <span style='display: flex; gap: 5px; align-items: center;'>
+                            $quote_icon
+                            $delete_icon
+                        </span>
                     </div>
                     $msg
                   </div>";

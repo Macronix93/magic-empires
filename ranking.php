@@ -76,9 +76,12 @@ foreach ($result as $row) {
                 </td>
                 <td class='td-expand'>
                     <div class='image-and-user'>
-                        <div class='avatar-container'>
+                        <div class='avatar-container popup' id='av_pop_$user_id'>
                             <img class='user-image' src='" . $image_path . "' alt='Nutzerbild'>
                             <span class='status-indicator' style='background-color: " . $color . ";'></span>
+                            <div id='av_pop_" . $user_id . "_box' class='popupbox' style='background: none; border: none; border-radius: 5px; box-shadow: none; padding: 0;'>
+                                <img src='" . $image_path . "' style='width: 80px; height: 80px; border-radius: 5px; display: block;' alt='Nutzerbild'>
+                            </div>
                         </div>
                         <a href='#' 
                            data-on-click='openOverlay' 

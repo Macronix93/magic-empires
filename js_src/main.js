@@ -81,11 +81,35 @@ registerAction("toggleBadges", (el) => {
     if (!container) return;
 
     container.querySelectorAll('.badge-hide-mobile, .badge-hide-desktop').forEach(item => {
-        item.classList.remove('badge-hide-mobile', 'badge-hide-desktop');
-        item.style.display = 'inline-flex';
+        item.classList.remove("badge-hide-mobile", "badge-hide-desktop");
+        item.style.display = "inline-flex";
     });
 
-    el.remove(); // Button weg
+    el.remove();
+});
+registerAction("quoteMessage", (el) => {
+    const author = el.dataset.author;
+    const text = el.dataset.text;
+
+    const input = document.getElementById("message-input");
+    if (input) {
+        const quoteTag = `[quote=${author}]${text}[/quote] `;
+
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const currentVal = input.value;
+
+        const prefix = (start > 0 && currentVal[start - 1] !== "\n") ? "\n" : "";
+        const insertion = prefix + quoteTag;
+
+        input.value = currentVal.substring(0, start) + insertion + currentVal.substring(end);
+
+        const newPos = start + insertion.length;
+        input.focus();
+        input.setSelectionRange(newPos, newPos);
+
+        input.scrollIntoView({behavior: "smooth", block: "center"});
+    }
 });
 
 function registerAction(name, callback) {
@@ -599,7 +623,10 @@ function initAutomaticCountdowns() {
 }
 
 function insertEmoji(emoji) {
-    const input = document.getElementById("message-input");
+    const input = document.getElementById("message-input") ||
+        document.getElementById("new-news-content") ||
+        (document.activeElement.tagName === 'TEXTAREA' ? document.activeElement : null) ||
+        document.querySelector('textarea[id^="edit-news-text-"]');
     if (!input) return;
 
     const text = input.value;

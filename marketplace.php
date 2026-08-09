@@ -291,62 +291,70 @@ if (isset($_GET["send_own"])) {
     $res_type = (int)$_GET["rt"];
     $amount = (int)$_GET["am"];
 
+
     $res_target = $db_instance->execute_query("SELECT id, mapx, mapy, kingdomname FROM kingdoms WHERE id = ? AND userid = ?", [$target_id, $user->get_user_id()]);
     $target_row = $res_target->fetch_assoc();
 
     if ($target_row && $target_id != $current_kingdom) {
-        $has_enough = false;
-
-        switch ($res_type) {
-            case ResourceTypes::RESOURCE_TYPE_FOOD:
-                $has_enough = ($kingdom->get_kingdom_food() >= $amount);
-                break;
-            case ResourceTypes::RESOURCE_TYPE_WOOD:
-                $has_enough = ($kingdom->get_kingdom_wood() >= $amount);
-                break;
-            case ResourceTypes::RESOURCE_TYPE_STONE:
-                $has_enough = ($kingdom->get_kingdom_stone() >= $amount);
-                break;
-            case ResourceTypes::RESOURCE_TYPE_GOLD:
-                $has_enough = ($kingdom->get_kingdom_gold() >= $amount);
-                break;
-        }
-
-        if ($amount <= 0) {
-            $error = "Bitte gib eine Menge größer als 0 an!";
-        } else if (!$has_enough) {
-            $error = "Du hast nicht genug Ressourcen für diesen Transport!";
+        if ($daily_trades_count >= $max_trades) {
+            $error = "Du hast dein tägliches Limit von $max_trades Handelsaktionen bereits erreicht!";
         } else {
-            $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
-            $seconds = $arrival_data["seconds"];
-            $arrival_time = $arrival_data["timestamp"];
+            $has_enough = false;
 
-            $kingdom->modify_resource($res_type, -$amount);
+            switch ($res_type) {
+                case ResourceTypes::RESOURCE_TYPE_FOOD:
+                    $has_enough = ($kingdom->get_kingdom_food() >= $amount);
+                    break;
+                case ResourceTypes::RESOURCE_TYPE_WOOD:
+                    $has_enough = ($kingdom->get_kingdom_wood() >= $amount);
+                    break;
+                case ResourceTypes::RESOURCE_TYPE_STONE:
+                    $has_enough = ($kingdom->get_kingdom_stone() >= $amount);
+                    break;
+                case ResourceTypes::RESOURCE_TYPE_GOLD:
+                    $has_enough = ($kingdom->get_kingdom_gold() >= $amount);
+                    break;
+            }
 
-            $db_instance->execute_query(
-                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime, targetid, targetx, targety, buildingtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [
-                    ActionTypes::ACTION_RECEIVE_RESOURCES,
-                    $user->get_user_id(),
-                    $target_id,
-                    $res_type,
-                    $amount,
-                    "Interner Transport",
-                    $arrival_time,
-                    $current_kingdom,
-                    $my_x,
-                    $my_y,
-                    time()
-                ]
-            );
+            if ($amount <= 0) {
+                $error = "Bitte gib eine Menge größer als 0 an!";
+            } else if (!$has_enough) {
+                $error = "Du hast nicht genug Ressourcen für diesen Transport!";
+            } else {
+                $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
+                $seconds = $arrival_data["seconds"];
+                $arrival_time = $arrival_data["timestamp"];
 
-            $logger->log_game("TRADE", "INTERNAL_TRANSPORT", [
-                "target_kingdom" => $target_id,
-                "resource" => $res_type,
-                "amount" => $amount
-            ], $current_kingdom);
+                $kingdom->modify_resource($res_type, -$amount);
 
-            $view .= show_passed_box("Transport nach " . $target_row["kingdomname"] . " gestartet!<br>Ankunft in " . convert_sec_to_str($seconds));
+                $db_instance->execute_query(
+                    "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime, targetid, targetx, targety, buildingtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        ActionTypes::ACTION_RECEIVE_RESOURCES,
+                        $user->get_user_id(),
+                        $target_id,
+                        $res_type,
+                        $amount,
+                        "Interner Transport",
+                        $arrival_time,
+                        $current_kingdom,
+                        $my_x,
+                        $my_y,
+                        time()
+                    ]
+                );
+
+                $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$user->get_user_id()]);
+                $daily_trades_count++;
+
+                $logger->log_game("TRADE", "INTERNAL_TRANSPORT", [
+                    "target_kingdom" => $target_id,
+                    "resource" => $res_type,
+                    "amount" => $amount
+                ], $current_kingdom);
+
+                $view .= show_passed_box("Transport nach " . $target_row["kingdomname"] . " gestartet!<br>Ankunft in " . convert_sec_to_str($seconds));
+            }
         }
     } else {
         $error = "Ungültiges Ziel-Königreich!";

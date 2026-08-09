@@ -59,7 +59,11 @@ registerAction("sendWorldMessage", () => {
         .then(r => r.json())
         .then(response => {
             if (response.error) {
-                alert(response.error);
+                if (typeof setInfoBoxError === "function") {
+                    setInfoBoxError(response.error);
+                } else {
+                    alert(response.error);
+                }
             } else if (response.html) {
                 const section = document.getElementById("messages-section");
 
@@ -70,7 +74,7 @@ registerAction("sendWorldMessage", () => {
 
                 lastSeenId = response.lastId;
 
-                scrollDown();
+                scrollDown(true);
             }
         });
 });
@@ -147,17 +151,21 @@ function scrollToLatestMessage() {
     }
 }
 
-function scrollDown() {
+function scrollDown(force = false) {
     const messagesSection = document.getElementById("messages-section");
 
     if (messagesSection) {
-        const isAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
+        if (force) {
+            messagesSection.scrollTop = messagesSection.scrollHeight;
+        } else {
+            const isAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
 
-        if (isAtBottom) {
-            messagesSection.scrollTo({
-                top: messagesSection.scrollHeight,
-                behavior: "smooth"
-            });
+            if (isAtBottom) {
+                messagesSection.scrollTo({
+                    top: messagesSection.scrollHeight,
+                    behavior: "smooth"
+                });
+            }
         }
     }
 }
@@ -245,7 +253,14 @@ function updateChat(chatPartner) {
 
                 lastSeenId = data.lastId;
 
-                scrollDown();
+                const messagesSection = document.getElementById("messages-section");
+                const wasAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 100;
+
+                if (wasAtBottom) {
+                    scrollDown(true);
+                } else {
+                    scrollDown();
+                }
             }
 
             if (response.messagesToDelete) {
@@ -449,7 +464,7 @@ function insertNewChatMessage(e) {
 
                 if (infoBox) infoBox.style.display = "none";
 
-                scrollDown();
+                scrollDown(true);
             }
         })
         .catch(error => console.error("Error:", error));
@@ -745,6 +760,11 @@ function finishLoading(btn) {
 
 function setInfoBoxError(message) {
     const infoBox = document.querySelector(".info-box");
+
+    if (!infoBox) {
+        return;
+    }
+
     const img = document.createElement("img");
     img.src = ERROR_IMAGE_PATH;
     img.alt = "Fehler";
