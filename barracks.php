@@ -11,6 +11,7 @@ $kingdom = $result["kingdom"];
 $troop_limit = $kingdom->get_troop_limit();
 $total_occupied_space = $kingdom->get_current_troop_count(true, true);
 $space_left = max(0, $troop_limit - $total_occupied_space);
+$actual_units_total = $kingdom->get_current_troop_count(false, true);
 $res_available = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
 $available_troops = (int)$res_available->fetch_row()[0];
 
@@ -403,10 +404,10 @@ if (!empty($last_recruited_soldier)) {
     $user->clear_last_recruited_soldier($current_kingdom);
 }
 
-$atk_class = ($shrine_atk_mult > 1.0 || ($inf_atk_lvl + $cav_atk_lvl + $arc_atk_lvl) > 0) ? "passed" : "";
-$def_class = (($inf_def_lvl + $cav_def_lvl + $arc_def_lvl) > 0) ? "passed" : "";
-
 $total_smithy_def = $total_k_def - $pure_base_def;
+
+$atk_class = ($total_smithy_atk > 0 || $total_shrine_atk > 0) ? "passed" : "";
+$def_class = ($total_smithy_def > 0) ? "passed" : "";
 
 $view .= "
 <div class='garnison-box'>
@@ -445,7 +446,7 @@ $view .= "
                 <b>Truppen (gesamt):</b>
             </td>
             <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
-                " . fnum($total_occupied_space) . " / " . fnum($troop_limit) . "
+                " . fnum($actual_units_total) . " / " . fnum($troop_limit) . "
             </td>
         </tr>
         <tr>
@@ -526,7 +527,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 //    }
 
     $unit_cat = $soldiers[$i]->get_soldier_category();
-    $unit_time = (int)($soldiers[$i]->get_soldier_time() * $smithy_multiplier);
+    $base_unit_time = $soldiers[$i]->get_soldier_time();
+    $unit_time_display = (int)($base_unit_time * $smithy_multiplier);
 
     $cost_food = (int)($soldiers[$i]->get_soldier_food_cost());
     $cost_gold = (int)($soldiers[$i]->get_soldier_gold_cost());
@@ -557,9 +559,37 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
             break;
         case Soldiers::SOLDIER_CONQUEROR:
+            $base = (BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100;
+            $step = MIN_CONQUEST_CHANCE * 100;
+            $max = MAX_CONQUEST_CHANCE * 100;
+
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'>Erfolg: <b>$base%</b> Basis-Chance</span>";
+            $capacity_text .= "<br><small>(+$step% je weiteren Eroberer, max. $max%)</small>";
+            break;
         case Soldiers::SOLDIER_SETTLER_WAGON:
-            $chance = ($s_id_internal == Soldiers::SOLDIER_CONQUEROR) ? (BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100 : BASE_SETTLER_CHANCE * 100;
-            $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$chance%</b> Erfolgsrate</span>";
+            $res_founded = $db_instance->execute_query(
+                "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method = 0",
+                [$user->get_user_id()]
+            );
+            $curr_founded = (int)$res_founded->fetch_row()[0];
+
+            $res_imp = $db_instance->execute_query(
+                "SELECT COUNT(*) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
+                [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
+            );
+            $imp_bonus = (int)$res_imp->fetch_row()[0];
+
+            $current_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
+            $base_chance = BASE_SETTLER_CHANCE * 100;
+
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$base_chance%</b> Erfolgsrate</span>";
+            $capacity_text .= "<br><span style='font-size: 0.9em;'>Imperium: <b>$curr_founded / $current_limit</b> gegründeten Siedlungen</span>";
+
+            if ($current_limit >= GLOBAL_SETTLEMENT_MAX) {
+                $capacity_text .= "<br><small class='error'>(Maximales Limit erreicht)</small>";
+            } else {
+                $capacity_text .= "<br><small>(Erhöhbar durch 'Imperium' Forschung)</small>";
+            }
             break;
     }
 
@@ -578,7 +608,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $recruit_time_end = $row["recruittime"];
             $soldier_goal = $row["soldiergoal"];
 
-            $current_unit_time = $unit_time;
+            $current_unit_time = $unit_time_display;
 
             $current_time = time();
             $elapsed_since_unit_start = $current_time - $row["buildingtime"];
@@ -599,19 +629,19 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         } else if ($kingdom_is_upgrading && $upgrade_event["buildingid"] == $soldiers[$i]->get_soldier_id()) {
             $target_id = $upgrade_event["soldierid"];
             $target_name = "Unbekannt";
-            $unit_time = 0;
+            $upg_unit_time = 0;
 
             foreach ($soldiers as $s) {
                 if ($s->get_soldier_id() == $target_id) {
                     $target_name = $s->get_soldier_name();
-                    $unit_time = (int)($s->get_soldier_time() * $smithy_multiplier);
+                    $upg_unit_time = (int)($s->get_soldier_time() * $smithy_multiplier);
                     break;
                 }
             }
 
             $total_diff = $upgrade_event["recruittime"] - time();
-            $rem = max(0, $total_diff % $unit_time);
-            if ($rem == 0) $rem = $unit_time;
+            $rem = max(0, $total_diff % $upg_unit_time);
+            if ($rem == 0) $rem = $upg_unit_time;
 
             $text_build = "Aufwertung zu $target_name: " . $upgrade_event["soldiergoal"] . "<br>
             <b><span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg'>" . format_time_for_js($rem) . "</span></b><br>
@@ -672,7 +702,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                    data-owned='$owned_count'
                                    data-cost-food='$cost_food' data-cost-gold='$cost_gold'
                                    data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
-                                   data-cost-villager='$cost_villager' data-time-per-unit='$unit_time'
+                                   data-cost-villager='$cost_villager' data-time-per-unit='$base_unit_time'
                                    inputmode='numeric' pattern='[0-9]*'
                                    placeholder='0' $disabled_attr>
                             <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled_attr>
@@ -744,7 +774,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     if (!$is_hero) {
         $view .= "<div class='map-legend' style='justify-content: left;'>
                     <div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-                        <span id='time-$i'>" . convert_sec_to_str($unit_time) . "</span>
+                        <span id='time-$i'>" . convert_sec_to_str($unit_time_display) . "</span>
                     </div>
                 </div>";
     }

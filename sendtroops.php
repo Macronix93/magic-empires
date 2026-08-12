@@ -20,6 +20,11 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
 
     change_location("map.php?startx=$target_x&starty=$target_y");
     exit;
+} else if ($kingdom_id == -999) {
+    $_SESSION["game_error"] = "Dieses Gebiet ist durch einen magischen Bann versiegelt!";
+
+    change_location("map.php?startx=$target_x&starty=$target_y");
+    exit;
 } else if ($barracks_level <= 0) {
     $_SESSION["game_error"] = "Dein Königreich benötigt eine Kaserne, um Truppenbewegungen zu koordinieren!";
 
@@ -149,12 +154,22 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     [$user->get_current_kingdom(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]
                 );
                 $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
-                $imp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
-                $max_settled_slots = BASE_SETTLEMENT_LIMIT + $imp_lvl;
-                $current_k_count = ($settler_wagon_count > 0 ? $db_instance->execute_query(
+
+                $res_k_count = $db_instance->execute_query(
                     "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
-                    [$user->get_user_id()])->fetch_assoc()["total"]
-                    : 0);
+                    [$user->get_user_id()]
+                );
+                $current_settled_count = $res_k_count->fetch_assoc()["total"] ?? 0;
+
+                $res_total_imp = $db_instance->execute_query("
+                    SELECT COUNT(*) AS total 
+                    FROM techs t
+                    JOIN kingdoms k ON t.kingdomid = k.id
+                    WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0
+                ", [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]);
+                $total_imperial_bonus = $res_total_imp->fetch_assoc()["total"] ?? 0;
+
+                $max_allowed_slots = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $total_imperial_bonus);
 
                 $total_units_in_request = 0;
                 foreach ($_POST["soldiers"] as $count) {
@@ -165,8 +180,12 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                     $error = "Du musst mindestens einen Soldaten auswählen!";
                 } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
                     $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
-                } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_k_count >= $max_settled_slots) {
-                    $error = "Keine Siedler-Slots mehr frei! Erforsche 'Imperium', um mehr als $max_settled_slots Dörfer gründen zu können.";
+                } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_settled_count >= $max_allowed_slots) {
+                    if ($max_allowed_slots >= GLOBAL_SETTLEMENT_MAX) {
+                        $error = "Das absolute Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Dörfern ist erreicht!";
+                    } else {
+                        $error = "Keine weiteren Siedlungen möglich! Erforsche 'Imperium' in einem weiteren Dorf, um einen Slot freizuschalten (Aktuell: $max_allowed_slots).";
+                    }
                 } else if ($enemy_user_id == $user->get_user_id() && $target_x != -1) {
                     $target_k_obj = new Kingdom($db_instance, $kingdom_id);
                     $target_limit = $target_k_obj->get_troop_limit();
@@ -256,8 +275,17 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
         } else {
             // Noob protection check
             if ($is_noob_protected && $enemy_user_id != -1) {
-                $view .= show_warning_box("<b>Punktestand zu unterschiedlich:</b><br>Ein Angriff ist nicht möglich.<br>Du kannst jedoch reine Spionage-Trupps (nur Späher) entsenden.");
+                $my_score = $user->get_user_score();
 
+                $min_allowed = floor($my_score * NOOB_PROTECTION_MULT);
+                $max_allowed = floor($my_score / NOOB_PROTECTION_MULT);
+
+                $view .= show_warning_box("
+                    <b>Punktestand zu unterschiedlich:</b><br>
+                    Ein Angriff ist nicht möglich.<br>
+                    Du kannst nur Spieler angreifen, die einen Score von <b>" . fnum($min_allowed) . "</b> bis <b>" . fnum($max_allowed) . "</b> haben <b>(" . (NOOB_PROTECTION_MULT * 100) . "%)</b>.<br>
+                    Reine Spionage (nur Späher) ist allerdings möglich.
+                ");
                 $only_scouts_allowed = true;
             } else {
                 $only_scouts_allowed = false;

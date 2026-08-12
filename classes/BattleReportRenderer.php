@@ -46,7 +46,7 @@ class BattleReportRenderer
 
         // Attacker Column
         $html .= "<div class='battle-column'><div class='report-section-title'>$atk_label</div>";
-        $html .= "<div style='font-size: 12px; display: flex; gap: 10px; justify-content: center; opacity: 0.9;'>";
+        $html .= "<div class='battle-strength'>";
         $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_atk_atk) . "</span>";
         $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_atk_def) . "</span>";
         $html .= "</div>";
@@ -64,7 +64,7 @@ class BattleReportRenderer
 
         // Defender Column
         $html .= "<div class='battle-column'><div class='report-section-title'>$def_label</div>";
-        $html .= "<div style='font-size: 12px; display: flex; gap: 10px; justify-content: center; opacity: 0.9;'>";
+        $html .= "<div class='battle-strength'>";
         $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_def_atk) . "</span>";
         $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_def_def) . "</span>";
         $html .= "</div>";
@@ -125,8 +125,8 @@ class BattleReportRenderer
 
             $s_val = fnum($raw_stock);
 
-            $html .= "<div style='display: flex; flex-direction: column; align-items: center; min-width: 85px;'>
-                    <div style='display: flex; align-items: center; gap: 5px; font-size: 1.05em;'>
+            $html .= "<div style='display: flex; flex-direction: column; align-items: center;'>
+                    <div class='scout-resource-bar' style='gap: 5px;'>
                         " . get_resource_icon($constant) . " <span>$s_val</span>
                     </div>";
 

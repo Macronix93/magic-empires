@@ -204,6 +204,7 @@
                 $building_obj->set_building_name($building["buildingname"]);
 
                 $is_market = ($building["buildingid"] == BuildingTypes::BUILDING_MARKETPLACE);
+                $is_wall = ($building["buildingid"] == BuildingTypes::BUILDING_WALL);
                 $active_class = ($current_page === $building_file ? ' active' : '');
 
                 echo "<div class='menu-icons-small box$active_class' 
@@ -217,6 +218,10 @@
 
                 if ($is_market && $total_market_offers > 0) {
                     echo "<span style='color: var(--link-color); font-weight: bold;'>($total_market_offers)</span>";
+                }
+
+                if ($is_wall && $kingdom->get_wall_hp() < $kingdom->get_wall_max_hp()) {
+                    echo "<span class='error' style='font-weight: bold;'>(!)</span>";
                 }
 
                 echo "</div></div>";

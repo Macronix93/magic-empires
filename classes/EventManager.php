@@ -531,14 +531,17 @@ class EventManager
         $res = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$owner_id]);
         $u_name = $res->fetch_assoc()["username"] ?? "Spieler";
 
-        if ($row["targetid"] == -1 || $row["targetid"] == -2 || $row["targetid"] == -3) {
+        if ($row["targetid"] <= -1) {
+            $res_map = $this->mysqli->execute_query(
+                "SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
+                [$target_x, $target_y]
+            );
+            $map_info = $res_map->fetch_assoc();
+
             if ($row["targetid"] == -3) {
                 $field_name = "Monstercamp";
             } else {
-                $res = $this->mysqli->execute_query("SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
-                    [$target_x, $target_y]);
-
-                $field_name = $res->fetch_assoc()["fieldname"] ?? "Unbekannt";
+                $field_name = $map_info["fieldname"] ?? "Unbekannt";
             }
         } else {
             $enemy_k = new Kingdom($this->mysqli, $row["targetid"]);
@@ -942,8 +945,10 @@ class EventManager
         $enemy_msg .= BattleReportRenderer::render_outcome_box("Kampfausgang", $def_main, $wall_before, $wall_after, $def_sub, $def_type);
 
         // Conquering logic
+        $was_conquered = false;
+
         if ($victory && $conquest->has_conquerer()) {
-            $this->handle_post_battle_conquest($row, $conquest, $enemy_kingdom, $enemy_user, $attacker_user, $message, $enemy_msg);
+            $was_conquered = $this->handle_post_battle_conquest($row, $conquest, $enemy_kingdom, $enemy_user, $attacker_user, $message, $enemy_msg);
         }
 
         // Score & Wall-Updates
@@ -1047,7 +1052,7 @@ class EventManager
 
         $surviving_scouts = $conquest->get_surviving_count(Soldiers::SOLDIER_SCOUT);
 
-        if ($surviving_scouts > 0) {
+        if ($surviving_scouts > 0 && !$was_conquered) {
             $initial_scouts = $conquest->get_initial_count_by_id(Soldiers::SOLDIER_SCOUT, true);
             $lost_scouts = $initial_scouts - $surviving_scouts;
 
@@ -1086,7 +1091,7 @@ class EventManager
     }
 
     private function handle_post_battle_conquest(array $row, Conquest $conquest, Kingdom $enemy_kingdom, User $enemy_user,
-                                                 User  $attacker_user, string &$message, string &$enemy_msg): void
+                                                 User  $attacker_user, string &$message, string &$enemy_msg): bool
     {
         $rate = $conquest->get_conquering_rate($conquest->get_conquerer_count());
         $is_conquered = $conquest->is_conquered($rate);
@@ -1104,18 +1109,35 @@ class EventManager
 
             // Check: Is it the last kingdom of the defender?
             $k_count_res = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$enemy_user->get_user_id()]);
-            $loss_res = $this->mysqli->execute_query("SELECT SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore) AS loss 
-                                            FROM buildings b 
-                                            JOIN building_list bl ON b.buildingid = bl.id 
-                                            WHERE b.kingdomid = ?",
-                [$enemy_kingdom->get_kingdom_id()]);
-            $total_building_score_loss = (int)($loss_res->fetch_assoc()["loss"] ?? 0);
             $has_more_kingdoms = ($k_count_res->fetch_column() > 1);
+
+            // Get all Buildings for score loss
+            $res_b_score = $this->mysqli->execute_query("
+                SELECT SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore) AS loss 
+                FROM buildings b 
+                JOIN building_list bl ON b.buildingid = bl.id 
+                WHERE b.kingdomid = ?", [$enemy_kingdom->get_kingdom_id()]);
+            $village_building_score = (int)($res_b_score->fetch_assoc()["loss"] ?? 0);
+
+            // Get alle Techs for score loss
+            $res_t_score = $this->mysqli->execute_query("
+                SELECT SUM((t.techlevel * (t.techlevel + 1) / 2) * tl.techscore) AS loss 
+                FROM techs t 
+                JOIN tech_list tl ON t.techid = tl.id 
+                WHERE t.kingdomid = ?", [$enemy_kingdom->get_kingdom_id()]);
+            $village_tech_score = (int)($res_t_score->fetch_assoc()["loss"] ?? 0);
+
+            // Gesamtwert des Dorfes
+            $total_village_value = $village_building_score + $village_tech_score;
 
             if ($has_more_kingdoms) {
                 // Defender still has some other kingdoms
                 $this->mysqli->execute_query("DELETE FROM events WHERE kingdomid = ? AND userid = ?", [$enemy_kingdom->get_kingdom_id(), $enemy_user->get_user_id()]);
-                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_building_score_loss, $enemy_user->get_user_id()]);
+
+                // Remove score from defender
+                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_village_value, $enemy_user->get_user_id()]);
+                // Add score to attacker
+                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
 
                 if ($enemy_kingdom->get_kingdom_id() == $enemy_user->get_main_kingdom()) {
                     $new_main_id = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE userid = ? AND id != ? LIMIT 1",
@@ -1139,6 +1161,9 @@ class EventManager
                     }
                 }
             } else {
+                // Give attacker score
+                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
+
                 // Defender was completely destroyed -> defender starts over again
                 $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [STARTING_SCORE, $enemy_user->get_user_id()]);
                 $this->mysqli->execute_query("DELETE FROM events WHERE userid = ?", [$enemy_user->get_user_id()]);
@@ -1164,10 +1189,14 @@ class EventManager
             $def_sub = "";
             if (!$has_more_kingdoms) $def_sub = "<br>Da dies dein letztes Dorf war, musst du an einem neuen Standort von vorne beginnen.";
             $enemy_msg .= BattleReportRenderer::render_outcome_box("Königreich verloren", $def_main, 0, 0, $def_sub, "error");
+
+            return true;
         } else {
             $fail_main = "Die Eroberung ist gescheitert. Unsere Truppen konnten die Kontrolle über das Stadtzentrum nicht sichern.";
             $fail_sub = "Die Chance auf Erfolg lag bei " . $rate . "%. Die Soldaten ziehen sich zurück.";
             $message .= BattleReportRenderer::render_outcome_box("Eroberungsversuch", $fail_main, 0, 0, $fail_sub, "error");
+
+            return false;
         }
     }
 
@@ -1539,17 +1568,18 @@ class EventManager
         // TIER 3: Troops
         if ($survivors >= 15) {
             $report .= "<div class='report-section-title' style='margin-top: 10px;'>Gegnerische Garnison</div>";
-            $report .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; justify-content: center;'>";
 
             $t_res = $this->mysqli->execute_query(
                 "SELECT s.soldiername, s.soldiercount, sl.icon 
-             FROM soldiers s 
-             JOIN soldier_list sl ON s.soldierid = sl.id 
-             WHERE s.kingdomid = ? AND s.soldiercount > 0",
+                     FROM soldiers s 
+                     JOIN soldier_list sl ON s.soldierid = sl.id 
+                     WHERE s.kingdomid = ? AND s.soldiercount > 0",
                 [$enemy_k->get_kingdom_id()]
             );
 
             if ($t_res->num_rows > 0) {
+                $report .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; justify-content: center;'>";
+
                 while ($t = $t_res->fetch_assoc()) {
                     $report .= BattleReportRenderer::render_unit_card(
                         $t["soldiername"],
@@ -1559,10 +1589,11 @@ class EventManager
                         true
                     );
                 }
+
+                $report .= "</div>";
             } else {
-                $report .= "<i>Keine Truppen stationiert.</i>";
+                $report .= "<div style='text-align: left; margin-top: 10px;'><i>Keine Truppen stationiert.</i></div>";
             }
-            $report .= "</div>";
         }
 
         // TIER 4: Techs
@@ -1914,6 +1945,10 @@ class EventManager
         $soldier_types = $conquest->get_soldier_types();
         $monster_data = $conquest->get_monster_enemy_data();
 
+        // Get camp level
+        $camp_res = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+        $camp_lvl = (int)($camp_res->fetch_column() ?: 1);
+
         $atk_atk_pool = 0;
         $atk_def_pool = 0;
         $mon_atk_pool = 0;
@@ -1954,15 +1989,15 @@ class EventManager
             $mon_def_pool += ($m["count"] * $m["def"]);
         }
 
-        $lethality = 5.0;
+        $lethality = LETHALITY_PVE;
         $atk_loss_ratio = ($atk_def_pool > 0) ? min(1.0, $mon_atk_pool / ($atk_def_pool * $lethality)) : 1.0;
         $mon_loss_ratio = ($mon_def_pool > 0) ? min(1.0, $atk_atk_pool / ($mon_def_pool * $lethality)) : 1.0;
 
         if ($atk_atk_pool > 0 && $mon_atk_pool > 0) {
             $ratio = $atk_atk_pool / $mon_atk_pool;
 
-            $clamped_ratio_val = max(0.0, min(1.0, $ratio / 4.0));
-            $lossMultiplier = pow(1.0 - $clamped_ratio_val, 1.15);
+            $clamped_ratio_val = max(0.0, min(1.0, $ratio / MONSTER_DMG_CLAMPED_MAX_VAL));
+            $lossMultiplier = pow(1.0 - $clamped_ratio_val, MONSTER_DMG_LOSS_EXPONENT);
 
             $atk_loss_ratio = $atk_loss_ratio * $lossMultiplier;
         }
@@ -2074,9 +2109,6 @@ class EventManager
                 }
             }
         } else {
-            $camp_res = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
-            $camp_lvl = (int)($camp_res->fetch_column() ?: 1);
-
             $reward_factor = 1.0;
             if ($camp_lvl >= 8) {
                 $reward_factor += LOOT_FACTOR_HIGH_CAMPS;
@@ -2095,7 +2127,16 @@ class EventManager
 
                 if (mt_rand(1, 100) <= $spawn_chance) {
                     $base_amount = $camp_lvl * MONSTER_CAMP_BASE_RESOURCE_LOOT * $reward_factor;
-                    $loot_res[$key] = (int)round($base_amount * (mt_rand(MIN_MONSTER_CAMP_RESOURCE_PERC, MAX_MONSTER_CAMP_RESOURCE_PERC) / 100));
+
+                    if (in_array($key, ["wood", "stone"])) {
+                        $min_p = MIN_MONSTER_CAMP_WOOD_AND_STONE_PERC;
+                        $max_p = MAX_MONSTER_CAMP_WOOD_AND_STONE_PERC;
+                    } else {
+                        $min_p = MIN_MONSTER_CAMP_RESOURCE_PERC;
+                        $max_p = MAX_MONSTER_CAMP_RESOURCE_PERC;
+                    }
+
+                    $loot_res[$key] = (int)round($base_amount * (mt_rand($min_p, $max_p) / 100));
                 } else {
                     $loot_res[$key] = 0;
                 }
@@ -2113,7 +2154,7 @@ class EventManager
         $message = "<div class='battle-report'>";
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
         $message .= "<div class='title-border'>Kampfbericht: Monstercamp ($c_link)</div>";
-        $message .= BattleReportRenderer::render_vs_grid($report_attacker_units, $report_monster_units, "Deine Truppen", "Monsterhorde");
+        $message .= BattleReportRenderer::render_vs_grid($report_attacker_units, $report_monster_units, "Deine Truppen", "Monsterhorde (Lv $camp_lvl)");
 
         if ($victory) {
             $sub = ($surviving_attacker_units > 0)
@@ -2305,13 +2346,18 @@ class EventManager
             $est_max_coins = (int)($est_max_coins);
             $base_res_amount *= $reward_factor;
 
-            $est_min_res = (int)($base_res_amount * (MIN_MONSTER_CAMP_RESOURCE_PERC / 100));
-            $est_max_res = (int)($base_res_amount * (MAX_MONSTER_CAMP_RESOURCE_PERC / 100));
-
             $message .= "<div class='report-section-title'>Geschätzte Beute</div>";
             $message .= "<div style='background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; text-align: left;'>";
             $message .= "<b>Münzen:</b> $est_min_coins bis $est_max_coins " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . "<br>";
-            $message .= "<b>Ressourcen:</b> " . fnum($est_min_res) . " bis " . fnum($est_max_res) . " pro Typ<br>";
+
+            $est_min_food_gold = (int)($base_res_amount * (MIN_MONSTER_CAMP_RESOURCE_PERC / 100));
+            $est_max_food_gold = (int)($base_res_amount * (MAX_MONSTER_CAMP_RESOURCE_PERC / 100));
+            $est_min_wood_stone = (int)($base_res_amount * (MIN_MONSTER_CAMP_WOOD_AND_STONE_PERC / 100));
+            $est_max_wood_stone = (int)($base_res_amount * (MAX_MONSTER_CAMP_WOOD_AND_STONE_PERC / 100));
+
+            $message .= "<b>Nahrung/Gold:</b> " . fnum($est_min_food_gold) . " bis " . fnum($est_max_food_gold) . "<br>";
+            $message .= "<b>Holz/Stein:</b> " . fnum($est_min_wood_stone) . " bis " . fnum($est_max_wood_stone) . "<br>";
+
             $message .= "<div style='margin-top: 5px; font-size: 13px; opacity: 0.8;'>";
             $message .= "<i>Hinweis: Nahrung und Gold sind garantiert. Holz und Stein generieren zu " . MONSTER_CAMP_RES_CHANCE . "%.</i>";
             $message .= "</div>";

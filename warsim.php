@@ -58,7 +58,8 @@ $render_tech_side = function ($side_prefix, $tech_meta, $ids_to_render, $kingdom
                 <span style='font-size: 13px;'>$name</span>
             </div>
             <input type='number' id='{$side_prefix}_tech_$id' 
-                   class='js-tech-input' value='$val' min='0' max='$max' style='width: 45px;'>
+                   class='js-tech-input' value='$val' min='0' max='$max' inputmode='numeric' pattern='[0-9]*' 
+                   style='width: 45px;'>
         </div>";
     }
     return $html;
@@ -142,7 +143,8 @@ $view .= '<div class="box-container" id="enemy-tech-box" style="max-width: 250px
             <b>Mauer-Zustand</b>
             <div class="split-content" style="margin-top: 5px;">
                 <span>Stufe:</span>
-                <input type="number" id="en_wall_lvl" value="1" min="1" max="' . MAX_BUILDING_LEVEL . '" style="width: 60px;">
+                <input type="number" id="en_wall_lvl" value="1" min="1" max="' . MAX_BUILDING_LEVEL . '" inputmode="numeric" pattern="[0-9]*" 
+                style="width: 60px;">
             </div>
             <div style="text-align: left; font-size: 12px; opacity: 0.8; margin-top: 5px;">
                 HP: <span id="wall_hp_display">0</span> / <span id="wall_hp_display_max">0</span>
@@ -208,7 +210,7 @@ foreach ($soldiers as $s) {
                              data-on-click='fillSimMax' 
                              data-target='{$name}_own' 
                              data-value='$owned_count'>
-                            <div class='popup' id='pop_own_{$name}' style='min-width: 0; flex: 1; overflow: hidden;'>
+                            <div class='popup' id='pop_own_$name' style='min-width: 0; flex: 1; overflow: hidden;'>
                                 <span style='white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;'>$name</span>
                                 <div id='pop_own_{$name}_box' class='popupbox'>$name</div>
                             </div>
@@ -333,11 +335,21 @@ $view .= '<div id="warsim-data"
                 data-wall_min_def="' . MIN_WALL_DEFENSE . '"
                 data-wall_max_def="' . MAX_WALL_DEFENSE . '"
                 data-wall_factor="' . WALL_DEFENSE_FACTOR . '"
+                data-wall_absorption_per_lvl="' . WALL_ABSORPTION_PER_LEVEL . '"
+                data-wall_eff_dmg_factor="' . WALL_EFFECTIVE_DMG_FACTOR . '"
+                data-wall_acc_dmg_factor="' . WALL_ACCUMULATED_DMG_FACTOR . '"
                 data-siege_bonus="' . SMITHY_SIEGE_BONUS . '"
+                data-ram_factor="' . RAM_WALL_DAMAGE_FACTOR . '" 
+                data-ram_limit="' . RAM_WALL_DAMAGE_LIMIT . '"
+                data-ram_flat="' . RAM_FLAT_DAMAGE . '"
                 data-shrine_base="' . $war_base_bonus . '" 
                 data-shrine_step="' . SHRINE_TECH_STEP . '" 
                 data-max_lvl="' . MAX_BUILDING_LEVEL . '"
-                data-rps_bonus="' . RPS_BONUS . '">
+                data-rps_bonus="' . RPS_BONUS . '"
+                data-lethality_pvp="' . LETHALITY_PVP . '"
+                data-lethality_pve="' . LETHALITY_PVE . '"
+                data-monster_dmg_clamped_max_val="' . MONSTER_DMG_CLAMPED_MAX_VAL . '"
+                data-monster_dmg_loss_exponent="' . MONSTER_DMG_LOSS_EXPONENT . '">
             </div>';
 
 $monster_import = $_GET["import_monsters"] ?? "";

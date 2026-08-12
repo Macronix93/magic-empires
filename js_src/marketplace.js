@@ -20,12 +20,31 @@ registerAction("checkMarket", (form, event) => {
         const valD = parseInt(document.getElementById("dv").value) || 0;
 
         if (valS <= 0 || valD <= 0) {
-            showConfirmationDialog("Bitte gib gültige Mengen an.", "OK", "Schließen", () => {
-            });
+            showConfirmationDialog("Bitte gib gültige Mengen an.",
+                "Ok",
+                "",
+                () => {
+                });
             return;
         }
 
-        const listingFee = Math.max(1, Math.ceil(valS / 20000));
+        const maxRatio = window.marketConfig.max_ratio;
+        const ratio1 = valS / valD;
+        const ratio2 = valD / valS;
+        const grace = 0.01;
+
+        if (ratio1 > maxRatio + grace || ratio2 > maxRatio + grace) {
+            showConfirmationDialog(
+                `Das Handelsverhältnis ist zu extrem! Erlaubt ist maximal ein Verhältnis von 1:${maxRatio}.`,
+                "Ok",
+                "",
+                () => {
+                }
+            );
+            return;
+        }
+
+        const listingFee = Math.max(1, Math.ceil(valS / window.marketConfig.listing_fee_step));
         resType = document.getElementById("d").value;
         amountToReceive = valD;
 
@@ -161,7 +180,25 @@ function calculateLiveFee() {
     const valS = parseInt(amountInputS.value) || 0;
     const valD = parseInt(amountInputD.value) || 0;
 
-    const listingFee = valS > 0 ? Math.max(1, Math.ceil(valS / 20000)) : 1;
+    if (valS > 0 && valD > 0) {
+        const maxRatio = config.max_ratio;
+        const ratio1 = valS / valD;
+        const ratio2 = valD / valS;
+        const grace = 0.01;
+
+        if (ratio1 > maxRatio + grace || ratio2 > maxRatio + grace) {
+            amountInputS.classList.add("input-error");
+            amountInputD.classList.add("input-error");
+        } else {
+            amountInputS.classList.remove("input-error");
+            amountInputD.classList.remove("input-error");
+        }
+    } else {
+        amountInputS.classList.remove("input-error");
+        amountInputD.classList.remove("input-error");
+    }
+
+    const listingFee = valS > 0 ? Math.max(1, Math.ceil(valS / config.listing_fee_step)) : 1;
     listingDisplay.innerText = listingFee.toLocaleString();
 
     if (valS <= 0 || valD <= 0) {

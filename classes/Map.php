@@ -198,7 +198,6 @@ class Map
             }
 
             echo '</td></tr></table>';
-
         } else if ($field_id == -3) {
             // --- MONSTERCAMP ---
             $res_camp = $this->mysqli->execute_query("SELECT level, expires_at FROM monster_camps WHERE mapx = ? AND mapy = ?", [$field_x, $field_y]);
@@ -225,7 +224,15 @@ class Map
                     <button data-on-click="redirect" data-url="' . $target_url . '">Camp angreifen</button>
                 </td></tr>
             </table>';
-
+        } else if ($field_id == -999) {
+            // --- EVENT CENTER ---
+            echo '<div class="title-border">Das Auge des Sturms</div>
+          <table class="table" style="margin-top: 20px; max-width: 500px;">
+              <tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>
+              <tr><td colspan="2" style="text-align: center; padding: 15px;">
+                  <i>Truppen können diesen Bereich aktuell nicht betreten.</i>
+              </td></tr>
+          </table>';
         } else {
             if (!isset($_GET["owner"])) {
                 $query_details = "
@@ -274,6 +281,7 @@ class Map
                 <button data-on-click='redirect' data-url='$target_url'>$btn_text</button>
               </td></tr>";
             }
+
             echo "</table>";
         }
     }

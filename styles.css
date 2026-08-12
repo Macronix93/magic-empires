@@ -351,9 +351,18 @@ body {
     border: 1px solid rgba(212, 175, 55, 0.2);
 }
 
-.battle-column .ressource-icons {
-    width: 16px !important;
-    height: 16px !important;
+.battle-strength {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    opacity: 0.9;
+    font-size: 15px;
+}
+
+.battle-strength span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
 .battle-vs-divider {
@@ -1113,6 +1122,56 @@ select:-webkit-autofill {
     color: #888 !important;
 }
 
+.credits-scroll-box {
+    max-height: 260px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-gold);
+    border-radius: 4px;
+    padding: 10px;
+    margin: 0 auto;
+    width: fit-content;
+}
+
+.credits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+}
+
+.credits-list li {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.credits-list li:last-child {
+    border-bottom: none;
+}
+
+.credits-list a {
+    color: #ccc;
+    text-decoration: none;
+}
+
+.credits-list a:hover {
+    color: var(--link-color);
+    text-decoration: underline;
+}
+
+.credits-scroll-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+.credits-scroll-box::-webkit-scrollbar-thumb {
+    background: var(--border-gold);
+    border-radius: 3px;
+}
+
+.credits-scroll-box::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
 /* Stats Ranking */
 .rank-gold, .rank-silver, .rank-bronze {
     font-weight: bold;
@@ -1519,6 +1578,18 @@ tr:first-child td.td-gradient {
     border: 1px solid rgb(0, 0, 0);
     width: 20px;
     height: 20px;
+}
+
+.legend-entity-item {
+    width: 20px;
+    height: 20px;
+}
+
+.legend-own-kingdom {
+    border: 1px solid rgb(39, 168, 91);
+    background: rgba(11, 218, 81, 0.2);
+    width: 18px;
+    height: 18px;
 }
 
 .cell-container {
@@ -2015,6 +2086,11 @@ body.modal-open footer {
     transition: none !important;
 }
 
+.input-error {
+    border: 2px solid #ff4d4d !important;
+    box-shadow: 0 0 5px rgba(255, 77, 77, 0.5);
+}
+
 img[data-on-click],
 button,
 input[type="submit"],
@@ -2063,6 +2139,32 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .battle-column .ressource-icons {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    .scout-resource-bar .ressource-icons {
+        width: 14px;
+        height: 14px;
+        vertical-align: middle;
+    }
+
+    .techtree-requirements span {
+        display: block;
+        font-size: 12px;
+    }
+
+    .table:has(.techtree-requirements) td:nth-child(2) {
+        width: 55% !important;
+    }
+
+    #total_atk_info .ressource-icons,
+    #total_def_info .ressource-icons {
+        width: 16px;
+        height: 16px;
     }
 
     .chat-quote {
@@ -2151,6 +2253,7 @@ img[data-on-click] {
 
     .title-border {
         line-height: 20px;
+        margin: 0 auto 4px auto;
     }
 
     .marketplace-table {
@@ -2496,6 +2599,11 @@ img[data-on-click] {
         gap: 2px;
     }
 
+    .battle-strength {
+        font-size: 12px;
+        margin: 10px;
+    }
+
     .report-section-title,
     .battle-unit-count {
         font-size: 15px;
@@ -2599,7 +2707,9 @@ img[data-on-click] {
         font-size: 13px;
     }
 
-    .legend-inner-item {
+    .legend-inner-item,
+    .legend-own-kingdom,
+    .legend-entity-item {
         width: 12px;
         height: 12px;
     }
@@ -2651,7 +2761,8 @@ img[data-on-click] {
     }
 
     .sent-troops-table colgroup col:nth-child(2) {
-        width: 42% !important;
+        width: auto !important;
+        min-width: 60px;
     }
 
     .sent-troops-table colgroup col:nth-child(3) {
@@ -2683,6 +2794,12 @@ img[data-on-click] {
         margin-top: 2px;
     }
 
+    .sent-troops-table td:nth-child(4) {
+        padding-top: 15px !important;
+        vertical-align: middle;
+        position: relative;
+    }
+
     .td-timer-cell .delete-btn {
         top: 2px !important;
         right: 2px !important;
@@ -2692,12 +2809,6 @@ img[data-on-click] {
     .td-timer-cell input.btn-delete {
         width: 16px !important;
         height: 16px !important;
-    }
-
-    .sent-troops-table td:nth-child(4) {
-        padding-top: 15px !important;
-        vertical-align: middle;
-        position: relative;
     }
 
     table:has(#sv),
@@ -2755,7 +2866,6 @@ img[data-on-click] {
 @media screen and (max-width: 1392px) {
     .content-box {
         display: block;
-        width: 98%;
     }
 
     .left-container,
@@ -2768,7 +2878,7 @@ img[data-on-click] {
     }
 
     .middle-container {
-        width: 98%;
+        width: 100%;
         margin: 0 auto;
     }
 

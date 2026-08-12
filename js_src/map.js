@@ -292,6 +292,7 @@ function draw() {
             const [x, y] = tile;
             const posX = (x - 1) * scaledTile + currentTranslateX;
             const posY = (y - 1) * scaledTile + currentTranslateY;
+
             if (posX + scaledTile >= 0 && posX <= canvas.width && posY + scaledTile >= 0 && posY <= canvas.height) {
                 ctx.rect(posX, posY, scaledTile, scaledTile);
             }
@@ -322,6 +323,49 @@ function draw() {
                 if (!filterResources) return;
             } else if (kid === -3) {
                 if (!filterMonsters) return;
+            } else if (kid === -999) {
+                ctx.fillStyle = "rgba(230, 0, 0, 0.1)";
+                ctx.fillRect(posX, posY, scaledTile, scaledTile);
+
+                ctx.strokeStyle = "rgb(230, 0, 0)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                if (x === 49) {
+                    ctx.moveTo(posX, posY);
+                    ctx.lineTo(posX, posY + scaledTile);
+                }
+                if (x === 51) {
+                    ctx.moveTo(posX + scaledTile, posY);
+                    ctx.lineTo(posX + scaledTile, posY + scaledTile);
+                }
+                if (y === 49) {
+                    ctx.moveTo(posX, posY);
+                    ctx.lineTo(posX + scaledTile, posY);
+                }
+                if (y === 51) {
+                    ctx.moveTo(posX, posY + scaledTile);
+                    ctx.lineTo(posX + scaledTile, posY + scaledTile);
+                }
+
+                ctx.stroke();
+
+                // Draw event monster
+                // if (x === 49 && y === 49) {
+                //     ctx.save();
+                //     ctx.globalAlpha = 1;
+                //
+                //     ctx.drawImage(
+                //         images.monster1,
+                //         posX,
+                //         posY,
+                //         scaledTile * 3,
+                //         scaledTile * 3
+                //     );
+                //
+                //     ctx.restore();
+                // }
+                return;
             }
 
             if (isOwn) {
@@ -337,15 +381,18 @@ function draw() {
                 ctx.drawImage(images.gems, posX + scaledTile * 0.2, posY + scaledTile * 0.2, scaledTile * 0.6, scaledTile * 0.6);
             } else if (kid === -3) {
                 let mIcon = images.monster1;
+
                 if (monsterLevel >= 8) mIcon = images.monster3;
                 else if (monsterLevel >= 4) mIcon = images.monster2;
 
                 ctx.drawImage(mIcon, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
             } else {
                 let img = images.house;
+
                 if (level >= 8) img = images.castle;
                 else if (level >= 6) img = images.tower2;
                 else if (level >= 3) img = images.town;
+
                 ctx.drawImage(img, posX, posY, scaledTile, scaledTile);
 
                 if (isBurning === 1) {
@@ -555,6 +602,14 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
         html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">Camp angreifen</button>`;
         html += `</td></tr></table>`;
+    } else if (kid === -999) {
+        // --- EVENT CENTER
+        html += `<div class="title-border">Das Auge des Sturms</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px;">`;
+        html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>`;
+        html += `<tr><td colspan="2" style="text-align: center; padding: 15px;">
+                <i>Truppen können diesen Bereich aktuell nicht betreten.</i>
+            </td></tr></table>`;
     } else {
         // --- PLAYER KINGDOM
         const scoreIcon = `<img src="../images/icons/icon_score.png" class="ressource-icons" alt="">`;

@@ -399,9 +399,11 @@ function updateKingdom(selectElement) {
                     }
 
                     let currentUrl = new URL(window.location.href);
+                    let params = currentUrl.searchParams;
 
-                    // Check if we are on conquest page and keep x and y coordinates
-                    if (currentUrl.pathname.includes("sendtroops.php")) {
+                    if (currentUrl.pathname.includes("map.php") && params.has("startx") && params.has("starty")) {
+                        window.location.href = "map.php?startx=" + params.get("startx") + "&starty=" + params.get("starty");
+                    } else if (currentUrl.pathname.includes("sendtroops.php")) {
                         window.location.href = currentUrl.pathname + currentUrl.search;
                     } else {
                         window.location.href = currentUrl.pathname;
@@ -430,7 +432,6 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
     const infoBoxOverlay = document.createElement("div");
     const infoBoxTextBox = document.createElement("p");
     const buttonYes = document.createElement("button");
-    const buttonNo = document.createElement("button");
 
     const closeAndCleanup = () => {
         document.removeEventListener("keydown", handleKeyDown);
@@ -454,9 +455,6 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
     };
     buttonYes.innerText = buttonYesText;
 
-    buttonNo.onclick = closeAndCleanup;
-    buttonNo.innerText = buttonNoText;
-
     infoBoxTextBox.innerText = dialogText;
 
     infoBoxBg.id = "info-box-bg";
@@ -464,7 +462,16 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
 
     infoBoxOverlay.id = "info-box-overlay";
     infoBoxOverlay.classList.add("info-box-overlay");
-    infoBoxOverlay.append(infoBoxTextBox, buttonYes, buttonNo);
+    infoBoxOverlay.append(infoBoxTextBox, buttonYes);
+
+    if (buttonNoText && buttonNoText.trim() !== "") {
+        const buttonNo = document.createElement("button");
+
+        buttonNo.onclick = closeAndCleanup;
+        buttonNo.innerText = buttonNoText;
+
+        infoBoxOverlay.append(buttonNo);
+    }
 
     document.addEventListener("keydown", handleKeyDown);
     document.body.append(infoBoxBg, infoBoxOverlay);
@@ -596,6 +603,16 @@ window.addEventListener("DOMContentLoaded", function () {
 
     if (serverTime) updateServerTime(parseInt(serverTime));
     initAutomaticCountdowns();
+
+    document.addEventListener("focus", function (e) {
+        if (e.target.tagName === "INPUT") {
+            if (e.target.getAttribute("inputmode") === "numeric" ||
+                e.target.classList.contains("js-unit-input") ||
+                e.target.classList.contains("js-recruit-input")) {
+                e.target.select();
+            }
+        }
+    }, true);
 
     setTimeout(() => {
         document.body.classList.remove("preload");

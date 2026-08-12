@@ -24,19 +24,21 @@ $tp_list = implode(',', $tp_actions);
 $bp_list = implode(',', $bp_actions);
 $wp_list = implode(',', $wp_actions);
 
+$active_k_id = $user->get_current_kingdom();
+
 $counts = $db_instance->execute_query("
     SELECT 
-        COUNT(CASE WHEN actionid IN ($tp_list) THEN 1 END) AS count_tp,
+        COUNT(CASE WHEN kingdomid = ? AND actionid IN ($tp_list) THEN 1 END) AS count_tp,
         COUNT(CASE WHEN actionid IN ($bp_list) THEN 1 END) AS count_bp,
-        COUNT(CASE WHEN actionid IN ($wp_list) THEN 1 END) AS count_wp,
-        COUNT(CASE WHEN kingdomid = ? AND actionid IN (" . implode(',', $tp_actions) . ") THEN 1 END) as count_tp_current_k
+        COUNT(CASE WHEN actionid IN ($wp_list) THEN 1 END) AS count_wp
     FROM events 
-    WHERE userid = ?", [$user->get_current_kingdom(), $user->get_user_id()])->fetch_assoc();
+    WHERE userid = ?",
+    [$user->get_user_id(), $active_k_id]
+)->fetch_assoc();
 
-$count_tp = (int)($counts["count_tp"] ?? 0);
+$current_k_tp_count = (int)($counts["count_tp"] ?? 0);
 $count_bp = (int)($counts["count_bp"] ?? 0);
 $count_wp = (int)($counts["count_wp"] ?? 0);
-$current_k_tp_count = (int)($counts["count_tp_current_k"] ?? 0);
 
 if (!isset($_SESSION["acknowledged_attacks"])) {
     $_SESSION["acknowledged_attacks"] = [];
@@ -142,37 +144,57 @@ if (!empty($_SESSION["active_attacks"])) {
     }
     unset($attack);
 
-    $view .= '<div class="title-border error">Feindliche Truppenbewegung</div>';
+    $view .= '<div class="title-border error">Feindliche Truppenbewegungen</div>';
     $view .= '<table class="table" style="max-width: 550px">' . $incoming_html . '</table><br>';
 }
 
 // --- TROOP OVERVIEW ---
-$pages_tp = ceil($count_tp / $limit);
+$tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
+$tp_list = implode(',', $tp_actions);
+
+$res_count_tp = $db_instance->execute_query("
+    SELECT COUNT(*) as total 
+    FROM events 
+    WHERE userid = ? AND kingdomid = ? AND actionid IN ($tp_list)
+", [$user->get_user_id(), $active_k_id]);
+$count_tp_active_k = (int)$res_count_tp->fetch_assoc()['total'];
+
+$pages_tp = ceil($count_tp_active_k / $limit);
 $curr_tp = isset($_GET["tp"]) ? max(1, (int)$_GET["tp"]) : 1;
 $offset_tp = ($curr_tp - 1) * $limit;
 
 $tc_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
 $max_tp = BASE_SEND_TROOPS_LIMIT + $tc_lvl;
 
-$view .= '<div class="title-border">Gesendete Truppen (' . $current_k_tp_count . '/' . $max_tp . ')</div>';
+$view .= '<div class="title-border">Truppenbewegungen (' . $count_tp_active_k . '/' . $max_tp . ')</div>';
 
 $query = "
     SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
            e.*, k.mapx, k.mapy, kt.userid AS target_userid, kt.username AS target_username
-    FROM (SELECT * FROM events WHERE userid = ? AND (actionid = ? OR actionid = ?) ORDER BY arrivaltime LIMIT $offset_tp, $limit) e
+    FROM (
+        SELECT * FROM events 
+        WHERE userid = ? AND kingdomid = ? AND (actionid = ? OR actionid = ?) 
+        ORDER BY arrivaltime 
+        LIMIT $offset_tp, $limit
+    ) e
     JOIN sent_troops st ON st.eventid = e.eventid
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     JOIN soldier_list sl ON st.soldierid = sl.id
 ";
 
-$result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]);
+$result = $db_instance->execute_query($query, [
+    $user->get_user_id(),
+    $active_k_id,
+    ActionTypes::ACTION_SEND_TROOPS,
+    ActionTypes::ACTION_RETURN_TROOPS
+]);
 
 if ($result && $result->num_rows > 0) {
     $view .= "<table class='table sent-troops-table' style='width: 100%;'>";
     $view .= "<colgroup>
-                <col style='width: 15%;'> <!-- Art -->
-                <col style='width: 35%;'> <!-- Truppen -->
+                <col style='width: 18%;'> <!-- Art -->
+                <col style='width: 32%;'> <!-- Truppen -->
                 <col style='width: 21%;'> <!-- Koordinaten -->
                 <col style='width: 29%;'> <!-- Ankunft -->
               </colgroup>";

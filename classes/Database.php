@@ -3,18 +3,24 @@
 class Database
 {
     private static ?Database $_instance = null;
-    private object $_connection; // The single instance
+    private ?mysqli $_connection; // The single instance
 
-    /*
-    Get an instance of the Database
-    @return Instance
-    */
+    /**
+     * Database constructor.
+     * @throws Exception
+     */
     private function __construct()
     {
-        try {
-            $this->_connection = new mysqli(getenv("HOST"), getenv("USER"), getenv("PASSWORD"), getenv("DATABASE"), getenv("PORT"));
-        } catch (Exception $e) {
-            trigger_error("Fehler bei der MYSQL-Verbindung: " . mysqli_connect_error() . $e, E_USER_ERROR);
+        $this->_connection = @new mysqli(
+            getenv("HOST"),
+            getenv("USER"),
+            getenv("PASSWORD"),
+            getenv("DATABASE"),
+            getenv("PORT")
+        );
+
+        if ($this->_connection->connect_error) {
+            throw new Exception("Fehler bei der MYSQL-Verbindung: " . $this->_connection->connect_error);
         }
     }
 

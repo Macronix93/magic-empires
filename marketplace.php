@@ -230,53 +230,61 @@ if (isset($_GET["accept"])) {
                     } else if ($supply == ResourceTypes::RESOURCE_TYPE_GOLD && $kingdom->get_kingdom_gold() < $supply_value) {
                         $error = "Soviel Gold kannst du nicht bieten!";
                     } else {
-                        // Check if there is already an offer for this kingdom
-                        $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$current_kingdom]);
-                        $offer_id = $result->fetch_assoc()['offerid'] ?? 0;
+                        $ratio1 = $supply_value / $demand_value;
+                        $ratio2 = $demand_value / $supply_value;
+                        $grace = 0.01;
 
-                        if ($offer_id != 0) {
-                            $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
+                        if ($ratio1 > MAX_MARKET_RATIO + $grace || $ratio2 > MAX_MARKET_RATIO + $grace) {
+                            $error = "Das Handelsverhältnis ist zu extrem! (Maximal 1:" . MAX_MARKET_RATIO . " erlaubt)";
                         } else {
-                            if ($daily_trades_count >= $max_trades) {
-                                $error = "Du hast heute bereits $max_trades Angebote erstellt oder angenommen!";
+                            // Check if there is already an offer for this kingdom
+                            $result = $db_instance->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$current_kingdom]);
+                            $offer_id = $result->fetch_assoc()['offerid'] ?? 0;
+
+                            if ($offer_id != 0) {
+                                $error = "Du hast bereits ein Angebot für dieses Königreich am laufen!";
                             } else {
-                                $user->give_user_coins(-$listing_fee);
+                                if ($daily_trades_count >= $max_trades) {
+                                    $error = "Du hast heute bereits $max_trades Angebote erstellt oder angenommen!";
+                                } else {
+                                    $user->give_user_coins(-$listing_fee);
 
-                                // No offer found for the kingdom - insert to database
-                                $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
-                                $expires_at = time() + MARKET_OFFER_DURATION;
+                                    // No offer found for the kingdom - insert to database
+                                    $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
+                                    $expires_at = time() + MARKET_OFFER_DURATION;
 
-                                $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);";
-                                $result = $db_instance->execute_query($query, [
-                                    $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee, $expires_at]);
+                                    $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);";
+                                    $result = $db_instance->execute_query($query, [
+                                        $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee, $expires_at]);
 
-                                // Increase daily trades count
-                                $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$u_id]);
-                                $daily_trades_count++;
+                                    // Increase daily trades count
+                                    $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$u_id]);
+                                    $daily_trades_count++;
 
-                                switch ($supply) {
-                                    case ResourceTypes::RESOURCE_TYPE_FOOD:
-                                        $kingdom->give_kingdom_food(-$supply_value);
-                                        break;
-                                    case ResourceTypes::RESOURCE_TYPE_WOOD:
-                                        $kingdom->give_kingdom_wood(-$supply_value);
-                                        break;
-                                    case ResourceTypes::RESOURCE_TYPE_STONE:
-                                        $kingdom->give_kingdom_stone(-$supply_value);
-                                        break;
-                                    case ResourceTypes::RESOURCE_TYPE_GOLD:
-                                        $kingdom->give_kingdom_gold(-$supply_value);
-                                        break;
+                                    switch ($supply) {
+                                        case ResourceTypes::RESOURCE_TYPE_FOOD:
+                                            $kingdom->give_kingdom_food(-$supply_value);
+                                            break;
+                                        case ResourceTypes::RESOURCE_TYPE_WOOD:
+                                            $kingdom->give_kingdom_wood(-$supply_value);
+                                            break;
+                                        case ResourceTypes::RESOURCE_TYPE_STONE:
+                                            $kingdom->give_kingdom_stone(-$supply_value);
+                                            break;
+                                        case ResourceTypes::RESOURCE_TYPE_GOLD:
+                                            $kingdom->give_kingdom_gold(-$supply_value);
+                                            break;
+                                    }
+
+                                    $logger->log_game("TRADE", "OFFER_CREATE", [
+                                        "supply_res" => $supply,
+                                        "supply_amount" => $supply_value,
+                                        "demand_res" => $demand,
+                                        "demand_amount" => $demand_value,
+                                        "fee" => $calculated_fee,
+                                        "listing_fee_paid" => $listing_fee
+                                    ], $current_kingdom);
                                 }
-
-                                $logger->log_game("TRADE", "OFFER_CREATE", [
-                                    "supply_res" => $supply,
-                                    "supply_amount" => $supply_value,
-                                    "demand_res" => $demand,
-                                    "demand_amount" => $demand_value,
-                                    "fee" => $calculated_fee,
-                                    "listing_fee_paid" => $listing_fee
-                                ], $current_kingdom);
                             }
                         }
                     }
@@ -435,7 +443,7 @@ $view .= '<form action="marketplace.php" method="GET"
                 </div>
                 <div id="fee_info_box" class="popupbox" style="text-align: left; min-width: 250px;">
                     <b>Verkäufer (Einstellgebühr):</b><br>
-                    Wird sofort fällig. 1 Münze pro 20.000 Ressourcen (Angebot).<br>
+                    Wird sofort fällig. 1 Münze pro ' . fnum(MARKET_LISTING_FEE_STEP) . ' Ressourcen (Angebot).<br>
                     <i class="error">Wird bei Löschung/Ablauf NICHT erstattet.</i><br><br>
                     <b>Käufer (Handelsgebühr):</b><br>
                     Wird in das Angebot eingerechnet und vom Käufer bei Annahme bezahlt.
@@ -636,6 +644,8 @@ $storage_info = [
 
 $market_config = [
     "base" => MARKET_BASE_FEE,
+    "max_ratio" => MAX_MARKET_RATIO,
+    "listing_fee_step" => MARKET_LISTING_FEE_STEP,
     "factors" => [
         ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
         ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,

@@ -50,7 +50,7 @@ for ($i = 0; $i < count($buildings); $i++) {
                 " . $buildings[$i]->get_building_name() . " ($current_building_level)
                 </a>
                 </td>
-                <td>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td>
+                <td class='techtree-requirements'>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td>
                 </tr>
     ";
 
@@ -111,7 +111,7 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
                             {$t->get_tech_name()} ($current_tech_level)
                         </a>
                     </td>
-                    <td>$dependency_text</td>
+                    <td class='techtree-requirements'>$dependency_text</td>
                   </tr>";
     }
     $html .= '</table><br>';
@@ -151,7 +151,7 @@ foreach ($res_soldiers as $row) {
                         " . $s_obj->get_soldier_name() . "
                     </a>
                 </td>
-                <td><span $status_class>" . ($is_hero ? "Verteilung alle 24 Stunden" : "Kaserne ($req_lvl)") . "</span></td>
+                <td class='techtree-requirements'><span $status_class>" . ($is_hero ? "Verteilung alle 24 Stunden" : "Kaserne ($req_lvl)") . "</span></td>
               </tr>";
 }
 $view .= '</table>';

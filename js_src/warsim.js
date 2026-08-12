@@ -13,9 +13,19 @@ const W_CONF = {
     wallMinDef: parseInt(warsimConstEl.dataset.wall_min_def),
     wallMaxDef: parseInt(warsimConstEl.dataset.wall_max_def),
     wallFactor: parseFloat(warsimConstEl.dataset.wall_factor),
+    wallAbsorptionPerLevel: parseInt(warsimConstEl.dataset.wall_absorption_per_lvl),
+    wallEffDmgFactor: parseFloat(warsimConstEl.dataset.wall_eff_dmg_factor),
+    wallAccDmgFactor: parseFloat(warsimConstEl.dataset.wall_acc_dmg_factor),
     siegeBonus: parseFloat(warsimConstEl.dataset.siege_bonus),
+    ramFactor: parseFloat(warsimConstEl.dataset.ram_factor),
+    ramLimit: parseFloat(warsimConstEl.dataset.ram_limit),
+    ramFlat: parseFloat(warsimConstEl.dataset.ram_flat),
     maxLvl: parseInt(warsimConstEl.dataset.max_lvl),
-    rpsBonus: parseFloat(warsimConstEl.dataset.rps_bonus)
+    rpsBonus: parseFloat(warsimConstEl.dataset.rps_bonus),
+    lethalityPvp: parseFloat(warsimConstEl.dataset.lethality_pvp),
+    lethalityPve: parseFloat(warsimConstEl.dataset.lethality_pve),
+    monsterDmgClampedMaxVal: parseFloat(warsimConstEl.dataset.monster_dmg_clamped_max_val),
+    monsterDmgLossExponent: parseFloat(warsimConstEl.dataset.monster_dmg_loss_exponent)
 };
 let currentSimWallHp = null;
 let lastSimState = null;
@@ -271,7 +281,9 @@ function calculateWarOutcome(soldierTypes) {
         enemyDefPool += (enemyUnits[eId].count * enemyUnits[eId].def);
     }
 
-    enemyDefPool += wallBonus;
+    if (!isMonsterMode) {
+        enemyDefPool += wallBonus;
+    }
 
     playerAtkPool = Math.round(playerAtkPool);
     enemyAtkPool = Math.round(enemyAtkPool);
@@ -279,7 +291,7 @@ function calculateWarOutcome(soldierTypes) {
     // 1.0 = Original (very deadly!)
     // 2.0 = Troops can sustain double the amount
     // 3.0 = Troops can sustain triple the amount
-    const lethality = isMonsterMode ? 5.0 : 2.0;
+    const lethality = isMonsterMode ? W_CONF.lethalityPve : W_CONF.lethalityPvp;
 
     // Calculate losses
     let pRatio = (playerDefPool > 0) ? Math.min(1.0, enemyAtkPool / (playerDefPool * lethality)) : 1.0;
@@ -287,23 +299,30 @@ function calculateWarOutcome(soldierTypes) {
 
     if (isMonsterMode && playerAtkPool > 0 && enemyAtkPool > 0) {
         const ratio = playerAtkPool / enemyAtkPool;
-        const lossMultiplier = Math.pow(1.0 - Math.max(0.0, Math.min(1.0, ratio / 4.0)), 1.15);
+        const lossMultiplier = Math.pow(1.0 - Math.max(0.0, Math.min(1.0, ratio / W_CONF.monsterDmgClampedMaxVal)), W_CONF.monsterDmgLossExponent);
 
         pRatio = pRatio * lossMultiplier;
     }
 
     soldierTypes.forEach(type => {
         let oIn = document.getElementById(`${type}_own`);
-        let losses = Math.round(myUnits[type].initial * pRatio);
-        oIn.value = myUnits[type].initial - losses;
-        oIn.style.color = (losses > 0) ? "#F55353" : "";
+
+        if (myUnits[type].initial > 0) {
+            let losses = Math.round(myUnits[type].initial * pRatio);
+
+            oIn.value = myUnits[type].initial - losses;
+            oIn.style.color = (losses > 0) ? "#F55353" : "";
+        }
 
         if (!isMonsterMode) {
             let eIn = document.getElementById(`${type}_enemy`);
-            let eLosses = Math.round(enemyUnits[type].initial * eRatio);
 
-            eIn.value = enemyUnits[type].initial - eLosses;
-            eIn.style.color = (eLosses > 0) ? "#F55353" : "";
+            if (enemyUnits[type].initial > 0) {
+                let eLosses = Math.round(enemyUnits[type].initial * eRatio);
+
+                eIn.value = enemyUnits[type].initial - eLosses;
+                eIn.style.color = (eLosses > 0) ? "#F55353" : "";
+            }
         }
     });
 
@@ -313,6 +332,7 @@ function calculateWarOutcome(soldierTypes) {
 
             if (initial > 0) {
                 const losses = Math.round(initial * eRatio);
+
                 i.value = initial - losses;
                 i.style.color = (losses > 0) ? "#F55353" : "";
             }
@@ -321,12 +341,22 @@ function calculateWarOutcome(soldierTypes) {
 
     // Wall Damage (only PvP)
     if (!isMonsterMode) {
-        const wallAbsorption = lvl * 100;
+        const wallAbsorption = lvl * W_CONF.wallAbsorptionPerLevel;
         const damageDiff = playerAtkPool - enemyDefWithoutWall;
-        let wallDmgBase = (damageDiff > 0) ? Math.max(0, damageDiff - wallAbsorption) * 0.03 : playerAtkPool * 0.001;
-        const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
 
-        currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(wallDmgBase * (1 + (siegeLvl * W_CONF.siegeBonus))));
+        let effectiveDamage = Math.max(0, damageDiff - wallAbsorption);
+
+        let wallDmgBase = Math.max(effectiveDamage * W_CONF.wallEffDmgFactor, playerAtkPool * W_CONF.wallAccDmgFactor);
+
+        const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
+        const ramCount = parseInt(document.getElementById("Rammbock_own")?.value) || 0;
+
+        wallDmgBase += (ramCount * W_CONF.ramFlat);
+
+        const ramBonus = Math.min(W_CONF.ramLimit, ramCount * W_CONF.ramFactor);
+        const multiplier = 1 + (siegeLvl * W_CONF.siegeBonus) + ramBonus;
+
+        currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(wallDmgBase * multiplier));
     }
 
     updateLivePowerSummary();

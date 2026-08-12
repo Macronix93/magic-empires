@@ -298,7 +298,18 @@ if (!$user->is_admin()) {
                         if (!empty($monster_pool[$camp_level])) {
                             $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
                             $insert_units[] = "($x, $y, $main_m_id, " . mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE) . ")";
-                            $num_extra = ($camp_level <= 3) ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW) : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
+
+                            if ($camp_level >= 10) {
+                                $num_extra = 4; // 5 groups
+                            } else if ($camp_level >= 7) {
+                                $num_extra = mt_rand(3, 4); // At least 4 groups
+                            } else if ($camp_level >= 5) {
+                                $num_extra = mt_rand(2, 4); // At least 3 groups
+                            } else {
+                                $num_extra = ($camp_level <= 3)
+                                    ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW)
+                                    : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
+                            }
 
                             for ($i = 0; $i < $num_extra; $i++) {
                                 $rand_lvl = mt_rand(max(1, $camp_level - MONSTER_CAMP_EXTRA_LEVEL_CAP), $camp_level);

@@ -77,7 +77,6 @@
         dem Zugriff durch Dritte ist nicht m&ouml;glich.</p>
     <h3>Hinweis zur verantwortlichen Stelle</h3>
     <p>Die verantwortliche Stelle f&uuml;r die Datenverarbeitung auf dieser Website ist:</p>
-    <p>Die verantwortliche Stelle f&uuml;r die Datenverarbeitung auf dieser Website ist:</p>
     <p>magic-empires.de - Sylvan Giese<br/>
         c/o Online-Impressum #9916<br/>
         Europaring 90<br/>

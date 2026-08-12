@@ -10,14 +10,14 @@ $kingdom = new Kingdom($db_instance, $current_k_id);
 $res_troops = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_k_id]);
 $user_troops = [];
 while ($t = $res_troops->fetch_assoc()) {
-    $user_troops[(int)$t['soldierid']] = (int)$t['soldiercount'];
+    $user_troops[(int)$t["soldierid"]] = (int)$t["soldiercount"];
 }
 
 // Load marching times
 $res_ft_meta = $db_instance->query("SELECT fieldid, traversaltime FROM field_types");
 $field_meta = [];
 while ($ft = $res_ft_meta->fetch_assoc()) {
-    $field_meta[(int)$ft['fieldid']] = (int)$ft['traversaltime'];
+    $field_meta[(int)$ft["fieldid"]] = (int)$ft["traversaltime"];
 }
 
 $js_config = [
@@ -88,12 +88,19 @@ if ($coords_valid) {
 }
 
 // Map legend
-echo "<div class='map-legend' id='map-legend-fieldtypes'>
+echo "<div class='map-legend' id='map-legend-fieldtypes' style='margin-bottom: 10px;'>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></span> Wüste</div>
         <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></span> Gebirge</div>
+    </div>";
+
+echo "<div class='map-legend' id='map-legend-fieldtypes'>
+        <div class='legend-item'><img src='images/icons/icon_town.png' alt='Königreich' class='legend-entity-item'> Spieler</div>
+        <div class='legend-item'><img src='images/icons/icon_gems.png' alt='Vorratslager' class='legend-entity-item'> Vorratslager</div>
+        <div class='legend-item'><img src='images/icons/icon_goblin.png' alt='Monstercamp' class='legend-entity-item'> Monstercamp</div>
+        <div class='legend-item'><span class='legend-inner-item legend-own-kingdom'></span> Eigenes Königreich</div>
     </div>";
 
 // Search

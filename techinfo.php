@@ -62,11 +62,28 @@ if ($row) {
             $chance_info = "Ein Eroberer hat eine Erfolgschance von <b>$base%</b>. " .
                     "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
         } else if ($soldier_id === Soldiers::SOLDIER_SETTLER_WAGON) {
+            $res_founded = $db_instance->execute_query(
+                    "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method = 0",
+                    [$user->get_user_id()]
+            );
+            $curr_founded = (int)$res_founded->fetch_row()[0];
+
+            $res_imp = $db_instance->execute_query(
+                    "SELECT COUNT(*) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
+                    [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
+            );
+            $imp_bonus = (int)$res_imp->fetch_row()[0];
+            $limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
+
             $base = BASE_SETTLER_CHANCE * 100;
             $step = SETTLER_CHANCE_STEP * 100;
             $max = MAX_SETTLER_CHANCE * 100;
-            $chance_info = "Ein Karren hat eine Erfolgschance von <b>$base%</b>. " .
-                    "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
+
+            $chance_info = "Ein Karren hat eine Erfolgschance von <b>$base%</b>. Jeder weitere erhöht diese um <b>$step%</b> (max. <b>$max%</b>).<br><br>";
+            $chance_info .= "<b>Globaler Siedlungs-Status:</b><br>";
+            $chance_info .= "Gegründete Dörfer: <b>$curr_founded</b><br>"; // Hier steht nun 2
+            $chance_info .= "Aktuelles Limit: <b>$limit</b> (Maximal: " . GLOBAL_SETTLEMENT_MAX . ")<br>";
+            $chance_info .= "<i>Eroberte Dörfer zählen nicht gegen dieses Limit.</i>";
         }
 
         $active_res = [];
@@ -121,6 +138,8 @@ if ($row) {
         if ($is_hero) {
             $view .= "Helden können nicht ausgebildet werden. Sie werden alle 24 Stunden zufällig an einen Herrscher verteilt.";
         }
+
+        $view .= "Punkte pro Einheit: <b class='passed'>" . $row["scoregain"] . "</b><br>";
 
         $view .= "      </p>
                     </div>
@@ -206,7 +225,7 @@ if ($row) {
                 TechTypes::TECH_TYPE_ANCESTRAL_RITES => [(SHRINE_TECH_STEP * 100) . "%", "stärkerer Schrein-Effekt"],
                 TechTypes::TECH_TYPE_WALL_HP_INC => [RESEARCH_WALL_HP_INC, "zusätzliche HP pro Mauerstufe"],
                 TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
-                TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht den Bau einer weiteren Siedlung"],
+                TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung"],
                 TechTypes::TECH_TYPE_ARCANE_INTEL => ["", "Erweitert die Informationen herannahender Truppen im Wachturm:<br>" .
                         "<div style='margin-top: 5px;'>" .
                         "• <span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
@@ -283,7 +302,14 @@ if ($row) {
 
             $view .= "<td class='td-center' $style>$time_val</td></tr>";
         }
-        $view .= "</table></div></div>";
+        $view .= "</table>";
+
+        $score_val = ($building_id !== null) ? $row["buildingscore"] : $row["techscore"];
+        $view .= "<p style='font-size: 13px; margin-top: 15px; opacity: 0.7;'>
+                    Punkte pro Stufe: <b class='passed'>$score_val</b><br>
+                  </p>";
+
+        $view .= "</div></div>";
     }
 } else {
     $view .= show_error_box("Nichts zum Anzeigen gefunden!");

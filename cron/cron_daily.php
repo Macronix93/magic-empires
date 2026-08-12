@@ -294,9 +294,17 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
                 $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
                 $this_camp_types[$main_m_id] = mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE);
 
-                $num_extra_types = ($camp_level <= 3)
-                    ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW)
-                    : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
+                if ($camp_level >= 10) {
+                    $num_extra_types = 4; // At least 5 groups
+                } else if ($camp_level >= 7) {
+                    $num_extra_types = mt_rand(3, 4); // At least 4 groups
+                } else if ($camp_level >= 5) {
+                    $num_extra_types = mt_rand(2, 4); // At least 3 groups
+                } else {
+                    $num_extra_types = ($camp_level <= 3)
+                        ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW)
+                        : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
+                }
 
                 $min_allowed_lvl = max(1, $camp_level - MONSTER_CAMP_EXTRA_LEVEL_CAP);
                 $possible_levels = range($min_allowed_lvl, $camp_level);
