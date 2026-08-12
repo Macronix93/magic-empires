@@ -292,8 +292,6 @@ if ($result && $result->num_rows > 0) {
                 $action_type = $is_pure_scout ? "Spionage" : "Monstercamp";
             } else if ($is_target_my_kingdom) {
                 $action_type = "Stationieren";
-            } else {
-                $action_type = "Angriff";
             }
         }
 

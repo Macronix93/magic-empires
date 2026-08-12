@@ -174,7 +174,7 @@ class User
         return $_SESSION["last_built_building"][$kingdom_id] ?? null;
     }
 
-    public function set_last_built_building($kingdom_id, $name, $level)
+    public function set_last_built_building($kingdom_id, $name, $level): void
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
             $_SESSION["last_built_building"][$kingdom_id] = [

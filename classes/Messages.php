@@ -5,7 +5,6 @@ class Messages
     private object $mysqli;
     private User $user;
     private string $view = "";
-    private int $max_loops = MAX_QUOTE_LOOPS;
 
     public function __construct(object $db_conn, User $user)
     {
@@ -327,7 +326,6 @@ class Messages
             $is_me = ($row["senderid"] == $this->user->get_user_id());
 
             $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
-            $raw_message_for_quote = str_replace(['"', "'", "\r", "\n"], ['', '', '', ' '], $row["message"]);
             $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
                      style='cursor: pointer; margin-left: 5px;' 
                      data-on-click='quoteMessage' 

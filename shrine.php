@@ -67,8 +67,8 @@ while ($data = $res_aligns->fetch_assoc()) {
     <div class='box-container' style='margin-bottom: 15px;$active'>
         <div class='box-header'>{$data["name"]}</div>
         <div class='box-content box-content-bg' style='padding: 10px;'>
-            <span class='passed'>+{$display_bonus}% {$data["bonus_text"]}</span><br>
-            <span class='error'>-{$display_malus}% {$data["malus_text"]}</span><br><br>
+            <span class='passed'>+$display_bonus% {$data["bonus_text"]}</span><br>
+            <span class='error'>-$display_malus% {$data["malus_text"]}</span><br><br>
             <form method='POST'>
                 <input type='hidden' name='choose_align' value='{$data['id']}'>
                 <button type='submit' " . ($current_align == $data["id"] ? "disabled" : "") . ">

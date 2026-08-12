@@ -53,12 +53,6 @@ function e($value): string
     return htmlspecialchars($value ?? '', ENT_QUOTES, "UTF-8");
 }
 
-function js($value): string
-{
-    $json = json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-    return $json !== false ? $json : "null";
-}
-
 function make_secure(string $data): string
 {
     $data = trim($data);

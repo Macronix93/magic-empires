@@ -351,9 +351,15 @@ class Kingdom
     public function get_shrine_data(): ?array
     {
         if ($this->alignment == 0) return null;
+        
+        if ($this->shrine_cache !== null) {
+            return $this->shrine_cache;
+        }
 
         $res = $this->mysqli->execute_query("SELECT * FROM shrine_alignments WHERE id = ?", [$this->alignment]);
-        return $res->fetch_assoc();
+        $this->shrine_cache = $res->fetch_assoc();
+
+        return $this->shrine_cache;
     }
 
     public function calculate_shrine_bonus(float $base_from_db): float
