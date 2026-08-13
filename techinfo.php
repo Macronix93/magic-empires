@@ -218,11 +218,11 @@ if ($row) {
         $dynamic_effect_sentence = "";
         if ($tech_id !== null) {
             $res = match ($tech_id) {
-                TechTypes::TECH_TYPE_ARCHITECTURE => [(ARCHITECTURE_TIME_REDUCTION * 100) . "%", "Reduktion der Bauzeit"],
-                TechTypes::TECH_TYPE_CARTOGRAPHY => [(CARTOGRAPHY_SPEED_BONUS * 100) . "%", "höhere Marschgeschwindigkeit"],
-                TechTypes::TECH_TYPE_MAINTENANCE => [(MAINTENANCE_REPAIR_REDUCTION * 100) . "%", "Reduktion der Reparaturkosten"],
-                TechTypes::TECH_TYPE_PLUNDER => [(PLUNDER_CAPACITY_BONUS * 100) . "%", "mehr Beute-Kapazität"],
-                TechTypes::TECH_TYPE_ANCESTRAL_RITES => [(SHRINE_TECH_STEP * 100) . "%", "stärkerer Schrein-Effekt"],
+                TechTypes::TECH_TYPE_ARCHITECTURE => [fdec(ARCHITECTURE_TIME_REDUCTION * 100) . "%", "Reduktion der Bauzeit"],
+                TechTypes::TECH_TYPE_CARTOGRAPHY => [fdec(CARTOGRAPHY_SPEED_BONUS * 100) . "%", "höhere Marschgeschwindigkeit"],
+                TechTypes::TECH_TYPE_MAINTENANCE => [fdec(MAINTENANCE_REPAIR_REDUCTION * 100) . "%", "Reduktion der Reparaturkosten"],
+                TechTypes::TECH_TYPE_PLUNDER => [fdec(PLUNDER_CAPACITY_BONUS * 100) . "%", "mehr Beute-Kapazität"],
+                TechTypes::TECH_TYPE_ANCESTRAL_RITES => [fdec(SHRINE_TECH_STEP * 100) . "%", "stärkerer Schrein-Effekt"],
                 TechTypes::TECH_TYPE_WALL_HP_INC => [RESEARCH_WALL_HP_INC, "zusätzliche HP pro Mauerstufe"],
                 TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
                 TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung"],
@@ -242,8 +242,8 @@ if ($row) {
                 TechTypes::TECH_TYPE_CUIRASS => ["+" . SMITHY_CAV_DEF_BONUS, "Verteidigung für Kavallerie-Einheiten"],
                 TechTypes::TECH_TYPE_ARROWHEADS => ["+" . SMITHY_ARC_ATK_BONUS, "Angriff für Schützen-Einheiten"],
                 TechTypes::TECH_TYPE_DOUBLET => ["+" . SMITHY_ARC_DEF_BONUS, "Verteidigung für Schützen-Einheiten"],
-                TechTypes::TECH_TYPE_WEIGHT => [(SMITHY_WEIGHT_REDUCTION * 100) . "%", "Reduktion der Rekrutierungszeit"],
-                TechTypes::TECH_TYPE_SIEGE => ["+" . (SMITHY_SIEGE_BONUS * 100) . "%", "zusätzlicher Schaden an Mauern"],
+                TechTypes::TECH_TYPE_WEIGHT => [fdec(SMITHY_WEIGHT_REDUCTION * 100) . "%", "Reduktion der Rekrutierungszeit"],
+                TechTypes::TECH_TYPE_SIEGE => ["+" . fdec(SMITHY_SIEGE_BONUS * 100) . "%", "zusätzlicher Schaden an Mauern"],
 
                 default => null
             };

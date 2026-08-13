@@ -124,6 +124,19 @@ function show_weighted_box(string $info_text, string $weighted_text): string
     return "<div class='info-box event-passed'><img src='images/icons/icon_checked.png' alt='Erfolg'><span><span class='weighted'>$weighted_text</span> $info_text</span></div>";
 }
 
+function fdec($number, $decimals = 1): string
+{
+    if (!is_numeric($number)) return "0";
+    $formatted = number_format((float)$number, $decimals, ",", ".");
+
+    if (str_contains($formatted, ",")) {
+        $formatted = rtrim($formatted, '0');
+        $formatted = rtrim($formatted, ',');
+    }
+
+    return $formatted;
+}
+
 function format_num($number): string
 {
     if (!is_numeric($number)) return "0";
@@ -131,31 +144,24 @@ function format_num($number): string
     if ($number >= 1000000) {
         $val = $number / 1000000;
         $truncated = floor($val * 100) / 100;
-
-        if ($truncated == floor($val)) {
-            return number_format($truncated, 0, ",", ".") . 'M';
-        }
-
-        return number_format($truncated, 2, ",", ".") . 'M';
+        return number_format($truncated, ($truncated == floor($val) ? 0 : 2), ",", ".") . 'M';
     }
 
     if ($number >= 100000) {
         $val = $number / 1000;
         $truncated = floor($val * 10) / 10;
-
-        if ($truncated == floor($val)) {
-            return number_format($truncated, 0, ",", ".") . 'k';
-        }
-
-        return number_format($truncated, 1, ",", ".") . 'k';
+        return number_format($truncated, ($truncated == floor($val) ? 0 : 1), ",", ".") . 'k';
     }
 
-    return number_format($number, 0, ",", ".");
+    return number_format($number, (floor($number) == $number ? 0 : 1), ",", ".");
 }
 
 function fnum($number): string
 {
-    $full = number_format($number, 0, ",", ".");
+    if (!is_numeric($number)) return "0";
+
+    $decimals = (floor($number) == $number) ? 0 : 1;
+    $full = number_format((float)$number, $decimals, ",", ".");
     $short = format_num($number);
 
     if ($full === $short) {

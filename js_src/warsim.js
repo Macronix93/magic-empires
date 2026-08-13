@@ -428,11 +428,25 @@ function updateLivePowerSummary() {
     enemyAtkEl.innerText = formatNumJS(tAtkE);
     enemyAtkEl.title = tAtkE.toLocaleString("de-DE");
 
-    document.getElementById("live-def-own").innerText = formatNumJS(tDefO);
-    document.getElementById("live-def-own").title = tDefO.toLocaleString("de-DE");
+    const updateDisplay = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
 
-    document.getElementById("live-def-enemy").innerText = formatNumJS(tDefE);
-    document.getElementById("live-def-enemy").title = tDefE.toLocaleString("de-DE");
+        el.innerText = formatNumJS(value);
+
+        if (value >= 100000) {
+            el.title = value.toLocaleString("de-DE");
+            el.style.cursor = "help";
+        } else {
+            el.title = "";
+            el.style.cursor = "";
+        }
+    };
+
+    updateDisplay("live-atk-own", tAtkO);
+    updateDisplay("live-def-own", tDefO);
+    updateDisplay("live-atk-enemy", tAtkE);
+    updateDisplay("live-def-enemy", tDefE);
 }
 
 function checkMonsterImport() {

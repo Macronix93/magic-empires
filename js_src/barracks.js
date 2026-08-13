@@ -158,7 +158,15 @@ function updateRecruitCosts(input) {
 
         const displayEl = document.getElementById(`cost-${res}-${id}`);
         if (displayEl) {
-            displayEl.innerText = previewCostForOne.toLocaleString("de-DE");
+            displayEl.innerText = formatNumJS(previewCostForOne);
+
+            if (previewCostForOne >= 100000) {
+                displayEl.title = previewCostForOne.toLocaleString("de-DE");
+                displayEl.style.cursor = "help";
+            } else {
+                displayEl.title = "";
+                displayEl.style.cursor = "";
+            }
 
             if ((amount > 0 && totalCostForSelectedAmount > kRes[res]) || (amount === 0 && previewCostForOne > kRes[res])) {
                 displayEl.classList.add("error");
@@ -203,14 +211,82 @@ function updateRecruitCosts(input) {
 
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".js-recruit-input").forEach(input => {
+        // Initiale Anzeige der Kosten für "1" oder "0"
         updateRecruitCosts(input);
-        input.addEventListener("input", () => updateRecruitCosts(input));
+
+        input.addEventListener("input", function () {
+            // 1. Nur Zahlen erlauben (Buchstaben sofort entfernen)
+            let rawValue = this.value.replace(/[^0-9]/g, '');
+
+            if (rawValue === "") {
+                this.value = "";
+                updateRecruitCosts(this);
+                return;
+            }
+
+            let amount = parseInt(rawValue) || 0;
+            const kRes = getLatestKingdomResources();
+            if (!kRes) return;
+
+            const form = this.closest("form");
+            const upgradeSelect = form.querySelector(".js-upgrade-select");
+            const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
+
+            // 2. Limits berechnen (Was ist das absolute Maximum?)
+            let maxAllowed = kRes.dynamicLimit;
+
+            if (!isUpgrade) {
+                // Bei Neubau: Truppenlimit beachten
+                maxAllowed = Math.min(maxAllowed, kRes.spaceLeft);
+                // Bei Neubau: Dorfbewohner beachten
+                const villCost = parseInt(this.dataset.costVillager) || 0;
+                if (villCost > 0) {
+                    maxAllowed = Math.min(maxAllowed, Math.floor(kRes.villager / villCost));
+                }
+            } else {
+                // Bei Upgrade: Vorhandene Einheiten beachten
+                const ownedUnits = parseInt(this.dataset.owned) || 0;
+                maxAllowed = Math.min(maxAllowed, ownedUnits);
+            }
+
+            // 3. Ressourcen-Limits beachten (Nahrung, Holz, Stein, Gold)
+            const resources = ["food", "wood", "stone", "gold"];
+            resources.forEach(res => {
+                let costPerUnit;
+                const baseCost = parseInt(this.dataset["cost" + res.charAt(0).toUpperCase() + res.slice(1)]) || 0;
+
+                if (isUpgrade) {
+                    const selectedOpt = upgradeSelect.selectedOptions[0];
+                    const targetCost = parseInt(selectedOpt.dataset["u" + res]) || 0;
+                    costPerUnit = Math.max(0, targetCost - baseCost);
+                } else {
+                    costPerUnit = baseCost;
+                }
+
+                if (costPerUnit > 0) {
+                    const affordable = Math.floor(kRes[res] / costPerUnit);
+                    maxAllowed = Math.min(maxAllowed, affordable);
+                }
+            });
+
+            // 4. Korrektur anwenden
+            if (amount > maxAllowed) {
+                amount = maxAllowed;
+            }
+
+            // Den korrigierten Wert ins Feld schreiben
+            this.value = amount;
+
+            // 5. Die Anzeige der Kosten unter dem Namen aktualisieren
+            updateRecruitCosts(this);
+        });
     });
 
     document.querySelectorAll(".js-upgrade-select").forEach(select => {
         select.addEventListener("change", () => {
             const input = select.closest("form").querySelector(".js-recruit-input");
-            updateRecruitCosts(input);
+            // Event manuell triggern, um die Limits beim Wechsel von Bau zu Upgrade neu zu prüfen
+            input.dispatchEvent(new Event('input'));
         });
     });
 });

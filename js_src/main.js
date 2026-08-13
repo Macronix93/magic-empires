@@ -183,13 +183,29 @@ observer.observe(document.body, {
 });
 
 function formatNumJS(number) {
+    if (number === null || number === undefined) return "0";
+
     if (number >= 1000000) {
-        return (Math.floor(number / 10000) / 100).toFixed(2).replace(/\.00$/, '') + 'M';
+        let val = (Math.floor(number / 10000) / 100);
+        return val.toFixed(2)
+                .replace('.', ',')
+                .replace(/,00$/, '')
+                .replace(/,(\d)0$/, ',$1')
+            + 'M';
     }
-    if (number >= 10000) {
-        return (Math.floor(number / 100) / 10).toFixed(1).replace(/\.0$/, '') + 'k';
+
+    if (number >= 100000) {
+        let val = (Math.floor(number / 100) / 10);
+        return val.toFixed(1)
+                .replace('.', ',')
+                .replace(/,0$/, '')
+            + 'k';
     }
-    return number.toLocaleString();
+
+    return number.toLocaleString('de-DE', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1
+    });
 }
 
 function setup() {

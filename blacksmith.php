@@ -162,13 +162,13 @@ if ($arrow_lvl > 0 || $wams_lvl > 0) {
 
 $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
 if ($weight_lvl > 0) {
-    $percent = $weight_lvl * (SMITHY_WEIGHT_REDUCTION * 100);
+    $percent = fdec($weight_lvl * (SMITHY_WEIGHT_REDUCTION * 100));
     $smithy_boni_view .= "<tr><td>Waffengewicht:</td><td class='passed'>-$percent% Rekrutierungszeit</td></tr>";
 }
 
 $siege_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SIEGE);
 if ($siege_lvl > 0) {
-    $percent = $siege_lvl * (SMITHY_SIEGE_BONUS * 100);
+    $percent = fdec($siege_lvl * (SMITHY_SIEGE_BONUS * 100));
     $smithy_boni_view .= "<tr><td>Belagerung:</td><td class='passed'>+$percent% Schaden an Mauern</td></tr>";
 }
 

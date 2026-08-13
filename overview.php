@@ -6,9 +6,9 @@ check_user_login($user);
 // Get main kingdom of user
 $result = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
 $row_main = $result->fetch_assoc();
-$main_kingdom = $row_main["mainkingdom"];
+$active_k_id = $user->get_current_kingdom();
 $now = time();
-$kingdom = new Kingdom($db_instance, $main_kingdom);
+$kingdom = new Kingdom($db_instance, $active_k_id);
 
 $tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
 $bp_actions = [
@@ -23,8 +23,6 @@ $wp_actions = [ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN
 $tp_list = implode(',', $tp_actions);
 $bp_list = implode(',', $bp_actions);
 $wp_list = implode(',', $wp_actions);
-
-$active_k_id = $user->get_current_kingdom();
 
 $counts = $db_instance->execute_query("
     SELECT 
@@ -418,7 +416,7 @@ $query_events = "
     JOIN kingdoms k ON e.kingdomid = k.id
     LEFT JOIN soldier_list sl ON sl.id = e.soldierid
     WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?, ?)
-    ORDER BY COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
+    ORDER BY k.kingdomname, COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
     LIMIT $offset_bp, $limit
 ";
 

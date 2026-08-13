@@ -38,7 +38,7 @@ $view .= "
     <div class='info-box event-passed' style='margin-top: 20px; flex-direction: column; padding: 15px; max-width: 550px;'>
         <span style='font-weight: bold; font-size: 22px;'>🛡️ Sichere Ressourcen</span>
         <span style='font-size: 0.9em; opacity: 0.9; margin-top: 5px;'>
-            Durch die Bauweise deines Lagers sind <b>$display_percent %</b> deiner maximalen Lagerkapazität 
+            Durch die Bauweise deines Lagers sind <b>" . fdec($display_percent) . " %</b> deiner maximalen Lagerkapazität 
             vor Diebstahl geschützt.
         </span>
         <span style='color: var(--link-color); font-weight: bold; margin-top: 8px;'>

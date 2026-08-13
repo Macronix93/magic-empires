@@ -166,31 +166,31 @@ if ($gold_inc_lvl > 0) {
 
 $arch_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCHITECTURE);
 if ($arch_lvl > 0) {
-    $percent = $arch_lvl * ARCHITECTURE_TIME_REDUCTION * 100;
+    $percent = fdec($arch_lvl * ARCHITECTURE_TIME_REDUCTION * 100);
     $boni_view .= "<tr><td>Baukunst:</td><td class='passed'>-$percent% Bauzeit</td></tr>";
 }
 
 $carto_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CARTOGRAPHY);
 if ($carto_lvl > 0) {
-    $percent = ($carto_lvl * CARTOGRAPHY_SPEED_BONUS) * 100;
+    $percent = fdec(($carto_lvl * CARTOGRAPHY_SPEED_BONUS) * 100);
     $boni_view .= "<tr><td>Kartografie:</td><td class='passed'>-$percent% Marschzeit</td></tr>";
 }
 
 $maint_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_MAINTENANCE);
 if ($maint_lvl > 0) {
-    $percent = $maint_lvl * MAINTENANCE_REPAIR_REDUCTION * 100;
+    $percent = fdec($maint_lvl * MAINTENANCE_REPAIR_REDUCTION * 100);
     $boni_view .= "<tr><td>Mauerwartung:</td><td class='passed'>-$percent% Reparaturkosten</td></tr>";
 }
 
 $plund_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
 if ($plund_lvl > 0) {
-    $percent = $plund_lvl * PLUNDER_CAPACITY_BONUS * 100;
+    $percent = fdec($plund_lvl * PLUNDER_CAPACITY_BONUS * 100);
     $boni_view .= "<tr><td>Plünderungstaktik:</td><td class='passed'>+$percent% Beute-Kapazität</td></tr>";
 }
 
 $rites_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ANCESTRAL_RITES);
 if ($rites_lvl > 0) {
-    $effect = $rites_lvl * SHRINE_TECH_STEP * 100;
+    $effect = fdec($rites_lvl * SHRINE_TECH_STEP * 100);
     $boni_view .= "<tr><td>Ahnenritus:</td><td class='passed'>+$effect% Schrein-Effektivität</td></tr>";
 }
 

@@ -102,15 +102,18 @@ function updateTroopSummary() {
     });
 
     if (totalUnits > 0) {
+        const atkTitle = totalAtk >= 100000 ? ` title="${totalAtk.toLocaleString("de-DE")}" style="cursor:help;"` : "";
+        const defTitle = totalDef >= 100000 ? ` title="${totalDef.toLocaleString("de-DE")}" style="cursor:help;"` : "";
+
         html += `
         <div style="width: 100%; padding-top: 8px; display: flex; justify-content: center; gap: 20px; font-weight: bold;">
             <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Angriff">
                 <img src="../images/icons/icon_sword.png" class="ressource-icons" alt="Angriff"> 
-                <span>${formatNumJS(totalAtk)}</span>
+                <span${atkTitle}>${formatNumJS(totalAtk)}</span>
             </div>
             <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Verteidigung">
                 <img src="../images/icons/icon_shield.png" class="ressource-icons" alt="Verteidigung"> 
-                <span>${formatNumJS(totalDef)}</span>
+                <span${defTitle}>${formatNumJS(totalDef)}</span>
             </div>
         </div>`;
     }

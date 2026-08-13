@@ -151,11 +151,11 @@ $view = "
     <div class='box-container' style='width: 310px;'>
         <div class='box-header'>Globale Entwicklung</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
-            <div class='split-content'><span>Besiedelte Fläche:</span> <b>$map_percentage %</b></div>
+            <div class='split-content'><span>Besiedelte Fläche:</span> <b>" . fdec($map_percentage, 2) . " %</b></div>
             <div class='split-content'><span>Königreiche:</span> <b>{$stats['occupied_fields']}</b></div>
             <div class='split-content'><span>Vorratslager (Karte):</span> <b>{$stats['resource_tiles']}</b></div>
             <div class='split-content'><span>Monstercamps (Karte):</span> <b>{$stats['monster_camps']}</b></div>
-            <div class='split-content'><span>Ø Gebäude-Stufe:</span> <b>" . round($stats['avg_building_lvl'], 1) . "</b></div>
+            <div class='split-content'><span>Ø Gebäude-Stufe:</span> <b>" . fdec($stats['avg_building_lvl']) . "</b></div>
             <div class='split-content'><span>Erforschte Tech-Stufen:</span> <b>" . fnum($stats['total_tech_lvls']) . "</b></div>
             <hr>
             <div style='text-align:center; margin-bottom: 5px;'><b>Militär</b></div>

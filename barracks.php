@@ -522,10 +522,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $can_train = ($req_lvl <= $barracks_lvl);
     $is_hero = ($soldiers[$i]->get_soldier_id() == Soldiers::SOLDIER_HERO);
 
-//    if ($soldiers[$i]->get_soldier_required_level() > $building->get_building_level()) {
-//        continue;
-//    }
-
     $unit_cat = $soldiers[$i]->get_soldier_category();
     $base_unit_time = $soldiers[$i]->get_soldier_time();
     $unit_time_display = (int)($base_unit_time * $smithy_multiplier);
@@ -555,13 +551,13 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $capacity_text = "<br><br><span style='font-size: 0.9em;'><b>Aktuelle Kapazität:</b> " . fnum($current_cap) . " Ressourcen / Einheit</span>";
 
             if ($plunder_lvl > 0) {
-                $capacity_text .= "<br><small style='opacity: 0.7;'>(Inkl. " . ($plunder_lvl * PLUNDER_CAPACITY_BONUS * 100) . "% Forschungs-Bonus)</small>";
+                $capacity_text .= "<br><small style='opacity: 0.7;'>(Inkl. " . fdec($plunder_lvl * PLUNDER_CAPACITY_BONUS * 100) . "% Forschungs-Bonus)</small>";
             }
             break;
         case Soldiers::SOLDIER_CONQUEROR:
-            $base = (BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100;
-            $step = MIN_CONQUEST_CHANCE * 100;
-            $max = MAX_CONQUEST_CHANCE * 100;
+            $base = fdec((BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100);
+            $step = fdec(MIN_CONQUEST_CHANCE * 100);
+            $max = fdec(MAX_CONQUEST_CHANCE * 100);
 
             $capacity_text = "<br><br><span style='font-size: 0.9em;'>Erfolg: <b>$base%</b> Basis-Chance</span>";
             $capacity_text .= "<br><small>(+$step% je weiteren Eroberer, max. $max%)</small>";
@@ -580,7 +576,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $imp_bonus = (int)$res_imp->fetch_row()[0];
 
             $current_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
-            $base_chance = BASE_SETTLER_CHANCE * 100;
+            $base_chance = fdec(BASE_SETTLER_CHANCE * 100);
 
             $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$base_chance%</b> Erfolgsrate</span>";
             $capacity_text .= "<br><span style='font-size: 0.9em;'>Imperium: <b>$curr_founded / $current_limit</b> gegründeten Siedlungen</span>";
