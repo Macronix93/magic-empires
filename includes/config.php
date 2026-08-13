@@ -60,7 +60,7 @@ const BASE_GOLD_GAIN = 600;
 const MIN_RESOURCES_PER_TILE = 5890;
 const MAX_RESOURCES_PER_TILE = 32334;
 const STORAGE_STARTING_VALUE = 10000;
-const STORAGE_INC_FACTOR = 1.85;
+const STORAGE_INC_FACTOR = 1.888;
 const STORAGE_SECURE_PERCENT_STEP = 0.015;
 const BASE_BOOST_DURATION = 2;
 const BOOST_PRODUCTION_BONUS = 1.0;
@@ -163,7 +163,7 @@ const MONSTER_CAMP_COIN_MAX_PER_LVL = 2;
 const MIN_NUM_MONSTERS_PER_TYPE = 6;
 const MAX_NUM_MONSTERS_PER_TYPE = 15;
 const MONSTER_CAMP_EXTRA_MONSTER = 18;
-const MONSTER_CAMP_EXTRA_LEVEL_CAP = 2;
+const MONSTER_CAMP_EXTRA_LEVEL_CAP = 1;
 const MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW = 0;
 const MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW = 2;
 const MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH = 2;
@@ -287,12 +287,22 @@ interface TechTypes
     const int TECH_TYPE_SIEGE = 20;
 }
 
-interface SoldierTypes
+class SoldierTypes
 {
     const int SOLDIER_TYPE_INFANTRY = 0;
     const int SOLDIER_TYPE_CAVALRY = 1;
     const int SOLDIER_TYPE_ARCHERS = 2;
     const int SOLDIER_TYPE_SPECIAL = 3;
+
+    public static function get_labels(): array
+    {
+        return [
+            self::SOLDIER_TYPE_INFANTRY => "Infanterie",
+            self::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+            self::SOLDIER_TYPE_ARCHERS => "Schützen",
+            self::SOLDIER_TYPE_SPECIAL => "Spezial"
+        ];
+    }
 }
 
 interface Soldiers

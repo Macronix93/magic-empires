@@ -415,14 +415,22 @@ function updateKingdom(selectElement) {
                     }
 
                     let currentUrl = new URL(window.location.href);
-                    let params = currentUrl.searchParams;
+                    let pathname = currentUrl.pathname;
+                    let search = currentUrl.search;
+                    let filename = pathname.split('/').pop();
 
-                    if (currentUrl.pathname.includes("map.php") && params.has("startx") && params.has("starty")) {
-                        window.location.href = "map.php?startx=" + params.get("startx") + "&starty=" + params.get("starty");
-                    } else if (currentUrl.pathname.includes("sendtroops.php")) {
-                        window.location.href = currentUrl.pathname + currentUrl.search;
+                    const keepParamsPages = [
+                        "messages.php",
+                        "ranking.php",
+                        "support.php",
+                        "sendtroops.php",
+                        "map.php",
+                    ];
+
+                    if (keepParamsPages.includes(filename)) {
+                        window.location.href = pathname + search;
                     } else {
-                        window.location.href = currentUrl.pathname;
+                        window.location.href = pathname;
                     }
                 } else {
                     isKingdomSwitching = false;

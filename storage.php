@@ -16,20 +16,20 @@ $example_secure_units = floor($kingdom->get_kingdom_max_food() * $secure_percent
 /*
  * HTML Content Part
  */
-$view .= "<div style='margin: auto; width: 200px;'>
-        <div class='split-content'>
+$view .= "<div class='storage-listing' style='margin: auto;'>
+        <div class='split-content' style='gap: 5px;'>
             <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($kingdom->get_kingdom_food()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_food()) . "</div>
         </div>
-        <div class='split-content'>
+        <div class='split-content' style='gap: 5px;'>
             <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($kingdom->get_kingdom_wood()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_wood()) . "</div>
         </div>
-        <div class='split-content'>
+        <div class='split-content' style='gap: 5px;'>
             <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($kingdom->get_kingdom_stone()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_stone()) . "</div>
         </div>
-        <div class='split-content'>
+        <div class='split-content' style='gap: 5px;'>
             <div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($kingdom->get_kingdom_gold()) . "</div>
             <div>von " . fnum($kingdom->get_kingdom_max_gold()) . "</div>
         </div>

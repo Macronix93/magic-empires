@@ -113,11 +113,31 @@ class User
         $result = $this->mysqli->execute_query("SELECT sessionid FROM users WHERE id = ?", [$this->get_user_id()]);
         $row = $result->fetch_assoc();
 
-        if (!$row || $row["sessionid"] !== session_id()) {
-            session_destroy();
-            change_location("index.php?logout");
-            exit;
+        if ($row && $row["sessionid"] === session_id()) {
+            return;
         }
+
+        if (isset($_COOKIE["me_remember"])) {
+            $parts = explode(':', $_COOKIE["me_remember"]);
+
+            if (count($parts) === 2) {
+                $token = $parts[1];
+                $token_hash = hash("sha256", $token);
+
+                $res_token = $this->mysqli->execute_query(
+                    "SELECT id FROM user_remember_tokens WHERE userid = ? AND token_hash = ? AND expires_at > ?",
+                    [$this->get_user_id(), $token_hash, time()]
+                );
+
+                if ($res_token && $res_token->num_rows > 0) {
+                    return;
+                }
+            }
+        }
+
+        session_destroy();
+        change_location("index.php?logout=session");
+        exit;
     }
 
     public function get_user_id(): int
@@ -378,6 +398,25 @@ class User
      */
     public function create_remember_me_token(): void
     {
+        $this->mysqli->execute_query(
+            "DELETE FROM user_remember_tokens WHERE userid = ? AND expires_at < ?",
+            [$this->user_id, time()]
+        );
+
+        $this->mysqli->execute_query(
+            "DELETE FROM user_remember_tokens 
+         WHERE userid = ? 
+         AND id NOT IN (
+             SELECT id FROM (
+                 SELECT id FROM user_remember_tokens 
+                 WHERE userid = ? 
+                 ORDER BY expires_at DESC 
+                 LIMIT 5
+             ) tmp
+         )",
+            [$this->user_id, $this->user_id]
+        );
+
         $random_token = bin2hex(random_bytes(32));
         $token_hash = hash("sha256", $random_token);
 
@@ -388,14 +427,6 @@ class User
         );
 
         $cookie_value = $this->user_id . ':' . $random_token;
-        setcookie(
-            "me_remember",
-            $cookie_value,
-            $expires,
-            '/',
-            '',
-            true,
-            true
-        );
+        setcookie("me_remember", $cookie_value, $expires, '/', '', true, true);
     }
 }

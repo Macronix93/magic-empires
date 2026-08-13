@@ -460,12 +460,7 @@ $view .= "
     </table>
 </div>";
 
-$categories = [
-    SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
-    SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
-    SoldierTypes::SOLDIER_TYPE_ARCHERS => "Schützen",
-    SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezial"
-];
+$categories = SoldierTypes::get_labels();
 
 $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
 $smithy_multiplier = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);

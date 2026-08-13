@@ -45,7 +45,7 @@ if (isset($_POST["reset_align"])) {
 $current_align = $kingdom->get_kingdom_alignment();
 $res_aligns = $db_instance->query("SELECT * FROM shrine_alignments");
 
-$view .= "<h3>Wähle die Gesinnung für dieses Königreich</h3>";
+$view .= "<h3 style='margin: 0;'>Wähle die Gesinnung für dieses Königreich</h3>";
 $view .= "<p>Ein Wechsel erfordert ein Opfer von " . fnum(SHRINE_CHANGE_COST) . " Gold.</p>";
 
 $disabled = $current_align == AlignmentTypes::ALIGN_NONE;

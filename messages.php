@@ -79,7 +79,7 @@ if (isset($_GET["action"])) {
                               method='POST'>
                             <table class='table'>
                                 <tr>
-                                    <td style='width: 25%;'>
+                                    <td style='width: 28%;'>
                                         <b>Empfänger:</b>
                                     </td>
                                     <td>

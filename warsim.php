@@ -121,7 +121,7 @@ $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
 $view .= '<div style="display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">';
 $view .= '<div class="box-container" style="max-width: 250px; margin: 0;">
-    <div class="box-header">Deine Forschung</div>
+    <div class="box-header">Deine Forschungen</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         ' . $render_tech_side("my", $tech_meta, $mil_tech_ids_attacker, $kingdom) . '
         <div class="split-content" style="margin-top: 8px; padding-top: 5px; border-top: 1px solid #555;">

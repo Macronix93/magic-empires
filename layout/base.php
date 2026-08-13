@@ -30,7 +30,8 @@ if ($user->is_logged_in()) {
     <meta http-equiv="X-UA-Compatible" content="IE-edge">
     <meta name="viewport" content="width=device-width, initial-scale:1.0">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
-    <link rel="stylesheet" type="text/css" href="styles.css">
+    <link rel="stylesheet" type="text/css"
+          href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>">
     <title>
         <?php
         if (IS_DEV) {
@@ -43,11 +44,18 @@ if ($user->is_logged_in()) {
     <noscript>
         <meta http-equiv="refresh" content="0;url=nojs.php">
     </noscript>
-    <script type="text/javascript" src="<?= $js_folder . $js_main_file ?>" defer></script>
+    <?php
+    $main_js_path = $js_folder . $js_main_file;
+    $main_v = file_exists($main_js_path) ? filemtime($main_js_path) : time();
+    ?>
+    <script type="text/javascript" src="<?= $main_js_path ?>?v=<?= $main_v ?>" defer></script>
+
     <?php
     if (!empty($script_files)) {
         foreach ($script_files as $script_file) {
-            echo '<script type="text/javascript" src="' . $js_folder . $script_file . $js_suffix . '" defer></script>';
+            $path = $js_folder . $script_file . $js_suffix;
+            $v = file_exists($path) ? filemtime($path) : time();
+            echo '<script type="text/javascript" src="' . $path . '?v=' . $v . '" defer></script>';
         }
     }
     echo $head_extra ?? '';

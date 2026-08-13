@@ -434,12 +434,7 @@ if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
                             </div>
                 ';
 
-                    $categories = [
-                        SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
-                        SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
-                        SoldierTypes::SOLDIER_TYPE_ARCHERS => "Schützen",
-                        SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezial"
-                    ];
+                    $categories = SoldierTypes::get_labels();
 
                     $view .= "<div class='tab' style='margin-top: 10px;'>";
                     foreach ($categories as $id => $name) {
