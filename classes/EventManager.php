@@ -396,6 +396,8 @@ class EventManager
         $conquest->fetch_sent_troops();
         $conquest->initialize_soldier_types();
 
+        $c_link = "<a href='map.php?startx={$row["targetx"]}&starty={$row["targety"]}' data-on-click='mapJump' data-x='{$row["targetx"]}' data-y='{$row["targety"]}'>{$row["targetx"]}:{$row["targety"]}</a>";
+
         // Check for troop composition
         $res = $this->mysqli->execute_query(
             "SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?",
@@ -422,6 +424,96 @@ class EventManager
                 send_server_message($row["userid"], "System", "Dein Ziel wurde aufgegeben. Deine Truppen kehren um.", MessageCategories::CATEGORY_WAR);
                 return;
             }
+        }
+
+        if ($target_id == WORLD_EVENT_ID) {
+            $world_event_manager = new WorldEvent($this->mysqli);
+            $active_event = $world_event_manager->get_active_event();
+
+            if ($active_event) {
+                $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
+
+                $shrine_atk_mult = 1.0;
+                if ($home_k->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+                    $shrine_atk_mult += $home_k->get_shrine_modifier();
+                }
+
+                $inf_atk_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
+                $cav_atk_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
+                $arc_atk_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
+
+                $raw_damage = 0;
+                $report_units = [];
+
+                $res_troops = $this->mysqli->execute_query("
+                    SELECT st.soldiercount, sl.attack, sl.category, sl.soldiername, sl.icon 
+                    FROM sent_troops st 
+                    JOIN soldier_list sl ON st.soldierid = sl.id 
+                    WHERE st.eventid = ?", [$row["eventid"]]);
+
+                while ($t = $res_troops->fetch_assoc()) {
+                    $cat = (int)$t["category"];
+
+                    $smithy_bonus = match ($cat) {
+                        0 => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
+                        1 => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
+                        2 => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
+                        default => 0
+                    };
+
+                    $final_atk = (int)($t["attack"] * $shrine_atk_mult) + $smithy_bonus;
+                    $raw_damage += ($final_atk * $t["soldiercount"]);
+
+                    $report_units[] = ["name" => $t["soldiername"], "count" => $t["soldiercount"], "icon" => $t["icon"]];
+                }
+
+                $result_dmg = $world_event_manager->record_damage($active_event["id"], $attacker_id, $raw_damage, $active_event["event_type"], (int)$row["kingdomid"]);
+
+                $msg = "<div class='battle-report'>";
+
+                $pool = $world_event_manager->get_monster_pool();
+                $monster = $pool[$active_event["monster_index"]];
+                $event_title = ($active_event["event_type"] === "BOSS_HP") ? "Schlacht gegen " . $monster["name"] : "Angriff auf das Zentrum";
+
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
+                foreach ($report_units as $ru) $units_html .= BattleReportRenderer::render_unit_card($ru["name"], $ru["count"], 0, $ru["icon"], true);
+                $units_html .= "</div>";
+
+                if ($result_dmg == -1) {
+                    // Boss already dead
+                    $msg .= BattleReportRenderer::render_outcome_box($event_title, "Als deine Truppen das Zentrum erreichten, war das Monster bereits von anderen Herrschern besiegt worden! $units_html",
+                        0, 0, "Die Soldaten feiern den Sieg und kehren heim.");
+                } else if ($result_dmg == -2) {
+                    // No tries anymore
+                    $msg .= BattleReportRenderer::render_outcome_box("Keine Versuche", "Deine Truppen sind angekommen, aber du hast bereits alle Versuche für dieses Event aufgebraucht! $units_html",
+                        0, 0, "Die Soldaten ziehen unverrichteter Dinge ab.", "error");
+                } else {
+                    // Sucessful Attack
+                    $sub_text = ($result_dmg < $raw_damage) ? "Das Monster war fast besiegt. Dein restlicher Schaden verfiel." : "";
+                    $msg .= BattleReportRenderer::render_outcome_box($event_title, "Deine Truppen haben das Monster erreicht und <b>" . fnum($result_dmg) . " Schaden</b> verursacht! $units_html",
+                        0, 0, $sub_text, "success");
+
+                    Logger::get_instance()->log_game("COMBAT", "WORLD_EVENT_ATTACK", [
+                        "event_id" => $active_event["id"],
+                        "event_type" => $active_event["event_type"],
+                        "damage_caused" => $result_dmg,
+                        "is_boss_kill" => ($active_event["event_type"] === "BOSS_HP" && $result_dmg >= $active_event["current_hp"])
+                    ], (int)$row["kingdomid"]);
+                }
+                $msg .= "</div>";
+            } else {
+                $msg = BattleReportRenderer::render_outcome_box(
+                    "Event-Bericht",
+                    "Deine Truppen haben das Zentrum erreicht, aber derzeit findet kein Event statt.",
+                );
+            }
+
+            send_server_message($attacker_id, $attacker_name, $msg, MessageCategories::CATEGORY_WAR);
+
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + WORLD_EVENT_ATTACK_DURATION, $row["eventid"]]);
+
+            return;
         }
 
         if ($target_id == -3) {
@@ -465,7 +557,6 @@ class EventManager
 
         if ($attacker_id == $current_owner_id) {
             $message = "<div class='battle-report'>";
-            $c_link = "<a href='map.php?startx={$row["targetx"]}&starty={$row["targety"]}' data-on-click='mapJump' data-x='{$row["targetx"]}' data-y='{$row["targety"]}'>{$row["targetx"]}:{$row["targety"]}</a>";
             $main_text = "Deine Truppen sind erfolgreich bei deinem Königreich {$enemy_kingdom->get_kingdom_name()} ($c_link) angekommen.";
             $sub_text = "Die Soldaten stehen ab sofort zur Verteidigung bereit.";
 
@@ -540,6 +631,8 @@ class EventManager
 
             if ($row["targetid"] == -3) {
                 $field_name = "Monstercamp";
+            } else if ($row["targetid"] == WORLD_EVENT_ID) {
+                $field_name = "Auge des Sturms";
             } else {
                 $field_name = $map_info["fieldname"] ?? "Unbekannt";
             }
@@ -1289,6 +1382,11 @@ class EventManager
             WHERE e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
               AND e.userid != k.userid
               AND e.notification_sent = 0
+              AND EXISTS (
+                  SELECT 1 FROM sent_troops st 
+                  WHERE st.eventid = e.eventid 
+                  AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+              )
               $user_filter
         ";
         $results = $this->mysqli->query($query);
@@ -1365,7 +1463,7 @@ class EventManager
                         $icon_path = "images/icons/" . $t["icon"] . ".png";
                         $main_text .= "<div class='unit-badge' title='" . e($t["soldiername"]) . "'>";
                         $main_text .= "<img src='$icon_path' alt=''>";
-                        $main_text .= "<b>" . fnum($count) . "x</b>";
+                        $main_text .= "<b>" . fnum($count) . "</b>";
                         $main_text .= "</div>";
                     }
                     $main_text .= "</div>";
@@ -2235,6 +2333,7 @@ class EventManager
         Logger::get_instance()->log_game("COMBAT", "MONSTER_BATTLE", [
             "target_coords" => "$tx:$ty",
             "victory" => $victory,
+            "troops_sent" => $conquest->get_initial_soldiers_detailed(),
             "attacker_losses" => $total_atk_loss,
             "monsters_slain" => $monsters_slain,
             "loot_res" => $loot_res,

@@ -177,6 +177,34 @@ if ($row) {
             $biome_info .= "</div>";
         }
 
+        if ($building_id === BuildingTypes::BUILDING_WATCHTOWER) {
+            $time_bonus = convert_sec_to_str(WATCHTOWER_DETECTION_PER_LEVEL);
+
+            $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+            $biome_info .= "<b>Wachturm-Effekt:</b><br>";
+            $biome_info .= "Jede Stufe erhöht die Sichtweite für herannahende Truppen dauerhaft um <span class='passed'>+" . $time_bonus . "</span>.";
+            $biome_info .= "</div>";
+        }
+
+        if ($building_id === BuildingTypes::BUILDING_SHRINE) {
+            $res_aligns = $db_instance->query("SELECT name, required_level, bonus_text, malus_text, base_bonus, base_malus FROM shrine_alignments ORDER BY required_level");
+
+            $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:13px; line-height: 1.5;'>";
+            $biome_info .= "<b>Freischaltungen nach Stufe:</b><br>";
+
+            while ($sa = $res_aligns->fetch_assoc()) {
+                $b_val = (int)($sa["base_bonus"] * 100);
+                $m_val = (int)($sa["base_malus"] * 100);
+
+                $biome_info .= "<span class='passed'>Stufe {$sa["required_level"]}:</span> <b>" . e($sa["name"]) . "</b>";
+                $biome_info .= "<small style='opacity:0.8; margin-left: 10px;'>" .
+                        "(<span class='passed'>+$b_val% " . e($sa["bonus_text"]) . "</span> / " .
+                        "<span class='error'>-$m_val% " . e($sa["malus_text"]) . "</span>)" .
+                        "</small><br>";
+            }
+
+            $biome_info .= "</div>";
+        }
         $tech_bonus_info = "";
         $res_techs = [
                 TechTypes::TECH_TYPE_FOOD_INC => ["name" => "Nahrung", "val" => RESEARCH_FOOD_INC],
@@ -253,7 +281,7 @@ if ($row) {
                 $text = $res[1];
 
                 $formatted_value = !empty($value) ? "<span class='passed'>$value</span> " : "";
-                $suffix = ($tech_id === TechTypes::TECH_TYPE_ARCANE_INTEL) ? "" : " pro Stufe.";
+                $suffix = ($tech_id === TechTypes::TECH_TYPE_ARCANE_INTEL || $tech_id === TechTypes::TECH_TYPE_IMPERIAL) ? "" : " pro Stufe.";
 
                 $tech_bonus_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
                 $tech_bonus_info .= "<b>Forschungs-Effekt:</b><br>";

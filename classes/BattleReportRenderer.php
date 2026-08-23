@@ -17,7 +17,7 @@ class BattleReportRenderer
 
         return "
         <div class='battle-unit-card'>
-            <img src='$icon_path' style='width: 24px; height: 24px; vertical-align: middle;' alt=''>
+            <img src='$icon_path' style='vertical-align: middle;' alt=''>
             <div class='battle-unit-info'>
                 <span class='battle-unit-name'>$name</span>
                 <span class='battle-unit-count $survivor_class'>$survivors $troop_count_text $loss_text</span>
@@ -183,7 +183,7 @@ class BattleReportRenderer
         }
 
         if (!empty($resources)) {
-            $html .= "<div style='display: flex; gap: 15px; justify-content: center;'>";
+            $html .= "<div style='display: flex; gap: 15px; justify-content: center; margin: 7px;'>";
 
             foreach ($resources as $res_id => $amount) {
                 if ($amount > 0) {

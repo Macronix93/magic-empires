@@ -334,7 +334,7 @@ if ($result && $result->num_rows > 0) {
 
             $soldiers_str .= "<div class='unit-badge$popup_class $responsive_class' id='" . ($has_loot ? $p_id : "") . "' title='" . (empty($popup_class) ? $soldier_name : "") . "'>";
             $soldiers_str .= "<img src='$icon_path' class='ressource-icons' alt='$soldier_name'>
-                                <b>" . fnum($soldier["soldiercount"]) . "x</b>
+                                <b>" . fnum($soldier["soldiercount"]) . "</b>
                                 $popup_content
                             </div>";
         }
@@ -484,7 +484,7 @@ if ($result_events && $result_events->num_rows > 0) {
 
                 $project_text = "<div class='unit-badge' title='" . e($row["soldiername"]) . "'>
                             " . $sol_obj->get_soldier_icon("ressource-icons") . "
-                            <b>" . fnum($row["soldiergoal"]) . "x</b>
+                            <b>" . fnum($row["soldiergoal"]) . "</b>
                          </div>";
                 $finish_time = $row["recruittime"];
                 $hover_name = $row["soldiername"];
@@ -498,7 +498,7 @@ if ($result_events && $result_events->num_rows > 0) {
 
                 $project_text = "<div class='unit-badge' title='Upgrade zu " . e($row["soldiername"]) . "'>
                             " . $sol_obj->get_soldier_icon("ressource-icons") . "
-                            <b>" . fnum($row["soldiergoal"]) . "x</b>
+                            <b>" . fnum($row["soldiergoal"]) . "</b>
                          </div>";
 
                 $res_s = $db_instance->execute_query("SELECT requiredtime FROM soldier_list WHERE id = ?", [$row["soldierid"]]);
@@ -754,7 +754,7 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
  */
 $title = "Übersicht";
 $header = "Übersicht";
-$script_files = ["counter", "userinfo"];
+$script_files = ["timer", "userinfo"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

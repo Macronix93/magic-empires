@@ -408,6 +408,7 @@ $total_smithy_def = $total_k_def - $pure_base_def;
 
 $atk_class = ($total_smithy_atk > 0 || $total_shrine_atk > 0) ? "passed" : "";
 $def_class = ($total_smithy_def > 0) ? "passed" : "";
+$limit_class = ($total_occupied_space > $troop_limit) ? "error" : "";
 
 $view .= "
 <div class='garnison-box'>
@@ -445,7 +446,7 @@ $view .= "
             <td style='background: transparent; border: none; padding: 2px 0; text-align: left;'>
                 <b>Truppen (gesamt):</b>
             </td>
-            <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
+            <td class='$limit_class' style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
                 " . fnum($actual_units_total) . " / " . fnum($troop_limit) . "
             </td>
         </tr>
@@ -780,7 +781,7 @@ $view .= '</table>';
  */
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
-$script_files = ["counter", "barracks"];
+$script_files = ["timer", "barracks"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

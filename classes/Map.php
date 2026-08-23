@@ -224,15 +224,65 @@ class Map
                     <button data-on-click="redirect" data-url="' . $target_url . '">Camp angreifen</button>
                 </td></tr>
             </table>';
-        } else if ($field_id == -999) {
+        } else if ($field_id == WORLD_EVENT_ID) {
             // --- EVENT CENTER ---
-            echo '<div class="title-border">Das Auge des Sturms</div>
-          <table class="table" style="margin-top: 20px; max-width: 500px;">
-              <tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>
-              <tr><td colspan="2" style="text-align: center; padding: 15px;">
-                  <i>Truppen können diesen Bereich aktuell nicht betreten.</i>
-              </td></tr>
-          </table>';
+            $we_manager = new WorldEvent($this->mysqli);
+            $active_ev = $we_manager->get_active_event();
+
+            if ($active_ev) {
+                $type_label = ($active_ev["event_type"] === "BOSS_HP") ? "Weltenboss" : "Großer Angriff";
+                $time_left = $active_ev["end_time"] - time();
+                $target_url = "sendtroops.php?x=$field_x&y=$field_y";
+
+                echo '<div class="title-border">' . $type_label . '</div>
+                        <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                            <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
+                            <tr><td class="td-mapinfo"><b>Endet in</b></td><td><span class="js-countdown" data-seconds="' . $time_left . '">-</span></td></tr>';
+
+                if ($active_ev["event_type"] === "BOSS_HP") {
+                    $hp_raw_percent = ($active_ev["total_hp"] > 0) ? ($active_ev["current_hp"] / $active_ev["total_hp"]) * 100 : 0;
+
+                    if ($active_ev["current_hp"] > 0 && $hp_raw_percent < 0.1) {
+                        $hp_display_percent = "< 0.1";
+                        $bar_width = 0.5;
+                    } else {
+                        $hp_display_percent = round($hp_raw_percent, 1);
+                        $bar_width = $hp_display_percent;
+                    }
+
+                    $hp_display = $active_ev["current_hp"] > 0 ?
+                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <span style="display: inline-flex; align-items: center; gap: 5px;">
+                                <img src="images/icons/icon_health.png" class="ressource-icons" alt="HP" style="margin: 0; width:16px; height:16px;"> 
+                                <span>' . fnum($active_ev["current_hp"]) . ' / ' . fnum($active_ev["total_hp"]) . '</span>
+                            </span>
+                            <span>' . $hp_display_percent . '%</span>
+                        </div>
+                        <div style="width: 100%; height: 12px; background: #333; border: 1px solid var(--border-gold); border-radius: 3px; overflow: hidden;">
+                            <div style="width: ' . $bar_width . '%; height: 100%; background: linear-gradient(90deg, #a62121, #ff4d4d);"></div>
+                        </div>'
+                        : "<span class='passed'>BESIEGT</span>";
+
+                    echo '<tr><td class="td-mapinfo"><b>Status</b></td><td>' . $hp_display . '</td></tr>';
+                }
+
+                $disabled = $active_ev["current_hp"] <= 0 && $active_ev["event_type"] === "BOSS_HP" ? "disabled" : "";
+
+                echo '<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str(WORLD_EVENT_ATTACK_DURATION) . '</td></tr>
+                        <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">
+                            <button data-on-click="redirect" data-url="' . $target_url . '" ' . $disabled . '>In die Schlacht!</button>
+                            <p style="font-size: 13px; margin-top: 10px;"><i>Hinweis: Truppen kehren von Welt-Events immer ohne Verluste heim.</i></p>
+                        </td></tr>
+                    </table>';
+            } else {
+                echo '<div class="title-border">Das Auge des Sturms</div>
+                <table class="table" style="margin-top: 20px; max-width: 500px;">
+                    <tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>
+                    <tr><td colspan="2" style="text-align: center; padding: 15px;">
+                        <i>Truppen können diesen Bereich aktuell nicht betreten.</i>
+                    </td></tr>
+                </table>';
+            }
         } else {
             if (!isset($_GET["owner"])) {
                 $query_details = "
@@ -301,6 +351,10 @@ class Map
         $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
 
         $actual_target_id = ($target_id !== null) ? $target_id : $this->get_field_kingdom_id($end_x, $end_y);
+
+        if ($actual_target_id == WORLD_EVENT_ID) {
+            return WORLD_EVENT_ATTACK_DURATION;
+        }
 
         if ($actual_target_id === -3) {
             $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;

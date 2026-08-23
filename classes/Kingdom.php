@@ -351,7 +351,7 @@ class Kingdom
     public function get_shrine_data(): ?array
     {
         if ($this->alignment == 0) return null;
-        
+
         if ($this->shrine_cache !== null) {
             return $this->shrine_cache;
         }
@@ -621,8 +621,8 @@ class Kingdom
             $g_per_hour *= (1 - $malus);
         } else if ($this->alignment == AlignmentTypes::ALIGN_IDOL) { // Götze
             $g_per_hour *= (1 + $bonus);
-            $f_per_hour *= (1 + $malus);
-            $w_per_hour *= (1 + $malus);
+            $f_per_hour *= (1 - $malus);
+            $w_per_hour *= (1 - $malus);
         } else if ($this->alignment == AlignmentTypes::ALIGN_NATURE) { // Naturgeist
             $f_per_hour *= (1 + $bonus);
             $w_per_hour *= (1 + $bonus);

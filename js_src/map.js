@@ -84,7 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(r => r.json())
             .then(data => {
-                mapData = data;
+                mapData = data.map_data;
+                window.activeEventInfo = data.event_info;
                 mapCache = null;
 
                 resizeCanvas();
@@ -303,7 +304,7 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , , myTroopIcon] = tile;
 
             if (kid === -1) return;
 
@@ -327,44 +328,32 @@ function draw() {
                 ctx.fillStyle = "rgba(230, 0, 0, 0.1)";
                 ctx.fillRect(posX, posY, scaledTile, scaledTile);
 
-                ctx.strokeStyle = "rgb(230, 0, 0)";
-                ctx.lineWidth = 2;
-                ctx.beginPath();
+                const isEventActive = window.activeEventInfo && window.activeEventInfo.is_active;
 
-                if (x === 49) {
-                    ctx.moveTo(posX, posY);
-                    ctx.lineTo(posX, posY + scaledTile);
-                }
-                if (x === 51) {
-                    ctx.moveTo(posX + scaledTile, posY);
-                    ctx.lineTo(posX + scaledTile, posY + scaledTile);
-                }
-                if (y === 49) {
-                    ctx.moveTo(posX, posY);
-                    ctx.lineTo(posX + scaledTile, posY);
-                }
-                if (y === 51) {
-                    ctx.moveTo(posX, posY + scaledTile);
-                    ctx.lineTo(posX + scaledTile, posY + scaledTile);
-                }
+                if (!isEventActive) {
+                    ctx.strokeStyle = "rgb(230, 0, 0)";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
 
-                ctx.stroke();
+                    if (x === 49) {
+                        ctx.moveTo(posX, posY);
+                        ctx.lineTo(posX, posY + scaledTile);
+                    }
+                    if (x === 51) {
+                        ctx.moveTo(posX + scaledTile, posY);
+                        ctx.lineTo(posX + scaledTile, posY + scaledTile);
+                    }
+                    if (y === 49) {
+                        ctx.moveTo(posX, posY);
+                        ctx.lineTo(posX + scaledTile, posY);
+                    }
+                    if (y === 51) {
+                        ctx.moveTo(posX, posY + scaledTile);
+                        ctx.lineTo(posX + scaledTile, posY + scaledTile);
+                    }
 
-                // Draw event monster
-                // if (x === 49 && y === 49) {
-                //     ctx.save();
-                //     ctx.globalAlpha = 1;
-                //
-                //     ctx.drawImage(
-                //         images.monster1,
-                //         posX,
-                //         posY,
-                //         scaledTile * 3,
-                //         scaledTile * 3
-                //     );
-                //
-                //     ctx.restore();
-                // }
+                    ctx.stroke();
+                }
                 return;
             }
 
@@ -400,16 +389,68 @@ function draw() {
                 }
             }
 
+            if (myTroopIcon && myTroopIcon !== "") {
+                const miniIconSize = scaledTile * 0.45;
+                const padding = 2;
+                const miniX = posX + scaledTile - miniIconSize - padding;
+                const miniY = posY + scaledTile - miniIconSize - padding;
 
+                ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                ctx.fillRect(miniX - 1, miniY - 1, miniIconSize + 2, miniIconSize + 2);
+
+                if (!images[myTroopIcon]) {
+                    images[myTroopIcon] = new Image();
+                    images[myTroopIcon].src = `images/icons/${myTroopIcon}.png`;
+                    images[myTroopIcon].onload = () => draw();
+                }
+
+                if (images[myTroopIcon].complete && images[myTroopIcon].naturalWidth !== 0) {
+                    ctx.drawImage(images[myTroopIcon], miniX, miniY, miniIconSize, miniIconSize);
+                }
+            }
         });
+
+        if (window.activeEventInfo && window.activeEventInfo.is_active) {
+            const ev = window.activeEventInfo;
+            const scaledTile = BASE_TILE_SIZE * zoom;
+            const bossPosX = (49 - 1) * scaledTile + currentTranslateX;
+            const bossPosY = (49 - 1) * scaledTile + currentTranslateY;
+            const bossSize = scaledTile * 3;
+
+            if (!window.eventMonsterImage) {
+                window.eventMonsterImage = new Image();
+                window.eventMonsterImage.src = `images/icons/${ev.monster_icon}.png`;
+                window.eventMonsterImage.onload = () => draw();
+            }
+
+            if (window.eventMonsterImage.complete) {
+                ctx.drawImage(window.eventMonsterImage, bossPosX, bossPosY, bossSize, bossSize);
+            }
+        }
     }
 
     if (selectedX && selectedY) {
-        const sPosX = (selectedX - 1) * scaledTile + currentTranslateX;
-        const sPosY = (selectedY - 1) * scaledTile + currentTranslateY;
-        ctx.strokeStyle = "#f62222";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(sPosX + 1, sPosY + 1, scaledTile - 2, scaledTile - 2);
+        const scaledTile = BASE_TILE_SIZE * zoom;
+        const isEventSelection = (selectedX >= 49 && selectedX <= 51 && selectedY >= 49 && selectedY <= 51);
+
+        if (isEventSelection) {
+            const sPosX = (49 - 1) * scaledTile + currentTranslateX;
+            const sPosY = (49 - 1) * scaledTile + currentTranslateY;
+            const sSize = scaledTile * 3;
+
+            ctx.strokeStyle = "#f62222";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(sPosX + 1, sPosY + 1, sSize - 2, sSize - 2);
+        } else {
+
+            const sPosX = (selectedX - 1) * scaledTile + currentTranslateX;
+            const sPosY = (selectedY - 1) * scaledTile + currentTranslateY;
+
+            ctx.strokeStyle = "#f62222";
+            ctx.lineWidth = 3;
+
+            ctx.strokeRect(sPosX + 1, sPosY + 1, scaledTile - 2, scaledTile - 2);
+        }
     }
 
     if (currentPath.length > 0 && document.getElementById("show-path-toggle")?.checked) {
@@ -520,8 +561,10 @@ function handleWheel(e) {
         const mouseY = e.clientY - rect.top;
         const worldX = (mouseX - currentTranslateX) / oldZoom;
         const worldY = (mouseY - currentTranslateY) / oldZoom;
+
         currentTranslateX = mouseX - (worldX * zoom);
         currentTranslateY = mouseY - (worldY * zoom);
+
         clampMapPosition();
         draw();
     }
@@ -604,12 +647,66 @@ function selectField(x, y, shouldCenter = false) {
         html += `</td></tr></table>`;
     } else if (kid === -999) {
         // --- EVENT CENTER
-        html += `<div class="title-border">Das Auge des Sturms</div>`;
-        html += `<table class="table" style="margin-top: 20px; max-width: 500px;">`;
-        html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>`;
-        html += `<tr><td colspan="2" style="text-align: center; padding: 15px;">
-                <i>Truppen können diesen Bereich aktuell nicht betreten.</i>
-            </td></tr></table>`;
+        const isEventActive = window.activeEventInfo && window.activeEventInfo.is_active;
+
+        if (isEventActive) {
+            const event_data = window.activeEventInfo;
+            const type_label = (window.activeEventInfo.type === "BOSS_HP") ? "Weltenboss" : "Großer Angriff";
+            const target_url = `sendtroops.php?x=${tx}&y=${ty}`;
+            const time_left = event_data.end_time - Math.floor(Date.now() / 1000);
+            const disabled = event_data.current_hp <= 0 && (window.activeEventInfo.type === "BOSS_HP") ? "disabled" : "";
+
+            html += `<div class="title-border">${type_label}</div>`;
+            html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+            html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+            html += `<tr><td class="td-mapinfo"><b>Endet in</b></td><td><span class="js-countdown" data-seconds="${time_left}">-</span></td></tr>`;
+
+            if (event_data.type === "BOSS_HP") {
+                let hpRawPercent = event_data.total_hp > 0 ? (event_data.current_hp / event_data.total_hp) * 100 : 0;
+                let hpDisplayText, barWidth;
+
+                if (event_data.current_hp > 0 && hpRawPercent < 0.1) {
+                    hpDisplayText = "< 0.1";
+                    barWidth = 0.5;
+                } else {
+                    hpDisplayText = Math.round(hpRawPercent * 10) / 10;
+                    barWidth = hpDisplayText;
+                }
+
+                const formattedHp = typeof formatNumJS === "function" ? formatNumJS(event_data.current_hp) : event_data.current_hp;
+
+                html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>`;
+
+                if (event_data.current_hp > 0) {
+                    html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="display: inline-flex; align-items: center; gap: 5px;">
+                                    <img src="images/icons/icon_health.png" class="ressource-icons" alt="HP" style="margin: 0; width: 16px; height: 16px;"> 
+                                    <span>${formattedHp} / ${formatNumJS(event_data.total_hp)}</span>
+                                </span>
+                                <span>${hpDisplayText}%</span>
+                            </div>
+                            <div style="width: 100%; height: 12px; background: #333; border: 1px solid var(--border-gold); border-radius: 3px; overflow: hidden;">
+                                <div style="width: ${barWidth}%; height: 100%; background: linear-gradient(90deg, #a62121, #ff4d4d);"></div>
+                            </div>`;
+                } else {
+                    html += `<span class="passed">BESIEGT</span>`;
+                }
+
+                html += `</td></tr>`;
+            }
+
+            html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>30 Sek.</td></tr>`;
+            html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+            html += `<button data-on-click="redirect" data-url="${target_url}" ${disabled}>In die Schlacht!</button>`;
+            html += `<p style='font-size: 13px; margin-top: 10px;'><i>Hinweis: Truppen kehren von Welt-Events immer ohne Verluste heim.</i></p></td></tr></table>`;
+        } else {
+            html += `<div class="title-border">Das Auge des Sturms</div>`;
+            html += `<table class="table" style="margin-top: 20px; max-width: 500px;">`;
+            html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>`;
+            html += `<tr><td colspan="2" style="text-align: center; padding: 15px;">`;
+            html += `<i>Truppen können diesen Bereich aktuell nicht betreten.</i>`;
+            html += `</td></tr></table>`;
+        }
     } else {
         // --- PLAYER KINGDOM
         const scoreIcon = `<img src="../images/icons/icon_score.png" class="ressource-icons" alt="">`;
@@ -619,7 +716,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Königreich</b></td><td>${kname}</td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString('de-DE')}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString()}</td></tr>`;
 
         if (kid !== gameConfig.currentKingdom.id) {
             html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}</td></tr>`;
@@ -633,6 +730,16 @@ function selectField(x, y, shouldCenter = false) {
     }
 
     document.getElementById("field-info").innerHTML = html;
+
+    const fieldInfoEl = document.getElementById("field-info");
+    if (fieldInfoEl) {
+        fieldInfoEl.innerHTML = html;
+
+        if (typeof initAutomaticCountdowns === "function") {
+            initAutomaticCountdowns();
+        }
+    }
+
     draw();
 }
 

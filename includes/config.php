@@ -88,7 +88,7 @@ const KINGDOM_NAME_CHANGE_COOLDOWN_DAYS = 7;
 const ESTATE_VILLAGER_GROWTH_STEP = 2;
 const ESTATE_VILLAGER_BASE_INC = 10;
 const ESTATE_VILLAGER_BASE_STEP = 5;
-const WATCHTOWER_DETECTION_PER_LEVEL = 1200;
+const WATCHTOWER_DETECTION_PER_LEVEL = 2100;
 
 // --- Military, Battle ---
 const STARTING_SCORE = 0;
@@ -192,9 +192,50 @@ const CONV_INACTIVITY_TIME = 1209600;
 const MAX_NEWS_TITLE_LENGTH = 50;
 const MAX_NEWS_CONTENT_LENGTH = 2000;
 const MAX_WORLD_CHAT_MESSAGES_SHOWN = 30;
-const MAX_UNIT_BADGES_PER_ROW_DESKTOP = 6;
+const MAX_UNIT_BADGES_PER_ROW_DESKTOP = 5;
 const MAX_UNIT_BADGES_PER_ROW_MOBILE = 3;
-const MAX_QUOTE_LOOPS = 5;
+const DATE_FORMAT_CHAT = "d.m.Y H:i:s";
+
+// --- World Events ---
+const WORLD_EVENT_DURATION = 86400;
+const WORLD_EVENT_ID = -999;
+const WORLD_EVENT_ATTACK_DURATION = 30;
+const WORLD_EVENT_MAX_ATTEMPTS = 5;
+const WORLD_EVENT_REWARD_MIN_TRESHOLD = 1500;
+const WORLD_EVENT_REWARD_TRESHOLD_1 = 75000;
+const WORLD_EVENT_REWARD_TRESHOLD_2 = 250000;
+const WORLD_EVENT_REWARD_TRESHOLD_3 = 625000;
+const WORLD_EVENT_REWARD_TRESHOLD_4 = 1200000;
+const WORLD_EVENT_REWARD_TRESHOLD_5 = 2500000;
+const WORLD_EVENT_REWARD_COINS_MIN = 5;
+const WORLD_EVENT_REWARD_COINS_1 = 10;
+const WORLD_EVENT_REWARD_COINS_2 = 15;
+const WORLD_EVENT_REWARD_COINS_3 = 20;
+const WORLD_EVENT_REWARD_COINS_4 = 25;
+const WORLD_EVENT_REWARD_COINS_5 = 30;
+// HP-Boss Resources
+const WORLD_EVENT_HP_RES_BASE = 5000;            // Base resources per average building level
+const WORLD_EVENT_HP_RES_VAR_MIN = 80;           // Min resource %
+const WORLD_EVENT_HP_RES_VAR_MAX = 120;          // Max resource %
+
+// HP-Boss Troop slots (TC Thresholds)
+const WORLD_EVENT_HP_SLOT_LOW = 1;               // Standard slots
+const WORLD_EVENT_HP_SLOT_MID_TC = 5;            // From this TC level: 2 slots
+const WORLD_EVENT_HP_SLOT_HIGH_TC = 8;           // From this TC level: 3 slots
+
+// HP-Boss Special units chance
+const WORLD_EVENT_HP_SPECIAL_CHANCE_BASE = 5;   // Base chance in %
+const WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT = 2; // Bonus chance per TC level
+
+// HP-Boss Number of troops for reward
+const WORLD_EVENT_HP_UNIT_STD_MIN = 2;          // Standard troops min
+const WORLD_EVENT_HP_UNIT_STD_MAX = 4;          // Standard troops max
+const WORLD_EVENT_HP_UNIT_SPEC_MIN = 1;          // Special troops min
+const WORLD_EVENT_HP_UNIT_SPEC_MAX = 2;          // Special troops max
+
+// Damage-Boss Loot
+const WORLD_EVENT_DMG_GOLD_RATIO = 50;           // 1 Gold per X Dmg
+const WORLD_EVENT_DMG_GOLD_MAX = 100000;         // Max Gold Cap
 
 /*
  * Interfaces

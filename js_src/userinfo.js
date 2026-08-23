@@ -8,7 +8,9 @@ let currentOverlayUrl = "";
 registerAction("openOverlay", (el) => {
     const url = el.dataset.url;
     const title = el.dataset.title;
-    openOverlay(url, title);
+    const width = el.dataset.width || null;
+
+    openOverlay(url, title, width);
 });
 registerAction("closeOverlay", () => {
     if (typeof closeOverlay === "function") {
@@ -41,14 +43,21 @@ function applyOverlayStyles() {
     }
 }
 
-function openOverlay(url, title = "Info") {
+function openOverlay(url, title = "Info", width = null) {
     document.body.classList.add("modal-open");
     document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
 
     const isAlreadyOpen = (overlay.style.display === "grid");
+
+    if (width) {
+        overlay.style.width = width;
+    } else {
+        overlay.style.width = "";
+    }
 
     if (url === currentOverlayUrl && isAlreadyOpen) return;
 

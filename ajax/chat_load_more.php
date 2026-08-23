@@ -42,7 +42,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         <div class='message-border'>
                             <span class='msg-header-left'>
                                 <img class='user-image' src='$img' alt=''> 
-                                <span>$name am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                                <span>$name <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                             </span>
                             $del_btn
                         </div>

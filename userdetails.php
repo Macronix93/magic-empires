@@ -54,6 +54,6 @@ $view = "
 
 $title = "Account-Info";
 $header = "Account-Info";
-$script_files = ["counter"];
+$script_files = ["timer"];
 
 include("layout/base.php");

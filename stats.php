@@ -174,35 +174,7 @@ $view = "
             <div class='split-content'><span>Privatnachrichten:</span> <b>" . fnum($stats["total_msgs"]) . "</b></div>
         </div>
     </div>
-</div>
-
-<br>
-<div class='title-border'>Top 5 Spieler</div>
-<table class='table' style='max-width: 600px;'>
-    <tr>
-        <td class='td-center td-gradient'><b>Rang</b></td>
-        <td class='td-gradient'><b>Herrscher</b></td>
-        <td class='td-center td-gradient'><b>Punkte</b></td>
-    </tr>";
-
-// Top 5 Query
-$top5 = $db_instance->execute_query("SELECT username, ranking_points AS score FROM users WHERE status = 1 ORDER BY ranking_points DESC, id LIMIT 5");
-$rank = 1;
-foreach ($top5 as $row) {
-    $rank_class = match ($rank) {
-        1 => "rank-gold",
-        2 => "rank-silver",
-        3 => "rank-bronze",
-        default => ""
-    };
-    $view .= "<tr>
-                <td class='td-center $rank_class'>$rank</td>
-                <td class='" . $rank_class . "'>" . e($row["username"]) . "</td>
-                <td class='td-center $rank_class'>" . fnum($row["score"]) . "</td>
-              </tr>";
-    $rank++;
-}
-$view .= "</table>";
+</div>";
 
 $title = "Statistiken";
 $header = "Statistiken";

@@ -233,5 +233,11 @@
                 icons created by Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/thriller" target="_blank" title="thriller icons">Thriller
                 icons created by Umeicon - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/dragon" title="dragon icons">Dragon icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/golem" title="golem icons">Golem icons created by Flat Icons -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/oni" title="oni icons">Oni icons created by kmg design -
+                Flaticon</a></li>
     </ul>
 </div>

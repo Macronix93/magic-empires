@@ -191,7 +191,7 @@ function updateChat(chatPartner) {
 
     const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
 
-    const isWorld = messageSection.dataset.chatType === 'world';
+    const isWorld = messageSection.dataset.chatType === "world";
     const endpoint = isWorld ? 'ajax/chat_update_world.php' : 'ajax/chat_update.php';
 
     const queryParams = isWorld

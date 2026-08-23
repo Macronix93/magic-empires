@@ -348,7 +348,7 @@ class Messages
                             <div class='message-border'>
                                 <span class='msg-header-left'>
                                     <img class='user-image' src='$chat_partner_image' alt=''> 
-                                    <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
+                                    <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
                                     $quote_icon
@@ -362,7 +362,7 @@ class Messages
                             <div class='message-border'>
                                 <span class='msg-header-left'>
                                     <img class='user-image' src='$my_chat_image' alt=''> 
-                                    <span>Du am " . date("d.m.Y \u\m H:i:s", $date) . "</span>
+                                    <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
                                     $quote_icon
@@ -453,8 +453,8 @@ class Messages
                 $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
                     <div class='message-border'>
                         <span class='msg-header-left'>
-                            <img class='user-image' src='$avatar' alt=''> 
-                            <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                            <img class='user-image' src='$avatar' alt=''>
+                            <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                         </span>
                         <span style='display: flex; gap: 5px; align-items: center;'>
                             $quote_icon

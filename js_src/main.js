@@ -186,8 +186,9 @@ function formatNumJS(number) {
     if (number === null || number === undefined) return "0";
 
     if (number >= 1000000) {
-        let val = (Math.floor(number / 10000) / 100);
-        return val.toFixed(2)
+        let val = number / 1000000;
+        let truncated = Math.floor((val + 0.000001) * 100) / 100;
+        return truncated.toFixed(2)
                 .replace('.', ',')
                 .replace(/,00$/, '')
                 .replace(/,(\d)0$/, ',$1')
@@ -195,8 +196,9 @@ function formatNumJS(number) {
     }
 
     if (number >= 100000) {
-        let val = (Math.floor(number / 100) / 10);
-        return val.toFixed(1)
+        let val = number / 1000;
+        let truncated = Math.floor((val + 0.000001) * 10) / 10;
+        return truncated.toFixed(1)
                 .replace('.', ',')
                 .replace(/,0$/, '')
             + 'k';
@@ -648,6 +650,8 @@ function selectUser(id) {
 
     if (form) {
         form.receiver.value = id;
+
+        closeOverlay();
     }
 }
 

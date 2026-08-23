@@ -155,6 +155,6 @@ $view = ob_get_clean();
 $title = "Landschaft";
 $header = "Landschaft";
 $head_extra = '<meta data-max-map-size=\'{"maxMapSize": ' . MAX_X . '}\' />';
-$script_files = ["map", "userinfo"];
+$script_files = ["map", "userinfo", "timer"];
 
 include("layout/base.php");

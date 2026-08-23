@@ -55,7 +55,7 @@ if ($user_id) {
     $map = new Map($db_instance, $user);
     $minimap_html = $map->render_minimap($x, $y);
     ?>
-    <table class="table">
+    <table class="table" style="width: fit-content;">
         <tr>
             <td style="width: 200px;"><b>Spieler</b></td>
             <td style="width: 300px;">

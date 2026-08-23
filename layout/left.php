@@ -61,6 +61,18 @@ $unread_world = $messages->get_unread_world_count();
                  data-url="warsim.php">
                 <img src="images/icons/icon_warsim.png" class="menu-icons" alt=""/> War Simulator
             </div>
+            <div class="box<?= $current_page === 'halloffame.php' ? ' active' : '' ?>"
+                 data-on-click="navigate" data-url="halloffame.php">
+                <img src="images/icons/icon_score.png" class="menu-icons" alt="Hall of Fame"/> Ruhmeshalle
+            </div>
+            <?php $we = new WorldEvent($db_instance);
+            $active = $we->get_active_event();
+            if ($active) {
+                echo "<div class='box' data-on-click='navigate' data-url='events.php'>
+                        <img src='images/icons/icon_lich.png' class='menu-icons'  alt='Event'/> Event 
+                      </div>";
+            }
+            ?>
         </div>
     </div>
     <div class="box-container">

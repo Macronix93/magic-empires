@@ -305,7 +305,7 @@ if ($count_maxed_buildings === $building_count) {
  */
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
-$script_files = ["counter"];
+$script_files = ["timer"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

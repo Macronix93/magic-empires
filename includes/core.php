@@ -33,11 +33,12 @@ if (!$is_cli) {
 if (!$is_cli) {
     header("Content-Security-Policy: " .
         "default-src 'self'; " .
-        "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; " .
-        "frame-src https://www.google.com/recaptcha/; " .
-        "style-src 'self' 'unsafe-inline'; " .
-        "img-src 'self' data:; " .
-        "connect-src 'self';");
+        "script-src 'self' 'unsafe-inline' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://storage.ko-fi.com; " .
+        "frame-src https://www.google.com/recaptcha/ https://ko-fi.com; " .
+        "style-src 'self' 'unsafe-inline' https://storage.ko-fi.com https://fonts.googleapis.com; " .
+        "img-src 'self' data: https://storage.ko-fi.com https://ko-fi.com; " .
+        "connect-src 'self' https://ko-fi.com; " .
+        "font-src 'self' https://fonts.gstatic.com;");
 }
 
 /*

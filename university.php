@@ -54,7 +54,8 @@ if (isset($_GET["action"])) {
                     if (BASE_SETTLEMENT_LIMIT + $global_imp_count >= GLOBAL_SETTLEMENT_MAX) {
                         $error = "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungs-Slots ist bereits erreicht!";
                     }
-                } else {
+                }
+                if (empty($error)) {
                     if ($kingdom_is_researching) {
                         $error = "Du forschst bereits!";
                     } else {
@@ -382,7 +383,7 @@ if ($count_maxed_techs === $tech_count) {
  */
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
-$script_files = ["counter"];
+$script_files = ["timer"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

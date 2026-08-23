@@ -143,25 +143,30 @@ function format_num($number): string
 
     if ($number >= 1000000) {
         $val = $number / 1000000;
-        $truncated = floor($val * 100) / 100;
-        return number_format($truncated, ($truncated == floor($val) ? 0 : 2), ",", ".") . 'M';
+        $truncated = floor(($val + 0.000001) * 100) / 100;
+        return number_format($truncated, ($truncated == floor($truncated) ? 0 : 2), ",", ".") . 'M';
     }
 
     if ($number >= 100000) {
         $val = $number / 1000;
-        $truncated = floor($val * 10) / 10;
-        return number_format($truncated, ($truncated == floor($val) ? 0 : 1), ",", ".") . 'k';
+        $truncated = floor(($val + 0.000001) * 10) / 10;
+        return number_format($truncated, ($truncated == floor($truncated) ? 0 : 1), ",", ".") . 'k';
     }
 
     return number_format($number, (floor($number) == $number ? 0 : 1), ",", ".");
 }
 
-function fnum($number): string
+function fnum($number, bool $simple_format = false): string
 {
     if (!is_numeric($number)) return "0";
 
     $decimals = (floor($number) == $number) ? 0 : 1;
     $full = number_format((float)$number, $decimals, ",", ".");
+
+    if ($simple_format) {
+        return $full;
+    }
+
     $short = format_num($number);
 
     if ($full === $short) {
@@ -375,7 +380,7 @@ function get_chat_emojis(): array
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
         '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭',
-        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '🫡', '👀',
+        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🫡', '👀', '🦆',
         '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
 }

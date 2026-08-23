@@ -4,12 +4,18 @@ require_once("includes/core.php");
 $result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_SHRINE);
 $current_kingdom = $result['current_kingdom'];
 $kingdom = $result['kingdom'];
+$building = $result['building'];
 
 if (isset($_POST["choose_align"])) {
     $choice = (int)$_POST["choose_align"];
     $cost = SHRINE_CHANGE_COST;
 
-    if ($kingdom->get_kingdom_gold() < $cost) {
+    $res_check = $db_instance->execute_query("SELECT required_level FROM shrine_alignments WHERE id = ?", [$choice]);
+    $req_lvl = (int)$res_check->fetch_column();
+
+    if ($building->get_building_level() < $req_lvl) {
+        $error = "Dein Schrein hat eine zu niedrige Stufe für diese Gesinnung!";
+    } else if ($kingdom->get_kingdom_gold() < $cost) {
         $error = "Du hast nicht genug Gold für das Opferritual!";
     } else if ($choice == $kingdom->get_kingdom_alignment() && $choice != AlignmentTypes::ALIGN_NONE) {
         $error = "Diese Gesinnung ist bereits aktiv!";
@@ -43,7 +49,11 @@ if (isset($_POST["reset_align"])) {
  * HTML Content
  */
 $current_align = $kingdom->get_kingdom_alignment();
-$res_aligns = $db_instance->query("SELECT * FROM shrine_alignments");
+$shrine_level = $building->get_building_level();
+$res_aligns = $db_instance->execute_query(
+    "SELECT * FROM shrine_alignments WHERE required_level <= ? ORDER BY required_level",
+    [$shrine_level]
+);
 
 $view .= "<h3 style='margin: 0;'>Wähle die Gesinnung für dieses Königreich</h3>";
 $view .= "<p>Ein Wechsel erfordert ein Opfer von " . fnum(SHRINE_CHANGE_COST) . " Gold.</p>";

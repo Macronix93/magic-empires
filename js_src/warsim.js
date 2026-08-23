@@ -203,8 +203,8 @@ function calculateWarOutcome(soldierTypes) {
         let dBonus = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
 
         myUnits[type] = {
-            atk: Math.floor(parseInt(statsEl.getAttribute("data-attack")) * (1.0 + myShrineBonus)) + (myAtkLvl * aBonus),
-            def: parseInt(defEl.getAttribute("data-defense")) + (myDefLvl * dBonus),
+            atk: (parseFloat(statsEl.getAttribute("data-attack")) * (1.0 + myShrineBonus)) + (myAtkLvl * aBonus),
+            def: parseFloat(defEl.getAttribute("data-defense")) + (myDefLvl * dBonus),
             count: countOwn, initial: countOwn, cat: cat
         };
 
@@ -234,8 +234,8 @@ function calculateWarOutcome(soldierTypes) {
             let dB = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
 
             enemyUnits[type] = {
-                atk: Math.floor(parseInt(statsEl.dataset.attack) * (1.0 + enShrineBonus)) + (enAtkLvl * aB),
-                def: parseInt(document.getElementById(`${type}_def`).dataset.defense) + (enDefLvl * dB),
+                atk: (parseFloat(statsEl.dataset.attack) * (1.0 + enShrineBonus)) + (enAtkLvl * aB),
+                def: parseFloat(document.getElementById(`${type}_def`).dataset.defense) + (enDefLvl * dB),
                 count: countEnemy, initial: countEnemy, cat: cat
             };
 
@@ -285,9 +285,6 @@ function calculateWarOutcome(soldierTypes) {
         enemyDefPool += wallBonus;
     }
 
-    playerAtkPool = Math.round(playerAtkPool);
-    enemyAtkPool = Math.round(enemyAtkPool);
-
     // 1.0 = Original (very deadly!)
     // 2.0 = Troops can sustain double the amount
     // 3.0 = Troops can sustain triple the amount
@@ -331,7 +328,11 @@ function calculateWarOutcome(soldierTypes) {
             const initial = parseInt(i.value) || 0;
 
             if (initial > 0) {
-                const losses = Math.round(initial * eRatio);
+                let losses = Math.round(initial * eRatio);
+
+                if (eRatio < 1.0 && losses >= initial) {
+                    losses = initial - 1;
+                }
 
                 i.value = initial - losses;
                 i.style.color = (losses > 0) ? "#F55353" : "";
@@ -390,8 +391,8 @@ function updateLivePowerSummary() {
         let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
         let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
 
-        tAtkO += cO * (Math.floor(parseInt(stats.attack) * (1.0 + myShrineBonus)) + (myA * aB));
-        tDefO += cO * (parseInt(document.getElementById(type + "_def").dataset.defense) + myD * dB);
+        tAtkO += cO * ((parseFloat(stats.attack) * (1.0 + myShrineBonus)) + (myA * aB));
+        tDefO += cO * (parseFloat(document.getElementById(type + "_def").dataset.defense) + (myD * dB));
     });
 
     if (isMonsterMode) {
@@ -412,8 +413,8 @@ function updateLivePowerSummary() {
             let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
             let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
 
-            tAtkE += cE * (Math.floor(parseInt(stats.attack) * (1.0 + enShrineBonus)) + (enA * aB));
-            tDefE += cE * (parseInt(document.getElementById(type + "_def").dataset.defense) + enD * dB);
+            tAtkE += cE * ((parseFloat(stats.attack) * (1.0 + enShrineBonus)) + (enA * aB));
+            tDefE += cE * (parseFloat(document.getElementById(type + "_def").dataset.defense) + (enD * dB));
         });
 
         if (totalEn > 0) tDefE += wallBonus;
@@ -435,7 +436,7 @@ function updateLivePowerSummary() {
         el.innerText = formatNumJS(value);
 
         if (value >= 100000) {
-            el.title = value.toLocaleString("de-DE");
+            el.title = value.toLocaleString();
             el.style.cursor = "help";
         } else {
             el.title = "";

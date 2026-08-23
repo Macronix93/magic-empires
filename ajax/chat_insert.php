@@ -80,7 +80,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                     <div class='message-border'>
                                         <span class='msg-header-left'>
                                             <img class='user-image' src='" . $user->get_avatar() . "' alt='Nutzerbild'> 
-                                            <span>Du am " . date("d.m.Y \u\m H:i:s", $current_time) . "</span>
+                                            <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $current_time) . "</small></span>
                                         </span>
                                         <span style='display: flex; gap: 5px; align-items: center;'>
                                             $quote_icon 

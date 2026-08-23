@@ -65,7 +65,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     <div class='message-border'>
                         <span class='msg-header-left'>
                             <img class='user-image' src='" . e($avatar) . "' alt=''> 
-                            <span>$sender_link am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "</span>
+                            <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                         </span>
                         <span style='display: flex; gap: 5px; align-items: center;'>
                             $quote_icon

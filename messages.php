@@ -359,7 +359,7 @@ if (isset($_GET["worldchat"])) {
  */
 $title = "Nachrichten";
 $header = $inbox_header ?? "Nachrichten";
-$script_files = ["counter", "chat", "userinfo"];
+$script_files = ["timer", "chat", "userinfo"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

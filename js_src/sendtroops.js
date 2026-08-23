@@ -50,26 +50,38 @@ registerAction("clearAllTroops", () => {
         updateTroopSummary();
     }
 });
+registerAction("selectAllTroops", () => {
+    const inputs = document.querySelectorAll(".js-unit-input:not([disabled])");
+
+    inputs.forEach(input => {
+        const max = input.dataset.max;
+        if (max && parseInt(max) > 0) {
+            input.value = max;
+        }
+    });
+
+    if (typeof updateTroopSummary === "function") {
+        updateTroopSummary();
+    }
+});
 
 function updateTroopSummary() {
     const inputs = document.querySelectorAll(".js-unit-input");
     const summaryList = document.getElementById("troop-summary-list");
+    const summaryTotals = document.getElementById("troop-summary-totals");
     const summaryContainer = document.getElementById("troop-summary-container");
     const actionButtons = document.getElementById("troop-action-buttons");
 
-    if (!summaryList || !summaryContainer) return;
+    if (!summaryList || !summaryContainer || !summaryTotals) return;
 
-    let html = "";
+    let badgesHtml = "";
     let totalUnits = 0;
     let totalAtk = 0;
     let totalDef = 0;
 
     inputs.forEach(input => {
         let rawValue = input.value;
-
-        if (rawValue === "") {
-            return;
-        }
+        if (rawValue === "") return;
 
         let cleanValue = rawValue.replace(/[^0-9]/g, '');
         let val = parseInt(cleanValue) || 0;
@@ -89,45 +101,49 @@ function updateTroopSummary() {
 
             const unitAtk = parseInt(input.dataset.atk) || 0;
             const unitDef = parseInt(input.dataset.def) || 0;
+
             totalAtk += val * unitAtk;
             totalDef += val * unitDef;
 
-            html += `<div class="unit-badge" title="${name}">
-                        <img src="${iconPath}" alt=""> 
-                        <b>${val.toLocaleString("de-DE")}x</b>
-                     </div>`;
+            badgesHtml += `<div class="unit-badge" title="${name}">
+                             <img src="${iconPath}" alt=""> 
+                             <b>${val.toLocaleString("de-DE")}</b>
+                           </div>`;
 
             totalUnits += val;
         }
     });
 
+    summaryList.innerHTML = badgesHtml;
+
     if (totalUnits > 0) {
         const atkTitle = totalAtk >= 100000 ? ` title="${totalAtk.toLocaleString("de-DE")}" style="cursor:help;"` : "";
         const defTitle = totalDef >= 100000 ? ` title="${totalDef.toLocaleString("de-DE")}" style="cursor:help;"` : "";
 
-        html += `
-        <div style="width: 100%; padding-top: 8px; display: flex; justify-content: center; gap: 20px; font-weight: bold;">
-            <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Angriff">
-                <img src="../images/icons/icon_sword.png" class="ressource-icons" alt="Angriff"> 
-                <span${atkTitle}>${formatNumJS(totalAtk)}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Verteidigung">
-                <img src="../images/icons/icon_shield.png" class="ressource-icons" alt="Verteidigung"> 
-                <span${defTitle}>${formatNumJS(totalDef)}</span>
-            </div>
-        </div>`;
+        summaryTotals.innerHTML = `
+            <div style="min-width: 250px; padding: 8px; display: flex; justify-content: center; gap: 20px; font-weight: bold; background-color: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-gold);
+                    border-radius: 5px;">
+                <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Angriff">
+                    <img src="images/icons/icon_sword.png" class="ressource-icons" alt="Angriff" style="width:18px; height:18px;"> 
+                    <span${atkTitle}>${formatNumJS(totalAtk)}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Verteidigung">
+                    <img src="images/icons/icon_shield.png" class="ressource-icons" alt="Verteidigung" style="width:18px; height:18px;"> 
+                    <span${defTitle}>${formatNumJS(totalDef)}</span>
+                </div>
+            </div>`;
+    } else {
+        summaryTotals.innerHTML = "";
     }
-
-    summaryList.innerHTML = html;
-    summaryList.style.display = "flex";
-    summaryList.style.flexWrap = "wrap";
-    summaryList.style.justifyContent = "center";
-    summaryList.style.gap = "5px";
 
     summaryContainer.style.display = (totalUnits > 0) ? "flex" : "none";
 
     if (actionButtons) {
-        actionButtons.style.display = (totalUnits > 0) ? "flex" : "none";
+        actionButtons.style.display = "flex";
+        const submitBtn = actionButtons.querySelector('input[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = (totalUnits <= 0);
+        }
     }
 }
 
