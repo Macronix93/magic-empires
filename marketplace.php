@@ -92,9 +92,9 @@ if (isset($_GET["accept"])) {
 
                     $now = time();
 
-                    $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $current_kingdom);
+                    $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $current_kingdom, null, false, true);
                     $buyer_arrival_time = $now + $buyer_seconds;
-                    $seller_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $row["kingdomid"]);
+                    $seller_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $row["kingdomid"], null, false, true);
                     $seller_arrival_time = $now + $seller_seconds;
 
                     $kingdom->modify_resource((int)$demand, -$demand_value);
@@ -329,7 +329,7 @@ if (isset($_GET["send_own"])) {
             } else if (!$has_enough) {
                 $error = "Du hast nicht genug Ressourcen für diesen Transport!";
             } else {
-                $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"]);
+                $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"], true);
                 $seconds = $arrival_data["seconds"];
                 $arrival_time = $arrival_data["timestamp"];
 
@@ -395,7 +395,7 @@ $view .= '<form action="marketplace.php" method="GET"
       data-type-field="d" 
       data-amount-field="dv"
       data-is-listing="true">
-    <table class="table">
+    <table class="table" style="margin-bottom: 15px;">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>
@@ -469,7 +469,7 @@ $query = "
 $result = $db_instance->execute_query($query, [$offset, $rows_per_page]);
 
 if ($result->num_rows > 0) {
-    $view .= "<h3>Aktuelle Handelsangebote</h3>";
+    $view .= "<div class='title-border'>Aktuelle Handelsangebote</div>";
     $view .= '<table class="table marketplace-table">
                 <colgroup>
                     <col style="width: 30%;"> <!-- Spieler -->
@@ -511,7 +511,7 @@ if ($result->num_rows > 0) {
         if ($is_my_offer) {
             $arrival_time_str = "-";
         } else {
-            $seconds = $map->get_arrival_time($my_x, $my_y, $map_x, $map_y);
+            $seconds = $map->get_arrival_time($my_x, $my_y, $map_x, $map_y, -1, null, false, true);
             $arrival_time_str = convert_sec_to_str($seconds, true);
         }
 
@@ -546,9 +546,9 @@ if ($result->num_rows > 0) {
                     </td>
                     <td class='td-center'>
                         <div class='trade-item-stack'>
-                            <span>" . get_resource_icon($row["supply"]) . " " . fnum($row["supplyvalue"]) . "</span>
+                            <span>" . get_resource_icon($row["supply"]) . fnum($row["supplyvalue"]) . "</span>
                             <span class='trade-arrow'>&#10234;</span> 
-                            <span>" . get_resource_icon($row["demand"]) . " " . fnum($row["demandvalue"]) . "</span>
+                            <span>" . get_resource_icon($row["demand"]) . fnum($row["demandvalue"]) . "</span>
                         </div>
                     </td>
                     <td class='td-center'>$arrival_time_str</td>
@@ -607,7 +607,7 @@ if ($other_kingdoms_res->num_rows > 0) {
                             <select name="target_k" id="target_k" style="width: 100%; max-width: 300px;">';
 
     foreach ($other_kingdoms_res as $ok) {
-        $seconds = $map->get_arrival_time($my_x, $my_y, $ok["mapx"], $ok["mapy"], $current_kingdom);
+        $seconds = $map->get_arrival_time($my_x, $my_y, $ok["mapx"], $ok["mapy"], $current_kingdom, null, false, true);
         $arrival_times_cache[$ok["id"]] = convert_sec_to_str($seconds, true);
 
         $view .= "<option value='{$ok["id"]}'>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";

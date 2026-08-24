@@ -290,7 +290,11 @@ if (!empty($_POST["soldiers"])) {
 
                 $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
 
-                change_location("map.php?startx=$target_x&starty=$target_y");
+                if ($kingdom_id == WORLD_EVENT_ID) {
+                    change_location("events.php");
+                } else {
+                    change_location("map.php?startx=$target_x&starty=$target_y");
+                }
                 exit;
             }
         }

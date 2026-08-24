@@ -32,10 +32,10 @@ class WorldEvent
         if ($event_type === "BOSS_HP") {
             $query = "
                 SELECT SUM(
-                    s.soldiercount * (
+                    combined.count * (
                         (sl.attack * (CASE 
                             WHEN k.alignment = " . AlignmentTypes::ALIGN_WAR . " 
-                            THEN (1.0 + " . (float)($this->mysqli->query("SELECT base_bonus FROM shrine_alignments WHERE id = 1")->fetch_column() ?? 0.08) . " + (IFNULL(t_shrine.techlevel, 0) * " . SHRINE_TECH_STEP . ")) 
+                            THEN (1.0 + (SELECT base_bonus FROM shrine_alignments WHERE id = 1) + (IFNULL(t_shrine.techlevel, 0) * " . SHRINE_TECH_STEP . ")) 
                             ELSE 1.0 
                           END))
                         +
@@ -47,10 +47,17 @@ class WorldEvent
                          END)
                     )
                 ) as total_power
-                FROM soldiers s
-                JOIN soldier_list sl ON s.soldierid = sl.id
-                JOIN kingdoms k ON s.kingdomid = k.id
-                -- Joins für die verschiedenen ATK-Techs
+                FROM (
+                    SELECT kingdomid, soldierid, soldiercount AS count FROM soldiers
+                    
+                    UNION ALL
+
+                    SELECT e.kingdomid, st.soldierid, st.soldiercount AS count 
+                    FROM sent_troops st
+                    JOIN events e ON st.eventid = e.eventid
+                ) as combined
+                JOIN soldier_list sl ON combined.soldierid = sl.id
+                JOIN kingdoms k ON combined.kingdomid = k.id
                 LEFT JOIN techs t_inf ON t_inf.kingdomid = k.id AND t_inf.techid = " . TechTypes::TECH_TYPE_BLADES . "
                 LEFT JOIN techs t_cav ON t_cav.kingdomid = k.id AND t_cav.techid = " . TechTypes::TECH_TYPE_LANCE_RIDING . "
                 LEFT JOIN techs t_arc ON t_arc.kingdomid = k.id AND t_arc.techid = " . TechTypes::TECH_TYPE_ARROWHEADS . "
@@ -94,38 +101,56 @@ class WorldEvent
         }
 
         $actual_damage = $damage;
+        
+        $this->mysqli->begin_transaction();
 
-        if ($type === "BOSS_HP") {
-            $res = $this->mysqli->execute_query("SELECT current_hp FROM world_events WHERE id = ?", [$event_id]);
-            $current_hp = (int)$res->fetch_column();
+        try {
+            if ($type === "BOSS_HP") {
+                $res = $this->mysqli->execute_query(
+                    "SELECT current_hp FROM world_events WHERE id = ? FOR UPDATE",
+                    [$event_id]
+                );
+                $boss = $res->fetch_assoc();
 
-            if ($current_hp <= 0) {
-                return -1;
+                if (!$boss || $boss["current_hp"] <= 0) {
+                    $this->mysqli->rollback();
+                    return -1; // Boss already dead
+                }
+
+                $actual_damage = min($damage, (int)$boss["current_hp"]);
+
+                $this->mysqli->execute_query(
+                    "UPDATE world_events SET current_hp = current_hp - ? WHERE id = ?",
+                    [$actual_damage, $event_id]
+                );
             }
 
-            $actual_damage = min($damage, $current_hp);
+            $this->mysqli->execute_query("
+                    INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage)
+                    VALUES (?, ?, ?, 1, ?, ?)
+                    ON DUPLICATE KEY UPDATE 
+                        top_kingdom_id = IF(? > top_kingdom_damage, ?, top_kingdom_id),
+                        top_kingdom_damage = IF(? > top_kingdom_damage, ?, top_kingdom_damage),
+                        total_damage = total_damage + ?,
+                        attempts_used = attempts_used + 1
+                ", [
+                $event_id, $user_id, $actual_damage, $kingdom_id, $actual_damage,
+                $actual_damage, $kingdom_id,
+                $actual_damage, $actual_damage,
+                $actual_damage
+            ]);
 
-            $this->mysqli->execute_query("UPDATE world_events SET current_hp = current_hp - ? WHERE id = ?", [$actual_damage, $event_id]);
+            $this->mysqli->commit();
+
+            update_player_stat($user_id, "event_damage_total", $actual_damage);
+
+            return $actual_damage;
+
+        } catch (Exception $e) {
+            $this->mysqli->rollback();
+            error_log("WorldEvent Error: " . $e->getMessage());
+            return 0;
         }
-
-        $this->mysqli->execute_query("
-            INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage)
-            VALUES (?, ?, ?, 1, ?, ?)
-            ON DUPLICATE KEY UPDATE 
-                top_kingdom_id = IF(? > top_kingdom_damage, ?, top_kingdom_id),
-                top_kingdom_damage = IF(? > top_kingdom_damage, ?, top_kingdom_damage),
-                total_damage = total_damage + ?,
-                attempts_used = attempts_used + 1
-        ", [
-            $event_id, $user_id, $actual_damage, $kingdom_id, $actual_damage,
-            $actual_damage, $kingdom_id,
-            $actual_damage, $actual_damage,
-            $actual_damage
-        ]);
-
-        update_player_stat($user_id, "event_damage_total", $actual_damage);
-
-        return $actual_damage;
     }
 
     public function broadcast_spawn_notification(string $event_type): void
@@ -232,23 +257,46 @@ class WorldEvent
         $reward_soldiers = [];
         $num_slots = ($tc_lvl >= WORLD_EVENT_HP_SLOT_HIGH_TC) ? 3 : ($tc_lvl >= WORLD_EVENT_HP_SLOT_MID_TC ? 2 : WORLD_EVENT_HP_SLOT_LOW);
 
+        $conquerors_given = 0;
+        $rams_given = 0;
+
         for ($i = 0; $i < $num_slots; $i++) {
             $special_chance = WORLD_EVENT_HP_SPECIAL_CHANCE_BASE + ($tc_lvl * WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT);
 
             if (mt_rand(1, 100) <= $special_chance) {
-                // SPECIAL POOL
-                $sid = [Soldiers::SOLDIER_CONQUEROR, Soldiers::SOLDIER_SCOUT, Soldiers::SOLDIER_RAIDER, Soldiers::SOLDIER_RAM, Soldiers::SOLDIER_THIEF][array_rand([0, 1, 2, 3, 4])];
+                // --- SPECIAL POOL ---
+                $roll = mt_rand(1, 100);
 
-                $min_scaled = (int)(WORLD_EVENT_HP_UNIT_SPEC_MIN * ($tc_lvl / 2));
-                $max_scaled = (int)(WORLD_EVENT_HP_UNIT_SPEC_MAX * ($tc_lvl / 2));
+                if ($roll <= WORLD_EVENT_HP_CHANCE_CONQUEROR && $conquerors_given < WORLD_EVENT_HP_MAX_CONQUEROR) {
+                    // CONQUEROR
+                    $sid = Soldiers::SOLDIER_CONQUEROR;
+                    $count = WORLD_EVENT_HP_MAX_CONQUEROR;
+
+                    $conquerors_given++;
+                } elseif ($roll <= (WORLD_EVENT_HP_CHANCE_CONQUEROR + WORLD_EVENT_HP_CHANCE_RAM) && $rams_given < WORLD_EVENT_HP_MAX_RAM) {
+                    // RAM
+                    $sid = Soldiers::SOLDIER_RAM;
+                    $count = WORLD_EVENT_HP_MAX_RAM;
+
+                    $rams_given++;
+                } else {
+                    // OTHER SPECIAL UNITS (Scout, Raider, Thief)
+                    $sid = [Soldiers::SOLDIER_SCOUT, Soldiers::SOLDIER_RAIDER, Soldiers::SOLDIER_THIEF][array_rand([0, 1, 2])];
+
+                    $min_scaled = (int)(WORLD_EVENT_HP_UNIT_SPEC_MIN * ($tc_lvl / 2));
+                    $max_scaled = (int)(WORLD_EVENT_HP_UNIT_SPEC_MAX * ($tc_lvl / 2));
+
+                    $count = mt_rand(max(1, $min_scaled), max(1, $max_scaled));
+                }
             } else {
-                // STANDARD POOL
-                $sid = mt_rand(0, 8);
+                // --- STANDARD POOL ---
+                $sid = mt_rand(0, 8); // Militia to Elf Archer
 
                 $min_scaled = (int)(WORLD_EVENT_HP_UNIT_STD_MIN * $avg_lvl);
                 $max_scaled = (int)(WORLD_EVENT_HP_UNIT_STD_MAX * $avg_lvl);
+
+                $count = mt_rand(max(1, $min_scaled), max(1, $max_scaled));
             }
-            $count = mt_rand(max(1, $min_scaled), max(1, $max_scaled));
 
             $reward_soldiers[] = ["id" => $sid, "count" => $count];
         }

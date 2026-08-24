@@ -426,6 +426,8 @@ class EventManager
             }
         }
 
+        $result_dmg = 0;
+
         if ($target_id == WORLD_EVENT_ID) {
             $world_event_manager = new WorldEvent($this->mysqli);
             $active_event = $world_event_manager->get_active_event();
@@ -489,17 +491,15 @@ class EventManager
                         0, 0, "Die Soldaten ziehen unverrichteter Dinge ab.", "error");
                 } else {
                     // Sucessful Attack
-                    $sub_text = ($result_dmg < $raw_damage) ? "Das Monster war fast besiegt. Dein restlicher Schaden verfiel." : "";
-                    $msg .= BattleReportRenderer::render_outcome_box($event_title, "Deine Truppen haben das Monster erreicht und <b>" . fnum($result_dmg) . " Schaden</b> verursacht! $units_html",
-                        0, 0, $sub_text, "success");
-
                     Logger::get_instance()->log_game("COMBAT", "WORLD_EVENT_ATTACK", [
                         "event_id" => $active_event["id"],
                         "event_type" => $active_event["event_type"],
                         "damage_caused" => $result_dmg,
-                        "is_boss_kill" => ($active_event["event_type"] === "BOSS_HP" && $result_dmg >= $active_event["current_hp"])
+                        "is_boss_kill" => ($active_event["event_type"] === "BOSS_HP" && $result_dmg >= $active_event["current_hp"]),
+                        "troops" => $report_units
                     ], (int)$row["kingdomid"]);
                 }
+
                 $msg .= "</div>";
             } else {
                 $msg = BattleReportRenderer::render_outcome_box(
@@ -508,7 +508,9 @@ class EventManager
                 );
             }
 
-            send_server_message($attacker_id, $attacker_name, $msg, MessageCategories::CATEGORY_WAR);
+            if ($result_dmg == -1 || $result_dmg == -2) {
+                send_server_message($attacker_id, $attacker_name, $msg, MessageCategories::CATEGORY_WAR);
+            }
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + WORLD_EVENT_ATTACK_DURATION, $row["eventid"]]);
@@ -704,7 +706,9 @@ class EventManager
         }
 
         // Send server message to owner
-        send_server_message($owner_id, $u_name, $msg, MessageCategories::CATEGORY_WAR);
+        if ($row["targetid"] != WORLD_EVENT_ID) {
+            send_server_message($owner_id, $u_name, $msg, MessageCategories::CATEGORY_WAR);
+        }
 
         // Cleanup
         $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);

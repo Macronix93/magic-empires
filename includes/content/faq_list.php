@@ -139,6 +139,46 @@
                     bevor du deine Truppen in die Schlacht schickst!
                 </td>
             </tr>
+            <tr>
+                <td class="td-gradient" style="width: 40%;"><b>Kann ich bestehende Truppen aufwerten?</b></td>
+                <td>Ja! In der Kaserne kannst du Einheiten in stärkere Ränge derselben Kategorie umwandeln (z.B. Miliz
+                    zu Schwertkämpfer). Wähle dazu einfach die Ziel-Einheit im Dropdown-Menü bei der entsprechenden
+                    Truppe aus.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Was bringt mir ein Truppen-Upgrade?</b></td>
+                <td>Ein Upgrade kostet dich nur die <b>Differenz</b> der Ressourcenkosten. Es ist der effizienteste Weg,
+                    deine Armee zu modernisieren, ohne dein Truppenlimit mit schwachen Einheiten zu belasten. Zudem
+                    behältst du so deine militärische Schlagkraft bei minimalem Ressourcenaufwand.
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+<div class="box-container" style="margin-bottom: 20px;">
+    <div class="box-header">Welt-Events</div>
+    <div class="box-content box-content-bg">
+        <table class="table" style="width: 100%; border: none;">
+            <tr>
+                <td class="td-gradient" style="width: 40%;"><b>Wann finden Welt-Events statt?</b></td>
+                <td>Jeden <b>Dienstag</b> und <b>Freitag</b> um <b>16:00 Uhr</b> öffnen sich die Siegel im Zentrum der
+                    Karte [50:50]. Ein Event dauert in der Regel 24 Stunden.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Muss ich Angst um meine Truppen haben?</b></td>
+                <td><b>Nein!</b> Im Auge des Sturms herrscht ein besonderer Schutzzauber. Alle Truppen, die zum Event
+                    entsandt werden, kehren nach dem Kampf garantiert und ohne Verluste in dein Königreich zurück.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Wonach richten sich die Belohnungen?</b></td>
+                <td>Die Beute ist fair und skaliert mit deinem Fortschritt. Je höher der Durchschnitt deiner
+                    Gebäude-Stufen und dein Dorfzentrum sind, desto massiver fallen die Ressourcen- und Truppenpakete
+                    aus.
+                </td>
+            </tr>
         </table>
     </div>
 </div>

@@ -33,6 +33,33 @@ if ($user_id) {
         return;
     }
 
+    $res_all_k = $db_instance->execute_query(
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY id",
+            [$user_id]
+    );
+
+    $all_kingdoms_html = "";
+    if ($res_all_k->num_rows > 0) {
+        $all_kingdoms_html .= "<div>";
+
+        while ($k = $res_all_k->fetch_assoc()) {
+            $coords = e($k["mapx"]) . ":" . e($k["mapy"]);
+
+            $all_kingdoms_html .= "
+                <div class='location-wrapper'>
+                    <span class='kingdom-name-break' title='" . e($k["kingdomname"]) . "'>
+                        • " . e($k["kingdomname"]) . "
+                    </span>
+                    <a href='#' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "'>
+                        $coords
+                    </a>
+                </div>";
+        }
+        $all_kingdoms_html .= "</div>";
+    } else {
+        $all_kingdoms_html = "<i>Keine Ländereien gefunden.</i>";
+    }
+
     $user_name = $row["username"];
     $user_id = $row["id"];
     $last_activity = $row["lastactivity"];
@@ -113,9 +140,15 @@ if ($user_id) {
                 </div>
             </td>
         </tr>
+        <tr>
+            <td><b>Königreiche</b></td>
+            <td>
+                <?= $all_kingdoms_html ?>
+            </td>
+        </tr>
     </table>
     <br>
-    <div style="text-align:center">
+    <div style="text-align: center">
         <button data-on-click="closeOverlay">
             Schließen
         </button>

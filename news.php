@@ -3,6 +3,45 @@ require_once("includes/core.php");
 
 $is_admin = ($user->is_logged_in() && $user->is_admin());
 
+$process_content = function ($raw) {
+    // 1. Sicherheit: Alles escapen
+    $safe = e($raw);
+
+    // 2. Gezielte HTML-Tags wieder freischalten
+    $search = [
+        '&lt;b&gt;', '&lt;/b&gt;', '&lt;i&gt;', '&lt;/i&gt;', '&lt;u&gt;', '&lt;/u&gt;',
+        '&lt;strong&gt;', '&lt;/strong&gt;', '&lt;ul&gt;', '&lt;/ul&gt;', '&lt;li&gt;', '&lt;/li&gt;'
+    ];
+    $replace = [
+        '<b>', '</b>', '<i>', '</i>', '<u>', '</u>',
+        '<strong>', '</strong>', '<ul>', '</ul>', '<li>', '</li>'
+    ];
+    $content = str_replace($search, $replace, $safe);
+
+    // 3. Zeilenumbrüche der Textarea in <br /> umwandeln
+    $content = nl2br($content);
+
+    // 4. CLEANUP: Entferne <br /> Tags, die nl2br bei Listen erzeugt hat
+    $cleanup_patterns = [
+        '#<ul>\s*<br\s*/?>#i',     // <br> nach <ul>
+        '#<br\s*/?>\s*</ul>#i',    // <br> vor </ul>
+        '#<li>\s*<br\s*/?>#i',     // <br> nach <li>
+        '#<br\s*/?>\s*</li>#i',    // <br> vor </li>
+        '#</li>\s*<br\s*/?>#i',    // <br> NACH </li> (Das hat gefehlt!)
+    ];
+
+    $cleanup_replace = [
+        '<ul>',
+        '</ul>',
+        '<li>',
+        '</li>',
+        '</li>',
+        '</ul>'
+    ];
+
+    return preg_replace($cleanup_patterns, $cleanup_replace, $content);
+};
+
 if ($is_admin) {
     if (isset($_POST["edit_news"])) {
         $news_id = (int)$_POST["news_id"];
@@ -17,7 +56,7 @@ if ($is_admin) {
             $view .= show_error_box("Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
         } else {
             $title = e($raw_title);
-            $content = nl2br(e($raw_content));
+            $content = $process_content($raw_content);
 
             $db_instance->execute_query(
                 "UPDATE news SET title = ?, content = ? WHERE id = ?",
@@ -45,7 +84,7 @@ if ($is_admin) {
             $view .= show_error_box("Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
         } else {
             $title = e($raw_title);
-            $content = nl2br(e($raw_content));
+            $content = $process_content($raw_content);
 
             $db_instance->execute_query(
                 "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",

@@ -525,7 +525,7 @@ if ($result_events && $result_events->num_rows > 0) {
                 <td class='td-center'>
                     <div class='location-wrapper'>
                         <div class='kingdom-name-break' style='min-width: 0;'>$k_name</div>
-                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($k_coords) . ")</a>
+                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>" . e($k_coords) . "</a>
                     </div>
                 </td>
                 <td class='td-center td-timer-cell' style='position: relative;'>
@@ -631,7 +631,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <td class='td-center'>
                     <div class='location-wrapper'>
                         <div class='kingdom-name-break' style='min-width: 0;'>$target_name</div>
-                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>(" . e($target_coords) . ")</a>
+                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>" . e($target_coords) . "</a>
                     </div>
                 </td>
                 <td class='td-center td-timer-cell' style='position: relative;'>

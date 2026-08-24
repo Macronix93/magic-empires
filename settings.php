@@ -238,7 +238,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // Change Kingdom Name
         if (isset($_POST['rename_kingdom'])) {
-            $new_k_name = trim($_POST['new_kingdom_name'] ?? '');
+            $raw_input = $_POST['new_kingdom_name'] ?? '';
+
+            $clean_name = preg_replace('/[\p{C}]/u', '', $raw_input);
+            $clean_name = preg_replace('/\s+/u', ' ', $clean_name);
+            $new_k_name = trim($clean_name);
+
             $current_k_id = $user->get_current_kingdom();
 
             $res_k = $db_instance->execute_query("SELECT last_name_change, kingdomname FROM kingdoms WHERE id = ?", [$current_k_id]);

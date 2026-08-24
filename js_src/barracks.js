@@ -117,6 +117,11 @@ function updateRecruitCosts(input) {
     const kRes = getLatestKingdomResources();
     if (!kRes) return;
 
+    const trainingBlocked = !isUpgrade && kRes.spaceLeft <= 0;
+    input.disabled = trainingBlocked;
+    if (maxBtn) maxBtn.disabled = trainingBlocked;
+    if (trainingBlocked) input.value = "";
+
     const smithyMultiplier = kRes.multiplier;
     const id = input.dataset.id;
     const form = input.closest("form");

@@ -108,236 +108,13 @@ class Map
         };
     }
 
-    public function render_field_info(?int $field_id = null): void
+    public function render_field_info(): void
     {
-        $current_k_id = $this->user->get_current_kingdom();
-
-        if (!isset($_SESSION["current_k_coords"]) || $_SESSION["current_k_coords"]["id"] != $current_k_id) {
-            $res = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$current_k_id]);
-            $row = $res->fetch_assoc();
-            $_SESSION["current_k_coords"] = ["id" => $current_k_id, "x" => $row["mapx"], "y" => $row["mapy"]];
-        }
-        $my_x = $_SESSION["current_k_coords"]["x"];
-        $my_y = $_SESSION["current_k_coords"]["y"];
-
-        $field_x = (int)($_GET["x"] ?? $_GET["startx"] ?? $my_x);
-        $field_y = (int)($_GET["y"] ?? $_GET["starty"] ?? $my_y);
-
-        if ($field_id === null) {
-            $field_id = (int)($_GET["clickedfield"] ?? -1);
-        }
-        $now = time();
-
-        $res_units = $this->mysqli->execute_query(
-            "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid IN (?, ?, ?)",
-            [$current_k_id, Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_RAIDER, Soldiers::SOLDIER_SCOUT]
-        );
-        $my_troops = [
-            Soldiers::SOLDIER_SETTLER_WAGON => 0,
-            Soldiers::SOLDIER_RAIDER => 0,
-            Soldiers::SOLDIER_SCOUT => 0
-        ];
-        while ($u = $res_units->fetch_assoc()) {
-            $my_troops[(int)$u["soldierid"]] = (int)$u["soldiercount"];
-        }
-
-        $arrival_time_atk = $this->get_arrival_time($my_x, $my_y, $field_x, $field_y, $current_k_id, $field_id);
-        $target_url = "sendtroops.php?x=$field_x&y=$field_y";
-
-        if ($field_id == -1) {
-            // --- EMPTY FIELD ---
-            $res_ft = $this->mysqli->execute_query("SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?", [$field_x, $field_y]);
-            $field_name = $res_ft->fetch_column() ?: "Unbesiedeltes Land";
-
-            echo '<div class="title-border">' . e($field_name) . '</div>
-          <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-              <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-              <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time_atk) . '</td></tr>
-              <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">';
-            if ($my_troops[Soldiers::SOLDIER_SETTLER_WAGON] > 0) {
-                echo "<button data-on-click='redirect' data-url='$target_url'>Erobern</button>";
-            } else {
-                echo "<small class='error'>Gründungskarren benötigt!</small>";
-            }
-            echo '</td></tr></table>';
-
-        } else if ($field_id == -2) {
-            $res_data = $this->mysqli->execute_query("SELECT expires_at FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$field_x, $field_y])->fetch_assoc();
-            $lifetime = $res_data["expires_at"] - $now;
-
-            if ($lifetime <= 0) {
-                echo '<div class="title-border">Verschwunden</div>
-                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                      <tr><td class="td-mapinfo" style="text-align:center;">Das Vorkommen ist bereits erschöpft.</td></tr>
-                  </table>';
-                return;
-            }
-
-            $can_plunder = ($my_troops[Soldiers::SOLDIER_RAIDER] > 0);
-            $can_spy = ($my_troops[Soldiers::SOLDIER_SCOUT] > 0);
-            $arrival_time_scout = (int)round($arrival_time_atk * MONSTER_CAMP_SCOUT_BOOST);
-
-            $mode = $can_plunder ? "plunder" : "spy";
-            $target_url = "sendtroops.php?x=$field_x&y=$field_y&mode=$mode";
-
-            // --- RESOURCE TILE ---
-            echo '<div class="title-border">Verlassenes Vorratslager</div>
-          <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-              <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-              <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>
-              ' . convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small></td></tr>
-              <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime, false, false) . '</td></tr>
-              <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">';
-
-            if ($can_plunder || $can_spy) {
-                $label = $can_plunder ? "Plündern" : "Spionieren";
-
-                echo "<button data-on-click='redirect' data-url='$target_url'>$label</button>";
-            } else {
-                echo "<small class='error'>Räuber oder Späher benötigt!</small>";
-            }
-
-            echo '</td></tr></table>';
-        } else if ($field_id == -3) {
-            // --- MONSTERCAMP ---
-            $res_camp = $this->mysqli->execute_query("SELECT level, expires_at FROM monster_camps WHERE mapx = ? AND mapy = ?", [$field_x, $field_y]);
-            $camp_data = $res_camp->fetch_assoc();
-            $lifetime = $camp_data["expires_at"] - $now;
-
-            if ($lifetime <= 0) {
-                echo '<div class="title-border">Verschwunden</div>
-              <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                  <tr><td class="td-mapinfo" style="text-align:center;">Das Lager wurde bereits aufgegeben.</td></tr>
-              </table>';
-                return;
-            }
-
-            $arrival_time_scout = (int)round(($arrival_time_atk / MONSTER_CAMP_TRAVEL_BOOST) * MONSTER_CAMP_SCOUT_BOOST);
-
-            echo '<div class="title-border">Monstercamp (Stufe ' . $camp_data["level"] . ')</div>
-            <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-                <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' .
-                convert_sec_to_str($arrival_time_atk) . '<br><small>(' . convert_sec_to_str($arrival_time_scout) . ' Spionage)</small></td></tr>
-                <tr><td class="td-mapinfo"><b>Restzeit</b></td><td>' . convert_sec_to_str($lifetime, false, false) . '</td></tr>
-                <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">
-                    <button data-on-click="redirect" data-url="' . $target_url . '">Camp angreifen</button>
-                </td></tr>
-            </table>';
-        } else if ($field_id == WORLD_EVENT_ID) {
-            // --- EVENT CENTER ---
-            $we_manager = new WorldEvent($this->mysqli);
-            $active_ev = $we_manager->get_active_event();
-
-            if ($active_ev) {
-                $type_label = ($active_ev["event_type"] === "BOSS_HP") ? "Weltenboss" : "Großer Angriff";
-                $time_left = $active_ev["end_time"] - time();
-                $target_url = "sendtroops.php?x=$field_x&y=$field_y";
-
-                echo '<div class="title-border">' . $type_label . '</div>
-                        <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                            <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-                            <tr><td class="td-mapinfo"><b>Endet in</b></td><td><span class="js-countdown" data-seconds="' . $time_left . '">-</span></td></tr>';
-
-                if ($active_ev["event_type"] === "BOSS_HP") {
-                    $hp_raw_percent = ($active_ev["total_hp"] > 0) ? ($active_ev["current_hp"] / $active_ev["total_hp"]) * 100 : 0;
-
-                    if ($active_ev["current_hp"] > 0 && $hp_raw_percent < 0.1) {
-                        $hp_display_percent = "< 0.1";
-                        $bar_width = 0.5;
-                    } else {
-                        $hp_display_percent = round($hp_raw_percent, 1);
-                        $bar_width = $hp_display_percent;
-                    }
-
-                    $hp_display = $active_ev["current_hp"] > 0 ?
-                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                            <span style="display: inline-flex; align-items: center; gap: 5px;">
-                                <img src="images/icons/icon_health.png" class="ressource-icons" alt="HP" style="margin: 0; width:16px; height:16px;"> 
-                                <span>' . fnum($active_ev["current_hp"]) . ' / ' . fnum($active_ev["total_hp"]) . '</span>
-                            </span>
-                            <span>' . $hp_display_percent . '%</span>
-                        </div>
-                        <div style="width: 100%; height: 12px; background: #333; border: 1px solid var(--border-gold); border-radius: 3px; overflow: hidden;">
-                            <div style="width: ' . $bar_width . '%; height: 100%; background: linear-gradient(90deg, #a62121, #ff4d4d);"></div>
-                        </div>'
-                        : "<span class='passed'>BESIEGT</span>";
-
-                    echo '<tr><td class="td-mapinfo"><b>Status</b></td><td>' . $hp_display . '</td></tr>';
-                }
-
-                $disabled = $active_ev["current_hp"] <= 0 && $active_ev["event_type"] === "BOSS_HP" ? "disabled" : "";
-
-                echo '<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str(WORLD_EVENT_ATTACK_DURATION) . '</td></tr>
-                        <tr><td colspan="2" class="td-mapinfo" style="text-align: center;">
-                            <button data-on-click="redirect" data-url="' . $target_url . '" ' . $disabled . '>In die Schlacht!</button>
-                            <p style="font-size: 13px; margin-top: 10px;"><i>Hinweis: Truppen kehren von Welt-Events immer ohne Verluste heim.</i></p>
-                        </td></tr>
-                    </table>';
-            } else {
-                echo '<div class="title-border">Das Auge des Sturms</div>
-                <table class="table" style="margin-top: 20px; max-width: 500px;">
-                    <tr><td class="td-mapinfo"><b>Status</b></td><td>Versiegelt</td></tr>
-                    <tr><td colspan="2" style="text-align: center; padding: 15px;">
-                        <i>Truppen können diesen Bereich aktuell nicht betreten.</i>
-                    </td></tr>
-                </table>';
-            }
-        } else {
-            if (!isset($_GET["owner"])) {
-                $query_details = "
-                    SELECT k.username, k.userid, k.kingdomname, u.ranking_points AS score
-                    FROM kingdoms k 
-                    JOIN users u ON k.userid = u.id 
-                    WHERE k.id = ?
-                ";
-                $res_details = $this->mysqli->execute_query($query_details, [$field_id]);
-                $details = $res_details->fetch_assoc();
-
-                if ($details) {
-                    $owner_name = $details["username"];
-                    $owner_id = (int)$details["userid"];
-                    $kname = $details["kingdomname"];
-                    $score = (int)$details["score"];
-                } else {
-                    $owner_name = "Unbekannt";
-                    $owner_id = 0;
-                    $kname = "Verlassenes Königreich";
-                    $score = 0;
-                }
-            } else {
-                $owner_name = $_GET["owner"];
-                $owner_id = (int)($_GET["owner_id"] ?? 0);
-                $kname = $_GET["kname"];
-                $score = (int)($_GET["score"] ?? 0);
-            }
-
-            $score_icon = "<img src='images/icons/icon_score.png' class='ressource-icons' alt=''>";
-            $owner_display = "<a href='#' 
-                             data-on-click='openOverlay' 
-                             data-url='userinfo.php?userid=$owner_id' 
-                             data-title='Spieler-Info'>" . e($owner_name) . "</a>";
-
-            echo '<div class="title-border">Königreich-Info</div>
-          <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-              <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $field_x . ':' . $field_y . '</td></tr>
-              <tr><td class="td-mapinfo"><b>Königreich</b></td><td>' . e($kname) . '</td></tr>
-              <tr><td class="td-mapinfo"><b>Besitzer</b></td><td>' . $owner_display . ' ' . $score_icon . ' ' . fnum($score) . '</td></tr>';
-
-            if ($field_id != $current_k_id) {
-                echo '<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time_atk) . '</td></tr>';
-                $btn_text = ($owner_name != $this->user->get_user_name()) ? "Angreifen" : "Stationieren";
-                echo "<tr><td colspan='2' class='td-mapinfo' style='text-align: center;'>
-                <button data-on-click='redirect' data-url='$target_url'>$btn_text</button>
-              </td></tr>";
-            }
-
-            echo "</table>";
-        }
+        echo '<div id="map-info-content"></div>';
     }
 
     public function get_arrival_time(int  $start_x, int $start_y, int $end_x, int $end_y, int $origin_kingdom_id = -1,
-                                     ?int $target_id = null, bool $is_scouting = false): int
+                                     ?int $target_id = null, bool $is_scouting = false, bool $is_caravan = false): int
     {
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
@@ -361,6 +138,10 @@ class Map
             $modified_time *= $boost;
         } else if ($actual_target_id === -2 && $is_scouting) {
             $modified_time *= MONSTER_CAMP_SCOUT_BOOST;
+        }
+
+        if ($is_caravan) {
+            $modified_time *= CARAVAN_SPEED_FACTOR;
         }
 
         return (int)round($modified_time);
@@ -495,9 +276,9 @@ class Map
         return $result->fetch_column();
     }
 
-    public function calculate_arrival_data(int $sx, int $sy, int $ex, int $ey): array
+    public function calculate_arrival_data(int $sx, int $sy, int $ex, int $ey, bool $is_caravan = false): array
     {
-        $seconds = $this->get_arrival_time($sx, $sy, $ex, $ey);
+        $seconds = $this->get_arrival_time($sx, $sy, $ex, $ey, $is_caravan);
         return [
             "seconds" => $seconds,
             "timestamp" => time() + $seconds

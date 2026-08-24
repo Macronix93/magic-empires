@@ -11,6 +11,84 @@ if (!$active_event) {
                 <span>Derzeit findet kein Welt-Event statt. Kehre bald zum Auge des Sturms zurück!</span>
              </div>";
 } else {
+    if (isset($_SESSION["game_success"])) {
+        $view .= show_passed_box($_SESSION["game_success"]);
+
+        unset($_SESSION["game_success"]);
+    }
+
+    $user_id = $user->get_user_id();
+
+    // --- TROOP MOVEMENT ---
+    $res_mv = $db_instance->execute_query("
+        SELECT e.*, st.soldierid, st.soldiercount, sl.soldiername, sl.icon 
+        FROM events e
+        JOIN sent_troops st ON e.eventid = st.eventid
+        JOIN soldier_list sl ON st.soldierid = sl.id
+        WHERE e.userid = ? AND e.targetid = ?
+        ORDER BY e.arrivaltime", [$user_id, WORLD_EVENT_ID]);
+
+    if ($res_mv->num_rows > 0) {
+        $view .= "<div class='title-border'>Deine Truppenbewegungen</div>";
+        $view .= "<table class='table event-move-table' style='margin-bottom: 20px; table-layout: fixed; max-width: 600px;'>
+                    <colgroup>
+                        <col style='width: 120px;'>  <!-- Typ -->
+                        <col style='width: auto;'>  <!-- Units -->
+                        <col style='width: 100px;'> <!-- Timer -->
+                    </colgroup>";
+
+        $moves = [];
+        foreach ($res_mv as $m) {
+            if (!isset($moves[$m["eventid"]])) {
+                $moves[$m["eventid"]] = $m;
+                $moves[$m["eventid"]]["units"] = [];
+            }
+
+            $moves[$m["eventid"]]["units"][] = $m;
+        }
+
+        foreach ($moves as $eid => $data) {
+            $diff = $data["arrivaltime"] - time();
+            $php_timer_display = format_time_for_js($diff);
+            $type = ($data["actionid"] == ActionTypes::ACTION_SEND_TROOPS) ? "Anmarsch" : "Rückkehr";
+
+            $badge_count = 0;
+            $units_html = "<div class='badge-container' style='display:flex; gap:5px; justify-content:center; flex-wrap:wrap;'>";
+
+            foreach ($data["units"] as $u) {
+                $badge_count++;
+                $responsive_class = "";
+
+                if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
+                    $responsive_class .= " badge-hide-mobile";
+                }
+                if ($badge_count > MAX_UNIT_BADGES_PER_ROW_DESKTOP) {
+                    $responsive_class .= " badge-hide-desktop";
+                }
+
+                $units_html .= "<div class='unit-badge $responsive_class' title='{$u["soldiername"]}'>
+                                    <img src='images/icons/{$u["icon"]}.png' alt='{$u["soldiername"]}'>
+                                    <b>{$u["soldiercount"]}</b>
+                                </div>";
+            }
+
+            if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
+                $btn_extra = ($badge_count <= MAX_UNIT_BADGES_PER_ROW_DESKTOP) ? " hide-toggle-desktop" : "";
+                $units_html .= "<span data-on-click='toggleBadges' class='badge-toggle$btn_extra' style='cursor: pointer; font-weight: bold; padding: 5px;'> (...)</span>";
+            }
+
+            $units_html .= "</div>";
+
+            $view .= "<tr>
+                        <td class='td-center'>$type</td>
+                        <td>$units_html</td>
+                        <td class='td-center'><b><span class='js-countdown' data-seconds='$diff'>$php_timer_display</span></b></td>
+                      </tr>";
+        }
+
+        $view .= "</table>";
+    }
+
     $event_id = $active_event["id"];
     $event_type = $active_event["event_type"];
     $end_time = $active_event["end_time"];
@@ -19,7 +97,6 @@ if (!$active_event) {
     $current_hp = $active_event["current_hp"];
     $is_boss_dead = ($current_hp <= 0);
 
-    $user_id = $user->get_user_id();
     $res_p = $db_instance->execute_query(
         "SELECT * FROM world_event_participants WHERE event_id = ? AND userid = ?",
         [$event_id, $user->get_user_id()]
@@ -42,9 +119,11 @@ if (!$active_event) {
     $pool = $world_event_manager->get_monster_pool();
     $monster = $pool[$active_event["monster_index"]];
 
-    $view .= "<h3 class='title-border'>" . e($monster["name"]) . "</h3>";
+    $view .= "<div class='title-border'>" . e($monster["name"]) . "</div>";
     $view .= "<div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-direction: column; margin-bottom: 20px;'>
-                <div>Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b></div>
+                <div style='display: flex; justify-content: space-between; width: 240px;'>
+                    Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
+                </div>
                 <button data-on-click='redirect' data-url='" . $target_url . "' $disabled>Boss angreifen</button>
               </div>";
 
@@ -123,7 +202,7 @@ if (!$active_event) {
                     <div style='display: flex; gap: 15px; margin-top: 5px;'>
                         <div style='flex: 1;'>
                             <span class='passed'><b>Standard Pool:</b></span><br>
-                            Miliz bis Elfenschützen. Die Menge skaliert an deinem Imperium-Schnitt.
+                            Miliz bis Elfenschützen. Die Menge skaliert an deinem Königreich-Schnitt.
                         </div>
                         <div style='flex: 1;'>
                             <span style='color: gold;'><b>Spezial Pool:</b></span><br>
@@ -165,7 +244,7 @@ if (!$active_event) {
                 <hr>
                 <p style='margin-bottom: 5px;'>Deine aktuelle Belohnung am Ende:</p>
                 <ul>
-                    <li><b class='passed'>" . fnum($personal_gold_preview) . " Gold</b> für dein Königreich</li>
+                    <li><span class='passed'>" . fnum($personal_gold_preview) . " " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . "</span> für dein Königreich</li>
                     <li>Münzen für deine Schatzkammer (basierend auf Schadens-Stufe)</li>
                 </ul>
             </div>
@@ -211,10 +290,71 @@ if (!$active_event) {
                     </tr>
                 </table>
                     <p style='font-size: 12px; opacity: 0.6; margin-top: 10px; text-align: center;'>
-                        <i>Zusätzlich erhältst du Gold für dein Dorf (1 pro " . WORLD_EVENT_DMG_GOLD_RATIO . " Schaden).</i>
+                        <i>Zusätzlich erhältst du Gold für dein Königreich (1 pro " . WORLD_EVENT_DMG_GOLD_RATIO . " Schaden).</i>
                     </p>
                 </div>
             </div>";
+    }
+
+    // --- LAST 5 ATTACKS LOG ---
+    $res_logs = $db_instance->execute_query("
+        SELECT details, created_at 
+        FROM game_logs 
+        WHERE userid = ? 
+          AND action = 'WORLD_EVENT_ATTACK' 
+          AND JSON_EXTRACT(details, '$.event_id') = ?
+        ORDER BY id DESC LIMIT 5", [$user_id, (int)$event_id]);
+
+    if ($res_logs->num_rows > 0) {
+        $view .= "<div class='title-border'>Deine letzten Treffer</div>";
+        $view .= "<table class='table' style='margin-bottom: 20px; font-size: 14px; max-width: 600px;'>";
+        $view .= "<colgroup>
+                        <col style='width: 140px;'> <!-- Zeitpunkt -->
+                        <col style='width: auto;'>  <!-- Truppen -->
+                        <col style='width: 140px;'> <!-- Schaden -->
+                    </colgroup>
+                    <tr>
+                        <td class='td-center td-gradient'><b>Zeitpunkt</b></td>
+                        <td class='td-center td-gradient'><b>Truppen</b></td>
+                        <td class='td-center td-gradient'><b>Schaden</b></td>
+                    </tr>";
+
+        foreach ($res_logs as $log) {
+            $det = json_decode($log["details"], true);
+            $dmg = $det["damage_caused"] ?? 0;
+            $troops = $det["troops"] ?? [];
+
+            $badge_html = "<div class='badge-container' style='display: flex; gap: 3px; justify-content: center; align-items: center; flex-wrap: wrap;'>";
+            $b_count = 0;
+
+            foreach ($troops as $t) {
+                $b_count++;
+                $resp_class = "";
+                if ($b_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) $resp_class .= " badge-hide-mobile";
+                if ($b_count > MAX_UNIT_BADGES_PER_ROW_DESKTOP) $resp_class .= " badge-hide-desktop";
+
+                $badge_html .= "<div class='unit-badge $resp_class' title='{$t["name"]}' style='padding: 2px 5px;'>
+                                    <img src='images/icons/{$t["icon"]}.png' style='width: 18px; height: 18px;' alt='{$t["name"]}'>
+                                    <b style='font-size: 11px;'>{$t["count"]}</b>
+                                </div>";
+            }
+
+            if ($b_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
+                $btn_ex = ($b_count <= MAX_UNIT_BADGES_PER_ROW_DESKTOP) ? " hide-toggle-desktop" : "";
+                $badge_html .= "<span data-on-click='toggleBadges' class='badge-toggle$btn_ex' style='cursor: pointer; font-weight: bold; font-size: 11px;'> (...)</span>";
+            }
+            $badge_html .= "</div>";
+
+            $view .= "<tr>
+                        <td style=''>" . date("H:i:s", $log["created_at"]) . " Uhr</td>
+                        <td style='vertical-align:middle;'>$badge_html</td>
+                        <td style='text-align: center; vertical-align: middle;'>
+                            " . fnum($dmg, true) . "
+                        </td>
+                      </tr>";
+        }
+
+        $view .= "</table>";
     }
 
     // --- RANKING TABLE ---

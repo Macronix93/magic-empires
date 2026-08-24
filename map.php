@@ -144,7 +144,7 @@ echo '</div>';
 
 // Info Box
 echo '<div id="field-info">';
-$map->render_field_info($field_id);
+$map->render_field_info();
 echo '</div>';
 
 $view = ob_get_clean();

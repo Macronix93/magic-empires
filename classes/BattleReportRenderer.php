@@ -92,7 +92,7 @@ class BattleReportRenderer
 
         if (empty($items)) return "";
 
-        $html = "<div class='battle-column' style='margin-top: 10px;'>";
+        $html = "<div class='battle-column'>";
         $html .= "<div class='report-section-title'>$title</div>";
         $html .= "<div style='display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;'>";
 
@@ -172,7 +172,7 @@ class BattleReportRenderer
 
         $style = $styles[$type] ?? $styles["neutral"];
 
-        $html = "<div class='battle-column' style='background: {$style["bg"]}; border-color: {$style["border"]}; margin-top: 10px;'>";
+        $html = "<div class='battle-column' style='background: {$style["bg"]}; border-color: {$style["border"]};'>";
         $html .= "<div class='report-section-title' style='border-color: {$style["border"]};'>$title</div>";
         $html .= "<div style='font-size: 1.1em; margin-bottom: 5px;'>$main_text</div>";
 

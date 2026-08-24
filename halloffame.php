@@ -7,53 +7,65 @@ $categories = [
     "ranking" => [
         "label" => "Weltrangliste",
         "title" => "Höchste Punktzahl",
-        "limit" => 5,
+        "limit" => 10,
         "query" => "SELECT username, id as uid, ranking_points as val 
                     FROM users 
-                    WHERE status = 1 AND ranking_points > 0 
-                    ORDER BY val DESC LIMIT 10"
+                    WHERE status = 1
+                    ORDER BY val DESC"
     ],
     "monster" => [
         "label" => "Monster",
         "title" => "Besiegte Monster",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, s.monster_kills as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.monster_kills > 0 ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, s.monster_kills as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.monster_kills > 0 ORDER BY val DESC"
     ],
     "loot" => [
         "label" => "Plünderung",
         "title" => "Erbeutete Ressourcen",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, s.resources_looted as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.resources_looted > 0 ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, s.resources_looted as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.resources_looted > 0 ORDER BY val DESC"
+    ],
+    "thieves" => [
+        "label" => "Diebesgilde",
+        "title" => "Gestohlene Rohstoffe",
+        "limit" => 20,
+        "query" => "SELECT u.username, u.id as uid, s.resources_stolen as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.resources_stolen > 0 ORDER BY val DESC"
     ],
     "event" => [
         "label" => "Events",
         "title" => "Event-Schaden",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, s.event_damage_total as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.event_damage_total > 0 ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, s.event_damage_total as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.event_damage_total > 0 ORDER BY val DESC"
     ],
     "expansion" => [
         "label" => "Königreiche",
         "title" => "Anzahl Königreiche",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, COUNT(k.id) as val FROM users u JOIN kingdoms k ON u.id = k.userid GROUP BY u.id ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, COUNT(k.id) as val FROM users u JOIN kingdoms k ON u.id = k.userid GROUP BY u.id ORDER BY val DESC"
     ],
     "center" => [
         "label" => "Zentrum",
         "title" => "Höchstes Dorfzentrum",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, MAX(b.buildinglevel) as val FROM users u JOIN kingdoms k ON u.id = k.userid JOIN buildings b ON k.id = b.kingdomid WHERE b.buildingid = 0 GROUP BY u.id ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, MAX(b.buildinglevel) as val FROM users u JOIN kingdoms k ON u.id = k.userid JOIN buildings b ON k.id = b.kingdomid WHERE b.buildingid = 0 GROUP BY u.id ORDER BY val DESC"
     ],
     "build" => [
         "label" => "Architektur",
         "title" => "Gesamt Gebäude-Upgrades",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, s.buildings_upgraded as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.buildings_upgraded > 0 ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, s.buildings_upgraded as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.buildings_upgraded > 0 ORDER BY val DESC"
     ],
     "martyr" => [
         "label" => "Märtyrer",
         "title" => "Truppenverluste (PvP)",
         "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, s.units_fallen_pvp as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.units_fallen_pvp > 0 ORDER BY val DESC LIMIT 20"
+        "query" => "SELECT u.username, u.id as uid, s.units_fallen_pvp as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.units_fallen_pvp > 0 ORDER BY val DESC"
+    ],
+    "pve_martyr" => [
+        "label" => "Monster-Opfer",
+        "title" => "Truppenverluste (PvE)",
+        "limit" => 20,
+        "query" => "SELECT u.username, u.id as uid, s.units_fallen_pve as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.units_fallen_pve > 0 ORDER BY val DESC"
     ],
     "coins" => [
         "label" => "Schatzkammer",
@@ -66,7 +78,30 @@ $categories = [
                     JOIN buildings b ON k.id = b.kingdomid 
                     WHERE b.buildingid IN (" . BuildingTypes::BUILDING_MILL . ", " . BuildingTypes::BUILDING_SAWMILL . ", " . BuildingTypes::BUILDING_STONEMINE . ", " . BuildingTypes::BUILDING_GOLDMINE . ") 
                     GROUP BY u.id 
-                    ORDER BY val DESC LIMIT 20"
+                    ORDER BY val DESC"
+    ],
+    "merchants" => [
+        "label" => "Händler",
+        "title" => "Handelsabschlüsse",
+        "limit" => 20,
+        "query" => "SELECT u.username, u.id as uid, s.trades_count as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.trades_count > 0 ORDER BY val DESC"
+    ],
+    "builder_sum" => [
+        "label" => "Bau-Magnat",
+        "title" => "Summe Gebäude-Stufen",
+        "limit" => 20,
+        "query" => "SELECT u.username, u.id as uid, SUM(b.buildinglevel) as val 
+                FROM users u 
+                JOIN kingdoms k ON u.id = k.userid 
+                JOIN buildings b ON k.id = b.kingdomid 
+                GROUP BY u.id 
+                ORDER BY val DESC"
+    ],
+    "spies" => [
+        "label" => "Spionage",
+        "title" => "Spionagemissionen",
+        "limit" => 20,
+        "query" => "SELECT u.username, u.id as uid, s.spy_count as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.spy_count > 0 ORDER BY val DESC"
     ]
 ];
 
@@ -99,7 +134,8 @@ foreach ($categories as $id => $data) {
                     <td class='td-center td-gradient'><b>Wert</b></td>
                 </tr>";
 
-    $res = $db_instance->query($data["query"]);
+    $final_query = $data["query"] . " LIMIT " . (int)$data["limit"];
+    $res = $db_instance->query($final_query);
 
     $rank = 1;
     if ($res && $res->num_rows > 0) {

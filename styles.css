@@ -164,6 +164,17 @@ body {
     font-size: 20px;
 }
 
+.news-content ul {
+    text-align: left;
+    margin: 10px 0 10px 25px;
+    padding: 0;
+}
+
+.news-content li {
+    margin-bottom: 5px;
+    color: #e6dcce;
+}
+
 .news-flex-header {
     position: relative;
     display: flex;
@@ -314,6 +325,13 @@ body {
     white-space: nowrap;
 }
 
+.unit-badge b::before {
+    content: "x";
+    font-size: 0.75em;
+    font-weight: normal;
+    margin-right: 2px;
+}
+
 .unit-badge img {
     width: 24px;
     height: 24px;
@@ -330,6 +348,10 @@ body {
     flex-direction: column;
     gap: 10px;
     border-radius: 8px;
+}
+
+.battle-report .battle-column:first-child {
+    margin-top: 0 !important;
 }
 
 .battle-vs-wrapper {
@@ -379,16 +401,15 @@ body {
     display: flex;
     align-items: center;
     gap: 5px;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     padding: 5px 10px;
     border-radius: 4px;
     border-left: 3px solid var(--link-color);
-    min-height: 40px;
 }
 
 .battle-unit-card img {
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
 }
 
 .battle-unit-info {
@@ -398,12 +419,12 @@ body {
 }
 
 .battle-unit-name {
-    font-size: 18px;
+    font-size: 16px;
     color: var(--link-color);
 }
 
 .battle-unit-count {
-    font-size: 18px;
+    font-size: 16px;
 }
 
 .survivor-green {
@@ -1054,8 +1075,10 @@ select:-webkit-autofill {
 /* Wrapper for content (left, right, mid) */
 .content-box {
     display: grid;
-    grid-template-columns: 225px 850px 225px;
-    justify-content: center;
+    grid-template-columns: 225px 1fr 225px;
+    grid-template-areas: "left middle right";
+    max-width: 1400px;
+    margin: 0 auto;
     gap: 50px;
     align-items: start;
 }
@@ -1214,16 +1237,26 @@ select:-webkit-autofill {
 .right-container {
     display: flex;
     flex-direction: column;
-    width: 225px;
     position: sticky;
     top: 20px;
     height: fit-content;
     align-self: flex-start;
 }
 
+.left-container {
+    grid-area: left;
+    width: 225px;
+}
+
 .middle-container {
-    width: 850px;
+    grid-area: middle;
+    min-width: 350px;
     padding-bottom: 20px;
+}
+
+.right-container {
+    grid-area: right;
+    width: 225px;
 }
 
 /* Misc. */
@@ -1871,7 +1904,6 @@ body.modal-open footer {
     padding: 10px;
     overflow-y: auto;
     overflow-x: hidden;
-    color: #eee;
     min-height: 0;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -1901,8 +1933,8 @@ body.modal-open footer {
 }
 
 .arrow-nav {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     cursor: pointer;
     transition: transform 0.1s ease;
 }
@@ -2083,13 +2115,6 @@ body.modal-open footer {
     margin-bottom: 40px;
 }
 
-.kingdom-name-break {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 260px;
-}
-
 .trade-header-text {
     display: flex;
     justify-content: center;
@@ -2129,8 +2154,24 @@ img[data-on-click] {
 
 .location-wrapper {
     display: flex;
-    justify-content: center;
-    min-width: 0;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+}
+
+.kingdom-name-break {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+    text-align: left;
+    flex: 1;
+}
+
+.location-wrapper a {
+    flex-shrink: 0;
+    text-align: right;
 }
 
 .storage-listing {
@@ -2140,6 +2181,51 @@ img[data-on-click] {
 .monster-desc {
     opacity: 0.7;
     font-size: 16px;
+}
+
+.trade-item-stack span {
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.marketplace-table .trade-item-stack {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.trade-arrow {
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.marketplace-table colgroup col:nth-child(1) {
+    width: 22% !important;
+}
+
+.marketplace-table colgroup col:nth-child(2) {
+    width: 32% !important;
+}
+
+.marketplace-table colgroup col:nth-child(3) {
+    width: 15% !important;
+}
+
+.marketplace-table colgroup col:nth-child(4) {
+    width: 15% !important;
+}
+
+.marketplace-table colgroup col:nth-child(5) {
+    width: 16% !important;
+}
+
+.header-stack {
+    font-weight: bold;
 }
 
 /* Landscape Modus */
@@ -2165,6 +2251,10 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .message-border {
+        margin-bottom: 5px;
     }
 
     .battle-column .ressource-icons {
@@ -2342,6 +2432,11 @@ img[data-on-click] {
         display: flex;
         flex-direction: column;
         align-items: center;
+        gap: 2px;
+    }
+
+    .kingdom-name-break {
+        max-width: 120px;
     }
 
     .td-timer-cell {
@@ -2349,10 +2444,6 @@ img[data-on-click] {
         white-space: normal;
         padding: 4px 2px !important;
         min-width: 70px !important;
-    }
-
-    .kingdom-name-break {
-        max-width: 80px;
     }
 
     .big-box-content a {
@@ -2609,6 +2700,10 @@ img[data-on-click] {
         padding: 5px;
     }
 
+    .battle-unit-card {
+        padding-left: 3px;
+    }
+
     .battle-unit-card img {
         width: 20px;
         height: 20px;
@@ -2619,7 +2714,11 @@ img[data-on-click] {
     }
 
     .battle-unit-name {
-        font-size: 13px;
+        font-size: 11px;
+    }
+
+    .battle-unit-count {
+        font-size: 11px;
     }
 
     .battle-column {
@@ -2628,15 +2727,12 @@ img[data-on-click] {
 
     .battle-strength {
         font-size: 12px;
-        margin: 10px;
-    }
-
-    .report-section-title,
-    .battle-unit-count {
-        font-size: 15px;
+        margin-top: -2px;
+        margin-bottom: 5px;
     }
 
     .report-section-title {
+        font-size: 15px;
         margin-bottom: 10px;
     }
 
@@ -2902,11 +2998,16 @@ img[data-on-click] {
 @media screen and (max-width: 1392px) {
     .content-box {
         display: block;
+        min-height: auto;
     }
 
     .left-container,
     .right-container {
         display: none;
+    }
+
+    body {
+        padding: 0 0 20px 0;
     }
 
     .mobile-trigger {
@@ -2927,6 +3028,12 @@ img[data-on-click] {
     .table tr:first-child td {
         white-space: normal !important;
         word-break: break-word;
+    }
+}
+
+@media screen and (min-width: 1393px) {
+    .content-box {
+        min-height: 85vh;
     }
 }
 

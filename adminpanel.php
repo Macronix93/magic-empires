@@ -397,9 +397,9 @@ if (!$user->is_admin()) {
         exit;
     }
 
-    if (isset($_POST['clear_log']) && isset($_POST['log_to_clear'])) {
-        $f = $_POST['log_to_clear'];
-        $allowed_files = ['admin.log', 'error.log', 'security.log'];
+    if (isset($_POST["clear_log"]) && isset($_POST["log_to_clear"])) {
+        $f = $_POST["log_to_clear"];
+        $allowed_files = ["admin.log", "error.log", "security.log"];
 
         if (in_array($f, $allowed_files) && $user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN) {
             file_put_contents(__DIR__ . "/logs/" . $f, "");
@@ -832,7 +832,7 @@ if (!$user->is_admin()) {
     $view .= "<br><hr><div class='title-border'>System-Logfiles (.log)</div>";
     $view .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
 
-    $files = ['admin.log', 'error.log', 'security.log'];
+    $files = ["admin.log", "error.log", "security.log"];
     foreach ($files as $f) {
         $url = "ajax/admin_log_view.php?file=$f";
 

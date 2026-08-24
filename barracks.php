@@ -666,7 +666,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         $max_soldiers = max(0, $max_soldiers);
         $owned_count = $kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0;
 
-        $can_train_at_least_one = ($max_soldiers > 0);
+        $can_train_at_least_one = ($max_soldiers > 0 && $space_left > 0);
 
         $can_upgrade_to_anything = false;
         if ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && $owned_count > 0) {

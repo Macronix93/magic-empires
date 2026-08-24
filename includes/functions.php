@@ -173,7 +173,14 @@ function fnum($number, bool $simple_format = false): string
         return $full;
     }
 
-    return "<span title='$full' style='cursor: help;'>$short</span>";
+    $uid = "val_" . substr(md5(mt_rand()), 0, 6);
+
+    return "<span class='popup' id='$uid'>
+                $short
+                <div id='{$uid}_box' class='popupbox' style=''>
+                    $full
+                </div>
+            </span>";
 }
 
 function regex_pattern(): string

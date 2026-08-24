@@ -292,6 +292,7 @@ if (isset($_GET["worldchat"])) {
                     <div class='tablinks active' data-on-click='filterServer'>Alle</div>
                     <div class='tablinks' data-on-click='filterServer'>Militärisch</div>
                     <div class='tablinks' data-on-click='filterServer'>Handel</div>
+                    <div class='tablinks' data-on-click='filterServer'>Event</div>
                 </div>";
 
     $view .= "<div id='messages-section' class='large-height'>";

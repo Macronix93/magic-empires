@@ -148,6 +148,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function dragStart(e) {
+        if (e.target === dragItem || dragItem.contains(e.target)) {
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            }
+
+            if (e.cancelable) e.preventDefault();
+
+            isDraggingInfoWindow = true;
+        } else {
+            return;
+        }
+
         let clientX, clientY;
 
         if (e.type === "touchstart") {
@@ -160,12 +172,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         initialX = clientX - xOffset;
         initialY = clientY - yOffset;
-
-        if (e.target === dragItem || dragItem.contains(e.target)) {
-            isDraggingInfoWindow = true;
-        }
     }
-
 
     function drag(e) {
         if (!isDraggingInfoWindow) return;

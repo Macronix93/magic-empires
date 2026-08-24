@@ -239,5 +239,9 @@
                 Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/oni" title="oni icons">Oni icons created by kmg design -
                 Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/mage" title="mage icons">Mage icons created by hanggoro -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/rpg" title="rpg icons">Rpg icons created by Magnific -
+                Flaticon</a></li>
     </ul>
 </div>

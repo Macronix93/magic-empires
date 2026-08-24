@@ -92,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 centerMapOn(selectedX, selectedY, true);
 
                 document.getElementById("map-loader").style.display = "none";
-                selectField(selectedX, selectedY, false);
+                selectField(selectedX, selectedY, true);
 
                 if (window.innerWidth <= 1392) {
                     const statusMsg = document.querySelector(".big-box-content > .info-box");

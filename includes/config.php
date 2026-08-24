@@ -79,6 +79,7 @@ const MARKET_FEE_MULTIPLIER_STONE = 0.0002;
 const MARKET_FEE_MULTIPLIER_GOLD = 0.0005;
 const MAX_MARKET_RATIO = 10;
 const MARKET_LISTING_FEE_STEP = 20000;
+const CARAVAN_SPEED_FACTOR = 0.5;
 
 // --- Building & Kingdom Development ---
 const MAX_BUILDING_LEVEL = 10;
@@ -202,10 +203,10 @@ const WORLD_EVENT_ID = -999;
 const WORLD_EVENT_ATTACK_DURATION = 30;
 const WORLD_EVENT_MAX_ATTEMPTS = 5;
 const WORLD_EVENT_REWARD_MIN_TRESHOLD = 1500;
-const WORLD_EVENT_REWARD_TRESHOLD_1 = 75000;
-const WORLD_EVENT_REWARD_TRESHOLD_2 = 250000;
-const WORLD_EVENT_REWARD_TRESHOLD_3 = 625000;
-const WORLD_EVENT_REWARD_TRESHOLD_4 = 1200000;
+const WORLD_EVENT_REWARD_TRESHOLD_1 = 25000;
+const WORLD_EVENT_REWARD_TRESHOLD_2 = 150000;
+const WORLD_EVENT_REWARD_TRESHOLD_3 = 400000;
+const WORLD_EVENT_REWARD_TRESHOLD_4 = 1500000;
 const WORLD_EVENT_REWARD_TRESHOLD_5 = 2500000;
 const WORLD_EVENT_REWARD_COINS_MIN = 5;
 const WORLD_EVENT_REWARD_COINS_1 = 10;
@@ -217,24 +218,24 @@ const WORLD_EVENT_REWARD_COINS_5 = 30;
 const WORLD_EVENT_HP_RES_BASE = 5000;            // Base resources per average building level
 const WORLD_EVENT_HP_RES_VAR_MIN = 80;           // Min resource %
 const WORLD_EVENT_HP_RES_VAR_MAX = 120;          // Max resource %
-
 // HP-Boss Troop slots (TC Thresholds)
 const WORLD_EVENT_HP_SLOT_LOW = 1;               // Standard slots
 const WORLD_EVENT_HP_SLOT_MID_TC = 5;            // From this TC level: 2 slots
 const WORLD_EVENT_HP_SLOT_HIGH_TC = 8;           // From this TC level: 3 slots
-
 // HP-Boss Special units chance
 const WORLD_EVENT_HP_SPECIAL_CHANCE_BASE = 5;   // Base chance in %
 const WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT = 2; // Bonus chance per TC level
-
 // HP-Boss Number of troops for reward
 const WORLD_EVENT_HP_UNIT_STD_MIN = 2;          // Standard troops min
 const WORLD_EVENT_HP_UNIT_STD_MAX = 4;          // Standard troops max
 const WORLD_EVENT_HP_UNIT_SPEC_MIN = 1;          // Special troops min
 const WORLD_EVENT_HP_UNIT_SPEC_MAX = 2;          // Special troops max
-
+const WORLD_EVENT_HP_CHANCE_CONQUEROR = 3;       // Chance for Conqueror Reward
+const WORLD_EVENT_HP_MAX_CONQUEROR = 1;          // Number of Conqueror Rewards per slot
+const WORLD_EVENT_HP_CHANCE_RAM = 2;            // Chance for Ram Reward
+const WORLD_EVENT_HP_MAX_RAM = 1;               // Number of Ram Rewards per slot
 // Damage-Boss Loot
-const WORLD_EVENT_DMG_GOLD_RATIO = 50;           // 1 Gold per X Dmg
+const WORLD_EVENT_DMG_GOLD_RATIO = 35;           // 1 Gold per X Dmg
 const WORLD_EVENT_DMG_GOLD_MAX = 100000;         // Max Gold Cap
 
 /*
@@ -254,6 +255,7 @@ interface MessageCategories
     const string CATEGORY_DEFAULT = "Default";
     const string CATEGORY_WAR = "Militärisch";
     const string CATEGORY_TRADE = "Handel";
+    const string CATEGORY_EVENT = "Event";
 }
 
 interface BuildingTypes

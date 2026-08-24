@@ -400,14 +400,14 @@ while ($ev = $finished_events->fetch_assoc()) {
 
                     $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                             "Event-Abschluss",
-                            "Deine Truppen aus <b>" . e($target_k_obj->get_kingdom_name()) . "</b> waren am Sieg beteiligt! Du erhälst folgende Belohnungen:" . $units_html,
+                            "Deine Truppen aus <b>" . e($target_k_obj->get_kingdom_name()) . "</b> waren am Sieg beteiligt! Du erhältst folgende Belohnungen:" . $units_html,
                             0, 0,
                             "",
                             "success",
                             $loot["resources"]
                         ) . "</div>";
 
-                    send_server_message($u_id, $u_name, $msg);
+                    send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
                 }
             } else {
                 $is_boss_fail = true;
@@ -434,9 +434,10 @@ while ($ev = $finished_events->fetch_assoc()) {
                         [ResourceTypes::RESOURCE_TYPE_GOLD => $loot["gold_res"], ResourceTypes::RESOURCE_TYPE_COINS => $loot["coins"]]
                     ) . "</div>";
 
-                send_server_message($u_id, $u_name, $msg);
+                send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
             } else {
-                send_server_message($u_id, $u_name, "Deine Belohnungsmünzen ({$loot["coins"]}) wurden gutgeschrieben. Ressourcen-Loot verfiel mangels Königreich.");
+                send_server_message($u_id, $u_name, "Deine Belohnungsmünzen ({$loot["coins"]}) wurden gutgeschrieben. Ressourcen-Loot verfiel mangels Königreich.",
+                    MessageCategories::CATEGORY_EVENT);
             }
         }
 
@@ -450,30 +451,11 @@ while ($ev = $finished_events->fetch_assoc()) {
                     "error"
                 ) . "</div>";
 
-            send_server_message($u_id, $u_name, $msg);
+            send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
         }
     }
 
     $db_instance->execute_query("UPDATE world_events SET is_rewarded = 1, is_active = 0 WHERE id = ?", [$ev["id"]]);
-}
-
-// Start a new event
-$start_days = [2, 5]; // Tuesday and Friday
-if (in_array((int)date('w'), $start_days)) {
-    $check_today = $db->execute_query("SELECT id FROM world_events WHERE start_time > ?", [strtotime("today midnight")]);
-
-    if ($check_today->num_rows == 0) {
-        $event_rotation = ["DAMAGE", "BOSS_HP"];
-        $last_type = $we_logic->get_last_event_type();
-        $current_index = array_search($last_type, $event_rotation);
-
-        $new_type = ($current_index === false) ? $event_rotation[0] : $event_rotation[($current_index + 1) % count($event_rotation)];
-
-        $we_logic->spawn_event($new_type);
-        $we_logic->broadcast_spawn_notification($new_type);
-
-        echo "[" . date("H:i:s") . "] Event-Rotation: $new_type gestartet.\n";
-    }
 }
 
 // Cleanup old events

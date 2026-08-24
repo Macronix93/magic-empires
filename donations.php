@@ -22,7 +22,7 @@ $view = "<div style='max-width: 600px; margin: 0 auto; line-height: 1.6;'>
                 </div>
             </div>
             <p style='font-size: 13px; opacity: 0.7; margin-top: 15px;'>
-                <i>(Sämtliche Spenden sind absolut freiwillig und fließen direkt in die Deckung der Serverkosten und die Weiterentwicklung des Spiels.)</i>
+                <i>(Sämtliche Spenden sind absolut freiwillig!)</i>
             </p>
         </div>";
 
