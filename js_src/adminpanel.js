@@ -54,13 +54,14 @@ registerAction("confirmDeleteNews", (el) => {
 });
 registerAction("confirmDeleteLog", (el) => {
     const logId = el.dataset.id;
+    const page = el.dataset.page || 1;
 
     showConfirmationDialog(
         "Soll dieser Log-Eintrag wirklich gelöscht werden?",
         "Ja, löschen",
         "Abbrechen",
         () => {
-            window.location.href = "adminpanel.php?deletelog=" + logId;
+            window.location.href = `adminpanel.php?deletelog=${logId}&logpage=${page}&tab=gamelogs`;
         }
     );
 });
@@ -118,6 +119,24 @@ registerAction("confirmClearLog", (el) => {
         }
     );
 });
+registerAction("switchAdminTab", (el) => {
+    const tabName = el.dataset.tab;
+
+    document.querySelectorAll('.admin-tab').forEach(tab => {
+        tab.style.display = "none";
+    });
+
+    document.querySelectorAll('.tablinks').forEach(btn => {
+        btn.classList.remove("active");
+    });
+
+    document.getElementById("tab_" + tabName).style.display = "block";
+    el.classList.add("active");
+
+    const url = new URL(window.location);
+    url.searchParams.set("tab", tabName);
+    window.history.replaceState({}, '', url);
+});
 
 if (window.location.href.indexOf("adminpanel.php") > -1) {
     if ("scrollRestoration" in history) {
@@ -125,19 +144,26 @@ if (window.location.href.indexOf("adminpanel.php") > -1) {
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        if (window.location.hash === "#logs") {
-            window.scrollTo(0, document.body.scrollHeight);
-        } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+
+        if (activeTab === 'gamelogs' || window.location.hash === '#logs') {
             const scrollPos = sessionStorage.getItem("admin_scroll_pos");
 
             if (scrollPos) {
                 window.scrollTo(0, parseInt(scrollPos));
             }
+        } else {
+            window.scrollTo(0, 0);
         }
     });
 
     window.addEventListener("scroll", () => {
-        sessionStorage.setItem("admin_scroll_pos", window.scrollY);
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (urlParams.get('tab') === 'gamelogs') {
+            sessionStorage.setItem("admin_scroll_pos", window.scrollY);
+        }
     });
 }
 

@@ -9,6 +9,16 @@ $user_id = -1;
 if (!$user->is_admin()) {
     $error = "Du bist kein Administrator!";
 } else {
+    $system_log_section = "";
+    $chat_backup_section = "";
+    $game_logs_table = "";
+    $user_info_html = "";
+    $user_list = "";
+
+    $active_tab = $_GET['tab'] ?? 'system';
+    if (isset($_GET['logpage'])) $active_tab = 'gamelogs';
+    if (isset($_GET['userid'])) $active_tab = 'users';
+
     if (isset($_POST["reset_round"])) {
         $logger->admin("ROUND RESET STARTED by Admin " . $user->get_user_name() . " (ID " . $user->get_user_id() . ")");
 
@@ -324,6 +334,7 @@ if (!$user->is_admin()) {
                     $db_instance->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
                     $db_instance->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
                     $db_instance->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
+
                     $report[] = count($insert_camps) . " Monstercamps balance-optimiert generiert.";
                 }
             } else {
@@ -333,7 +344,8 @@ if (!$user->is_admin()) {
 
         $logger->admin("MANUAL MAP SPAWN: $spawn_type");
         $_SESSION["admin_flash_msg"] = show_passed_box(implode("<br>", $report));
-        change_location("adminpanel.php");
+
+        change_location("adminpanel.php?tab=system");
         exit;
     }
 
@@ -375,12 +387,14 @@ if (!$user->is_admin()) {
 
     if (isset($_GET["deletelog"])) {
         $log_id = (int)$_GET["deletelog"];
+        $page = (int)($_GET["logpage"] ?? 1);
+
         $db_instance->execute_query("DELETE FROM game_logs WHERE id = ?", [$log_id]);
         $logger->admin("Deleted log entry ID $log_id");
 
         $_SESSION["admin_flash_msg"] = show_passed_box("Log-Eintrag wurde gelöscht!");
 
-        change_location("adminpanel.php");
+        change_location("adminpanel.php?tab=gamelogs&logpage=" . $page);
         exit;
     }
 
@@ -408,7 +422,7 @@ if (!$user->is_admin()) {
 
             $_SESSION["admin_flash_msg"] = show_passed_box("Datei $f wurde erfolgreich geleert.");
         }
-        change_location("adminpanel.php");
+        change_location("adminpanel.php?tab=logs");
         exit;
     }
 
@@ -452,7 +466,10 @@ if (!$user->is_admin()) {
             $log_display = ($field === "password") ? "***" : $new_value;
             $logger->admin("Edited field '$field' for user ID $user_id. New Value: " . $log_display);
 
-            $view .= show_passed_box("Daten erfolgreich aktualisiert! Feld: $field");
+            $_SESSION["admin_flash_msg"] = show_passed_box("Daten erfolgreich aktualisiert! Feld: $field");
+
+            change_location("adminpanel.php?userid=$user_id&tab=users");
+            exit;
         } else {
             if (empty($view)) {
                 $view .= show_error_box("Fehler beim Aktualisieren! Feld: $field");
@@ -538,8 +555,8 @@ if (!$user->is_admin()) {
             }
 
             // Display user info using a loop
-            $view .= '<h3>Spieler-Info</h3>';
-            $view .= '<table class="table">';
+            $user_info_html .= '<h3>Spieler-Info</h3>';
+            $user_info_html .= '<table class="table">';
 
             foreach ($user_info as $label => $data) {
                 $field_id = $data["field"];
@@ -560,7 +577,7 @@ if (!$user->is_admin()) {
                     $display_value .= ' [ID: ' . $user_id . ']';
                 }
 
-                $view .= '<tr>
+                $user_info_html .= '<tr>
                             <td style="width: 30%;">' . $label . ':</td>
                             <td id="td_' . $field_id . '">' . $display_value . '</td>
                             <td class="td-center" style="border-bottom: 1px solid var(--box-header);">
@@ -591,11 +608,11 @@ if (!$user->is_admin()) {
                       </tr>';
             }
 
-            $view .= '</table>';
+            $user_info_html .= '</table>';
 
             // --- MULTI-ACCOUNT CHECK ---
-            $view .= '<h3>Multi-Account Check</h3>';
-            $view .= '<table class="table">';
+            $user_info_html .= '<h3>Multi-Account Check</h3>';
+            $user_info_html .= '<table class="table">';
 
             // Calculate Root IP
             $ip_parts = explode('.', $row["ip"]);
@@ -624,7 +641,7 @@ if (!$user->is_admin()) {
             );
 
             // Show Subnet Result
-            $view .= '<tr><td style="width: 30%;">Gleiches Subnetz:</td><td>';
+            $user_info_html .= '<tr><td style="width: 30%;">Gleiches Subnetz:</td><td>';
 
             if ($multi_ip->num_rows > 0) {
                 foreach ($multi_ip as $m) {
@@ -641,51 +658,51 @@ if (!$user->is_admin()) {
                         $link_status = '<b class="error"> [NICHT ANGEMELDET!]</b>';
                     }
 
-                    $view .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m["username"]) . '</a>'
+                    $user_info_html .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m["username"]) . '</a>'
                         . $is_exact . $link_status . '<br>';
                 }
             } else {
-                $view .= '<span class="passed">Keine Treffer</span>';
+                $user_info_html .= '<span class="passed">Keine Treffer</span>';
             }
-            $view .= '<tr><td style="width: 30%;">Gleiche Device-ID:</td><td>';
+            $user_info_html .= '<tr><td style="width: 30%;">Gleiche Device-ID:</td><td>';
 
             if ($multi_device->num_rows > 0) {
                 foreach ($multi_device as $d) {
-                    $view .= '<a href="adminpanel.php?userid=' . $d['id'] . '" class="error">' . e($d["username"]) . '</a>'
+                    $user_info_html .= '<a href="adminpanel.php?userid=' . $d['id'] . '" class="error">' . e($d["username"]) . '</a>'
                         . ' <b class="error">[HARDWARE MATCH!]</b><br>';
                 }
             } else {
-                $view .= '<span class="passed">Keine Treffer</span>';
+                $user_info_html .= '<span class="passed">Keine Treffer</span>';
             }
-            $view .= '</td></tr>';
-            $view .= '<tr><td style="width: 30%;">Proxy/VPN Info:</td><td>';
+            $user_info_html .= '</td></tr>';
+            $user_info_html .= '<tr><td style="width: 30%;">Proxy/VPN Info:</td><td>';
 
             $proxy_data = check_ip_proxy($row["ip"]);
 
             if ($proxy_data) {
                 if ($proxy_data["proxy"] === "yes") {
-                    $view .= '<b class="error">WARNUNG: Proxy/VPN erkannt!</b><br>';
-                    $view .= 'Typ: ' . e($proxy_data["type"]) . '<br>';
+                    $user_info_html .= '<b class="error">WARNUNG: Proxy/VPN erkannt!</b><br>';
+                    $user_info_html .= 'Typ: ' . e($proxy_data["type"]) . '<br>';
                 } else {
-                    $view .= '<span class="passed">Kein Proxy erkannt</span><br>';
+                    $user_info_html .= '<span class="passed">Kein Proxy erkannt</span><br>';
                 }
-                $view .= '<small>Provider: ' . e($proxy_data["isp"]) . '</small>';
+                $user_info_html .= '<small>Provider: ' . e($proxy_data["isp"]) . '</small>';
             } else {
-                $view .= '<i>Check momentan nicht verfügbar.</i>';
+                $user_info_html .= '<i>Check momentan nicht verfügbar.</i>';
             }
-            $view .= '</td></tr>';
-            $view .= "</table>";
+            $user_info_html .= '</td></tr>';
+            $user_info_html .= "</table>";
 
             // Display kingdoms
-            $view .= "<h3>Königreiche</h3>";
+            $user_info_html .= "<h3>Königreiche</h3>";
 
             if (!empty($kingdoms)) {
-                $view .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto; margin: 0 auto;">';
+                $user_info_html .= '<div class="box-container" style="max-height: 200px; width: 300px; overflow: auto; margin: 0 auto;">';
 
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
                     $target_url = "adminpanel.php?userid=" . e($user_id) . "&kingdomid=" . e($kingdom_id);
 
-                    $view .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" 
+                    $user_info_html .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" 
                                    data-on-click="navigate" 
                                    data-url="' . $target_url . '">
                     <div style="width: 50px; text-align: center;">
@@ -697,9 +714,9 @@ if (!$user->is_admin()) {
                   </div>';
                 }
 
-                $view .= '</div>';
+                $user_info_html .= '</div>';
             } else {
-                $view .= 'Keine Königreiche gefunden.';
+                $user_info_html .= 'Keine Königreiche gefunden.';
             }
 
             // Display kingdom data and event data for kingdom
@@ -708,8 +725,8 @@ if (!$user->is_admin()) {
 
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
                     if ($kingdom_id == $_GET['kingdomid']) {
-                        $view .= '<h3>Königreich-Info</h3>';
-                        $view .= '<table class="table">
+                        $user_info_html .= '<h3>Königreich-Info</h3>';
+                        $user_info_html .= '<table class="table">
                                 <tr>
                                     <td>Königreich:</td>
                                     <td>' . $kingdom_data['kingdomname'] . ' [ID: ' . $kingdom_id . ']</td>
@@ -723,8 +740,8 @@ if (!$user->is_admin()) {
 
                 if ($found_kingdom !== null) {
                     if (!empty($found_kingdom['events'])) {
-                        $view .= '<h3>Event-Info</h3>';
-                        $view .= '<table class="table">
+                        $user_info_html .= '<h3>Event-Info</h3>';
+                        $user_info_html .= '<table class="table">
                                     <tr>
                                         <td class="td-gradient"><b>Aktion</b></td>
                                         <td class="td-gradient"><b>ID</b></td>
@@ -732,7 +749,7 @@ if (!$user->is_admin()) {
                                     </tr>';
 
                         foreach ($found_kingdom['events'] as $event) {
-                            $view .= '<tr>
+                            $user_info_html .= '<tr>
                                         <td>' . $event['action_id'] . '</td>
                                         <td>' . $event['event_id'] . '</td>
                                         <td class="td-center">
@@ -745,9 +762,9 @@ if (!$user->is_admin()) {
                                         </td>
                                     </tr>';
                         }
-                        $view .= '</table>';
+                        $user_info_html .= '</table>';
                     } else {
-                        $view .= 'Keine Events für das Königreich gefunden.';
+                        $user_info_html .= 'Keine Events für das Königreich gefunden.';
                     }
                 }
             }
@@ -829,14 +846,14 @@ if (!$user->is_admin()) {
                     </div>
                 </div>";
 
-    $view .= "<br><hr><div class='title-border'>System-Logfiles (.log)</div>";
-    $view .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
+    $system_log_section .= "<br><hr><div class='title-border'>System-Logfiles (.log)</div>";
+    $system_log_section .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
 
     $files = ["admin.log", "error.log", "security.log"];
     foreach ($files as $f) {
         $url = "ajax/admin_log_view.php?file=$f";
 
-        $view .= "<div class='box-container' style='width: 200px; margin: 0;'>
+        $system_log_section .= "<div class='box-container' style='width: 200px; margin: 0;'>
                     <div class='box-header' style='font-size: 14px;'>$f</div>
                     <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
                         <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
@@ -853,8 +870,9 @@ if (!$user->is_admin()) {
                     </div>
                 </div>";
     }
-    $view .= "</div>";
-    $view .= "<br><hr><div class='title-border'>Gelöschte Chats</div>";
+    $system_log_section .= "</div>";
+
+    $chat_backup_section .= "<br><hr><div class='title-border'>Gelöschte Chats</div>";
 
     $backup_dir = __DIR__ . "/logs/chat_backups/";
     $backups = [];
@@ -872,10 +890,10 @@ if (!$user->is_admin()) {
     }
 
     if (empty($backups)) {
-        $view .= "<p style='text-align:center; opacity:0.6;'>Keine Backups vorhanden.</p>";
+        $chat_backup_section .= "<p style='text-align:center; opacity:0.6;'>Keine Backups vorhanden.</p>";
     } else {
-        $view .= "<div class='box-container' style='max-height: 300px; overflow-y: auto; margin: 0 auto; width: 90%;'>";
-        $view .= "<table class='table' style='width: 100%; border:none;'>";
+        $chat_backup_section .= "<div class='box-container' style='max-height: 300px; overflow-y: auto; margin: 0 auto; width: 90%;'>";
+        $chat_backup_section .= "<table class='table' style='width: 100%; border:none;'>";
 
         foreach ($backups as $b_file) {
             $parts = explode('_', $b_file);
@@ -884,7 +902,7 @@ if (!$user->is_admin()) {
 
             $url = "ajax/admin_log_view.php?file=$b_file&sub=chat_backups";
 
-            $view .= "<tr>
+            $chat_backup_section .= "<tr>
                     <td style='font-size: 13px;'>$display_info</td>
                     <td style='font-size: 11px; opacity:0.7;'>$b_file</td>
                     <td class='td-center'>
@@ -892,7 +910,7 @@ if (!$user->is_admin()) {
                     </td>
                   </tr>";
         }
-        $view .= "</table></div>";
+        $chat_backup_section .= "</table></div>";
     }
 
     // Display all users
@@ -915,7 +933,7 @@ if (!$user->is_admin()) {
     }
     $user_list .= '</div>';
 
-    $view .= "<br><hr><div id='logs' class='title-border'>Game Logs</div>";
+    $game_logs_table .= "<br><hr><div id='logs' class='title-border'>Game Logs</div>";
 
     $rows_per_page_logs = 20;
     $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
@@ -934,7 +952,7 @@ if (!$user->is_admin()) {
         [$offset_logs, $rows_per_page_logs]
     );
 
-    $view .= "<table class='table logs-table'>
+    $game_logs_table .= "<table class='table logs-table'>
             <thead>
             <tr>
                 <th class='td-gradient'>ID</th>
@@ -958,7 +976,7 @@ if (!$user->is_admin()) {
 
             $action_clean = str_replace('_', ' ', $l['action']);
 
-            $view .= "<tr>
+            $game_logs_table .= "<tr>
                 <td class='log-id'>{$l['id']}</td>
                 <td class='log-player'>$user_display</td>
                 <td class='log-content'>
@@ -969,28 +987,29 @@ if (!$user->is_admin()) {
                 </td>
                 <td class='log-date'>" . date("d.m.Y H:i:s", $l['created_at']) . "</td>
                 <td class='td-center'>
-                    <a href='#' data-on-click='confirmDeleteLog' data-id='{$l['id']}'>
+                    <a href='#' data-on-click='confirmDeleteLog' data-id='{$l['id']}' data-page='$current_page_logs'>
                         <img src='images/icons/icon_delete.png' class='ressource-icons' alt='X'>
                     </a>
                 </td>
               </tr>";
         }
     } else {
-        $view .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";
+        $game_logs_table .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";
     }
-    $view .= "</table>";
+    $game_logs_table .= "</table>";
 
     // Pagination Bar
     if ($total_pages_logs > 1) {
-        $view .= '<div class="pagination-container"><div class="pagination-bar">';
+        $game_logs_table .= '<div class="pagination-container"><div class="pagination-bar">';
 
         $get_params = $_GET;
+        $get_params['tab'] = 'gamelogs';
 
         if ($current_page_logs > 1) {
             $get_params['logpage'] = 1;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&laquo;</a>";
+            $game_logs_table .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&laquo;</a>";
             $get_params['logpage'] = $current_page_logs - 1;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&lsaquo;</a>";
+            $game_logs_table .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&lsaquo;</a>";
         }
 
         $range = 2;
@@ -999,21 +1018,21 @@ if (!$user->is_admin()) {
                 $get_params['logpage'] = $i;
                 $active = ($i == $current_page_logs) ? "active" : "";
                 if ($i == $current_page_logs) {
-                    $view .= "<span class='page-link active'>$i</span>";
+                    $game_logs_table .= "<span class='page-link active'>$i</span>";
                 } else {
-                    $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>$i</a>";
+                    $game_logs_table .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>$i</a>";
                 }
             }
         }
 
         if ($current_page_logs < $total_pages_logs) {
             $get_params['logpage'] = $current_page_logs + 1;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&rsaquo;</a>";
+            $game_logs_table .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&rsaquo;</a>";
             $get_params['logpage'] = $total_pages_logs;
-            $view .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&raquo;</a>";
+            $game_logs_table .= "<a href='adminpanel.php?" . http_build_query($get_params) . "#logs' class='page-link'>&raquo;</a>";
         }
 
-        $view .= "</div></div>";
+        $game_logs_table .= "</div></div>";
     }
 }
 
@@ -1024,6 +1043,41 @@ if (isset($_SESSION["admin_flash_msg"])) {
     unset($_SESSION["admin_flash_msg"]);
 }
 
+$tab_menu = "<div class='tab'>
+    <div class='tablinks " . ($active_tab == 'system' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='system'>System</div>
+    <div class='tablinks " . ($active_tab == 'users' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='users'>Nutzerverwaltung</div>
+    <div class='tablinks " . ($active_tab == 'logs' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='logs'>Server-Logs</div>
+    <div class='tablinks " . ($active_tab == 'gamelogs' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='gamelogs'>Spiel-Logs</div>
+</div>";
+
+$view = $flash_html . $tab_menu;
+
+if (!empty($error)) {
+    $view .= show_error_box($error);
+}
+
+// TAB: System
+$view .= "<div id='tab_system' class='admin-tab' style='display: " . ($active_tab == 'system' ? 'block' : 'none') . ";'>
+    $settings_list
+</div>";
+
+// TAB: User
+$view .= "<div id='tab_users' class='admin-tab' style='display: " . ($active_tab == 'users' ? 'block' : 'none') . ";'>
+    $user_list
+    " . ($user_info_html ?? "") . " 
+</div>";
+
+// TAB: Logs (Files & Chat Backups)
+$view .= "<div id='tab_logs' class='admin-tab' style='display: " . ($active_tab == 'logs' ? 'block' : 'none') . ";'>
+    " . ($system_log_section ?? "") . "
+    " . ($chat_backup_section ?? "") . "
+</div>";
+
+// TAB: Game Logs
+$view .= "<div id='tab_gamelogs' class='admin-tab' style='display: " . ($active_tab == 'gamelogs' ? 'block' : 'none') . ";'>
+    " . ($game_logs_table ?? "") . "
+</div>";
+
 /*
  * HTML Section
  */
@@ -1031,11 +1085,5 @@ $title = "Admin-Bereich";
 $header = "Admin-Bereich";
 $script_files = ["adminpanel", "userinfo"];
 $head_extra = '<style>html { scroll-behavior: auto !important; }</style>';
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-} else {
-    $view = $flash_html . $settings_list . $user_list . $view;
-}
 
 include("layout/base.php");

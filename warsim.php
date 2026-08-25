@@ -114,8 +114,12 @@ foreach ($res_m as $row) {
 // Shrine bonus
 $res_war_data = $db_instance->execute_query("SELECT base_bonus FROM shrine_alignments WHERE id = 1");
 $war_base_bonus = $res_war_data->fetch_column() ?: 0.08;
-
 $is_war_god = ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR);
+
+// Wall bonus
+$initial_wall_lvl = 1;
+$initial_wall_hp = $initial_wall_lvl * DEFAULT_WALL_HP;
+$initial_wall_def = MIN_WALL_DEFENSE;
 
 $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
@@ -147,10 +151,10 @@ $view .= '<div class="box-container" id="enemy-tech-box" style="max-width: 250px
                 style="width: 60px;">
             </div>
             <div style="text-align: left; font-size: 12px; opacity: 0.8; margin-top: 5px;">
-                HP: <span id="wall_hp_display">0</span> / <span id="wall_hp_display_max">0</span>
+                HP: <span id="wall_hp_display">' . fnum($initial_wall_hp) . '</span> / <span id="wall_hp_display_max">' . fnum($initial_wall_hp) . '</span>
             </div>
             <div style="text-align: right; font-weight: bold; color: var(--link-color); margin-top: 5px;">
-                Bonus: +<span id="wall_def_display">0</span> DEF
+                Bonus: +<span id="wall_def_display">' . $initial_wall_def . '</span> DEF
             </div>
         </div>
     </div>

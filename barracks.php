@@ -112,8 +112,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                 $kingdom->give_kingdom_stone($refund_stone);
 
                 // Delete the job
-                $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ?",
-                    [$user->get_user_id(), $s_id, $current_kingdom]);
+                $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ? AND actionid = ?",
+                    [$user->get_user_id(), $s_id, $current_kingdom, ActionTypes::ACTION_BUILD_TROOPS]);
 
                 $logger->log_game("ECONOMY", "RECRUIT_CANCEL", [
                     "soldier_name" => $soldiers[$s_id]->get_soldier_name(),
@@ -681,8 +681,12 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
         }
 
-        $is_disabled = (!$can_train_at_least_one && !$can_upgrade_to_anything);
-        $disabled_attr = $is_disabled ? "disabled" : "";
+        //$is_disabled = (!$can_train_at_least_one && !$can_upgrade_to_anything);
+        $is_disabled = $can_train_at_least_one ? "" : "disabled";
+
+        if (!$can_train_at_least_one && !$can_upgrade_to_anything) {
+            $is_disabled = "disabled";
+        }
 
         $text_build = "<form action='barracks.php' method='GET' style='display: flex; flex-direction: column; gap: 5px; align-items: center;'>
                         <input type='hidden' name='recruit' value='$i'>
@@ -696,8 +700,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                    data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
                                    data-cost-villager='$cost_villager' data-time-per-unit='$base_unit_time'
                                    inputmode='numeric' pattern='[0-9]*'
-                                   placeholder='0' $disabled_attr>
-                            <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $disabled_attr>
+                                   placeholder='0' $is_disabled>
+                            <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $is_disabled>
                         </div>";
 
         // Upgrade-Dropdown
@@ -729,7 +733,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
         }
 
-        $text_build .= "<input type='submit' name='start_action' value='Starten' $disabled_attr>
+        $text_build .= "<input type='submit' name='start_action' value='Starten' disabled>
                   </form>";
     }
 

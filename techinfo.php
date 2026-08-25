@@ -133,13 +133,13 @@ if ($row) {
         $view .= "              <td class='td-center'>$time_display</td>
                             </tr>
                         </table>
-                        <p style='font-size: 13px; margin-top: 15px; opacity: 0.7;'>";
+                        <p style='font-size: 18px; margin-top: 15px;'>";
 
         if ($is_hero) {
             $view .= "Helden können nicht ausgebildet werden. Sie werden alle 24 Stunden zufällig an einen Herrscher verteilt.";
+        } else {
+            $view .= "Punkte pro Einheit: <b class='passed'>" . $row["scoregain"] . "</b>";
         }
-
-        $view .= "Punkte pro Einheit: <b class='passed'>" . $row["scoregain"] . "</b><br>";
 
         $view .= "      </p>
                     </div>
@@ -333,8 +333,8 @@ if ($row) {
         $view .= "</table>";
 
         $score_val = ($building_id !== null) ? $row["buildingscore"] : $row["techscore"];
-        $view .= "<p style='font-size: 13px; margin-top: 15px; opacity: 0.7;'>
-                    Punkte pro Stufe: <b class='passed'>$score_val</b><br>
+        $view .= "<p style='font-size: 18px; margin-top: 15px;'>
+                    Punkte pro Stufe: <b class='passed'>$score_val</b>
                   </p>";
 
         $view .= "</div></div>";

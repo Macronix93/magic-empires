@@ -276,9 +276,9 @@ class Map
         return $result->fetch_column();
     }
 
-    public function calculate_arrival_data(int $sx, int $sy, int $ex, int $ey, bool $is_caravan = false): array
+    public function calculate_arrival_data(int $sx, int $sy, int $ex, int $ey, int $origin_id = -1, bool $is_caravan = false): array
     {
-        $seconds = $this->get_arrival_time($sx, $sy, $ex, $ey, $is_caravan);
+        $seconds = $this->get_arrival_time($sx, $sy, $ex, $ey, $origin_id, null, false, $is_caravan);
         return [
             "seconds" => $seconds,
             "timestamp" => time() + $seconds

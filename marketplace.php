@@ -329,7 +329,7 @@ if (isset($_GET["send_own"])) {
             } else if (!$has_enough) {
                 $error = "Du hast nicht genug Ressourcen für diesen Transport!";
             } else {
-                $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"], true);
+                $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"], $current_kingdom, true);
                 $seconds = $arrival_data["seconds"];
                 $arrival_time = $arrival_data["timestamp"];
 
@@ -435,11 +435,13 @@ $view .= '<form action="marketplace.php" method="GET"
         </td>
         <td style="width: 20%; text-align: center; font-size: 13px;">
             <div class="popup" id="fee_info">
-                <div style="margin-bottom: 5px; padding-bottom: 3px;">
-                    Gebühr: ' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ' <b id="live-listing-fee">1</b>
-                </div>
-                <div>
-                    Käufer: ' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ' <b id="live-buyer-fee">1</b>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                    <div style="display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                        <span>Gebühr:</span>' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . '<b id="live-listing-fee">1</b>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                        <span>Käufer:</span>' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . '<b id="live-buyer-fee">1</b>
+                    </div>
                 </div>
                 <div id="fee_info_box" class="popupbox" style="text-align: left; min-width: 250px;">
                     <b>Verkäufer (Einstellgebühr):</b><br>

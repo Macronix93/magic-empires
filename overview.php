@@ -718,30 +718,26 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
 
     $view .= "
     <div id='tutorial-overlay' class='info-box-bg' style='display:flex;'>
-        <div class='big-box-container' style='max-width: 500px; margin: auto; position: relative; z-index: 1001;'>
+        <div class='big-box-container' style='max-width: 500px; margin: auto; z-index: 1001; padding: 15px 15px 0;'>
             <div class='big-box-header'>Willkommen, Eure Hoheit!</div>
-            <div class='big-box-content' style='text-align: left; padding: 0 20px 20px;'>
-                <p>Seid gegrüßt! Euer Volk hat sich auf einem Feld vom Typ<div style='display: flex; justify-content: center; margin: 10px;'>
-                <b class='passed'>{$k_info["fieldname"]}</b></div>niedergelassen. Hier sind eure ersten Schritte:</p>
-                <div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 15px;'>
-                    <b style='color: var(--link-color);'>1. Checkt eure Umgebung:</b><br>
-                    Jedes Gelände hat andere Boni. Euer aktuelles Land produziert besonders gut:
-                    <div style='display: flex; justify-content: space-evenly; margin-top: 5px;'>
-                        <small>
-                            $good_res
-                        </small>
-                    </div>
+            <div class='big-box-content' style='text-align: left;'>
+                <p style='margin-top: 0;'>Eure Siedlung im <b class='passed'>{$k_info["fieldname"]}</b> ist bereit. Beachtet diese 3 Grundregeln:</p>
+                <div style='margin-bottom: 15px;'>
+                    <b style='color: var(--link-color);'>1. Ressourcen sichern</b><br>
+                    <p>Baut zuerst <b>Mühle, Sägewerk</b> oder <b>Steinmine</b>. Euer Land liefert extra viel:</p>
+                    <p>$good_res</p>
                 </div>
-                <b style='color: var(--link-color);'>2. Empfohlene Baureihenfolge:</b>
-                <ul>
-                    <li>Baue zuerst die <b>Mühle</b>, das <b>Sägewerk</b> oder die <b>Steinmine</b> (Stufe 1 & 2), um die Produktion zu sichern.</li>
-                    <li>Das <b>Dorfzentrum</b> begrenzt das Level aller anderen Gebäude. Baue es frühzeitig aus!</li>
-                    <li>Vergiss das <b>Lager</b> nicht – ohne Kapazität gehen Rohstoffe verloren.</li>
-                </ul>
-                <b style='color: var(--link-color);'>3. Schutz:</b>
-                <p>Eure <b>Mauer</b> gibt einen Verteidigungsbonus und hält Feinde für den Anfang sehr gut ab. Haltet sie repariert, falls euch jemand angreift!</p>
+                <div style='margin-bottom: 15px;'>
+                    <b style='color: var(--link-color);'>2. Das Dorfzentrum</b><br>
+                    <p>Das Herz eures Reiches. Seine Stufe begrenzt das Level <b>aller</b> anderen Gebäude 
+                    (außer <b>Lager</b>. Dieses kann eine Stufe höher als das aktuelle Dorfzentrum gebaut werden).</p>
+                </div>
+                <div style='margin-bottom: 15px;'>
+                    <b style='color: var(--link-color);'>3. Schutz & Reparatur</b><br>
+                    <p>Eure <b>Mauer</b> gibt einen Verteidigungsbonus, um Angreifer abzuschrecken. Haltet sie stets repariert!</p>
+                </div>
                 <div style='text-align: center; margin-top: 20px;'>
-                    <button id='close-tutorial' data-on-click='finishTutorial' style='padding: 10px 30px; font-weight: bold;'>In die Schlacht!</button>
+                    <button id='close-tutorial' data-on-click='finishTutorial' style='padding: 10px 40px;'>Alles klar!</button>
                 </div>
             </div>
         </div>

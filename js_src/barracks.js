@@ -117,19 +117,17 @@ function updateRecruitCosts(input) {
     const kRes = getLatestKingdomResources();
     if (!kRes) return;
 
-    const trainingBlocked = !isUpgrade && kRes.spaceLeft <= 0;
-    input.disabled = trainingBlocked;
-    if (maxBtn) maxBtn.disabled = trainingBlocked;
-    if (trainingBlocked) input.value = "";
-
-    const smithyMultiplier = kRes.multiplier;
     const id = input.dataset.id;
     const form = input.closest("form");
     if (!form) return;
 
     const upgradeSelect = form.querySelector(".js-upgrade-select");
-    const selectedUpgrade = (upgradeSelect && upgradeSelect.value !== "") ? upgradeSelect.selectedOptions[0] : null;
     const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
+    const submitBtn = form.querySelector('input[type="submit"]');
+    const maxBtn = form.querySelector('input[data-on-click="fillMaxAndCalc"]');
+
+    const smithyMultiplier = kRes.multiplier;
+    const selectedUpgrade = (upgradeSelect && upgradeSelect.value !== "") ? upgradeSelect.selectedOptions[0] : null;
 
     let rawTimePerUnit = parseInt(input.dataset.timePerUnit) || 0;
     if (selectedUpgrade) {
@@ -186,10 +184,15 @@ function updateRecruitCosts(input) {
         }
     });
 
-    const submitBtn = form.querySelector('input[type="submit"]');
-    const maxBtn = form.querySelector('input[data-on-click="fillMaxAndCalc"]');
-
     const noUnitsToUpgrade = isUpgrade && (parseInt(input.dataset.owned) <= 0);
+    const trainingBlocked = (!isUpgrade && kRes.spaceLeft <= 0) || !canAffordOne || noUnitsToUpgrade;
+
+    if (trainingBlocked) {
+        input.disabled = true;
+        input.value = "";
+    } else {
+        input.disabled = false;
+    }
 
     if (!isUpgrade && amount > kRes.spaceLeft) {
         input.style.color = "#ff4d4d";
@@ -198,7 +201,7 @@ function updateRecruitCosts(input) {
     }
 
     if (maxBtn) {
-        maxBtn.disabled = !canAffordOne || noUnitsToUpgrade;
+        maxBtn.disabled = trainingBlocked;
     }
 
     if (submitBtn) {

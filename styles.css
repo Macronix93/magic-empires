@@ -1109,6 +1109,10 @@ select:-webkit-autofill {
     text-align: center;
 }
 
+.overlay-modal .big-box-content {
+    padding: 10px 10px;
+}
+
 /* Boxes at each side */
 .box-container {
     margin-bottom: 15px;
