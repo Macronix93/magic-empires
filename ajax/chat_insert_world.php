@@ -6,8 +6,24 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $u_id = $user->get_user_id();
     $u_name = $user->get_user_name();
 
-    $raw_text = $_POST["text"] ?? "";
+    $current_time = time();
 
+    $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
+    $message_count = $_SESSION["message_count"] ?? 0;
+
+    if ($current_time > $message_timeframe_end) {
+        $message_count = 0;
+        $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+    }
+
+    if ($message_count >= MAX_MESSAGES_RATELIMIT) {
+        $response["counter"] = $_SESSION["message_timeframe_end"] - $current_time;
+        $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte:";
+        echo json_encode($response);
+        exit;
+    }
+
+    $raw_text = $_POST["text"] ?? "";
     $cleaned_text = preg_replace([
         '/^[^\S\r\n]+/',
         '/[^\P{Cc}\r\n]+|\p{Cf}+/u',
@@ -27,7 +43,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
         $response["error"] = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
     } else {
-        $current_time = time();
+        $_SESSION["message_count"] = ++$message_count;
 
         $query = "INSERT INTO world_chat (userid, username, message, date) VALUES (?, ?, ?, ?) RETURNING id;";
         $result = $db_instance->execute_query($query, [$u_id, $u_name, $cleaned_text, $current_time]);
@@ -60,11 +76,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $current_time) . "</small></span>
                     </span>
                     <span style='display: flex; gap: 5px; align-items: center;'>
+                        " . render_reactions_bar("world_chat", $message_id, $user, "btn_only") . "
                         $quote_icon
                         $delete_icon
                     </span>
                 </div>
                 $display_text
+                <div class='chat-reaction-footer'>
+                    " . render_reactions_bar("world_chat", $message_id, $user, "badges_only") . "
+                </div>
             </div>";
     }
 

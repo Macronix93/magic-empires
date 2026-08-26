@@ -292,8 +292,8 @@ class Messages
         if (!$has_more) {
             $this->view .= "<style>#load-older-btn { display: none !important; }</style>";
         }
-        $this->view .= "<div id='chat-config' 
-                             data-has-more='" . ($has_more ? 'true' : 'false') . "' 
+        $this->view .= "<div id='chat-config'
+                             data-has-more='" . ($has_more ? 'true' : 'false') . "'
                              data-token='$tab_token'></div>";
         $this->view .= "<div id='chat-tab-token' data-token='$tab_token' style='display:none;'></div>";
 
@@ -326,11 +326,11 @@ class Messages
             $is_me = ($row["senderid"] == $this->user->get_user_id());
 
             $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
-            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
-                     style='cursor: pointer; margin-left: 5px;' 
-                     data-on-click='quoteMessage' 
-                     data-author='" . e($row["sender"]) . "' 
-                     data-text='" . e($row["message"]) . "' 
+            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
+                     style='cursor: pointer; margin-left: 5px;'
+                     data-on-click='quoteMessage'
+                     data-author='" . e($row["sender"]) . "'
+                     data-text='" . e($row["message"]) . "'
                      title='Nachricht zitieren' alt=''>";
             $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
 
@@ -347,29 +347,37 @@ class Messages
                 $this->view .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
                             <div class='message-border'>
                                 <span class='msg-header-left'>
-                                    <img class='user-image' src='$chat_partner_image' alt=''> 
+                                    <img class='user-image' src='$chat_partner_image' alt=''>
                                     <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
+                                    " . render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
                                     $quote_icon
                                     $delete_icon
                                 </span>
                             </div>
                             " . $display_message . "
+                            <div class='chat-reaction-footer'>
+                                " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+                            </div>
                         </div>";
             } else {
                 $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                             <div class='message-border'>
                                 <span class='msg-header-left'>
-                                    <img class='user-image' src='$my_chat_image' alt=''> 
+                                    <img class='user-image' src='$my_chat_image' alt=''>
                                     <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
+                                    " . render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
                                     $quote_icon
                                     $delete_icon
                                 </span>
                             </div>
                             " . $display_message . "
+                            <div class='chat-reaction-footer'>
+                                " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+                            </div>
                         </div>";
             }
 
@@ -400,12 +408,15 @@ class Messages
         $rows = array_reverse($rows);
 
         $html = "<div class='info-box event-error' style='display: none;'></div>";
-        $html .= "<div id='messages-section' data-chat-type='world'>";
+
+        $html .= "<div id='chat-loading-wrapper'>
+                    <div id='chat-loading-overlay' class='chat-spinner-full'>
+                        <div class='loading-spinner'></div>
+                        <p>Welt-Chat wird geladen...</p>
+                    </div>
+                    <div id='messages-section' data-chat-type='world' style='opacity: 0;'>";
+        $html .= "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
-        $html .= "<button id='load-older-btn' 
-                      data-on-click='loadOlderWorldChat' 
-                      class='msg-load-more' 
-                      style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
 
         if (empty($rows)) {
             $html .= "
@@ -457,15 +468,19 @@ class Messages
                             <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                         </span>
                         <span style='display: flex; gap: 5px; align-items: center;'>
+                            " . render_reactions_bar("world_chat", $row["id"], $this->user, "btn_only") . "
                             $quote_icon
                             $delete_icon
                         </span>
                     </div>
                     $msg
+                    <div class='chat-reaction-footer'>
+                        " . render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
+                    </div>
                   </div>";
             }
         }
-        $html .= "</div>";
+        $html .= "</div></div>";
         $html .= "
                     <div id='newmessage-section'>
                         <form id='world-chat-form'>

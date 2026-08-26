@@ -512,8 +512,10 @@ class EventManager
                 send_server_message($attacker_id, $attacker_name, $msg, MessageCategories::CATEGORY_WAR);
             }
 
+            $duration = $world_event_manager->get_current_duration();
+
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
-                [ActionTypes::ACTION_RETURN_TROOPS, time() + WORLD_EVENT_ATTACK_DURATION, $row["eventid"]]);
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $duration, $row["eventid"]]);
 
             return;
         }
@@ -671,6 +673,9 @@ class EventManager
         }
         $units_html .= "</div>";
 
+        $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
+        $home_name = $home_k->get_kingdom_name();
+
         $c_link = "<a href='map.php?startx=$target_x&starty=$target_y' data-on-click='mapJump' data-x='$target_x' data-y='$target_y'>$target_x:$target_y</a>";
         $main_text = "Deine Truppen sind vom Feldzug zu <b>$field_name</b> ($c_link) zurückgekehrt. ";
         $main_text .= !empty($loot) ? "Die Heimkehrer haben wertvolle Beute im Gepäck!" : "Die Soldaten beziehen wieder ihre Quartiere.";
@@ -680,7 +685,7 @@ class EventManager
         // Render box
         $msg = "<div class='battle-report'>";
         $msg .= BattleReportRenderer::render_outcome_box(
-            "Truppenrückkehr",
+            "Truppenrückkehr - " . e($home_name),
             $main_text
         );
         $msg .= "</div>";
@@ -694,8 +699,6 @@ class EventManager
 
         // Give looted resources to kingdom
         if (!empty($loot)) {
-            $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
-
             foreach ($loot as $type => $amount) {
                 $home_k->modify_resource((int)$type, (int)$amount);
             }
@@ -1766,8 +1769,8 @@ class EventManager
             $losses = 0;
 
             if (mt_rand(1, 100) <= RAIDER_LOSS_CHANCE) {
-                $loss_percent = mt_rand(5, RAIDER_LOSS_CHANCE) / 100;
-                $losses = (int)ceil($raider_count * $loss_percent);
+                $loss_roll = mt_rand(RAIDER_LOSS_MIN_PERC, RAIDER_LOSS_MAX_PERC) / 100;
+                $losses = (int)ceil($raider_count * $loss_roll);
 
                 $res_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_RAIDER]);
                 $total_score_loss = $losses * ($res_score->fetch_column() ?: 1);

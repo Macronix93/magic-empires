@@ -764,7 +764,7 @@ if (!$user->is_admin()) {
                         }
                         $user_info_html .= '</table>';
                     } else {
-                        $user_info_html .= 'Keine Events für das Königreich gefunden.';
+                        $user_info_html .= '<br>Keine Events für das Königreich gefunden.';
                     }
                 }
             }
@@ -846,7 +846,7 @@ if (!$user->is_admin()) {
                     </div>
                 </div>";
 
-    $system_log_section .= "<br><hr><div class='title-border'>System-Logfiles (.log)</div>";
+    $system_log_section .= "<div class='title-border'>System-Logfiles (.log)</div>";
     $system_log_section .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
 
     $files = ["admin.log", "error.log", "security.log"];
@@ -872,7 +872,7 @@ if (!$user->is_admin()) {
     }
     $system_log_section .= "</div>";
 
-    $chat_backup_section .= "<br><hr><div class='title-border'>Gelöschte Chats</div>";
+    $chat_backup_section .= "<div class='title-border'>Gelöschte Chats</div>";
 
     $backup_dir = __DIR__ . "/logs/chat_backups/";
     $backups = [];
@@ -933,7 +933,7 @@ if (!$user->is_admin()) {
     }
     $user_list .= '</div>';
 
-    $game_logs_table .= "<br><hr><div id='logs' class='title-border'>Game Logs</div>";
+    $game_logs_table .= "<div id='logs' class='title-border'>Game Logs</div>";
 
     $rows_per_page_logs = 20;
     $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));

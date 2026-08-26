@@ -193,7 +193,7 @@ if (!$active_event) {
                 <hr>
                 <p style='margin-bottom: 5px;'>Wird der Boss besiegt, erhältst du mindestens:</p>
                 <ul style='margin-top: 0;'>
-                    <li>ca. <b class='passed'>" . fnum(WORLD_EVENT_HP_RES_BASE * $avg_lvl) . "</b> Einheiten pro Ressource</li>
+                    <li>ca. <b class='passed'>" . fnum((int)(WORLD_EVENT_HP_RES_BASE * $avg_lvl)) . "</b> Einheiten pro Ressource</li>
                     <li><b class='passed'>$num_slots Truppen-Paket(e)</b></li>
                     <li>Chance auf Spezial-Einheiten: <b class='passed'>$special_chance %</b></li>
                 </ul>

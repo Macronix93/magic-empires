@@ -857,3 +857,67 @@ function parse_chat_quotes(string $text): string
 
     return $output;
 }
+
+function render_reactions_bar(string $type, int $id, User $user, string $mode = 'full'): string
+{
+    $my_id = $user->get_user_id();
+    $db = Database::get_instance()->get_connection();
+
+    $badges_html = '';
+    if ($mode !== 'btn_only') {
+        $query = "SELECT r.emoji, COUNT(*) as total, 
+                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted,
+                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names
+                  FROM reactions r
+                  JOIN users u ON r.user_id = u.id
+                  WHERE r.entity_type = ? AND r.entity_id = ? 
+                  GROUP BY r.emoji";
+        $res = $db->execute_query($query, [$my_id, $type, $id]);
+
+        while ($row = $res->fetch_assoc()) {
+            $active_class = ($row["self_reacted"] == 1) ? " active" : '';
+
+            $user_list = e($row["names"]);
+            $popup_id = "reac_" . $type . "_" . $id . "_" . md5($row["emoji"]);
+
+            $badges_html .= '
+                <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '"
+                      data-on-click="toggleReaction" 
+                      data-type="' . $type . '" 
+                      data-id="' . $id . '" 
+                      data-emoji="' . e($row["emoji"]) . '">
+                    ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
+                    <div id="' . $popup_id . '_box" class="popupbox">
+                        <b>Reaktionen:</b><br>' . $user_list . '
+                    </div>
+                </span>';
+        }
+    }
+
+    $picker_html = '';
+    if ($mode === 'full' || $mode === 'btn_only') {
+        $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
+                            <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
+                            <div class="reaction-picker" style="display:none;">';
+        foreach (get_chat_emojis() as $emoji) {
+            $picker_html .= '<span class="picker-emoji" data-on-click="toggleReaction" 
+                            data-type="' . $type . '" data-id="' . $id . '" 
+                            data-emoji="' . e($emoji) . '">' . e($emoji) . '</span>';
+        }
+        $picker_html .= '</div></div>';
+    }
+
+    $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
+
+    if ($mode === 'full') {
+        $html .= '<div class="reaction-bar-btn-row">' . $picker_html . '</div>';
+        $html .= '<div class="reaction-bar-badges-row">' . $badges_html . '</div>';
+    } else if ($mode === 'btn_only') {
+        $html .= $picker_html;
+    } else if ($mode === 'badges_only') {
+        $html .= $badges_html;
+    }
+
+    $html .= '</div>';
+    return $html;
+}

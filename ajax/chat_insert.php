@@ -83,11 +83,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                             <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $current_time) . "</small></span>
                                         </span>
                                         <span style='display: flex; gap: 5px; align-items: center;'>
+                                            " . render_reactions_bar("chat", $message_id, $user, "btn_only") . "
                                             $quote_icon 
                                             <img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteChatMsg' data-id='$message_id' style='cursor: pointer;' alt=''>
                                         </span>
                                     </div>
                                     " . $display_text . "
+                                    <div class='chat-reaction-footer'>
+                                        " . render_reactions_bar("chat", $message_id, $user, "badges_only") . "
+                                    </div>
                                 </div>";
         }
     } else {

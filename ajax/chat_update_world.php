@@ -51,11 +51,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                     </span>
                     <span style='display: flex; gap: 5px; align-items: center;'>
+                        " . render_reactions_bar("world_chat", $row["id"], $user, "btn_only") . "
                         $quote_icon
                         $del_icon
                     </span>
                 </div>
                 $display_message
+                <div class='chat-reaction-footer'>
+                        " . render_reactions_bar("world_chat", $row["id"], $user, "badges_only") . "
+                </div>
             </div>";
     }
 
@@ -63,6 +67,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $del_res = $db_instance->execute_query($del_query, [$last_id]);
     while ($del_row = $del_res->fetch_assoc()) {
         $deleted_ids[] = (int)$del_row["id"];
+    }
+
+    $reaction_updates = [];
+    $res_recent = $db_instance->execute_query("SELECT id FROM world_chat ORDER BY id DESC LIMIT ?", [MAX_WORLD_CHAT_MESSAGES_SHOWN]);
+    while ($r = $res_recent->fetch_assoc()) {
+        $reaction_updates[$r["id"]] = render_reactions_bar("world_chat", $r["id"], $user, "badges_only");
     }
 
     if ($new_last_id > $last_id) {
@@ -75,6 +85,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     echo json_encode([
         "html" => $html,
         "lastId" => $new_last_id,
-        "messagesToDelete" => $deleted_ids
+        "messagesToDelete" => $deleted_ids,
+        "reactionUpdates" => $reaction_updates
     ]);
 }

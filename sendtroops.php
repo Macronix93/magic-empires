@@ -394,7 +394,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                               </tr>
                               <tr>
                                   <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                                  <td>' . convert_sec_to_str(WORLD_EVENT_ATTACK_DURATION) . '</td>
+                                  <td>' . convert_sec_to_str($we_manager->get_current_duration()) . '</td>
                               </tr>
                               <tr>
                                 <td colspan="2" style="font-size: 14px; opacity: 0.8; text-align: center; padding: 10px;">

@@ -4,10 +4,7 @@ require_once("includes/core.php");
 $is_admin = ($user->is_logged_in() && $user->is_admin());
 
 $process_content = function ($raw) {
-    // 1. Sicherheit: Alles escapen
     $safe = e($raw);
-
-    // 2. Gezielte HTML-Tags wieder freischalten
     $search = [
         '&lt;b&gt;', '&lt;/b&gt;', '&lt;i&gt;', '&lt;/i&gt;', '&lt;u&gt;', '&lt;/u&gt;',
         '&lt;strong&gt;', '&lt;/strong&gt;', '&lt;ul&gt;', '&lt;/ul&gt;', '&lt;li&gt;', '&lt;/li&gt;'
@@ -17,17 +14,14 @@ $process_content = function ($raw) {
         '<strong>', '</strong>', '<ul>', '</ul>', '<li>', '</li>'
     ];
     $content = str_replace($search, $replace, $safe);
-
-    // 3. Zeilenumbrüche der Textarea in <br /> umwandeln
     $content = nl2br($content);
 
-    // 4. CLEANUP: Entferne <br /> Tags, die nl2br bei Listen erzeugt hat
     $cleanup_patterns = [
-        '#<ul>\s*<br\s*/?>#i',     // <br> nach <ul>
-        '#<br\s*/?>\s*</ul>#i',    // <br> vor </ul>
-        '#<li>\s*<br\s*/?>#i',     // <br> nach <li>
-        '#<br\s*/?>\s*</li>#i',    // <br> vor </li>
-        '#</li>\s*<br\s*/?>#i',    // <br> NACH </li> (Das hat gefehlt!)
+        '#<ul>\s*<br\s*/?>#i',
+        '#<br\s*/?>\s*</ul>#i',
+        '#<li>\s*<br\s*/?>#i',
+        '#<br\s*/?>\s*</li>#i',
+        '#</li>\s*<br\s*/?>#i',
     ];
 
     $cleanup_replace = [
@@ -178,10 +172,13 @@ if ($result->num_rows > 0) {
                     </div>
                     $del_button
                 </div>
-                <div class='box-content news-content box-content-bg' style='padding-bottom: 15px; padding-left: 15px; padding-right: 15px; text-align: left;'>
+                <div class='box-content news-content box-content-bg' style='padding-left: 15px; padding-right: 15px; text-align: left;'>
                     <p style='margin-top: 0; padding-top: 15px;'>" . $row["content"] . "</p>
-                    <div style='font-size: 12px; margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; text-align: left;'>
-                        Verfasst von: <b>" . e($row["username"]) . "</b> am $date
+                    <div class='news-footer-wrap'>
+                        <div class='news-author-info'>
+                            Verfasst von: <b>" . e($row["username"]) . "</b> am $date
+                        </div>
+                        " . render_reactions_bar("news", $row["id"], $user) . "
                     </div>
                 </div>
         </div>";

@@ -130,7 +130,8 @@ class Map
         $actual_target_id = ($target_id !== null) ? $target_id : $this->get_field_kingdom_id($end_x, $end_y);
 
         if ($actual_target_id == WORLD_EVENT_ID) {
-            return WORLD_EVENT_ATTACK_DURATION;
+            $we = new WorldEvent($this->mysqli);
+            return $we->get_current_duration();
         }
 
         if ($actual_target_id === -3) {

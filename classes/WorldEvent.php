@@ -68,7 +68,7 @@ class WorldEvent
 
             if ($server_power < 5000) $server_power = 50000;
 
-            $total_hp = (int)($server_power * 5);
+            $total_hp = (int)($server_power * WORLD_EVENT_POWER_FACTOR);
         }
 
         $this->mysqli->execute_query(
@@ -101,7 +101,7 @@ class WorldEvent
         }
 
         $actual_damage = $damage;
-        
+
         $this->mysqli->begin_transaction();
 
         try {
@@ -117,12 +117,25 @@ class WorldEvent
                     return -1; // Boss already dead
                 }
 
-                $actual_damage = min($damage, (int)$boss["current_hp"]);
+                $old_hp = (int)$boss["current_hp"];
+                $actual_damage = min($damage, $old_hp);
+                $new_hp = $old_hp - $actual_damage;
 
                 $this->mysqli->execute_query(
                     "UPDATE world_events SET current_hp = current_hp - ? WHERE id = ?",
                     [$actual_damage, $event_id]
                 );
+
+                if ($old_hp > 0 && $new_hp <= 0) {
+                    $new_end_time = time() + WORLD_EVENT_HP_REWARD_TIME;
+
+                    $this->mysqli->execute_query(
+                        "UPDATE world_events SET end_time = ? WHERE id = ?",
+                        [$new_end_time, $event_id]
+                    );
+
+                    $this->broadcast_defeat_notification($event_id);
+                }
             }
 
             $this->mysqli->execute_query("
@@ -178,6 +191,29 @@ class WorldEvent
         $res_users = $this->mysqli->query("SELECT id, username FROM users WHERE status = 1");
         while ($u = $res_users->fetch_assoc()) {
             send_server_message($u["id"], $u["username"], $msg);
+        }
+    }
+
+    public function broadcast_defeat_notification(int $event_id): void
+    {
+        $res = $this->mysqli->execute_query("SELECT monster_index FROM world_events WHERE id = ?", [$event_id]);
+        $ev = $res->fetch_assoc();
+
+        $pool = $this->get_monster_pool();
+        $monster = $pool[$ev["monster_index"]] ?? $pool[0];
+
+        $title = "DAS MONSTER IST GEFALLEN!";
+        $text = "<div style='margin: 10px; text-align: center;'><img src='images/icons/{$monster["icon"]}.png' alt=''></div>";
+        $text .= "Ein gewaltiges Jubeln bricht in allen Reichen aus! Die Bestie <b>" . e($monster["name"]) . "</b> wurde besiegt.<br><br>";
+        $text .= "Alle Teilnehmer werden nach Ablauf des Zeitlimits für ihren Mut belohnt.";
+
+        $msg = "<div class='battle-report'>";
+        $msg .= BattleReportRenderer::render_outcome_box($title, $text, 0, 0, "", "success");
+        $msg .= "</div>";
+
+        $res_users = $this->mysqli->query("SELECT id, username FROM users WHERE status = 1");
+        while ($u = $res_users->fetch_assoc()) {
+            send_server_message($u["id"], $u["username"], $msg, MessageCategories::CATEGORY_EVENT);
         }
     }
 
@@ -339,5 +375,15 @@ class WorldEvent
 
         $res = $this->mysqli->execute_query($query, [$user_id, $preferred_id]);
         return (int)($res->fetch_column() ?? 0);
+    }
+
+    public function get_current_duration(): int
+    {
+        $event = $this->get_active_event();
+        if (!$event) return WORLD_EVENT_DMG_ATTACK_DURATION;
+
+        return ($event["event_type"] === "BOSS_HP")
+            ? WORLD_EVENT_HP_ATTACK_DURATION
+            : WORLD_EVENT_DMG_ATTACK_DURATION;
     }
 }

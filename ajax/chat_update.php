@@ -9,6 +9,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $session_token = $_SESSION["active_chat_token"] ?? "";
     $messages_to_delete = [];
     $u_id = $user->get_user_id();
+    $is_admin = $user->is_admin();
     $error = "";
     $html = "";
 
@@ -35,8 +36,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     $chat_partner_image = "";
     $new_last_id = $last_id;
-
-    $is_admin = $user->is_admin();
 
     while ($row = $result->fetch_assoc()) {
         $text = e($row["message"]);
@@ -68,11 +67,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                             <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                         </span>
                         <span style='display: flex; gap: 5px; align-items: center;'>
+                            " . render_reactions_bar("chat", $row["id"], $user, "btn_only") . "
                             $quote_icon
                             $delete_icon
                         </span>
                     </div>
                     " . $display_message . "
+                    <div class='chat-reaction-footer'>
+                        " . render_reactions_bar("chat", $row["id"], $user, "badges_only") . "
+                    </div>
                   </div>";
 
         if (!$is_me) {
@@ -89,12 +92,24 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $messages_to_delete[] = $del_row["id"];
     }
 
+    $reaction_updates = [];
+    $res_recent = $db_instance->execute_query(
+        "SELECT id FROM messages 
+         WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+         ORDER BY id DESC LIMIT ?",
+        [$chat_partner_id, $u_id, $u_id, $chat_partner_id, MAX_WORLD_CHAT_MESSAGES_SHOWN]
+    );
+    while ($r = $res_recent->fetch_assoc()) {
+        $reaction_updates[$r["id"]] = render_reactions_bar("chat", $r["id"], $user, "badges_only");
+    }
+
     echo json_encode([
         "html" => $html,
         "messagesToDelete" => $messages_to_delete,
         "lastId" => $new_last_id,
         "error" => $error,
-        "chatPartner" => $session_partner_id
+        "chatPartner" => $session_partner_id,
+        "reactionUpdates" => $reaction_updates
     ]);
 } else {
     change_location("messages.php");

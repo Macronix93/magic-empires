@@ -111,6 +111,39 @@ registerAction("quoteMessage", (el) => {
         input.scrollIntoView({behavior: "smooth", block: "center"});
     }
 });
+registerAction("toggleReaction", (el) => {
+    const container = el.closest('.reaction-container');
+
+    sendReaction(el.dataset.type, el.dataset.id, el.dataset.emoji, container);
+});
+registerAction("toggleReactionPicker", (el) => {
+    const container = el.closest('.reaction-add-wrapper');
+    const picker = container.querySelector('.reaction-picker');
+    const isVisible = window.getComputedStyle(picker).display === "grid";
+
+    document.querySelectorAll('.reaction-picker').forEach(p => p.style.display = "none");
+
+    if (!isVisible) {
+        const rect = el.getBoundingClientRect();
+
+        picker.style.display = "grid";
+        const pickerHeight = picker.offsetHeight;
+        const pickerWidth = picker.offsetWidth;
+
+        if (window.innerHeight - rect.bottom < 250) {
+            picker.style.top = (rect.top - pickerHeight - 5) + "px";
+        } else {
+            picker.style.top = (rect.bottom + 5) + "px";
+        }
+
+        let leftPos = rect.right - pickerWidth;
+        if (leftPos < 10) leftPos = 10;
+
+        picker.style.left = leftPos + "px";
+    } else {
+        picker.style.display = "none";
+    }
+});
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
@@ -170,6 +203,10 @@ const observer = new MutationObserver((mutations) => {
                 if (node.dataset.onClick || node.dataset.onSubmit) bindActions(node);
 
                 node.querySelectorAll('[data-on-click]').forEach(bindActions);
+
+                if (node.classList.contains("popup") || node.querySelector('.popup')) {
+                    setup();
+                }
             }
         });
     });
@@ -181,6 +218,86 @@ observer.observe(document.body, {
     attributes: true,
     attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
 });
+
+function cleanupPopups() {
+    const boxes = document.querySelectorAll('body > .popupbox');
+    boxes.forEach(box => {
+        const triggerId = box.id.replace('_box', '');
+        const trigger = document.getElementById(triggerId);
+
+        if (!trigger || window.getComputedStyle(box).display !== "none") {
+            box.style.display = "none";
+        }
+
+        if (!trigger) {
+            box.remove();
+        }
+    });
+}
+
+function sendReaction(type, id, emoji, sourceContainer) {
+    document.querySelectorAll('.reaction-picker').forEach(p => p.style.display = "none");
+
+    const chatBubble = sourceContainer.closest('.sender-bubble, .receiver-bubble');
+
+    let targetContainer = sourceContainer;
+    let mode;
+
+    if (chatBubble) {
+        mode = "badges_only";
+
+        const footer = chatBubble.querySelector('.chat-reaction-footer');
+        if (footer) {
+            targetContainer = footer;
+        }
+    } else {
+        mode = "full";
+    }
+
+    const badge = targetContainer.querySelector(`.reaction-badge[data-emoji="${emoji}"]`);
+    if (badge) {
+        const countEl = badge.querySelector('small');
+        let count = parseInt(countEl.innerText);
+
+        if (badge.classList.contains("active")) {
+            badge.classList.remove("active");
+            countEl.innerText = count - 1;
+        } else {
+            badge.classList.add("active");
+            countEl.innerText = count + 1;
+        }
+    }
+
+    const formData = new URLSearchParams();
+    formData.append("type", type);
+    formData.append("id", id);
+    formData.append("emoji", emoji);
+    formData.append("mode", mode);
+
+    fetch('ajax/reaction_toggle.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData.toString()
+    })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                cleanupPopups();
+
+                if (chatBubble) {
+                    targetContainer.innerHTML = res.html;
+                } else {
+                    targetContainer.outerHTML = res.html;
+                }
+            } else if (res.error) {
+                showConfirmationDialog(res.error, "Ok", "", () => {
+                });
+            }
+        });
+}
 
 function formatNumJS(number) {
     if (number === null || number === undefined) return "0";
@@ -593,6 +710,10 @@ window.addEventListener("DOMContentLoaded", function () {
         if (!leftMenu.contains(e.target) && !rightMenu.contains(e.target) &&
             !leftTrigger.contains(e.target) && !rightTrigger.contains(e.target)) {
             closeMenus();
+        }
+
+        if (!e.target.closest('.reaction-container')) {
+            document.querySelectorAll('.reaction-picker').forEach(p => p.style.display = "none");
         }
     });
 

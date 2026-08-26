@@ -4,7 +4,14 @@ let isFetchingOlder = false;
 let canLoadMore = true;
 let lastSeenId = 0;
 let isUpdatingChat = false;
+let lastReactionClick = 0;
 
+registerAction("toggleReaction", (el) => {
+    lastReactionClick = Date.now();
+    const container = el.closest('.reaction-container');
+
+    sendReaction(el.dataset.type, el.dataset.id, el.dataset.emoji, container);
+});
 registerAction("loadOlderChat", (el) => {
     const partnerId = el.dataset.partnerid;
 
@@ -46,7 +53,9 @@ registerAction("sendWorldMessage", () => {
     const messageInput = document.getElementById("message-input");
     const text = messageInput.value;
 
-    if (text.trim() === "") return;
+    if (text === "") {
+        return;
+    }
 
     const formData = new URLSearchParams();
     formData.append("text", text);
@@ -59,13 +68,57 @@ registerAction("sendWorldMessage", () => {
         .then(r => r.json())
         .then(response => {
             if (response.error) {
-                if (typeof setInfoBoxError === "function") {
-                    setInfoBoxError(response.error);
-                } else {
-                    alert(response.error);
+                const infoBox = document.querySelector(".info-box");
+
+                /** @type {HTMLElement} */
+                let contentWrapper = infoBox.querySelector(".info-wrapper");
+
+                if (!contentWrapper) {
+                    infoBox.replaceChildren();
+                    const errImg = document.createElement("img");
+                    errImg.src = ERROR_IMAGE_PATH;
+                    errImg.alt = "Fehler";
+                    infoBox.appendChild(errImg);
+
+                    contentWrapper = document.createElement("span");
+                    contentWrapper.className = "info-wrapper";
+                    contentWrapper.style.flex = "1";
+                    contentWrapper.style.textAlign = "center";
+                    infoBox.append(contentWrapper);
+                }
+
+                let errorTextSpan = contentWrapper.querySelector(".error-msg-text");
+                if (!errorTextSpan) {
+                    errorTextSpan = document.createElement("span");
+                    errorTextSpan.className = "error-msg-text";
+                    contentWrapper.append(errorTextSpan);
+                }
+
+                errorTextSpan.innerText = response.error;
+                infoBox.style.display = "flex";
+
+                if (response.counter !== undefined) {
+                    /** @type {HTMLElement} */
+                    let counterElement = document.getElementById("counter");
+
+                    if (!counterElement) {
+                        counterElement = document.createElement("span");
+                        counterElement.id = "counter";
+                        counterElement.style.padding = "0";
+                        counterElement.style.marginLeft = "8px";
+
+                        contentWrapper.append(counterElement);
+                    }
+
+                    const counterEl = document.getElementById("counter");
+                    if (counterEl) {
+                        startCountdown(counterEl, response.counter, 0, null, true);
+                    }
                 }
             } else if (response.html) {
                 const section = document.getElementById("messages-section");
+                const errorBox = document.querySelector(".event-error");
+                if (errorBox) errorBox.style.display = "none";
 
                 removeEmptyPlaceholder();
 
@@ -269,6 +322,29 @@ function updateChat(chatPartner) {
                 });
             }
 
+            if (data.reactionUpdates) {
+                if (Date.now() - lastReactionClick < 2000) {
+                    return;
+                }
+
+                cleanupPopups();
+
+                Object.keys(data.reactionUpdates).forEach(msgId => {
+                    const msgElement = document.getElementById("msg-" + msgId) || document.getElementById("world-msg-" + msgId);
+
+                    if (msgElement) {
+                        const footer = msgElement.querySelector('.chat-reaction-footer');
+                        if (footer) {
+                            const newContent = data.reactionUpdates[msgId];
+
+                            if (footer.innerHTML !== newContent) {
+                                footer.innerHTML = newContent;
+                            }
+                        }
+                    }
+                });
+            }
+
             if (messageSection && messageSection.innerText.trim() === "") {
                 setInfoBoxError("Schreibe eine Nachricht, um den Chat zu beginnen.");
 
@@ -446,6 +522,7 @@ function insertNewChatMessage(e) {
                         counterElement = document.createElement("span");
                         counterElement.id = "counter";
                         counterElement.style.padding = "0";
+                        counterElement.style.marginLeft = "8px";
 
                         contentWrapper.append(counterElement);
                     }
@@ -553,6 +630,21 @@ function initializeChat() {
     // Scroll to latest message at the bottom
     scrollDown();
     scrollToLatestMessage();
+
+    requestAnimationFrame(() => {
+        const messageSection = document.getElementById("messages-section");
+        const loadingOverlay = document.getElementById("chat-loading-overlay");
+
+        if (messageSection) {
+            setTimeout(() => {
+                messageSection.style.opacity = "1";
+
+                if (loadingOverlay) {
+                    loadingOverlay.style.display = "none";
+                }
+            }, 100);
+        }
+    });
 }
 
 // Filter server log messages

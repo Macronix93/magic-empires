@@ -67,8 +67,9 @@ $unread_world = $messages->get_unread_world_count();
             </div>
             <?php $we = new WorldEvent($db_instance);
             $active = $we->get_active_event();
+
             if ($active) {
-                echo "<div class='box' data-on-click='navigate' data-url='events.php'>
+                echo "<div class='box' data-on-click='navigate' data-url='events.php' style='background-color: rgba(73,72,68,0.95);'>
                         <img src='images/icons/icon_lich.png' class='menu-icons'  alt='Event'/> Event 
                       </div>";
             }

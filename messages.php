@@ -162,13 +162,16 @@ if (isset($_GET["action"])) {
                             </h3></div>";
 
                     // Show messages between chatpartner and user
-                    $view .= "<div id='messages-section'>";
-                    $view .= "<button id='load-older-btn'
-                                data-on-click='loadOlderChat'
-                                data-partnerid='" . e($sender_id) . "'
-                                class='msg-load-more'>Ältere Nachrichten laden</button>";
+                    $view .= "<div id='chat-loading-wrapper'>
+                                <div id='chat-loading-overlay' class='chat-spinner-full'>
+                                    <div class='loading-spinner'></div>
+                                    <p>Nachrichten werden geladen...</p>
+                                </div>
+                                <div id='messages-section' style='opacity: 0;'>";
+                    $view .= "<button id='load-older-btn' data-on-click='loadOlderChat' data-partnerid='" . e($sender_id) . "' class='msg-load-more'>Ältere Nachrichten laden</button>";
                     $view .= $messages->show_messages_with_chatpartner($sender_id, $chat_partner);
-                    $view .= "</div>";
+                    $view .= "</div></div>";
+
                     $view .= "
                             <div id='newmessage-section'>
                                 <form name=\"newmessage\"
