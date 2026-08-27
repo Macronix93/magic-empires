@@ -68,61 +68,14 @@ registerAction("sendWorldMessage", () => {
         .then(r => r.json())
         .then(response => {
             if (response.error) {
-                const infoBox = document.querySelector(".info-box");
-
-                /** @type {HTMLElement} */
-                let contentWrapper = infoBox.querySelector(".info-wrapper");
-
-                if (!contentWrapper) {
-                    infoBox.replaceChildren();
-                    const errImg = document.createElement("img");
-                    errImg.src = ERROR_IMAGE_PATH;
-                    errImg.alt = "Fehler";
-                    infoBox.appendChild(errImg);
-
-                    contentWrapper = document.createElement("span");
-                    contentWrapper.className = "info-wrapper";
-                    contentWrapper.style.flex = "1";
-                    contentWrapper.style.textAlign = "center";
-                    infoBox.append(contentWrapper);
-                }
-
-                let errorTextSpan = contentWrapper.querySelector(".error-msg-text");
-                if (!errorTextSpan) {
-                    errorTextSpan = document.createElement("span");
-                    errorTextSpan.className = "error-msg-text";
-                    contentWrapper.append(errorTextSpan);
-                }
-
-                errorTextSpan.innerText = response.error;
-                infoBox.style.display = "flex";
-
-                if (response.counter !== undefined) {
-                    /** @type {HTMLElement} */
-                    let counterElement = document.getElementById("counter");
-
-                    if (!counterElement) {
-                        counterElement = document.createElement("span");
-                        counterElement.id = "counter";
-                        counterElement.style.padding = "0";
-                        counterElement.style.marginLeft = "8px";
-
-                        contentWrapper.append(counterElement);
-                    }
-
-                    const counterEl = document.getElementById("counter");
-                    if (counterEl) {
-                        startCountdown(counterEl, response.counter, 0, null, true);
-                    }
-                }
+                displayChatError(response.error, response.counter);
             } else if (response.html) {
-                const section = document.getElementById("messages-section");
                 const errorBox = document.querySelector(".event-error");
                 if (errorBox) errorBox.style.display = "none";
 
                 removeEmptyPlaceholder();
 
-                section.insertAdjacentHTML("beforeend", response.html);
+                document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
                 messageInput.value = "";
 
                 lastSeenId = response.lastId;
@@ -487,51 +440,7 @@ function insertNewChatMessage(e) {
             const infoBox = document.querySelector(".info-box");
 
             if (response.error) {
-                /** @type {HTMLElement} */
-                let contentWrapper = infoBox.querySelector(".info-wrapper");
-
-                if (!contentWrapper) {
-                    infoBox.replaceChildren();
-                    const errImg = document.createElement("img");
-                    errImg.src = ERROR_IMAGE_PATH;
-                    errImg.alt = "Fehler";
-                    infoBox.appendChild(errImg);
-
-                    contentWrapper = document.createElement("span");
-                    contentWrapper.className = "info-wrapper";
-                    contentWrapper.style.flex = "1";
-                    contentWrapper.style.textAlign = "center";
-                    infoBox.append(contentWrapper);
-                }
-
-                let errorTextSpan = contentWrapper.querySelector(".error-msg-text");
-                if (!errorTextSpan) {
-                    errorTextSpan = document.createElement("span");
-                    errorTextSpan.className = "error-msg-text";
-                    contentWrapper.append(errorTextSpan);
-                }
-
-                errorTextSpan.innerText = response.error;
-                infoBox.style.display = "flex";
-
-                if (response.counter !== undefined) {
-                    /** @type {HTMLElement} */
-                    let counterElement = document.getElementById("counter");
-
-                    if (!counterElement) {
-                        counterElement = document.createElement("span");
-                        counterElement.id = "counter";
-                        counterElement.style.padding = "0";
-                        counterElement.style.marginLeft = "8px";
-
-                        contentWrapper.append(counterElement);
-                    }
-
-                    const counterEl = document.getElementById("counter");
-                    if (counterEl) {
-                        startCountdown(counterEl, response.counter, 0, null, true);
-                    }
-                }
+                displayChatError(response.error, response.counter);
             } else if (response.html) {
                 removeEmptyPlaceholder();
 
@@ -562,89 +471,117 @@ function deleteConversation(url) {
     window.location.href = url;
 }
 
-function initializeChat() {
-    /** @type {HTMLInputElement} */
-    const messageInput = document.getElementById("message-input");
-    const messageForm = document.getElementById("newmessage") || document.getElementById("world-chat-form");
-    const messageSection = document.getElementById("messages-section");
+function updateNavigationBadges(totalCount, worldCount) {
+    const privCount = totalCount - worldCount;
 
-    const allMsgs = document.querySelectorAll("[id^='msg-'], [id^='world-msg-']");
-    const loadMoreBtn = document.getElementById("load-older-btn");
-
-    const chatCfg = document.getElementById("chat-config");
-
-    if (allMsgs.length > 0) {
-        const lastMsg = allMsgs[allMsgs.length - 1];
-        const idMatch = lastMsg.id.match(/\d+$/);
-
-        if (idMatch) lastSeenId = parseInt(idMatch[0]);
-    } else {
-        lastSeenId = 0;
-    }
-
-    if (chatCfg) {
-        canLoadMore = chatCfg.dataset.hasMore === "true";
-    }
-
-    if (loadMoreBtn && !canLoadMore) {
-        loadMoreBtn.style.display = "none";
-    }
-
-    if (messageSection) {
-        messageSection.addEventListener("scroll", () => {
-            checkScrollPosition();
-        });
-    }
-
-    if (messageInput) {
-        messageInput.addEventListener("keydown", e => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-
-                if (messageSection.dataset.chatType === "world") {
-                    const sendBtn = messageForm.querySelector('input[type="button"]');
-
-                    if (sendBtn) sendBtn.click();
-                } else {
-                    messageForm.requestSubmit();
-                }
-            }
-        });
-    }
-
-    // Add event listener for form submission
-    if (messageForm && messageForm.id === "newmessage") {
-        messageForm.addEventListener("submit", e => {
-            insertNewChatMessage(e);
-        });
-    }
-
-    // Chat update function
-    setInterval(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const chatPartner = urlParams.get("s") || "0";
-
-        updateChat(chatPartner);
-    }, CHAT_UPDATE_INTERVAL);
-
-    // Scroll to latest message at the bottom
-    scrollDown();
-    scrollToLatestMessage();
-
-    requestAnimationFrame(() => {
-        const messageSection = document.getElementById("messages-section");
-        const loadingOverlay = document.getElementById("chat-loading-overlay");
-
-        if (messageSection) {
-            setTimeout(() => {
-                messageSection.style.opacity = "1";
-
-                if (loadingOverlay) {
-                    loadingOverlay.style.display = "none";
-                }
-            }, 100);
+    const privBadges = document.querySelectorAll("#badge-priv-messages");
+    privBadges.forEach(badge => {
+        if (privCount > 0) {
+            badge.innerText = privCount > 9 ? "9+" : privCount;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
         }
     });
+
+    const worldBadges = document.querySelectorAll("#badge-world-chat");
+    worldBadges.forEach(badge => {
+        if (worldCount > 0) {
+            badge.innerText = worldCount > 9 ? "9+" : worldCount;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
+        }
+    });
+
+    const mobileDot = document.getElementById("mobile-nav-dot");
+    if (mobileDot) {
+        mobileDot.style.display = (totalCount > 0) ? "block" : "none";
+    }
+}
+
+function initializeChat() {
+    const messageSection = document.getElementById("messages-section");
+    if (!messageSection) return;
+
+    const chatType = messageSection.dataset.chatType;
+    const params = new URLSearchParams({type: chatType});
+
+    if (chatType === "private") {
+        params.append("s", messageSection.dataset.partnerId || "0");
+        params.append("token", messageSection.dataset.token || "");
+        params.append("partner_name", messageSection.dataset.partnerName || "");
+    }
+
+    fetch(`ajax/chat_init.php?${params.toString()}`, {
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error === "redirect") {
+                window.location.href = "messages.php";
+                return;
+            }
+
+            messageSection.innerHTML = data.html;
+
+            updateNavigationBadges(data.unreadCount, data.worldUnread);
+
+            const messageInput = document.getElementById("message-input");
+            const messageForm = document.getElementById("newmessage") || document.getElementById("world-chat-form");
+            const loadMoreBtn = document.getElementById("load-older-btn");
+            const chatCfg = document.getElementById("chat-config");
+
+            lastSeenId = data.lastId;
+
+            if (chatCfg) {
+                canLoadMore = chatCfg.dataset.hasMore === "true";
+            }
+
+            if (loadMoreBtn && !canLoadMore) {
+                loadMoreBtn.style.display = "none";
+            }
+
+            messageSection.addEventListener("scroll", () => {
+                checkScrollPosition();
+            });
+
+            if (messageInput) {
+                messageInput.addEventListener("keydown", e => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (chatType === "world") {
+                            const sendBtn = messageForm.querySelector('input[type="button"]');
+                            if (sendBtn) sendBtn.click();
+                        } else {
+                            messageForm.requestSubmit();
+                        }
+                    }
+                });
+            }
+
+            if (messageForm && messageForm.id === "newmessage") {
+                messageForm.addEventListener("submit", e => {
+                    insertNewChatMessage(e);
+                });
+            }
+
+            setInterval(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const chatPartner = urlParams.get("s") || "0";
+                updateChat(chatPartner);
+            }, CHAT_UPDATE_INTERVAL);
+
+            scrollDown();
+            scrollToLatestMessage();
+
+            const loadingOverlay = document.getElementById("chat-loading-overlay");
+
+            messageSection.style.opacity = "1";
+
+            if (loadingOverlay) loadingOverlay.style.display = "none";
+        })
+        .catch(err => console.error("Chat Init Fehler:", err));
 }
 
 // Filter server log messages
@@ -851,20 +788,56 @@ function finishLoading(btn) {
 }
 
 function setInfoBoxError(message) {
-    const infoBox = document.querySelector(".info-box");
+    displayChatError(message);
+}
 
-    if (!infoBox) {
-        return;
+function displayChatError(message, seconds = undefined) {
+    const infoBox = document.querySelector(".info-box");
+    if (!infoBox) return;
+
+    let contentWrapper = infoBox.querySelector(".info-wrapper");
+    if (!contentWrapper) {
+        infoBox.replaceChildren(); // Box leeren
+        const errImg = document.createElement("img");
+        errImg.src = ERROR_IMAGE_PATH;
+        errImg.alt = "Fehler";
+        infoBox.appendChild(errImg);
+
+        contentWrapper = document.createElement("span");
+        contentWrapper.className = "info-wrapper";
+        contentWrapper.style.flex = "1";
+        contentWrapper.style.textAlign = "center";
+        infoBox.append(contentWrapper);
     }
 
-    const img = document.createElement("img");
-    img.src = ERROR_IMAGE_PATH;
-    img.alt = "Fehler";
+    let errorTextSpan = contentWrapper.querySelector(".error-msg-text");
+    if (!errorTextSpan) {
+        errorTextSpan = document.createElement("span");
+        errorTextSpan.className = "error-msg-text";
+        contentWrapper.append(errorTextSpan);
+    }
 
-    const span = document.createElement("span");
-    span.textContent = message;
+    errorTextSpan.innerText = message + (seconds !== undefined ? " " : "");
 
-    infoBox.replaceChildren(img, span);
+    let counterElement = document.getElementById("counter");
+
+    if (seconds !== undefined) {
+        if (!counterElement) {
+            counterElement = document.createElement("span");
+            counterElement.id = "counter";
+            counterElement.style.fontWeight = "bold";
+            contentWrapper.append(counterElement);
+        }
+
+        if (typeof startCountdown === "function") {
+            startCountdown(counterElement, seconds, 0, null, true);
+        }
+    } else {
+        if (counterElement) {
+            counterElement.remove();
+        }
+    }
+
     infoBox.style.display = "flex";
 }
 

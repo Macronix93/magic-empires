@@ -117,6 +117,14 @@ function closeOverlay() {
     }
 }
 
+document.addEventListener("touchstart", (e) => {
+    if (e.target.closest('.overlay-close-btn')) {
+        e.stopPropagation();
+
+        closeOverlay();
+    }
+}, {passive: false});
+
 document.addEventListener("DOMContentLoaded", function () {
     const dragItem = document.getElementById("overlay-handle");
     /** @type {HTMLElement} */

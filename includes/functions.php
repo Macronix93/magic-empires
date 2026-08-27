@@ -386,7 +386,7 @@ function get_chat_emojis(): array
         '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
-        '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭',
+        '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭', '❤️',
         '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🫡', '👀', '🦆',
         '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
@@ -864,7 +864,7 @@ function render_reactions_bar(string $type, int $id, User $user, string $mode = 
     $db = Database::get_instance()->get_connection();
 
     $badges_html = '';
-    if ($mode !== 'btn_only') {
+    if ($mode !== "btn_only") {
         $query = "SELECT r.emoji, COUNT(*) as total, 
                          MAX(IF(r.user_id = ?, 1, 0)) as self_reacted,
                          GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names
@@ -895,7 +895,7 @@ function render_reactions_bar(string $type, int $id, User $user, string $mode = 
     }
 
     $picker_html = '';
-    if ($mode === 'full' || $mode === 'btn_only') {
+    if ($mode === "full" || $mode === "btn_only") {
         $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
                             <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
                             <div class="reaction-picker" style="display:none;">';
@@ -909,12 +909,26 @@ function render_reactions_bar(string $type, int $id, User $user, string $mode = 
 
     $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
 
-    if ($mode === 'full') {
+    $res_count = $db->execute_query("SELECT COUNT(*) FROM reactions WHERE entity_type = ? AND entity_id = ?", [$type, $id]);
+    $has_reactions = ($res_count->fetch_row()[0] > 0);
+
+    $info_btn = "";
+    if ($has_reactions) {
+        $info_btn = "<img src='images/icons/icon_feedback.png' 
+                      class='ressource-icons' 
+                      style='cursor: pointer; opacity: 0.7;' 
+                      data-on-click='openReactorList' 
+                      data-type='$type' 
+                      data-id='$id' 
+                      title='Wer hat reagiert?' alt=''>";
+    }
+
+    if ($mode === "full") {
         $html .= '<div class="reaction-bar-btn-row">' . $picker_html . '</div>';
         $html .= '<div class="reaction-bar-badges-row">' . $badges_html . '</div>';
-    } else if ($mode === 'btn_only') {
-        $html .= $picker_html;
-    } else if ($mode === 'badges_only') {
+    } else if ($mode === "btn_only") {
+        $html .= $picker_html . $info_btn;
+    } else if ($mode === "badges_only") {
         $html .= $badges_html;
     }
 

@@ -40,13 +40,13 @@ if ($user_id) {
 
     $all_kingdoms_html = "";
     if ($res_all_k->num_rows > 0) {
-        $all_kingdoms_html .= "<div>";
+        $all_kingdoms_html .= "<div style='display: flex; flex-direction: column; gap: 10px;'>";
 
         while ($k = $res_all_k->fetch_assoc()) {
             $coords = e($k["mapx"]) . ":" . e($k["mapy"]);
 
             $all_kingdoms_html .= "
-                <div class='location-wrapper'>
+                <div class='location-wrapper' style='gap: 10px;'>
                     <span class='kingdom-name-break' title='" . e($k["kingdomname"]) . "'>
                         • " . e($k["kingdomname"]) . "
                     </span>

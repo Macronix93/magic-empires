@@ -822,7 +822,7 @@ if (!$user->is_admin()) {
                         </div>
                     </div>";
     $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
-                        <div class='box-header' style='background: #a62121; color: white;'>Welt-Reset</div>
+                        <div class='box-header' style='background: #a62121; color: white; border-bottom: #340202 2px solid;'>Welt-Reset</div>
                         <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
                             <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
                             <form method='POST'>

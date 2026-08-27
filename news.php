@@ -173,7 +173,7 @@ if ($result->num_rows > 0) {
                     $del_button
                 </div>
                 <div class='box-content news-content box-content-bg' style='padding-left: 15px; padding-right: 15px; text-align: left;'>
-                    <p style='margin-top: 0; padding-top: 15px;'>" . $row["content"] . "</p>
+                    <p style='margin-top: 0; padding-top: 15px;'>" . wrap_emojis($row["content"]) . "</p>
                     <div class='news-footer-wrap'>
                         <div class='news-author-info'>
                             Verfasst von: <b>" . e($row["username"]) . "</b> am $date

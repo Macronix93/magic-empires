@@ -243,5 +243,7 @@
                 Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/rpg" title="rpg icons">Rpg icons created by Magnific -
                 Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/survey" title="survey icons">Survey icons created by Magnific -
+                Flaticon</a></li>
     </ul>
 </div>

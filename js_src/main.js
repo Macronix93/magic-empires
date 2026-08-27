@@ -144,6 +144,14 @@ registerAction("toggleReactionPicker", (el) => {
         picker.style.display = "none";
     }
 });
+registerAction("openReactorList", (el) => {
+    const type = el.dataset.type;
+    const id = el.dataset.id;
+
+    if (typeof openOverlay === "function") {
+        openOverlay(`ajax/reaction_details.php?type=${type}&id=${id}`, "Wer hat reagiert?");
+    }
+});
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
@@ -678,10 +686,12 @@ window.addEventListener("DOMContentLoaded", function () {
     if (leftTrigger) {
         leftTrigger.addEventListener("click", function (e) {
             e.stopPropagation();
+
             rightMenu.classList.remove("open");
             rightTrigger.classList.remove("open");
             leftMenu.classList.toggle("open");
             leftTrigger.classList.toggle("open");
+
             closeOverlay();
         });
     }
@@ -689,10 +699,12 @@ window.addEventListener("DOMContentLoaded", function () {
     if (rightTrigger) {
         rightTrigger.addEventListener("click", function (e) {
             e.stopPropagation();
+
             leftMenu.classList.remove("open");
             leftTrigger.classList.remove("open");
             rightMenu.classList.toggle("open");
             rightTrigger.classList.toggle("open");
+
             closeOverlay();
         });
     }

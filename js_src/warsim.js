@@ -29,7 +29,13 @@ const W_CONF = {
 };
 let currentSimWallHp = null;
 let lastSimState = null;
+const STORAGE_KEY = "warsim_state";
+let isManualAction = true;
 
+registerAction("filterRelevantRows", (el) => {
+    const isChecked = el.checked;
+    applyRelevantFilter(isChecked);
+});
 registerAction("undoWarSim", () => {
     if (!lastSimState) return;
 
@@ -66,6 +72,10 @@ registerAction("switchSimTab", (el) => {
     }
 
     updateLivePowerSummary();
+
+    if (isManualAction) {
+        saveWarsimState();
+    }
 });
 registerAction("calculateWarOutcome", () => {
     if (typeof calculateWarOutcome === "function" && typeof soldierTypes !== "undefined") {
@@ -76,6 +86,8 @@ registerAction("updateLivePower", () => {
     updateLivePowerSummary();
 });
 registerAction("resetFields", () => {
+    localStorage.removeItem(STORAGE_KEY);
+
     resetWallToMax();
 
     soldierTypes.forEach(type => {
@@ -97,6 +109,12 @@ registerAction("resetFields", () => {
     });
 
     updateLivePowerSummary();
+
+    const filterToggle = document.getElementById('toggle-relevant-units');
+    if (filterToggle) {
+        filterToggle.checked = false;
+        applyRelevantFilter(false);
+    }
 });
 registerAction("fillSimMax", (el) => {
     const targetId = el.dataset.target;
@@ -136,6 +154,42 @@ document.querySelectorAll(".js-tech-input, #en_wall_lvl, .warsim-table input, .j
         updateLivePowerSummary();
     });
 });
+
+function applyRelevantFilter(active) {
+    const sectionOwn = document.querySelector('.box-container:has(.warsim-table)');
+    const sectionEnemy = document.getElementById("sim-players");
+    const sectionMonsters = document.getElementById("sim-monsters");
+
+    sectionOwn.querySelectorAll('tr.unit-row, tr:has(input[id$="_own"])').forEach(row => {
+        const input = row.querySelector('input[type="text"]');
+        if (!input) return;
+
+        const val = parseInt(input.value) || 0;
+        const owned = parseInt(row.querySelector('[data-value]')?.dataset.value) || 0;
+
+        if (active && val <= 0 && owned <= 0) {
+            row.style.display = "none";
+        } else {
+            row.style.display = '';
+        }
+    });
+
+    [sectionEnemy, sectionMonsters].forEach(section => {
+        if (!section) return;
+        section.querySelectorAll('tr').forEach(row => {
+            const input = row.querySelector('input[type="text"]');
+            if (!input) return;
+
+            const val = parseInt(input.value) || 0;
+
+            if (active && val <= 0) {
+                row.style.display = "none";
+            } else {
+                row.style.display = '';
+            }
+        });
+    });
+}
 
 function resetWallToMax() {
     const lvlInput = document.getElementById("en_wall_lvl");
@@ -463,11 +517,22 @@ function checkMonsterImport() {
             monsterTabBtn.click();
         }
 
+        document.querySelectorAll(".js-mon-input").forEach(input => {
+            input.value = 0;
+            input.style.color = "";
+        });
+
         for (const [id, count] of Object.entries(monsterData)) {
             const input = document.getElementById(`m_${id}_count`);
             if (input) {
                 input.value = count;
             }
+        }
+
+        const filterToggle = document.getElementById("toggle-relevant-units");
+        if (filterToggle) {
+            filterToggle.checked = true;
+            applyRelevantFilter(true);
         }
 
         if (typeof updateLivePowerSummary === "function") {
@@ -476,6 +541,8 @@ function checkMonsterImport() {
 
         const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: cleanUrl}, '', cleanUrl);
+
+        saveWarsimState();
     } catch (e) {
         console.error("Fehler beim Monster-Import:", e);
     }
@@ -492,9 +559,111 @@ function getDynamicShrineMult(prefix) {
     return base + (techLevel * step);
 }
 
+function saveWarsimState() {
+    if (!isManualAction) return;
+
+    const state = {
+        inputs: {},
+        techs: {},
+        activeTab: document.querySelector(".tablinks.active")?.dataset.tab || "players",
+        checkboxes: {
+            relevantOnly: document.getElementById('toggle-relevant-units')?.checked || false,
+            myShrine: document.getElementById('my_shrine_war')?.checked || false,
+            enShrine: document.getElementById('en_shrine_war')?.checked || false
+        },
+        wall: {
+            lvl: document.getElementById('en_wall_lvl')?.value || 1
+        }
+    };
+
+    document.querySelectorAll('.warsim-table input[type="text"], .warsim-table input[type="number"]').forEach(input => {
+        if (input.id) state.inputs[input.id] = input.value;
+    });
+
+    document.querySelectorAll('.js-tech-input[type="number"]').forEach(input => {
+        if (input.id) state.techs[input.id] = input.value;
+    });
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadWarsimState() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+
+    const state = JSON.parse(saved);
+    isManualAction = false;
+
+    for (let id in state.inputs) {
+        const el = document.getElementById(id);
+        if (el) el.value = state.inputs[id];
+    }
+
+    for (let id in state.techs) {
+        const el = document.getElementById(id);
+        if (el) el.value = state.techs[id];
+    }
+
+    if (state.activeTab) {
+        const tabBtn = document.querySelector(`.tablinks[data-tab="${state.activeTab}"]`);
+        if (tabBtn) tabBtn.click();
+    }
+
+    if (state.checkboxes) {
+        const filterBox = document.getElementById("toggle-relevant-units");
+        if (filterBox) filterBox.checked = state.checkboxes.relevantOnly || false;
+
+        if (document.getElementById("my_shrine_war"))
+            document.getElementById("my_shrine_war").checked = state.checkboxes.myShrine;
+        if (document.getElementById("en_shrine_war"))
+            document.getElementById("en_shrine_war").checked = state.checkboxes.enShrine;
+    }
+
+    if (state.wall && document.getElementById("en_wall_lvl")) {
+        document.getElementById("en_wall_lvl").value = state.wall.lvl;
+    }
+
+    updateLivePowerSummary();
+
+    if (state.checkboxes && state.checkboxes.relevantOnly) {
+        applyRelevantFilter(true);
+    }
+
+    isManualAction = true;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+    const isInternalNavigation = document.referrer.includes("warsim.php");
+    const hasImportData = new URLSearchParams(window.location.search).has("import_monsters");
+
+    if (!isInternalNavigation && !hasImportData) {
+        localStorage.removeItem(STORAGE_KEY);
+    }
+
+    const filterToggle = document.getElementById("toggle-relevant-units");
+    if (filterToggle) {
+        filterToggle.checked = false;
+        applyRelevantFilter(false);
+    }
+
+    loadWarsimState();
+
     resetWallToMax();
     updateLivePowerSummary();
 
-    setTimeout(checkMonsterImport, 100);
+    setTimeout(checkMonsterImport, 50);
+
+    document.addEventListener("input", (e) => {
+        if (e.target.closest('.warsim-table') || e.target.classList.contains("js-tech-input") || e.target.id === "en_wall_lvl") {
+            saveWarsimState();
+        }
+    });
+
+    document.addEventListener("change", (e) => {
+        const validIds = ["toggle-relevant-units", "my_shrine_war", "en_shrine_war"];
+
+        if (validIds.includes(e.target.id)) {
+            saveWarsimState();
+        }
+    });
 });

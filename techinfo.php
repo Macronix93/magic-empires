@@ -92,9 +92,9 @@ if ($row) {
         if ($row["stone"] > 0) $active_res["stone"] = ResourceTypes::RESOURCE_TYPE_STONE;
         if ($row["gold"] > 0) $active_res["gold"] = ResourceTypes::RESOURCE_TYPE_GOLD;
 
-        $view .= "<div class='big-box-container'>
-                    <div class='big-box-header'>{$row["soldiername"]}</div>
-                    <div class='big-box-content'>
+        $view .= "<div class='big-box-container tech-info-page'>
+                    <div class='big-box-header tech-info-header'>{$row["soldiername"]}</div>
+                    <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) .
                 ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
                 ($is_thief ? "<br>Der Dieb hat eine Tragekapazität von maximal " . THIEF_BASE_CAPACITY . " Ressourcen pro Einheit." : "") . " " . $chance_info . "</p>
@@ -167,7 +167,7 @@ if ($row) {
             $config = $res_map[$building_id];
             $ft_res = $db_instance->query("SELECT fieldname, {$config["field"]} as rate FROM field_types");
 
-            $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+            $biome_info = "<div class='tech-info-box'>";
             $biome_info .= "<b>Ertrag pro Stunde nach Gelände:</b><br>";
 
             while ($ft = $ft_res->fetch_assoc()) {
@@ -180,7 +180,7 @@ if ($row) {
         if ($building_id === BuildingTypes::BUILDING_WATCHTOWER) {
             $time_bonus = convert_sec_to_str(WATCHTOWER_DETECTION_PER_LEVEL);
 
-            $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+            $biome_info = "<div class='tech-info-box'>";
             $biome_info .= "<b>Wachturm-Effekt:</b><br>";
             $biome_info .= "Jede Stufe erhöht die Sichtweite für herannahende Truppen dauerhaft um <span class='passed'>+" . $time_bonus . "</span>.";
             $biome_info .= "</div>";
@@ -189,7 +189,7 @@ if ($row) {
         if ($building_id === BuildingTypes::BUILDING_SHRINE) {
             $res_aligns = $db_instance->query("SELECT name, required_level, bonus_text, malus_text, base_bonus, base_malus FROM shrine_alignments ORDER BY required_level");
 
-            $biome_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:13px; line-height: 1.5;'>";
+            $biome_info = "<div class='tech-info-box'>";
             $biome_info .= "<b>Freischaltungen nach Stufe:</b><br>";
 
             while ($sa = $res_aligns->fetch_assoc()) {
@@ -215,7 +215,7 @@ if ($row) {
 
         if ($tech_id !== null && isset($res_techs[$tech_id])) {
             $t_cfg = $res_techs[$tech_id];
-            $tech_bonus_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+            $tech_bonus_info = "<div class='tech-info-box'>";
             $tech_bonus_info .= "<b>Forschungs-Effekt:</b><br>";
             $tech_bonus_info .= "Jede Stufe erhöht den Basis-Ertrag von {$t_cfg["name"]} dauerhaft um <span class='passed'>+" . fnum($t_cfg["val"]) . "</span> pro Stunde.";
             $tech_bonus_info .= "</div>";
@@ -283,16 +283,16 @@ if ($row) {
                 $formatted_value = !empty($value) ? "<span class='passed'>$value</span> " : "";
                 $suffix = ($tech_id === TechTypes::TECH_TYPE_ARCANE_INTEL || $tech_id === TechTypes::TECH_TYPE_IMPERIAL) ? "" : " pro Stufe.";
 
-                $tech_bonus_info = "<div style='margin-bottom:15px; border:1px ridge var(--border-gold); padding:8px; background:rgba(0,0,0,0.3); font-size:14px;'>";
+                $tech_bonus_info = "<div class='tech-info-box'>";
                 $tech_bonus_info .= "<b>Forschungs-Effekt:</b><br>";
                 $tech_bonus_info .= "$formatted_value$text$suffix";
                 $tech_bonus_info .= "</div>";
             }
         }
 
-        $view .= "<div class='big-box-container'>
-                    <div class='big-box-header'>$name</div>
-                    <div class='big-box-content'>
+        $view .= "<div class='big-box-container tech-info-page'>
+                    <div class='big-box-header tech-info-header'>$name</div>
+                    <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>
                             " . e($row["description"]) . " $dynamic_effect_sentence
                         </p>

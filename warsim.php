@@ -192,6 +192,12 @@ $view .= '<div style="display: flex; justify-content: center; gap: 5px; margin-b
               <button type="button" id="btn-undo" data-on-click="undoWarSim" disabled>Rückgängig</button>
               <button type="button" data-on-click="resetFields">Reset</button>
           </div>';
+$view .= '<div style="text-align: center; margin-bottom: 15px;">
+            <label style="font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; user-select: none;">
+                <input type="checkbox" id="toggle-relevant-units" data-on-change="filterRelevantRows">
+                <span>Nur relevante Einheiten anzeigen</span>
+            </label>
+          </div>';
 
 $view .= '<div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">';
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">

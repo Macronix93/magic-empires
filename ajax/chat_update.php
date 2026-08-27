@@ -97,7 +97,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "SELECT id FROM messages 
          WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
          ORDER BY id DESC LIMIT ?",
-        [$chat_partner_id, $u_id, $u_id, $chat_partner_id, MAX_WORLD_CHAT_MESSAGES_SHOWN]
+        [$chat_partner_id, $u_id, $u_id, $chat_partner_id, SHOW_MESSAGES_LIMIT]
     );
     while ($r = $res_recent->fetch_assoc()) {
         $reaction_updates[$r["id"]] = render_reactions_bar("chat", $r["id"], $user, "badges_only");

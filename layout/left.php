@@ -25,8 +25,9 @@ $unread_world = $messages->get_unread_world_count();
                 <span>Nachrichten</span>
                 <?php
                 $inbox_only_unread = $unread - $unread_world;
+                
                 if ($inbox_only_unread > 0): ?>
-                    <span class="msg-badge">
+                    <span class="msg-badge" id="badge-priv-messages">
                 <?= $messages->show_messages_indicator($inbox_only_unread) ?>
                     </span>
                 <?php endif; ?>
@@ -36,7 +37,7 @@ $unread_world = $messages->get_unread_world_count();
                 <img src="images/icons/icon_worldchat.png" class="menu-icons" alt="Welt-Chat"/>
                 <span>Welt-Chat</span>
                 <?php if ($unread_world > 0): ?>
-                    <span class="msg-badge">
+                    <span class="msg-badge" id="badge-world-chat">
                 <?= $messages->show_messages_indicator($unread_world) ?>
             </span>
                 <?php endif; ?>

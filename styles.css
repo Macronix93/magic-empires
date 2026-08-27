@@ -596,7 +596,7 @@ hr {
     position: relative;
     display: flex;
     flex-direction: column;
-    height: 55vh;
+    /*height: 55vh;*/
     min-height: 450px;
     max-height: 550px;
     overflow-x: hidden;
@@ -1897,7 +1897,7 @@ body.modal-open footer {
     transform: translate3d(0, 0, 0) translateX(-50%);
     width: 95vw;
     max-width: 850px;
-    max-height: 80vh;
+    max-height: 90vh;
     display: none;
     grid-template-rows: min-content 1fr;
     background-color: var(--box-content-color, #1a1a1a);
@@ -2278,6 +2278,11 @@ img[data-on-click] {
     width: 100%;
 }
 
+.reaction-container.mode-btn_only {
+    display: flex;
+    gap: 5px;
+}
+
 .reaction-container.mode-full {
     display: contents;
 }
@@ -2393,6 +2398,14 @@ img[data-on-click] {
     touch-action: manipulation;
 }
 
+.tech-info-box {
+    margin-bottom: 15px;
+    border: 1px ridge var(--border-gold);
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    font-size: 14px;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -2416,6 +2429,42 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 400px;
+    }
+
+    .big-box-header.tech-info-header {
+        font-size: 20px;
+        line-height: 0.5;
+    }
+
+    .tech-info-box {
+        font-size: 11px;
+    }
+
+    .tech-info-page .big-box-content p {
+        font-size: 14px;
+    }
+
+    .tech-info-page .table td {
+        font-size: 9px !important;
+        padding: 3px 1px !important;
+        text-align: center;
+    }
+
+    .tech-info-page .table .ressource-icons {
+        width: 12px !important;
+        height: 12px !important;
+        vertical-align: middle;
+    }
+
+    .tech-info-page .big-box-content p:last-child {
+        font-size: 11px !important;
+        font-weight: bold;
+        margin-top: 10px;
+    }
+
+    .tech-info-page .table {
+        width: 100% !important;
+        table-layout: fixed;
     }
 
     .reaction-add {
@@ -2609,9 +2658,15 @@ img[data-on-click] {
 
     .location-wrapper {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
+        justify-content: space-between;
         align-items: center;
-        gap: 2px;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .overlay-modal .kingdom-name-break {
+        max-width: 160px;
     }
 
     .kingdom-name-break {

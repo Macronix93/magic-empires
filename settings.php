@@ -502,8 +502,8 @@ $view .= '
 </div>';
 
 $view .= '
-<div class="box-container">
-    <div class="box-header" style="background: #a62121; color: white; border-color: transparent;">Account löschen</div>
+<div class="box-container" style="border-color: #a62121;">
+    <div class="box-header" style="background: #a62121; color: white; border-color: transparent; border-bottom: #340202 2px solid;">Account löschen</div>
     <div class="box-content box-content-bg-danger" style="padding: 10px;">
         <p class="error"><b>Vorsicht:</b> Das Löschen deines Accounts kann nicht rückgängig gemacht werden!</p>
         <form method="POST">

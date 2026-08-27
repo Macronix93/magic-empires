@@ -25,6 +25,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         foreach ($rows as $row) {
             $is_me = ($row["userid"] == $u_id);
             $class = $is_me ? "receiver-bubble" : "sender-bubble";
+            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
+                         data-on-click='quoteMessage' 
+                         data-author='" . e($row["username"]) . "' 
+                         data-text='" . e($row["message"]) . "' 
+                         title='Zitieren' alt=''>";
             $del_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' 
                                                 data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
 
@@ -42,16 +47,30 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         <img class='user-image' src='$avatar' alt=''> 
                         <span>$sender_display <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                     </span>
-                    $del_icon
+                    <span style='display: flex; gap: 5px; align-items: center;'>
+                        " . render_reactions_bar("world_chat", $row["id"], $user, "btn_only") . "
+                        $quote_icon
+                        $del_icon
+                    </span>
                 </div>
                 $msg
+                <div class='chat-reaction-footer'>
+                    " . render_reactions_bar("world_chat", $row["id"], $user, "badges_only") . "
+                </div>
               </div>";
+        }
+
+        $reaction_updates = [];
+        $res_recent = $db_instance->execute_query("SELECT id FROM world_chat ORDER BY id DESC LIMIT ?", [MAX_WORLD_CHAT_MESSAGES_SHOWN]);
+        while ($r = $res_recent->fetch_assoc()) {
+            $reaction_updates[$r["id"]] = render_reactions_bar("world_chat", $r["id"], $user, "badges_only");
         }
 
         echo json_encode([
             "html" => $html,
             "count" => count($rows),
-            "hasMore" => $has_more
+            "hasMore" => $has_more,
+            "reactionUpdates" => $reaction_updates
         ]);
     }
 } else {

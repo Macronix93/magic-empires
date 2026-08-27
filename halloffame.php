@@ -49,12 +49,6 @@ $categories = [
         "limit" => 20,
         "query" => "SELECT u.username, u.id as uid, MAX(b.buildinglevel) as val FROM users u JOIN kingdoms k ON u.id = k.userid JOIN buildings b ON k.id = b.kingdomid WHERE b.buildingid = 0 GROUP BY u.id ORDER BY val DESC, uid"
     ],
-    "build" => [
-        "label" => "Architektur",
-        "title" => "Gesamt Gebäude-Upgrades",
-        "limit" => 20,
-        "query" => "SELECT u.username, u.id as uid, s.buildings_upgraded as val FROM player_stats s JOIN users u ON s.userid = u.id WHERE s.buildings_upgraded > 0 ORDER BY val DESC, uid"
-    ],
     "martyr" => [
         "label" => "Märtyrer",
         "title" => "Truppenverluste (PvP)",

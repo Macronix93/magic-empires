@@ -244,7 +244,7 @@ if (!$active_event) {
                 <hr>
                 <p style='margin-bottom: 5px;'>Deine aktuelle Belohnung am Ende:</p>
                 <ul>
-                    <li><span class='passed'>" . fnum($personal_gold_preview) . " " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . "</span> für dein Königreich</li>
+                    <li><span class='passed'><b>" . fnum($personal_gold_preview) . "</b> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . "</span> für dein Königreich</li>
                     <li>Münzen für deine Schatzkammer (basierend auf Schadens-Stufe)</li>
                 </ul>
             </div>

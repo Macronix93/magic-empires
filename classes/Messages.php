@@ -277,36 +277,161 @@ class Messages
 
     public function show_messages_with_chatpartner(int $sender_id, string $chat_partner): string
     {
+//        $limit = SHOW_MESSAGES_LIMIT;
+//        $result = $this->get_chat_history_paged($sender_id, null, $limit + 1);
+//
+//        $has_more = false;
+//        if (count($result) > $limit) {
+//            $has_more = true;
+//            array_shift($result);
+//        }
+//
+//        $tab_token = time() . "_" . rand(1000, 9999);
+//        $_SESSION["active_chat_token"] = $tab_token;
+//
+//        if (!$has_more) {
+//            $this->view .= "<style>#load-older-btn { display: none !important; }</style>";
+//        }
+//        $this->view .= "<div id='chat-config'
+//                             data-has-more='" . ($has_more ? 'true' : 'false') . "'
+//                             data-token='$tab_token'></div>";
+//        $this->view .= "<div id='chat-tab-token' data-token='$tab_token' style='display:none;'></div>";
+//
+//        $chat_partner_image = "";
+//        $my_chat_image = $this->user->get_avatar();
+//        $partner = new User($sender_id, $chat_partner);
+//        $first_sender_message_displayed = false;
+//        $unread_message_ids = [];
+//
+//        if (empty($result)) {
+//            $this->view .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+//            return $this->view;
+//        }
+//
+//        $is_admin = $this->user->is_admin();
+//
+//        foreach ($result as $row) {
+//            $message_id = $row["id"];
+//
+//            $display_message = e($row["message"]);
+//            $display_message = parse_chat_quotes($display_message);
+//            $display_message = nl2br($display_message);
+//            if ($_SESSION["chat_filter"]) {
+//                $display_message = filter_chat_message($display_message);
+//            }
+//            $display_message = wrap_emojis($display_message);
+//
+//            $has_read = $row["hasread"];
+//            $date = $row["date"];
+//            $is_me = ($row["senderid"] == $this->user->get_user_id());
+//
+//            $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
+//            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
+//                     style='cursor: pointer; margin-left: 5px;'
+//                     data-on-click='quoteMessage'
+//                     data-author='" . e($row["sender"]) . "'
+//                     data-text='" . e($row["message"]) . "'
+//                     title='Nachricht zitieren' alt=''>";
+//            $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
+//
+//            if ($row["senderid"] == $sender_id) {
+//                if (empty($chat_partner_image)) {
+//                    $chat_partner_image = $partner->get_avatar() ?? "";
+//                }
+//
+//                if (!$has_read && !$first_sender_message_displayed) {
+//                    $first_sender_message_displayed = true;
+//                    $this->view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
+//                }
+//
+//                $this->view .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
+//                            <div class='message-border'>
+//                                <span class='msg-header-left'>
+//                                    <img class='user-image' src='$chat_partner_image' alt=''>
+//                                    <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
+//                                </span>
+//                                <span style='display: flex; gap: 5px; align-items: center;'>
+//                                    " . render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
+//                                    $quote_icon
+//                                    $delete_icon
+//                                </span>
+//                            </div>
+//                            " . $display_message . "
+//                            <div class='chat-reaction-footer'>
+//                                " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+//                            </div>
+//                        </div>";
+//            } else {
+//                $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
+//                            <div class='message-border'>
+//                                <span class='msg-header-left'>
+//                                    <img class='user-image' src='$my_chat_image' alt=''>
+//                                    <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
+//                                </span>
+//                                <span style='display: flex; gap: 5px; align-items: center;'>
+//                                    " . render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
+//                                    $quote_icon
+//                                    $delete_icon
+//                                </span>
+//                            </div>
+//                            " . $display_message . "
+//                            <div class='chat-reaction-footer'>
+//                                " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+//                            </div>
+//                        </div>";
+//            }
+//
+//            if (!$has_read && $row["receiverid"] == $this->user->get_user_id()) {
+//                $unread_message_ids[] = $message_id;
+//            }
+//        }
+//
+//        if (!empty($unread_message_ids)) {
+//            $placeholders = implode(",", array_fill(0, count($unread_message_ids), "?"));
+//            $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
+//        }
+//
+//        return $this->view;
+
+        $token = time() . "_" . rand(1000, 9999);
+        $_SESSION["active_chat_token"] = $token;
+
+        return "<div id='chat-loading-wrapper'>
+                    <div id='chat-loading-overlay' class='chat-spinner-full'>
+                        <div class='loading-spinner'></div>
+                        <p>Nachrichten werden geladen...</p>
+                    </div>
+                    <div id='messages-section' 
+                         data-chat-type='private' 
+                         data-partner-id='$sender_id' 
+                         data-partner-name='" . e($chat_partner) . "' 
+                         data-token='$token' 
+                         style='opacity: 0;'>
+                    </div>
+                </div>
+                <div id='chat-tab-token' data-token='$token' style='display: none;'></div>";
+    }
+
+    public function get_private_history_html(int $sender_id, string $chat_partner): string
+    {
         $limit = SHOW_MESSAGES_LIMIT;
         $result = $this->get_chat_history_paged($sender_id, null, $limit + 1);
 
-        $has_more = false;
-        if (count($result) > $limit) {
-            $has_more = true;
-            array_shift($result);
-        }
+        $has_more = count($result) > $limit;
+        if ($has_more) array_shift($result);
 
-        $tab_token = time() . "_" . rand(1000, 9999);
-        $_SESSION["active_chat_token"] = $tab_token;
+        $html = "<button id='load-older-btn' data-on-click='loadOlderChat' data-partnerid='" . e($sender_id) . "' class='msg-load-more' style='display: " . ($has_more ? 'block' : 'none') . "'>Ältere Nachrichten laden</button>";
+        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? 'true' : 'false') . "'></div>";
 
-        if (!$has_more) {
-            $this->view .= "<style>#load-older-btn { display: none !important; }</style>";
+        if (empty($result)) {
+            return $html . "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
         }
-        $this->view .= "<div id='chat-config'
-                             data-has-more='" . ($has_more ? 'true' : 'false') . "'
-                             data-token='$tab_token'></div>";
-        $this->view .= "<div id='chat-tab-token' data-token='$tab_token' style='display:none;'></div>";
 
         $chat_partner_image = "";
         $my_chat_image = $this->user->get_avatar();
         $partner = new User($sender_id, $chat_partner);
         $first_sender_message_displayed = false;
         $unread_message_ids = [];
-
-        if (empty($result)) {
-            $this->view .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
-            return $this->view;
-        }
 
         $is_admin = $this->user->is_admin();
 
@@ -341,10 +466,10 @@ class Messages
 
                 if (!$has_read && !$first_sender_message_displayed) {
                     $first_sender_message_displayed = true;
-                    $this->view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
+                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
                 }
 
-                $this->view .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
+                $html .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
                             <div class='message-border'>
                                 <span class='msg-header-left'>
                                     <img class='user-image' src='$chat_partner_image' alt=''>
@@ -362,7 +487,7 @@ class Messages
                             </div>
                         </div>";
             } else {
-                $this->view .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
+                $html .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                             <div class='message-border'>
                                 <span class='msg-header-left'>
                                     <img class='user-image' src='$my_chat_image' alt=''>
@@ -391,10 +516,153 @@ class Messages
             $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
         }
 
-        return $this->view;
+        return $html;
     }
 
     public function show_world_chat(): string
+    {
+//        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
+//        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
+//        $rows = $result->fetch_all(MYSQLI_ASSOC);
+//
+//        $has_more = (count($rows) > $limit);
+//        if ($has_more) {
+//            array_pop($rows);
+//        }
+//
+//        $rows = array_reverse($rows);
+//
+//        $html = "<div class='info-box event-error' style='display: none;'></div>";
+//
+//        $html .= "<div id='chat-loading-wrapper'>
+//                    <div id='chat-loading-overlay' class='chat-spinner-full'>
+//                        <div class='loading-spinner'></div>
+//                        <p>Welt-Chat wird geladen...</p>
+//                    </div>
+//                    <div id='messages-section' data-chat-type='world' style='opacity: 0;'>";
+//        $html .= "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
+//        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
+//
+//        if (empty($rows)) {
+//            $html .= "
+//            <div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>
+//                Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
+//            </div>";
+//        } else {
+//            $last_read_id = $this->mysqli->execute_query("SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()])->fetch_row()[0] ?? 0;
+//            $unread_line_shown = false;
+//
+//            foreach ($rows as $row) {
+//                $is_me = ($row["userid"] == $this->user->get_user_id());
+//
+//                if (!$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
+//                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
+//                    $unread_line_shown = true;
+//                }
+//
+//                $class = $is_me ? "receiver-bubble" : "sender-bubble";
+//
+//                $is_admin = $this->user->is_admin();
+//                $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'
+//                                                            data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
+//
+//                $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
+//                     style='cursor: pointer; margin-left: 5px;'
+//                     data-on-click='quoteMessage'
+//                     data-author='" . e($row["username"]) . "'
+//                     data-text='" . e($row["message"]) . "'
+//                     title='Nachricht zitieren' alt=''>";
+//
+//                $msg = e($row["message"]);
+//                $msg = parse_chat_quotes($msg);
+//                $msg = nl2br($msg);
+//                if ($_SESSION["chat_filter"]) {
+//                    $msg = filter_chat_message($msg);
+//                }
+//                $msg = wrap_emojis($msg);
+//
+//                $u = new User($row["userid"], $row["username"]);
+//                $avatar = $u->get_avatar();
+//
+//                $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
+//
+//                $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
+//                    <div class='message-border'>
+//                        <span class='msg-header-left'>
+//                            <img class='user-image' src='$avatar' alt=''>
+//                            <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
+//                        </span>
+//                        <span style='display: flex; gap: 5px; align-items: center;'>
+//                            " . render_reactions_bar("world_chat", $row["id"], $this->user, "btn_only") . "
+//                            $quote_icon
+//                            $delete_icon
+//                        </span>
+//                    </div>
+//                    $msg
+//                    <div class='chat-reaction-footer'>
+//                        " . render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
+//                    </div>
+//                  </div>";
+//            }
+//        }
+//        $html .= "</div></div>";
+//        $html .= "
+//                    <div id='newmessage-section'>
+//                        <form id='world-chat-form'>
+//                            <textarea id='message-input'
+//                                      name='text'
+//                                      rows='3'
+//                                      maxlength='" . MAX_MESSAGE_LENGTH . "'
+//                                      style='resize: vertical; margin-right: 10px;'></textarea>
+//                            <div class='emoji-picker-container'>
+//                                <div id='emoji-menu' class='emoji-menu'>";
+//
+//        foreach (get_chat_emojis() as $emoji) {
+//            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
+//        }
+//
+//        $html .= "      </div>
+//                    <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
+//                </div>
+//
+//                <input type='button'
+//                       data-on-click='sendWorldMessage'
+//                       value='Absenden\n[ENTER]' />
+//            </form>
+//        </div>";
+//
+//        return $html;
+        $html = "<div class='info-box event-error' style='display: none;'></div>";
+        $html .= "
+        <div id='chat-loading-wrapper'>
+            <div id='chat-loading-overlay' class='chat-spinner-full'>
+                <div class='loading-spinner'></div>
+                <p>Welt-Chat wird geladen...</p>
+            </div>
+            <div id='messages-section' data-chat-type='world' style='opacity: 0; height: 55vh;'>
+            </div>
+        </div>";
+
+        $html .= "
+        <div id='newmessage-section'>
+            <form id='world-chat-form'>
+                <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
+                <div class='emoji-picker-container'>
+                    <div id='emoji-menu' class='emoji-menu'>";
+        foreach (get_chat_emojis() as $emoji) {
+            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
+        }
+        $html .= "  </div>
+                    <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
+                </div>
+                <input type='button' data-on-click='sendWorldMessage' value='Absenden\n[ENTER]' />
+            </form>
+        </div>";
+
+        return $html;
+    }
+
+    public function get_world_history_html(): string
     {
         $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
         $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
@@ -407,15 +675,7 @@ class Messages
 
         $rows = array_reverse($rows);
 
-        $html = "<div class='info-box event-error' style='display: none;'></div>";
-
-        $html .= "<div id='chat-loading-wrapper'>
-                    <div id='chat-loading-overlay' class='chat-spinner-full'>
-                        <div class='loading-spinner'></div>
-                        <p>Welt-Chat wird geladen...</p>
-                    </div>
-                    <div id='messages-section' data-chat-type='world' style='opacity: 0;'>";
-        $html .= "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
+        $html = "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
 
         if (empty($rows)) {
@@ -424,10 +684,12 @@ class Messages
                 Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
             </div>";
         } else {
+            $last_id = 0;
             $last_read_id = $this->mysqli->execute_query("SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()])->fetch_row()[0] ?? 0;
             $unread_line_shown = false;
 
             foreach ($rows as $row) {
+                $last_id = $row["id"];
                 $is_me = ($row["userid"] == $this->user->get_user_id());
 
                 if (!$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
@@ -438,14 +700,14 @@ class Messages
                 $class = $is_me ? "receiver-bubble" : "sender-bubble";
 
                 $is_admin = $this->user->is_admin();
-                $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' 
+                $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'
                                                             data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
 
-                $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
-                     style='cursor: pointer; margin-left: 5px;' 
-                     data-on-click='quoteMessage' 
-                     data-author='" . e($row["username"]) . "' 
-                     data-text='" . e($row["message"]) . "' 
+                $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
+                     style='cursor: pointer; margin-left: 5px;'
+                     data-on-click='quoteMessage'
+                     data-author='" . e($row["username"]) . "'
+                     data-text='" . e($row["message"]) . "'
                      title='Nachricht zitieren' alt=''>";
 
                 $msg = e($row["message"]);
@@ -479,32 +741,11 @@ class Messages
                     </div>
                   </div>";
             }
-        }
-        $html .= "</div></div>";
-        $html .= "
-                    <div id='newmessage-section'>
-                        <form id='world-chat-form'>
-                            <textarea id='message-input' 
-                                      name='text' 
-                                      rows='3' 
-                                      maxlength='" . MAX_MESSAGE_LENGTH . "' 
-                                      style='resize: vertical; margin-right: 10px;'></textarea>
-                            <div class='emoji-picker-container'>
-                                <div id='emoji-menu' class='emoji-menu'>";
 
-        foreach (get_chat_emojis() as $emoji) {
-            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
+            if ($last_id > 0) {
+                $this->mysqli->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$last_id, $this->user->get_user_id()]);
+            }
         }
-
-        $html .= "      </div>
-                    <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
-                </div>
-                
-                <input type='button' 
-                       data-on-click='sendWorldMessage' 
-                       value='Absenden\n[ENTER]' />
-            </form>
-        </div>";
 
         return $html;
     }
