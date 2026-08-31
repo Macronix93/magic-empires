@@ -10,13 +10,24 @@ $js_main_file = "main.js";
 
 if ($user->is_logged_in()) {
     $show_attack_alert = false;
+    $show_support_alert = false;
 
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
+    $ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
 
     if (!empty($_SESSION["active_attacks"])) {
         foreach ($_SESSION["active_attacks"] as $atk) {
             if ($atk["is_new"] && !in_array($atk["eventid"], $ack_ids)) {
                 $show_attack_alert = true;
+                break;
+            }
+        }
+    }
+
+    if (!empty($_SESSION["active_supports"])) {
+        foreach ($_SESSION["active_supports"] as $sup) {
+            if (!in_array($sup["eventid"], $ack_sup_ids)) {
+                $show_support_alert = true;
                 break;
             }
         }
@@ -67,13 +78,21 @@ if ($user->is_logged_in()) {
             echo 'data-timeout="' . TIMEOUT_MAX_SECONDS . '"';
         }
         ?>
-      data-server-time="<?php echo time(); ?>"
+      data-server-time="<?= time(); ?>"
+      data-flash-limit="<?= TITLE_FLASH_SECONDS ?>"
 >
 <?php if (isset($show_attack_alert) && $show_attack_alert): ?>
     <?php
     $sync_offset = fmod(microtime(true), 2);
     ?>
-    <div class="attack-alert-overlay" style="animation-delay: -<?php echo $sync_offset; ?>s;"></div>
+    <div class="attack-alert-overlay" style="animation-delay: -<?= $sync_offset; ?>s;"></div>
+<?php endif; ?>
+
+<?php if (isset($show_support_alert) && $show_support_alert): ?>
+    <?php
+    $sync_offset = fmod(microtime(true), 2);
+    ?>
+    <div class="support-alert-overlay" style="animation-delay: -<?= $sync_offset; ?>s;"></div>
 <?php endif; ?>
 <div class="header img">
     <img src="images/header.png" alt="Header"/>
@@ -85,10 +104,23 @@ if ($user->is_logged_in()) {
     <div class="middle-container">
         <div class="big-box-container">
             <div class="big-box-header">
-                <?php echo $header ?? 'Default Header'; ?>
+                <?= $header ?? 'Default Header'; ?>
             </div>
             <div class="big-box-content">
-                <?php echo $view ?? 'Default Content'; ?>
+                <?php
+                $success_msg = $_SESSION["game_success"] ?? $_SESSION["admin_flash_msg"] ?? $_SESSION["guild_success"] ?? $_SESSION["support_success"] ?? null;
+                if ($success_msg) {
+                    echo show_passed_box($success_msg);
+                    unset($_SESSION["game_success"], $_SESSION["admin_flash_msg"], $_SESSION["guild_success"], $_SESSION["support_success"]);
+                }
+
+                $error_msg = $_SESSION["game_error"] ?? $_SESSION["guild_error"] ?? null;
+                if ($error_msg) {
+                    echo show_error_box($error_msg);
+                    unset($_SESSION["game_error"], $_SESSION["guild_error"]);
+                }
+                ?>
+                <?= $view ?? 'Default Content'; ?>
             </div>
         </div>
     </div>

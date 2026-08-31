@@ -10,7 +10,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $mode = $_POST["mode"] ?? "full";
     $uid = $user->get_user_id();
 
-    $allowed_types = ["news", "world_chat", "chat"];
+    $allowed_types = ["news", "world_chat", "chat", "guild_chat"];
     if (!in_array($type, $allowed_types) || $id <= 0 || empty($emoji)) {
         echo json_encode(["error" => "Ungültige Daten"]);
         exit;

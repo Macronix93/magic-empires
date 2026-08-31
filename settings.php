@@ -126,7 +126,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if (preg_match('/\s/', $raw_name)) {
                     $error = "Benutzername darf keine Leerzeichen enthalten!";
                 } else {
-                    $new_name = trim($raw_name);
+                    $clean_name = preg_replace('/[\p{C}]/u', '', $raw_name);
+                    $clean_name = preg_replace('/\s+/u', ' ', $clean_name);
+                    $new_name = trim($clean_name);
 
                     $bad_names_list = get_bad_names();
                     $pattern_exact = '/^' . preg_quote(strtolower($new_name), '/') . '$/i';

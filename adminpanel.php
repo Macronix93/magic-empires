@@ -189,7 +189,7 @@ if (!$user->is_admin()) {
         // Remove maintenance mode
         $db_instance->execute_query("UPDATE system_settings SET value = '0' WHERE name = 'maintenance_mode'");
 
-        $_SESSION["admin_flash_msg"] = show_passed_box("Runden-Reset erfolgreich durchgeführt! Alle Spieler haben ein neues Königreich erhalten.");
+        $_SESSION["admin_flash_msg"] = "Runden-Reset erfolgreich durchgeführt! Alle Spieler haben ein neues Königreich erhalten.";
 
         change_location("adminpanel.php");
         exit;
@@ -343,7 +343,7 @@ if (!$user->is_admin()) {
         }
 
         $logger->admin("MANUAL MAP SPAWN: $spawn_type");
-        $_SESSION["admin_flash_msg"] = show_passed_box(implode("<br>", $report));
+        $_SESSION["admin_flash_msg"] = implode("<br>", $report);
 
         change_location("adminpanel.php?tab=system");
         exit;
@@ -371,14 +371,14 @@ if (!$user->is_admin()) {
             $db_instance->execute_query("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", [$reason, $uid]);
             $logger->admin("BANNED USER ID $uid. Reason: $reason");
 
-            $_SESSION["admin_flash_msg"] = show_passed_box("Benutzer ID $uid wurde gebannt!");
+            $_SESSION["admin_flash_msg"] = "Benutzer ID $uid wurde gebannt!";
         } else if (isset($_GET["unbanuser"])) {
             $uid = (int)$_GET["unbanuser"];
 
             $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", [$uid]);
             $logger->admin("UNBANNED USER ID $uid");
 
-            $_SESSION["admin_flash_msg"] = show_passed_box("Benutzer ID $uid wurde entsperrt!");
+            $_SESSION["admin_flash_msg"] = "Benutzer ID $uid wurde entsperrt!";
         }
 
         change_location("adminpanel.php?userid=" . $uid);
@@ -392,7 +392,7 @@ if (!$user->is_admin()) {
         $db_instance->execute_query("DELETE FROM game_logs WHERE id = ?", [$log_id]);
         $logger->admin("Deleted log entry ID $log_id");
 
-        $_SESSION["admin_flash_msg"] = show_passed_box("Log-Eintrag wurde gelöscht!");
+        $_SESSION["admin_flash_msg"] = "Log-Eintrag wurde gelöscht!";
 
         change_location("adminpanel.php?tab=gamelogs&logpage=" . $page);
         exit;
@@ -403,7 +403,7 @@ if (!$user->is_admin()) {
         $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         $logger->admin("Deleted event ID $event_id");
 
-        $_SESSION["admin_flash_msg"] = show_passed_box("Event wurde manuell abgebrochen/gelöscht!");
+        $_SESSION["admin_flash_msg"] = "Event wurde manuell abgebrochen/gelöscht!";
 
         $redir = isset($_GET["userid"]) ? "?userid=" . (int)$_GET["userid"] : "";
 
@@ -420,7 +420,7 @@ if (!$user->is_admin()) {
 
             $logger->admin("Log-Datei $f wurde über das Adminpanel geleert.");
 
-            $_SESSION["admin_flash_msg"] = show_passed_box("Datei $f wurde erfolgreich geleert.");
+            $_SESSION["admin_flash_msg"] = "Datei $f wurde erfolgreich geleert.";
         }
         change_location("adminpanel.php?tab=logs");
         exit;
@@ -466,7 +466,7 @@ if (!$user->is_admin()) {
             $log_display = ($field === "password") ? "***" : $new_value;
             $logger->admin("Edited field '$field' for user ID $user_id. New Value: " . $log_display);
 
-            $_SESSION["admin_flash_msg"] = show_passed_box("Daten erfolgreich aktualisiert! Feld: $field");
+            $_SESSION["admin_flash_msg"] = "Daten erfolgreich aktualisiert! Feld: $field";
 
             change_location("adminpanel.php?userid=$user_id&tab=users");
             exit;
@@ -1036,13 +1036,6 @@ if (!$user->is_admin()) {
     }
 }
 
-$flash_html = "";
-if (isset($_SESSION["admin_flash_msg"])) {
-    $flash_html = $_SESSION["admin_flash_msg"];
-
-    unset($_SESSION["admin_flash_msg"]);
-}
-
 $tab_menu = "<div class='tab'>
     <div class='tablinks " . ($active_tab == 'system' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='system'>System</div>
     <div class='tablinks " . ($active_tab == 'users' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='users'>Nutzerverwaltung</div>
@@ -1050,7 +1043,7 @@ $tab_menu = "<div class='tab'>
     <div class='tablinks " . ($active_tab == 'gamelogs' ? 'active' : '') . "' data-on-click='switchAdminTab' data-tab='gamelogs'>Spiel-Logs</div>
 </div>";
 
-$view = $flash_html . $tab_menu;
+$view = $tab_menu;
 
 if (!empty($error)) {
     $view .= show_error_box($error);

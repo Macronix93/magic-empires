@@ -113,9 +113,18 @@ class Map
         echo '<div id="map-info-content"></div>';
     }
 
-    public function get_arrival_time(int  $start_x, int $start_y, int $end_x, int $end_y, int $origin_kingdom_id = -1,
-                                     ?int $target_id = null, bool $is_scouting = false, bool $is_caravan = false): int
+    public function get_arrival_time(int  $start_x,
+                                     int  $start_y,
+                                     int  $end_x,
+                                     int  $end_y,
+                                     int  $origin_kingdom_id = -1,
+                                     ?int $target_id = null,
+                                     bool $is_scouting = false,
+                                     bool $is_caravan = false,
+                                     bool $is_support = false): int
     {
+        $actual_target_id = ($target_id !== null) ? $target_id : $this->get_field_kingdom_id($end_x, $end_y);
+
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
 
         if (empty($result) || !isset($result["totaltime"])) {
@@ -127,25 +136,26 @@ class Map
 
         $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
 
-        $actual_target_id = ($target_id !== null) ? $target_id : $this->get_field_kingdom_id($end_x, $end_y);
-
-        if ($actual_target_id == WORLD_EVENT_ID) {
-            $we = new WorldEvent($this->mysqli);
-            return $we->get_current_duration();
-        }
-
-        if ($actual_target_id === -3) {
-            $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
-            $modified_time *= $boost;
-        } else if ($actual_target_id === -2 && $is_scouting) {
-            $modified_time *= MONSTER_CAMP_SCOUT_BOOST;
-        }
-
-        if ($is_caravan) {
+        if ($is_support) {
+            $modified_time *= GUILD_SUPPORT_TRAVEL_BOOST;
+        } else if ($is_caravan) {
             $modified_time *= CARAVAN_SPEED_FACTOR;
+        } else {
+            if ($actual_target_id === -3) {
+                $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
+                $modified_time *= $boost;
+            } else if ($actual_target_id === -2 && $is_scouting) {
+                $modified_time *= MONSTER_CAMP_SCOUT_BOOST;
+            } else if ($actual_target_id > 0 && $is_scouting) {
+                $modified_time *= PLAYER_KINGDOM_SCOUT_BOOST;
+            } else if ($actual_target_id === WORLD_EVENT_ID) {
+                $we = new WorldEvent($this->mysqli);
+                $modified_time = $we->get_current_duration();
+            }
         }
 
-        return (int)round($modified_time);
+        //return (int)round($modified_time);
+        return 240;
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array

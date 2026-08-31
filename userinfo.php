@@ -6,7 +6,7 @@ check_user_login($user);
 <!DOCTYPE html>
 <html lang="de">
 <?php
-$script_files = ["userinfo"];
+$script_files = ["userinfo", "guild"];
 
 include_once("layout/head.html");
 ?>
@@ -107,7 +107,7 @@ if ($user_id) {
         </tr>
         <tr>
             <td><b>Punkte</b></td>
-            <?= "<td>" . fnum($score) . "</td>" ?>
+            <?= "<td>" . fnum($score, true) . "</td>" ?>
         </tr>
         <tr>
             <td><b>Rang</b></td>
@@ -117,7 +117,33 @@ if ($user_id) {
             <td>
                 <b>Gilde</b>
             </td>
-            <?= "<td>" . ($guild_id == -1 ? "Keine Gilde" : $guild_id) . "</td>" ?>
+            <?php
+            $guild_logic = new Guild($db_instance, $user);
+            $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
+            $my_guild_id = $user->get_user_guild_id();
+
+            $guild_display = "Keine Gilde";
+            if ($my_guild_id !== -1) {
+                $guild_logic->load_guild($my_guild_id);
+
+                $guild_display = "<div><span style='cursor: pointer;' 
+                             data-on-click='openGuildInfo' 
+                             data-id='$my_guild_id'><b>[" . $guild_logic->get_tag() . "]</b></span> " . $guild_logic->get_name() . "</div>";
+            }
+
+
+            echo "<td style='display: flex; justify-content: space-between; align-items: center;'>$guild_display";
+
+            if ($my_guild_id !== -1 && $my_perms["can_invite"] && $row["guildid"] == -1 && $user_id != $user->get_user_id()) {
+                echo "<button data-on-click='inviteToGuildDialog' 
+                                data-userid='$user_id' 
+                                data-username='" . e($user_name) . "'>
+                            Einladen
+                        </button>
+                    </td>
+                  </tr>";
+            }
+            ?>
         </tr>
         <tr>
             <td>

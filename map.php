@@ -27,7 +27,8 @@ $js_config = [
         "x" => $kingdom->get_kingdom_map_x(),
         "y" => $kingdom->get_kingdom_map_y(),
         "marchMultiplier" => $kingdom->get_march_speed_multiplier(),
-        "troops" => $user_troops
+        "troops" => $user_troops,
+        "guildId" => $user->get_user_guild_id()
     ],
     "fieldMeta" => $field_meta,
     "constants" => [
@@ -35,25 +36,15 @@ $js_config = [
         "SOLDIER_RAIDER" => Soldiers::SOLDIER_RAIDER,
         "SOLDIER_SCOUT" => Soldiers::SOLDIER_SCOUT,
         "MONSTER_CAMP_TRAVEL_BOOST" => MONSTER_CAMP_TRAVEL_BOOST,
-        "MONSTER_CAMP_SCOUT_BOOST" => MONSTER_CAMP_SCOUT_BOOST
+        "MONSTER_CAMP_SCOUT_BOOST" => MONSTER_CAMP_SCOUT_BOOST,
+        "PLAYER_KINGDOM_SCOUT_BOOST" => PLAYER_KINGDOM_SCOUT_BOOST,
+        "GUILD_SUPPORT_TRAVEL_BOOST" => GUILD_SUPPORT_TRAVEL_BOOST
     ]
 ];
 
 ob_start();
 
 $map = new Map($db_instance, $user);
-
-if (isset($_SESSION["game_success"])) {
-    echo show_passed_box($_SESSION["game_success"]);
-
-    unset($_SESSION["game_success"]);
-}
-
-if (isset($_SESSION["game_error"])) {
-    echo show_error_box($_SESSION["game_error"]);
-
-    unset($_SESSION["game_error"]);
-}
 
 // Coordinate logic
 $get_x = $_GET["startx"] ?? null;

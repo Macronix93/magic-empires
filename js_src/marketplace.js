@@ -99,11 +99,37 @@ document.addEventListener("DOMContentLoaded", function () {
     const displayEl = document.getElementById("target-arrival-display");
     const supplySelect = document.querySelector("select[name='s']");
     const demandSelect = document.querySelector("select[name='d']");
+
     const inputs = [
         document.getElementById("sv"),
-        document.getElementById("dv"),
-        document.getElementById("am")
+        document.getElementById("dv")
     ];
+
+    const internalInputs = document.querySelectorAll(".js-internal-res-input");
+    const sumDisplay = document.getElementById("internal-sum-display");
+    const internalSubmit = document.getElementById("internal-submit");
+
+    const updateInternalSum = () => {
+        let total = 0;
+        const maxCap = window.marketConfig.max_capacity_per_offer;
+
+        internalInputs.forEach(input => {
+            input.value = input.value.replace(/[^0-9]/g, '');
+            total += parseInt(input.value) || 0;
+        });
+
+        if (sumDisplay) {
+            sumDisplay.innerHTML = `<span class="${total > maxCap ? "error" : "passed"}">${formatNumJS(total)}</span> / ${formatNumJS(maxCap)}`;
+        }
+
+        if (internalSubmit) {
+            internalSubmit.disabled = (total <= 0 || total > maxCap);
+        }
+    };
+
+    internalInputs.forEach(input => {
+        input.addEventListener("input", updateInternalSum);
+    });
 
     inputs.forEach(input => {
         if (!input) return;

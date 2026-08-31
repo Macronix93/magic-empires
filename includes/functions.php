@@ -61,6 +61,13 @@ function make_secure(string $data): string
     return htmlspecialchars($data);
 }
 
+function sanitize_input(string $str): string
+{
+    $str = preg_replace('/\p{C}/u', '', $str);
+    $str = preg_replace('/\s+/u', ' ', $str);
+    return trim($str);
+}
+
 // Convert seconds to a string
 function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_seconds = true): string
 {
@@ -381,13 +388,13 @@ function wrap_emojis($text): array|string|null
 function get_chat_emojis(): array
 {
     return [
-        '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
-        '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '⛏️', '🤝', '⚖️', '📦', '🛒', '📈', '📉',
         '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
         '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭', '❤️',
-        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🫡', '👀', '🦆',
+        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🫡', '❓', '❗',
+        '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
+        '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '⛏️', '🤝', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
         '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
 }
@@ -573,9 +580,9 @@ function get_bad_word_pattern($bad_word): string
         $regex_parts[] = $pattern . '+';
     }
 
-    $stretchy_pattern = implode('[.\s_\-\d\p{C}]*', $regex_parts);
+    $stretchy_pattern = implode('[.\s_\-\d\p{P}\p{C}]*', $regex_parts);
 
-    return "/(?<![a-zäöüß])" . $stretchy_pattern . "(?![a-zäöüß])/iu";
+    return "/(?<![a-zäöüß])" . $stretchy_pattern . "/iu";
 }
 
 function filter_chat_message($text)
@@ -786,6 +793,31 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
     }
 
     return $attacks;
+}
+
+function check_for_incoming_support(int $uid, mysqli $db): array
+{
+    $now = time();
+    
+    $query = "
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, u.username AS sender_name
+        FROM events e
+        JOIN kingdoms k ON e.targetid = k.id
+        JOIN users u ON e.userid = u.id
+        WHERE k.userid = ? 
+          AND e.actionid = ? 
+          AND e.arrivaltime > ?
+        ORDER BY e.arrivaltime
+    ";
+    $result = $db->execute_query($query, [$uid, ActionTypes::ACTION_STATION_TROOPS, $now]);
+    $supports = $result->fetch_all(MYSQLI_ASSOC);
+
+    $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
+    foreach ($supports as &$sup) {
+        $sup["is_new"] = !in_array($sup["eventid"], $ack_ids);
+    }
+
+    return $supports;
 }
 
 function format_time_for_js(int $totalSeconds): string

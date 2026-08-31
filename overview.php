@@ -16,7 +16,9 @@ $bp_actions = [
     ActionTypes::ACTION_BUILD_TROOPS,
     ActionTypes::ACTION_RESEARCH_TECH,
     ActionTypes::ACTION_UPGRADE_TROOPS,
-    ActionTypes::ACTION_SMITHY_UPGRADE
+    ActionTypes::ACTION_SMITHY_UPGRADE,
+    ActionTypes::ACTION_STATION_TROOPS,
+    ActionTypes::ACTION_SUPPORT_RETURN
 ];
 $wp_actions = [ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES];
 
@@ -50,6 +52,18 @@ if (!empty($_SESSION["active_attacks"])) {
     }
 }
 
+if (!isset($_SESSION["acknowledged_supports"])) {
+    $_SESSION["acknowledged_supports"] = [];
+}
+
+if (!empty($_SESSION["active_supports"])) {
+    foreach ($_SESSION["active_supports"] as $sup) {
+        if (!in_array($sup["eventid"], $_SESSION["acknowledged_supports"])) {
+            $_SESSION["acknowledged_supports"][] = $sup["eventid"];
+        }
+    }
+}
+
 // Fetch all sent troops events from the user
 if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])) {
     $event_id = (empty($_GET["eid"]) ? 0 : (int)$_GET["eid"]);
@@ -59,7 +73,7 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
     if ($result && $result->num_rows > 0) {
         $event = $result->fetch_assoc();
 
-        if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS) {
+        if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
             if ($event["is_processing"] == 1) {
                 $error = "Truppen sind bereits in ein Gefecht verwickelt oder am Ziel angekommen!";
             } else {
@@ -167,25 +181,49 @@ $max_tp = BASE_SEND_TROOPS_LIMIT + $tc_lvl;
 $view .= '<div class="title-border">Truppenbewegungen (' . $count_tp_active_k . '/' . $max_tp . ')</div>';
 
 $query = "
-    SELECT st.soldierid AS st_soldierid, st.soldiercount AS soldiercount, sl.icon AS soldier_icon, sl.soldiername AS s_name,
-           e.*, k.mapx, k.mapy, kt.userid AS target_userid, kt.username AS target_username
+    SELECT 
+        e.eventid, e.actionid, e.userid, e.kingdomid, e.targetid, 
+        e.targetx, e.targety, e.arrivaltime, e.buildingtime, e.is_processing,
+        e.loot_food, e.loot_wood, e.loot_stone, e.loot_gold, e.loot_coins,
+        st.soldierid AS st_soldierid, 
+        st.soldiercount AS soldiercount, 
+        sl.icon AS soldier_icon, 
+        sl.soldiername AS s_name,
+        k.mapx, k.mapy,
+        kt.userid AS target_userid, 
+        kt.username AS target_username,
+        u_sender.username AS sender_username
     FROM (
-        SELECT * FROM events 
-        WHERE userid = ? AND kingdomid = ? AND (actionid = ? OR actionid = ?) 
-        ORDER BY arrivaltime 
-        LIMIT $offset_tp, $limit
+        SELECT 
+            eventid, actionid, userid, kingdomid, targetid, 
+            targetx, targety, arrivaltime, buildingtime, is_processing,
+            loot_food, loot_wood, loot_stone, loot_gold, loot_coins
+        FROM events 
+        WHERE 
+            (userid = ? AND kingdomid = ? AND actionid IN (?, ?, ?, ?)) 
+            OR 
+            (targetid = ? AND actionid = ?) 
+        ORDER BY arrivaltime, eventid 
+        LIMIT ?, ?
     ) e
-    JOIN sent_troops st ON st.eventid = e.eventid
-    JOIN kingdoms k ON e.kingdomid = k.id
+    LEFT JOIN sent_troops st ON st.eventid = e.eventid
+    LEFT JOIN soldier_list sl ON st.soldierid = sl.id
+    LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
-    JOIN soldier_list sl ON st.soldierid = sl.id
+    LEFT JOIN users u_sender ON e.userid = u_sender.id
 ";
 
 $result = $db_instance->execute_query($query, [
     $user->get_user_id(),
     $active_k_id,
     ActionTypes::ACTION_SEND_TROOPS,
-    ActionTypes::ACTION_RETURN_TROOPS
+    ActionTypes::ACTION_RETURN_TROOPS,
+    ActionTypes::ACTION_STATION_TROOPS,
+    ActionTypes::ACTION_SUPPORT_RETURN,
+    $active_k_id,
+    ActionTypes::ACTION_STATION_TROOPS,
+    $offset_tp,
+    $limit
 ]);
 
 if ($result && $result->num_rows > 0) {
@@ -213,6 +251,8 @@ if ($result && $result->num_rows > 0) {
         if (!isset($grouped_events[$event_id])) {
             $grouped_events[$event_id] = [
                 "actionid" => $row["actionid"],
+                "userid" => $row["userid"],
+                "sender_username" => $row["sender_username"],
                 "targetid" => $row["targetid"],
                 "target_userid" => $row["target_userid"],
                 "target_username" => $row["target_username"],
@@ -247,6 +287,9 @@ if ($result && $result->num_rows > 0) {
 
     foreach ($grouped_events as $event_id => $event_data) {
         $action_id = $event_data["actionid"];
+        $is_return = ($action_id === ActionTypes::ACTION_RETURN_TROOPS || $action_id === ActionTypes::ACTION_SUPPORT_RETURN);
+        $is_me = ((int)$event_data["userid"] === $user->get_user_id());
+
         $action_type = "Angriff";
         $action_button = "";
         $is_target_my_kingdom = ($event_data["target_userid"] == $user->get_user_id());
@@ -268,20 +311,28 @@ if ($result && $result->num_rows > 0) {
                                data-seconds='$difference_time' 
                                data-no-reload='true'>" . format_time_for_js($difference_time) . "</span></b>";
 
-        if ($action_id != ActionTypes::ACTION_RETURN_TROOPS && ($event_data["is_processing"] ?? 0) == 0) {
+        if ($is_me && !$is_return && ((int)($event_data["is_processing"] ?? 0) === 0)) {
             $action_button = "<form action='overview.php' method='GET' style='display: inline;'>
-                                    <input type='hidden' name='action' value='cancel'>
-                                    <input type='hidden' name='eid' value='" . $event_id . "'>
-                                    <input type='submit' value='' class='btn-delete'>
-                                </form>";
+                            <input type='hidden' name='action' value='cancel'>
+                            <input type='hidden' name='eid' value='" . $event_id . "'>
+                            <input type='submit' value='' class='btn-delete' title='Abbrechen'>
+                        </form>";
         }
 
         $is_pure_scout = $event_data["is_scouting"];
 
-        if ($action_id == ActionTypes::ACTION_RETURN_TROOPS) {
-            $action_type = "Rückkehr";
+        if ($action_id === ActionTypes::ACTION_STATION_TROOPS) {
+            $action_type = "Unterstützung";
+
+            if (!$is_me) {
+                $sender_name = e($event_data["sender_username"] ?? "Unbekannt");
+
+                $coords_str = "$target_coords ← $my_coords <small>($sender_name)</small>";
+            }
+        } else if ($action_id === ActionTypes::ACTION_RETURN_TROOPS || $action_id === ActionTypes::ACTION_SUPPORT_RETURN) {
+            $action_type = ($action_id === ActionTypes::ACTION_SUPPORT_RETURN) ? "Support-Rückzug" : "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
-        } else if ($action_id == ActionTypes::ACTION_SEND_TROOPS) {
+        } else if ($action_id === ActionTypes::ACTION_SEND_TROOPS) {
             if ($event_data["targetid"] == -1) {
                 $action_type = "Gründung";
             } else if ($event_data["targetid"] == -2) {
@@ -290,6 +341,8 @@ if ($result && $result->num_rows > 0) {
                 $action_type = $is_pure_scout ? "Spionage" : "Monstercamp";
             } else if ($is_target_my_kingdom) {
                 $action_type = "Stationieren";
+            } else {
+                $action_type = $is_pure_scout ? "Spionage" : "Angriff";
             }
         }
 
@@ -430,12 +483,12 @@ $result_events = $db_instance->execute_query($query_events, [
 ]);
 
 if ($result_events && $result_events->num_rows > 0) {
-    $view .= "<table class='table' style='width: 100%;'>";
+    $view .= "<table class='table overview-info-table' style='width: 100%;'>";
     $view .= "<colgroup>
-                <col style='width: 18%;'> <!-- Art -->
-                <col style='width: 15%;'> <!-- Projekt -->
-                <col style='width: 32%;'> <!-- Königreich -->
-                <col style='width: 20%;'> <!-- Fertigstellung -->
+                <col class='col-build-type'> <!-- Art -->
+                <col class='col-build-project'> <!-- Projekt -->
+                <col class='col-build-kingdom'> <!-- Königreich -->
+                <col class='col-build-timer'> <!-- Fertigstellung -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
@@ -599,12 +652,12 @@ $result_trades = $db_instance->execute_query($query_trades, [$user->get_user_id(
     ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES]);
 
 if ($result_trades && $result_trades->num_rows > 0) {
-    $view .= "<table class='table' style='width: 100%;'>";
+    $view .= "<table class='table overview-info-table' style='width: 100%;'>";
     $view .= "<colgroup>
-                <col style='width: 18%;'> <!-- Art -->
-                <col style='width: 15%;'> <!-- Ressourcen -->
-                <col style='width: 32%;'> <!-- Ziel -->
-                <col style='width: 20%;'> <!-- Ankunft -->
+                <col class='col-rss-type'> <!-- Art -->
+                <col class='col-rss'>     <!-- Ressourcen -->
+                <col class='col-rss-kingdom'> <!-- Ziel -->
+                <col class='col-rss-timer'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
             <td class='td-center td-gradient'>Art</td>
@@ -615,8 +668,6 @@ if ($result_trades && $result_trades->num_rows > 0) {
 
     foreach ($result_trades as $row) {
         $event_id = $row["eventid"];
-        $res_type = $row["buildingid"];
-        $amount = $row["buildinglevel"];
         $target_name = $row["kingdomname"];
         $target_coords = "{$row["mapx"]}:{$row["mapy"]}";
 
@@ -625,9 +676,28 @@ if ($result_trades && $result_trades->num_rows > 0) {
 
         $is_cancelable = ($row["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $row["buildingname"] == "Interner Transport");
 
+        $res_display = "";
+
+        if ($row["buildinglevel"] > 0) {
+            $res_display .= get_resource_icon((int)$row["buildingid"]) . " " . fnum($row["buildinglevel"]) . " ";
+        }
+
+        $multi_cols = [
+            ResourceTypes::RESOURCE_TYPE_FOOD => $row["loot_food"],
+            ResourceTypes::RESOURCE_TYPE_WOOD => $row["loot_wood"],
+            ResourceTypes::RESOURCE_TYPE_STONE => $row["loot_stone"],
+            ResourceTypes::RESOURCE_TYPE_GOLD => $row["loot_gold"]
+        ];
+
+        foreach ($multi_cols as $res_type => $amount) {
+            if ($amount > 0) {
+                $res_display .= "<div>" . get_resource_icon($res_type) . " " . fnum($amount) . "</div>";
+            }
+        }
+
         $view .= "<tr>
                 <td class='td-center'><div class='type-name-break' title='{$row["buildingname"]}'>{$row["buildingname"]}</div></td>
-                <td class='td-center'>" . get_resource_icon($res_type) . " " . fnum($amount) . "</td>
+                <td class='td-center'>$res_display</td>
                 <td class='td-center'>
                     <div class='location-wrapper'>
                         <div class='kingdom-name-break' style='min-width: 0;'>$target_name</div>

@@ -296,59 +296,65 @@ if (isset($_GET["accept"])) {
 
 if (isset($_GET["send_own"])) {
     $target_id = (int)$_GET["target_k"];
-    $res_type = (int)$_GET["rt"];
-    $amount = (int)$_GET["am"];
-
+    $amounts = $_GET["am"] ?? [];
 
     $res_target = $db_instance->execute_query("SELECT id, mapx, mapy, kingdomname FROM kingdoms WHERE id = ? AND userid = ?", [$target_id, $user->get_user_id()]);
     $target_row = $res_target->fetch_assoc();
 
     if ($target_row && $target_id != $current_kingdom) {
+        $total_sum = array_sum(array_map("intval", $amounts));
+
         if ($daily_trades_count >= $max_trades) {
             $error = "Du hast dein tägliches Limit von $max_trades Handelsaktionen bereits erreicht!";
+        } else if ($total_sum <= 0) {
+            $error = "Bitte gib eine Menge größer als 0 an!";
+        } else if ($total_sum > $max_capacity) {
+            $error = "Kapazität überschritten (Max. " . fnum($max_capacity) . ")!";
         } else {
-            $has_enough = false;
+            $has_enough = true;
 
-            switch ($res_type) {
-                case ResourceTypes::RESOURCE_TYPE_FOOD:
-                    $has_enough = ($kingdom->get_kingdom_food() >= $amount);
+            $stocks = [
+                ResourceTypes::RESOURCE_TYPE_FOOD => $kingdom->get_kingdom_food(),
+                ResourceTypes::RESOURCE_TYPE_WOOD => $kingdom->get_kingdom_wood(),
+                ResourceTypes::RESOURCE_TYPE_STONE => $kingdom->get_kingdom_stone(),
+                ResourceTypes::RESOURCE_TYPE_GOLD => $kingdom->get_kingdom_gold()
+            ];
+
+            foreach ($amounts as $type => $val) {
+                if ((int)$val > ($stocks[(int)$type] ?? 0)) {
+                    $has_enough = false;
                     break;
-                case ResourceTypes::RESOURCE_TYPE_WOOD:
-                    $has_enough = ($kingdom->get_kingdom_wood() >= $amount);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_STONE:
-                    $has_enough = ($kingdom->get_kingdom_stone() >= $amount);
-                    break;
-                case ResourceTypes::RESOURCE_TYPE_GOLD:
-                    $has_enough = ($kingdom->get_kingdom_gold() >= $amount);
-                    break;
+                }
             }
 
-            if ($amount <= 0) {
-                $error = "Bitte gib eine Menge größer als 0 an!";
-            } else if (!$has_enough) {
-                $error = "Du hast nicht genug Ressourcen für diesen Transport!";
+            if (!$has_enough) {
+                $error = "Du hast nicht genug Ressourcen!";
             } else {
+                foreach ($amounts as $type => $val) {
+                    if ((int)$val > 0) $kingdom->modify_resource((int)$type, -(int)$val);
+                }
+
                 $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"], $current_kingdom, true);
                 $seconds = $arrival_data["seconds"];
                 $arrival_time = $arrival_data["timestamp"];
 
-                $kingdom->modify_resource($res_type, -$amount);
-
                 $db_instance->execute_query(
-                    "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime, targetid, targetx, targety, buildingtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO events (actionid, userid, kingdomid, arrivaltime, targetid, targetx, targety, buildingtime, buildingname, loot_food, loot_wood, loot_stone, loot_gold) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     [
                         ActionTypes::ACTION_RECEIVE_RESOURCES,
                         $user->get_user_id(),
                         $target_id,
-                        $res_type,
-                        $amount,
-                        "Interner Transport",
                         $arrival_time,
                         $current_kingdom,
                         $my_x,
                         $my_y,
-                        time()
+                        time(),
+                        "Interner Transport",
+                        (int)($amounts[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
+                        (int)($amounts[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
+                        (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
+                        (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
                     ]
                 );
 
@@ -357,8 +363,10 @@ if (isset($_GET["send_own"])) {
 
                 $logger->log_game("TRADE", "INTERNAL_TRANSPORT", [
                     "target_kingdom" => $target_id,
-                    "resource" => $res_type,
-                    "amount" => $amount
+                    "food" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
+                    "wood" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
+                    "stone" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
+                    "gold" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
                 ], $current_kingdom);
 
                 $view .= show_passed_box("Transport nach " . $target_row["kingdomname"] . " gestartet!<br>Ankunft in " . convert_sec_to_str($seconds));
@@ -536,7 +544,7 @@ if ($result->num_rows > 0) {
                             data-res-type='" . (int)$row["supply"] . "' 
                             data-amount='" . (int)$row["supplyvalue"] . "'>
                             <input type='hidden' name='" . e($param) . "' value='" . e($row["offerid"]) . "'>
-                            <input type='submit' value='' class='" . e($btn_class) . "'>
+                            <input type='submit' class='" . e($btn_class) . "' value=''>
                         </form>";
 
         $view .= "<tr>
@@ -604,8 +612,8 @@ if ($other_kingdoms_res->num_rows > 0) {
                 <form action="marketplace.php" method="GET">
                     <input type="hidden" name="send_own" value="1">
                     <tr>
-                        <td>
-                            <label for="target_k">Ziel: <small id="target-arrival-display" style=" opacity: 0.7; margin-left: 10px;"></small></label><br>
+                        <td style="width: 30%;">
+                            <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;"></small></label><br>
                             <select name="target_k" id="target_k" style="width: 100%; max-width: 300px;">';
 
     foreach ($other_kingdoms_res as $ok) {
@@ -616,23 +624,26 @@ if ($other_kingdoms_res->num_rows > 0) {
     }
 
     $view .= '      </select>
-                </td>
-                <td>
-                    <label for="am">Menge:</label><br>
-                    <input type="text" name="am" id="am" size="6" maxlength="7" style="width: 80px;" inputmode="numeric" pattern="[0-9]*" placeholder="0">
-                    <select name="rt" id="rt" style="width: 110px;">
-                        <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
-                        <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '">Holz</option>
-                        <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
-                        <option value="' . ResourceTypes::RESOURCE_TYPE_GOLD . '">Gold</option>
-                    </select>
-                </td>
-                <td style="text-align: center;">
-                    <input type="submit" value="Senden" style="width: 150px;">
-                </td>
-            </tr>
-        </form>
-        </table>';
+                        </td>
+                        <td style="width: 50%;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>' . get_resource_icon(0) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
+                                    placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div>' . get_resource_icon(1) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" 
+                                    placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div>' . get_resource_icon(2) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" 
+                                    placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div>' . get_resource_icon(3) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
+                                    placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                            </div>
+                        </td>
+                        <td style="text-align: center; width: 20%;">
+                            <div id="internal-sum-display" style="font-size: 12px; margin-bottom: 5px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
+                            <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
+                        </td>
+                    </tr>
+                </form>
+              </table>';
 
     $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "'></div>";
 }
@@ -648,6 +659,7 @@ $market_config = [
     "base" => MARKET_BASE_FEE,
     "max_ratio" => MAX_MARKET_RATIO,
     "listing_fee_step" => MARKET_LISTING_FEE_STEP,
+    "max_capacity_per_offer" => $max_capacity,
     "factors" => [
         ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
         ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,

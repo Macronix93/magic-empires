@@ -5,10 +5,10 @@
 */
 // --- Server, System & Performance ---
 const MAX_PLAYER_LIMIT = 100;
-const TIMEOUT_MAX_SECONDS = 3600; // 60 Minutes
-const ONLINE_MAX_SECONDS = 1800; // 30 Minutes
-const AFK_SECONDS = 300; // 5 Minutes
-const USER_UPDATE_TICK = 30; // 30 Seconds
+const TIMEOUT_MAX_SECONDS = 3600;                       // 60 Minutes
+const ONLINE_MAX_SECONDS = 1800;                        // 30 Minutes
+const AFK_SECONDS = 300;                                // 5 Minutes
+const USER_UPDATE_TICK = 30;                            // 30 Seconds
 const INACTIVITY_DELAY = 864000;
 const REMEMBER_ME_COOKIE_DAYS = 14;
 const BACKGROUND_IMAGE = "images/background.png";
@@ -45,8 +45,8 @@ const MAX_X = 100;
 const MAX_Y = 100;
 const MAX_RESOURCE_TILES = 500;
 const RESOURCE_TILES_SPAWN_RATE = 250;
-const SPAWN_LIFETIME_MIN = 3; // In days
-const SPAWN_LIFETIME_MAX = 5; // In days
+const SPAWN_LIFETIME_MIN = 3;                       // In days
+const SPAWN_LIFETIME_MAX = 5;                       // In days
 
 // --- Economy & Resources Base Values ---
 const STARTING_FOOD = 10000;
@@ -69,10 +69,10 @@ const BOOST_COIN_FACTOR = 10;
 const SHRINE_CHANGE_COST = 25000;
 
 // --- Marketplace ---
-const MAX_DAILY_TRADES = 5;
+const MAX_DAILY_TRADES = 50;
 const MARKET_BASE_FEE = 10;
-const MARKET_OFFER_DURATION = 86400; // 24 hours
-const MARKET_CAPACITY_PER_LEVEL = 100000;
+const MARKET_OFFER_DURATION = 86400;                // 24 hours
+const MARKET_CAPACITY_PER_LEVEL = 50000;
 const MARKET_FEE_MULTIPLIER_FOOD = 0.0001;
 const MARKET_FEE_MULTIPLIER_WOOD = 0.0001;
 const MARKET_FEE_MULTIPLIER_STONE = 0.0002;
@@ -107,8 +107,8 @@ const MAX_WALL_DEFENSE = 25000;
 const WALL_DEFENSE_FACTOR = 0.7;
 const BASE_WALL_REPAIR_COST = 15;
 const NOOB_PROTECTION_MULT = 0.5;
-const RAM_WALL_DAMAGE_FACTOR = 0.05; // 5% per battering ram
-const RAM_WALL_DAMAGE_LIMIT = 2.0; // Max 200%
+const RAM_WALL_DAMAGE_FACTOR = 0.05;                // 5% per battering ram
+const RAM_WALL_DAMAGE_LIMIT = 2.0;                  // Max 200%
 const RAM_FLAT_DAMAGE = 150;
 const LETHALITY_PVP = 2.0;
 const LETHALITY_PVE = 3.5;
@@ -123,7 +123,7 @@ const THIEF_BASE_CAPACITY = 500;
 const RAIDER_BASE_CAPACITY = 300;
 const RAIDER_LOSS_CHANCE = 10;
 const RAIDER_LOSS_MIN_PERC = 5;
-const RAIDER_LOSS_MAX_PERC = 10;
+const RAIDER_LOSS_MAX_PERC = 8;
 const MIN_PLUNDER_PERC = 90;
 const MAX_PLUNDER_PERC = 120;
 const BASE_CONQUEST_CHANCE = 0.2;
@@ -132,6 +132,7 @@ const MAX_CONQUEST_CHANCE = 0.9;
 const BASE_SETTLER_CHANCE = 0.3;
 const SETTLER_CHANCE_STEP = 0.2;
 const MAX_SETTLER_CHANCE = 1.0;
+const PLAYER_KINGDOM_SCOUT_BOOST = 0.5;
 
 // --- Techs ---
 const RESEARCH_FOOD_INC = 2500;
@@ -199,6 +200,7 @@ const MAX_UNIT_BADGES_PER_ROW_DESKTOP = 5;
 const MAX_UNIT_BADGES_PER_ROW_MOBILE = 3;
 const DATE_FORMAT_CHAT = "d.m.Y H:i:s";
 const MAX_REACTIONS_PER_USER = 3;
+const TITLE_FLASH_SECONDS = 60;
 
 // --- World Events ---
 const WORLD_EVENT_DURATION = 86400;
@@ -244,9 +246,35 @@ const WORLD_EVENT_HP_MAX_RAM = 1;               // Number of Ram Rewards per slo
 const WORLD_EVENT_DMG_GOLD_RATIO = 35;           // 1 Gold per X Dmg
 const WORLD_EVENT_DMG_GOLD_MAX = 100000;         // Max Gold Cap
 
+// --- Guilds ---
+const GUILD_TAG_MIN = 2;
+const GUILD_TAG_MAX = 3;
+const GUILD_NAME_MIN = 5;
+const GUILD_NAME_MAX = 20;
+const GUILD_MOTTO_MIN = 0;
+const GUILD_MOTTO_MAX = 100;
+const GUILD_INVITE_DURATION = 172800;           // 48 hours
+const GUILD_BASE_MEMBER_LIMIT = 5;
+const GUILD_MAX_MINIMUM_SCORE = 999999;
+const GUILD_JOIN_COOLDOWN = 10;              // 86400: 24 hours
+const MAX_GUILD_CHAT_MESSAGES_SHOWN = 30;
+const SUPPORT_LIMIT_BASE = 10;
+const SUPPORT_LIMIT_PER_BARRACKS = 1;
+const GUILD_SUPPORT_TRAVEL_BOOST = 0.5;
+const GUILD_UPLOADS_FILE_PATH = "guilds/";
+const DEFAULT_GUILD_AVATAR = UPLOADS_FILE_PATH . GUILD_UPLOADS_FILE_PATH . "guild_default_avatar.png";
 /*
  * Interfaces
  */
+
+interface GuildRanks
+{
+    const int GUILD_FOUNDER = 1;
+    const int GUILD_OFFICER = 2;
+    const int GUILD_DIPLOMAT = 3;
+    const int GUILD_RECRUITER = 4;
+    const int GUILD_MEMBER = 5;
+}
 
 interface AlignmentTypes
 {
@@ -309,6 +337,8 @@ interface ActionTypes
     const int ACTION_RETURN_RESOURCES = 6;
     const int ACTION_UPGRADE_TROOPS = 7;
     const int ACTION_SMITHY_UPGRADE = 8;
+    const int ACTION_STATION_TROOPS = 9;
+    const int ACTION_SUPPORT_RETURN = 10;
 }
 
 interface TechTypes
@@ -342,6 +372,7 @@ class SoldierTypes
     const int SOLDIER_TYPE_CAVALRY = 1;
     const int SOLDIER_TYPE_ARCHERS = 2;
     const int SOLDIER_TYPE_SPECIAL = 3;
+    const int SOLDIER_TYPE_SUPPORT = 4;
 
     public static function get_labels(): array
     {
@@ -349,7 +380,8 @@ class SoldierTypes
             self::SOLDIER_TYPE_INFANTRY => "Infanterie",
             self::SOLDIER_TYPE_CAVALRY => "Kavallerie",
             self::SOLDIER_TYPE_ARCHERS => "Schützen",
-            self::SOLDIER_TYPE_SPECIAL => "Spezial"
+            self::SOLDIER_TYPE_SPECIAL => "Spezial",
+            self::SOLDIER_TYPE_SUPPORT => "Unterstützung"
         ];
     }
 }

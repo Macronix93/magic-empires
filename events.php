@@ -11,12 +11,6 @@ if (!$active_event) {
                 <span>Derzeit findet kein Welt-Event statt. Kehre bald zum Auge des Sturms zurück!</span>
              </div>";
 } else {
-    if (isset($_SESSION["game_success"])) {
-        $view .= show_passed_box($_SESSION["game_success"]);
-
-        unset($_SESSION["game_success"]);
-    }
-
     $user_id = $user->get_user_id();
 
     // --- TROOP MOVEMENT ---
@@ -172,9 +166,9 @@ if (!$active_event) {
         }
 
         if ($is_boss_dead) {
-            $view .= "<p style='margin-top: 50px;'>Die dunkle Präsenz wurde vertrieben.<br>Alle Teilnehmer erhalten nach Ablauf ihre Belohnung!</p>";
+            $view .= "<p>Die dunkle Präsenz wurde vertrieben.<br>Alle Teilnehmer erhalten nach Ablauf ihre Belohnung!</p>";
         } else {
-            $view .= "<p style='margin-top: 50px;'>Schicke deine Truppen zum Zentrum der Karte, um den Boss gemeinsam zu besiegen!</p>";
+            $view .= "<p>Schicke deine Truppen zum Zentrum der Karte, um den Boss gemeinsam zu besiegen!</p>";
         }
 
         // Rewards Box

@@ -3,6 +3,7 @@ let titleInterval = null;
 const originalTitle = document.title;
 const TITLE_INTERVAL = 2000;
 let isKingdomSwitching = false;
+let flashTimeout = null;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -840,11 +841,19 @@ function startTitleFlash(message) {
     titleInterval = setInterval(() => {
         document.title = (document.title === originalTitle) ? message : originalTitle;
     }, TITLE_INTERVAL);
+
+    const flashLimit = parseInt(document.body.dataset.flashLimit) || 60;
+    flashTimeout = setTimeout(() => {
+        stopTitleFlash();
+    }, flashLimit * 1000);
 }
 
 function stopTitleFlash() {
     clearInterval(titleInterval);
+    clearTimeout(flashTimeout);
 
     titleInterval = null;
+    flashTimeout = null;
+
     document.title = originalTitle;
 }

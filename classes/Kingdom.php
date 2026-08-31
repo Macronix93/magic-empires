@@ -151,13 +151,13 @@ class Kingdom
 
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
-                                          woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
+                                          woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
         ";
 
         $result_kingdom = $this->mysqli->execute_query($query, [$random_name, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
-            $food_rate, $gold_rate, $stone_rate, $wood_rate]);
+            $food_rate, $gold_rate, $stone_rate, $wood_rate, time()]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
 
         // Update map properties of x and y
@@ -827,10 +827,11 @@ class Kingdom
                 (SELECT IFNULL(SUM(st.soldiercount), 0) 
                  FROM sent_troops st 
                  JOIN events e ON st.eventid = e.eventid 
-                 WHERE e.kingdomid = ?)
+                 WHERE e.kingdomid = ?) + 
+                (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?)
             ) AS total";
 
-        $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid]);
+        $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid, $kid]);
         $total = (int)$res_own->fetch_row()[0];
 
         // Troops currently recruiting

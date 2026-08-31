@@ -86,9 +86,7 @@ $query_all_troops = "
     SELECT s_name, SUM(amount) as total
     FROM (
         SELECT soldiername AS s_name, soldiercount AS amount FROM soldiers WHERE kingdomid = ?
-
         UNION ALL
-
         SELECT sl.soldiername AS s_name, st.soldiercount AS amount 
         FROM sent_troops st 
         JOIN events e ON st.eventid = e.eventid 

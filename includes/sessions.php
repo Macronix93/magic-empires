@@ -120,6 +120,7 @@ if ($user->is_logged_in()) {
             apply_villager_cap($user->get_current_kingdom());
 
             $_SESSION["active_attacks"] = check_for_incoming_attacks($user->get_user_id(), $db_instance);
+            $_SESSION["active_supports"] = check_for_incoming_support($user->get_user_id(), $db_instance);
         }
     }
 }

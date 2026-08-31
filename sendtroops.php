@@ -59,8 +59,10 @@ if ($barracks_level <= 0) {
 // Get users kingdom and score + noob check
 $enemy_score = 0;
 $enemy_user_id = -1;
+$enemy_guild_id = -1;
+
 $result_enemy = $db_instance->execute_query("
-        SELECT k.userid, u.score 
+        SELECT k.userid, u.score, u.guildid 
         FROM kingdoms k
         JOIN users u ON k.userid = u.id 
         WHERE k.mapx = ? AND k.mapy = ?", [$target_x, $target_y]);
@@ -69,20 +71,41 @@ $row_enemy = $result_enemy->fetch_assoc();
 if ($row_enemy) {
     $enemy_score = $row_enemy["score"];
     $enemy_user_id = $row_enemy["userid"];
+    $enemy_guild_id = $row_enemy["guildid"] ?? -1;
 }
 
+$my_guild_id = $user->get_user_guild_id();
+$is_ally = ($my_guild_id > 0 && $my_guild_id === $enemy_guild_id);
 $is_noob_protected = false;
-if ($enemy_user_id > 0 && $enemy_user_id != $user->get_user_id()) {
-    $is_noob_protected = new Conquest($db_instance)->has_noob_protection($user->get_user_score(), $enemy_score);
+
+$current_support_load = 0;
+$total_support_limit = 0;
+
+if ($is_ally) {
+    $target_k_obj = new Kingdom($db_instance, $kingdom_id);
+    $t_barracks_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
+    $total_support_limit = SUPPORT_LIMIT_BASE + ($t_barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+
+    $res_load = $db_instance->execute_query("
+        SELECT (
+            (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?) +
+            (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.actionid = ?)
+        ) AS total", [$kingdom_id, $kingdom_id, ActionTypes::ACTION_STATION_TROOPS]);
+
+    $current_support_load = (int)$res_load->fetch_column();
+} else {
+    if ($enemy_user_id > 0 && $enemy_user_id != $user->get_user_id()) {
+        $is_noob_protected = new Conquest($db_instance)->has_noob_protection($user->get_user_score(), $enemy_score);
+    }
 }
 
 // Check if the user already sent troops to that kingdom
 $already_sent = 0;
 
-if ($kingdom_id != -999) {
+if ($kingdom_id != WORLD_EVENT_ID) {
     $result = $db_instance->execute_query("SELECT COUNT(*) AS alreadysent FROM events 
-                               WHERE actionid = ? AND userid = ? AND targetx = ? AND targety = ? AND kingdomid = ?",
-        [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $target_x, $target_y, $user->get_current_kingdom()]);
+                               WHERE (actionid = ? OR actionid = ?)  AND userid = ? AND targetx = ? AND targety = ? AND kingdomid = ?",
+        [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_STATION_TROOPS, $user->get_user_id(), $target_x, $target_y, $user->get_current_kingdom()]);
     $already_sent = $result->fetch_assoc()["alreadysent"];
 }
 
@@ -179,6 +202,23 @@ if (!empty($_POST["soldiers"])) {
 
         $tc_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
         $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
+
+        $res_ongoing = $db_instance->execute_query("
+        SELECT COUNT(DISTINCT e.eventid) as total 
+        FROM events e 
+        JOIN sent_troops st ON e.eventid = st.eventid
+        WHERE e.userid = ? 
+          AND e.targetid = -1 
+          AND st.soldierid = ? 
+          AND e.actionid = ?",
+            [
+                $user->get_user_id(),
+                Soldiers::SOLDIER_SETTLER_WAGON,
+                ActionTypes::ACTION_SEND_TROOPS
+            ]
+        );
+        $ongoing_foundations = (int)($res_ongoing->fetch_assoc()["total"] ?? 0);
+
         $active_res = $db_instance->execute_query(
             "SELECT COUNT(*) as total FROM events WHERE kingdomid = ? AND (actionid = ? OR actionid = ?)",
             [$user->get_current_kingdom(), ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS]
@@ -206,15 +246,25 @@ if (!empty($_POST["soldiers"])) {
             $total_units_in_request += (int)$count;
         }
 
+        $my_guild_id = $user->get_user_guild_id();
+        $target_user_guild = -1;
+        if ($enemy_user_id > 0) {
+            $res_g = $db_instance->execute_query("SELECT guildid FROM users WHERE id = ?", [$enemy_user_id]);
+            $target_user_guild = $res_g->fetch_column();
+        }
+
+        $is_support = ($my_guild_id > 0 && $my_guild_id === $target_user_guild && $enemy_user_id !== $user->get_user_id());
+        $action_id = $is_support ? ActionTypes::ACTION_STATION_TROOPS : ActionTypes::ACTION_SEND_TROOPS;
+
         if (!$has_soldiers) {
             $error = "Du musst mindestens einen Soldaten auswählen!";
         } else if ($active_res->fetch_assoc()["total"] >= $max_commands) {
             $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
-        } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && $current_settled_count >= $max_allowed_slots) {
+        } else if ($kingdom_id == -1 && $settler_wagon_count > 0 && ($current_settled_count + $ongoing_foundations) >= $max_allowed_slots) {
             if ($max_allowed_slots >= GLOBAL_SETTLEMENT_MAX) {
                 $error = "Das absolute Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Dörfern ist erreicht!";
             } else {
-                $error = "Keine weiteren Siedlungen möglich! Erforsche 'Imperium' in einem weiteren Dorf, um einen Slot freizuschalten (Aktuell: $max_allowed_slots).";
+                $error = "Keine weiteren Siedlungs-Slots frei! Du hast bereits $current_settled_count Königreiche gegründet und $ongoing_foundations Gründungen laufen (Limit: $max_allowed_slots).";
             }
         } else if ($enemy_user_id == $user->get_user_id() && $target_x != -1) {
             $target_k_obj = new Kingdom($db_instance, $kingdom_id);
@@ -225,6 +275,38 @@ if (!empty($_POST["soldiers"])) {
 
             if ($total_units_in_request > $free_space) {
                 $error = "Im Zielkönigreich ist nicht genug Platz für die Stationierung! Frei: " . fnum($free_space) . " Plätze.";
+            }
+        } else if ($is_support) {
+            $attacker_id = $user->get_user_id();
+
+            $res_exists = $db_instance->execute_query("
+                SELECT 
+                    (SELECT 1 FROM stationed_troops WHERE owner_id = ? AND target_kingdom_id = ? LIMIT 1) AS already_there,
+                    (SELECT 1 FROM events WHERE userid = ? AND targetid = ? AND actionid = 9 LIMIT 1) AS on_the_way
+            ", [$attacker_id, $kingdom_id, $attacker_id, $kingdom_id]);
+
+            $check_data = $res_exists->fetch_assoc();
+
+            if ($check_data["already_there"] || $check_data["on_the_way"]) {
+                $error = "Du hast bereits einen Unterstützungstrupp bei diesem Mitglied oder schickst gerade!";
+            } else {
+                $target_k_obj = new Kingdom($db_instance, $kingdom_id);
+                $barracks_lvl = $target_k_obj->get_kingdom_building_level(2);
+                $support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+
+                $res_current = $db_instance->execute_query("
+                SELECT 
+                    (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?) +
+                    (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.actionid = ?)
+                AS total",
+                    [$kingdom_id, $kingdom_id, ActionTypes::ACTION_STATION_TROOPS]);
+                $current_support_count = $res_current->fetch_column();
+
+                $total_sent = array_sum(array_map("intval", $_POST["soldiers"]));
+
+                if (($current_support_count + $total_sent) > $support_limit) {
+                    $error = "Das Ziel-Königreich kann keine weitere Unterstützung aufnehmen (Limit: $support_limit).";
+                }
             }
         }
 
@@ -239,12 +321,14 @@ if (!empty($_POST["soldiers"])) {
                 $target_y,
                 $user->get_current_kingdom(),
                 $kingdom_id,
-                $is_pure_scouting
+                $is_pure_scouting,
+                false,
+                $is_ally
             );
 
             $result = $db_instance->execute_query(
                 "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
-                [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
+                [$action_id, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
             );
             $event_id = $result->fetch_assoc()["eventid"];
 
@@ -325,6 +409,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         $only_scouts_allowed = false;
     }
 
+    $only_scouts_allowed = (!$is_ally && $is_noob_protected);
     $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy");
 
     if (!empty($_POST["soldiers"])) {
@@ -405,32 +490,42 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
     } else if ($row) {
         if ($enemy_user_id == $user->get_user_id()) {
             $send_title = "Truppen stationieren";
+        } else if ($is_ally) {
+            $send_title = "Königreich unterstützen";
         } else {
             $send_title = $is_spying ? "Königreich spionieren" : "Königreich angreifen";
         }
 
         $view .= '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
-                                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                                      <tr>
-                                          <td class="td-mapinfo"><b>Koordinaten</b></td>
-                                          <td>' . $target_x . ':' . $target_y . '</td>
-                                      </tr>
-                                      <tr>
-                                          <td class="td-mapinfo"><b>Königreich</b></td>
-                                          <td>' . $row["kingdomname"] . '</td>
-                                      </tr>
-                                      <tr>
-                                          <td class="td-mapinfo"><b>Besitzer</b></td>
-                                          <td><a href="#" 
-                                               data-on-click="openOverlay" 
-                                               data-url="userinfo.php?userid=' . e($enemy_user_id) . '" 
-                                               data-title="Spieler-Info">' . e($row["username"]) . '</a></td>
-                                      </tr>
-                                      <tr>
-                                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
-                                          <td>' . convert_sec_to_str($arrival_time) . '</td>
-                                      </tr>
-                                  ';
+                      <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                          <tr>
+                              <td class="td-mapinfo"><b>Koordinaten</b></td>
+                              <td>' . $target_x . ':' . $target_y . '</td>
+                          </tr>';
+        if ($is_ally) {
+            $load_class = ($current_support_load >= $total_support_limit) ? "class='error'" : "class='passed'";
+
+            $view .= '<tr>
+                <td class="td-mapinfo"><b>Kapazität Hilfe</b></td>
+                <td><span ' . $load_class . '>' . fnum($current_support_load) . '</span> / ' . fnum($total_support_limit) . '</td>
+              </tr>';
+        }
+        $view .= '<tr>
+                      <td class="td-mapinfo"><b>Königreich</b></td>
+                      <td>' . $row["kingdomname"] . '</td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Besitzer</b></td>
+                      <td><a href="#" 
+                           data-on-click="openOverlay" 
+                           data-url="userinfo.php?userid=' . e($enemy_user_id) . '" 
+                           data-title="Spieler-Info">' . e($row["username"]) . '</a></td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                      <td>' . convert_sec_to_str($arrival_time) . '</td>
+                  </tr>
+              ';
 
     } else {
         if ($kingdom_id == -2) {
@@ -473,7 +568,8 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
     }
 
     $first_active_cat = -1;
-    $requested_mode = $_GET['mode'] ?? '';
+    $requested_mode = $_GET["mode"] ?? '';
+
     if (in_array($requested_mode, ["plunder", "spy", "scout"])) {
         $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
     } else {
@@ -487,6 +583,14 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
     if ($barracks_level > 0) {
         if ($total_units_available > 0) {
+            $button_label = "Truppen schicken";
+
+            if ($is_ally) {
+                $button_label = "Unterstützung senden";
+            } else if ($enemy_user_id == $user->get_user_id()) {
+                $button_label = "Einheiten stationieren";
+            }
+
             $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
                             <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen:</div>
@@ -494,7 +598,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                             <div id="troop-summary-totals" style="width: 100%; display: flex; justify-content: center; margin-top: 15px;"></div>
                         </div>
                         <div id="troop-action-buttons" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 20px;">
-                            <input type="submit" value="Truppen schicken">
+                            <input type="submit" value="' . $button_label . '">
                             <input type="button" value="Alle wählen" data-on-click="selectAllTroops" title="Alle verfügbaren Truppen auswählen">
                             <input type="button" 
                                    value="X" 
@@ -507,8 +611,11 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
             $view .= "<div class='tab' style='margin-top: 10px;'>";
             foreach ($categories as $id => $name) {
+                if ($name === "Unterstützung") continue;
+
                 if ($category_counts[$id] > 0) {
                     $active_class = ($id === $first_active_cat) ? "active" : "";
+
                     $view .= "<div class='tablinks $active_class' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
                 } else {
                     $view .= "<div class='tablinks tab-disabled'>$name</div>";

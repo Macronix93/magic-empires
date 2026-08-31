@@ -167,7 +167,8 @@ class BattleReportRenderer
             "success" => ["bg" => "rgba(46, 204, 113, 0.2)", "border" => "#2ecc71"],
             "error" => ["bg" => "rgba(231, 76, 60, 0.2)", "border" => "#e74c3c"],
             "neutral" => ["bg" => "rgba(212, 175, 55, 0.1)", "border" => "rgb(165, 124, 0)"],
-            "normal" => ["bg" => "rgba(255, 255, 255, 0.05)", "border" => "rgba(212, 175, 55, 0.2)"]
+            "normal" => ["bg" => "rgba(255, 255, 255, 0.05)", "border" => "rgba(212, 175, 55, 0.2)"],
+            "support" => ["bg" => "rgba(0, 123, 255, 0.15)", "border" => "#3498db"]
         ];
 
         $style = $styles[$type] ?? $styles["neutral"];

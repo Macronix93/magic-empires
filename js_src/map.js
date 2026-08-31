@@ -582,7 +582,7 @@ function selectField(x, y, shouldCenter = false) {
     const tile = mapData.find(t => t[0] === x && t[1] === y);
     if (!tile) return;
 
-    const [tx, ty, , kid, , , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt] = tile;
+    const [tx, ty, , kid, , , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt, , enemyGuildId] = tile;
 
     const pathResult = calculatePathLocal(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y, tx, ty);
     currentPath = pathResult.path;
@@ -615,7 +615,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<div class="title-border">Verlassenes Vorratslager</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(${formatTimeJS(arrivalScout)} Spionage)</small></td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
@@ -640,7 +640,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<div class="title-border">Monstercamp (Stufe ${m_lvl})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(${formatTimeJS(Math.round(arrivalScout))} Spionage)</small></td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(Spionage: ${formatTimeJS(Math.round(arrivalScout))})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
         html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">Camp angreifen</button>`;
@@ -719,8 +719,30 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString()}</td></tr>`;
 
         if (kid !== gameConfig.currentKingdom.id) {
-            html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}</td></tr>`;
-            const btnText = (ownerId === gameConfig.currentKingdom.ownerId) ? "Stationieren" : "Angreifen";
+            const arrivalNormal = Math.round(baseTravelTime);
+            const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.PLAYER_KINGDOM_SCOUT_BOOST);
+            const arrivalSupport = Math.round(baseTravelTime * gameConfig.constants.GUILD_SUPPORT_TRAVEL_BOOST);
+            let timeDisplay = formatTimeJS(arrivalNormal);
+
+            const targetGuildId = enemyGuildId;
+            const myGuildId = gameConfig.currentKingdom.guildId;
+            const isAlly = (myGuildId > 0 && myGuildId === targetGuildId);
+
+            if (isAlly) {
+                timeDisplay = `${formatTimeJS(arrivalSupport)}<br><small style="color: #3498db;">(Gilden-Bonus)</small>`;
+            } else {
+                timeDisplay += `<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small>`;
+            }
+
+            html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${timeDisplay}</td></tr>`;
+
+            let btnText = "Angreifen";
+            if (ownerId === gameConfig.currentKingdom.ownerId) {
+                btnText = "Stationieren";
+            } else if (isAlly) {
+                btnText = "Unterstützen";
+            }
+
             html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
             html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">${btnText}</button>`;
             html += `</td></tr>`;

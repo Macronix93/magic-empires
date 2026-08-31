@@ -56,38 +56,38 @@ if (isset($_GET["action"])) {
                             if ($building_level >= 1) {
                                 $error = "Die Botschaft kann maximal auf Stufe 1 ausgebaut werden!";
                             }
-                        } else {
-                            $target_level = $building_level + 1;
-                            $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
+                        }
+                        
+                        $target_level = $building_level + 1;
+                        $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
 
-                            if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $max_allowed_level) {
-                                $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe " . ($build_id == BuildingTypes::BUILDING_STORAGE ? $target_level - 1 : $target_level) . " benötigt)";
-                            }
+                        if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $max_allowed_level) {
+                            $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe " . ($build_id == BuildingTypes::BUILDING_STORAGE ? $target_level - 1 : $target_level) . " benötigt)";
+                        }
 
-                            $building_dependencies = $buildings[$build_id]->get_building_dependencies();
+                        $building_dependencies = $buildings[$build_id]->get_building_dependencies();
 
-                            foreach ($building_dependencies as $dependency) {
-                                if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                                    $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " 
+                        foreach ($building_dependencies as $dependency) {
+                            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
+                                $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " 
                                             Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
-                                }
                             }
+                        }
 
-                            // Dependency check passed - build/upgrade building!
-                            if (empty($error)) {
-                                $reduction = $kingdom->get_construction_time_multiplier();
-                                $base_time = round($buildings[$build_id]->get_building_time() * pow($buildings[$build_id]->get_building_mult(), $building_level));
-                                $building_time = time() + (int)round($base_time * $reduction);
+                        // Dependency check passed - build/upgrade building!
+                        if (empty($error)) {
+                            $reduction = $kingdom->get_construction_time_multiplier();
+                            $base_time = round($buildings[$build_id]->get_building_time() * pow($buildings[$build_id]->get_building_mult(), $building_level));
+                            $building_time = time() + (int)round($base_time * $reduction);
 
-                                // Subtract building costs from kingdom resources
-                                $kingdom->give_kingdom_wood(-$cost_wood);
-                                $kingdom->give_kingdom_food(-$cost_food);
-                                $kingdom->give_kingdom_stone(-$cost_stone);
-                                $kingdom->give_kingdom_gold(-$cost_gold);
+                            // Subtract building costs from kingdom resources
+                            $kingdom->give_kingdom_wood(-$cost_wood);
+                            $kingdom->give_kingdom_food(-$cost_food);
+                            $kingdom->give_kingdom_stone(-$cost_stone);
+                            $kingdom->give_kingdom_gold(-$cost_gold);
 
-                                $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                    [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
-                            }
+                            $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
                         }
                     }
                 }
@@ -246,7 +246,7 @@ if ($count_maxed_buildings === $building_count) {
                     }
 
                     $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-                    $is_disabled = ($res_disabled || $is_tc_limit_reached || $buildings[$i]->get_building_id() == BuildingTypes::BUILDING_EMBASSY) ? "disabled" : "";
+                    $is_disabled = ($res_disabled || $is_tc_limit_reached) ? "disabled" : "";
 
                     $text_build = "<form action='towncenter.php' method='GET'>
                                     <input type='hidden' name='action' value='build'>

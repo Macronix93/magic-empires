@@ -135,6 +135,21 @@ class Conquest
         foreach ($enemy_soldiers_result as $row) {
             $this->enemy_soldiers[$row["soldierid"]] = $row["soldiercount"];
         }
+
+        $res_stat = $this->mysqli->execute_query("
+            SELECT soldier_id, SUM(soldiercount) as total 
+            FROM stationed_troops 
+            WHERE target_kingdom_id = ? 
+            GROUP BY soldier_id",
+            [$this->target_id]);
+
+        foreach ($res_stat as $row) {
+            $sid = $row["soldier_id"];
+
+            if (!isset($this->enemy_soldiers[$sid])) $this->enemy_soldiers[$sid] = 0;
+
+            $this->enemy_soldiers[$sid] += (int)$row["total"];
+        }
     }
 
     public function initialize_soldier_types(): void
@@ -497,9 +512,12 @@ class Conquest
 
     public function has_noob_protection(int $attacker_score, int $defender_score): bool
     {
-        $noob_mult = NOOB_PROTECTION_MULT;
-        $min_score = $attacker_score * $noob_mult;
-        $max_score = $attacker_score / $noob_mult;
+        if (NOOB_PROTECTION_MULT <= 0) {
+            return false;
+        }
+
+        $min_score = $attacker_score * NOOB_PROTECTION_MULT;
+        $max_score = $attacker_score / NOOB_PROTECTION_MULT;
 
         return $defender_score < $min_score || $defender_score > $max_score;
     }
@@ -689,5 +707,97 @@ class Conquest
     public function get_monster_enemy_data(): array
     {
         return $this->enemy_soldiers;
+    }
+
+    public function apply_losses_to_stationed_troops(float $defender_loss_ratio): void
+    {
+        $query = "SELECT st.*, sl.scoregain 
+              FROM stationed_troops st 
+              JOIN soldier_list sl ON st.soldier_id = sl.id 
+              WHERE st.target_kingdom_id = ?";
+        $res = $this->mysqli->execute_query($query, [$this->target_id]);
+        $attacker_name = $this->mysqli->execute_query("SELECT u.username FROM events e JOIN users u ON e.userid = u.id WHERE e.eventid = ?", [$this->event_id])->fetch_column();
+
+        $reports_to_send = [];
+
+        while ($row = $res->fetch_assoc()) {
+            $initial = (int)$row["soldiercount"];
+            $loss = (int)round($initial * $defender_loss_ratio);
+            $uid = (int)$row["owner_id"];
+
+            if ($loss > 0) {
+                $score_loss = $loss * (int)$row["scoregain"];
+                if ($score_loss > 0) {
+                    $this->mysqli->execute_query(
+                        "UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?",
+                        [$score_loss, $uid]
+                    );
+                }
+
+                if ($loss >= $initial) {
+                    $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$row["id"]]);
+                    $loss = $initial;
+                } else {
+                    $this->mysqli->execute_query("UPDATE stationed_troops SET soldiercount = soldiercount - ? WHERE id = ?", [$loss, $row["id"]]);
+                }
+
+                update_player_stat($uid, "units_fallen_pvp", $loss);
+                update_global_stat("total_fallen_soldiers", $loss);
+            }
+
+            if (!isset($reports_to_send[$uid])) {
+                $reports_to_send[$uid] = [];
+            }
+
+            $reports_to_send[$uid][] = [
+                "sid" => (int)$row["soldier_id"],
+                "initial" => $initial,
+                "loss" => $loss
+            ];
+        }
+
+        foreach ($reports_to_send as $uid => $troop_results) {
+            $this->send_combined_support_report($uid, $troop_results, $attacker_name);
+        }
+    }
+
+    private function send_combined_support_report(int $uid, array $troop_results, string $attacker_name): void
+    {
+        $target_k = new Kingdom($this->mysqli, $this->target_id);
+        $tx = $target_k->get_kingdom_map_x();
+        $ty = $target_k->get_kingdom_map_y();
+        $target_c_link = "<a href='#' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+        $res_atk_k = $this->mysqli->execute_query("
+            SELECT kingdomname, mapx, mapy FROM kingdoms 
+            WHERE id = (SELECT kingdomid FROM events WHERE eventid = ?)
+        ", [$this->event_id]);
+        $atk_k_data = $res_atk_k->fetch_assoc();
+        $atk_k_name = $atk_k_data['kingdomname'] ?? 'Unbekannt';
+        $ax = $atk_k_data['mapx'] ?? 0;
+        $ay = $atk_k_data['mapy'] ?? 0;
+        $atk_c_link = "<a href='#' data-on-click='mapJump' data-x='$ax' data-y='$ay'>$ax:$ay</a>";
+
+        $units_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:15px;'>";
+        $total_loss = 0;
+
+        foreach ($troop_results as $res) {
+            $s_data = $this->mysqli->execute_query("SELECT soldiername, icon FROM soldier_list WHERE id = ?", [$res["sid"]])->fetch_assoc();
+            $units_html .= BattleReportRenderer::render_unit_card($s_data["soldiername"], $res["initial"], $res["loss"], $s_data["icon"]);
+            $total_loss += $res["loss"];
+        }
+        $units_html .= "</div>";
+
+        $outcome_text = ($total_loss > 0) ? " Sie haben Verluste erlitten." : " Sie haben den Angriff unbeschadet überstanden.";
+        $type = ($total_loss > 0) ? "error" : "success";
+
+        $main_text = "Deine Truppen in <b>" . e($target_k->get_kingdom_name()) . "</b> ($target_c_link) wurden von <b>" . e($attacker_name) . "</b> " .
+            "aus <b>" . e($atk_k_name) . "</b> ($atk_c_link) angegriffen.";
+        $main_text .= $outcome_text;
+        $main_text .= $units_html;
+
+        $res_u = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$uid]);
+        send_server_message($uid, $res_u->fetch_column(), "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box("Unterstützungskampf: Bericht",
+                $main_text, 0, 0, "", $type) . "</div>", MessageCategories::CATEGORY_WAR);
     }
 }

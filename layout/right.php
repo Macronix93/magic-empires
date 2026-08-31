@@ -5,9 +5,8 @@
         $kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
 
         // Get all kingdoms of a player for him to change anytime
-        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ?", [$user->get_user_id()]);
+        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at", [$user->get_user_id()]);
         $row = $result->fetch_assoc();
-        $current_timestamp = time();
 
         $active_boosts = $kingdom->get_active_boosts(); // Get active resource boosts
         $current_align = $kingdom->get_kingdom_alignment();
@@ -98,10 +97,10 @@
         </div>
         <div style='border-bottom: 2px solid rgba(0, 0, 0, 0.5); margin-bottom: 5px; padding-bottom: 5px;'>
             <img src='images/icons/icon_time.png' class='ressource-icons' alt='Serverzeit' title='Serverzeit'/>
-            <span class='servertime'><?= date("H:i:s", $current_timestamp); ?></span>
+            <span class='servertime'><?= date("H:i:s", $now); ?></span>
         </div>
         <img src='images/icons/icon_score.png' class='ressource-icons' alt='Punkte'
-             title='Punkte'/> <?= fnum($user->get_user_score()); ?>
+             title='Punkte'/> <?= fnum($user->get_user_score(), true); ?>
         <div id="kingdom-info">
             <?php
             foreach ($resource_config as $type => $data) {

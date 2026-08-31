@@ -4,6 +4,7 @@ $messages = new Messages($db_instance, $user);
 $unread = $user->get_unread_messages();
 $unread_news = get_unread_news_count($user, $db_instance);
 $unread_world = $messages->get_unread_world_count();
+$unread_guild = $messages->get_unread_guild_count();
 ?>
     <div class="box-container">
         <div class="box-header">
@@ -24,8 +25,8 @@ $unread_world = $messages->get_unread_world_count();
                 <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
                 <span>Nachrichten</span>
                 <?php
-                $inbox_only_unread = $unread - $unread_world;
-                
+                $inbox_only_unread = $unread - $unread_world - $unread_guild;
+
                 if ($inbox_only_unread > 0): ?>
                     <span class="msg-badge" id="badge-priv-messages">
                 <?= $messages->show_messages_indicator($inbox_only_unread) ?>
@@ -38,13 +39,19 @@ $unread_world = $messages->get_unread_world_count();
                 <span>Welt-Chat</span>
                 <?php if ($unread_world > 0): ?>
                     <span class="msg-badge" id="badge-world-chat">
-                <?= $messages->show_messages_indicator($unread_world) ?>
-            </span>
+                        <?= $messages->show_messages_indicator($unread_world) ?>
+                    </span>
                 <?php endif; ?>
             </div>
-            <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?> box-disabled" data-on-click="navigate"
+            <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="guild.php">
-                <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/> Gilde
+                <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/>
+                <span>Gilde</span>
+                <?php if ($unread_guild > 0): ?>
+                    <span class="msg-badge" id="badge-guild-chat">
+                        <?= $messages->show_messages_indicator($unread_guild) ?>
+                    </span>
+                <?php endif; ?>
             </div>
             <div class="box<?= $current_page === 'ranking.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="ranking.php">

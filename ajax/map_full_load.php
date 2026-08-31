@@ -17,6 +17,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             IFNULL(mc.level, 0) AS monsterlevel,
             COALESCE(r.expires_at, mc.expires_at, 0) as expires_at,
             k.userid as owner_id,
+            u.guildid,
             e_mov.my_troop_icon
           FROM map m 
           JOIN field_types ft ON m.fieldtype = ft.fieldid
@@ -70,7 +71,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             (int)($row["owner_id"] ?? 0),
             $row["fieldname"] ?? "",
             (int)($row["expires_at"] ?? 0),
-            $row["my_troop_icon"] ?? ""
+            $row["my_troop_icon"] ?? "",
+            (int)($row["guildid"] ?? -1)
         ];
     }
 

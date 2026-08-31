@@ -245,5 +245,7 @@
                 Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/survey" title="survey icons">Survey icons created by Magnific -
                 Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/alliance" title="alliance icons">Alliance icons created by
+                anilofex - Flaticon</a></li>
     </ul>
 </div>

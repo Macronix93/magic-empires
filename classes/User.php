@@ -272,26 +272,29 @@ class User
     public function get_unread_messages(): int
     {
         $uid = $this->get_user_id();
+        $gid = $this->get_user_guild_id();
         $is_staff = ($this->get_user_admin_level() > 0);
 
         $support_subquery = $is_staff
-            ? "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE m.is_admin_reply = 0 AND m.hasread = 0 AND t.status = 1"
-            : "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE t.userid = ? AND m.is_admin_reply = 1 AND m.hasread = 0";
+            ? "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE sm.is_admin_reply = 0 AND sm.hasread = 0 AND t.status = 1)"
+            : "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE t.userid = u.id AND sm.is_admin_reply = 1 AND sm.hasread = 0)";
+
+        $guild_subquery = ($gid > 0)
+            ? "(SELECT COUNT(*) FROM guild_chat WHERE guild_id = $gid AND id > u.last_guild_chat_id AND userid != u.id AND deleted = 0)"
+            : "0";
 
         $query = "
-        SELECT 
-            (SELECT COUNT(*) FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0) +
-            (SELECT COUNT(*) FROM server_messages WHERE receiverid = ? AND hasread = 0) +
-            (SELECT COUNT(*) FROM world_chat WHERE id > (SELECT last_world_chat_id FROM users WHERE id = ?) AND userid != ? AND deleted = 0) +
-            ($support_subquery)
-        AS total";
+            SELECT 
+                (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) +
+                (SELECT COUNT(*) FROM server_messages WHERE receiverid = u.id AND hasread = 0) +
+                (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) +
+                $support_subquery +
+                $guild_subquery
+            AS total
+            FROM users u 
+            WHERE u.id = ?";
 
-        $params = [$uid, $uid, $uid, $uid];
-        if (!$is_staff) {
-            $params[] = $uid;
-        }
-
-        $result = $this->mysqli->execute_query($query, $params);
+        $result = $this->mysqli->execute_query($query, [$uid]);
         $row = $result->fetch_assoc();
 
         return (int)($row["total"] ?? 0);
@@ -356,6 +359,18 @@ class User
     {
         $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->user_id]);
         return $result->fetch_assoc()["coins"];
+    }
+
+    public function get_user_guild_id(): int
+    {
+        $result = $this->mysqli->execute_query("SELECT guildid FROM users WHERE id = ?", [$this->user_id]);
+        return $result->fetch_assoc()["guildid"];
+    }
+
+    public function get_guild_rank_id(): int
+    {
+        $res = $this->mysqli->execute_query("SELECT guild_rank_id FROM users WHERE id = ?", [$this->get_user_id()]);
+        return (int)($res->fetch_column() ?? 0);
     }
 
     public function get_reg_status(): string
