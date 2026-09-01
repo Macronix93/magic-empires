@@ -2744,4 +2744,71 @@ class EventManager
 
         send_server_message($row["userid"], $s_name, $msg, MessageCategories::CATEGORY_WAR);
     }
+
+    public function process_orphaned_support(): void
+    {
+        $query = "
+            SELECT st.*, u.username as owner_name, sl.soldiername, sl.icon
+            FROM stationed_troops st
+            LEFT JOIN kingdoms k ON st.target_kingdom_id = k.id
+            JOIN users u ON st.owner_id = u.id
+            JOIN soldier_list sl ON st.soldier_id = sl.id
+            WHERE k.id IS NULL
+        ";
+        $res = $this->mysqli->query($query);
+
+        $orphans = [];
+        while ($row = $res->fetch_assoc()) {
+            $key = $row['owner_id'] . '_' . $row['source_kingdom_id'];
+            $orphans[$key][] = $row;
+        }
+
+        foreach ($orphans as $troops) {
+            $first = $troops[0];
+            $owner_id = (int)$first["owner_id"];
+            $source_id = (int)$first["source_kingdom_id"];
+            $owner_name = $first["owner_name"];
+
+            $units_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:15px;'>";
+
+            foreach ($troops as $t) {
+                $this->mysqli->execute_query("
+                    INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)
+                ", [
+                    $source_id,
+                    $t["soldier_id"],
+                    $t["soldiername"],
+                    $t["soldiercount"]
+                ]);
+
+                $units_html .= BattleReportRenderer::render_unit_card(
+                    $t["soldiername"],
+                    $t["soldiercount"],
+                    0,
+                    $t["icon"],
+                    true
+                );
+
+                $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$t['id']]);
+            }
+            $units_html .= "</div>";
+
+            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                    "Unterstützung zurückgekehrt",
+                    "Das befreundete Königreich existiert nicht mehr. Deine Truppen sind sofort in deine Kaserne zurückgekehrt!$units_html",
+                    0, 0,
+                    "Die Soldaten stehen dir ab sofort wieder zur Verfügung.",
+                    "support"
+                ) . "</div>";
+
+            send_server_message($owner_id, $owner_name, $msg, MessageCategories::CATEGORY_WAR);
+
+            Logger::get_instance()->log_game("COMBAT", "SUPPORT_ORPHANED_RETURN", [
+                "source_kingdom" => $source_id,
+                "message" => "Truppen wurden wegen Zielverlust sofort gutgeschrieben"
+            ], $source_id);
+        }
+    }
 }

@@ -783,10 +783,14 @@ if (!$user->is_admin()) {
 
         if ($result && $result->num_rows > 0) {
             $row = $result->fetch_assoc();
-            $username = $row['username'];
+            $username = $row["username"];
 
             // Remove users avatar(s)
             delete_user_avatar_files($user_id);
+
+            // Check if user was in a guild and leader
+            $guild_manager = new Guild($db_instance, $user);
+            $guild_manager->handle_leader_deletion($user_id);
 
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
@@ -797,6 +801,9 @@ if (!$user->is_admin()) {
                     $db_instance->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = ?", [$row["kingdomid"]]);
                 }
             }
+
+            $em = new EventManager($user);
+            $em->process_orphaned_support();
 
             $logger->admin("DELETED USER: $username (ID: $user_id)");
 

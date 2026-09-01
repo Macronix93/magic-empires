@@ -269,7 +269,7 @@ const DEFAULT_GUILD_AVATAR = UPLOADS_FILE_PATH . GUILD_UPLOADS_FILE_PATH . "guil
 
 interface GuildRanks
 {
-    const int GUILD_FOUNDER = 1;
+    const int GUILD_LEADER = 1;
     const int GUILD_OFFICER = 2;
     const int GUILD_DIPLOMAT = 3;
     const int GUILD_RECRUITER = 4;

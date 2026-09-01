@@ -332,6 +332,7 @@ if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
 }
 
 $view .= '<div id="warsim-data" 
+                data-current-kid="' . $user->get_current_kingdom() . '"
                 data-soldiers="' . e(json_encode(array_map(fn($s) => $s->get_soldier_name(), $soldiers))) . '"
                 data-shrine-atk-mult="' . $shrine_atk_mult . '"></div> 
           <div id="warsim-const" 

@@ -14,11 +14,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $my_guild_id = $user->get_user_guild_id();
     $user_score = $user->get_user_score();
     $can_join = ($my_guild_id <= 0 && $user_score >= $data["min_score"] && $data["members"] < $data["max_members"]);
-    
+
     echo "<div style='text-align: center;'><img src='" . $guild_logic->get_avatar() . "' class='guild-avatar' alt='Wappen'><h2>[" . e($data["tag"]) . "] " . e($data["name"]) . "</h2>";
 
     if ($data["motto"]) {
-        echo "<p style='color: rgb(208, 208, 208); opacity: 0.7;'><i>&bdquo;" . e($data["motto"]) . "&ldquo;</i></p>";
+        echo "<p class='guild-motto' style='color: rgb(208, 208, 208); opacity: 0.7;'><i>&bdquo;" . e($data["motto"]) . "&ldquo;</i></p>";
     }
 
     echo "</div>";

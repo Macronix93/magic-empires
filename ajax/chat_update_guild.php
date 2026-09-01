@@ -6,6 +6,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $u_id = $user->get_user_id();
     $guild_id = $user->get_user_guild_id();
     $is_admin = $user->is_admin();
+    $my_rank = $user->get_guild_rank_id();
+    $is_privileged = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
     $html = "";
     $deleted_ids = [];
 
@@ -26,7 +28,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                          data-author='" . e($row["username"]) . "' 
                          data-text='" . e($row["message"]) . "' 
                          title='Zitieren' alt=''>";
-        $del_icon = $is_admin ? "<img src='images/icons/icon_delete.png' class='ressource-icons' 
+        $del_icon = ($is_admin || $is_privileged) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' 
                                         data-on-click='deleteGuildChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt=''>" : "";
         $class = "sender-bubble";
 

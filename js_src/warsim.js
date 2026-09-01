@@ -562,7 +562,11 @@ function getDynamicShrineMult(prefix) {
 function saveWarsimState() {
     if (!isManualAction) return;
 
+    const warsimData = document.getElementById("warsim-data");
+    const currentKid = warsimData ? warsimData.dataset.currentKid : null;
+
     const state = {
+        currentKid: currentKid,
         inputs: {},
         techs: {},
         activeTab: document.querySelector(".tablinks.active")?.dataset.tab || "players",
@@ -592,6 +596,11 @@ function loadWarsimState() {
     if (!saved) return;
 
     const state = JSON.parse(saved);
+
+    const warsimData = document.getElementById("warsim-data");
+    const currentKid = warsimData ? warsimData.dataset.currentKid : null;
+    const kingdomSwitched = (state.currentKid !== currentKid);
+
     isManualAction = false;
 
     for (let id in state.inputs) {
@@ -599,9 +608,15 @@ function loadWarsimState() {
         if (el) el.value = state.inputs[id];
     }
 
-    for (let id in state.techs) {
-        const el = document.getElementById(id);
-        if (el) el.value = state.techs[id];
+    if (!kingdomSwitched) {
+        for (let id in state.techs) {
+            const el = document.getElementById(id);
+            if (el) el.value = state.techs[id];
+        }
+
+        if (state.wall && document.getElementById("en_wall_lvl")) {
+            document.getElementById("en_wall_lvl").value = state.wall.lvl;
+        }
     }
 
     if (state.activeTab) {
@@ -613,14 +628,12 @@ function loadWarsimState() {
         const filterBox = document.getElementById("toggle-relevant-units");
         if (filterBox) filterBox.checked = state.checkboxes.relevantOnly || false;
 
-        if (document.getElementById("my_shrine_war"))
-            document.getElementById("my_shrine_war").checked = state.checkboxes.myShrine;
-        if (document.getElementById("en_shrine_war"))
-            document.getElementById("en_shrine_war").checked = state.checkboxes.enShrine;
-    }
-
-    if (state.wall && document.getElementById("en_wall_lvl")) {
-        document.getElementById("en_wall_lvl").value = state.wall.lvl;
+        if (!kingdomSwitched) {
+            if (document.getElementById("my_shrine_war"))
+                document.getElementById("my_shrine_war").checked = state.checkboxes.myShrine;
+            if (document.getElementById("en_shrine_war"))
+                document.getElementById("en_shrine_war").checked = state.checkboxes.enShrine;
+        }
     }
 
     updateLivePowerSummary();
@@ -630,6 +643,10 @@ function loadWarsimState() {
     }
 
     isManualAction = true;
+
+    if (kingdomSwitched) {
+        saveWarsimState();
+    }
 }
 
 document.addEventListener("DOMContentLoaded", () => {

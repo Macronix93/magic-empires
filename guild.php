@@ -83,15 +83,15 @@ if ($my_guild_id === -1) {
     $guilds = $guild_logic->get_guild_list();
     $view .= "<table class='table'>
                 <colgroup>
-                    <col style='width: 30%'>
+                    <col style='width: 40%'>
                     <col>
-                    <col style='width: 20%'>
-                    <col style='width: 20%'>
+                    <col style='width: 15%'>
+                    <col style='width: 15%'>
                     <col style='width: 5%'>
                 </colgroup>
                 <tr>
                     <td class='td-gradient td-center'><b>Name</b></td>
-                    <td class='td-gradient td-center'><b>Gründer</b></td>
+                    <td class='td-gradient td-center'><b>Leader</b></td>
                     <td class='td-gradient td-center'><b>Mitglieder</b></td>
                     <td class='td-gradient td-center'><b>Score</b></td>
                     <td class='td-gradient td-center'></td>
@@ -130,7 +130,7 @@ if ($my_guild_id === -1) {
                     <td>
                         " . $guild_logic->render_badge($g["id"], $g["tag"], $g["name"]) . "
                     </td>
-                    <td>" . e($g["founder_name"]) . "</td>
+                    <td class='td-center'>" . e($g["founder_name"]) . "</td>
                     <td class='td-center'>{$g["member_count"]} / {$g["max_members"]}</td>
                     <td class='td-center' " . (!$has_score ? "class='error'" : "") . ">$score_display</td>
                     <td class='td-center'>$action_icon</td>
@@ -199,7 +199,7 @@ if ($my_guild_id === -1) {
     $view .= "<h2 style='margin-top: 0;'>[" . e($guild_info["tag"]) . "] " . e($guild_info["name"]) . "</h2>";
 
     if ($guild_info["motto"]) {
-        $view .= "<p style='margin-bottom: 25px; color: rgb(208,208,208); opacity: 0.7;'><i>&bdquo;" . e($guild_info["motto"]) . "&ldquo;</i></p>";
+        $view .= "<p class='guild-motto' style='margin-bottom: 25px; color: rgb(208,208,208); opacity: 0.7;'><i>&bdquo;" . e($guild_info["motto"]) . "&ldquo;</i></p>";
     }
 
     $view .= "<div class='title-border'>Mitgliederliste</div>";
@@ -231,7 +231,7 @@ if ($my_guild_id === -1) {
                 if (!$m["is_founder"] || $my_perms["is_founder"]) {
                     $action_content .= "<select data-on-change='changeMemberRank' data-userid='{$m["id"]}' style='font-size: 11px; margin-right: 10px; vertical-align: middle; width: 85px;'>";
                     foreach ($ranks as $r) {
-                        if ($r["id"] == GuildRanks::GUILD_FOUNDER && !$my_perms["is_founder"]) continue;
+                        if ($r["id"] == GuildRanks::GUILD_LEADER && !$my_perms["is_founder"]) continue;
 
                         $is_selected = ($r["id"] == $m["rank_id"]);
                         $disabled = $is_selected ? "disabled" : "";

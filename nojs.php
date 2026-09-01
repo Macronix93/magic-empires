@@ -1,6 +1,4 @@
 <?php
-// Wir laden die core.php nicht komplett, um Redirect-Schleifen zu verhindern,
-// aber wir brauchen die Konstanten für das Design.
 require_once("includes/core.php");
 ?>
 <!DOCTYPE html>

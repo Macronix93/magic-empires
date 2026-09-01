@@ -21,8 +21,10 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     $is_owner = ((int)$msg["userid"] === $u_id);
     $is_admin = $user->is_admin();
-    
-    if ($is_admin || $is_owner) {
+    $my_rank = $user->get_guild_rank_id();
+    $is_high_rank = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
+
+    if ($is_admin || $is_owner || $is_high_rank) {
         $db_instance->execute_query("UPDATE guild_chat SET deleted = 1 WHERE id = ?", [$msg_id]);
 
         echo json_encode(["success" => true, "id" => $msg_id]);

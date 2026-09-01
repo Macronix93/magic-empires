@@ -166,9 +166,9 @@ if (!$active_event) {
         }
 
         if ($is_boss_dead) {
-            $view .= "<p>Die dunkle Präsenz wurde vertrieben.<br>Alle Teilnehmer erhalten nach Ablauf ihre Belohnung!</p>";
+            $view .= "<p style='margin-bottom: 30px;'>Die dunkle Präsenz wurde vertrieben.<br>Alle Teilnehmer erhalten nach Ablauf ihre Belohnung!</p>";
         } else {
-            $view .= "<p>Schicke deine Truppen zum Zentrum der Karte, um den Boss gemeinsam zu besiegen!</p>";
+            $view .= "<p style='margin-bottom: 30px;'>Schicke deine Truppen zum Zentrum der Karte, um den Boss gemeinsam zu besiegen!</p>";
         }
 
         // Rewards Box

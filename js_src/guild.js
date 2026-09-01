@@ -93,7 +93,7 @@ registerAction("confirmLeaveGuild", (el) => {
     const cooldown = el.dataset.cooldown;
 
     showConfirmationDialog(
-        `Möchtest du die Gilde wirklich verlassen? Falls du der Gründer bist, wird die Führung automatisch übertragen.
+        `Möchtest du die Gilde wirklich verlassen? Falls du der Leader bist, wird die Führung automatisch übertragen.
         \nHinweis: Du kannst nach dem Austritt erst in ${cooldown} wieder einer neuen Gilde beitreten.`,
         "Ja, Austreten",
         "Abbrechen",

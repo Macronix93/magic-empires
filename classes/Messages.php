@@ -183,19 +183,28 @@ class Messages
 
     function show_server_inbox(): string
     {
-        $limit = SHOW_MESSAGES_LIMIT;
         $uid = $this->user->get_user_id();
 
+        // How many new messages do we have?
+        $res_count = $this->mysqli->execute_query("SELECT COUNT(*) FROM server_messages WHERE receiverid = ? AND hasread = 0", [$uid]);
+        $unread_count = (int)$res_count->fetch_row()[0];
+
+        // Calculate dynamic limit (up to max. 100 new messages)
+        $dynamic_limit = max(SHOW_MESSAGES_LIMIT, min(100, $unread_count));
+
         $query = "SELECT * FROM server_messages WHERE receiverid = ? ORDER BY id DESC LIMIT ?";
-        $result = $this->mysqli->execute_query($query, [$uid, $limit + 1]);
+        $result = $this->mysqli->execute_query($query, [$uid, $dynamic_limit + 1]);
 
         if ($result->num_rows == 0) {
             return "Du hast keine Servernachrichten!";
         }
 
         $rows = $result->fetch_all(MYSQLI_ASSOC);
-        $has_more = (count($rows) > $limit);
 
+        // Mark every unread message as read
+        $this->mysqli->execute_query("UPDATE server_messages SET hasread = 1 WHERE receiverid = ? AND hasread = 0", [$uid]);
+
+        $has_more = (count($rows) > $dynamic_limit);
         if ($has_more) {
             array_pop($rows);
         }
@@ -230,10 +239,6 @@ class Messages
 
             if ($index === $last_unread_index) {
                 $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
-            }
-
-            if ($row["hasread"] == 0) {
-                $this->mysqli->execute_query("UPDATE server_messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
             }
         }
 
@@ -581,8 +586,10 @@ class Messages
         $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
         $u_id = $this->user->get_user_id();
         $is_admin = $this->user->is_admin();
+        $my_rank = $this->user->get_guild_rank_id();
+        $is_privileged = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
 
-        // Wir holen uns die Nachrichten
+        // Get the guild messages
         $result = $this->mysqli->execute_query("SELECT * FROM guild_chat WHERE guild_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?", [$guild_id, $limit + 1]);
         $rows = $result->fetch_all(MYSQLI_ASSOC);
 
@@ -592,6 +599,11 @@ class Messages
 
         $html = "<button id='load-older-btn' data-on-click='loadOlderGuildChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
+
+        if (empty($rows)) {
+            $html .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+            return $html;
+        }
 
         $last_read_id = $this->mysqli->execute_query("SELECT last_guild_chat_id FROM users WHERE id = ?", [$u_id])->fetch_row()[0] ?? 0;
         $unread_line_shown = false;
@@ -617,7 +629,7 @@ class Messages
             $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
 
             $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' data-on-click='quoteMessage' data-author='" . e($row["username"]) . "' data-text='" . e($row["message"]) . "' title='Zitieren' style='cursor:pointer;'>";
-            $del_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteGuildChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
+            $del_icon = ($is_me || $is_admin || $is_privileged) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteGuildChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
 
             $html .= "<div class='$class' id='guild-msg-{$row["id"]}'>
                 <div class='message-border'>

@@ -46,6 +46,9 @@ class Guild
         if (!preg_match('/^[a-zA-Z0-9 äöüÄÖÜß\-_]+$/u', $name)) {
             return "Erlaubte Zeichen: Groß- und Kleinbuchstaben, Zahlen, _, - und Leerzeichen.";
         }
+        if (is_name_monotonous($name)) {
+            return "Dieser Gildenname ist zu eintönig!";
+        }
         if (mb_strlen($tag) < GUILD_TAG_MIN || mb_strlen($tag) > GUILD_TAG_MAX) {
             return "Das Gilden-Tag muss zwischen " . GUILD_TAG_MIN . " und " . GUILD_TAG_MAX . " Zeichen lang sein.";
         }
@@ -93,7 +96,7 @@ class Guild
             // Update user with rank
             $this->db->execute_query(
                 "UPDATE users SET guildid = ?, guild_rank_id = ?, last_guild_join = ? WHERE id = ?",
-                [$guild_id, GuildRanks::GUILD_FOUNDER, $now, $uid]
+                [$guild_id, GuildRanks::GUILD_LEADER, $now, $uid]
             );
 
             $this->db->commit();
@@ -347,15 +350,15 @@ class Guild
         }
 
         if ($target["is_founder"] && !$perms["is_founder"]) {
-            return "Du kannst den Rang des Gründers nicht ändern!";
+            return "Du kannst den Rang des Leaders nicht ändern!";
         }
 
         $this->db->begin_transaction();
 
         try {
-            if ($rank_id == GuildRanks::GUILD_FOUNDER) {
+            if ($rank_id == GuildRanks::GUILD_LEADER) {
                 if (!$perms["is_founder"]) {
-                    return "Nur der aktuelle Gründer kann die Gilde übertragen!";
+                    return "Nur der aktuelle Leader kann die Gilde übertragen!";
                 }
 
                 $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_OFFICER, $uid]);
@@ -411,7 +414,7 @@ class Guild
         }
 
         if ($target["is_founder"]) {
-            return "Der Gründer kann nicht gekickt werden.";
+            return "Der Leader kann nicht gekickt werden.";
         }
 
         $this->db->begin_transaction();
@@ -468,7 +471,7 @@ class Guild
 
                 if ($successor) {
                     $this->db->execute_query("UPDATE guilds SET founder_id = ? WHERE id = ?", [$successor["id"], $my_guild]);
-                    $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_FOUNDER, $successor["id"]]);
+                    $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_LEADER, $successor["id"]]);
 
                     $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                             "Gildenführung",
@@ -619,6 +622,9 @@ class Guild
         if (!preg_match('/^[a-zA-Z0-9 äöüÄÖÜß\-_]+$/u', $name)) {
             return "Erlaubte Zeichen: Groß- und Kleinbuchstaben, Zahlen, _, - und Leerzeichen.";
         }
+        if (is_name_monotonous($name)) {
+            return "Dieser Gildenname ist zu eintönig!";
+        }
         if (mb_strlen($tag) < GUILD_TAG_MIN || mb_strlen($tag) > GUILD_TAG_MAX) {
             return "Das Gilden-Tag muss zwischen " . GUILD_TAG_MIN . " und " . GUILD_TAG_MAX . " Zeichen lang sein.";
         }
@@ -635,6 +641,18 @@ class Guild
             return "Die Mindestpunktzahl darf nicht höher als " . GUILD_MAX_MINIMUM_SCORE . " sein!";
         }
 
+        $old_data = $this->get_guild_info($my_guild);
+        $changed_fields = [];
+
+        if ($old_data["name"] !== $name) $changed_fields[] = "Name";
+        if ($old_data["tag"] !== $tag) $changed_fields[] = "Tag";
+        if ($old_data["motto"] !== $motto) $changed_fields[] = "Motto";
+        if ((int)$old_data["min_score"] !== $min_score) $changed_fields[] = "Beitritts-Limit";
+
+        if (empty($changed_fields)) {
+            return null;
+        }
+
         $check = $this->db->execute_query(
             "SELECT id FROM guilds WHERE (name = ? OR tag = ?) AND id != ?",
             [$name, $tag, $my_guild]
@@ -648,10 +666,13 @@ class Guild
             [$name, $tag, $motto, $min_score, $my_guild]
         );
 
+        $changes_str = implode(", ", $changed_fields);
+
         $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                 "Gilden-Update",
-                "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert.",
-                0, 0, "Die neuen Kriterien sind ab sofort gültig."
+                "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert:<br><br>
+                • <i>$changes_str</i>",
+                0, 0, ""
             ) . "</div>";
 
         $leaders = $this->db->execute_query("
@@ -905,6 +926,47 @@ class Guild
                     0, 0, "Deine Verteidigung wurde geschwächt.", "error"
                 ) . "</div>";
             send_server_message($info["host_uid"], $info["host_name"], $msg_host, MessageCategories::CATEGORY_WAR);
+        }
+    }
+
+    public function handle_leader_deletion(int $user_id): void
+    {
+        $res = $this->db->execute_query("SELECT username, guildid, guild_rank_id FROM users WHERE id = ?", [$user_id]);
+        $user_data = $res->fetch_assoc();
+
+        if ($user_data && (int)$user_data["guild_rank_id"] === GuildRanks::GUILD_LEADER) {
+            $guild_id = (int)$user_data["guildid"];
+            $old_leader_name = $user_data["username"];
+
+            $res_next = $this->db->execute_query("
+                SELECT id, username FROM users 
+                WHERE guildid = ? AND id != ? 
+                ORDER BY guild_rank_id, ranking_points DESC 
+                LIMIT 1",
+                [$guild_id, $user_id]
+            );
+
+            $successor = $res_next->fetch_assoc();
+
+            if ($successor) {
+                $next_id = (int)$successor["id"];
+                $next_name = $successor["username"];
+
+                $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_LEADER, $next_id]);
+                $this->db->execute_query("UPDATE guilds SET founder_id = ? WHERE id = ?", [$next_id, $guild_id]);
+
+                $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "Gildenführung übertragen",
+                        "Der bisherige Gilden-Anführer <b>" . e($old_leader_name) . "</b> hat das Reich verlassen. <br><br><b>Du bist nun der neue Anführer der Gilde!</b>",
+                        0, 0,
+                        "Verwalte deine Mitglieder weise und führe sie zu Ruhm.",
+                        "success"
+                    ) . "</div>";
+
+                send_server_message($next_id, $next_name, $msg);
+            } else {
+                $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$guild_id]);
+            }
         }
     }
 }

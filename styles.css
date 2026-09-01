@@ -1012,6 +1012,12 @@ select:-webkit-autofill {
     margin-bottom: 10px;
 }
 
+.guild-motto {
+    overflow-wrap: break-word;
+    max-width: 100%;
+    display: block;
+}
+
 .avatar-container {
     position: relative;
     display: inline-block;

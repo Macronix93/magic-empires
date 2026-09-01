@@ -325,7 +325,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $deleted_username = $u_data['username'];
 
                 $block_until = time() + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
-                $db_instance->execute_query("INSERT INTO blocked_emails (email, blocked_until) VALUES (?, ?)", [$u_data['email'], $block_until]);
+                $db_instance->execute_query("
+                        INSERT INTO blocked_emails (email, blocked_until) 
+                         VALUES (?, ?) 
+                         ON DUPLICATE KEY UPDATE blocked_until = VALUES(blocked_until)",
+                    [$u_data["email"], $block_until]
+                );
 
                 $db_instance->execute_query("
                     UPDATE events SET 
@@ -354,11 +359,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $deleted_username, "email" => $u_data['email']]);
 
+                // Check if user was in a guild and leader
+                $guild_manager = new Guild($db_instance, $user, $user->get_user_guild_id());
+                $guild_manager->handle_leader_deletion($uid);
+
                 $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
+                $em = new EventManager($user);
+                $em->process_orphaned_support();
+
+                $token = bin2hex(random_bytes(16));
+
+                setcookie("logout_verify", $token, time() + 30, "/", "", false, true);
                 session_destroy();
-                setcookie("logout_token", "deleted", time() + 20, "/", "", false, true);
-                change_location("index.php?logout=deleted");
+                change_location("index.php?logout=deleted&v=" . $token);
                 exit;
             }
         }

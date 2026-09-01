@@ -10,17 +10,23 @@ $active_k_id = $user->get_current_kingdom();
 $now = time();
 $kingdom = new Kingdom($db_instance, $active_k_id);
 
-$tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
+$tp_actions = [
+    ActionTypes::ACTION_SEND_TROOPS,
+    ActionTypes::ACTION_RETURN_TROOPS,
+    ActionTypes::ACTION_STATION_TROOPS,
+    ActionTypes::ACTION_SUPPORT_RETURN
+];
 $bp_actions = [
     ActionTypes::ACTION_BUILD_BUILDING,
     ActionTypes::ACTION_BUILD_TROOPS,
     ActionTypes::ACTION_RESEARCH_TECH,
     ActionTypes::ACTION_UPGRADE_TROOPS,
-    ActionTypes::ACTION_SMITHY_UPGRADE,
-    ActionTypes::ACTION_STATION_TROOPS,
-    ActionTypes::ACTION_SUPPORT_RETURN
+    ActionTypes::ACTION_SMITHY_UPGRADE
 ];
-$wp_actions = [ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES];
+$wp_actions = [
+    ActionTypes::ACTION_RECEIVE_RESOURCES,
+    ActionTypes::ACTION_RETURN_RESOURCES
+];
 
 $tp_list = implode(',', $tp_actions);
 $bp_list = implode(',', $bp_actions);
@@ -28,12 +34,16 @@ $wp_list = implode(',', $wp_actions);
 
 $counts = $db_instance->execute_query("
     SELECT 
-        COUNT(CASE WHEN kingdomid = ? AND actionid IN ($tp_list) THEN 1 END) AS count_tp,
-        COUNT(CASE WHEN actionid IN ($bp_list) THEN 1 END) AS count_bp,
-        COUNT(CASE WHEN actionid IN ($wp_list) THEN 1 END) AS count_wp
-    FROM events 
-    WHERE userid = ?",
-    [$user->get_user_id(), $active_k_id]
+        COUNT(CASE WHEN (userid = ? AND kingdomid = ? AND actionid IN ($tp_list)) 
+                     OR (targetid = ? AND actionid = " . ActionTypes::ACTION_STATION_TROOPS . ") THEN 1 END) AS count_tp,
+        COUNT(CASE WHEN userid = ? AND actionid IN ($bp_list) THEN 1 END) AS count_bp,
+        COUNT(CASE WHEN userid = ? AND actionid IN ($wp_list) THEN 1 END) AS count_wp
+    FROM events",
+    [
+        $user->get_user_id(), $active_k_id, $active_k_id, // für count_tp
+        $user->get_user_id(),                             // für count_bp
+        $user->get_user_id()                              // für count_wp
+    ]
 )->fetch_assoc();
 
 $current_k_tp_count = (int)($counts["count_tp"] ?? 0);
