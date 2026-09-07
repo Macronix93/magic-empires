@@ -18,7 +18,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             COALESCE(r.expires_at, mc.expires_at, 0) as expires_at,
             k.userid as owner_id,
             u.guildid,
-            e_mov.my_troop_icon
+            e_mov.my_troop_icon,
+            IF(e_mov.targetx IS NOT NULL, 1, 0) as has_outgoing_event
           FROM map m 
           JOIN field_types ft ON m.fieldtype = ft.fieldid
           LEFT JOIN kingdoms k ON m.kingdomid = k.id
@@ -72,7 +73,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $row["fieldname"] ?? "",
             (int)($row["expires_at"] ?? 0),
             $row["my_troop_icon"] ?? "",
-            (int)($row["guildid"] ?? -1)
+            (int)($row["guildid"] ?? -1),
+            (int)($row["has_outgoing_event"] ?? 0)
         ];
     }
 

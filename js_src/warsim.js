@@ -534,10 +534,8 @@ function checkMonsterImport() {
             filterToggle.checked = true;
             applyRelevantFilter(true);
         }
-
-        if (typeof updateLivePowerSummary === "function") {
-            updateLivePowerSummary();
-        }
+        
+        updateLivePowerSummary();
 
         const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: cleanUrl}, '', cleanUrl);

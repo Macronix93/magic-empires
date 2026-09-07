@@ -7,6 +7,8 @@ $user_data = $db_instance->execute_query("SELECT guildid, ranking_points FROM us
 $my_guild_id = (int)$user_data["guildid"];
 $guild_logic = new Guild($db_instance, $user, $my_guild_id);
 
+$active_tab = $_GET["tab"] ?? 'general';
+
 if (isset($_POST["create_guild"]) && $my_guild_id === -1) {
     $min_score = (int)($_POST["g_min_score"] ?? 0);
     $res = $guild_logic->create_guild($_POST["g_name"] ?? "", $_POST["g_tag"] ?? "", $_POST["g_motto"] ?? "", $min_score);
@@ -21,33 +23,46 @@ if (isset($_POST["create_guild"]) && $my_guild_id === -1) {
     }
 }
 
-if (isset($_POST["save_guild_settings"]) && $my_guild_id !== -1) {
+if ((isset($_POST["save_avatar"]) || isset($_POST["save_identity"]) || isset($_POST["save_profile"])) && $my_guild_id !== -1) {
     $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 
     if ($my_perms["can_edit_settings"]) {
         $error = null;
 
-        if (!empty($_FILES["guild_avatar"]["name"])) {
-            $error = $guild_logic->update_avatar($_FILES["guild_avatar"]);
+        if (isset($_POST["save_avatar"])) {
+            if (!empty($_FILES["guild_avatar"]["name"])) {
+                $error = $guild_logic->update_avatar($_FILES["guild_avatar"]);
+            } else {
+                $error = "Bitte wähle ein Bild aus.";
+            }
         }
 
-        if ($error === null) {
-            $res = $guild_logic->update_settings(
+        if (isset($_POST["save_identity"])) {
+            $error = $guild_logic->update_settings(
                 $_POST["g_name"] ?? "",
                 $_POST["g_tag"] ?? "",
+                $guild_logic->get_motto(),
+                $guild_logic->get_min_score()
+            );
+        }
+
+        if (isset($_POST["save_profile"])) {
+            $error = $guild_logic->update_settings(
+                $guild_logic->get_name(),
+                $guild_logic->get_tag(),
                 $_POST["g_motto"] ?? "",
                 (int)($_POST["g_min_score"] ?? 0)
             );
-
-            if ($res === null) {
-                $_SESSION["guild_success"] = "Gilden-Einstellungen erfolgreich gespeichert.";
-
-                change_location("guild.php");
-                exit;
-            } else {
-                $error = $res;
-            }
         }
+
+        if ($error === null) {
+            $_SESSION["guild_success"] = "Änderungen erfolgreich gespeichert.";
+
+            change_location("guild.php?tab=general");
+            exit;
+        }
+    } else {
+        $error = "Du hast keine Berechtigung, die Einstellungen zu ändern.";
     }
 }
 
@@ -195,6 +210,14 @@ if ($my_guild_id === -1) {
     $view .= "<div class='msg-back-button-container'>
                 <button class='btn-delete' data-on-click='confirmLeaveGuild' data-cooldown='$cooldown_time'>Gilde verlassen</button>
             </div>";
+
+    $view .= "<div class='tab'>
+        <div class='tablinks " . ($active_tab == "general" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='general'>Allgemein</div>
+        <div class='tablinks " . ($active_tab == "settings" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='settings'>Einstellungen</div>
+        <div class='tablinks " . ($active_tab == "storage" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='storage'>Lager</div>
+        <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research'>Forschung</div>
+    </div>";
+    $view .= "<div id='guild_tab_general' class='js-guild-tab' style='display: " . ($active_tab == "general" ? "block" : "none") . ";'>";
     $view .= "<img src='" . $guild_logic->get_avatar() . "' class='guild-avatar' alt='Wappen'>";
     $view .= "<h2 style='margin-top: 0;'>[" . e($guild_info["tag"]) . "] " . e($guild_info["name"]) . "</h2>";
 
@@ -326,43 +349,112 @@ if ($my_guild_id === -1) {
     $messages = new Messages($db_instance, $user);
     $view .= "<br><hr><div class='title-border'>Gilden-Chat</div>";
     $view .= $messages->show_guild_chat();
+    $view .= "</div>";
 
-    if ($my_perms["can_edit_settings"]) {
-        $view .= "<br><hr><div class='box-container' style='max-width: 600px; margin: 20px auto 0 auto;'>
-            <div class='box-header'>Gilden-Verwaltung</div>
-            <div class='box-content box-content-bg' style='padding: 15px;'>
-                <form method='POST' enctype='multipart/form-data'>
-                    <div style='text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);'>
-                        <p style='margin-top: 0;'>Gilden-Wappen:</p>
-                        <img src='" . $guild_logic->get_avatar() . "' 
-                             style='width: 64px; height: 64px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);' alt='Wappen'>
+    $view .= "<div id='guild_tab_settings' class='js-guild-tab' style='display: " . ($active_tab == "settings" ? "block" : "none") . ";'>";
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Verwaltung</div>";
+
+    $can_edit = $my_perms["can_edit_settings"];
+    $now = time();
+    $last_change = $guild_logic->get_last_settings_change();
+    $wait_time = $last_change + (GUILD_SETTINGS_CHANGE_COOLDOWN_DAYS * 86400) - $now;
+    $cooldown_active = $wait_time > 0;
+
+    // Avatar
+    $view .= "
+    <div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
+        <div class='box-header'>Gilden-Wappen</div>
+        <div class='box-content box-content-bg' style='padding: 15px;'>
+            " . ($can_edit ? "<form method='POST' enctype='multipart/form-data'>" : "") . "
+                <div style='text-align: center;'>
+                    <img src='" . $guild_logic->get_avatar() . "' 
+                         style='width: 64px; height: 64px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);' alt='Wappen'>
+                    " . ($can_edit ? "
                         <br><br>
-                        <input type='file' name='guild_avatar'>
-                        <p style='font-size: 10px; opacity: 0.6;'>Max. " . MAX_UPLOAD_FILE_SIZE . " KB | JPG, PNG, GIF</p>
-                    </div>
-                    <table class='table'>
-                        <tr>
-                            <td>Gilden-Name:</td>
-                            <td><input type='text' name='g_name' value='" . e($guild_info["name"]) . "' maxlength='" . GUILD_NAME_MAX . "' required></td>
-                        </tr>
-                        <tr>
-                            <td>Gilden-Tag:</td>
-                            <td><input type='text' name='g_tag' value='" . e($guild_info["tag"]) . "' maxlength='" . GUILD_TAG_MAX . "' required></td>
-                        </tr>
-                        <tr>
-                            <td>Motto:</td>
-                            <td><input type='text' name='g_motto' value='" . e($guild_info["motto"]) . "' maxlength='" . GUILD_MOTTO_MAX . "'></td>
-                        </tr>
-                        <tr>
-                            <td>Beitritts-Limit (Score):</td>
-                            <td><input type='text' name='g_min_score' value='{$guild_info["min_score"]}' class='js-numeric-input'></td>
-                        </tr>
-                    </table><br>
-                    <input type='submit' name='save_guild_settings' value='Alle Änderungen speichern'>
-                </form>
-            </div>
-        </div>";
+                        <input type='file' name='guild_avatar' required>
+                        <p style='font-size: 12px; opacity: 0.6;'>Max. " . MAX_UPLOAD_FILE_SIZE . " KB | JPG, PNG, GIF</p>
+                        <input type='submit' name='save_avatar' value='Wappen hochladen'>
+                    " : "") . "
+                </div>
+            " . ($can_edit ? "</form>" : "") . "
+        </div>
+    </div>";
+
+    // Identity
+    $view .= "
+    <div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
+        <div class='box-header'>Gilden-Identität</div>
+        <div class='box-content box-content-bg' style='padding: 15px;'>
+            " . ($can_edit ? "<form method='POST'>" : "") . "
+                <table class='table'>
+                    <tr>
+                        <td>Gilden-Name:</td>
+                        <td>" . ($can_edit ? "
+                            <input type='text' name='g_name' value='" . e($guild_logic->get_name()) . "' 
+                                   maxlength='" . GUILD_NAME_MAX . "' required " . ($cooldown_active ? "disabled" : "") . ">
+                        " : "<b>" . e($guild_logic->get_name()) . "</b>") . "</td>
+                    </tr>
+                    <tr>
+                        <td>Gilden-Tag:</td>
+                        <td>" . ($can_edit ? "
+                            <input type='text' name='g_tag' value='" . e($guild_logic->get_tag()) . "' 
+                                   maxlength='" . GUILD_TAG_MAX . "' required " . ($cooldown_active ? "disabled" : "") . ">
+                        " : "<b>[" . e($guild_logic->get_tag()) . "]</b>") . "</td>
+                    </tr>
+                </table>";
+
+    if ($can_edit && $cooldown_active) {
+        $view .= "<div style='margin-top: 10px; margin-bottom: -5px;'>
+                    <small class='error'>Identität gesperrt für <b><span class='js-countdown'
+                       id='counter_guild'
+                       data-seconds='$wait_time'>" . format_time_for_js($wait_time) . "</span></b></small>
+                </div>";
     }
+
+    if ($can_edit) {
+        $view .= "<br><input type='submit' name='save_identity' value='Identität speichern' " . ($cooldown_active ? "disabled" : "") . "></form>";
+    }
+    $view .= "</div></div>";
+
+    // Public Profile
+    $td_styling = $can_edit ? "" : "style='width: 60%;'";
+    $view .= "
+    <div class='box-container' style='max-width: 600px; margin: 0 auto 0 auto;'>
+        <div class='box-header'>Öffentliches Profil</div>
+        <div class='box-content box-content-bg' style='padding: 15px;'>
+            " . ($can_edit ? "<form method='POST'>" : "") . "
+                <table class='table'>
+                    <tr>
+                        <td>Gilden-Motto:</td>
+                        <td $td_styling>" . ($can_edit ? "
+                            <input type='text' name='g_motto' value='" . e($guild_logic->get_motto()) . "' 
+                                   maxlength='" . GUILD_MOTTO_MAX . "'>
+                                       " : (!empty($guild_logic->get_motto())
+            ? '<i>&bdquo;' . e($guild_logic->get_motto()) . '&ldquo;</i>'
+            : 'Keins')) . "</td>
+                    </tr>
+                    <tr>
+                        <td>Beitritts-Limit:</td>
+                        <td>" . ($can_edit ? "
+                            <input type='text' name='g_min_score' value='" . $guild_logic->get_min_score() . "' 
+                                   class='js-numeric-input'>
+                        " : "<b>" . fnum($guild_logic->get_min_score(), true) . "</b>") . "</td>
+                    </tr>
+                </table>";
+
+    if ($can_edit) {
+        $view .= "<br><input type='submit' name='save_profile' value='Profil speichern'></form>
+                  <p style='font-size: 12px; opacity: 0.6; margin-top: 10px;'>Hinweis: Diese Felder können jederzeit angepasst werden.</p>";
+    }
+    $view .= "</div></div></div>";
+
+    $view .= "<div id='guild_tab_storage' class='js-guild-tab' style='display: " . ($active_tab == "storage" ? "block" : "none") . ";'>";
+    $view .= show_warning_box("Die Gilden-Schatzkammer wird derzeit noch errichtet. Bald können hier Ressourcen für die Gemeinschaft gesammelt werden!");
+    $view .= "</div>";
+
+    $view .= "<div id='guild_tab_research' class='js-guild-tab' style='display: " . ($active_tab == "research" ? "block" : "none") . ";'>";
+    $view .= show_warning_box("Unsere Gelehrten studieren noch die alten Schriften. Gildenforschungen werden in einem zukünftigen Update verfügbar sein.");
+    $view .= "</div>";
 }
 
 /*

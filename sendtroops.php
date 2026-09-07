@@ -567,12 +567,13 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         }
     }
 
-    $first_active_cat = -1;
-    $requested_mode = $_GET["mode"] ?? '';
+    $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
-    if (in_array($requested_mode, ["plunder", "spy", "scout"])) {
+    if ($first_active_cat === -1 && in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"])) {
         $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
-    } else {
+    }
+
+    if ($first_active_cat === -1 || ($category_counts[$first_active_cat] ?? 0) <= 0) {
         foreach ($category_counts as $cat_id => $count) {
             if ($count > 0) {
                 $first_active_cat = $cat_id;
@@ -593,12 +594,12 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
             $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
-                            <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen:</div>
+                            <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen</div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>
                             <div id="troop-summary-totals" style="width: 100%; display: flex; justify-content: center; margin-top: 15px;"></div>
                         </div>
                         <div id="troop-action-buttons" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 20px;">
-                            <input type="submit" value="' . $button_label . '">
+                            <input type="submit" value="' . $button_label . '" disabled>
                             <input type="button" value="Alle wählen" data-on-click="selectAllTroops" title="Alle verfügbaren Truppen auswählen">
                             <input type="button" 
                                    value="X" 

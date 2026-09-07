@@ -136,7 +136,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (empty($name) || empty($pass)) {
             $error .= "Bitte beide Felder ausfüllen!";
         } else {
-            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason FROM users WHERE username = ? LIMIT 1", [$name]);
+            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason FROM users WHERE username = ? OR email = ? LIMIT 1",
+                    [$name, $name]
+            );
 
             if ($result && $result->num_rows == 1) {
                 $row = $result->fetch_assoc();

@@ -9,6 +9,7 @@ class Guild
     private ?string $tag = null;
     private ?string $motto = null;
     private int $min_score = 0;
+    private int $last_settings_change = 0;
 
     public function __construct(mysqli $db, User $user, ?int $guild_id = null)
     {
@@ -30,6 +31,7 @@ class Guild
             $this->tag = $row["tag"];
             $this->motto = $row["motto"];
             $this->min_score = (int)$row["min_score"];
+            $this->last_settings_change = (int)$row["last_settings_change"];
         }
     }
 
@@ -40,29 +42,9 @@ class Guild
         $motto = sanitize_input($motto);
         $uid = $this->user->get_user_id();
 
-        if (mb_strlen($name) < GUILD_NAME_MIN || mb_strlen($name) > GUILD_NAME_MAX) {
-            return "Der Gildenname muss zwischen " . GUILD_NAME_MIN . " und " . GUILD_NAME_MAX . " Zeichen lang sein.";
-        }
-        if (!preg_match('/^[a-zA-Z0-9 äöüÄÖÜß\-_]+$/u', $name)) {
-            return "Erlaubte Zeichen: Groß- und Kleinbuchstaben, Zahlen, _, - und Leerzeichen.";
-        }
-        if (is_name_monotonous($name)) {
-            return "Dieser Gildenname ist zu eintönig!";
-        }
-        if (mb_strlen($tag) < GUILD_TAG_MIN || mb_strlen($tag) > GUILD_TAG_MAX) {
-            return "Das Gilden-Tag muss zwischen " . GUILD_TAG_MIN . " und " . GUILD_TAG_MAX . " Zeichen lang sein.";
-        }
-        if (!preg_match('/^[a-zA-Z0-9äöüÄÖÜß]+$/', $tag)) {
-            return "Das Tag darf nur Buchstaben und Zahlen enthalten.";
-        }
-        if (!empty($motto) && (mb_strlen($motto) < GUILD_MOTTO_MIN || mb_strlen($motto) > GUILD_MOTTO_MAX)) {
-            return "Motto darf zwischen " . GUILD_MOTTO_MIN . " und " . GUILD_MOTTO_MAX . " Zeichen lang sein.";
-        }
-        if ($min_score < 0) {
-            return "Mindestpunktzahl darf nicht negativ sein.";
-        }
-        if ($min_score > GUILD_MAX_MINIMUM_SCORE) {
-            return "Die Mindestpunktzahl darf nicht höher als " . GUILD_MAX_MINIMUM_SCORE . " sein!";
+        $error = $this->get_settings_error($name, $tag, $motto, $min_score);
+        if (!empty($error)) {
+            return $error;
         }
 
         $k = new Kingdom($this->db, $this->user->get_current_kingdom());
@@ -536,9 +518,14 @@ class Guild
         return $this->motto;
     }
 
-    public function get_min_score(): ?int
+    public function get_min_score(): int
     {
         return $this->min_score;
+    }
+
+    public function get_last_settings_change(): int
+    {
+        return $this->last_settings_change;
     }
 
     public function get_guild_info(int $guild_id): ?array
@@ -608,6 +595,7 @@ class Guild
         $uid = $this->user->get_user_id();
         $perms = $this->get_user_permissions($uid);
         $my_guild = $this->user->get_user_guild_id();
+
         $tag = sanitize_input($tag);
         $motto = sanitize_input($motto);
         $name = sanitize_input($name);
@@ -616,6 +604,87 @@ class Guild
             return "Keine Berechtigung.";
         }
 
+        $error = $this->get_settings_error($name, $tag, $motto, $min_score);
+        if (!empty($error)) {
+            return $error;
+        }
+
+        $old_data = $this->get_guild_info($my_guild);
+        $changed_fields = [];
+        $identity_changed = false;
+
+        if ($old_data["name"] !== $name) {
+            $changed_fields[] = "Name";
+            $identity_changed = true;
+        }
+        if ($old_data["tag"] !== $tag) {
+            $changed_fields[] = "Tag";
+            $identity_changed = true;
+        }
+        if ($old_data["motto"] !== $motto) {
+            $changed_fields[] = "Motto";
+        }
+        if ((int)$old_data["min_score"] !== $min_score) {
+            $changed_fields[] = "Beitritts-Limit";
+        }
+
+        if (empty($changed_fields)) {
+            return null;
+        }
+
+        if ($identity_changed) {
+            $now = time();
+            $wait_time = (int)$old_data["last_settings_change"] + (GUILD_SETTINGS_CHANGE_COOLDOWN_DAYS * 86400) - $now;
+
+            if ($wait_time > 0) {
+                return "Gildenname und Tag können erst in " . convert_sec_to_str($wait_time) . " wieder geändert werden.";
+            }
+
+            $check = $this->db->execute_query(
+                "SELECT id FROM guilds WHERE (name = ? OR tag = ?) AND id != ?",
+                [$name, $tag, $my_guild]
+            );
+
+            if ($check->num_rows > 0) {
+                return "Dieser Gildenname oder das Tag wird bereits von einer anderen Gilde verwendet.";
+            }
+        }
+
+        if ($identity_changed) {
+            $this->db->execute_query(
+                "UPDATE guilds SET name = ?, tag = ?, motto = ?, min_score = ?, last_settings_change = ? WHERE id = ?",
+                [$name, $tag, $motto, $min_score, time(), $my_guild]
+            );
+        } else {
+            $this->db->execute_query(
+                "UPDATE guilds SET motto = ?, min_score = ? WHERE id = ?",
+                [$motto, $min_score, $my_guild]
+            );
+        }
+
+        $changes_str = implode(", ", $changed_fields);
+        $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                "Gilden-Update",
+                "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert:
+            <div style='margin: 0 auto;'><i>$changes_str</i></div>"
+            ) . "</div>";
+
+        $leaders = $this->db->execute_query("
+        SELECT u.id, u.username FROM users u 
+        JOIN guild_rank_list rl ON u.guild_rank_id = rl.id 
+        WHERE u.guildid = ? AND rl.can_edit_settings = 1 AND u.id != ?",
+            [$my_guild, $uid]
+        );
+
+        while ($l = $leaders->fetch_assoc()) {
+            send_server_message($l["id"], $l["username"], $msg);
+        }
+
+        return null;
+    }
+
+    private function get_settings_error(string $name, string $tag, string $motto, int $min_score): string
+    {
         if (mb_strlen($name) < GUILD_NAME_MIN || mb_strlen($name) > GUILD_NAME_MAX) {
             return "Der Gildenname muss zwischen " . GUILD_NAME_MIN . " und " . GUILD_NAME_MAX . " Zeichen lang sein.";
         }
@@ -640,52 +709,7 @@ class Guild
         if ($min_score > GUILD_MAX_MINIMUM_SCORE) {
             return "Die Mindestpunktzahl darf nicht höher als " . GUILD_MAX_MINIMUM_SCORE . " sein!";
         }
-
-        $old_data = $this->get_guild_info($my_guild);
-        $changed_fields = [];
-
-        if ($old_data["name"] !== $name) $changed_fields[] = "Name";
-        if ($old_data["tag"] !== $tag) $changed_fields[] = "Tag";
-        if ($old_data["motto"] !== $motto) $changed_fields[] = "Motto";
-        if ((int)$old_data["min_score"] !== $min_score) $changed_fields[] = "Beitritts-Limit";
-
-        if (empty($changed_fields)) {
-            return null;
-        }
-
-        $check = $this->db->execute_query(
-            "SELECT id FROM guilds WHERE (name = ? OR tag = ?) AND id != ?",
-            [$name, $tag, $my_guild]
-        );
-        if ($check->num_rows > 0) {
-            return "Dieser Name oder das Tag wird bereits von einer anderen Gilde verwendet.";
-        }
-
-        $this->db->execute_query(
-            "UPDATE guilds SET name = ?, tag = ?, motto = ?, min_score = ? WHERE id = ?",
-            [$name, $tag, $motto, $min_score, $my_guild]
-        );
-
-        $changes_str = implode(", ", $changed_fields);
-
-        $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                "Gilden-Update",
-                "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert:<br><br>
-                • <i>$changes_str</i>",
-                0, 0, ""
-            ) . "</div>";
-
-        $leaders = $this->db->execute_query("
-            SELECT u.id, u.username FROM users u 
-            JOIN guild_rank_list rl ON u.guild_rank_id = rl.id 
-            WHERE u.guildid = ? AND rl.can_edit_settings = 1 AND u.id != ?",
-            [$my_guild, $uid]
-        );
-
-        while ($l = $leaders->fetch_assoc()) {
-            send_server_message($l["id"], $l["username"], $msg);
-        }
-        return null;
+        return "";
     }
 
     public function delete_invite_msg($db, $uid): void

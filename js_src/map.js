@@ -582,13 +582,15 @@ function selectField(x, y, shouldCenter = false) {
     const tile = mapData.find(t => t[0] === x && t[1] === y);
     if (!tile) return;
 
-    const [tx, ty, , kid, , , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt, , enemyGuildId] = tile;
+    const [tx, ty, , kid, , , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt, , enemyGuildId, hasOutgoing] = tile;
 
     const pathResult = calculatePathLocal(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y, tx, ty);
     currentPath = pathResult.path;
 
     let baseTravelTime = pathResult.totalTime * gameConfig.currentKingdom.marchMultiplier;
     const now = Math.floor(Date.now() / 1000);
+
+    let btnDisabled = hasOutgoing ? "disabled title='Truppen bereits unterwegs'" : "";
 
     let html = "";
 
@@ -601,7 +603,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
         if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">Erobern</button>`;
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Erobern</button>`;
         } else {
             html += `<small class="error">Gründungskarren benötigt!</small>`;
         }
@@ -625,7 +627,8 @@ function selectField(x, y, shouldCenter = false) {
         if (canPlunder || canSpy) {
             const mode = canPlunder ? "plunder" : "spy";
             const label = canPlunder ? "Plündern" : "Spionieren";
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&mode=${mode}">${label}</button>`;
+
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&mode=${mode}" ${btnDisabled}>${label}</button>`;
         } else {
             html += `<small class="error">Räuber oder Späher benötigt!</small>`;
         }
@@ -643,7 +646,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(Spionage: ${formatTimeJS(Math.round(arrivalScout))})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
-        html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">Camp angreifen</button>`;
+        html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
         html += `</td></tr></table>`;
     } else if (kid === -999) {
         // --- EVENT CENTER
@@ -744,7 +747,7 @@ function selectField(x, y, shouldCenter = false) {
             }
 
             html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}">${btnText}</button>`;
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>${btnText}</button>`;
             html += `</td></tr>`;
         }
 

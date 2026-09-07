@@ -40,9 +40,9 @@ $counts = $db_instance->execute_query("
         COUNT(CASE WHEN userid = ? AND actionid IN ($wp_list) THEN 1 END) AS count_wp
     FROM events",
     [
-        $user->get_user_id(), $active_k_id, $active_k_id, // für count_tp
-        $user->get_user_id(),                             // für count_bp
-        $user->get_user_id()                              // für count_wp
+        $user->get_user_id(), $active_k_id, $active_k_id,
+        $user->get_user_id(),
+        $user->get_user_id()
     ]
 )->fetch_assoc();
 
@@ -504,7 +504,7 @@ if ($result_events && $result_events->num_rows > 0) {
             <td class='td-center td-gradient'>Art</td>
             <td class='td-center td-gradient'>Projekt</td>
             <td class='td-center td-gradient'>Standort</td>
-            <td class='td-center td-gradient'>Fertigstellung</td>
+            <td class='td-center td-gradient'>Dauer</td>
         </tr>";
 
     foreach ($result_events as $row) {

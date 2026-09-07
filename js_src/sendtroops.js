@@ -15,6 +15,11 @@ registerAction("filterSendTroops", (el) => {
             row.style.display = "none";
         }
     });
+
+    window.history.replaceState({}, '', `?${new URLSearchParams({
+        ...Object.fromEntries(new URLSearchParams(location.search)),
+        cat: category
+    })}`);
 });
 registerAction("fillMaxAndRefresh", (el) => {
     const targetId = el.dataset.target;

@@ -147,6 +147,28 @@ registerAction("confirmCancelInvite", (el) => {
     );
 });
 
+registerAction("switchGuildTab", (el) => {
+    const tabName = el.dataset.tab;
+
+    document.querySelectorAll('.js-guild-tab').forEach(tab => {
+        tab.style.display = "none";
+    });
+
+    document.querySelectorAll('.tab .tablinks').forEach(btn => {
+        btn.classList.remove("active");
+    });
+
+    const targetTab = document.getElementById("guild_tab_" + tabName);
+    if (targetTab) {
+        targetTab.style.display = "block";
+        el.classList.add("active");
+    }
+    
+    const url = new URL(window.location);
+    url.searchParams.set("tab", tabName);
+    window.history.replaceState({}, '', url);
+});
+
 const displayGuildError = (message) => {
     const errorHtml = `
         <div class="info-box event-error">

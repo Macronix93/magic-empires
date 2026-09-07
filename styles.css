@@ -569,6 +569,8 @@ hr {
     cursor: not-allowed;
     background-color: rgba(0, 0, 0, 0.2);
     filter: grayscale(1);
+    box-shadow: none !important;
+    transform: none !important;
 }
 
 .chat-quote {
@@ -2520,7 +2522,7 @@ img[data-on-click] {
     }
 
     .overview-info-table .location-wrapper {
-        gap: 4px !important;
+        gap: 4px;
         font-size: 10px;
     }
 
@@ -2529,11 +2531,11 @@ img[data-on-click] {
     }
 
     .col-build-project {
-        width: 1%;
+        width: 21%;
     }
 
     .col-build-kingdom {
-        width: 32%;
+        width: 18%;
     }
 
     .col-build-timer {
