@@ -122,6 +122,54 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
 $view .= $renderTechTable($uni_techs, "Universitäts-Forschungen", "Tech-Info");
 $view .= $renderTechTable($smithy_techs, "Schmiede-Verbesserungen", "Schmiede-Info");
 
+// --- GUILD TECHS ---
+$my_guild_id = $user->get_user_guild_id();
+$guild_logic = new Guild($db_instance, $user, $my_guild_id);
+$has_embassy = ($buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level() > 0);
+$in_guild = ($my_guild_id > 0);
+
+$view .= '<div class="title-border">Gilden-Forschungen</div>';
+$view .= '<table class="table">
+    <tr>
+        <td class="td-center td-gradient" colspan="2"><b>Forschung</b></td>
+        <td class="td-center td-gradient"><b>Voraussetzungen</b></td>
+    </tr>';
+
+$all_guild_techs = $guild_logic->get_all_techs();
+foreach ($all_guild_techs as $gt) {
+    $cur_lvl = (int)$gt["current_level"];
+    $max_lvl = (int)$gt["max_level"];
+    $icon = "images/icons/" . e($gt["icon"]) . ".png";
+
+    $req_html = "";
+    if (!$has_embassy) {
+        $req_html .= "<span class='error' style='white-space: nowrap;'>Botschaft (1)</span> ";
+    } else {
+        $req_html .= "<span class='passed' style='white-space: nowrap;'>Botschaft (1)</span> ";
+    }
+
+    if (!$in_guild) {
+        $req_html .= "<span class='error' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
+    } else {
+        $req_html .= "<span class='passed' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
+    }
+
+    $lvl_display = $in_guild ? "($cur_lvl/$max_lvl)" : "";
+
+    $view .= "<tr>
+                <td class='td-center' style='width: 5%;'>
+                    <img src='$icon' class='buildable-icons' alt=''>
+                </td>
+                <td style='width: 35%;'>
+                    <a href='#' data-on-click='openOverlay' data-url='techinfo.php?gtid=" . (int)$gt["id"] . "' data-title='Gilden-Forschung'>
+                        " . e($gt["name"]) . " $lvl_display
+                    </a>
+                </td>
+                <td class='techtree-requirements'>$req_html</td>
+              </tr>";
+}
+$view .= '</table><br>';
+
 $view .= '<div class="title-border">Einheiten</div>';
 $view .= '<table class="table">
     <tr>

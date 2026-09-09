@@ -43,7 +43,11 @@ function get_resource_icon(int $resource_type): string
         ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME => "<img src='images/icons/icon_time.png' class='ressource-icons' alt='Rekrutierzeit' title='Rekrutierzeit'/>",
         ResourceTypes::RESOURCE_TYPE_HEALTH => "<img src='images/icons/icon_health.png' class='ressource-icons' alt='Lebenspunkte' title='Lebenspunkte'/>",
         ResourceTypes::RESOURCE_TYPE_COINS => "<img src='images/icons/icon_coins.png' class='ressource-icons' alt='Münzen' title='Münzen'/>",
-        default => 0,
+        ResourceTypes::RESOURCE_TYPE_COAL => "<img src='images/icons/icon_coal.png' class='ressource-icons' alt='Kohle' title='Kohle'/>",
+        ResourceTypes::RESOURCE_TYPE_IRON => "<img src='images/icons/icon_iron.png' class='ressource-icons' alt='Eisen' title='Eisen'/>",
+        ResourceTypes::RESOURCE_TYPE_SAPPHIRE => "<img src='images/icons/icon_sapphire.png' class='ressource-icons' alt='Saphir' title='Saphir'/>",
+        ResourceTypes::RESOURCE_TYPE_DIAMOND => "<img src='images/icons/icon_diamond.png' class='ressource-icons' alt='Diamant' title='Diamant'/>",
+        default => "",
     };
 }
 
@@ -163,7 +167,7 @@ function format_num($number): string
     return number_format($number, (floor($number) == $number ? 0 : 1), ",", ".");
 }
 
-function fnum($number, bool $simple_format = false): string
+function fnum($number, bool $simple_format = false, $is_barracks = false): string
 {
     if (!is_numeric($number)) return "0";
 
@@ -178,6 +182,10 @@ function fnum($number, bool $simple_format = false): string
 
     if ($full === $short) {
         return $full;
+    }
+
+    if ($is_barracks) {
+        return $short;
     }
 
     $uid = "val_" . substr(md5(mt_rand()), 0, 6);
@@ -392,9 +400,9 @@ function get_chat_emojis(): array
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
         '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭', '❤️',
-        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🫡', '❓', '❗',
+        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
         '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
-        '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '⛏️', '🤝', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
+        '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
         '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
 }
@@ -670,6 +678,37 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     ];
 }
 
+function broadcast_server_message(string $message, string $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): void
+{
+    $db = Database::get_instance()->get_connection();
+    $now = time();
+    $json = is_array($data) ? json_encode($data) : null;
+
+    $res = $db->query("SELECT id, username FROM users WHERE status = 1");
+    if ($res->num_rows === 0) return;
+
+    $rows = [];
+    $types = "";
+    $params = [];
+
+    while ($u = $res->fetch_assoc()) {
+        $rows[] = "(?, ?, ?, ?, ?, ?)";
+        $types .= "isisss";
+        $params[] = (int)$u["id"];
+        $params[] = $u["username"];
+        $params[] = $now;
+        $params[] = $message;
+        $params[] = $category;
+        $params[] = $json;
+    }
+
+    $sql = "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES " . implode(", ", $rows);
+
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+}
+
 function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT,
                                  $data = null): void
 {
@@ -771,7 +810,7 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
     $now = time();
 
     $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id as kingdom_id
         FROM events e
         JOIN kingdoms k ON e.targetid = k.id
         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
@@ -789,6 +828,13 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
 
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
     foreach ($attacks as &$attack) {
+        $target_k = new Kingdom($db, (int)$attack["kingdom_id"]);
+        $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
+
+        if ($intel_level < 1) {
+            $attack["arrivaltime"] = 0;
+        }
+
         $attack["is_new"] = !in_array($attack["eventid"], $ack_ids);
     }
 
@@ -798,7 +844,7 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
 function check_for_incoming_support(int $uid, mysqli $db): array
 {
     $now = time();
-    
+
     $query = "
         SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, u.username AS sender_name
         FROM events e

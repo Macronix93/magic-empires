@@ -130,33 +130,42 @@ while ($ev = $finished_events->fetch_assoc()) {
             } else {
                 $is_boss_fail = true;
             }
-
         } else if ($ev["event_type"] === "DAMAGE") {
             // DAMAGE EVENT
-            $loot = $we_logic->generate_dmg_event_loot((int)$p["total_damage"]);
+            $user_damage = (int)$p["total_damage"];
+            $total_coins = 0;
+            $total_gold = 0;
 
-            $recipient = new User($u_id, $u_name);
-
-            if ($actual_target_kid > 0) {
-                $target_k_obj = new Kingdom($db_instance, $actual_target_kid);
-
-                if ($loot["coins"] > 0) $recipient->give_user_coins($loot["coins"]);
-                if ($loot["gold_res"] > 0) $target_k_obj->modify_resource(ResourceTypes::RESOURCE_TYPE_GOLD, $loot["gold_res"]);
-
-                $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                        "Event-Abschluss",
-                        "Für deinen Gesamtschaden von <b>" . fnum($p["total_damage"]) . "</b> erhältst du Belohnungen:",
-                        0, 0,
-                        "",
-                        "neutral",
-                        [ResourceTypes::RESOURCE_TYPE_GOLD => $loot["gold_res"], ResourceTypes::RESOURCE_TYPE_COINS => $loot["coins"]]
-                    ) . "</div>";
-
-                send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
-            } else {
-                send_server_message($u_id, $u_name, "Deine Belohnungsmünzen ({$loot["coins"]}) wurden gutgeschrieben. Ressourcen-Loot verfiel mangels Königreich.",
-                    MessageCategories::CATEGORY_EVENT);
+            foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
+                if ($user_damage >= $threshold) {
+                    $total_coins = $rewards["coins"];
+                    $total_gold = $rewards["gold"];
+                }
             }
+
+            $loot_display = [];
+            if ($total_coins > 0) {
+                $loot_display[ResourceTypes::RESOURCE_TYPE_COINS] = $total_coins;
+            }
+            if ($total_gold > 0) {
+                $loot_display[ResourceTypes::RESOURCE_TYPE_GOLD] = $total_gold;
+            }
+
+            $main_text_additional = ($user_damage >= WORLD_EVENT_REWARD_MIN_TRESHOLD)
+                ? "Alle Belohnungen wurden deinen Lagern und deiner Schatzkammer bereits während deiner Angriffe gutgeschrieben."
+                : "Du hast die Mindest-Schadensschwelle für Belohnungen leider nicht erreicht.";
+
+            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                    "Event-Abschluss",
+                    "Das Schadens-Event im Auge des Sturms ist beendet!<br>Für deinen Gesamtschaden von <b>" . fnum($user_damage, true) . "
+                             </b> hast du folgende Gesamt-Prämien erzielt:<br><br>$main_text_additional",
+                    0, 0,
+                    "",
+                    "neutral",
+                    $loot_display
+                ) . "</div>";
+
+            send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
         }
 
         if ($is_boss_fail) {

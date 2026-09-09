@@ -18,7 +18,7 @@ registerAction("filterBarracks", (el) => {
             row.style.display = (row.dataset.unitCategory === category) ? "table-row" : "none";
         });
     }
-    
+
     const url = new URL(window.location);
     url.searchParams.set("cat", category);
     window.history.replaceState({}, '', url);
@@ -219,11 +219,9 @@ function updateRecruitCosts(input) {
 
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".js-recruit-input").forEach(input => {
-        // Initiale Anzeige der Kosten für "1" oder "0"
         updateRecruitCosts(input);
 
         input.addEventListener("input", function () {
-            // 1. Nur Zahlen erlauben (Buchstaben sofort entfernen)
             let rawValue = this.value.replace(/[^0-9]/g, '');
 
             if (rawValue === "") {
@@ -240,24 +238,20 @@ document.addEventListener("DOMContentLoaded", () => {
             const upgradeSelect = form.querySelector(".js-upgrade-select");
             const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
 
-            // 2. Limits berechnen (Was ist das absolute Maximum?)
             let maxAllowed = kRes.dynamicLimit;
 
             if (!isUpgrade) {
-                // Bei Neubau: Truppenlimit beachten
                 maxAllowed = Math.min(maxAllowed, kRes.spaceLeft);
-                // Bei Neubau: Dorfbewohner beachten
                 const villCost = parseInt(this.dataset.costVillager) || 0;
+
                 if (villCost > 0) {
                     maxAllowed = Math.min(maxAllowed, Math.floor(kRes.villager / villCost));
                 }
             } else {
-                // Bei Upgrade: Vorhandene Einheiten beachten
                 const ownedUnits = parseInt(this.dataset.owned) || 0;
                 maxAllowed = Math.min(maxAllowed, ownedUnits);
             }
 
-            // 3. Ressourcen-Limits beachten (Nahrung, Holz, Stein, Gold)
             const resources = ["food", "wood", "stone", "gold"];
             resources.forEach(res => {
                 let costPerUnit;
@@ -277,15 +271,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             });
 
-            // 4. Korrektur anwenden
             if (amount > maxAllowed) {
                 amount = maxAllowed;
             }
 
-            // Den korrigierten Wert ins Feld schreiben
             this.value = amount;
 
-            // 5. Die Anzeige der Kosten unter dem Namen aktualisieren
+            console.log("set amount")
+
             updateRecruitCosts(this);
         });
     });
@@ -293,7 +286,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".js-upgrade-select").forEach(select => {
         select.addEventListener("change", () => {
             const input = select.closest("form").querySelector(".js-recruit-input");
-            // Event manuell triggern, um die Limits beim Wechsel von Bau zu Upgrade neu zu prüfen
             input.dispatchEvent(new Event('input'));
         });
     });

@@ -103,17 +103,19 @@ registerAction("deleteWorldChatMsg", (el) => {
 registerAction("loadOlderWorldChat", () => {
     loadOlderWorldMessages();
 });
-registerAction("confirmDeleteAllServer", () => {
+registerAction("confirmDeleteAllServer", (el) => {
     const activeTab = document.querySelector(".tablinks.active");
     const category = activeTab ? activeTab.textContent.trim() : "Alle";
     const catText = category === "Alle" ? "ALLE Nachrichten" : `alle Nachrichten der Kategorie "${category}"`;
+
+    const maxId = el.dataset.maxId || 0;
 
     showConfirmationDialog(
         `Möchtest du wirklich ${catText} unwiderruflich löschen?`,
         "Ja",
         "Abbrechen",
         () => {
-            fetch(`ajax/chat_srv_delete_all.php?category=${encodeURIComponent(category)}`, {
+            fetch(`ajax/chat_srv_delete_all.php?category=${encodeURIComponent(category)}&max_id=${maxId}`, {
                 headers: {"X-Requested-With": "XMLHttpRequest"}
             })
                 .then(r => r.json())
@@ -335,8 +337,6 @@ function updateChat(chatPartner) {
                     return;
                 }
 
-                cleanupPopups();
-
                 Object.keys(data.reactionUpdates).forEach(msgId => {
                     const msgElement = document.getElementById("msg-" + msgId)
                         || document.getElementById("world-msg-" + msgId)
@@ -355,6 +355,8 @@ function updateChat(chatPartner) {
                     }
                 });
             }
+
+            cleanupPopups();
 
             if (messageSection && messageSection.innerText.trim() === "") {
                 messageSection.innerText = "Schreibe eine Nachricht, um den Chat zu beginnen.";
@@ -683,8 +685,8 @@ function checkScrollPosition() {
     if (!messageSection || isFetchingOlder || !canLoadMore) return;
 
     const isServerInbox = window.location.search.includes("servermsgs");
-    const isWorldChat = messageSection.dataset.chatType === 'world';
-    const isGuildChat = messageSection.dataset.chatType === 'guild';
+    const isWorldChat = messageSection.dataset.chatType === "world";
+    const isGuildChat = messageSection.dataset.chatType === "guild";
 
     if (isServerInbox) {
         const scrollPos = messageSection.scrollTop + messageSection.clientHeight;

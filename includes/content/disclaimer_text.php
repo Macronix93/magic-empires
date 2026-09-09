@@ -247,5 +247,15 @@
                 Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/alliance" title="alliance icons">Alliance icons created by
                 anilofex - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/coal" title="coal icons">Coal icons created by Ylivdesign -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/iron-bar" title="iron bar icons">Iron bar icons created by
+                Uniconlabs - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/sapphire" title="sapphire icons">Sapphire icons created by
+                andinur - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/diamond" title="diamond icons">Diamond icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/treasure-chest" title="treasure chest icons">Treasure chest
+                icons created by Eucalyp - Flaticon</a></li>
     </ul>
 </div>

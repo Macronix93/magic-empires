@@ -234,12 +234,12 @@ function cleanupPopups() {
         const triggerId = box.id.replace('_box', '');
         const trigger = document.getElementById(triggerId);
 
-        if (!trigger || window.getComputedStyle(box).display !== "none") {
-            box.style.display = "none";
-        }
-
         if (!trigger) {
             box.remove();
+        } else {
+            if (box.style.display === "block" && !trigger.matches(':hover')) {
+                box.style.display = "none";
+            }
         }
     });
 }
@@ -343,7 +343,9 @@ function setup() {
         const box = trigger.querySelector('.popupbox');
 
         if (box) {
-            document.body.appendChild(box);
+            if (box.parentNode !== document.body) {
+                document.body.appendChild(box);
+            }
 
             const positionBox = function (e) {
                 let mousePos = getMouseLocation(e);
@@ -353,7 +355,7 @@ function setup() {
                 box.style.top = "0px";
                 box.style.display = "block";
                 box.style.visibility = "hidden";
-                box.style.zIndex = "999999";
+                box.style.zIndex = "2000005";
 
                 const boxWidth = box.offsetWidth;
                 const boxHeight = box.offsetHeight;
@@ -483,9 +485,9 @@ function updateServerTime(initialServerTimestamp) {
         }
 
         const percent = tickReached ? 100 : (secondsIntoHour / 3600) * 100;
-        const tickFills = document.getElementsByClassName("tick-progress-fill");
-        for (let i = 0; i < tickFills.length; i++) {
-            tickFills[i].style.width = percent + "%";
+        const sidebarTick = document.querySelector("#ressource-box .tick-progress-fill");
+        if (sidebarTick) {
+            sidebarTick.style.width = percent + "%";
         }
     }
 
@@ -516,10 +518,10 @@ function switchKingdom(direction) {
 
     select.selectedIndex = newIndex;
 
-    updateKingdom(select);
+    updateKingdom(select, false);
 }
 
-function updateKingdom(selectElement) {
+function updateKingdom(selectElement, keepMenu = true) {
     if (isKingdomSwitching) return;
 
     isKingdomSwitching = true;
@@ -538,8 +540,10 @@ function updateKingdom(selectElement) {
         xhttp.onreadystatechange = function () {
             if (this.readyState === 4) {
                 if (this.status === 200) {
-                    if (window.innerWidth <= 1392) {
+                    if (keepMenu && window.innerWidth <= 1392) {
                         sessionStorage.setItem("keepRightMenuOpen", "true");
+                    } else {
+                        sessionStorage.removeItem("keepRightMenuOpen");
                     }
 
                     let currentUrl = new URL(window.location.href);

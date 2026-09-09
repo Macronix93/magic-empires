@@ -337,9 +337,7 @@ class Kingdom
     public function get_shrine_modifier(): float
     {
         $data = $this->get_shrine_data();
-        if (!$data) return 0.0;
-
-        return $this->calculate_shrine_bonus($data["base_bonus"]);
+        return $data ? (float)$data["base_bonus"] : 0.0;
     }
 
     public function get_shrine_malus(): float
@@ -610,7 +608,7 @@ class Kingdom
     {
         $shrine = $this->get_shrine_data();
         $bonus = ($shrine) ? $this->calculate_shrine_bonus($shrine["base_bonus"]) : 0.0;
-        $malus = ($shrine) ? $shrine["base_malus"] : 0.0;
+        $malus = ($shrine) ? $this->calculate_shrine_bonus($shrine["base_malus"]) : 0.0;
 
         $f_per_hour = $this->base_food_rate;
         $w_per_hour = $this->base_wood_rate;

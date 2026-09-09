@@ -20,7 +20,7 @@ if ($user_id) {
                users.ranking_points AS score,
                kingdoms.mapx, kingdoms.mapy
         FROM users
-        INNER JOIN kingdoms ON users.mainkingdom = kingdoms.id
+        JOIN kingdoms ON users.mainkingdom = kingdoms.id
         WHERE users.id = ?
     ";
     $result = $db_instance->execute_query($query, [$user_id]);

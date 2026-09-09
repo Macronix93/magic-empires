@@ -7,6 +7,8 @@ check_user_login($user);
 $result = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
 $row_main = $result->fetch_assoc();
 $active_k_id = $user->get_current_kingdom();
+$uid = $user->get_user_id();
+$my_guild_id = $user->get_user_guild_id();
 $now = time();
 $kingdom = new Kingdom($db_instance, $active_k_id);
 
@@ -32,17 +34,19 @@ $tp_list = implode(',', $tp_actions);
 $bp_list = implode(',', $bp_actions);
 $wp_list = implode(',', $wp_actions);
 
+
 $counts = $db_instance->execute_query("
     SELECT 
         COUNT(CASE WHEN (userid = ? AND kingdomid = ? AND actionid IN ($tp_list)) 
                      OR (targetid = ? AND actionid = " . ActionTypes::ACTION_STATION_TROOPS . ") THEN 1 END) AS count_tp,
-        COUNT(CASE WHEN userid = ? AND actionid IN ($bp_list) THEN 1 END) AS count_bp,
+        COUNT(CASE WHEN (userid = ? AND actionid IN ($bp_list)) 
+                     OR (guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . ") THEN 1 END) AS count_bp,
         COUNT(CASE WHEN userid = ? AND actionid IN ($wp_list) THEN 1 END) AS count_wp
     FROM events",
     [
-        $user->get_user_id(), $active_k_id, $active_k_id,
-        $user->get_user_id(),
-        $user->get_user_id()
+        $uid, $active_k_id, $active_k_id,
+        $uid, $my_guild_id,
+        $uid
     ]
 )->fetch_assoc();
 
@@ -76,30 +80,38 @@ if (!empty($_SESSION["active_supports"])) {
 
 // Fetch all sent troops events from the user
 if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])) {
-    $event_id = (empty($_GET["eid"]) ? 0 : (int)$_GET["eid"]);
-    $result = $db_instance->execute_query("SELECT * FROM events WHERE eventid = ? AND userid = ?",
-        [$event_id, $user->get_user_id()]);
+    $event_id = (int)$_GET["eid"];
+
+    $db_instance->begin_transaction();
+
+    $result = $db_instance->execute_query(
+        "SELECT * FROM events WHERE eventid = ? AND userid = ? FOR UPDATE",
+        [$event_id, $user->get_user_id()]
+    );
 
     if ($result && $result->num_rows > 0) {
         $event = $result->fetch_assoc();
 
-        if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
-            if ($event["is_processing"] == 1) {
-                $error = "Truppen sind bereits in ein Gefecht verwickelt oder am Ziel angekommen!";
-            } else {
-                $total_duration = $event["arrivaltime"] - $event["buildingtime"];
-                $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
-                $new_arrival_time = $now + $already_marched;
+        if ($event["is_processing"] > 0) {
+            $db_instance->rollback();
+            $error = "Truppen sind bereits am Ziel angekommen oder in ein Gefecht verwickelt!";
+        } else if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
+            $total_duration = $event["arrivaltime"] - $event["buildingtime"];
+            $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
+            $new_arrival_time = $now + $already_marched;
 
-                $db_instance->execute_query(
-                    "UPDATE events SET 
-                                actionid = ?, 
-                                arrivaltime = ?, 
-                                loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0,
-                                is_processing = 0
-                             WHERE eventid = ? AND userid = ?",
-                    [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id, $user->get_user_id()]
-                );
+            $db_instance->execute_query(
+                "UPDATE events SET 
+                    actionid = ?, 
+                    arrivaltime = ?, 
+                    loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0,
+                    is_processing = 0
+                 WHERE eventid = ? AND is_processing = 0",
+                [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
+            );
+
+            if ($db_instance->affected_rows === 1) {
+                $db_instance->commit();
 
                 $logger->log_game("COMBAT", "ATTACK_RECALL", [
                     "event_id" => $event_id,
@@ -109,6 +121,9 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 
                 change_location("overview.php");
                 exit;
+            } else {
+                $db_instance->rollback();
+                $error = "Truppen konnten nicht zurückgerufen werden (bereits am Ziel angekommen).";
             }
         } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == "Interner Transport") {
             $total_duration = $event["arrivaltime"] - $event["buildingtime"];
@@ -116,7 +131,8 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
             $new_arrival_time = $now + $already_marched;
 
             $db_instance->execute_query(
-                "UPDATE events SET actionid = ?, kingdomid = ?, targetid = ?, arrivaltime = ?, buildingname = ? WHERE eventid = ?",
+                "UPDATE events SET actionid = ?, kingdomid = ?, targetid = ?, arrivaltime = ?, buildingname = ? 
+                 WHERE eventid = ? AND is_processing = 0",
                 [
                     ActionTypes::ACTION_RETURN_RESOURCES,
                     $event["targetid"],
@@ -127,12 +143,21 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
                 ]
             );
 
-            $logger->log_game("TRADE", "TRANSPORT_CANCEL", ["res" => $event["buildingid"], "amount" => $event["buildinglevel"]], $event["targetid"]);
+            if ($db_instance->affected_rows === 1) {
+                $db_instance->commit();
 
-            change_location("overview.php");
-            exit;
+                change_location("overview.php");
+                exit;
+            } else {
+                $db_instance->rollback();
+                $error = "Warenlieferung ist bereits eingetroffen!";
+            }
+        } else {
+            $db_instance->rollback();
+            $error = "Diese Aktion kann nicht abgebrochen werden!";
         }
     } else {
+        $db_instance->rollback();
         $error = "Diese Aktion ist ungültig!";
     }
 }
@@ -154,14 +179,14 @@ if (!empty($_SESSION["active_attacks"])) {
         }
 
         $diff = $attack["arrivaltime"] - $now;
+
+        $time_display = ($attack["arrivaltime"] > 0)
+            ? "Ankunft in <span class='js-countdown' data-seconds='$diff' data-no-reload='true'>" . format_time_for_js($diff) . "</span>"
+            : "Ankunft unbekannt!";
+
         $incoming_html .= "<tr>
             <td style='color: var(--link-color);'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>!</td>
-            <td class='td-center'><b>Ankunft in: 
-                    <span class='js-countdown' data-seconds='$diff' data-no-reload='true'>
-                          " . format_time_for_js($diff) . "
-                    </span>
-                </b>
-            </td>
+            <td class='td-center'><b>$time_display</b></td>
         </tr>";
     }
     unset($attack);
@@ -196,10 +221,13 @@ $query = "
         e.targetx, e.targety, e.arrivaltime, e.buildingtime, e.is_processing,
         e.loot_food, e.loot_wood, e.loot_stone, e.loot_gold, e.loot_coins,
         st.soldierid AS st_soldierid, 
-        st.soldiercount AS soldiercount, 
+        SUM(st.soldiercount) AS soldiercount,
         sl.icon AS soldier_icon, 
         sl.soldiername AS s_name,
         k.mapx, k.mapy,
+        k.username AS source_owner_username,
+        k.kingdomname AS source_kingdom_name,
+        kt.kingdomname AS target_kingdom_name,
         kt.userid AS target_userid, 
         kt.username AS target_username,
         u_sender.username AS sender_username
@@ -221,6 +249,7 @@ $query = "
     LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     LEFT JOIN users u_sender ON e.userid = u_sender.id
+    GROUP BY e.eventid, st.soldierid
 ";
 
 $result = $db_instance->execute_query($query, [
@@ -266,6 +295,9 @@ if ($result && $result->num_rows > 0) {
                 "targetid" => $row["targetid"],
                 "target_userid" => $row["target_userid"],
                 "target_username" => $row["target_username"],
+                "source_kingdom_name" => $row["source_kingdom_name"],
+                "source_owner_username" => $row["source_owner_username"],
+                "target_kingdom_name" => $row["target_kingdom_name"],
                 "mapx" => $row["mapx"],
                 "mapy" => $row["mapy"],
                 "targetx" => $row["targetx"],
@@ -334,11 +366,18 @@ if ($result && $result->num_rows > 0) {
         if ($action_id === ActionTypes::ACTION_STATION_TROOPS) {
             $action_type = "Unterstützung";
 
-            if (!$is_me) {
-                $sender_name = e($event_data["sender_username"] ?? "Unbekannt");
+            $src_name = e($event_data["source_kingdom_name"]);
+            $tgt_name = e($event_data["target_kingdom_name"] ?? "Unbekannt");
+            $names_str = "$src_name → $tgt_name";
 
-                $coords_str = "$target_coords ← $my_coords <small>($sender_name)</small>";
+            $player_info = "";
+            if (!$is_me) {
+                $player_info = " <small>(" . e($event_data["sender_username"]) . ")</small>";
+            } elseif ($event_data["target_userid"] != $user->get_user_id() && $event_data["targetid"] > 0) {
+                $player_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
             }
+
+            $coords_str = "$names_str $player_info <small>$my_coords → $target_coords</small>";
         } else if ($action_id === ActionTypes::ACTION_RETURN_TROOPS || $action_id === ActionTypes::ACTION_SUPPORT_RETURN) {
             $action_type = ($action_id === ActionTypes::ACTION_SUPPORT_RETURN) ? "Support-Rückzug" : "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
@@ -471,20 +510,25 @@ $pages_bp = ceil($count_bp / $limit);
 $curr_bp = isset($_GET["bp"]) ? max(1, (int)$_GET["bp"]) : 1;
 $offset_bp = ($curr_bp - 1) * $limit;
 
-$view .= '<div class="title-border" style="margin-top: 30px;">Bau & Entwicklung</div>';
+$view .= '<div class="title-border" style="margin-top: 30px;">Bau & Entwicklung (' . $count_bp . ')</div>';
 
 $query_events = "
-    SELECT e.*, k.kingdomname, k.mapx, k.mapy, sl.icon AS soldier_icon, sl.soldiername AS soldiername
+    SELECT e.*, k.kingdomname, k.mapx, k.mapy, sl.icon AS soldier_icon, sl.soldiername AS soldiername, g.name as guild_name,
+           gtl.icon AS guild_tech_icon
     FROM events e 
-    JOIN kingdoms k ON e.kingdomid = k.id
+    LEFT JOIN kingdoms k ON e.kingdomid = k.id
+    LEFT JOIN guilds g ON e.guild_id = g.id
     LEFT JOIN soldier_list sl ON sl.id = e.soldierid
-    WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?, ?)
-    ORDER BY k.kingdomname, COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
+    LEFT JOIN guild_tech_list gtl ON gtl.id = e.buildingid AND e.guild_id IS NOT NULL
+    WHERE (e.userid = ? OR (e.guild_id > 0 AND e.guild_id = ?)) 
+      AND e.actionid IN (?, ?, ?, ?, ?)
+    ORDER BY COALESCE(k.kingdomname, g.name), COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
     LIMIT $offset_bp, $limit
 ";
 
 $result_events = $db_instance->execute_query($query_events, [
     $user->get_user_id(),
+    $my_guild_id,
     ActionTypes::ACTION_BUILD_BUILDING,
     ActionTypes::ACTION_BUILD_TROOPS,
     ActionTypes::ACTION_RESEARCH_TECH,
@@ -510,8 +554,8 @@ if ($result_events && $result_events->num_rows > 0) {
     foreach ($result_events as $row) {
         $event_id = $row["eventid"];
         $action_id = $row["actionid"];
-        $k_name = $row["kingdomname"];
-        $k_coords = "{$row["mapx"]}:{$row["mapy"]}";
+        $k_name = $row["kingdomname"] ?? "Gilde";
+        $k_coords = $row["mapx"] ? "{$row["mapx"]}:{$row["mapy"]}" : "";
 
         $type_text = "";
         $project_text = "";
@@ -533,7 +577,13 @@ if ($result_events && $result_events->num_rows > 0) {
                 $type_text = ($action_id == ActionTypes::ACTION_RESEARCH_TECH) ? "Forschung" : "Verbesserung";
                 $next_lvl = $row["buildinglevel"] + 1;
 
-                $icon = "<img src='images/icons/icon_tech" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
+                if ($row["guild_id"] > 0) {
+                    $icon_name = $row["guild_tech_icon"] ?? "icon_tech0";
+                    $icon = "<img src='images/icons/" . $icon_name . ".png' class='ressource-icons' alt=''>";
+                } else {
+                    $icon = "<img src='images/icons/icon_tech" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
+                }
+
                 $project_text = "$icon ($next_lvl)";
                 $finish_time = $row["buildingtime"];
                 $hover_name = $row["buildingname"];
@@ -653,7 +703,7 @@ $view .= '<div class="title-border" style="margin-top: 30px;">Warenlieferungen</
 $query_trades = "
     SELECT e.*, k.kingdomname, k.mapx, k.mapy 
     FROM events e 
-    JOIN kingdoms k ON e.kingdomid = k.id 
+    LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     WHERE e.userid = ? AND (e.actionid = ? OR e.actionid = ?)
     ORDER BY e.arrivaltime
     LIMIT $offset_wp, $limit

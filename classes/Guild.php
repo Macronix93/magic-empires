@@ -10,6 +10,7 @@ class Guild
     private ?string $motto = null;
     private int $min_score = 0;
     private int $last_settings_change = 0;
+    private array $storage = [];
 
     public function __construct(mysqli $db, User $user, ?int $guild_id = null)
     {
@@ -32,6 +33,11 @@ class Guild
             $this->motto = $row["motto"];
             $this->min_score = (int)$row["min_score"];
             $this->last_settings_change = (int)$row["last_settings_change"];
+            $this->storage = [
+                "food" => (int)$row["food"], "wood" => (int)$row["wood"], "stone" => (int)$row["stone"],
+                "gold" => (int)$row["gold"], "coal" => (int)$row["coal"], "iron" => (int)$row["iron"],
+                "sapphire" => (int)$row["sapphire"], "diamond" => (int)$row["diamond"]
+            ];
         }
     }
 
@@ -141,7 +147,7 @@ class Guild
                 "Die Einladung ist 48 Stunden gültig."
             ) . "</div>";
 
-        send_server_message($target_id, $target["username"], $msg);
+        send_server_message($target_id, $target["username"], $msg, MessageCategories::CATEGORY_GUILD);
 
         return null;
     }
@@ -172,7 +178,7 @@ class Guild
                 0, 0, "", "error"
             ) . "</div>";
 
-        send_server_message($data["invited_by"], $data["inviter_name"], $msg);
+        send_server_message($data["invited_by"], $data["inviter_name"], $msg, MessageCategories::CATEGORY_GUILD);
 
         return null;
     }
@@ -191,55 +197,62 @@ class Guild
         $wait_time = (int)$last_join + GUILD_JOIN_COOLDOWN - $now;
 
         if ($wait_time > 0) {
-            return "Gilden-Sperre: Du kannst erst in " . convert_sec_to_str($wait_time) . " wieder einer Gilde beitreten.";
+            return "Du kannst erst in " . convert_sec_to_str($wait_time) . " wieder einer Gilde beitreten.";
         }
 
         $target_guild_id = $guild_id;
         $inviter_id = null;
 
-        if ($via_invite) {
-            $inv_res = $this->db->execute_query(
-                "SELECT guild_id, invited_by FROM guild_invites WHERE id = ? AND user_id = ? AND expires_at > ?",
-                [$guild_id, $uid, $now]
-            );
-            $inv_data = $inv_res->fetch_assoc();
-
-            if (!$inv_data) {
-                return "Diese Einladung ist nicht mehr gültig, wurde bereits abgelehnt oder ist abgelaufen.";
-            }
-
-            $target_guild_id = (int)$inv_data["guild_id"];
-            $inviter_id = (int)$inv_data["invited_by"];
-        }
-
-        $guild = $this->db->execute_query("
-            SELECT g.*, (SELECT COUNT(*) FROM users WHERE guildid = g.id) as cur_members 
-            FROM guilds g WHERE id = ?",
-            [$target_guild_id]
-        )->fetch_assoc();
-
-        if (!$guild) {
-            return "Die Gilde, der du beitreten möchtest, existiert nicht mehr.";
-        }
-
-        if ($guild["cur_members"] >= $guild["max_members"]) {
-            return "Die Gilde ist bereits voll.";
-        }
-
-        if (!$via_invite && $this->user->get_user_score() < $guild["min_score"]) {
-            return "Dein Punktestand ist zu niedrig für diese Gilde.";
-        }
-
         $this->db->begin_transaction();
 
         try {
-            $this->db->execute_query("UPDATE users SET guildid = ?, guild_rank_id = ?, last_guild_join = ? WHERE id = ?",
-                [$target_guild_id, GuildRanks::GUILD_MEMBER, $now, $uid]);
+            if ($via_invite) {
+                $inv_res = $this->db->execute_query(
+                    "SELECT guild_id, invited_by FROM guild_invites WHERE id = ? AND user_id = ? AND expires_at > ? FOR UPDATE",
+                    [$guild_id, $uid, $now]
+                );
+                $inv_data = $inv_res->fetch_assoc();
+
+                if (!$inv_data) {
+                    $this->db->rollback();
+                    return "Diese Einladung ist nicht mehr gültig, wurde bereits abgelehnt oder ist abgelaufen.";
+                }
+
+                $target_guild_id = (int)$inv_data["guild_id"];
+                $inviter_id = (int)$inv_data["invited_by"];
+            }
+
+            $guild_res = $this->db->execute_query("SELECT * FROM guilds WHERE id = ? FOR UPDATE", [$target_guild_id]);
+            $guild = $guild_res->fetch_assoc();
+
+            if (!$guild) {
+                $this->db->rollback();
+                return "Die Gilde, der du beitreten möchtest, existiert nicht mehr.";
+            }
+
+            $member_count = (int)$this->db->execute_query(
+                "SELECT COUNT(*) FROM users WHERE guildid = ?",
+                [$target_guild_id]
+            )->fetch_column();
+
+            if ($member_count >= (int)$guild["max_members"]) {
+                $this->db->rollback();
+                return "Die Gilde ist bereits voll.";
+            }
+
+            if (!$via_invite && $this->user->get_user_score() < (int)$guild["min_score"]) {
+                $this->db->rollback();
+                return "Dein Punktestand ist zu niedrig für diese Gilde.";
+            }
+
+            $this->db->execute_query(
+                "UPDATE users SET guildid = ?, guild_rank_id = ?, last_guild_join = ? WHERE id = ?",
+                [$target_guild_id, GuildRanks::GUILD_MEMBER, $now, $uid]
+            );
             $this->db->execute_query("DELETE FROM guild_invites WHERE user_id = ?", [$uid]);
 
             $new_member_name = $this->user->get_user_name();
 
-            // Special Msg for the Recruiter only
             if ($inviter_id) {
                 $inviter_name = $this->db->execute_query("SELECT username FROM users WHERE id = ?", [$inviter_id])->fetch_column();
 
@@ -251,32 +264,23 @@ class Guild
                         "success"
                     ) . "</div>";
 
-                send_server_message($inviter_id, $inviter_name, $msg_recruiter);
+                send_server_message($inviter_id, $inviter_name, $msg_recruiter, MessageCategories::CATEGORY_GUILD);
             }
 
-            // Broadcast Msg to all other members
             $exclude_ids = [$uid];
-            if ($inviter_id) $exclude_ids[] = $inviter_id;
-
-            $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
-            $params = array_merge([$target_guild_id], $exclude_ids);
-
-            $members_res = $this->db->execute_query(
-                "SELECT id, username FROM users WHERE guildid = ? AND id NOT IN ($placeholders)",
-                $params
-            );
-
-            $msg_all = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Neues Gilden-Mitglied",
-                    "<b>" . e($new_member_name) . "</b> ist deiner Gilde soeben beigetreten.",
-                    0, 0,
-                    "",
-                    "success"
-                ) . "</div>";
-
-            while ($m = $members_res->fetch_assoc()) {
-                send_server_message((int)$m["id"], $m["username"], $msg_all);
+            if ($inviter_id) {
+                $exclude_ids[] = $inviter_id;
             }
+
+            $this->notify_guild(
+                "Neues Gilden-Mitglied",
+                "<b>" . e($new_member_name) . "</b> ist deiner Gilde soeben beigetreten.",
+                "",
+                "success",
+                $exclude_ids,
+                null,
+                $target_guild_id
+            );
 
             $res_max = $this->db->execute_query(
                 "SELECT MAX(id) FROM guild_chat WHERE guild_id = ?",
@@ -290,11 +294,9 @@ class Guild
             );
 
             $this->db->commit();
-
             return null;
         } catch (Exception) {
             $this->db->rollback();
-
             return "Fehler beim Beitritt.";
         }
     }
@@ -356,7 +358,7 @@ class Guild
                     0, 0, "Veranlasst durch " . $this->user->get_user_name()
                 ) . "</div>";
 
-            send_server_message($target_uid, $target["username"], $msg);
+            send_server_message($target_uid, $target["username"], $msg, MessageCategories::CATEGORY_GUILD);
 
             $this->db->commit();
 
@@ -414,7 +416,7 @@ class Guild
                     "error"
                 ) . "</div>";
 
-            send_server_message($target_uid, $target["username"], $msg);
+            send_server_message($target_uid, $target["username"], $msg, MessageCategories::CATEGORY_GUILD);
 
             $this->db->commit();
 
@@ -461,7 +463,7 @@ class Guild
                             0, 0, "", "success"
                         ) . "</div>";
 
-                    send_server_message($successor["id"], $successor["username"], $msg);
+                    send_server_message($successor["id"], $successor["username"], $msg, MessageCategories::CATEGORY_GUILD);
                 } else {
                     $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$my_guild]);
                 }
@@ -663,22 +665,11 @@ class Guild
         }
 
         $changes_str = implode(", ", $changed_fields);
-        $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                "Gilden-Update",
-                "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert:
-            <div style='margin: 0 auto;'><i>$changes_str</i></div>"
-            ) . "</div>";
-
-        $leaders = $this->db->execute_query("
-        SELECT u.id, u.username FROM users u 
-        JOIN guild_rank_list rl ON u.guild_rank_id = rl.id 
-        WHERE u.guildid = ? AND rl.can_edit_settings = 1 AND u.id != ?",
-            [$my_guild, $uid]
+        $this->notify_guild(
+            "Gilden-Update",
+            "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert:<br>
+            <div style='text-align: center; margin-top: 15px;'><i>$changes_str</i></div>", "", "neutral", [$uid], GuildRanks::GUILD_OFFICER
         );
-
-        while ($l = $leaders->fetch_assoc()) {
-            send_server_message($l["id"], $l["username"], $msg);
-        }
 
         return null;
     }
@@ -909,8 +900,8 @@ class Guild
                 $info["owner_uid"],
                 $info["source_kingdom_id"],
                 $info["target_kingdom_id"],
-                $info["src_x"],
-                $info["src_y"],
+                $info["tgt_x"],
+                $info["tgt_y"],
                 $now + $travel,
                 $now,
                 "Gilden-Rückzug"
@@ -921,9 +912,9 @@ class Guild
 
             foreach ($units as $u) {
                 $this->db->execute_query("
-                    INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count) 
-                    VALUES (?, ?, ?, ?)
-                ", [$new_event_id, $u["soldier_id"], $u["soldiercount"], $u["soldiercount"]]);
+                    INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) 
+                    VALUES (?, ?, ?, ?, ?)
+                ", [$new_event_id, $u["soldier_id"], $u["soldiercount"], $u["soldiercount"], $u["source_kingdom_id"]]);
 
                 $units_html .= BattleReportRenderer::render_unit_card(
                     $u["soldiername"],
@@ -942,14 +933,14 @@ class Guild
                     "Da die Allianz mit <b>" . e($info["host_name"]) . "</b> nicht mehr besteht, haben deine Truppen das Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen und den Rückmarsch angetreten.$units_html",
                     0, 0, "Ankunft in " . convert_sec_to_str($travel), "support"
                 ) . "</div>";
-            send_server_message($info["owner_uid"], $info["owner_name"], $msg_owner, MessageCategories::CATEGORY_WAR);
+            send_server_message($info["owner_uid"], $info["owner_name"], $msg_owner, MessageCategories::CATEGORY_GUILD);
 
             $msg_host = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                     "Unterstützung verloren",
                     "Aufgrund des Gilden-Austritts/Kicks haben die Truppen von <b>" . e($info["owner_name"]) . "</b> dein Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen.$units_html",
                     0, 0, "Deine Verteidigung wurde geschwächt.", "error"
                 ) . "</div>";
-            send_server_message($info["host_uid"], $info["host_name"], $msg_host, MessageCategories::CATEGORY_WAR);
+            send_server_message($info["host_uid"], $info["host_name"], $msg_host, MessageCategories::CATEGORY_GUILD);
         }
     }
 
@@ -987,10 +978,196 @@ class Guild
                         "success"
                     ) . "</div>";
 
-                send_server_message($next_id, $next_name, $msg);
+                send_server_message($next_id, $next_name, $msg, MessageCategories::CATEGORY_GUILD);
             } else {
                 $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$guild_id]);
             }
+        }
+    }
+
+    public function calculate_tech_costs(array $tech, int $current_lvl): array
+    {
+        $m = $tech["multiplicator"];
+
+        return [
+            "food" => (int)(($tech["food_cost"] ?? 0) * pow($m, $current_lvl)),
+            "wood" => (int)(($tech["wood_cost"] ?? 0) * pow($m, $current_lvl)),
+            "stone" => (int)(($tech["stone_cost"] ?? 0) * pow($m, $current_lvl)),
+            "gold" => (int)(($tech["gold_cost"] ?? 0) * pow($m, $current_lvl)),
+            "coal" => (int)(($tech["coal_cost"] ?? 0) * pow($m, $current_lvl)),
+            "iron" => (int)(($tech["iron_cost"] ?? 0) * pow($m, $current_lvl)),
+            "sapphire" => (int)(($tech["sapphire_cost"] ?? 0) * pow($m, $current_lvl)),
+            "diamond" => (int)(($tech["diamond_cost"] ?? 0) * pow($m, $current_lvl)),
+            "time" => (int)(($tech["base_time"] ?? 3600) * pow($m, $current_lvl))
+        ];
+    }
+
+    public function get_all_techs(): array
+    {
+        $query = "SELECT tl.*, IFNULL(gt.level, 0) as current_level 
+              FROM guild_tech_list tl 
+              LEFT JOIN guild_techs gt ON tl.id = gt.tech_id AND gt.guild_id = ?
+              ORDER BY tl.id";
+        return $this->db->execute_query($query, [$this->id])->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function is_researching(): bool
+    {
+        $res = $this->db->execute_query("SELECT 1 FROM events WHERE guild_id = ? AND actionid = ? LIMIT 1",
+            [$this->id, ActionTypes::ACTION_RESEARCH_TECH]);
+        return $res->num_rows > 0;
+    }
+
+    public function modify_storage_resource(string $res_key, int $diff): void
+    {
+        $this->db->execute_query("UPDATE guilds SET `$res_key` = `$res_key` + ? WHERE id = ?", [$diff, $this->id]);
+    }
+
+    public function get_tech_level(int $tech_id): int
+    {
+        $res = $this->db->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?",
+            [$this->id, $tech_id]);
+        return (int)($res->fetch_column() ?? 0);
+    }
+
+    public function get_storage_limit(string $res_key): int
+    {
+        $lvl = $this->get_tech_level(GuildTechTypes::GUILD_TECH_TYPE_STORAGE);
+
+        $base = match ($res_key) {
+            "coal" => GUILD_STORAGE_BASE_COAL,
+            "iron" => GUILD_STORAGE_BASE_IRON,
+            "sapphire" => GUILD_STORAGE_BASE_SAPPHIRE,
+            "diamond" => GUILD_STORAGE_BASE_DIAMOND,
+            default => 0
+        };
+
+        if ($lvl <= 0) {
+            return $base;
+        }
+
+        return (int)round($base * pow(GUILD_STORAGE_INC_FACTOR, $lvl));
+    }
+
+    public function get_storage_amount(string $res_key): int
+    {
+        return $this->storage[$res_key] ?? 0;
+    }
+
+    public function get_active_project(): ?array
+    {
+        $res = $this->db->execute_query("
+            SELECT gp.*, gtl.name, gtl.icon, gtl.multiplicator, 
+                   gtl.food_cost, gtl.wood_cost, gtl.stone_cost, gtl.gold_cost,
+                   gtl.coal_cost, gtl.iron_cost, gtl.sapphire_cost, gtl.diamond_cost,
+                   gtl.base_time
+            FROM guild_projects gp
+            JOIN guild_tech_list gtl ON gp.tech_id = gtl.id
+            WHERE gp.guild_id = ?",
+            [$this->id]);
+        return $res->fetch_assoc();
+    }
+
+    public function set_active_project(int $tech_id): void
+    {
+        $this->db->execute_query("
+            INSERT INTO guild_projects (guild_id, tech_id) VALUES (?, ?)
+            ON DUPLICATE KEY UPDATE tech_id = VALUES(tech_id), 
+            current_food = 0, current_wood = 0, current_stone = 0, current_gold = 0",
+            [$this->id, $tech_id]);
+
+        $this->db->execute_query("
+            UPDATE guild_member_contributions 
+            SET current_project_amount = 0 
+            WHERE guild_id = ?",
+            [$this->id]);
+    }
+
+    public function add_contribution(int $uid, array $amounts): void
+    {
+        $total = array_sum($amounts);
+
+        $this->db->execute_query("
+            UPDATE guild_projects SET 
+                current_food = current_food + ?, current_wood = current_wood + ?, 
+                current_stone = current_stone + ?, current_gold = current_gold + ?
+            WHERE guild_id = ?",
+            [$amounts[0], $amounts[1], $amounts[2], $amounts[3], $this->id]);
+
+        $this->db->execute_query("
+            INSERT INTO guild_member_contributions (guild_id, user_id, current_project_amount, food, wood, stone, gold) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            current_project_amount = current_project_amount + VALUES(current_project_amount),
+            food = food + VALUES(food),
+            wood = wood + VALUES(wood),
+            stone = stone + VALUES(stone),
+            gold = gold + VALUES(gold)",
+            [$this->id, $uid, $total, $amounts[0], $amounts[1], $amounts[2], $amounts[3]]);
+    }
+
+    public function get_project_contributors(): mysqli_result
+    {
+        return $this->db->execute_query("
+            SELECT u.id, u.username, c.current_project_amount as val 
+            FROM guild_member_contributions c
+            JOIN users u ON c.user_id = u.id
+            WHERE c.guild_id = ? AND c.current_project_amount > 0
+            ORDER BY c.current_project_amount DESC",
+            [$this->id]);
+    }
+
+    public function get_top_contributors(): mysqli_result
+    {
+        return $this->db->execute_query("
+            SELECT u.username, c.total_resources 
+            FROM guild_member_contributions c
+            JOIN users u ON c.user_id = u.id
+            WHERE c.guild_id = ? AND c.total_resources > 0
+            ORDER BY c.total_resources DESC LIMIT 10",
+            [$this->id]);
+    }
+
+    public function cancel_active_project(): void
+    {
+        $this->db->execute_query("DELETE FROM guild_projects WHERE guild_id = ?", [$this->id]);
+        $this->db->execute_query("
+            UPDATE guild_member_contributions 
+            SET current_project_amount = 0, food = 0, wood = 0, stone = 0, gold = 0 
+            WHERE guild_id = ?",
+            [$this->id]
+        );
+    }
+
+    public function notify_guild(string $title, string $main_text, string $sub_text = "", string $type = "neutral",
+                                 array  $exclude_ids = [], ?int $min_rank_id = null, ?int $target_guild_id = null): void
+    {
+        $html = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                $title,
+                $main_text,
+                0, 0,
+                $sub_text,
+                $type
+            ) . "</div>";
+
+        $query = "SELECT id, username FROM users WHERE guildid = ?";
+        $params = [($target_guild_id !== null ? $target_guild_id : $this->id)];
+
+        if (!empty($exclude_ids)) {
+            $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+            $query .= " AND id NOT IN ($placeholders)";
+            $params = array_merge($params, $exclude_ids);
+        }
+
+        if ($min_rank_id !== null) {
+            $query .= " AND guild_rank_id <= ?";
+            $params[] = $min_rank_id;
+        }
+
+        $members = $this->db->execute_query($query, $params);
+
+        while ($m = $members->fetch_assoc()) {
+            send_server_message((int)$m["id"], $m["username"], $html, MessageCategories::CATEGORY_GUILD);
         }
     }
 }

@@ -4,6 +4,7 @@ class Map
 {
     private object $mysqli;
     private User $user;
+    private static array $path_cache = [];
 
     // Constructor
     public function __construct(object $db_conn, User $user)
@@ -160,49 +161,101 @@ class Map
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
     {
-        $start = ["x" => $start_x, "y" => $start_y];
-        $end = ["x" => $end_x, "y" => $end_y];
+        if ($start_x === $end_x && $start_y === $end_y) {
+            return ["path" => [["x" => $start_x, "y" => $start_y, "traversaltime" => 0]], "totaltime" => 0];
+        }
+
+        $cache_key = ($start_x * 1000000) + ($start_y * 10000) + ($end_x * 100) + $end_y;
+        $reverse_key = ($end_x * 1000000) + ($end_y * 10000) + ($start_x * 100) + $start_y;
+
+        if (isset(self::$path_cache[$cache_key])) {
+            return self::$path_cache[$cache_key];
+        }
+        if (isset(self::$path_cache[$reverse_key])) {
+            return self::$path_cache[$reverse_key];
+        }
+
         $map = $this->fetch_map_data();
 
-        $open_list = [];
-        $closed_list = [];
-        $g_scores = [];
-        $f_scores = [];
+        $start_node = ($start_x * 1000) + $start_y;
+        $end_node = ($end_x * 1000) + $end_y;
+
+        $h_start = (abs($start_x - $end_x) + abs($start_y - $end_y)) * 40;
+
+        $open_queue = new SplPriorityQueue();
+        $open_queue->setExtractFlags(SplPriorityQueue::EXTR_DATA);
+        $open_queue->insert($start_node, -$h_start);
+
+        $g_scores = [$start_node => 0];
         $came_from = [];
+        $closed = [];
 
-        $open_list[$this->encode($start)] = 0;
-        $g_scores[$this->encode($start)] = 0;
-        $f_scores[$this->encode($start)] = $this->heuristic($start, $end);
+        while (!$open_queue->isEmpty()) {
+            $current_node = $open_queue->extract();
 
-        while (!empty($open_list)) {
-            $current = array_search(min($open_list), $open_list);
-            $current = $this->decode($current);
+            if ($current_node === $end_node) {
+                $curr = $current_node;
+                $total_time = $g_scores[$end_node];
+                $path = [];
 
-            if ($current["x"] == $end["x"] && $current["y"] == $end["y"]) {
-                return $this->reconstruct_path($came_from, $current, $map, $start_x, $start_y);
+                while (isset($came_from[$curr])) {
+                    $cx = (int)($curr / 1000);
+                    $cy = $curr % 1000;
+                    $path[] = ["x" => $cx, "y" => $cy, "traversaltime" => $map[$cx][$cy]["traversaltime"] ?? 60];
+                    $curr = $came_from[$curr];
+                }
+
+                $path[] = ["x" => $start_x, "y" => $start_y, "traversaltime" => 0];
+                $res = ["path" => array_reverse($path), "totaltime" => $total_time];
+
+                self::$path_cache[$cache_key] = $res;
+                return $res;
             }
 
-            unset($open_list[$this->encode($current)]);
-            $closed_list[$this->encode($current)] = true;
+            if (isset($closed[$current_node])) {
+                continue;
+            }
+            $closed[$current_node] = true;
 
-            foreach ($this->get_neighbours($current, $map) as $neighbor) {
-                if (isset($closed_list[$this->encode($neighbor)])) {
+            $cx = (int)($current_node / 1000);
+            $cy = $current_node % 1000;
+            $current_g = $g_scores[$current_node];
+
+            $neighbors = [
+                (($cx) * 1000) + ($cy + 1),
+                (($cx) * 1000) + ($cy - 1),
+                (($cx + 1) * 1000) + ($cy),
+                (($cx - 1) * 1000) + ($cy)
+            ];
+
+            foreach ($neighbors as $n_node) {
+                if (isset($closed[$n_node])) {
                     continue;
                 }
 
-                $traversal_time = $map[$neighbor["x"]][$neighbor["y"]]["traversaltime"];
-                $tentative_g_score = $g_scores[$this->encode($current)] + $traversal_time;
+                $nx = (int)($n_node / 1000);
+                $ny = $n_node % 1000;
 
-                if (!isset($open_list[$this->encode($neighbor)]) || $tentative_g_score < $g_scores[$this->encode($neighbor)]) {
-                    $came_from[$this->encode($neighbor)] = $current;
-                    $g_scores[$this->encode($neighbor)] = $tentative_g_score;
-                    $f_scores[$this->encode($neighbor)] = $tentative_g_score + $this->heuristic($neighbor, $end);
-                    $open_list[$this->encode($neighbor)] = $f_scores[$this->encode($neighbor)];
+                if ($nx < 1 || $nx > MAX_X || $ny < 1 || $ny > MAX_Y) {
+                    continue;
+                }
+
+                $cost = $map[$nx][$ny]["traversaltime"] ?? 60;
+                $tentative_g = $current_g + $cost;
+
+                if (!isset($g_scores[$n_node]) || $tentative_g < $g_scores[$n_node]) {
+                    $came_from[$n_node] = $current_node;
+                    $g_scores[$n_node] = $tentative_g;
+
+                    $h = (abs($nx - $end_x) + abs($ny - $end_y)) * 40;
+                    $f_score = $tentative_g + $h;
+
+                    $open_queue->insert($n_node, -$f_score);
                 }
             }
         }
 
-        return []; // No path found
+        return [];
     }
 
     private function fetch_map_data(): array

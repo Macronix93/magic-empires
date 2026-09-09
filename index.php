@@ -249,7 +249,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error .= "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!<br>";
             } else {
                 if (str_ends_with(strtolower($email), "@magic-empires.de") ||
-                        str_ends_with(strtolower($email), "@sylvan-giese.de")) {
+                        str_ends_with(strtolower($email), "@abc.de")) {
                     $error .= "Diese E-Mail-Adresse ist nicht gestattet!<br>";
                 } else {
                     $domain = substr(strrchr($email, "@"), 1);

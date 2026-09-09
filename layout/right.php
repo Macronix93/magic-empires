@@ -71,9 +71,10 @@
                     $result->data_seek(0);
 
                     foreach ($result as $row) {
-                        $selected = ($row["id"] == $user->get_current_kingdom()) ? "selected='selected'" : "";
+                        $id = $row["id"];
+                        $selected = ($id == $user->get_current_kingdom()) ? "selected='selected'" : "";
 
-                        echo "<option value='{$row["id"]}' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
+                        echo "<option value='$id' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
                     }
                     ?>
                 </select>
@@ -130,12 +131,12 @@
                 $prod_id = "boost_info_" . $type;
 
                 echo "<div class='split-content'>
-            <div>" . get_resource_icon($data["icon"]) . "
-                <span class='" . ($data["val"] >= $data["max"] ? "over-limit" : "under-limit") . "'>
-                    " . fnum($data["val"]) . "
-                </span>
-            </div>
-            <div class='$prod_class' id='$prod_id'>
+                        <div>" . get_resource_icon($data["icon"]) . "
+                            <span class='" . ($data["val"] >= $data["max"] ? "over-limit" : "under-limit") . "'>
+                                " . fnum($data["val"]) . "
+                            </span>
+                        </div>
+                        <div class='$prod_class' id='$prod_id'>
                 (" . fnum($total_display_prod) . "/h)";
 
                 if ($show_popup) {
@@ -144,10 +145,13 @@
                             Basis & Forschung: " . fnum($data["base_prod"]) . "/h<br>";
 
                     if ($has_shrine_effect) {
+                        $display_bonus = fdec($kingdom->calculate_shrine_bonus($shrine_mod) * 100);
+                        $display_malus = fdec($kingdom->calculate_shrine_bonus($shrine_malus) * 100);
+
                         if ($actual_shrine_diff > 0) {
-                            echo "<span class='passed'>Schrein-Bonus: +" . fnum($actual_shrine_diff) . "/h</span><br>";
+                            echo "<span class='passed'>Schrein-Bonus: +" . fnum($actual_shrine_diff) . "/h</span> <span class='passed'>(+$display_bonus%)</span><br>";
                         } else {
-                            echo "<span class='error'>Schrein-Malus: -" . fnum(abs($actual_shrine_diff)) . "/h</span><br>";
+                            echo "<span class='error'>Schrein-Malus: -" . fnum(abs($actual_shrine_diff)) . "/h</span> <span class='error'>(-$display_malus%)</span><br>";
                         }
                     }
 

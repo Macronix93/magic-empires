@@ -146,7 +146,6 @@ registerAction("confirmCancelInvite", (el) => {
         }
     );
 });
-
 registerAction("switchGuildTab", (el) => {
     const tabName = el.dataset.tab;
 
@@ -162,11 +161,29 @@ registerAction("switchGuildTab", (el) => {
     if (targetTab) {
         targetTab.style.display = "block";
         el.classList.add("active");
+
+        if (tabName === "chat") {
+            setTimeout(() => {
+                if (typeof scrollDown === "function") {
+                    scrollDown(true);
+                }
+            }, 50);
+        }
     }
-    
+
     const url = new URL(window.location);
     url.searchParams.set("tab", tabName);
     window.history.replaceState({}, '', url);
+});
+registerAction("confirmCancelProject", () => {
+    showConfirmationDialog(
+        "Möchtest du das aktuelle Gilden-Projekt wirklich abbrechen? Alle bereits eingezahlten Ressourcen gehen verloren!",
+        "Ja, Projekt abbrechen",
+        "Nein, beibehalten",
+        () => {
+            window.location.href = "guild.php?tab=research&cancel_project=1";
+        }
+    );
 });
 
 const displayGuildError = (message) => {
@@ -229,5 +246,16 @@ document.addEventListener("input", (e) => {
         if (e.target.value.length > 1 && e.target.value.startsWith('0')) {
             e.target.value = e.target.value.replace(/^0+/, '');
         }
+    }
+
+    if (e.target.classList.contains('js-internal-res-input')) {
+        let val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+        const needed = parseInt(e.target.dataset.needed) || 0;
+
+        if (val > needed) {
+            val = needed;
+        }
+
+        e.target.value = val > 0 ? val : "";
     }
 });

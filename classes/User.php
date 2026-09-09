@@ -444,4 +444,10 @@ class User
         $cookie_value = $this->user_id . ':' . $random_token;
         setcookie("me_remember", $cookie_value, $expires, '/', '', true, true);
     }
+
+    public function count_user_kingdoms(): int
+    {
+        $res_count = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$this->get_user_id()]);
+        return $kingdom_count = (int)$res_count->fetch_row()[0];
+    }
 }

@@ -589,7 +589,7 @@ class Conquest
         return (int)($this->soldiers[$soldier_id]["count"] ?? 0);
     }
 
-    public function get_battle_result_data(bool $for_attacker): array
+    public function get_battle_result_data(bool $for_attacker, bool $is_stationing = false): array
     {
         $data = [];
 
@@ -627,8 +627,12 @@ class Conquest
                     $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
                     $icon = $res->fetch_column() ?: "icon_error";
 
-                    $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
-                    $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
+                    $display_atk = 0;
+                    $display_def = 0;
+                    if (!$is_stationing) {
+                        $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
+                        $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
+                    }
 
                     $data[] = [
                         "id" => $id,

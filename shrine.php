@@ -71,7 +71,7 @@ while ($data = $res_aligns->fetch_assoc()) {
     $active = ($current_align == $data["id"]) ? " border: 2px solid var(--link-color); background: var(--box-selected);" : "";
 
     $display_bonus = fdec($kingdom->calculate_shrine_bonus($data["base_bonus"]) * 100);
-    $display_malus = fdec($data["base_malus"] * 100);
+    $display_malus = fdec($kingdom->calculate_shrine_bonus($data["base_malus"]) * 100);
 
     $view .= "
     <div class='box-container' style='margin-bottom: 15px;$active'>

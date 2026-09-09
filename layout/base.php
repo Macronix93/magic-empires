@@ -8,6 +8,7 @@ if (IS_DEV) {
 $js_suffix = ".js";
 $js_main_file = "main.js";
 
+$kingdom_count = 0;
 if ($user->is_logged_in()) {
     $show_attack_alert = false;
     $show_support_alert = false;
@@ -32,6 +33,8 @@ if ($user->is_logged_in()) {
             }
         }
     }
+
+    $kingdom_count = $user->count_user_kingdoms();
 }
 ?>
 <!DOCTYPE html>
@@ -139,6 +142,14 @@ if ($user->is_logged_in()) {
 <div id="nav-left-menu" class="mobile-side-nav">
     <?php include("layout/left.php"); ?>
 </div>
+<?php if ($kingdom_count > 1): ?>
+    <div class="mobile-nav-arrow" style="left: 60px; top: 1px;" data-on-click="switchKingdomPrev">
+        <p style="margin: 0; color: var(--link-color);">&#11164;</p>
+    </div>
+    <div class="mobile-nav-arrow" style="right: 60px; top: 1px;" data-on-click="switchKingdomNext">
+        <p style="margin: 0; color: var(--link-color);">&#11166;</p>
+    </div>
+<?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">
     <p>&#127984;</p>
 </div>

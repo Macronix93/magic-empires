@@ -102,6 +102,15 @@ class WorldEvent
 
         $actual_damage = $damage;
 
+        $old_damage = 0;
+        if ($type === "DAMAGE") {
+            $res_old = $this->mysqli->execute_query(
+                "SELECT total_damage FROM world_event_participants WHERE event_id = ? AND userid = ?",
+                [$event_id, $user_id]
+            );
+            $old_damage = (int)($res_old->fetch_column() ?? 0);
+        }
+
         $this->mysqli->begin_transaction();
 
         try {
@@ -153,17 +162,67 @@ class WorldEvent
                 $actual_damage
             ]);
 
+            if ($type === "DAMAGE") {
+                $new_damage = $old_damage + $actual_damage;
+                $diff = $this->calculate_dmg_threshold_diff($old_damage, $new_damage);
+
+                if ($diff["coins"] > 0 || $diff["gold"] > 0) {
+                    if ($diff["coins"] > 0) {
+                        $u_obj = new User($user_id, "");
+                        $u_obj->give_user_coins($diff["coins"]);
+                    }
+
+                    if ($diff["gold"] > 0 && $kingdom_id > 0) {
+                        $k_obj = new Kingdom($this->mysqli, $kingdom_id);
+                        $k_obj->give_kingdom_gold($diff["gold"]);
+                    }
+
+                    $rewards_text = [];
+                    if ($diff["coins"] > 0) $rewards_text[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " <b>+{$diff["coins"]} Münzen</b>";
+                    if ($diff["gold"] > 0) $rewards_text[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <b>+" . fnum($diff["gold"]) . "</b>";
+
+                    $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Event: Neue Stufe erreicht!",
+                            "Dein Angriff auf den Welten-Boss hat eine neue Belohnungsstufe freigeschaltet:<br><br><div style='text-align: center;'>" . implode(" und ", $rewards_text) . "</div>
+                                <br>Die Schätze wurden deiner Schatzkammer und deinem Lager gutgeschrieben (unter Berücksichtigung deiner Maximalkapazitäten).",
+                            0, 0,
+                            "Gesamtschaden: " . fnum($new_damage, true),
+                            "success"
+                        ) . "</div>";
+
+                    $u_name = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column() ?: "Spieler";
+                    send_server_message($user_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
+                }
+            }
+
             $this->mysqli->commit();
 
             update_player_stat($user_id, "event_damage_total", $actual_damage);
 
             return $actual_damage;
-
         } catch (Exception $e) {
             $this->mysqli->rollback();
             error_log("WorldEvent Error: " . $e->getMessage());
             return 0;
         }
+    }
+
+    private function calculate_dmg_threshold_diff(int $old_damage, int $new_damage): array
+    {
+        $diff_coins = 0;
+        $diff_gold = 0;
+
+        foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
+            if ($new_damage >= $threshold && $old_damage < $threshold) {
+                $diff_coins += $rewards["coins"];
+                $diff_gold += $rewards["gold"];
+            }
+        }
+
+        return [
+            "coins" => $diff_coins,
+            "gold" => $diff_gold
+        ];
     }
 
     public function broadcast_spawn_notification(string $event_type): void
@@ -188,10 +247,7 @@ class WorldEvent
         );
         $msg .= "</div>";
 
-        $res_users = $this->mysqli->query("SELECT id, username FROM users WHERE status = 1");
-        while ($u = $res_users->fetch_assoc()) {
-            send_server_message($u["id"], $u["username"], $msg);
-        }
+        broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
     }
 
     public function broadcast_defeat_notification(int $event_id): void
@@ -211,10 +267,7 @@ class WorldEvent
         $msg .= BattleReportRenderer::render_outcome_box($title, $text, 0, 0, "", "success");
         $msg .= "</div>";
 
-        $res_users = $this->mysqli->query("SELECT id, username FROM users WHERE status = 1");
-        while ($u = $res_users->fetch_assoc()) {
-            send_server_message($u["id"], $u["username"], $msg, MessageCategories::CATEGORY_EVENT);
-        }
+        broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
     }
 
     public function get_last_event_type(): ?string

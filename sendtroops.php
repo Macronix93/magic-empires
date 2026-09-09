@@ -75,7 +75,7 @@ if ($row_enemy) {
 }
 
 $my_guild_id = $user->get_user_guild_id();
-$is_ally = ($my_guild_id > 0 && $my_guild_id === $enemy_guild_id);
+$is_ally = ($my_guild_id > 0 && $my_guild_id === $enemy_guild_id && $enemy_user_id !== $user->get_user_id());
 $is_noob_protected = false;
 
 $current_support_load = 0;
@@ -104,8 +104,8 @@ $already_sent = 0;
 
 if ($kingdom_id != WORLD_EVENT_ID) {
     $result = $db_instance->execute_query("SELECT COUNT(*) AS alreadysent FROM events 
-                               WHERE (actionid = ? OR actionid = ?)  AND userid = ? AND targetx = ? AND targety = ? AND kingdomid = ?",
-        [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_STATION_TROOPS, $user->get_user_id(), $target_x, $target_y, $user->get_current_kingdom()]);
+                               WHERE actionid = ? AND userid = ? AND targetx = ? AND targety = ? AND kingdomid = ?",
+        [ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id(), $target_x, $target_y, $user->get_current_kingdom()]);
     $already_sent = $result->fetch_assoc()["alreadysent"];
 }
 
@@ -204,13 +204,13 @@ if (!empty($_POST["soldiers"])) {
         $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
 
         $res_ongoing = $db_instance->execute_query("
-        SELECT COUNT(DISTINCT e.eventid) as total 
-        FROM events e 
-        JOIN sent_troops st ON e.eventid = st.eventid
-        WHERE e.userid = ? 
-          AND e.targetid = -1 
-          AND st.soldierid = ? 
-          AND e.actionid = ?",
+            SELECT COUNT(DISTINCT e.eventid) as total 
+            FROM events e 
+            JOIN sent_troops st ON e.eventid = st.eventid
+            WHERE e.userid = ? 
+              AND e.targetid = -1 
+              AND st.soldierid = ? 
+              AND e.actionid = ?",
             [
                 $user->get_user_id(),
                 Soldiers::SOLDIER_SETTLER_WAGON,
@@ -287,26 +287,26 @@ if (!empty($_POST["soldiers"])) {
 
             $check_data = $res_exists->fetch_assoc();
 
-            if ($check_data["already_there"] || $check_data["on_the_way"]) {
-                $error = "Du hast bereits einen Unterstützungstrupp bei diesem Mitglied oder schickst gerade!";
-            } else {
-                $target_k_obj = new Kingdom($db_instance, $kingdom_id);
-                $barracks_lvl = $target_k_obj->get_kingdom_building_level(2);
-                $support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+            if ($check_data["already_there"]) {
+                $view .= show_warning_box("Hinweis: Du hast bereits Truppen dort stationiert. Diese Welle wird sich ihnen anschließen.");
+            }
 
-                $res_current = $db_instance->execute_query("
+            $target_k_obj = new Kingdom($db_instance, $kingdom_id);
+            $barracks_lvl = $target_k_obj->get_kingdom_building_level(2);
+            $support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+
+            $res_current = $db_instance->execute_query("
                 SELECT 
                     (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?) +
                     (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.actionid = ?)
                 AS total",
-                    [$kingdom_id, $kingdom_id, ActionTypes::ACTION_STATION_TROOPS]);
-                $current_support_count = $res_current->fetch_column();
+                [$kingdom_id, $kingdom_id, ActionTypes::ACTION_STATION_TROOPS]);
+            $current_support_count = $res_current->fetch_column();
 
-                $total_sent = array_sum(array_map("intval", $_POST["soldiers"]));
+            $total_sent = array_sum(array_map("intval", $_POST["soldiers"]));
 
-                if (($current_support_count + $total_sent) > $support_limit) {
-                    $error = "Das Ziel-Königreich kann keine weitere Unterstützung aufnehmen (Limit: $support_limit).";
-                }
+            if (($current_support_count + $total_sent) > $support_limit) {
+                $error = "Das Ziel-Königreich kann keine weitere Unterstützung aufnehmen (Limit: $support_limit).";
             }
         }
 
@@ -339,8 +339,8 @@ if (!empty($_POST["soldiers"])) {
                 if ($soldier_count > 0) {
                     // Insert troop record
                     $db_instance->execute_query(
-                        "INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count) VALUES (?, ?, ?, ?)",
-                        [$event_id, $soldier_id, $soldier_count, $soldier_count]
+                        "INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES (?, ?, ?, ?, ?)",
+                        [$event_id, $soldier_id, $soldier_count, $soldier_count, $user->get_current_kingdom()]
                     );
 
                     // Subtract soldiers from kingdom

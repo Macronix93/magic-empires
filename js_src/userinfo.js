@@ -101,6 +101,10 @@ function openOverlay(url, title = "Info", width = null) {
                     content.style.minHeight = "";
                     content.style.transition = "opacity 0.15s ease";
                     content.style.opacity = "1";
+
+                    if (typeof setup === "function") {
+                        setup();
+                    }
                 }, 25);
             });
     }, isAlreadyOpen ? 100 : 0);

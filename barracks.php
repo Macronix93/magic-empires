@@ -70,13 +70,7 @@ $soldiers_count = count($soldiers);
 // Standard soldier category
 $active_cat = 0;
 
-if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
-    $r_id = (int)$_GET["recruit"];
-
-    if (isset($soldiers[$r_id])) {
-        $active_cat = $soldiers[$r_id]->get_soldier_category();
-    }
-} else if (isset($_GET["cat"])) {
+if (isset($_GET["cat"])) {
     $cat = (int)$_GET["cat"];
 
     if ($cat == SoldierTypes::SOLDIER_TYPE_SUPPORT) {
@@ -85,6 +79,12 @@ if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
         $error = "Diese Kategorie gibt es nicht!";
     } else {
         $active_cat = $cat;
+    }
+} else if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
+    $r_id = (int)$_GET["recruit"];
+
+    if (isset($soldiers[$r_id])) {
+        $active_cat = $soldiers[$r_id]->get_soldier_category();
     }
 } else if ($kingdom_is_upgrading) {
     $target_id = $upgrade_event["soldierid"];
@@ -106,13 +106,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
     $source_id = isset($_POST["source_id"]) ? (int)$_POST["source_id"] : $current_kingdom;
     $target_id = isset($_POST["target_id"]) ? (int)$_POST["target_id"] : $current_kingdom;
 
+    $db_instance->begin_transaction();
+
     $res_stack = $db_instance->execute_query("
-        SELECT st.*, 
+        SELECT st.soldier_id, st.source_kingdom_id, st.owner_id,
+               SUM(st.soldiercount) as soldiercount, 
                k_src.mapx as src_x, k_src.mapy as src_y, k_src.kingdomname as src_name,
                k_tgt.mapx as tgt_x, k_tgt.mapy as tgt_y, k_tgt.kingdomname as tgt_name,
-               u_owner.username as owner_name,
-               u_host.username as host_name,
-               u_host.id as host_id
+               u_owner.username as owner_name, u_host.username as host_name, u_host.id as host_id
         FROM stationed_troops st
         JOIN kingdoms k_src ON st.source_kingdom_id = k_src.id
         JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
@@ -120,6 +121,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
         JOIN users u_host ON k_tgt.userid = u_host.id
         WHERE st.owner_id = ? AND st.source_kingdom_id = ? AND st.target_kingdom_id = ?
           AND (st.owner_id = ? OR k_tgt.userid = ?)
+        GROUP BY st.soldier_id, st.source_kingdom_id, st.owner_id,
+                 k_src.mapx, k_src.mapy, k_src.kingdomname,
+                 k_tgt.mapx, k_tgt.mapy, k_tgt.kingdomname,
+                 u_owner.username, u_host.username, u_host.id
+        FOR UPDATE
     ", [$owner_id, $source_id, $target_id, $user->get_user_id(), $user->get_user_id()]);
 
     $all_troops = $res_stack->fetch_all(MYSQLI_ASSOC);
@@ -140,14 +146,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
         $db_instance->execute_query("
             INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ", [ActionTypes::ACTION_SUPPORT_RETURN, $owner_id, $source_id, $target_id, $all_troops[0]["src_x"], $all_troops[0]["src_y"], $now + $travel_time, $now]);
+        ", [ActionTypes::ACTION_SUPPORT_RETURN, $owner_id, $source_id, $target_id, $all_troops[0]["tgt_x"], $all_troops[0]["tgt_y"], $now + $travel_time, $now]);
         $new_event_id = $db_instance->insert_id;
 
         foreach ($all_troops as $t) {
             $db_instance->execute_query("
-                INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count)
-                VALUES (?, ?, ?, ?)
-            ", [$new_event_id, $t["soldier_id"], $t["soldiercount"], $t["soldiercount"]]);
+                INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id)
+                VALUES (?, ?, ?, ?, ?)
+            ", [$new_event_id, $t["soldier_id"], $t["soldiercount"], $t["soldiercount"], $t["source_kingdom_id"]]);
         }
 
         $triggered_by_owner = ($all_troops[0]["owner_id"] == $user->get_user_id());
@@ -182,12 +188,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
         send_server_message($recipient_id, $recipient_name, $msg, MessageCategories::CATEGORY_WAR);
 
         $db_instance->execute_query("DELETE FROM stationed_troops WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?", [$owner_id, $source_id, $target_id]);
+        $db_instance->commit();
 
         $_SESSION["support_success"] = "Die Truppen befinden sich nun auf dem Rückmarsch.";
 
-        change_location("barracks.php?cat=support");
+        change_location("barracks.php?cat=" . SoldierTypes::SOLDIER_TYPE_SUPPORT);
         exit;
     } else {
+        $db_instance->rollback();
+
         $error = "Dieser Trupp ist nicht mehr an diesem Ort stationiert.";
     }
 }
@@ -197,58 +206,82 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
         $error = "Ungültige Anfrage!";
     } else {
         if ($_GET["count"] == "cancel") {
+            $db_instance->begin_transaction();
+
             if ($kingdom_is_recruiting) {
-                // Calculate remaining soldiers to be recruited and resulting refunds
-                $result = $db_instance->execute_query("SELECT soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
-                    [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $s_id]);
-                $soldier_goal = $result->fetch_assoc()["soldiergoal"];
+                $result = $db_instance->execute_query(
+                    "SELECT eventid, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ? FOR UPDATE",
+                    [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $s_id]
+                );
+                $event_row = $result->fetch_assoc();
 
-                // Refund player
-                $refund_food = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_food_cost());
-                $refund_gold = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_gold_cost());
-                $refund_wood = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_wood_cost());
-                $refund_stone = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_stone_cost());
+                if ($event_row) {
+                    $soldier_goal = (int)$event_row["soldiergoal"];
 
-                $kingdom->give_kingdom_food($refund_food);
-                $kingdom->give_kingdom_gold($refund_gold);
-                $kingdom->give_kingdom_wood($refund_wood);
-                $kingdom->give_kingdom_stone($refund_stone);
+                    $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$event_row["eventid"]]);
 
-                // Delete the job
-                $db_instance->execute_query("DELETE FROM events WHERE userid = ? AND soldierid = ? AND kingdomid = ? AND actionid = ?",
-                    [$user->get_user_id(), $s_id, $current_kingdom, ActionTypes::ACTION_BUILD_TROOPS]);
+                    $refund_food = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_food_cost());
+                    $refund_gold = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_gold_cost());
+                    $refund_wood = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_wood_cost());
+                    $refund_stone = $soldier_goal * (int)($soldiers[$s_id]->get_soldier_stone_cost());
 
-                $logger->log_game("ECONOMY", "RECRUIT_CANCEL", [
-                    "soldier_name" => $soldiers[$s_id]->get_soldier_name(),
-                    "amount_cancelled" => $soldier_goal
-                ], $current_kingdom);
+                    $kingdom->give_kingdom_food($refund_food);
+                    $kingdom->give_kingdom_gold($refund_gold);
+                    $kingdom->give_kingdom_wood($refund_wood);
+                    $kingdom->give_kingdom_stone($refund_stone);
 
-                change_location("barracks.php?cat=$active_cat");
-                exit;
+                    $db_instance->commit();
+
+                    $logger->log_game("ECONOMY", "RECRUIT_CANCEL", [
+                        "soldier_name" => $soldiers[$s_id]->get_soldier_name(),
+                        "amount_cancelled" => $soldier_goal
+                    ], $current_kingdom);
+
+                    change_location("barracks.php?cat=$active_cat");
+                    exit;
+                } else {
+                    $db_instance->rollback();
+                    $error = "Ausbildung ist bereits abgeschlossen oder wurde abgebrochen!";
+                }
             } else if ($kingdom_is_upgrading && $upgrade_event["buildingid"] == $soldiers[$s_id]->get_soldier_id()) {
-                $from_id = $upgrade_event["buildingid"];
-                $to_id = $upgrade_event["soldierid"];
-                $count = $upgrade_event["soldiergoal"];
+                $result = $db_instance->execute_query(
+                    "SELECT eventid, soldiergoal, buildingid, soldierid FROM events WHERE eventid = ? FOR UPDATE",
+                    [$upgrade_event["eventid"]]
+                );
+                $upg_row = $result->fetch_assoc();
 
-                $diff_gold = ($soldiers[$to_id]->get_soldier_gold_cost() - $soldiers[$from_id]->get_soldier_gold_cost()) * $count;
-                $diff_food = ($soldiers[$to_id]->get_soldier_food_cost() - $soldiers[$from_id]->get_soldier_food_cost()) * $count;
-                $diff_wood = ($soldiers[$to_id]->get_soldier_wood_cost() - $soldiers[$from_id]->get_soldier_wood_cost()) * $count;
-                $diff_stone = ($soldiers[$to_id]->get_soldier_stone_cost() - $soldiers[$from_id]->get_soldier_stone_cost()) * $count;
+                if ($upg_row) {
+                    $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$upg_row["eventid"]]);
 
-                $kingdom->give_kingdom_gold(max(0, $diff_gold));
-                $kingdom->give_kingdom_food(max(0, $diff_food));
-                $kingdom->give_kingdom_wood(max(0, $diff_wood));
-                $kingdom->give_kingdom_stone(max(0, $diff_stone));
+                    $from_id = (int)$upg_row["buildingid"];
+                    $to_id = (int)$upg_row["soldierid"];
+                    $count = (int)$upg_row["soldiergoal"];
 
-                // Give old troops back
-                $db_instance->execute_query("UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?",
-                    [$count, $current_kingdom, $from_id]);
+                    $diff_gold = ($soldiers[$to_id]->get_soldier_gold_cost() - $soldiers[$from_id]->get_soldier_gold_cost()) * $count;
+                    $diff_food = ($soldiers[$to_id]->get_soldier_food_cost() - $soldiers[$from_id]->get_soldier_food_cost()) * $count;
+                    $diff_wood = ($soldiers[$to_id]->get_soldier_wood_cost() - $soldiers[$from_id]->get_soldier_wood_cost()) * $count;
+                    $diff_stone = ($soldiers[$to_id]->get_soldier_stone_cost() - $soldiers[$from_id]->get_soldier_stone_cost()) * $count;
 
-                $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$upgrade_event["eventid"]]);
+                    $kingdom->give_kingdom_gold(max(0, $diff_gold));
+                    $kingdom->give_kingdom_food(max(0, $diff_food));
+                    $kingdom->give_kingdom_wood(max(0, $diff_wood));
+                    $kingdom->give_kingdom_stone(max(0, $diff_stone));
 
-                change_location("barracks.php?cat=$active_cat");
-                exit;
+                    $db_instance->execute_query(
+                        "UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?",
+                        [$count, $current_kingdom, $from_id]
+                    );
+
+                    $db_instance->commit();
+
+                    change_location("barracks.php?cat=$active_cat");
+                    exit;
+                } else {
+                    $db_instance->rollback();
+                    $error = "Upgrade ist bereits abgeschlossen oder wurde abgebrochen!";
+                }
             } else {
+                $db_instance->rollback();
                 $error = "Du rekrutierst gerade nicht oder wertest nicht auf!";
             }
         } else {
@@ -539,20 +572,20 @@ $view .= "
             </td>
             <td style='background: transparent; border: none; padding: 2px 0; text-align: right; white-space: nowrap;'>
                 <span class='popup $atk_class' id='total_atk_info'>
-                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span>" . fnum($total_k_atk) . "</span>
+                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span>" . fnum($total_k_atk, false, true) . "</span>
                     <div id='total_atk_info_box' class='popupbox' style='text-align:left;'>
                         <b>Angriffs-Bonus:</b><br>
-                        Basis: " . fnum($pure_base_atk) . "<br>
-                        " . ($total_smithy_atk > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_atk) . "</span><br>" : "") . "
-                        " . ($total_shrine_atk > 0 ? "<span class='passed'>Schrein: +" . fnum($total_shrine_atk) . "</span>" : "") . "
+                        Basis: " . fnum($pure_base_atk, true) . "<br>
+                        " . ($total_smithy_atk > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_atk, true) . "</span><br>" : "") . "
+                        " . ($total_shrine_atk > 0 ? "<span class='passed'>Schrein: +" . fnum($total_shrine_atk, true) . "</span>" : "") . "
                     </div>
                 </span>
                 <span style='margin-left: 10px;' class='popup $def_class' id='total_def_info'>
-                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span>" . fnum($total_k_def) . "</span>
+                    " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span>" . fnum($total_k_def, false, true) . "</span>
                     <div id='total_def_info_box' class='popupbox' style='text-align:left;'>
                         <b>Verteidigungs-Bonus:</b><br>
-                        Basis: " . fnum($pure_base_def) . "<br>
-                        " . ($total_smithy_def > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_def) . "</span>" : "") . "
+                        Basis: " . fnum($pure_base_def, true) . "<br>
+                        " . ($total_smithy_def > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_def, true) . "</span>" : "") . "
                     </div>
                 </span>
             </td>
@@ -747,7 +780,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
 
             $text_build = "In Ausbildung: " . $soldier_goal . "<br>
-                            <b><span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form'>" . format_time_for_js($remaining_for_this_unit) . "</span></b><br> 
+                            <b><span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form' data-timer-cat='$unit_cat'>
+                            " . format_time_for_js($remaining_for_this_unit) . "</span></b><br> 
                               <form id='cancel-form' action='barracks.php' method='GET'>
                                 <input type='hidden' name='recruit' value='$i'>
                                 <input type='hidden' name='count' value='cancel'>
@@ -772,7 +806,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             if ($rem == 0) $rem = $upg_unit_time;
 
             $text_build = "Aufwertung zu $target_name: " . $upgrade_event["soldiergoal"] . "<br>
-            <b><span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg'>" . format_time_for_js($rem) . "</span></b><br>
+            <b><span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg' data-timer-cat='$unit_cat'>" . format_time_for_js($rem) . "</span></b><br>
             <form id='cancel-form-upg' action='barracks.php' method='GET'>
                 <input type='hidden' name='recruit' value='$i'>
                 <input type='hidden' name='count' value='cancel'>
@@ -922,24 +956,37 @@ $view .= "<div id='support-container' data-unit-category='" . SoldierTypes::SOLD
 $view .= "<div class='title-border'>Erhaltene Unterstützung</div>";
 
 $res_in = $db_instance->execute_query("
-    SELECT st.*, u.username as owner_name, k.kingdomname as src_kname, sl.soldiername, sl.icon 
+    SELECT st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id, 
+           SUM(st.soldiercount) as soldiercount,
+           u.username as owner_name, 
+           k_src.kingdomname as src_kname, 
+           k_tgt.kingdomname as tgt_kname,
+           sl.soldiername, 
+           sl.icon 
     FROM stationed_troops st
     JOIN users u ON st.owner_id = u.id
-    JOIN kingdoms k ON st.source_kingdom_id = k.id
+    JOIN kingdoms k_src ON st.source_kingdom_id = k_src.id
+    JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
     JOIN soldier_list sl ON st.soldier_id = sl.id
-    WHERE st.target_kingdom_id = ?
-    ORDER BY u.username", [$current_kingdom]);
+    WHERE k_tgt.userid = ?
+    GROUP BY st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id, 
+             u.username, k_src.kingdomname, k_tgt.kingdomname, sl.soldiername, sl.icon
+    ORDER BY k_tgt.kingdomname, u.username",
+    [$user->get_user_id()]
+);
 
 $grouped_in = [];
 foreach ($res_in as $row) {
-    $key = $row["owner_id"] . '_' . $row["source_kingdom_id"];
+    $key = $row["target_kingdom_id"] . '_' . $row["owner_id"] . '_' . $row["source_kingdom_id"];
 
     if (!isset($grouped_in[$key])) {
         $grouped_in[$key] = [
             "owner_name" => $row["owner_name"],
             "src_kname" => $row["src_kname"],
+            "tgt_kname" => $row["tgt_kname"],
             "owner_id" => $row["owner_id"],
             "source_id" => $row["source_kingdom_id"],
+            "target_id" => $row["target_kingdom_id"],
             "troops" => []
         ];
     }
@@ -970,19 +1017,21 @@ if (!empty($grouped_in)) {
         $troop_icons .= "</div>";
 
         $view .= "<tr>
-            <td class='td-center'>$troop_icons</td>
-            <td class='td-center'>
-                <span style='font-weight: bold;'>" . e($data["owner_name"]) . "</span>
-                <small>(" . e($data["src_kname"]) . ")</small>
-            </td>
-            <td class='td-center'>
-                <form method='POST'>
-                    <input type='hidden' name='source_id' value='{$data["source_id"]}'>
-                    <input type='hidden' name='owner_id' value='{$data["owner_id"]}'>
-                    <input type='submit' name='return_support_stack' value='Entlassen'>
-                </form>
-            </td>
-        </tr>";
+                <td class='td-center'>$troop_icons</td>
+                <td class='td-center'>
+                    <span style='font-weight: bold;'>" . e($data["owner_name"]) . "</span><br>
+                    <small>aus " . e($data["src_kname"]) . "</small><br>
+                    <span class='passed'>hilft dir in: " . e($data["tgt_kname"]) . "</span>
+                </td>
+                <td class='td-center'>
+                    <form method='POST'>
+                        <input type='hidden' name='target_id' value='{$data["target_id"]}'>
+                        <input type='hidden' name='source_id' value='{$data["source_id"]}'>
+                        <input type='hidden' name='owner_id' value='{$data["owner_id"]}'>
+                        <input type='submit' name='return_support_stack' value='Entlassen'>
+                    </form>
+                </td>
+            </tr>";
     }
     $view .= "</table>";
 } else {
@@ -993,28 +1042,37 @@ if (!empty($grouped_in)) {
 $view .= "<br><div class='title-border'>Gesendete Unterstützung</div>";
 
 $res_out = $db_instance->execute_query("
-    SELECT st.*, k_tgt.kingdomname as tgt_kname, k_tgt.mapx, k_tgt.mapy, 
-           sl.soldiername, sl.icon,
-           u_tgt.username as target_owner_name,
-           u_tgt.id as target_userid
-    FROM stationed_troops st
-    JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
-    JOIN users u_tgt ON k_tgt.userid = u_tgt.id
-    JOIN soldier_list sl ON st.soldier_id = sl.id
-    WHERE st.owner_id = ? AND st.source_kingdom_id = ?", [$user->get_user_id(), $current_kingdom]);
+        SELECT st.target_kingdom_id, st.source_kingdom_id, st.soldier_id,
+               SUM(st.soldiercount) as soldiercount,
+               k_tgt.kingdomname as tgt_kname, k_tgt.mapx, k_tgt.mapy, 
+               k_src.kingdomname as src_kname,
+               sl.soldiername, sl.icon,
+               u_tgt.username as target_owner_name,
+               u_tgt.id as target_userid
+        FROM stationed_troops st
+        JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
+        JOIN kingdoms k_src ON st.source_kingdom_id = k_src.id
+        JOIN users u_tgt ON k_tgt.userid = u_tgt.id
+        JOIN soldier_list sl ON st.soldier_id = sl.id
+        WHERE st.owner_id = ?
+        GROUP BY st.target_kingdom_id, st.source_kingdom_id, st.soldier_id
+    ", [$user->get_user_id()]
+);
 
 $grouped_out = [];
 foreach ($res_out as $row) {
-    $key = $row["target_kingdom_id"];
+    $key = $row["source_kingdom_id"] . '_' . $row["target_kingdom_id"];
 
     if (!isset($grouped_out[$key])) {
         $grouped_out[$key] = [
             "tgt_kname" => $row["tgt_kname"],
+            "src_kname" => $row["src_kname"],
             "target_owner" => $row["target_owner_name"],
             "target_userid" => $row["target_userid"],
             "mapx" => $row["mapx"],
             "mapy" => $row["mapy"],
             "target_id" => $row["target_kingdom_id"],
+            "source_id" => $row["source_kingdom_id"],
             "troops" => []
         ];
     }
@@ -1049,21 +1107,23 @@ if (!empty($grouped_out)) {
         $c_link = "<a href='map.php?startx={$data["mapx"]}&starty={$data["mapy"]}' data-on-click='mapJump' data-x='{$data["mapx"]}' data-y='{$data["mapy"]}'>{$data["mapx"]}:{$data["mapy"]}</a>";
 
         $view .= "<tr>
-            <td class='td-center'>$troop_icons</td>
-            <td class='td-center'>
-                <b>" . e($data["tgt_kname"]) . "</b>
-                <small>($c_link)</small>
-            </td>
-            <td class='td-center'>
-                $sender_link
-            </td>
-            <td class='td-center'>
-                <form method='POST'>
-                    <input type='hidden' name='target_id' value='{$data["target_id"]}'>
-                    <input type='submit' name='return_support_stack' value='Heimrufen'>
-                </form>
-            </td>
-        </tr>";
+                    <td class='td-center'>$troop_icons</td>
+                    <td class='td-center'>
+                        <b>" . e($data["tgt_kname"]) . "</b><br>
+                        <small>($c_link)</small><br>
+                        <small style='opacity:0.7;'>aus: " . e($data["src_kname"]) . "</small>
+                    </td>
+                    <td class='td-center'>
+                        $sender_link
+                    </td>
+                    <td class='td-center'>
+                        <form method='POST'>
+                            <input type='hidden' name='target_id' value='{$data["target_id"]}'>
+                            <input type='hidden' name='source_id' value='{$data["source_id"]}'>
+                            <input type='submit' name='return_support_stack' value='Heimrufen'>
+                        </form>
+                    </td>
+                </tr>";
     }
     $view .= "</table>";
 } else {

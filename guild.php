@@ -6,8 +6,9 @@ check_user_login($user);
 $user_data = $db_instance->execute_query("SELECT guildid, ranking_points FROM users WHERE id = ?", [$user->get_user_id()])->fetch_assoc();
 $my_guild_id = (int)$user_data["guildid"];
 $guild_logic = new Guild($db_instance, $user, $my_guild_id);
+$my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 
-$active_tab = $_GET["tab"] ?? 'general';
+$active_tab = $_GET["tab"] ?? "chat";
 
 if (isset($_POST["create_guild"]) && $my_guild_id === -1) {
     $min_score = (int)($_POST["g_min_score"] ?? 0);
@@ -24,8 +25,6 @@ if (isset($_POST["create_guild"]) && $my_guild_id === -1) {
 }
 
 if ((isset($_POST["save_avatar"]) || isset($_POST["save_identity"]) || isset($_POST["save_profile"])) && $my_guild_id !== -1) {
-    $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
-
     if ($my_perms["can_edit_settings"]) {
         $error = null;
 
@@ -64,6 +63,189 @@ if ((isset($_POST["save_avatar"]) || isset($_POST["save_identity"]) || isset($_P
     } else {
         $error = "Du hast keine Berechtigung, die Einstellungen zu ändern.";
     }
+}
+
+if (isset($_GET["mark_project"]) && $my_guild_id !== -1) {
+    if ($my_perms["can_edit_settings"]) {
+        if ($guild_logic->is_researching()) {
+            $error = "Es läuft bereits eine Forschung. Erst nach Abschluss kann ein neues Projekt markiert werden.";
+        } else {
+            $tid = (int)$_GET["mark_project"];
+
+            $existing_project = $guild_logic->get_active_project();
+
+            if ($existing_project) {
+                if ($existing_project["tech_id"] != $tid) {
+                    $_SESSION["guild_error"] = "Es ist bereits ein Projekt aktiv (" . e($existing_project['name']) . "). Bitte brich dieses erst ab.";
+                }
+
+                change_location("guild.php?tab=research");
+                exit;
+            }
+
+            $guild_logic->set_active_project((int)$_GET["mark_project"]);
+
+            $t_res = $db_instance->execute_query("SELECT name FROM guild_tech_list WHERE id = ?", [$tid]);
+            $t_name = $t_res->fetch_column();
+
+            $guild_logic->notify_guild("Neues Gilden-Projekt",
+                "Ein neues Ziel wurde ausgerufen: <b>" . e($t_name) . "</b>.<br>Alle Mitglieder sind aufgerufen, Ressourcen beizusteuern!",
+                "Veranlasst durch: " . $user->get_user_name());
+
+            $_SESSION["guild_success"] = "Neues Gilden-Projekt wurde markiert!";
+        }
+    }
+
+    change_location("guild.php?tab=research");
+    exit;
+}
+
+if (isset($_POST["contribute_project"]) && $my_guild_id !== -1) {
+    $db_instance->begin_transaction();
+
+    $project_res = $db_instance->execute_query("
+        SELECT gp.*, gtl.name, gtl.icon, gtl.multiplicator, 
+               gtl.food_cost, gtl.wood_cost, gtl.stone_cost, gtl.gold_cost,
+               gtl.coal_cost, gtl.iron_cost, gtl.sapphire_cost, gtl.diamond_cost,
+               gtl.base_time
+        FROM guild_projects gp
+        JOIN guild_tech_list gtl ON gp.tech_id = gtl.id
+        WHERE gp.guild_id = ? FOR UPDATE",
+        [$my_guild_id]
+    );
+
+    $project = $project_res->fetch_assoc();
+
+    if (!$project) {
+        $error = "Es ist kein Projekt markiert oder es wurde schon fertiggestellt.";
+        $db_instance->rollback();
+    } else {
+        $k = new Kingdom($db_instance, $user->get_current_kingdom());
+        $input_amounts = [
+            max(0, (int)($_POST["am"][0] ?? 0)), // Food
+            max(0, (int)($_POST["am"][1] ?? 0)), // Wood
+            max(0, (int)($_POST["am"][2] ?? 0)), // Stone
+            max(0, (int)($_POST["am"][3] ?? 0))  // Gold
+        ];
+
+        if (array_sum($input_amounts) <= 0) {
+            $error = "Bitte gib eine Menge an.";
+            $db_instance->rollback();
+        } else {
+            $cur_lvl = $guild_logic->get_tech_level($project["tech_id"]);
+            $costs = $guild_logic->calculate_tech_costs($project, $cur_lvl);
+
+            $final_amounts = [
+                min($input_amounts[0], max(0, $costs["food"] - $project["current_food"])),
+                min($input_amounts[1], max(0, $costs["wood"] - $project["current_wood"])),
+                min($input_amounts[2], max(0, $costs["stone"] - $project["current_stone"])),
+                min($input_amounts[3], max(0, $costs["gold"] - $project["current_gold"]))
+            ];
+
+            $actual_total_to_take = array_sum($final_amounts);
+
+            if ($actual_total_to_take <= 0) {
+                $error = "Diese Ressourcen werden für das aktuelle Projekt nicht mehr benötigt.";
+                $db_instance->rollback();
+            } else if ($final_amounts[0] > $k->get_kingdom_food() ||
+                $final_amounts[1] > $k->get_kingdom_wood() ||
+                $final_amounts[2] > $k->get_kingdom_stone() ||
+                $final_amounts[3] > $k->get_kingdom_gold()) {
+                $error = "Du hast nicht genügend Ressourcen für diesen Beitrag!";
+                $db_instance->rollback();
+            } else {
+                $k->give_kingdom_food(-$final_amounts[0]);
+                $k->give_kingdom_wood(-$final_amounts[1]);
+                $k->give_kingdom_stone(-$final_amounts[2]);
+                $k->give_kingdom_gold(-$final_amounts[3]);
+
+                $guild_logic->add_contribution($user->get_user_id(), $final_amounts);
+
+                $p_check = $db_instance->execute_query("SELECT * FROM guild_projects WHERE guild_id = ?", [$my_guild_id])->fetch_assoc();
+
+                if ($p_check["current_food"] >= $costs["food"] && $p_check["current_wood"] >= $costs["wood"] &&
+                    $p_check["current_stone"] >= $costs["stone"] && $p_check["current_gold"] >= $costs["gold"]) {
+
+                    $finish = time() + $costs["time"];
+
+                    $db_instance->execute_query(
+                        "INSERT INTO events (actionid, userid, guild_id, buildingid, buildingname, buildingtime, buildinglevel) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        [ActionTypes::ACTION_RESEARCH_TECH, $user->get_user_id(), $my_guild_id, $p_check["tech_id"], $project["name"], $finish, $cur_lvl]
+                    );
+
+                    $db_instance->execute_query("DELETE FROM guild_projects WHERE guild_id = ?", [$my_guild_id]);
+
+                    $target_level = $cur_lvl + 1;
+
+                    $guild_logic->notify_guild("Gildenforschung gestartet",
+                        "Die Ressourcen für <b>" . e($project["name"]) . " (Stufe $target_level)</b> wurden vollständig gesammelt. Die Forschung hat begonnen!",
+                        "Finaler Beitrag durch: " . $user->get_user_name(), "success", [$user->get_user_id()]);
+
+                    $_SESSION["guild_success"] = "Projekt abgeschlossen! Die Forschung wurde gestartet.";
+                } else {
+                    if (array_sum($input_amounts) > $actual_total_to_take) {
+                        $_SESSION["guild_success"] = "Beitrag eingezahlt! Es wurde nur ein Teil deiner Ressourcen benötigt.";
+                    } else {
+                        $_SESSION["guild_success"] = "Dein Beitrag wurde erfolgreich eingezahlt!";
+                    }
+                }
+
+                $db_instance->commit();
+
+                change_location("guild.php?tab=research");
+                exit;
+            }
+        }
+    }
+}
+
+if (isset($_GET["cancel_project"]) && $my_guild_id !== -1) {
+    $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
+
+    if ($my_perms["can_edit_settings"]) {
+        $db_instance->begin_transaction();
+
+        try {
+            $res_contributors = $db_instance->execute_query(
+                "SELECT * FROM guild_member_contributions WHERE guild_id = ? AND current_project_amount > 0",
+                [$my_guild_id]
+            );
+
+            while ($contri = $res_contributors->fetch_assoc()) {
+                $c_uid = (int)$contri["user_id"];
+
+                $res_k = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$c_uid]);
+                $target_kid = $res_k->fetch_column();
+
+                if ($target_kid) {
+                    $target_kingdom = new Kingdom($db_instance, $target_kid);
+
+                    $target_kingdom->give_kingdom_food($contri["food"]);
+                    $target_kingdom->give_kingdom_stone($contri["stone"]);
+                    $target_kingdom->give_kingdom_gold($contri["gold"]);
+                    $target_kingdom->give_kingdom_wood($contri["wood"]);
+                }
+            }
+
+            $guild_logic->cancel_active_project();
+
+            $db_instance->commit();
+
+            $_SESSION["guild_success"] = "Projekt abgebrochen. Alle Spenden wurden den Mitgliedern in ihr Haupt-Königreich erstattet.";
+
+            $guild_logic->notify_guild("Projekt abgebrochen",
+                "Das aktuelle Projekt wurde von <b>" . $user->get_user_name() . "</b> abgebrochen. Deine gespendeten Ressourcen wurden dir zurückerstattet.",
+                "", "error");
+
+        } catch (Exception $e) {
+            $db_instance->rollback();
+
+            $error = "Fehler bei der Rückerstattung: " . $e->getMessage();
+        }
+    }
+
+    change_location("guild.php?tab=research");
+    exit;
 }
 
 
@@ -108,7 +290,7 @@ if ($my_guild_id === -1) {
                     <td class='td-gradient td-center'><b>Name</b></td>
                     <td class='td-gradient td-center'><b>Leader</b></td>
                     <td class='td-gradient td-center'><b>Mitglieder</b></td>
-                    <td class='td-gradient td-center'><b>Score</b></td>
+                    <td class='td-gradient td-center'><b>Punkte</b></td>
                     <td class='td-gradient td-center'></td>
                 </tr>";
 
@@ -199,7 +381,6 @@ if ($my_guild_id === -1) {
     $header = "Gilden-Halle";
 
     $guild_info = $guild_logic->get_guild_info($my_guild_id);
-    $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
     $ranks_res = $guild_logic->get_ranks();
     $ranks = $ranks_res->fetch_all(MYSQLI_ASSOC);
 
@@ -212,11 +393,18 @@ if ($my_guild_id === -1) {
             </div>";
 
     $view .= "<div class='tab'>
+        <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>Chat</div>
         <div class='tablinks " . ($active_tab == "general" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='general'>Allgemein</div>
         <div class='tablinks " . ($active_tab == "settings" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='settings'>Einstellungen</div>
         <div class='tablinks " . ($active_tab == "storage" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='storage'>Lager</div>
         <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research'>Forschung</div>
     </div>";
+    $view .= "<div id='guild_tab_chat' class='js-guild-tab' style='display: " . ($active_tab == "chat" ? "block" : "none") . ";'>";
+    $messages = new Messages($db_instance, $user);
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Chat</div>";
+    $view .= $messages->show_guild_chat();
+    $view .= "</div>";
+
     $view .= "<div id='guild_tab_general' class='js-guild-tab' style='display: " . ($active_tab == "general" ? "block" : "none") . ";'>";
     $view .= "<img src='" . $guild_logic->get_avatar() . "' class='guild-avatar' alt='Wappen'>";
     $view .= "<h2 style='margin-top: 0;'>[" . e($guild_info["tag"]) . "] " . e($guild_info["name"]) . "</h2>";
@@ -235,7 +423,7 @@ if ($my_guild_id === -1) {
             </colgroup>
             <tr>
                 <td class='td-gradient td-center'><b>Name</b></td>
-                <td class='td-gradient td-center'><b>Score</b></td>
+                <td class='td-gradient td-center'><b>Punkte</b></td>
                 <td class='td-gradient td-center'><b>Rang</b></td>
                 " . ($has_actions ? "<td class='td-gradient td-center'><b>Aktion</b></td>" : "") . "
             </tr>";
@@ -345,10 +533,6 @@ if ($my_guild_id === -1) {
             $view .= "</table>";
         }
     }
-
-    $messages = new Messages($db_instance, $user);
-    $view .= "<br><hr><div class='title-border'>Gilden-Chat</div>";
-    $view .= $messages->show_guild_chat();
     $view .= "</div>";
 
     $view .= "<div id='guild_tab_settings' class='js-guild-tab' style='display: " . ($active_tab == "settings" ? "block" : "none") . ";'>";
@@ -405,7 +589,7 @@ if ($my_guild_id === -1) {
 
     if ($can_edit && $cooldown_active) {
         $view .= "<div style='margin-top: 10px; margin-bottom: -5px;'>
-                    <small class='error'>Identität gesperrt für <b><span class='js-countdown'
+                    <small class='error'>Änderung möglich in <b><span class='js-countdown'
                        id='counter_guild'
                        data-seconds='$wait_time'>" . format_time_for_js($wait_time) . "</span></b></small>
                 </div>";
@@ -448,13 +632,241 @@ if ($my_guild_id === -1) {
     }
     $view .= "</div></div></div>";
 
-    $view .= "<div id='guild_tab_storage' class='js-guild-tab' style='display: " . ($active_tab == "storage" ? "block" : "none") . ";'>";
-    $view .= show_warning_box("Die Gilden-Schatzkammer wird derzeit noch errichtet. Bald können hier Ressourcen für die Gemeinschaft gesammelt werden!");
-    $view .= "</div>";
+    // Guild Storage
+    $res_map = [
+        "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
+        "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
+        "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+        "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
+    ];
 
+    $view .= "<div id='guild_tab_storage' class='js-guild-tab' style='display: " . ($active_tab == "storage" ? "block" : "none") . ";'>";
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Schatzkammer</div>";
+    $view .= "<div style='display: flex; flex-wrap: wrap; justify-content: center; gap: 15px;'>";
+    $view .= "<div class='storage-listing'>";
+
+    foreach ($res_map as $key => $type) {
+        $cur = $guild_logic->get_storage_amount($key);
+        $max = $guild_logic->get_storage_limit($key);
+        $view .= "<div class='split-content' style='gap: 15px;'>
+                    <div>" . get_resource_icon($type) . " " . fnum($cur) . "</div>von " . fnum($max) . "
+                  </div>";
+    }
+    $view .= "</div></div></div>";
+
+    // Guild Techs
     $view .= "<div id='guild_tab_research' class='js-guild-tab' style='display: " . ($active_tab == "research" ? "block" : "none") . ";'>";
-    $view .= show_warning_box("Unsere Gelehrten studieren noch die alten Schriften. Gildenforschungen werden in einem zukünftigen Update verfügbar sein.");
-    $view .= "</div>";
+    $project = $guild_logic->get_active_project();
+    $is_researching = $guild_logic->is_researching();
+
+    if ($is_researching) {
+        $current_ev = $db_instance->execute_query("SELECT * FROM events WHERE guild_id = ? AND actionid = ? LIMIT 1", [$my_guild_id, ActionTypes::ACTION_RESEARCH_TECH])->fetch_assoc();
+        $rem = $current_ev["buildingtime"] - time();
+
+        $view .= "<div class='info-box event-passed' style='flex-direction: column; padding: 20px;'>
+                <span style='font-size: 20px;'>Laufende Forschung: <b>{$current_ev["buildingname"]}</b></span>
+                <span>Fertigstellung in:<br><b class='js-countdown' data-seconds='$rem'>" . format_time_for_js($rem) . "</b></span>
+              </div>";
+    } else if ($project) {
+        $lvl = $guild_logic->get_tech_level($project["tech_id"]);
+        $costs = $guild_logic->calculate_tech_costs($project, $lvl);
+
+        $view .= "<div class='box-container' style='border: 2px solid var(--border-gold); margin: 0 auto; width: 70%;'>
+                <div class='box-header'>{$project["name"]} (Stufe " . ($lvl + 1) . ")</div>
+                <div class='box-content box-content-bg' style='padding: 20px;'>
+                    <div style='display: flex; gap: 20px; align-items: center; justify-content: center; flex-wrap: wrap;'>
+                        <img src='images/icons/{$project["icon"]}.png' style='width: 64px; height: 64px;' alt=''>
+                        <div style='flex: 1; min-width: 250px;'>";
+
+        $res_map = [
+            "food" => [ResourceTypes::RESOURCE_TYPE_FOOD, "Nahrung"],
+            "wood" => [ResourceTypes::RESOURCE_TYPE_WOOD, "Holz"],
+            "stone" => [ResourceTypes::RESOURCE_TYPE_STONE, "Stein"],
+            "gold" => [ResourceTypes::RESOURCE_TYPE_GOLD, "Gold"]
+        ];
+        foreach ($res_map as $key => $info) {
+            $cur = $project["current_$key"];
+            $req = $costs[$key];
+
+            $perc_raw = $req > 0 ? ($cur / $req) * 100 : 100;
+            $is_finished = ($cur >= $req);
+
+            if (!$is_finished && $perc_raw > 99.9) {
+                $perc_display = "99,9";
+            } else {
+                $perc_display = fdec($perc_raw);
+            }
+
+            $color = $is_finished ? "color: #0BDA51;" : "";
+            $bar_width = min(100, $perc_raw);
+
+            $view .= "<div style='margin-bottom: 12px;'>
+                <div class='split-content' style='margin-bottom: 4px;'>
+                    <span>" . get_resource_icon($info[0]) . " $info[1]</span>
+                    <span>" . fnum($cur) . " / " . fnum($req) . " <span style='$color'>(" . $perc_display . "%)</span></span>
+                </div>
+                <div class='tick-progress-bg' style='height: 10px;'>
+                    <div class='project-progress-fill' style='width: $bar_width%;'></div>
+                </div>
+              </div>";
+        }
+
+        $rem_food = max(0, $costs["food"] - $project["current_food"]);
+        $rem_wood = max(0, $costs["wood"] - $project["current_wood"]);
+        $rem_stone = max(0, $costs["stone"] - $project["current_stone"]);
+        $rem_gold = max(0, $costs["gold"] - $project["current_gold"]);
+
+        $view .= "      </div>
+                </div>
+                <hr>
+                <h4 style='margin: 15px 0 10px 0;'>Projekt unterstützen</h4>
+                <form method='POST'>
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 300px; margin: 0 auto;'>
+                        <div style='display: flex; align-items: center; gap: 5px;'>
+                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " 
+                            <input type='text' name='am[0]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*' 
+                            data-needed='$rem_food' " . ($rem_food <= 0 ? "disabled" : "") . ">
+                        </div>
+                        <div style='display: flex; align-items: center; gap: 5px;'>
+                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " 
+                            <input type='text' name='am[1]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*'
+                            data-needed='$rem_wood' " . ($rem_wood <= 0 ? "disabled" : "") . ">
+                        </div>
+                        <div style='display: flex; align-items: center; gap: 5px;'>
+                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " 
+                            <input type='text' name='am[2]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*'
+                            data-needed='$rem_stone' " . ($rem_stone <= 0 ? "disabled" : "") . ">
+                        </div>
+                        <div style='display: flex; align-items: center; gap: 5px;'>
+                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " 
+                            <input type='text' name='am[3]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*'
+                            data-needed='$rem_gold' " . ($rem_gold <= 0 ? "disabled" : "") . ">
+                        </div>
+                    </div>
+                    <input type='submit' name='contribute_project' value='Ressourcen einzahlen' style='margin-top: 15px;'>
+                </form>
+            </div>
+          </div>";
+    } else {
+        $view .= show_warning_box("Aktuell gibt es kein aktives Projekt.");
+    }
+
+    $top = $guild_logic->get_project_contributors();
+
+    $view .= "<div class='title-border' style='margin-top: 25px;'>Projekt-Unterstützer</div>";
+    if ($top->num_rows > 0) {
+        $view .= "<table class='table' style='max-width: 450px; margin-bottom: 20px;'>
+                    <tr>
+                        <td class='td-gradient'><b>Name</b></td>
+                        <td class='td-gradient td-center'><b>Ressourcen</b></td>
+                    </tr>";
+
+        while ($r = $top->fetch_assoc()) {
+            $contributor_user = new User($r["id"], $r["username"]);
+
+            $view .= "<tr>
+                            <td>
+                                <div class='image-and-user'>
+                                    <img class='user-image' src='" . e($contributor_user->get_avatar()) . "' alt=''>
+                                    <a href='#' 
+                                       data-on-click='openOverlay' 
+                                       data-url='userinfo.php?userid=" . (int)$r["id"] . "' 
+                                       data-title='Spieler-Info'>" . e($r["username"]) . "</a>
+                                </div>
+                            </td>
+                            <td class='td-center'>" . fnum($r["val"]) . "</td>
+                          </tr>";
+        }
+
+        $view .= "</table>";
+    } else {
+        if ($project) {
+            $view .= "<p style='text-align: center; opacity: 0.6;'>Bisher hat noch niemand zu diesem Projekt beigetragen.</p>";
+        } else {
+            $view .= "<p style='text-align: center; opacity: 0.6;'>Es gibt derzeit kein aktives Projekt.</p>";
+        }
+    }
+
+    // Tech List
+    $view .= "<div class='title-border'>Verfügbare Forschungen</div>";
+    $view .= "<table class='table' style='max-width: 700px;'>";
+
+    $all_techs = $guild_logic->get_all_techs();
+    foreach ($all_techs as $t) {
+        $level = (int)$t["current_level"];
+        $max_lvl = (int)$t["max_level"];
+        $costs = $guild_logic->calculate_tech_costs($t, $level);
+
+        $res_html = "";
+        if ($level < $max_lvl) {
+            $res_types = [
+                "food" => ResourceTypes::RESOURCE_TYPE_FOOD,
+                "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
+                "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
+                "gold" => ResourceTypes::RESOURCE_TYPE_GOLD
+            ];
+
+            foreach ($res_types as $key => $icon_id) {
+                if ($costs[$key] > 0) {
+                    $res_html .= "<div class='legend-item' style='margin-right: 10px;'>"
+                        . get_resource_icon($icon_id) . " " . fnum($costs[$key])
+                        . "</div>";
+                }
+            }
+        }
+
+        $action_btn = "";
+        if ($level >= $max_lvl) {
+            $action_btn = "<b class='passed'>MAX</b>";
+        } else if ($is_researching) {
+            $action_btn = "<small style='opacity: 0.7;'>Forschung läuft</small>";
+        } else if ($project && $project["tech_id"] == $t["id"]) {
+            $action_btn = "<b class='passed'>AKTIV</b>";
+
+            if ($my_perms["can_edit_settings"]) {
+                $action_btn .= "<br><div style='margin-top:5px;'>
+                            <button data-on-click='confirmCancelProject'>
+                               Abbrechen
+                            </button>
+                        </div>";
+            }
+        } else if ($my_perms["can_edit_settings"]) {
+            $action_btn = "<a href='guild.php?tab=research&mark_project={$t["id"]}'>
+                        <button type='button'>Projekt starten</button>
+                      </a>";
+        } else {
+            $action_btn = "<i>Wartet auf Offizier</i>";
+        }
+
+        $view .= "<tr>
+            <td>
+                <div class='map-legend' style='justify-content: left;'>
+                    <div class='legend-item'>
+                        <img src='images/icons/{$t["icon"]}.png' class='buildable-icons' alt=''>
+                    </div>
+                    <div class='legend-item'>
+                        <b class='popup' id='gt_{$t["id"]}'>{$t["name"]} ($level/$max_lvl)
+                            <div id='gt_{$t["id"]}_box' class='popupbox'>{$t['description']}</div>
+                        </b>
+                    </div>
+                </div>";
+
+        if ($level < $max_lvl) {
+            $view .= "
+            <div class='map-legend' style='justify-content: left; gap: 5px;'>
+                $res_html
+            </div>
+            <div style='opacity: 0.8; margin-top: 5px;'>
+                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($costs["time"]) . "
+            </div>";
+        }
+
+        $view .= "
+        </td>
+        <td class='td-center'>$action_btn</td>
+    </tr>";
+    }
+    $view .= "</table></div>";
 }
 
 /*

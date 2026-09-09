@@ -2,6 +2,17 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    $uid = $user->get_user_id();
+
+    $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $uid . ".json";
+
+    // 2 seconds cache
+    if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 2) {
+        header("Content-Type: application/json");
+        readfile($cache_file);
+        exit;
+    }
+
     $query = "SELECT m.mapx, m.mapy, m.fieldtype, ft.fieldname,
               CASE 
                 WHEN m.kingdomid = -2 AND (r.mapx IS NULL OR r.expires_at < UNIX_TIMESTAMP()) THEN -1
@@ -19,7 +30,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             k.userid as owner_id,
             u.guildid,
             e_mov.my_troop_icon,
-            IF(e_mov.targetx IS NOT NULL, 1, 0) as has_outgoing_event
+            CASE 
+                WHEN k.userid = ? THEN 0
+                WHEN e_mov.targetx IS NOT NULL THEN 1 
+                ELSE 0 
+            END as has_outgoing_event
           FROM map m 
           JOIN field_types ft ON m.fieldtype = ft.fieldid
           LEFT JOIN kingdoms k ON m.kingdomid = k.id
@@ -53,7 +68,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
               GROUP BY e.targetx, e.targety
           ) e_mov ON e_mov.targetx = m.mapx AND e_mov.targety = m.mapy
           ORDER BY m.mapy, m.mapx";
-    $result = $db_instance->execute_query($query, [$user->get_user_id(), ActionTypes::ACTION_SEND_TROOPS]);
+
+    $result = $db_instance->execute_query($query, [
+        $uid,
+        $uid,
+        ActionTypes::ACTION_SEND_TROOPS
+    ]);
 
     $map_data = [];
 
@@ -103,9 +123,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "event_info" => $event_info
     ];
 
-    header("Content-Type: application/json");
+    $json = json_encode($response);
+    file_put_contents($cache_file, $json);
 
-    echo json_encode($response);
+    header("Content-Type: application/json");
+    echo $json;
 } else {
     change_location("map.php");
 }

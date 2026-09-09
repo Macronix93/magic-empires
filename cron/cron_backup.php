@@ -27,9 +27,23 @@ $command = sprintf(
 exec($command, $output, $return_var);
 
 if ($return_var === 0) {
-    // Delete Old Backups (older than 14 days)
-    foreach (glob($backup_folder . "*.sql") as $file) {
-        if (time() - filemtime($file) > (86400 * 14)) unlink($file);
+    // Get all SQL backups and sort by creation date
+    $files = glob($backup_folder . "*.sql");
+    if ($files) {
+        usort($files, function ($a, $b) {
+            return filemtime($b) - filemtime($a);
+        });
+
+        // Only keep the last 7 backups
+        $max_backups = MAX_SQL_BACKUPS;
+        if (count($files) > $max_backups) {
+            $files_to_delete = array_slice($files, $max_backups);
+            foreach ($files_to_delete as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+        }
     }
 } else {
     echo "Fehler beim Backup! Code: $return_var\n";

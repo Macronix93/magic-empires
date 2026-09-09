@@ -25,9 +25,9 @@ class EventManager
             SELECT e.* 
             FROM events e
             LEFT JOIN kingdoms k ON e.targetid = k.id
-            WHERE (e.userid = ? OR k.userid = ?)
+            WHERE (e.userid = ? OR k.userid = ? OR (e.guild_id > 0 AND e.guild_id = (SELECT guildid FROM users WHERE id = ? LIMIT 1)))
         ";
-        $result = $this->mysqli->execute_query($query, [$uid, $uid]);
+        $result = $this->mysqli->execute_query($query, [$uid, $uid, $uid]);
 
         foreach ($result as $row) {
             $is_due = false;
@@ -122,6 +122,12 @@ class EventManager
     {
         switch ($row["actionid"]) {
             case ActionTypes::ACTION_RESEARCH_TECH:
+                if ($row["guild_id"] !== null) {
+                    $this->handle_guild_research($row);
+                } else {
+                    $this->handle_research($row);
+                }
+                break;
             case ActionTypes::ACTION_SMITHY_UPGRADE:
                 $this->handle_research($row);
                 break;
@@ -477,40 +483,62 @@ class EventManager
             $active_event = $world_event_manager->get_active_event();
 
             if ($active_event) {
-                $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
-
-                $shrine_atk_mult = 1.0;
-                if ($home_k->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-                    $shrine_atk_mult += $home_k->get_shrine_modifier();
-                }
-
-                $inf_atk_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
-                $cav_atk_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
-                $arc_atk_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
-
                 $raw_damage = 0;
                 $report_units = [];
 
                 $res_troops = $this->mysqli->execute_query("
-                    SELECT st.soldiercount, sl.attack, sl.category, sl.soldiername, sl.icon 
+                    SELECT st.soldiercount, st.source_kingdom_id, sl.attack, sl.category, sl.soldiername, sl.icon 
                     FROM sent_troops st 
                     JOIN soldier_list sl ON st.soldierid = sl.id 
-                    WHERE st.eventid = ?", [$row["eventid"]]);
+                    WHERE st.eventid = ?",
+                    [$row["eventid"]]
+                );
+
+                $kingdom_cache = [];
 
                 while ($t = $res_troops->fetch_assoc()) {
+                    $src_kid = (int)$t["source_kingdom_id"];
+
+                    if (!isset($kingdom_cache[$src_kid])) {
+                        $temp_k = new Kingdom($this->mysqli, $src_kid);
+                        $kingdom_cache[$src_kid] = [
+                            "alignment" => $temp_k->get_kingdom_alignment(),
+                            "shrine_mod" => $temp_k->get_shrine_modifier(),
+                            "techs" => [
+                                0 => $temp_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES),
+                                1 => $temp_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING),
+                                2 => $temp_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS)
+                            ]
+                        ];
+                    }
+
+                    $k_data = $kingdom_cache[$src_kid];
                     $cat = (int)$t["category"];
 
-                    $smithy_bonus = match ($cat) {
-                        0 => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
-                        1 => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
-                        2 => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
-                        default => 0
-                    };
+                    $shrine_atk_mult = 1.0;
+                    if ($k_data["alignment"] == AlignmentTypes::ALIGN_WAR) {
+                        $shrine_atk_mult += $k_data["shrine_mod"];
+                    }
 
-                    $final_atk = (int)($t["attack"] * $shrine_atk_mult) + $smithy_bonus;
-                    $raw_damage += ($final_atk * $t["soldiercount"]);
+                    $smithy_bonus = 0;
+                    if (isset($k_data["techs"][$cat])) {
+                        $tech_lvl = $k_data["techs"][$cat];
+                        $smithy_bonus = match ($cat) {
+                            0 => $tech_lvl * SMITHY_INF_ATK_BONUS,
+                            1 => $tech_lvl * SMITHY_CAV_ATK_BONUS,
+                            2 => $tech_lvl * SMITHY_ARC_ATK_BONUS,
+                            default => 0
+                        };
+                    }
 
-                    $report_units[] = ["name" => $t["soldiername"], "count" => $t["soldiercount"], "icon" => $t["icon"]];
+                    $final_unit_atk = (int)($t["attack"] * $shrine_atk_mult) + $smithy_bonus;
+                    $raw_damage += ($final_unit_atk * $t["soldiercount"]);
+
+                    $s_name = $t["soldiername"];
+                    if (!isset($report_units[$s_name])) {
+                        $report_units[$s_name] = ["name" => $s_name, "count" => 0, "icon" => $t["icon"]];
+                    }
+                    $report_units[$s_name]["count"] += $t["soldiercount"];
                 }
 
                 $result_dmg = $world_event_manager->record_damage($active_event["id"], $attacker_id, $raw_damage, $active_event["event_type"], (int)$row["kingdomid"]);
@@ -616,27 +644,29 @@ class EventManager
         $current_owner_id = $enemy_kingdom->get_kingdom_owner_id();
 
         if ($attacker_id == $current_owner_id) {
+            $conquest->set_initial_soldiers();
+
             $message = "<div class='battle-report'>";
-            $main_text = "Deine Truppen sind erfolgreich bei deinem Königreich {$enemy_kingdom->get_kingdom_name()} ($c_link) angekommen.";
-            $sub_text = "Die Soldaten stehen ab sofort zur Verteidigung bereit.";
+
+            $stationed_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
+            $stationed_units = $conquest->get_battle_result_data(true, true);
+
+            foreach ($stationed_units as $u) {
+                $stationed_html .= "<div style='flex: 0 1 fit-content;'>" . BattleReportRenderer::render_unit_card($u["name"], $u["initial"], 0, $u["icon"], true) . "</div>";
+            }
+            $stationed_html .= "</div>";
+
+            $main_text = "Deine Truppen sind erfolgreich bei deinem Königreich <b>" . e($enemy_kingdom->get_kingdom_name()) . "</b> ($c_link) angekommen.";
+            $main_text .= $stationed_html;
 
             $message .= BattleReportRenderer::render_outcome_box(
                 "Verstärkung angekommen",
                 $main_text,
                 0, 0,
-                $sub_text,
+                "Die Soldaten stehen ab sofort zur Verteidigung bereit.",
                 "success"
             );
 
-            $message .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
-
-            $stationed_units = $conquest->get_battle_result_data(true);
-
-            foreach ($stationed_units as $u) {
-                $message .= "<div style='flex: 0 1 fit-content;'>" . BattleReportRenderer::render_unit_card($u["name"], $u["initial"], 0, $u["icon"]) . "</div>";
-            }
-
-            $message .= "</div>";
             $message .= "</div>";
 
             $conquest->set_target_id($row["targetid"]);
@@ -763,10 +793,16 @@ class EventManager
         $msg .= "</div>";
 
         // Set troops back to kingdom
-        $res_update = $this->mysqli->execute_query("SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
+        $res_update = $this->mysqli->execute_query("SELECT soldierid, soldiercount, source_kingdom_id FROM sent_troops WHERE eventid = ?",
+            [$row["eventid"]]
+        );
         while ($sol = $res_update->fetch_assoc()) {
-            $this->mysqli->execute_query("UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?",
-                [$sol["soldiercount"], $row["kingdomid"], $sol["soldierid"]]);
+            $target_kid = ($sol["source_kingdom_id"] > 0) ? (int)$sol["source_kingdom_id"] : (int)$row["kingdomid"];
+
+            $this->mysqli->execute_query(
+                "UPDATE soldiers SET soldiercount = soldiercount + ? WHERE kingdomid = ? AND soldierid = ?",
+                [$sol["soldiercount"], $target_kid, $sol["soldierid"]]
+            );
         }
 
         // Give looted resources to kingdom
@@ -951,9 +987,10 @@ class EventManager
         $target_y = $row["targety"];
         $uid = $attacker_user->get_user_id();
 
-        $check_field = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$target_x, $target_y])->fetch_assoc();
+        $check_field = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ? FOR UPDATE",
+            [$target_x, $target_y])->fetch_assoc();
 
-        if ($check_field["kingdomid"] != -1) {
+        if (!$check_field || (int)$check_field["kingdomid"] !== -1) {
             $message .= BattleReportRenderer::render_outcome_box(
                 "Gründung abgebrochen",
                 "Bei der Ankunft mussten unsere Siedler feststellen, dass das Land nicht mehr frei ist.",
@@ -1062,6 +1099,10 @@ class EventManager
         $enemy_user_id = $enemy_kingdom->get_kingdom_owner_id();
         $enemy_user_name = $enemy_kingdom->get_kingdom_owner_name();
         $enemy_user = new User($enemy_user_id, $enemy_user_name);
+
+        $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE",
+            [$enemy_kingdom->get_kingdom_id()]
+        );
 
         if ($conquest->has_noob_protection($attacker_user->get_user_score(), $enemy_user->get_user_score())) {
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
@@ -1406,6 +1447,27 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [STARTING_SCORE, $enemy_user->get_user_id()]);
                 $this->mysqli->execute_query("DELETE FROM events WHERE userid = ?", [$enemy_user->get_user_id()]);
 
+                $res_stationed = $this->mysqli->execute_query("
+                    SELECT st.target_kingdom_id, k.userid as host_uid, k.username as host_name, k.kingdomname as host_kname
+                    FROM stationed_troops st
+                    JOIN kingdoms k ON st.target_kingdom_id = k.id
+                    WHERE st.owner_id = ?
+                    GROUP BY st.target_kingdom_id, k.userid, k.username, k.kingdomname
+                ", [$enemy_user->get_user_id()]);
+
+                while ($host = $res_stationed->fetch_assoc()) {
+                    $host_msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Verbündete Streitmacht aufgelöst",
+                            "Die bei dir in <b>" . e($host["host_kname"]) . "</b> stationierten Truppen von <b>" . e($enemy_user->get_user_name()) . "</b> 
+                                        haben sich aufgelöst, da ihr Herrscher vernichtend geschlagen wurde und sein Reich unterging.",
+                            0, 0,
+                            "Die Einheiten stehen nicht mehr zur Verteidigung zur Verfügung.",
+                            "error"
+                        ) . "</div>";
+                    send_server_message((int)$host["host_uid"], $host["host_name"], $host_msg, MessageCategories::CATEGORY_GUILD);
+                }
+                $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE owner_id = ?", [$enemy_user->get_user_id()]);
+
                 $new_k_id = new Kingdom($this->mysqli)->create_kingdom($enemy_user->get_user_id(), $enemy_user->get_user_name());
 
                 if ($new_k_id) {
@@ -1561,8 +1623,15 @@ class EventManager
                 $msg = "<div class='battle-report'>";
                 $main_text = "Unsere Grenzwachen in <b>" . e($row["kingdomname"]) . "</b> haben herannahende Truppen gesichtet!<br>";
 
-                // Level 1: Only arrival time
-                $sub_text = "Ankunft in ca.: " . $time_to_arrival;
+                $sub_text = "";
+                if ($intel_level < 1) {
+                    $sub_text = "Die Truppen sind auf dem Vormarsch.";
+                }
+
+                // Level 1: Estimated arrival time
+                if ($intel_level >= 1) {
+                    $sub_text = "Ankunft in ca.: " . $time_to_arrival;
+                }
 
                 // Level 2: Enemy Kingdom Name
                 if ($intel_level >= 2) {
@@ -1875,7 +1944,9 @@ class EventManager
         $home_kingdom_id = $row["kingdomid"];
 
         // Check already plundered tile
-        $res_data = $this->mysqli->execute_query("SELECT * FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+        $res_data = $this->mysqli->execute_query("SELECT * FROM resource_tiles_data WHERE mapx = ? AND mapy = ? FOR UPDATE",
+            [$target_x, $target_y]
+        );
         $tile = $res_data->fetch_assoc();
 
         if (!$tile || (time() > $tile["expires_at"] && $tile["expires_at"] > 0)) {
@@ -1982,6 +2053,7 @@ class EventManager
 
             // Build message
             $coords = "(<a href='map.php?startx=$target_x&starty=$target_y' data-on-click='mapJump' data-x='$target_x' data-y='$target_y'>$target_x:$target_y</a>)";
+            $home_name = e($home_k->get_kingdom_name());
 
             $loot_data = [];
             $is_success = ($survivors > 0);
@@ -1993,7 +2065,7 @@ class EventManager
                 if ($loot_s > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_STONE] = $loot_s;
                 if ($loot_g > 0) $loot_data[ResourceTypes::RESOURCE_TYPE_GOLD] = $loot_g;
 
-                $report_title = "Erfolgreiche Plünderung";
+                $report_title = "Erfolgreiche Plünderung - $home_name";
                 $report_type = "normal";
                 $sub_text = "Die Überlebenden treten mit der Beute den Rückweg an.";
                 $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
@@ -2003,7 +2075,7 @@ class EventManager
                     $main_text .= "<br><b>Das Lager wurde komplett geleert.</b>";
                 }
             } else {
-                $report_title = "Plünderung gescheitert";
+                $report_title = "Plünderung gescheitert - $home_name";
                 $report_type = "error";
                 $sub_text = "Niemand kehrte lebend zurück, die Beute ging verloren!";
                 $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen, wurden aber im Hinterhalt von Dieben überwältigt!";
@@ -2109,9 +2181,15 @@ class EventManager
 
         $message = "<div class='battle-report'>";
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+        $home_k = new Kingdom($this->mysqli, (int)$row["kingdomid"]);
+        $home_name = e($home_k->get_kingdom_name());
+        $hx = $home_k->get_kingdom_map_x();
+        $hy = $home_k->get_kingdom_map_y();
+        $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
 
         if ($survivors > 0) {
             $message .= "<div class='title-border'>Spionagebericht: Vorratslager ($c_link)</div>";
+            $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
             $message .= "<div class='report-section-title'>Gefundene Vorräte</div>";
 
             $loot = [
@@ -2133,6 +2211,7 @@ class EventManager
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
             $message .= "<div class='title-border'>Mission gescheitert ($c_link)</div>";
+            $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
 
             $message .= BattleReportRenderer::render_outcome_box(
                 "Totalverlust",
@@ -2167,19 +2246,15 @@ class EventManager
         $ty = (int)$row["targety"];
         $event_id = (int)$row["eventid"];
 
-        $conquest = new Conquest($this->mysqli);
-        $conquest->set_event_id($event_id);
-        $conquest->fetch_sent_troops();
-        $conquest->initialize_soldier_types();
-        $conquest->get_monster_defenders($tx, $ty);
-
-        $res_expires = $this->mysqli->execute_query("SELECT expires_at FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+        $res_expires = $this->mysqli->execute_query("SELECT expires_at FROM monster_camps WHERE mapx = ? AND mapy = ? FOR UPDATE",
+            [$tx, $ty]
+        );
         $row_camp = $res_expires->fetch_assoc();
 
         if (!$row_camp || (time() > $row_camp["expires_at"] && $row_camp["expires_at"] > 0)) {
             $message = "<div class='battle-report'>";
             $message .= BattleReportRenderer::render_outcome_box(
-                "Lager bereits geräumt",
+                "Camp bereits gesäubert",
                 "Deine Truppen sind angekommen (<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>), aber das Monstercamp wurde bereits vernichtet.",
                 0, 0,
                 "Die Soldaten treten unverrichteter Dinge den Rückweg an."
@@ -2193,6 +2268,11 @@ class EventManager
             return;
         }
 
+        $conquest = new Conquest($this->mysqli);
+        $conquest->set_event_id($event_id);
+        $conquest->fetch_sent_troops();
+        $conquest->initialize_soldier_types();
+        $conquest->get_monster_defenders($tx, $ty);
         $conquest->initialize_soldier_values();
         $conquest->set_initial_monster_battle();
         $soldier_types = $conquest->get_soldier_types();
@@ -2406,7 +2486,14 @@ class EventManager
 
         $message = "<div class='battle-report'>";
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+        $home_name = e($home_k->get_kingdom_name());
+        $hx = $home_k->get_kingdom_map_x();
+        $hy = $home_k->get_kingdom_map_y();
+        $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
+
         $message .= "<div class='title-border'>Kampfbericht: Monstercamp ($c_link)</div>";
+        $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 6px; opacity: 0.8;'>Truppen aus: <b>$home_name</b> ($h_link)</div>";
         $message .= BattleReportRenderer::render_vs_grid($report_attacker_units, $report_monster_units, "Deine Truppen", "Monsterhorde (Lv $camp_lvl)");
 
         if ($victory) {
@@ -2559,7 +2646,14 @@ class EventManager
         $message .= "<div class='battle-column'>";
 
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+        $home_k = new Kingdom($this->mysqli, (int)$row["kingdomid"]);
+        $home_name = e($home_k->get_kingdom_name());
+        $hx = $home_k->get_kingdom_map_x();
+        $hy = $home_k->get_kingdom_map_y();
+        $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
+
         $message .= "<div class='title-border'>Spionagebericht: Monstercamp ($c_link)</div>";
+        $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 6px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
 
         if ($survivors > 0) {
             $message .= "<div class='report-section-title'>Gesichtete Kreaturen (Stufe $camp_lvl)</div>";
@@ -2705,14 +2799,14 @@ class EventManager
                 "Die Truppen von <b>" . e($data["sender_name"]) . "</b> sind in <b>" . e($data["target_name"]) . "</b> ($c_link) eingetroffen. $units_html",
                 0, 0, "Sie schützen ab sofort dein Königreich.", "support"
             ) . "</div>";
-        send_server_message($data["recipient_id"], $data["recipient_name"], $msg_recv, MessageCategories::CATEGORY_WAR);
+        send_server_message($data["recipient_id"], $data["recipient_name"], $msg_recv, MessageCategories::CATEGORY_GUILD);
 
         $msg_send = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                 "Unterstützung angekommen",
                 "Deine Truppen haben <b>" . e($data["target_name"]) . "</b> ($c_link) von <b>" . e($data["recipient_name"]) . "</b> erreicht und die Stellung bezogen. $units_html",
                 0, 0, "Du kannst sie jederzeit über deine Kaserne zurückrufen.", "support"
             ) . "</div>";
-        send_server_message($sender_id, $data["sender_name"], $msg_send, MessageCategories::CATEGORY_WAR);
+        send_server_message($sender_id, $data["sender_name"], $msg_send, MessageCategories::CATEGORY_GUILD);
 
         $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
@@ -2810,5 +2904,37 @@ class EventManager
                 "message" => "Truppen wurden wegen Zielverlust sofort gutgeschrieben"
             ], $source_id);
         }
+    }
+
+    private function handle_guild_research(array $row): void
+    {
+        $guild_id = $row["guild_id"];
+        $tech_id = $row["buildingid"];
+
+        $this->mysqli->execute_query(
+            "INSERT INTO guild_techs (guild_id, tech_id, level) VALUES (?, ?, 1) 
+                    ON DUPLICATE KEY UPDATE level = level + 1",
+            [$guild_id, $tech_id]
+        );
+
+        $this->mysqli->execute_query("
+            UPDATE guild_member_contributions 
+            SET current_project_amount = 0, food = 0, wood = 0, stone = 0, gold = 0 
+            WHERE guild_id = ?",
+            [$guild_id]
+        );
+
+        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+
+        // Notify guild members
+        $tech_name = $row["buildingname"];
+        $new_lvl = (int)$this->mysqli->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?", [$guild_id, $tech_id])->fetch_column();
+
+        new Guild($this->mysqli, $this->user, $guild_id)->notify_guild(
+            "Gildenforschung abgeschlossen",
+            "Die Forschung <b>" . e($tech_name) . "</b> wurde erfolgreich auf <b>Stufe $new_lvl</b> verbessert!",
+            "",
+            "success"
+        );
     }
 }

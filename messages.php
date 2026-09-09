@@ -9,7 +9,6 @@ if (isset($_POST["sendpm"])) {
     $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
     $_SESSION["msgreceiver"] = $receiver_name;
     $text = nl2br(e($_POST["text"]));
-    //$text = filter_chat_message($text);
     $error = get_error($text, $receiver_name);
 
     if ($error == null) {
@@ -276,9 +275,15 @@ if (isset($_GET["worldchat"])) {
 
     $inbox_header = "Welt-Chat";
 } else if (isset($_GET["servermsgs"])) {
+    $res_max_id = $db_instance->execute_query(
+        "SELECT MAX(id) FROM server_messages WHERE receiverid = ?",
+        [$user->get_user_id()]
+    );
+    $current_max_id = (int)($res_max_id->fetch_column() ?? 0);
+
     $view .= "<div class='msg-back-button-container'>
                 <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
-                <button class='btn-delete' data-on-click='confirmDeleteAllServer'>Alle löschen</button>
+                <button class='btn-delete' data-on-click='confirmDeleteAllServer' data-max-id='$current_max_id'>Alle löschen</button>
             </div>
     ";
 
@@ -288,6 +293,7 @@ if (isset($_GET["worldchat"])) {
                     <div class='tablinks' data-on-click='filterServer'>Militärisch</div>
                     <div class='tablinks' data-on-click='filterServer'>Handel</div>
                     <div class='tablinks' data-on-click='filterServer'>Event</div>
+                    <div class='tablinks' data-on-click='filterServer'>Gilde</div>
                 </div>";
 
     $view .= "<div id='messages-section' class='large-height'>";

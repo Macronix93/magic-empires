@@ -304,7 +304,7 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , , myTroopIcon] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , , myTroopIcon, enemyGuildId] = tile;
 
             if (kid === -1) return;
 
@@ -314,6 +314,8 @@ function draw() {
             if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
 
             const isOwn = (owner_id === gameConfig.currentKingdom.ownerId);
+            const isAlly = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId === gameConfig.currentKingdom.guildId);
+            const isEnemyGuild = (enemyGuildId !== -1 && enemyGuildId !== gameConfig.currentKingdom.guildId);
             const filterPlayers = document.getElementById("filter-players").checked;
             const filterResources = document.getElementById("filter-resources").checked;
             const filterMonsters = document.getElementById("filter-monsters").checked;
@@ -359,10 +361,21 @@ function draw() {
 
             if (isOwn) {
                 ctx.fillStyle = "rgba(11, 218, 81, 0.2)";
-                ctx.fillRect(posX, posY, scaledTile, scaledTile);
-
                 ctx.strokeStyle = "#0BDA51";
                 ctx.lineWidth = 1;
+                ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+            } else if (isAlly) {
+                ctx.fillStyle = "rgba(0, 123, 255, 0.2)";
+                ctx.strokeStyle = "#007bff";
+                ctx.lineWidth = 1;
+                ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+            } else if (isEnemyGuild) {
+                ctx.fillStyle = "rgba(220, 53, 69, 0.15)";
+                ctx.strokeStyle = "#dc3545";
+                ctx.lineWidth = 1;
+                ctx.fillRect(posX, posY, scaledTile, scaledTile);
                 ctx.strokeRect(posX, posY, scaledTile, scaledTile);
             }
 
@@ -603,7 +616,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
         if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Erobern</button>`;
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Gründen</button>`;
         } else {
             html += `<small class="error">Gründungskarren benötigt!</small>`;
         }
@@ -613,12 +626,16 @@ function selectField(x, y, shouldCenter = false) {
         // --- RESOURCE TILE
         const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
         const lifetime = expiresAt - now;
+        const arrivalNormal = Math.round(baseTravelTime);
+        const isTooSlow = arrivalNormal > lifetime;
+
+        const timeColorStyle = isTooSlow ? "style='color: #ff4d4d;'" : "";
 
         html += `<div class="title-border">Verlassenes Vorratslager</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
         const canPlunder = gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_RAIDER] > 0;
@@ -639,12 +656,15 @@ function selectField(x, y, shouldCenter = false) {
         const travelMonster = baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST;
         const arrivalScout = (travelMonster / gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST) * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST;
         const lifetime = expiresAt - now;
+        const isTooSlow = travelMonster > lifetime;
+
+        const timeColorStyle = isTooSlow ? "style='color: #ff4d4d;'" : "";
 
         html += `<div class="title-border">Monstercamp (Stufe ${m_lvl})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(Spionage: ${formatTimeJS(Math.round(arrivalScout))})</small></td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
         html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
         html += `</td></tr></table>`;
@@ -725,16 +745,20 @@ function selectField(x, y, shouldCenter = false) {
             const arrivalNormal = Math.round(baseTravelTime);
             const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.PLAYER_KINGDOM_SCOUT_BOOST);
             const arrivalSupport = Math.round(baseTravelTime * gameConfig.constants.GUILD_SUPPORT_TRAVEL_BOOST);
-            let timeDisplay = formatTimeJS(arrivalNormal);
+            let timeDisplay;
 
             const targetGuildId = enemyGuildId;
             const myGuildId = gameConfig.currentKingdom.guildId;
-            const isAlly = (myGuildId > 0 && myGuildId === targetGuildId);
+            const isAlly = (myGuildId > 0 && myGuildId === targetGuildId && ownerId !== gameConfig.currentKingdom.ownerId);
 
             if (isAlly) {
                 timeDisplay = `${formatTimeJS(arrivalSupport)}<br><small style="color: #3498db;">(Gilden-Bonus)</small>`;
             } else {
-                timeDisplay += `<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small>`;
+                timeDisplay = formatTimeJS(arrivalNormal);
+
+                if (ownerId !== gameConfig.currentKingdom.ownerId) {
+                    timeDisplay += `<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small>`;
+                }
             }
 
             html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${timeDisplay}</td></tr>`;

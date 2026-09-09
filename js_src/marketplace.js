@@ -112,10 +112,24 @@ document.addEventListener("DOMContentLoaded", function () {
     const updateInternalSum = () => {
         let total = 0;
         const maxCap = window.marketConfig.max_capacity_per_offer;
+        const storage = window.curKingdomStorage;
 
         internalInputs.forEach(input => {
             input.value = input.value.replace(/[^0-9]/g, '');
-            total += parseInt(input.value) || 0;
+            let val = parseInt(input.value) || 0;
+
+            const match = input.name.match(/am\[(\d+)]/);
+            if (match) {
+                const index = match[1];
+                const stock = storage[index] ? parseInt(storage[index].cur) : 0;
+
+                if (val > stock) {
+                    val = stock;
+                    input.value = stock;
+                }
+            }
+
+            total += val;
         });
 
         if (sumDisplay) {
@@ -125,10 +139,23 @@ document.addEventListener("DOMContentLoaded", function () {
         if (internalSubmit) {
             internalSubmit.disabled = (total <= 0 || total > maxCap);
         }
+
+        console.log("update field")
     };
 
     internalInputs.forEach(input => {
-        input.addEventListener("input", updateInternalSum);
+        input.addEventListener("input", function () {
+            let rawValue = this.value.replace(/[^0-9]/g, '');
+
+            if (rawValue.length > 1 && rawValue.startsWith('0')) {
+                rawValue = rawValue.replace(/^0+/, '');
+                if (rawValue === "") rawValue = "0";
+            }
+
+            this.value = rawValue;
+
+            updateInternalSum();
+        });
     });
 
     inputs.forEach(input => {

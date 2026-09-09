@@ -92,6 +92,8 @@ echo "<div class='map-legend' id='map-legend-fieldtypes'>
         <div class='legend-item'><img src='images/icons/icon_gems.png' alt='Vorratslager' class='legend-entity-item'> Vorratslager</div>
         <div class='legend-item'><img src='images/icons/icon_goblin.png' alt='Monstercamp' class='legend-entity-item'> Monstercamp</div>
         <div class='legend-item'><span class='legend-inner-item legend-own-kingdom'></span> Eigenes Königreich</div>
+        <div class='legend-item'><span class='legend-inner-item legend-ally-kingdom'></span> Verbündete</div>
+        <div class='legend-item'><span class='legend-inner-item legend-enemy-guild-kingdom'></span> Feindliche Gilde</div>
     </div>";
 
 // Search

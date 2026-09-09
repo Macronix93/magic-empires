@@ -35,8 +35,8 @@ $guilds_res = $db_instance->execute_query("
 
 /* --- VIEW --- */
 $view .= "<div class='tab' style='margin: 0 auto 10px auto; max-width: 340px;'>
-    <div class='tablinks active' data-on-click='switchRankingTab' data-tab='players'>Spieler</div>
-    <div class='tablinks' data-on-click='switchRankingTab' data-tab='guilds'>Gilden</div>
+    <div class='tablinks active' data-on-click='switchRankingTab' data-tab='players' style='padding: 6px;'>Spieler</div>
+    <div class='tablinks' data-on-click='switchRankingTab' data-tab='guilds' style='padding: 6px;'>Gilden</div>
 </div>";
 
 // --- CONTAINER PLAYERS ---
@@ -121,7 +121,7 @@ if ($guilds_res->num_rows > 0) {
             <td class='td-expand' style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$row["id"]}'>
                 <div style='display: flex; justify-content: space-between; align-items: center;'>
                     <div>$badge</div>
-                    <small style='opacity: 0.6;'>{$row["member_count"]} Mitglieder</small>
+                    <small style='opacity: 0.6;'>{$row["member_count"]} " . ($row["member_count"] == 1 ? "Mitglied" : "Mitglieder") . "</small>
                 </div>
             </td>
             <td class='td-score'>" . fnum($row["total_score"], true) . "</td>

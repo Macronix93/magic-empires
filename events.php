@@ -6,20 +6,91 @@ check_user_login($user);
 $world_event_manager = new WorldEvent($db_instance);
 $active_event = $world_event_manager->get_active_event();
 
+$user_id = $user->get_user_id();
+
+if ($active_event && isset($_POST["attack_all_kingdoms"])) {
+    // Check if user has attempts left for damage event
+    if ($active_event["event_type"] === "DAMAGE") {
+        $res_check = $db_instance->execute_query(
+            "SELECT attempts_used FROM world_event_participants WHERE event_id = ? AND userid = ?",
+            [$active_event["id"], $user_id]
+        );
+        $attempts = $res_check->fetch_assoc()["attempts_used"] ?? 0;
+
+        if ($attempts >= WORLD_EVENT_MAX_ATTEMPTS) {
+            $_SESSION["game_error"] = "Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!";
+        }
+    }
+
+    if (empty($_SESSION["game_error"])) {
+        // Get all available troops from every kingdom of the user
+        $query_troops = "SELECT kingdomid, soldierid, soldiercount FROM soldiers 
+                         WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                         AND soldiercount > 0";
+        $res_troops = $db_instance->execute_query($query_troops, [$user_id]);
+        $troops = $res_troops->fetch_all(MYSQLI_ASSOC);
+
+        if (empty($troops)) {
+            $_SESSION["game_error"] = "Du hast aktuell in keinem deiner Königreiche Einheiten zur Verfügung.";
+        } else {
+            $db_instance->begin_transaction();
+
+            try {
+                $now = time();
+                $arrival_delay = $world_event_manager->get_current_duration();
+                $current_kid = $user->get_current_kingdom();
+
+                $db_instance->execute_query(
+                    "INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime) 
+                     VALUES (?, ?, ?, ?, 50, 50, ?, ?)",
+                    [ActionTypes::ACTION_SEND_TROOPS, $user_id, $current_kid, WORLD_EVENT_ID, $now + $arrival_delay, $now]
+                );
+                $event_id = $db_instance->insert_id;
+
+                $insert_values = [];
+                foreach ($troops as $t) {
+                    $insert_values[] = "($event_id, {$t["soldierid"]}, {$t["soldiercount"]}, {$t["soldiercount"]}, {$t["kingdomid"]})";
+                }
+                $db_instance->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_values));
+
+                $db_instance->execute_query(
+                    "UPDATE soldiers SET soldiercount = 0 WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) AND soldiercount > 0",
+                    [$user_id]
+                );
+
+                $db_instance->commit();
+
+                $_SESSION["game_success"] = "Massenmobilisierung erfolgreich! Eine riesige Armee formiert sich.";
+
+                change_location("events.php");
+                exit;
+            } catch (Exception $e) {
+                $db_instance->rollback();
+
+                $_SESSION["game_error"] = "Ein Fehler ist aufgetreten: " . $e->getMessage();
+            }
+        }
+    }
+}
+
 if (!$active_event) {
     $view = "<div class='info-box event-warning' style='justify-content: center;'>
                 <span>Derzeit findet kein Welt-Event statt. Kehre bald zum Auge des Sturms zurück!</span>
              </div>";
 } else {
-    $user_id = $user->get_user_id();
-
     // --- TROOP MOVEMENT ---
     $res_mv = $db_instance->execute_query("
-        SELECT e.*, st.soldierid, st.soldiercount, sl.soldiername, sl.icon 
+        SELECT 
+            e.eventid, e.actionid, e.arrivaltime, e.targetid, 
+            st.soldierid, SUM(st.soldiercount) AS soldiercount, 
+            sl.soldiername, sl.icon 
         FROM events e
         JOIN sent_troops st ON e.eventid = st.eventid
         JOIN soldier_list sl ON st.soldierid = sl.id
         WHERE e.userid = ? AND e.targetid = ?
+        GROUP BY 
+            e.eventid, st.soldierid, e.actionid, e.arrivaltime, e.targetid, 
+            sl.soldiername, sl.icon
         ORDER BY e.arrivaltime", [$user_id, WORLD_EVENT_ID]);
 
     if ($res_mv->num_rows > 0) {
@@ -118,7 +189,13 @@ if (!$active_event) {
                 <div style='display: flex; justify-content: space-between; width: 240px;'>
                     Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
                 </div>
-                <button data-on-click='redirect' data-url='" . $target_url . "' $disabled>Boss angreifen</button>
+                <div style='display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;'>
+                    <button data-on-click='redirect' data-url='" . $target_url . "' $disabled>Aktuelles Dorf senden</button>
+                    <form method='POST' style='display: inline;'>
+                        <button type='submit' name='attack_all_kingdoms' $disabled 
+                                title='Bündelt alle Truppen deines Accounts zu einem Angriff!'>⚔️ Massenmobilisierung</button>
+                    </form>
+                </div>
               </div>";
 
     if ($event_type === "BOSS_HP") {
@@ -222,72 +299,98 @@ if (!$active_event) {
         // --- DAMAGE EVENT LOGIC ---
         $view .= "<img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "'>";
         $view .= "<p class='monster-desc'>" . e($monster["desc"]) . "</p>";
-
         $view .= "<p>Verursache in maximal <b>" . WORLD_EVENT_MAX_ATTEMPTS . " Angriffen</b> so viel Schaden wie möglich!</p>";
 
-        // Rewards Box
-        $personal_gold_preview = (int)($user_damage / WORLD_EVENT_DMG_GOLD_RATIO);
-        if ($personal_gold_preview > WORLD_EVENT_DMG_GOLD_MAX) $personal_gold_preview = WORLD_EVENT_DMG_GOLD_MAX;
+        $total_gold_earned = 0;
+        $total_coins_earned = 0;
+        $highest_reached_threshold = 0;
+
+        foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
+            if ($user_damage >= $threshold) {
+                $total_gold_earned += $rewards["gold"];
+                $total_coins_earned += $rewards["coins"];
+                $highest_reached_threshold = $threshold;
+            }
+        }
 
         $view .= "
-        <div class='box-container' style='max-width: 500px; margin: 20px auto;'>
-            <div class='box-header'>Deine Statistik & Beute</div>
+        <div class='box-container' style='max-width: 520px; margin: 20px auto;'>
+            <div class='box-header'>Deine Statistik & Auszahlungen</div>
             <div class='box-content box-content-bg' style='padding: 15px; text-align: left;'>
                 <div class='split-content'><span>Versuche genutzt:</span> <b>$user_attempts / " . WORLD_EVENT_MAX_ATTEMPTS . "</b></div>
                 <div class='split-content'><span>Gesamt-Schaden:</span> <b class='passed'>" . fnum($user_damage, true) . "</b></div>
+                <div class='split-content'><span>Bisher erhaltene Belohnung:</span> 
+                    <span>
+                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " <b>$total_coins_earned</b> 
+                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <b>" . fnum($total_gold_earned) . "</b>
+                    </span>
+                </div>
                 <hr>
-                <p style='margin-bottom: 5px;'>Deine aktuelle Belohnung am Ende:</p>
-                <ul>
-                    <li><span class='passed'><b>" . fnum($personal_gold_preview) . "</b> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . "</span> für dein Königreich</li>
-                    <li>Münzen für deine Schatzkammer (basierend auf Schadens-Stufe)</li>
-                </ul>
+                <p style='font-size: 14px; opacity: 0.8; text-align: center; margin-bottom: 0;'>
+                    <i>Hinweis: Münzen und Gold werden sofort nach Erreichen einer Stufe direkt auf dein Konto/Lager gutgeschrieben!</i>
+                </p>
             </div>
         </div>";
 
-        $h_inner = "background: rgba(255, 255, 255, 0.2); font-weight: bold;";
-
-        $st6 = ($user_damage >= WORLD_EVENT_REWARD_TRESHOLD_5) ? $h_inner : "";
-        $st5 = ($user_damage >= WORLD_EVENT_REWARD_TRESHOLD_4 && $user_damage < WORLD_EVENT_REWARD_TRESHOLD_5) ? $h_inner : "";
-        $st4 = ($user_damage >= WORLD_EVENT_REWARD_TRESHOLD_3 && $user_damage < WORLD_EVENT_REWARD_TRESHOLD_4) ? $h_inner : "";
-        $st3 = ($user_damage >= WORLD_EVENT_REWARD_TRESHOLD_2 && $user_damage < WORLD_EVENT_REWARD_TRESHOLD_3) ? $h_inner : "";
-        $st2 = ($user_damage >= WORLD_EVENT_REWARD_TRESHOLD_1 && $user_damage < WORLD_EVENT_REWARD_TRESHOLD_2) ? $h_inner : "";
-        $st1 = ($user_damage >= WORLD_EVENT_REWARD_MIN_TRESHOLD && $user_damage < WORLD_EVENT_REWARD_TRESHOLD_1) ? $h_inner : "";
+        $next_target_threshold = null;
+        foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
+            if ($user_damage < $threshold) {
+                $next_target_threshold = $threshold;
+                break; // Erstes noch nicht erreichtes Ziel gefunden -> Stop!
+            }
+        }
 
         $view .= "
-        <div class='box-container' style='max-width: 500px; margin: 20px auto;'>
-            <div class='box-header'>Münz-Belohnungen</div>
-            <div class='box-content box-content-bg' style='padding: 15px;'>
-                <table style='width: 100%; border-collapse: collapse; font-size: 14px;'>
-                    <tr>
-                        <td style='padding: 5px; $st6'>Über " . fnum(WORLD_EVENT_REWARD_TRESHOLD_5, true) . " Schaden:</td>
-                        <td class='passed' style='padding: 5px; text-align: right; $st6'>" . WORLD_EVENT_REWARD_COINS_5 . " Münzen</td>
-                    </tr>
-                    <tr>
-                        <td style='padding: 5px; $st5'>" . fnum(WORLD_EVENT_REWARD_TRESHOLD_4, true) . " bis " . fnum(WORLD_EVENT_REWARD_TRESHOLD_5 - 1, true) . ":</td>
-                        <td class='passed' style='padding: 5px; text-align: right; $st5'>" . WORLD_EVENT_REWARD_COINS_4 . " Münzen</td>
-                    </tr>
-                    <tr>
-                        <td style='padding: 5px; $st4'>" . fnum(WORLD_EVENT_REWARD_TRESHOLD_3, true) . " bis " . fnum(WORLD_EVENT_REWARD_TRESHOLD_4 - 1, true) . ":</td>
-                        <td class='passed' style='padding: 5px; text-align: right; $st4'>" . WORLD_EVENT_REWARD_COINS_3 . " Münzen</td>
-                    </tr>
-                    <tr>
-                        <td style='padding: 5px; $st3'>" . fnum(WORLD_EVENT_REWARD_TRESHOLD_2, true) . " bis " . fnum(WORLD_EVENT_REWARD_TRESHOLD_3 - 1, true) . ":</td>
-                        <td class='passed' style='padding: 5px; text-align: right; $st3'>" . WORLD_EVENT_REWARD_COINS_2 . " Münzen</td>
-                    </tr>
-                    <tr>
-                        <td style='padding: 5px; $st2'>" . fnum(WORLD_EVENT_REWARD_TRESHOLD_1, true) . " bis " . fnum(WORLD_EVENT_REWARD_TRESHOLD_2 - 1, true) . ":</td>
-                        <td class='passed' style='padding: 5px; text-align: right; $st2'>" . WORLD_EVENT_REWARD_COINS_1 . " Münzen</td>
-                    </tr>
-                    <tr>
-                        <td style='padding: 5px; $st1'>" . fnum(WORLD_EVENT_REWARD_MIN_TRESHOLD, true) . " bis " . fnum(WORLD_EVENT_REWARD_TRESHOLD_1 - 1, true) . ":</td>
-                        <td class='passed' style='padding: 5px; text-align: right; $st1'>" . WORLD_EVENT_REWARD_COINS_MIN . " Münzen</td>
-                    </tr>
+        <div class='box-container' style='max-width: 520px; margin: 20px auto;'>
+            <div class='box-header'>Schadens-Stufen & Prämien</div>
+            <div class='box-content box-content-bg' style='padding: 15px 15px 0 15px;'>
+                <table class='table' style='width: 100%; border-collapse: collapse; font-size: 14px;'>
+                    <tr style='font-weight: bold;'>
+                        <td class='td-center td-gradient'>Gesamtschaden</td>
+                        <td class='td-center td-gradient'>Prämie dieser Stufe</td>
+                        <td class='td-center td-gradient'>Status</td>
+                    </tr>";
+
+        foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
+            $is_reached = ($user_damage >= $threshold);
+            $is_next_target = ($threshold === $next_target_threshold);
+
+            // Die aktive (nächste) Stufe wird hervorgehoben
+            $tr_style = $is_next_target ? "style='background: rgba(255, 255, 255, 0.05); font-weight: bold;'" : "";
+
+            if ($is_next_target) {
+                // Das ist das aktuelle Ziel!
+                $cell_style = "";
+                $status_style = "class='td-center'";
+                $status_html = "<span class='passed'>Aktiv</span>";
+            } else if ($is_reached) {
+                // Schon eingesackt -> abgehakt und matt!
+                $cell_style = "style='background: rgba(0, 0, 0, 0.05); color: rgba(230, 220, 200, 0.6);'";
+                $status_style = "class='td-center' style='background: rgba(0, 0, 0, 0.05);'";
+                $status_html = "✔";
+            } else {
+                // Liegt noch weiter in der Zukunft
+                $cell_style = "";
+                $status_style = "class='td-center'";
+                $status_html = "<span style='opacity: 0.3;'>-</span>";
+            }
+
+            $view .= "<tr $tr_style>
+                <td $cell_style>ab " . fnum($threshold, true) . "</td>
+                <td $cell_style>
+                    <div style='display: flex; justify-content: space-between; text-align: left;'>
+                        <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " {$rewards['coins']}</span>
+                        <span style='min-width: 100px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($rewards['gold']) . "</span>
+                    </div>
+                </td>
+                <td $status_style>$status_html</td>
+            </tr>";
+        }
+
+        $view .= "
                 </table>
-                    <p style='font-size: 12px; opacity: 0.6; margin-top: 10px; text-align: center;'>
-                        <i>Zusätzlich erhältst du Gold für dein Königreich (1 pro " . WORLD_EVENT_DMG_GOLD_RATIO . " Schaden).</i>
-                    </p>
-                </div>
-            </div>";
+            </div>
+        </div>";
     }
 
     // --- LAST 5 ATTACKS LOG ---

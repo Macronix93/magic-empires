@@ -86,9 +86,20 @@ function startMasterTimer() {
                 }
 
                 if (!timer.noReload) {
-                    needsReload = true;
+                    const timerCat = timer.element.dataset.timerCat;
 
-                    if (timer.keepParams) anyKeepParams = true;
+                    if (timerCat !== undefined) {
+                        const currentCat = new URLSearchParams(window.location.search).get("cat") || "0";
+
+                        if (currentCat === timerCat) {
+                            needsReload = true;
+                            anyKeepParams = true;
+                        }
+                    } else {
+                        needsReload = true;
+
+                        if (timer.keepParams) anyKeepParams = true;
+                    }
                 }
 
                 countdownRegistry.delete(key);
