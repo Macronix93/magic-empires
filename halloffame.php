@@ -138,7 +138,6 @@ foreach ($categories as $id => $data) {
             $style = $is_me ? " background: rgba(255, 255, 255, 0.2);" : "";
 
             $player = new User($row["uid"], $row["username"]);
-            $avatar = $player->get_avatar() ?? "";
 
             $rank_class = match ($rank) {
                 1 => "rank-gold",
@@ -152,10 +151,7 @@ foreach ($categories as $id => $data) {
             $view .= "<tr>
                         <td class='td-center $rank_class' style='$style'>$rank</td>
                         <td style='overflow: hidden; text-overflow: ellipsis; white-space: nowrap; $style'>
-                            <div class='image-and-user'>
-                                <img class='user-image' src='$avatar' alt=''>
-                                $sender_link
-                            </div>
+                            " . $player->render_user() . "
                         </td>
                         <td class='td-center $rank_class' style='$style'>" . fnum($row["val"]) . "</td>
                       </tr>";

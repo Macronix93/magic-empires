@@ -165,6 +165,29 @@ class User
         return DEFAULT_AVATAR;
     }
 
+    public function render_user(string $content = "", ?string $status_color = null, ?string $popup_id = null): string
+    {
+        $avatar = $this->get_avatar();
+        $pop_id = $popup_id ?? "av_pop_" . $this->user_id;
+        $status_dot = $status_color ? "<span class='status-indicator' style='background-color: " . e($status_color) . ";'></span>" : "";
+
+        if ($content === "") {
+            $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$this->user_id}' data-title='Spieler-Info'>" . e($this->user_name) . "</a>";
+        }
+
+        return "
+            <div class='image-and-user'>
+                <div class='avatar-container popup' id='$pop_id'>
+                    <img class='user-image' src='$avatar' alt='Avatar'>
+                    $status_dot
+                    <div id='{$pop_id}_box' class='popupbox avatar-popup'>
+                        <img src='$avatar' style='width: 80px; height: 80px; border-radius: 5px;' alt='Avatar'>
+                    </div>
+                </div>
+                $content
+            </div>";
+    }
+
     public function get_user_database_id(string $activation_key)
     {
         $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
@@ -448,6 +471,6 @@ class User
     public function count_user_kingdoms(): int
     {
         $res_count = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$this->get_user_id()]);
-        return $kingdom_count = (int)$res_count->fetch_row()[0];
+        return (int)$res_count->fetch_row()[0];
     }
 }

@@ -8,7 +8,8 @@
     --receiver-bubble: rgb(60, 65, 70);
     --border-gold: rgb(165, 124, 0);
     --map-tile-size: 60px;
-    --map-viewport-height: 600px;
+    --map-viewport-height: 650px;
+    --map-viewport-width: 850px;
 }
 
 * {
@@ -1661,6 +1662,35 @@ tr:first-child td.td-gradient {
     margin-top: 20px;
 }
 
+.map-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(165, 124, 0, 0.4);
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin: 0 auto 12px auto;
+    max-width: fit-content;
+    font-size: 13px;
+}
+
+.legend-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.legend-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(212, 175, 55, 0.3);
+    margin: 0 4px;
+}
+
 .legend-item {
     display: inline-flex;
     align-items: center;
@@ -1679,25 +1709,41 @@ tr:first-child td.td-gradient {
     height: 20px;
 }
 
+.map-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.map-legend-inner-item {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.map-legend-entity-item {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}
+
 .legend-own-kingdom {
-    border: 1px solid rgb(39, 168, 91);
-    background: rgba(11, 218, 81, 0.2);
-    width: 18px;
-    height: 18px;
+    border: 1px solid #0BDA51;
+    background: rgba(11, 218, 81, 0.3);
 }
 
 .legend-ally-kingdom {
     border: 1px solid #007bff;
-    background: rgba(0, 123, 255, 0.25);
-    width: 18px;
-    height: 18px;
+    background: rgba(0, 123, 255, 0.35);
 }
 
 .legend-enemy-guild-kingdom {
     border: 1px solid #dc3545;
-    background: rgba(220, 53, 69, 0.25);
-    width: 18px;
-    height: 18px;
+    background: rgba(220, 53, 69, 0.35);
 }
 
 .cell-container {
@@ -1720,7 +1766,7 @@ tr:first-child td.td-gradient {
 
 #map-container {
     width: 100%;
-    max-width: 850px;
+    max-width: var(--map-viewport-width);
     margin: 0 auto;
     position: relative;
     height: var(--map-viewport-height);
@@ -1820,15 +1866,47 @@ tr:first-child td.td-gradient {
     display: none;
     position: fixed;
     top: 10px;
-    width: 40px;
-    height: 50px;
-    background: rgba(0, 0, 0, 0.5);
+    width: 30px;
+    height: 30px;
+    background: linear-gradient(180deg, rgba(74, 55, 40, 1) 0%, rgba(43, 29, 18, 1) 100%);
     border: 1px solid var(--border-gold);
     border-radius: 5px;
     z-index: 2800;
     justify-content: center;
     align-items: center;
     cursor: pointer;
+    transition: opacity 0.3s;
+}
+
+.mobile-kingdom-display {
+    display: none;
+    position: fixed;
+    left: 105px;
+    right: 105px;
+    height: 30px;
+    background: linear-gradient(180deg, rgba(74, 55, 40, 1) 0%, rgba(43, 29, 18, 1) 100%);
+    border: 1px solid var(--border-gold);
+    border-radius: 5px;
+    z-index: 2800;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.3s;
+}
+
+.mobile-kingdom-title {
+    color: var(--link-color);
+    font-size: 13px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.2;
 }
 
 #nav-left-trigger {
@@ -2195,6 +2273,11 @@ body.modal-open footer {
     display: inline-flex;
 }
 
+.hr-mobile-only {
+    display: none;
+    width: 100%;
+}
+
 .stats-box-main {
     max-width: 700px;
     width: 100%;
@@ -2538,7 +2621,7 @@ img[data-on-click] {
 @media screen and (max-width: 600px) {
     :root {
         --map-tile-size: 40px;
-        --map-viewport-height: 400px;
+        --map-viewport-height: 350px;
     }
 
     .overview-info-table td {
@@ -2882,6 +2965,10 @@ img[data-on-click] {
 
     .badge-hide-mobile {
         display: none !important;
+    }
+
+    .hr-mobile-only {
+        display: block;
     }
 
     #new-message-line {
@@ -3244,6 +3331,25 @@ img[data-on-click] {
         font-size: 13px;
     }
 
+    .map-toolbar {
+        gap: 6px;
+        padding: 4px 6px;
+        font-size: 11px;
+    }
+
+    .map-legend-item {
+        font-size: 11px;
+        gap: 3px;
+    }
+
+    .legend-divider {
+        display: none;
+    }
+
+    .search-divider {
+        display: none;
+    }
+
     .legend-inner-item,
     .legend-own-kingdom,
     .legend-ally-kingdom,
@@ -3403,7 +3509,8 @@ img[data-on-click] {
 }
 
 @media screen and (max-width: 1392px) {
-    .mobile-nav-arrow {
+    .mobile-nav-arrow,
+    .mobile-kingdom-display {
         display: flex;
     }
 

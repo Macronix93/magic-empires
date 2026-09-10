@@ -63,6 +63,60 @@ if (!$my_stats) {
 $total_fields = MAX_X * MAX_Y;
 $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 
+// --- SCORE BREAKDOWN ---
+// Building Score (all kingdoms)
+$res_score_b = $db_instance->execute_query("
+    SELECT IFNULL(SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore), 0)
+    FROM buildings b
+    JOIN building_list bl ON b.buildingid = bl.id
+    JOIN kingdoms k ON b.kingdomid = k.id
+    WHERE k.userid = ?", [$uid]);
+$score_buildings = (int)$res_score_b->fetch_column();
+
+// Tech Score (all kingdoms)
+$res_score_t = $db_instance->execute_query("
+    SELECT IFNULL(SUM((t.techlevel * (t.techlevel + 1) / 2) * tl.techscore), 0)
+    FROM techs t
+    JOIN tech_list tl ON t.techid = tl.id
+    JOIN kingdoms k ON t.kingdomid = k.id
+    WHERE k.userid = ?", [$uid]);
+$score_techs = (int)$res_score_t->fetch_column();
+
+// Military Score (Barracks + Troop Movement + Allied Support)
+$res_score_u = $db_instance->execute_query("
+    SELECT IFNULL(SUM(total_count * sl.scoregain), 0)
+    FROM (
+        SELECT soldierid, SUM(soldiercount) AS total_count 
+        FROM soldiers 
+        WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?)
+        GROUP BY soldierid
+        
+        UNION ALL
+        
+        SELECT st.soldierid, SUM(st.soldiercount) AS total_count
+        FROM sent_troops st
+        JOIN events e ON st.eventid = e.eventid
+        WHERE e.userid = ?
+        GROUP BY st.soldierid
+        
+        UNION ALL
+        
+        SELECT soldier_id AS soldierid, SUM(soldiercount) AS total_count
+        FROM stationed_troops
+        WHERE owner_id = ?
+        GROUP BY soldier_id
+    ) AS all_units
+    JOIN soldier_list sl ON all_units.soldierid = sl.id", [$uid, $uid, $uid]);
+$score_troops = (int)$res_score_u->fetch_column();
+
+$total_user_score = (int)$user->get_user_score();
+$sum_breakdown = $score_buildings + $score_techs + $score_troops;
+
+// Percentage
+$perc_b = $sum_breakdown > 0 ? round(($score_buildings / $sum_breakdown) * 100, 1) : 0;
+$perc_t = $sum_breakdown > 0 ? round(($score_techs / $sum_breakdown) * 100, 1) : 0;
+$perc_u = $sum_breakdown > 0 ? round(($score_troops / $sum_breakdown) * 100, 1) : 0;
+
 /* --- VIEW --- */
 
 $view = "
@@ -88,8 +142,19 @@ $view = "
                 <div class='split-content'><span>Truppen aufgewertet:</span> <b>" . fnum($my_stats["units_upgraded"]) . "</b></div>
                 <div class='split-content'><span>Beute (Camps/Lager):</span> <b>" . fnum($my_stats["resources_looted"]) . "</b></div>
                 <div class='split-content'><span>Spieler beklaut:</span> <b>" . fnum($my_stats["resources_stolen"]) . "</b></div>
+                <hr>
+                <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
+                    <b>Punkte-Aufschlüsselung</b>
+                </div>
+                " . wrap_emojis("<div class='split-content'><span>🏰 Gebäude:</span> <b>" . fnum($score_buildings) . " <small style='opacity: 0.7;'>($perc_b %)</small></b></div>
+                <div class='split-content'><span>📜 Forschung:</span> <b>" . fnum($score_techs) . " <small style='opacity: 0.7;'>($perc_t %)</small></b></div>
+                <div class='split-content'><span>⚔️ Armee:</span> <b>" . fnum($score_troops) . " <small style='opacity: 0.7;'>($perc_u %)</small></b></div>
+                <div class='split-content' style='margin-top: 18px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1);'>
+                    <span>Gesamtpunkte:</span> <b class='passed'>" . fnum($score_buildings + $score_techs + $score_troops) . "</b>
+                </div>") . "
             </div>
 
+            <hr class='hr-mobile-only'>
             <div class='badge-hide-mobile' style='width: 1px; background: rgba(255,255,255,0.1); align-self: stretch;'></div>
 
             <div class='stats-inner-column'>

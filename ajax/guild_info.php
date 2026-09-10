@@ -48,12 +48,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $guild_user = new User($m["id"], $m["username"]);
 
         echo "<tr>
-            <td>
-            <div class='image-and-user'>
-                <img class='user-image' src='{$guild_user->get_avatar()}' alt=''>
-                <a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$m["id"]}' data-title='Spieler-Info'>" . e($m["username"]) . "</a>
-            </div>
-            </td>
+            <td>" . $guild_user->render_user() . "</td>
             <td style='color: {$m["rank_color"]}; font-weight: bold;'>" . e($m["rank_name"]) . "</td>
             <td class='td-center'>" . fnum($m["ranking_points"]) . "</td>
           </tr>";

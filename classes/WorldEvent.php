@@ -111,8 +111,6 @@ class WorldEvent
             $old_damage = (int)($res_old->fetch_column() ?? 0);
         }
 
-        $this->mysqli->begin_transaction();
-
         try {
             if ($type === "BOSS_HP") {
                 $res = $this->mysqli->execute_query(
@@ -195,13 +193,10 @@ class WorldEvent
                 }
             }
 
-            $this->mysqli->commit();
-
             update_player_stat($user_id, "event_damage_total", $actual_damage);
 
             return $actual_damage;
         } catch (Exception $e) {
-            $this->mysqli->rollback();
             error_log("WorldEvent Error: " . $e->getMessage());
             return 0;
         }

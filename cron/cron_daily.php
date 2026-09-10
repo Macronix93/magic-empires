@@ -77,6 +77,10 @@ if ($deleted_count > 0) {
     echo "[" . date("H:i:s") . "] Support-Cleanup: $deleted_count alte Tickets gelöscht.\n";
 }
 
+// Abandoned Kingdoms Cleanup
+$db->execute_query("DELETE FROM abandoned_kingdoms WHERE expires_at < ?", [$now]);
+$db->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -4 AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM abandoned_kingdoms)");
+
 //// Generate resource tiles
 // Delete camps that aren't on the map anymore
 $expired_camps_res = $db->execute_query("SELECT mapx, mapy FROM monster_camps WHERE expires_at < ?", [$now]);

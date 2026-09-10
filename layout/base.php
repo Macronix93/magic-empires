@@ -143,11 +143,19 @@ if ($user->is_logged_in()) {
     <?php include("layout/left.php"); ?>
 </div>
 <?php if ($kingdom_count > 1): ?>
+    <?php
+    $current_k = new Kingdom($db_instance, $user->get_current_kingdom());
+    $cur_kname = $current_k->get_kingdom_name();
+    $cur_coords = $current_k->get_kingdom_map_x() . ":" . $current_k->get_kingdom_map_y();
+    ?>
     <div class="mobile-nav-arrow" style="left: 60px; top: 1px;" data-on-click="switchKingdomPrev">
-        <p style="margin: 0; color: var(--link-color);">&#11164;</p>
+        <p style="margin: 0; color: var(--link-color); font-size: 16px;">◀</p>
+    </div>
+    <div class="mobile-kingdom-display" style="top: 1px;">
+        <span class="mobile-kingdom-title"><?= e($cur_kname) ?></span>
     </div>
     <div class="mobile-nav-arrow" style="right: 60px; top: 1px;" data-on-click="switchKingdomNext">
-        <p style="margin: 0; color: var(--link-color);">&#11166;</p>
+        <p style="margin: 0; color: var(--link-color); font-size: 16px;">▶</p>
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">

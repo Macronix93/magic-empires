@@ -1013,3 +1013,94 @@ function render_reactions_bar(string $type, int $id, User $user, string $mode = 
     $html .= '</div>';
     return $html;
 }
+
+function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
+{
+    $now = time();
+
+    $res_k = $db->execute_query(
+        "SELECT id, kingdomname, mapx, mapy, food, wood, stone, gold, 
+                foodperhour, woodperhour, stoneperhour, goldperhour 
+         FROM kingdoms WHERE userid = ?",
+        [$user_id]
+    );
+
+    $monster_pool = [];
+    $res_m = $db->query("SELECT id, level FROM monster_list");
+    while ($m = $res_m->fetch_assoc()) {
+        $monster_pool[(int)$m["level"]][] = (int)$m["id"];
+    }
+
+    while ($k = $res_k->fetch_assoc()) {
+        $kid = (int)$k["id"];
+        $x = (int)$k["mapx"];
+        $y = (int)$k["mapy"];
+
+        $res_b = $db->execute_query(
+            "SELECT buildingid, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid IN (?, ?)",
+            [$kid, BuildingTypes::BUILDING_TOWNCENTER, BuildingTypes::BUILDING_STORAGE]
+        );
+
+        $tc_lvl = 0;
+        $storage_lvl = 0;
+        while ($b = $res_b->fetch_assoc()) {
+            if ((int)$b["buildingid"] === BuildingTypes::BUILDING_TOWNCENTER) $tc_lvl = (int)$b["buildinglevel"];
+            if ((int)$b["buildingid"] === BuildingTypes::BUILDING_STORAGE) $storage_lvl = (int)$b["buildinglevel"];
+        }
+
+        if ($tc_lvl >= ABANDONED_MIN_TC_LEVEL && $storage_lvl >= ABANDONED_MIN_STORAGE_LEVEL) {
+            $food = (int)round(($k["food"] * ABANDONED_RESOURCE_SHARE) + ($k["foodperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
+            $wood = (int)round(($k["wood"] * ABANDONED_RESOURCE_SHARE) + ($k["woodperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
+            $stone = (int)round(($k["stone"] * ABANDONED_RESOURCE_SHARE) + ($k["stoneperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
+            $gold = (int)round(($k["gold"] * ABANDONED_RESOURCE_SHARE) + ($k["goldperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
+
+            $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
+
+            $db->execute_query(
+                "INSERT INTO abandoned_kingdoms (mapx, mapy, kingdom_name, tc_level, food, wood, stone, gold, expires_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE food = VALUES(food), wood = VALUES(wood), stone = VALUES(stone), gold = VALUES(gold), expires_at = VALUES(expires_at)",
+                [$x, $y, $k["kingdomname"], $tc_lvl, $food, $wood, $stone, $gold, $expires]
+            );
+
+            $res_sol = $db->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?", [$kid]);
+            $total_soldiers = (int)$res_sol->fetch_column();
+
+            $monster_count = max(ABANDONED_MIN_MONSTER_BASE, (int)round($total_soldiers / ABANDONED_SOLDIER_TO_MONSTER_RATIO));
+
+            $min_lvl = max(1, $tc_lvl - 1);
+            $max_lvl = min(10, $tc_lvl + 1);
+
+            $available_monster_ids = [];
+            for ($lvl = $min_lvl; $lvl <= $max_lvl; $lvl++) {
+                if (!empty($monster_pool[$lvl])) {
+                    $available_monster_ids = array_merge($available_monster_ids, $monster_pool[$lvl]);
+                }
+            }
+
+            if (!empty($available_monster_ids)) {
+                $num_types = min(count($available_monster_ids), mt_rand(1, 3));
+                shuffle($available_monster_ids);
+                $chosen_types = array_slice($available_monster_ids, 0, $num_types);
+
+                $remaining = $monster_count;
+                foreach ($chosen_types as $idx => $m_id) {
+                    $count_share = ($idx === count($chosen_types) - 1) ? $remaining : (int)round($monster_count / $num_types);
+                    $remaining -= $count_share;
+
+                    if ($count_share > 0) {
+                        $db->execute_query(
+                            "INSERT INTO abandoned_kingdom_units (mapx, mapy, monster_id, count) VALUES (?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE count = count + VALUES(count)",
+                            [$x, $y, $m_id, $count_share]
+                        );
+                    }
+                }
+            }
+
+            $db->execute_query("UPDATE map SET kingdomid = -4 WHERE mapx = ? AND mapy = ?", [$x, $y]);
+        } else {
+            $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$x, $y]);
+        }
+    }
+}

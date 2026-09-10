@@ -146,11 +146,12 @@ $query = "
             SELECT 
                 m.fieldtype, 
                 f.fieldname,
-                COALESCE(r.expires_at, mc.expires_at, 0) AS expires_at
+                COALESCE(r.expires_at, mc.expires_at, ak.expires_at, 0) AS expires_at
             FROM map m
             JOIN field_types f ON m.fieldtype = f.fieldid
             LEFT JOIN resource_tiles_data r ON m.mapx = r.mapx AND m.mapy = r.mapy
             LEFT JOIN monster_camps mc ON m.mapx = mc.mapx AND m.mapy = mc.mapy
+            LEFT JOIN abandoned_kingdoms ak ON m.mapx = ak.mapx AND m.mapy = ak.mapy
             WHERE m.mapx = ? AND m.mapy = ?
         ";
 $result2 = $db_instance->execute_query($query, [$target_x, $target_y]);
@@ -427,7 +428,38 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         $is_spying = true;
     }
 
-    if ($kingdom_id == -3) {
+    if ($kingdom_id == -4) {
+        $res_ruin = $db_instance->execute_query(
+            "SELECT kingdom_name, tc_level FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?",
+            [$target_x, $target_y]
+        )->fetch_assoc();
+
+        $ruin_name = $res_ruin["kingdom_name"] ?? "Vergessenes Reich";
+        $tc_lvl = (int)($res_ruin["tc_level"] ?? 1);
+
+        $send_title = $is_spying ? "Ruine auskundschaften" : "Ruine stürmen";
+
+        $view .= '<div class="title-border">Ruinen von ' . e($ruin_name) . '</div>
+                  <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+                      <tr>
+                          <td class="td-mapinfo"><b>Koordinaten</b></td>
+                          <td>' . $target_x . ':' . $target_y . '</td>
+                      </tr>
+                      <tr>
+                          <td class="td-mapinfo"><b>Ehemalige Stufe</b></td>
+                          <td>Dorfzentrum Stufe ' . $tc_lvl . '</td>
+                      </tr>
+                      <tr>
+                          <td class="td-mapinfo"><b>Ankunftszeit</b></td>
+                          <td>' . convert_sec_to_str($arrival_time) . '</td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="font-size: 14px; opacity: 0.8; text-align: center; padding: 10px;">
+                            <i>Hinweis: Diese verlassene Festung wird von Monstern besetzt. Schlage die Besatzer in die Flucht, um die verbliebenen Schätze zu bergen!</i>
+                        </td>
+                      </tr>
+                  </table>';
+    } else if ($kingdom_id == -3) {
         $send_title = $is_spying ? "Monstercamp spionieren" : "Monstercamp angreifen";
 
         $res_m = $db_instance->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
@@ -569,7 +601,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
     $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
-    if ($first_active_cat === -1 && in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"])) {
+    if ($first_active_cat === -1 && ($kingdom_id == -1 || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"]))) {
         $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
     }
 
@@ -590,6 +622,8 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                 $button_label = "Unterstützung senden";
             } else if ($enemy_user_id == $user->get_user_id()) {
                 $button_label = "Einheiten stationieren";
+            } else if ($kingdom_id == -4) {
+                $button_label = $is_spying ? "Späher entsenden" : "Ruine stürmen";
             }
 
             $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form">
@@ -662,7 +696,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
                 $shrine_mult = 1.0;
                 if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-                    $shrine_mult += $kingdom->get_shrine_modifier();
+                    $shrine_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
                 }
 
                 $real_atk = (int)round(($s_obj->get_soldier_attack() + $atk_bonus) * $shrine_mult);

@@ -36,12 +36,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         }
 
         $player = new User($row["uid"], $row["username"]);
-        $avatar = $player->get_avatar();
 
-        echo "<div class='image-and-user' style='margin: 0;'>
-                <img src='$avatar' class='user-image' style='width: 24px; height: 24px;' alt='Avatar'>
-                <a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$row["uid"]}' data-title='Spieler-Info'>" . e($row["username"]) . "</a>
-              </div>";
+        echo $player->render_user();
     }
 
     if (!$first) {

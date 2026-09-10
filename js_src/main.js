@@ -680,6 +680,8 @@ window.addEventListener("DOMContentLoaded", function () {
         if (leftTrigger) leftTrigger.classList.remove("open");
         if (rightMenu) rightMenu.classList.remove("open");
         if (rightTrigger) rightTrigger.classList.remove("open");
+
+        toggleMobileElements(false);
     }
 
     window.addEventListener("resize", function () {
@@ -698,6 +700,9 @@ window.addEventListener("DOMContentLoaded", function () {
             leftTrigger.classList.toggle("open");
 
             closeOverlay();
+
+            const isAnyMenuOpen = leftMenu.classList.contains("open") || rightMenu.classList.contains("open");
+            toggleMobileElements(isAnyMenuOpen);
         });
     }
 
@@ -711,6 +716,9 @@ window.addEventListener("DOMContentLoaded", function () {
             rightTrigger.classList.toggle("open");
 
             closeOverlay();
+
+            const isAnyMenuOpen = leftMenu.classList.contains("open") || rightMenu.classList.contains("open");
+            toggleMobileElements(isAnyMenuOpen);
         });
     }
 
@@ -782,6 +790,16 @@ window.addEventListener("DOMContentLoaded", function () {
         document.body.classList.remove("preload");
     }, 100);
 });
+
+function toggleMobileElements(hide) {
+    const arrows = document.querySelectorAll(".mobile-nav-arrow");
+    const kingdom = document.querySelector(".mobile-kingdom-display");
+
+    arrows.forEach(arrow => {
+        arrow.style.opacity = hide ? "0.2" : "";
+    });
+    if (kingdom) kingdom.style.opacity = hide ? "0.2" : "";
+}
 
 function selectUser(id) {
     const form = document.forms["newmessage"];

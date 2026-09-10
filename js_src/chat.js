@@ -443,11 +443,18 @@ function deleteServerMessage(messageID) {
                 /** @type {HTMLElement} */
                 const messageSection = document.getElementById("messages-section");
                 const remainingBubbles = messageSection.querySelectorAll(".server-bubble").length;
+                const btn = document.getElementById("load-more-server-btn");
 
                 if (remainingBubbles === 0) {
-                    messageSection.innerHTML = `<div id="chat-empty-placeholder">Du hast keine Servernachrichten!</div>`;
-                    messageSection.style.display = "flex";
-                    messageSection.style.alignItems = "center";
+                    if (btn) {
+                        loadOlderServerMessages();
+                    } else {
+                        messageSection.innerHTML = `<div id="chat-empty-placeholder">Du hast keine Servernachrichten!</div>`;
+                        messageSection.style.display = "flex";
+                        messageSection.style.alignItems = "center";
+                    }
+                } else {
+                    checkScrollPosition();
                 }
             }
         })

@@ -355,21 +355,17 @@ if (!$active_event) {
             $is_reached = ($user_damage >= $threshold);
             $is_next_target = ($threshold === $next_target_threshold);
 
-            // Die aktive (nächste) Stufe wird hervorgehoben
             $tr_style = $is_next_target ? "style='background: rgba(255, 255, 255, 0.05); font-weight: bold;'" : "";
 
             if ($is_next_target) {
-                // Das ist das aktuelle Ziel!
                 $cell_style = "";
                 $status_style = "class='td-center'";
-                $status_html = "<span class='passed'>Aktiv</span>";
+                $status_html = "";
             } else if ($is_reached) {
-                // Schon eingesackt -> abgehakt und matt!
                 $cell_style = "style='background: rgba(0, 0, 0, 0.05); color: rgba(230, 220, 200, 0.6);'";
                 $status_style = "class='td-center' style='background: rgba(0, 0, 0, 0.05);'";
-                $status_html = "✔";
+                $status_html = "<span style='color: #2fa22f;'>✔</span";
             } else {
-                // Liegt noch weiter in der Zukunft
                 $cell_style = "";
                 $status_style = "class='td-center'";
                 $status_html = "<span style='opacity: 0.3;'>-</span>";
@@ -489,12 +485,7 @@ if (!$active_event) {
 
             $view .= "<tr $style>
                         <td class='td-center'>$rank_count</td>
-                        <td class='td-center'>
-                            <div class='image-and-user'>
-                                <img class='user-image' src='$avatar' alt=''>
-                                $sender_link
-                            </div>
-                        </td>
+                        <td class='td-center'>" . $player->render_user() . "</td>
                         <td class='td-center'>" . fnum($r["total_damage"], true) . "</td>
                       </tr>";
             $rank_count++;

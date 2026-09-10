@@ -79,43 +79,46 @@ if ($coords_valid) {
 }
 
 // Map legend
-echo "<div class='map-legend' id='map-legend-fieldtypes' style='margin-bottom: 10px;'>
-        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
-        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
-        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>
-        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></span> Wüste</div>
-        <div class='legend-item'><span class='legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></span> Gebirge</div>
-    </div>";
-
-echo "<div class='map-legend' id='map-legend-fieldtypes'>
-        <div class='legend-item'><img src='images/icons/icon_town.png' alt='Königreich' class='legend-entity-item'> Spieler</div>
-        <div class='legend-item'><img src='images/icons/icon_gems.png' alt='Vorratslager' class='legend-entity-item'> Vorratslager</div>
-        <div class='legend-item'><img src='images/icons/icon_goblin.png' alt='Monstercamp' class='legend-entity-item'> Monstercamp</div>
-        <div class='legend-item'><span class='legend-inner-item legend-own-kingdom'></span> Eigenes Königreich</div>
-        <div class='legend-item'><span class='legend-inner-item legend-ally-kingdom'></span> Verbündete</div>
-        <div class='legend-item'><span class='legend-inner-item legend-enemy-guild-kingdom'></span> Feindliche Gilde</div>
+echo "<div class='map-toolbar'>
+        <div class='legend-group'>
+            <div class='map-legend-item' title='Hochland'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
+            <div class='map-legend-item' title='Küste'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
+            <div class='map-legend-item' title='Wald'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>
+            <div class='map-legend-item' title='Wüste'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></span> Wüste</div>
+            <div class='map-legend-item' title='Gebirge'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></span> Gebirge</div>
+        </div>
+        <div class='legend-divider'></div>
+        <div class='legend-group'>
+            <div class='map-legend-item'><img src='images/icons/icon_town.png' alt='' class='map-legend-entity-item'> Spieler</div>
+            <div class='map-legend-item'><img src='images/icons/icon_gems.png' alt='' class='map-legend-entity-item'> Lager</div>
+            <div class='map-legend-item'><img src='images/icons/icon_goblin.png' alt='' class='map-legend-entity-item'> Monster</div>
+            <div class='map-legend-item' title='Eigenes Königreich'><span class='map-legend-inner-item legend-own-kingdom'></span> Eigene</div>
+            <div class='map-legend-item' title='Allianz / Eigene Gilde'><span class='map-legend-inner-item legend-ally-kingdom'></span> Allianz</div>
+            <div class='map-legend-item' title='Feindliche Gilde'><span class='map-legend-inner-item legend-enemy-guild-kingdom'></span> Gegner</div>
+        </div>
     </div>";
 
 // Search
-echo '<form id="update-map" style="display: flex; flex-wrap: wrap;">
-        X:<label>
-            <input type="text" inputmode="numeric"  id="startx" name="startx" size="3" maxlength="3" value="' . $x . '">
-        </label>
-        Y:<label>
-            <input type="text" inputmode="numeric"  id="starty" name="starty" size="3" maxlength="3" value="' . $y . '">
-        </label>
-        <input type="submit" id="send-map-request" value="Los">
-        <span style="display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;">
-            <input type="checkbox" id="show-path-toggle" style="cursor: pointer; margin: 0;">
-            <label for="show-path-toggle" style="font-size: 15px; cursor: pointer; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;">
-                Laufweg
+$show_path_checked = (isset($_COOKIE["me_map_show_path"]) && $_COOKIE["me_map_show_path"] === "1") ? "checked" : "";
+
+echo '<div style="display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px;">
+        <form id="update-map" style="display: inline-flex; align-items: center; gap: 6px; margin: 0;">
+            <b>X:</b><input type="text" inputmode="numeric" id="startx" name="startx" size="2" maxlength="3" value="' . $x . '" style="width: 45px; text-align: center;">
+            <b>Y:</b><input type="text" inputmode="numeric" id="starty" name="starty" size="2" maxlength="3" value="' . $y . '" style="width: 45px; text-align: center;">
+            <input type="submit" id="send-map-request" value="Los" style="padding: 2px 8px;">
+            
+            <label for="show-path-toggle" style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer; margin-left: 8px;">
+                <input type="checkbox" id="show-path-toggle" style="cursor: pointer; margin: 0;" ' . $show_path_checked . '>
+                <span>Pfad</span>
             </label>
-        </span>
-    </form>
-    <div id="map-filters" style="display: flex; justify-content: center; gap: 15px; margin-bottom: 10px; flex-wrap: wrap; font-size: 14px; padding: 8px; border-radius: 5px;">
-        <label style="cursor:pointer;"><input type="checkbox" id="filter-players" checked> Spieler</label>
-        <label style="cursor:pointer;"><input type="checkbox" id="filter-resources" checked> Vorratslager</label>
-        <label style="cursor:pointer;"><input type="checkbox" id="filter-monsters" checked> Monstercamps</label>
+        </form>
+        <span class="search-divider" style="opacity: 0.3;">|</span>
+        <div id="map-filters" style="display: inline-flex; gap: 12px; align-items: center;">
+            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-players" checked> Spieler</label>
+            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-resources" checked> Lager</label>
+            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-monsters" checked> Monster</label>
+            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-ruins" checked> Ruinen</label>
+        </div>
     </div>';
 
 // Map Container

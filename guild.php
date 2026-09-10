@@ -467,12 +467,7 @@ if ($my_guild_id === -1) {
         $guild_user = new User($m["id"], $m["username"]);
 
         $view .= "<tr $row_style>
-                    <td>
-                        <div class='image-and-user'>
-                            <img class='user-image' src='{$guild_user->get_avatar()}' alt=''>
-                            <a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$m["id"]}' data-title='Spieler-Info'>" . e($m["username"]) . "</a>
-                        </div>
-                    </td>
+                    <td>" . $guild_user->render_user() . "</td>
                     <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>";
 
         $view .= "<td class='td-center'>$rank_display</td>";
@@ -512,12 +507,7 @@ if ($my_guild_id === -1) {
                 $invited_user = new User($p["invited_user_id"], $p["username"]);
 
                 $view .= "<tr>
-                        <td>
-                            <div class='image-and-user'>
-                                <img class='user-image' src='{$invited_user->get_avatar()}' alt=''>
-                                <a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$p["invited_user_id"]}' data-title='Spieler-Info'>" . e($p["username"]) . "</a>
-                            </div>
-                        </td>
+                        <td>" . $invited_user->render_user() . "</td>
                         <td class='td-center'>" . e($p["inviter_name"]) . "</td>
                         <td class='td-center'>" . convert_sec_to_str($time_left, true) . "</td>
                         <td class='td-center'>
@@ -765,15 +755,7 @@ if ($my_guild_id === -1) {
             $contributor_user = new User($r["id"], $r["username"]);
 
             $view .= "<tr>
-                            <td>
-                                <div class='image-and-user'>
-                                    <img class='user-image' src='" . e($contributor_user->get_avatar()) . "' alt=''>
-                                    <a href='#' 
-                                       data-on-click='openOverlay' 
-                                       data-url='userinfo.php?userid=" . (int)$r["id"] . "' 
-                                       data-title='Spieler-Info'>" . e($r["username"]) . "</a>
-                                </div>
-                            </td>
+                            <td>" . $contributor_user->render_user() . "</td>
                             <td class='td-center'>" . fnum($r["val"]) . "</td>
                           </tr>";
         }

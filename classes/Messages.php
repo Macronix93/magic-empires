@@ -124,21 +124,18 @@ class Messages
                 $latest_timestamp = $row["latest_message_date"];
                 $old_conversation = time() - $latest_timestamp > CONV_INACTIVITY_TIME ? " tr-inactive" : "";
                 $chat_partner = new User($row["participant_id"], $sender_name);
-                $image_path = $chat_partner->get_avatar();
+
+                $badge = ($num_unread_messages > 0)
+                    ? "<span class='msg-badge'>" . $this->show_messages_indicator($num_unread_messages) . "</span>"
+                    : "";
+                $name_and_badge = "<span>" . e($sender_name) . "</span> $badge";
 
                 $this->view .= "
                     <tr class='tr-hover$old_conversation'>
                         <td class='td-cursor' 
                             data-on-click='redirect' 
                             data-url='messages.php?action=read&s=" . e($row["participant_id"]) . "'>
-                            <div class='image-and-user'>
-                                <img class='user-image' src='$image_path' alt='Nutzerbild'>
-                                <span>$sender_name</span>
-                                " . ($num_unread_messages > 0
-                        ? "<span class='msg-badge'>{$this->show_messages_indicator($num_unread_messages)}</span>"
-                        : ""
-                    ) . "
-                            </div>
+                            " . $chat_partner->render_user($name_and_badge) . "
                         </td>
                         <td class='td-cursor' 
                             data-on-click='redirect' 

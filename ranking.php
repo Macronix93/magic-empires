@@ -64,7 +64,8 @@ foreach ($players_res as $row) {
     $guild_display = $row["guild_tag"] ? " <b style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$row["guildid"]}'>[" . e($row["guild_tag"]) . "]</b>" : "";
     $name_style = $row["rank_color"] && $row["rank_id"] != GuildRanks::GUILD_MEMBER ? " color: {$row["rank_color"]};" : "";
 
-    $image_path = new User($user_id, $user_name)->get_avatar();
+    //$image_path = new User($user_id, $user_name)->get_avatar();
+    $player = new User($user_id, $user_name);
 
     $user_link = "<a href='#' 
                     data-on-click='openOverlay' 
@@ -78,18 +79,7 @@ foreach ($players_res as $row) {
 
     $view .= "<tr>
                 <td class='td-shrink' style='text-align: right;'>$pos</td>
-                <td class='td-expand'>
-                    <div class='image-and-user'>
-                        <div class='avatar-container popup' id='av_pop_$user_id'>
-                            <img class='user-image' src='$image_path' alt=''>
-                            <span class='status-indicator' style='background-color: $color;'></span>
-                            <div id='av_pop_{$user_id}_box' class='popupbox avatar-popup'>
-                                <img src='$image_path' style='width: 80px; height: 80px; border-radius: 5px;' alt='Avatar'>
-                            </div>
-                        </div>
-                        $user_link $guild_display
-                    </div>
-                </td>
+                <td class='td-expand'>" . $player->render_user("$user_link $guild_display", $color, $pos) . "</td>
                 <td class='td-score'>" . fnum($row["score"], true) . "</td>
             </tr>";
     $pos++;

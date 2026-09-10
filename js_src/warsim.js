@@ -251,14 +251,27 @@ function calculateWarOutcome(soldierTypes) {
         const defEl = document.getElementById(`${type}_def`);
         const cat = parseInt(statsEl.getAttribute("data-category"));
 
-        let myAtkLvl = parseInt(document.getElementById("my_tech_" + (13 + (cat * 2)))?.value) || 0;
-        let myDefLvl = parseInt(document.getElementById("my_tech_" + (14 + (cat * 2)))?.value) || 0;
-        let aBonus = (cat === 0) ? W_CONF.infAtk : (cat === 1 ? W_CONF.cavAtk : W_CONF.arcAtk);
-        let dBonus = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
+        let myAtkLvl = 0, myDefLvl = 0, aBonus = 0, dBonus = 0;
+        if (cat === 0) {
+            myAtkLvl = parseInt(document.getElementById("my_tech_13")?.value) || 0;
+            myDefLvl = parseInt(document.getElementById("my_tech_14")?.value) || 0;
+            aBonus = W_CONF.infAtk;
+            dBonus = W_CONF.infDef;
+        } else if (cat === 1) {
+            myAtkLvl = parseInt(document.getElementById("my_tech_15")?.value) || 0;
+            myDefLvl = parseInt(document.getElementById("my_tech_16")?.value) || 0;
+            aBonus = W_CONF.cavAtk;
+            dBonus = W_CONF.cavDef;
+        } else if (cat === 2) {
+            myAtkLvl = parseInt(document.getElementById("my_tech_17")?.value) || 0;
+            myDefLvl = parseInt(document.getElementById("my_tech_18")?.value) || 0;
+            aBonus = W_CONF.arcAtk;
+            dBonus = W_CONF.arcDef;
+        }
 
         myUnits[type] = {
-            atk: (parseFloat(statsEl.getAttribute("data-attack")) * (1.0 + myShrineBonus)) + (myAtkLvl * aBonus),
-            def: parseFloat(defEl.getAttribute("data-defense")) + (myDefLvl * dBonus),
+            atk: Math.round((parseFloat(statsEl.getAttribute("data-attack")) * (1.0 + myShrineBonus)) + (myAtkLvl * aBonus)),
+            def: Math.round(parseFloat(defEl.getAttribute("data-defense")) + (myDefLvl * dBonus)),
             count: countOwn, initial: countOwn, cat: cat
         };
 
@@ -282,14 +295,28 @@ function calculateWarOutcome(soldierTypes) {
             const countEnemy = parseInt(document.getElementById(`${type}_enemy`).value) || 0;
             const statsEl = document.getElementById(`${type}_atk`);
             const cat = parseInt(statsEl.dataset.category);
-            let enAtkLvl = parseInt(document.getElementById("en_tech_" + (13 + (cat * 2)))?.value) || 0;
-            let enDefLvl = parseInt(document.getElementById("en_tech_" + (14 + (cat * 2)))?.value) || 0;
-            let aB = (cat === 0) ? W_CONF.infAtk : (cat === 1 ? W_CONF.cavAtk : W_CONF.arcAtk);
-            let dB = (cat === 0) ? W_CONF.infDef : (cat === 1 ? W_CONF.cavDef : W_CONF.arcDef);
+
+            let enAtkLvl = 0, enDefLvl = 0, aB = 0, dB = 0;
+            if (cat === 0) {
+                enAtkLvl = parseInt(document.getElementById("en_tech_13")?.value) || 0;
+                enDefLvl = parseInt(document.getElementById("en_tech_14")?.value) || 0;
+                aB = W_CONF.infAtk;
+                dB = W_CONF.infDef;
+            } else if (cat === 1) {
+                enAtkLvl = parseInt(document.getElementById("en_tech_15")?.value) || 0;
+                enDefLvl = parseInt(document.getElementById("en_tech_16")?.value) || 0;
+                aB = W_CONF.cavAtk;
+                dB = W_CONF.cavDef;
+            } else if (cat === 2) {
+                enAtkLvl = parseInt(document.getElementById("en_tech_17")?.value) || 0;
+                enDefLvl = parseInt(document.getElementById("en_tech_18")?.value) || 0;
+                aB = W_CONF.arcAtk;
+                dB = W_CONF.arcDef;
+            }
 
             enemyUnits[type] = {
-                atk: (parseFloat(statsEl.dataset.attack) * (1.0 + enShrineBonus)) + (enAtkLvl * aB),
-                def: parseFloat(document.getElementById(`${type}_def`).dataset.defense) + (enDefLvl * dB),
+                atk: Math.round((parseFloat(statsEl.dataset.attack) * (1.0 + enShrineBonus)) + (enAtkLvl * aB)),
+                def: Math.round(parseFloat(document.getElementById(`${type}_def`).dataset.defense) + (enDefLvl * dB)),
                 count: countEnemy, initial: countEnemy, cat: cat
             };
 
@@ -440,13 +467,28 @@ function updateLivePowerSummary() {
     soldierTypes.forEach(type => {
         const cO = parseInt(document.getElementById(type + "_own").value) || 0;
         const stats = document.getElementById(type + "_atk").dataset;
-        let myA = parseInt(document.getElementById("my_tech_" + (13 + (parseInt(stats.category) * 2)))?.value) || 0;
-        let myD = parseInt(document.getElementById("my_tech_" + (14 + (parseInt(stats.category) * 2)))?.value) || 0;
-        let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
-        let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
+        const cat = parseInt(stats.category);
+        let myA = 0, myD = 0, aB = 0, dB = 0;
 
-        tAtkO += cO * ((parseFloat(stats.attack) * (1.0 + myShrineBonus)) + (myA * aB));
-        tDefO += cO * (parseFloat(document.getElementById(type + "_def").dataset.defense) + (myD * dB));
+        if (cat === 0) {
+            myA = parseInt(document.getElementById("my_tech_13")?.value) || 0;
+            myD = parseInt(document.getElementById("my_tech_14")?.value) || 0;
+            aB = W_CONF.infAtk;
+            dB = W_CONF.infDef;
+        } else if (cat === 1) {
+            myA = parseInt(document.getElementById("my_tech_15")?.value) || 0;
+            myD = parseInt(document.getElementById("my_tech_16")?.value) || 0;
+            aB = W_CONF.cavAtk;
+            dB = W_CONF.cavDef;
+        } else if (cat === 2) {
+            myA = parseInt(document.getElementById("my_tech_17")?.value) || 0;
+            myD = parseInt(document.getElementById("my_tech_18")?.value) || 0;
+            aB = W_CONF.arcAtk;
+            dB = W_CONF.arcDef;
+        }
+
+        tAtkO += cO * Math.round((parseFloat(stats.attack) * (1.0 + myShrineBonus)) + (myA * aB));
+        tDefO += cO * Math.round(parseFloat(document.getElementById(type + "_def").dataset.defense) + (myD * dB));
     });
 
     if (isMonsterMode) {
@@ -460,15 +502,29 @@ function updateLivePowerSummary() {
         soldierTypes.forEach(type => {
             const cE = parseInt(document.getElementById(type + "_enemy").value) || 0;
             const stats = document.getElementById(type + "_atk").dataset;
+            const cat = parseInt(stats.category);
             totalEn += cE;
 
-            let enA = parseInt(document.getElementById("en_tech_" + (13 + (parseInt(stats.category) * 2)))?.value) || 0;
-            let enD = parseInt(document.getElementById("en_tech_" + (14 + (parseInt(stats.category) * 2)))?.value) || 0;
-            let aB = (stats.category === "0") ? W_CONF.infAtk : (stats.category === "1" ? W_CONF.cavAtk : W_CONF.arcAtk);
-            let dB = (stats.category === "0") ? W_CONF.infDef : (stats.category === "1" ? W_CONF.cavDef : W_CONF.arcDef);
+            let enA = 0, enD = 0, aB = 0, dB = 0;
+            if (cat === 0) {
+                enA = parseInt(document.getElementById("en_tech_13")?.value) || 0;
+                enD = parseInt(document.getElementById("en_tech_14")?.value) || 0;
+                aB = W_CONF.infAtk;
+                dB = W_CONF.infDef;
+            } else if (cat === 1) {
+                enA = parseInt(document.getElementById("en_tech_15")?.value) || 0;
+                enD = parseInt(document.getElementById("en_tech_16")?.value) || 0;
+                aB = W_CONF.cavAtk;
+                dB = W_CONF.cavDef;
+            } else if (cat === 2) {
+                enA = parseInt(document.getElementById("en_tech_17")?.value) || 0;
+                enD = parseInt(document.getElementById("en_tech_18")?.value) || 0;
+                aB = W_CONF.arcAtk;
+                dB = W_CONF.arcDef;
+            }
 
-            tAtkE += cE * ((parseFloat(stats.attack) * (1.0 + enShrineBonus)) + (enA * aB));
-            tDefE += cE * (parseFloat(document.getElementById(type + "_def").dataset.defense) + (enD * dB));
+            tAtkE += cE * Math.round((parseFloat(stats.attack) * (1.0 + enShrineBonus)) + (enA * aB));
+            tDefE += cE * Math.round(parseFloat(document.getElementById(type + "_def").dataset.defense) + (enD * dB));
         });
 
         if (totalEn > 0) tDefE += wallBonus;
@@ -534,7 +590,7 @@ function checkMonsterImport() {
             filterToggle.checked = true;
             applyRelevantFilter(true);
         }
-        
+
         updateLivePowerSummary();
 
         const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;

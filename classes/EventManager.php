@@ -592,6 +592,15 @@ class EventManager
             return;
         }
 
+        if ($target_id == -4) {
+            if ($combat_units === 0 && $scout_count > 0) {
+                $this->process_ruin_spy_mission($row, $scout_count, $attacker_user_obj, $return_time);
+            } else {
+                $this->process_ruin_battle($row, $home_kingdom, $attacker_user_obj, $return_time);
+            }
+            return;
+        }
+
         if ($target_id == -3) {
             if ($combat_units === 0 && $scout_count > 0) {
                 $this->process_monster_spy_mission($row, $scout_count, $attacker_user_obj, $return_time);
@@ -2239,6 +2248,137 @@ class EventManager
         ], $row["kingdomid"]);
     }
 
+    private function execute_pve_combat_math(
+        Conquest $conquest,
+        Kingdom  $home_k,
+        array    $enemy_monsters
+    ): array
+    {
+        $soldier_types = $conquest->get_soldier_types();
+
+        $atk_atk_pool = 0;
+        $atk_def_pool = 0;
+        $mon_atk_pool = 0;
+        $mon_def_pool = 0;
+
+        $shrine_mult = 1.0;
+        if ($home_k->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+            $shrine_mult += $home_k->calculate_shrine_bonus($home_k->get_shrine_modifier());
+        }
+
+        $unit_stats = [];
+        foreach ($soldier_types as $id => $s) {
+            $initial_own = $conquest->get_initial_count_by_id($id, true);
+            $cat = (int)$s["category"];
+
+            $b_atk = 0;
+            $b_def = 0;
+            if ($cat === SoldierTypes::SOLDIER_TYPE_INFANTRY) {
+                $b_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
+                $b_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
+            } elseif ($cat === SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+                $b_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
+                $b_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
+            } elseif ($cat === SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+                $b_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
+                $b_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
+            }
+
+            $stat_atk = (int)round(($s["attack"] * $shrine_mult) + $b_atk);
+            $stat_def = (int)round($s["defense"] + $b_def);
+            $unit_stats[$id] = ["atk" => $stat_atk, "def" => $stat_def];
+
+            if ($initial_own > 0) {
+                $atk_atk_pool += ($initial_own * $stat_atk);
+                $atk_def_pool += ($initial_own * $stat_def);
+            }
+        }
+
+        foreach ($enemy_monsters as $m) {
+            $mon_atk_pool += ($m["count"] * $m["atk"]);
+            $mon_def_pool += ($m["count"] * $m["def"]);
+        }
+
+        $lethality = LETHALITY_PVE;
+        $atk_loss_ratio = ($atk_def_pool > 0) ? min(1.0, $mon_atk_pool / ($atk_def_pool * $lethality)) : 1.0;
+        $mon_loss_ratio = ($mon_def_pool > 0) ? min(1.0, $atk_atk_pool / ($mon_def_pool * $lethality)) : 1.0;
+
+        if ($atk_atk_pool > 0 && $mon_atk_pool > 0) {
+            $ratio = $atk_atk_pool / $mon_atk_pool;
+            $clamped_ratio_val = max(0.0, min(1.0, $ratio / MONSTER_DMG_CLAMPED_MAX_VAL));
+            $lossMultiplier = pow(1.0 - $clamped_ratio_val, MONSTER_DMG_LOSS_EXPONENT);
+
+            $atk_loss_ratio = $atk_loss_ratio * $lossMultiplier;
+        }
+
+        $report_attacker_units = [];
+        $total_score_loss = 0;
+        $surviving_attacker_units = 0;
+        $total_atk_loss = 0;
+
+        foreach ($soldier_types as $id => $s) {
+            $initial = $conquest->get_initial_count_by_id($id, true);
+
+            if ($initial > 0) {
+                $loss = (int)round($initial * $atk_loss_ratio);
+                $surviving_attacker_units += ($initial - $loss);
+                $total_atk_loss += $loss;
+                $total_score_loss += ($loss * $s["score"]);
+
+                $res_icon = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
+                $icon = $res_icon->fetch_column() ?: "icon_error";
+
+                $report_attacker_units[] = [
+                    "id" => $id,
+                    "name" => $s["soldiername"],
+                    "initial" => $initial,
+                    "losses" => $loss,
+                    "icon" => $icon,
+                    "atk" => $unit_stats[$id]["atk"],
+                    "def" => $unit_stats[$id]["def"]
+                ];
+            }
+        }
+
+        $report_monster_units = [];
+        $monsters_slain = 0;
+        $total_monsters_remaining = 0;
+
+        foreach ($enemy_monsters as $m_id => $m) {
+            $initial = (int)$m["count"];
+            $loss = (int)round($initial * $mon_loss_ratio);
+
+            if ($mon_loss_ratio < 1.0 && $loss >= $initial) {
+                $loss = $initial - 1;
+            }
+
+            $survivors = max(0, $initial - $loss);
+            $monsters_slain += $loss;
+            $total_monsters_remaining += $survivors;
+
+            $report_monster_units[] = [
+                "id" => $m_id,
+                "name" => $m["name"],
+                "initial" => $initial,
+                "losses" => $loss,
+                "icon" => $m["icon"],
+                "atk" => $m["atk"],
+                "def" => $m["def"]
+            ];
+        }
+
+        return [
+            "report_attacker_units" => $report_attacker_units,
+            "report_monster_units" => $report_monster_units,
+            "surviving_attacker_units" => $surviving_attacker_units,
+            "total_monsters_remaining" => $total_monsters_remaining,
+            "total_score_loss" => $total_score_loss,
+            "total_atk_loss" => $total_atk_loss,
+            "monsters_slain" => $monsters_slain,
+            "victory" => ($total_monsters_remaining <= 0)
+        ];
+    }
+
     public function process_monster_battle(array $row, Kingdom $home_k, User $attacker_user, int $return_time): void
     {
         $attacker_id = $attacker_user->get_user_id();
@@ -2275,162 +2415,33 @@ class EventManager
         $conquest->get_monster_defenders($tx, $ty);
         $conquest->initialize_soldier_values();
         $conquest->set_initial_monster_battle();
-        $soldier_types = $conquest->get_soldier_types();
-        $monster_data = $conquest->get_monster_enemy_data();
 
-        // Get camp level
         $camp_res = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
         $camp_lvl = (int)($camp_res->fetch_column() ?: 1);
 
-        $atk_atk_pool = 0;
-        $atk_def_pool = 0;
-        $mon_atk_pool = 0;
-        $mon_def_pool = 0;
+        // PvE Calculation
+        $combat = $this->execute_pve_combat_math($conquest, $home_k, $conquest->get_monster_enemy_data());
 
-        foreach ($soldier_types as $id => $s) {
-            $initial_own = $conquest->get_initial_count_by_id($id, true);
-            if ($initial_own > 0) {
-                $cat = (int)$s["category"];
-                $lvl_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES + ($cat * 2));
-                $lvl_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL + ($cat * 2));
-
-                $bonus_atk = match ($cat) {
-                    0 => SMITHY_INF_ATK_BONUS,
-                    1 => SMITHY_CAV_ATK_BONUS,
-                    2 => SMITHY_ARC_ATK_BONUS,
-                    default => 0
-                };
-                $bonus_def = match ($cat) {
-                    0 => SMITHY_INF_DEF_BONUS,
-                    1 => SMITHY_CAV_DEF_BONUS,
-                    2 => SMITHY_ARC_DEF_BONUS,
-                    default => 0
-                };
-
-                $shrine_mult = 1.0;
-                if ($home_k->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-                    $shrine_mult += $home_k->get_shrine_modifier();
-                }
-
-                $atk_atk_pool += ($initial_own * (($s["attack"] * $shrine_mult) + ($lvl_atk * $bonus_atk)));
-                $atk_def_pool += ($initial_own * ($s["defense"] + ($lvl_def * $bonus_def)));
+        // Insert losses to database
+        foreach ($combat["report_attacker_units"] as $au) {
+            if ($au["losses"] > 0) {
+                $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                    [$au["losses"], $event_id, $au["id"]]);
             }
         }
 
-        foreach ($monster_data as $m) {
-            $mon_atk_pool += ($m["count"] * $m["atk"]);
-            $mon_def_pool += ($m["count"] * $m["def"]);
-        }
-
-        $lethality = LETHALITY_PVE;
-        $atk_loss_ratio = ($atk_def_pool > 0) ? min(1.0, $mon_atk_pool / ($atk_def_pool * $lethality)) : 1.0;
-        $mon_loss_ratio = ($mon_def_pool > 0) ? min(1.0, $atk_atk_pool / ($mon_def_pool * $lethality)) : 1.0;
-
-        if ($atk_atk_pool > 0 && $mon_atk_pool > 0) {
-            $ratio = $atk_atk_pool / $mon_atk_pool;
-
-            $clamped_ratio_val = max(0.0, min(1.0, $ratio / MONSTER_DMG_CLAMPED_MAX_VAL));
-            $lossMultiplier = pow(1.0 - $clamped_ratio_val, MONSTER_DMG_LOSS_EXPONENT);
-
-            $atk_loss_ratio = $atk_loss_ratio * $lossMultiplier;
-        }
-
-        $total_score_loss = 0;
-        $monsters_slain = 0;
-        $surviving_attacker_units = 0;
-        $total_monsters_remaining = 0;
-
-        $report_attacker_units = [];
-        $report_monster_units = [];
-
-        // Attacker Losses
-        foreach ($soldier_types as $id => $s) {
-            $initial = $conquest->get_initial_count_by_id($id, true);
-
-            if ($initial > 0) {
-                $cat = (int)$s["category"];
-                $lvl_atk = $home_k->get_kingdom_tech_level(13 + ($cat * 2));
-                $lvl_def = $home_k->get_kingdom_tech_level(14 + ($cat * 2));
-
-                $b_atk_val = match ($cat) {
-                    0 => SMITHY_INF_ATK_BONUS,
-                    1 => SMITHY_CAV_ATK_BONUS,
-                    2 => SMITHY_ARC_ATK_BONUS,
-                    default => 0
-                };
-                $b_def_val = match ($cat) {
-                    0 => SMITHY_INF_DEF_BONUS,
-                    1 => SMITHY_CAV_DEF_BONUS,
-                    2 => SMITHY_ARC_DEF_BONUS,
-                    default => 0
-                };
-
-                $shrine_mult = ($home_k->get_kingdom_alignment() == 1) ? (1.0 + $home_k->get_shrine_modifier()) : 1.0;
-
-                $display_atk = (int)(($s["attack"] * $shrine_mult) + ($lvl_atk * $b_atk_val));
-                $display_def = (int)($s["defense"] + ($lvl_def * $b_def_val));
-
-                $loss = (int)round($initial * $atk_loss_ratio);
-                $surviving_attacker_units += ($initial - $loss);
-
-                $res_icon = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
-                $report_attacker_units[] = [
-                    "name" => $s["soldiername"],
-                    "initial" => $initial,
-                    "losses" => $loss,
-                    "icon" => $res_icon->fetch_column() ?: "icon_error",
-                    "atk" => $display_atk,
-                    "def" => $display_def
-                ];
-
-                if ($loss > 0) {
-                    $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$loss, $event_id, $id]);
-                }
-                $total_score_loss += ($loss * $s["score"]);
-            }
-        }
-
-        // Monster Losses
-        foreach ($monster_data as $m) {
-            $initial = $m["count"];
-            $loss = (int)round($initial * $mon_loss_ratio);
-
-            if ($mon_loss_ratio < 1.0 && $loss >= $initial) {
-                $loss = $initial - 1;
-            }
-
-            $survivors = $initial - $loss;
-            $monsters_slain += $loss;
-            $total_monsters_remaining += $survivors;
-
-            $report_monster_units[] = [
-                "name" => $m["name"],
-                "initial" => $initial,
-                "losses" => $loss,
-                "icon" => $m["icon"],
-                "atk" => $m["atk"],
-                "def" => $m["def"]
-            ];
-        }
-
-        update_player_stat($attacker_id, "monster_kills", $monsters_slain);
-        $total_atk_loss = 0;
-        foreach ($report_attacker_units as $au) {
-            $total_atk_loss += $au["losses"];
-        }
-        if ($total_atk_loss > 0) {
-            update_player_stat($attacker_id, "units_fallen_pve", $total_atk_loss);
+        update_player_stat($attacker_id, "monster_kills", $combat["monsters_slain"]);
+        if ($combat["total_atk_loss"] > 0) {
+            update_player_stat($attacker_id, "units_fallen_pve", $combat["total_atk_loss"]);
         }
 
         $looted_coins = 0;
         $loot_res = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
-        $victory = ($total_monsters_remaining <= 0);
+        $victory = $combat["victory"];
 
         if (!$victory) {
-            $monster_ids = array_keys($monster_data);
-
-            foreach ($report_monster_units as $index => $rep_m) {
-                $current_m_id = $monster_ids[$index];
+            foreach ($combat["report_monster_units"] as $rep_m) {
+                $current_m_id = $rep_m["id"];
                 $rem_count = $rep_m["initial"] - $rep_m["losses"];
 
                 if ($rep_m["losses"] > 0) {
@@ -2494,15 +2505,15 @@ class EventManager
 
         $message .= "<div class='title-border'>Kampfbericht: Monstercamp ($c_link)</div>";
         $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 6px; opacity: 0.8;'>Truppen aus: <b>$home_name</b> ($h_link)</div>";
-        $message .= BattleReportRenderer::render_vs_grid($report_attacker_units, $report_monster_units, "Deine Truppen", "Monsterhorde (Lv $camp_lvl)");
+        $message .= BattleReportRenderer::render_vs_grid($combat["report_attacker_units"], $combat["report_monster_units"], "Deine Truppen", "Monsterhorde (Lv $camp_lvl)");
 
         if ($victory) {
-            $sub = ($surviving_attacker_units > 0)
+            $sub = ($combat["surviving_attacker_units"] > 0)
                 ? "Deine Truppen haben überlebt und bringen die Beute nach Hause!"
                 : "Das Camp wurde gesäubert, aber alle deine Truppen fielen im Kampf. Die Beute ist verloren!";
 
             $loot_display = [];
-            if ($surviving_attacker_units > 0) {
+            if ($combat["surviving_attacker_units"] > 0) {
                 $loot_display = [
                     ResourceTypes::RESOURCE_TYPE_COINS => $looted_coins,
                     ResourceTypes::RESOURCE_TYPE_FOOD => $loot_res["food"],
@@ -2513,23 +2524,23 @@ class EventManager
             }
 
             $message .= BattleReportRenderer::render_outcome_box("Sieg!", "Das Camp wurde gesäubert.", 0, 0, $sub, "success",
-                ($surviving_attacker_units > 0 ? $loot_display : []));
+                ($combat["surviving_attacker_units"] > 0 ? $loot_display : []));
 
             update_player_stat($attacker_id, "camps_cleared");
         } else {
             $res_style = "neutral";
 
-            if ($surviving_attacker_units > 0) {
-                if ($total_atk_loss === 0 && $monsters_slain === 0) {
+            if ($combat["surviving_attacker_units"] > 0) {
+                if ($combat["total_atk_loss"] === 0 && $combat["monsters_slain"] === 0) {
                     $res_title = "Pattsituation";
                     $res_text = "Keine der Seiten konnte die Verteidigung durchbrechen.";
                     $res_sub = "Die Truppen-Verluste blieben auf beiden Seiten aus. Wir ziehen uns zurück.";
-                } else if ($total_atk_loss === 0 && $monsters_slain > 0) {
+                } else if ($combat["total_atk_loss"] === 0 && $combat["monsters_slain"] > 0) {
                     $res_title = "Erfolgreiches Gefecht";
                     $res_text = "Wir haben die Reihen der Monster gelichtet!";
                     $res_sub = "Unsere Truppen haben den Gegner ohne eigene Verluste attackiert und ziehen sich taktisch zurück.";
                     $res_style = "success";
-                } else if ($monsters_slain >= $total_atk_loss) {
+                } else if ($combat["monsters_slain"] >= $combat["total_atk_loss"]) {
                     $res_title = "Taktischer Rückzug";
                     $res_text = "Die Monsterhorde wurde geschwächt.";
                     $res_sub = "Wir haben dem Gegner Verluste zugefügt, konnten das Camp aber nicht säubern.";
@@ -2553,15 +2564,17 @@ class EventManager
 
         send_server_message($attacker_id, $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
 
-        $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
-        update_global_stat("total_slain_monsters", $monsters_slain);
+        if ($combat["total_score_loss"] > 0) {
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
+        }
+        update_global_stat("total_slain_monsters", $combat["monsters_slain"]);
 
         $total_loot = array_sum($loot_res);
         if ($total_loot > 0) {
             update_player_stat($attacker_id, "resources_looted", $total_loot);
         }
 
-        if ($surviving_attacker_units > 0) {
+        if ($combat["surviving_attacker_units"] > 0) {
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, loot_coins = ?, 
                     loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $looted_coins,
@@ -2572,12 +2585,17 @@ class EventManager
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
+        $troops_sent_details = [];
+        foreach ($combat["report_attacker_units"] as $u) {
+            $troops_sent_details[$u["name"]] = $u["initial"];
+        }
+
         Logger::get_instance()->log_game("COMBAT", "MONSTER_BATTLE", [
             "target_coords" => "$tx:$ty",
             "victory" => $victory,
-            "troops_sent" => $conquest->get_initial_soldiers_detailed(),
-            "attacker_losses" => $total_atk_loss,
-            "monsters_slain" => $monsters_slain,
+            "troops_sent" => $troops_sent_details,
+            "attacker_losses" => $combat["total_atk_loss"],
+            "monsters_slain" => $combat["monsters_slain"],
             "loot_res" => $loot_res,
             "loot_coins" => $looted_coins
         ], $row["kingdomid"]);
@@ -2936,5 +2954,206 @@ class EventManager
             "",
             "success"
         );
+    }
+
+    public function process_ruin_battle(array $row, Kingdom $home_k, User $attacker_user, int $return_time): void
+    {
+        $attacker_id = $attacker_user->get_user_id();
+        $tx = (int)$row["targetx"];
+        $ty = (int)$row["targety"];
+        $event_id = (int)$row["eventid"];
+
+        $res_ruin = $this->mysqli->execute_query(
+            "SELECT * FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ? FOR UPDATE",
+            [$tx, $ty]
+        )->fetch_assoc();
+
+        if (!$res_ruin || (time() > $res_ruin["expires_at"] && $res_ruin["expires_at"] > 0)) {
+            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                    "Ruine verfallen",
+                    "Die Ruinen bei ($tx:$ty) sind endgültig zerfallen. Deine Truppen kehren um."
+                ) . "</div>";
+            send_server_message($attacker_id, $attacker_user->get_user_name(), $msg, MessageCategories::CATEGORY_WAR);
+
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+            return;
+        }
+
+        $res_units = $this->mysqli->execute_query("
+            SELECT aku.count, ml.id as monster_id, ml.monster_name, ml.attack, ml.defense, ml.icon
+            FROM abandoned_kingdom_units aku
+            JOIN monster_list ml ON aku.monster_id = ml.id
+            WHERE aku.mapx = ? AND aku.mapy = ?", [$tx, $ty]);
+
+        $enemy_monsters = [];
+        foreach ($res_units as $m) {
+            $enemy_monsters[$m["monster_id"]] = [
+                "count" => (int)$m["count"],
+                "name" => $m["monster_name"],
+                "atk" => (int)$m["attack"],
+                "def" => (int)$m["defense"],
+                "icon" => $m["icon"]
+            ];
+        }
+
+        $conquest = new Conquest($this->mysqli);
+        $conquest->set_event_id($event_id);
+        $conquest->fetch_sent_troops();
+        $conquest->initialize_soldier_types();
+        $conquest->initialize_soldier_values();
+        $conquest->set_initial_monster_battle();
+
+        $combat = $this->execute_pve_combat_math($conquest, $home_k, $enemy_monsters);
+
+        foreach ($combat["report_attacker_units"] as $au) {
+            if ($au["losses"] > 0) {
+                $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                    [$au["losses"], $event_id, $au["id"]]);
+            }
+        }
+
+        if ($combat["monsters_slain"] > 0) {
+            update_player_stat($attacker_id, "monster_kills", $combat["monsters_slain"]);
+            update_global_stat("total_slain_monsters", $combat["monsters_slain"]);
+        }
+        if ($combat["total_atk_loss"] > 0) {
+            update_player_stat($attacker_id, "units_fallen_pve", $combat["total_atk_loss"]);
+        }
+
+        $victory = $combat["victory"];
+        $loot = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
+
+        if ($victory) {
+            if ($combat["surviving_attacker_units"] > 0) {
+                $loot["food"] = (int)$res_ruin["food"];
+                $loot["wood"] = (int)$res_ruin["wood"];
+                $loot["stone"] = (int)$res_ruin["stone"];
+                $loot["gold"] = (int)$res_ruin["gold"];
+            }
+
+            $this->mysqli->execute_query("DELETE FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+        } else {
+            foreach ($combat["report_monster_units"] as $rm) {
+                $mid = $rm["id"];
+                $rem = $rm["initial"] - $rm["losses"];
+
+                if ($rem <= 0) {
+                    $this->mysqli->execute_query("DELETE FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$tx, $ty, $mid]);
+                } else {
+                    $this->mysqli->execute_query("UPDATE abandoned_kingdom_units SET count = ? WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$rem, $tx, $ty, $mid]);
+                }
+            }
+        }
+
+        // Bericht zusammenstellen
+        $kname = e($res_ruin["kingdom_name"]);
+        $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+        $message = "<div class='battle-report'>";
+        $message .= "<div class='title-border'>Schlacht um die Ruinen von $kname ($c_link)</div>";
+        $message .= BattleReportRenderer::render_vs_grid($combat["report_attacker_units"], $combat["report_monster_units"], "Deine Truppen", "Besatzer der Ruine");
+
+        if ($victory) {
+            $sub = ($combat["surviving_attacker_units"] > 0)
+                ? "Die Monster wurden vernichtet und die Vorräte der Ruine geborgen!"
+                : "Die Monster wurden besiegt, aber deine Truppen fielen. Die Beute ging verloren!";
+            $loot_display = [
+                ResourceTypes::RESOURCE_TYPE_FOOD => $loot["food"],
+                ResourceTypes::RESOURCE_TYPE_WOOD => $loot["wood"],
+                ResourceTypes::RESOURCE_TYPE_STONE => $loot["stone"],
+                ResourceTypes::RESOURCE_TYPE_GOLD => $loot["gold"]
+            ];
+            $message .= BattleReportRenderer::render_outcome_box("Sieg!", "Die Ruinen wurden erfolgreich erstürmt.",
+                0, 0, $sub, "success", $combat["surviving_attacker_units"] > 0 ? $loot_display : []);
+
+            update_player_stat($attacker_id, "resources_looted", array_sum($loot));
+        } else {
+            $message .= BattleReportRenderer::render_outcome_box("Rückzug", "Die Verteidiger der Ruine leisteten zu starken Widerstand.",
+                0, 0, "Unsere Truppen mussten sich zurückziehen.", "error");
+        }
+        $message .= "</div>";
+
+        send_server_message($attacker_id, $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
+
+        if ($combat["total_score_loss"] > 0) {
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
+        }
+
+        if ($combat["surviving_attacker_units"] > 0) {
+            $this->mysqli->execute_query(
+                "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $loot["food"], $loot["wood"], $loot["stone"], $loot["gold"], $event_id]
+            );
+        } else {
+            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+        }
+    }
+
+    public function process_ruin_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void
+    {
+        $attacker_id = $attacker_user->get_user_id();
+        $tx = (int)$row["targetx"];
+        $ty = (int)$row["targety"];
+        $event_id = (int)$row["eventid"];
+
+        $res_ruin = $this->mysqli->execute_query("SELECT * FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
+
+        if (!$res_ruin) {
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+            return;
+        }
+
+        $units = $this->mysqli->execute_query("
+            SELECT ml.id AS monster_id, ml.monster_name, ml.icon, aku.count 
+            FROM abandoned_kingdom_units aku 
+            JOIN monster_list ml ON aku.monster_id = ml.id 
+            WHERE aku.mapx = ? AND aku.mapy = ?", [$tx, $ty])->fetch_all(MYSQLI_ASSOC);
+
+        $kname = e($res_ruin["kingdom_name"]);
+        $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+        $message = "<div class='battle-report'><div class='battle-column'>";
+        $message .= "<div class='title-border'>Kundschafterbericht: Ruinen von $kname ($c_link)</div>";
+        $message .= "<div class='report-section-title'>Gelagerte Schätze</div>";
+
+        $res = [
+            "food" => $res_ruin["food"], "wood" => $res_ruin["wood"],
+            "stone" => $res_ruin["stone"], "gold" => $res_ruin["gold"]
+        ];
+        $message .= BattleReportRenderer::render_scout_resource_bar($res);
+
+        $message .= "<div class='report-section-title' style='margin-top: 15px;'>Gesichtete Besatzer</div>";
+        $message .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 10px;'>";
+
+        $sim_data = [];
+        foreach ($units as $u) {
+            $sim_data[$u["monster_id"]] = (int)$u["count"];
+            $message .= BattleReportRenderer::render_unit_card($u["monster_name"], (int)$u["count"], 0, $u["icon"], true);
+        }
+        $message .= "</div>";
+
+        if (!empty($sim_data)) {
+            $encoded_monsters = urlencode(json_encode($sim_data));
+            $sim_link = "warsim.php?import_monsters=" . $encoded_monsters;
+
+            $message .= "<div style='text-align: center; margin: 15px 0;'>
+                    <a href='$sim_link'>
+                        <button type='button'>⚔️ Werte in War Simulator übertragen</button>
+                    </a>
+             </div>";
+        }
+
+        $message .= BattleReportRenderer::render_own_scout_status($atk_scouts, 0);
+        $message .= "</div></div>";
+
+        send_server_message($attacker_id, $attacker_user->get_user_name(), $message, MessageCategories::CATEGORY_WAR);
+
+        $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+
+        update_player_stat($attacker_id, "spy_count");
     }
 }

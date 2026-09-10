@@ -17,16 +17,19 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
               CASE 
                 WHEN m.kingdomid = -2 AND (r.mapx IS NULL OR r.expires_at < UNIX_TIMESTAMP()) THEN -1
                 WHEN m.kingdomid = -3 AND (mc.mapx IS NULL OR mc.expires_at < UNIX_TIMESTAMP()) THEN -1
+                WHEN m.kingdomid = -4 AND (ak.mapx IS NULL OR ak.expires_at < UNIX_TIMESTAMP()) THEN -1
                 ELSE m.kingdomid 
             END AS kingdomid, 
-            k.username, k.kingdomname, u.ranking_points AS score,
-            IFNULL(b_tc.buildinglevel, 1) AS buildinglevel,
+            COALESCE(k.username, ak.kingdom_name, '') as username,
+            COALESCE(k.kingdomname, ak.kingdom_name, '') as kingdomname,
+            COALESCE(b_tc.buildinglevel, ak.tc_level, 1) AS buildinglevel,
+            u.ranking_points AS score,
             CASE WHEN m.kingdomid > 0 AND k.wallhp <= (
                (IFNULL(b_wall.buildinglevel, 1) * " . DEFAULT_WALL_HP . " + 
                 IFNULL(t_wall.techlevel, 0) * " . RESEARCH_WALL_HP_INC . ") / 2
             ) THEN 1 ELSE 0 END as is_burning,
             IFNULL(mc.level, 0) AS monsterlevel,
-            COALESCE(r.expires_at, mc.expires_at, 0) as expires_at,
+            COALESCE(r.expires_at, mc.expires_at, ak.expires_at, 0) as expires_at,
             k.userid as owner_id,
             u.guildid,
             e_mov.my_troop_icon,
@@ -44,6 +47,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
           LEFT JOIN techs t_wall ON m.kingdomid = t_wall.kingdomid AND t_wall.techid = " . TechTypes::TECH_TYPE_WALL_HP_INC . "
           LEFT JOIN monster_camps mc ON m.mapx = mc.mapx AND m.mapy = mc.mapy
           LEFT JOIN resource_tiles_data r ON m.mapx = r.mapx AND m.mapy = r.mapy
+          LEFT JOIN abandoned_kingdoms ak ON m.mapx = ak.mapx AND m.mapy = ak.mapy
           LEFT JOIN (
               SELECT e.targetx, e.targety, 
                      SUBSTRING_INDEX(

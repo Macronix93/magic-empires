@@ -363,6 +363,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $guild_manager = new Guild($db_instance, $user, $user->get_user_guild_id());
                 $guild_manager->handle_leader_deletion($uid);
 
+                convert_user_kingdoms_to_ruins($db_instance, $uid);
+
                 $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
                 $em = new EventManager($user);

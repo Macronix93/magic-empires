@@ -142,7 +142,7 @@ class Map
         } else if ($is_caravan) {
             $modified_time *= CARAVAN_SPEED_FACTOR;
         } else {
-            if ($actual_target_id === -3) {
+            if ($actual_target_id === -3 || $actual_target_id === -4) {
                 $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
                 $modified_time *= $boost;
             } else if ($actual_target_id === -2 && $is_scouting) {

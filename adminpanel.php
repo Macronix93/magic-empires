@@ -792,12 +792,15 @@ if (!$user->is_admin()) {
             $guild_manager = new Guild($db_instance, $user);
             $guild_manager->handle_leader_deletion($user_id);
 
+            // Convert users kingdoms to abandoned kingdoms
+            convert_user_kingdoms_to_ruins($db_instance, $user_id);
+
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
 
             // Reset map spots that were taken by the users kingdoms
             foreach ($result as $row) {
-                if ($row['kingdomid'] !== null) {
+                if ($row["kingdomid"] !== null) {
                     $db_instance->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = ?", [$row["kingdomid"]]);
                 }
             }

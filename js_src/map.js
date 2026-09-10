@@ -54,7 +54,8 @@ document.addEventListener("DOMContentLoaded", () => {
         fire: 'images/icons/icon_fire.png',
         monster1: 'images/icons/icon_goblin.png',  // Level 1-3
         monster2: 'images/icons/icon_golem_small.png',  // Level 4-7
-        monster3: 'images/icons/icon_dragon_small.png'  // Level 8-10
+        monster3: 'images/icons/icon_dragon_small.png',  // Level 8-10
+        ruin: 'images/icons/icon_ruins.png'
     };
 
     let loadedCount = 0;
@@ -81,6 +82,20 @@ document.addEventListener("DOMContentLoaded", () => {
             zoom = 1.0;
         }
 
+        const shouldRestore = sessionStorage.getItem("restore_map_zoom_after_send");
+        const savedZoom = sessionStorage.getItem("last_map_zoom");
+
+        if (shouldRestore === "true" && savedZoom !== null) {
+            const parsed = parseFloat(savedZoom);
+
+            if (!isNaN(parsed) && parsed >= 0.15 && parsed <= 2.0) {
+                zoom = parsed;
+            }
+
+            sessionStorage.removeItem("restore_map_zoom_after_send");
+            sessionStorage.removeItem("last_map_zoom");
+        }
+
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(r => r.json())
             .then(data => {
@@ -96,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (window.innerWidth <= 1392) {
                     const statusMsg = document.querySelector(".big-box-content > .info-box");
-                    const legend = document.getElementById("map-legend-fieldtypes");
+                    const legend = document.getElementById("map-container");
 
                     const targetElement = statusMsg || legend;
                     const yOffset = targetElement === statusMsg ? -60 : -20;
@@ -111,6 +126,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Events
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest('[data-url*="sendtroops.php"]');
+
+        if (btn) {
+            sessionStorage.setItem("last_map_zoom", zoom.toString());
+            sessionStorage.setItem("restore_map_zoom_after_send", "true");
+        }
+    });
     window.addEventListener("resize", resizeCanvas);
     viewport.addEventListener("wheel", handleWheel, {passive: false});
     viewport.addEventListener("mousedown", dragStart);
@@ -170,7 +193,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const pathToggle = document.getElementById("show-path-toggle");
     if (pathToggle) {
-        pathToggle.addEventListener("change", () => draw());
+        pathToggle.addEventListener("change", () => {
+            document.cookie = "me_map_show_path=" + (pathToggle.checked ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
+            draw();
+        });
     }
 
     ["startx", "starty"].forEach(id => {
@@ -313,30 +339,25 @@ function draw() {
 
             if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
 
-            const isOwn = (owner_id === gameConfig.currentKingdom.ownerId);
-            const isAlly = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId === gameConfig.currentKingdom.guildId);
-            const isEnemyGuild = (enemyGuildId !== -1 && enemyGuildId !== gameConfig.currentKingdom.guildId);
             const filterPlayers = document.getElementById("filter-players").checked;
             const filterResources = document.getElementById("filter-resources").checked;
             const filterMonsters = document.getElementById("filter-monsters").checked;
+            const filterRuins = document.getElementById("filter-ruins").checked;
 
-            if (kid > 0) {
-                if (!filterPlayers) return;
-            } else if (kid === -2) {
-                if (!filterResources) return;
-            } else if (kid === -3) {
-                if (!filterMonsters) return;
-            } else if (kid === -999) {
+            if (kid > 0 && !filterPlayers) return;
+            if (kid === -2 && !filterResources) return;
+            if (kid === -3 && !filterMonsters) return;
+            if (kid === -4 && !filterRuins) return;
+
+            if (kid === -999) {
                 ctx.fillStyle = "rgba(230, 0, 0, 0.1)";
                 ctx.fillRect(posX, posY, scaledTile, scaledTile);
 
                 const isEventActive = window.activeEventInfo && window.activeEventInfo.is_active;
-
                 if (!isEventActive) {
                     ctx.strokeStyle = "rgb(230, 0, 0)";
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-
                     if (x === 49) {
                         ctx.moveTo(posX, posY);
                         ctx.lineTo(posX, posY + scaledTile);
@@ -353,44 +374,47 @@ function draw() {
                         ctx.moveTo(posX, posY + scaledTile);
                         ctx.lineTo(posX + scaledTile, posY + scaledTile);
                     }
-
                     ctx.stroke();
                 }
                 return;
-            }
-
-            if (isOwn) {
-                ctx.fillStyle = "rgba(11, 218, 81, 0.2)";
-                ctx.strokeStyle = "#0BDA51";
-                ctx.lineWidth = 1;
-                ctx.fillRect(posX, posY, scaledTile, scaledTile);
-                ctx.strokeRect(posX, posY, scaledTile, scaledTile);
-            } else if (isAlly) {
-                ctx.fillStyle = "rgba(0, 123, 255, 0.2)";
-                ctx.strokeStyle = "#007bff";
-                ctx.lineWidth = 1;
-                ctx.fillRect(posX, posY, scaledTile, scaledTile);
-                ctx.strokeRect(posX, posY, scaledTile, scaledTile);
-            } else if (isEnemyGuild) {
-                ctx.fillStyle = "rgba(220, 53, 69, 0.15)";
-                ctx.strokeStyle = "#dc3545";
-                ctx.lineWidth = 1;
-                ctx.fillRect(posX, posY, scaledTile, scaledTile);
-                ctx.strokeRect(posX, posY, scaledTile, scaledTile);
             }
 
             if (kid === -2) {
                 ctx.drawImage(images.gems, posX + scaledTile * 0.2, posY + scaledTile * 0.2, scaledTile * 0.6, scaledTile * 0.6);
             } else if (kid === -3) {
                 let mIcon = images.monster1;
-
                 if (monsterLevel >= 8) mIcon = images.monster3;
                 else if (monsterLevel >= 4) mIcon = images.monster2;
 
                 ctx.drawImage(mIcon, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
-            } else {
-                let img = images.house;
+            } else if (kid === -4) {
+                ctx.drawImage(images.ruin, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
+            } else if (kid > 0) {
+                const isOwn = (owner_id === gameConfig.currentKingdom.ownerId);
+                const isAlly = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId === gameConfig.currentKingdom.guildId);
+                const isEnemyGuild = (enemyGuildId !== -1 && enemyGuildId !== gameConfig.currentKingdom.guildId);
 
+                if (isOwn) {
+                    ctx.fillStyle = "rgba(11, 218, 81, 0.2)";
+                    ctx.strokeStyle = "#0BDA51";
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                    ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+                } else if (isAlly) {
+                    ctx.fillStyle = "rgba(0, 123, 255, 0.2)";
+                    ctx.strokeStyle = "#007bff";
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                    ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+                } else if (isEnemyGuild) {
+                    ctx.fillStyle = "rgba(220, 53, 69, 0.15)";
+                    ctx.strokeStyle = "#dc3545";
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                    ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+                }
+
+                let img = images.house;
                 if (level >= 8) img = images.castle;
                 else if (level >= 6) img = images.tower2;
                 else if (level >= 3) img = images.town;
@@ -595,7 +619,7 @@ function selectField(x, y, shouldCenter = false) {
     const tile = mapData.find(t => t[0] === x && t[1] === y);
     if (!tile) return;
 
-    const [tx, ty, , kid, , , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt, , enemyGuildId, hasOutgoing] = tile;
+    const [tx, ty, , kid, level, , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt, , enemyGuildId, hasOutgoing] = tile;
 
     const pathResult = calculatePathLocal(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y, tx, ty);
     currentPath = pathResult.path;
@@ -616,7 +640,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
         if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Gründen</button>`;
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&cat=3" ${btnDisabled}>Gründen</button>`;
         } else {
             html += `<small class="error">Gründungskarren benötigt!</small>`;
         }
@@ -667,6 +691,21 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
         html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
+        html += `</td></tr></table>`;
+    } else if (kid === -4) {
+        // --- ABANDONED KINGDOM ---
+        const travelTime = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST);
+        const arrivalScout = Math.round(travelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
+        const lifetime = expiresAt - now;
+
+        html += `<div class="title-border">Ruinen von ${kname}</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ehemalige Stufe</b></td><td>Dorfzentrum Stufe ${level}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(travelTime)}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Verfällt in</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+        html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Ruine stürmen</button>`;
         html += `</td></tr></table>`;
     } else if (kid === -999) {
         // --- EVENT CENTER

@@ -209,33 +209,33 @@ class Conquest
     {
         // TECHS ATTACKER
         $atk_techs = [
-            "inf_a" => $attacker_kingdom->get_kingdom_tech_level(13) * SMITHY_INF_ATK_BONUS,
-            "inf_d" => $attacker_kingdom->get_kingdom_tech_level(14) * SMITHY_INF_DEF_BONUS,
-            "cav_a" => $attacker_kingdom->get_kingdom_tech_level(15) * SMITHY_CAV_ATK_BONUS,
-            "cav_d" => $attacker_kingdom->get_kingdom_tech_level(16) * SMITHY_CAV_DEF_BONUS,
-            "arc_a" => $attacker_kingdom->get_kingdom_tech_level(17) * SMITHY_ARC_ATK_BONUS,
-            "arc_d" => $attacker_kingdom->get_kingdom_tech_level(18) * SMITHY_ARC_DEF_BONUS
+            "inf_a" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS,
+            "inf_d" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS,
+            "cav_a" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS,
+            "cav_d" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS,
+            "arc_a" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS,
+            "arc_d" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS
         ];
 
         // TECHS DEFENDER
         $def_techs = [
-            "inf_a" => $defender_kingdom->get_kingdom_tech_level(13) * SMITHY_INF_ATK_BONUS,
-            "inf_d" => $defender_kingdom->get_kingdom_tech_level(14) * SMITHY_INF_DEF_BONUS,
-            "cav_a" => $defender_kingdom->get_kingdom_tech_level(15) * SMITHY_CAV_ATK_BONUS,
-            "cav_d" => $defender_kingdom->get_kingdom_tech_level(16) * SMITHY_CAV_DEF_BONUS,
-            "arc_a" => $defender_kingdom->get_kingdom_tech_level(17) * SMITHY_ARC_ATK_BONUS,
-            "arc_d" => $defender_kingdom->get_kingdom_tech_level(18) * SMITHY_ARC_DEF_BONUS
+            "inf_a" => $defender_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS,
+            "inf_d" => $defender_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS,
+            "cav_a" => $defender_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS,
+            "cav_d" => $defender_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS,
+            "arc_a" => $defender_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS,
+            "arc_d" => $defender_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS
         ];
 
         // Shrine Boni
         $atk_shrine = 1.0;
-        if ($attacker_kingdom->get_kingdom_alignment() == 1) {
-            $atk_shrine += $attacker_kingdom->get_shrine_modifier();
+        if ($attacker_kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+            $atk_shrine += $attacker_kingdom->calculate_shrine_bonus($attacker_kingdom->get_shrine_modifier());
         }
 
         $def_atk_shrine = 1.0;
-        if ($defender_kingdom->get_kingdom_alignment() == 1) {
-            $def_atk_shrine += $defender_kingdom->get_shrine_modifier();
+        if ($defender_kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+            $def_atk_shrine += $defender_kingdom->calculate_shrine_bonus($defender_kingdom->get_shrine_modifier());
         }
 
         foreach ($this->soldier_types as $id => $soldier) {
@@ -250,17 +250,17 @@ class Conquest
 
             if ($prefix) {
                 // Stats Attacker Troops
-                $this->soldier_type_atk[$id] = (int)(($soldier["attack"] * $atk_shrine) + $atk_techs[$prefix . 'a']);
-                $this->soldier_type_def[$id] = $soldier["defense"] + $atk_techs[$prefix . 'd'];
+                $this->soldier_type_atk[$id] = (int)round(($soldier["attack"] * $atk_shrine) + $atk_techs[$prefix . 'a']);
+                $this->soldier_type_def[$id] = (int)($soldier["defense"] + $atk_techs[$prefix . 'd']);
                 // Stats Defender Troops
-                $this->enemy_soldier_type_atk[$id] = (int)(($soldier["attack"] * $def_atk_shrine) + $def_techs[$prefix . 'a']);
-                $this->enemy_soldier_type_def[$id] = $soldier["defense"] + $def_techs[$prefix . 'd'];
+                $this->enemy_soldier_type_atk[$id] = (int)round(($soldier["attack"] * $def_atk_shrine) + $def_techs[$prefix . 'a']);
+                $this->enemy_soldier_type_def[$id] = (int)($soldier["defense"] + $def_techs[$prefix . 'd']);
             } else {
                 // Special Units
-                $this->soldier_type_atk[$id] = $soldier["attack"];
-                $this->soldier_type_def[$id] = $soldier["defense"];
-                $this->enemy_soldier_type_atk[$id] = $soldier["attack"];
-                $this->enemy_soldier_type_def[$id] = $soldier["defense"];
+                $this->soldier_type_atk[$id] = (int)$soldier["attack"];
+                $this->soldier_type_def[$id] = (int)$soldier["defense"];
+                $this->enemy_soldier_type_atk[$id] = (int)$soldier["attack"];
+                $this->enemy_soldier_type_def[$id] = (int)$soldier["defense"];
             }
         }
     }
