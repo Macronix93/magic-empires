@@ -3,6 +3,7 @@ test.*
 aba_map_gen.php
 sync_xahz63.php
 debug_event.php
+sync_score_dhsga.php
 /logs/*
 /backups/*
 /uploads/*

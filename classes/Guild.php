@@ -34,8 +34,7 @@ class Guild
             $this->min_score = (int)$row["min_score"];
             $this->last_settings_change = (int)$row["last_settings_change"];
             $this->storage = [
-                "food" => (int)$row["food"], "wood" => (int)$row["wood"], "stone" => (int)$row["stone"],
-                "gold" => (int)$row["gold"], "coal" => (int)$row["coal"], "iron" => (int)$row["iron"],
+                "coal" => (int)$row["coal"], "iron" => (int)$row["iron"],
                 "sapphire" => (int)$row["sapphire"], "diamond" => (int)$row["diamond"]
             ];
         }
@@ -235,14 +234,22 @@ class Guild
                 [$target_guild_id]
             )->fetch_column();
 
-            if ($member_count >= (int)$guild["max_members"]) {
+            $current_max_members = $this->get_max_members($target_guild_id);
+            if ($member_count >= $current_max_members) {
                 $this->db->rollback();
                 return "Die Gilde ist bereits voll.";
             }
 
-            if (!$via_invite && $this->user->get_user_score() < (int)$guild["min_score"]) {
-                $this->db->rollback();
-                return "Dein Punktestand ist zu niedrig für diese Gilde.";
+            if (!$via_invite) {
+                if ((int)$guild["min_score"] === -1) {
+                    $this->db->rollback();
+                    return "Diese Gilde ist nur per Einladung erreichbar und kann nicht direkt betreten werden.";
+                }
+
+                if ($this->user->get_user_score() < (int)$guild["min_score"]) {
+                    $this->db->rollback();
+                    return "Dein Punktestand ist zu niedrig für diese Gilde.";
+                }
             }
 
             $this->db->execute_query(
@@ -557,7 +564,8 @@ class Guild
         return $this->db->query("
             SELECT g.*, u.username as founder_name, 
             (SELECT COUNT(*) FROM users WHERE guildid = g.id) as member_count,
-            (SELECT SUM(ranking_points) FROM users WHERE guildid = g.id) as total_score
+            (SELECT SUM(ranking_points) FROM users WHERE guildid = g.id) as total_score,
+            (" . GUILD_BASE_MEMBER_LIMIT . " + (IFNULL((SELECT level FROM guild_techs WHERE guild_id = g.id AND tech_id = " . GuildTechTypes::GUILD_TECH_MEMBER_LIMIT . "), 0) * " . GUILD_BONUS_MEMBER_LIMIT_PER_LVL . ")) as max_members
             FROM guilds g
             JOIN users u ON g.founder_id = u.id
             ORDER BY total_score DESC
@@ -587,7 +595,8 @@ class Guild
         return $this->db->execute_query("
             SELECT g.*, u.username as founder_name,
             (SELECT COUNT(*) FROM users WHERE guildid = g.id) as members,
-            (SELECT SUM(ranking_points) FROM users WHERE guildid = g.id) as score
+            (SELECT SUM(ranking_points) FROM users WHERE guildid = g.id) as score,
+            (" . GUILD_BASE_MEMBER_LIMIT . " + (IFNULL((SELECT level FROM guild_techs WHERE guild_id = g.id AND tech_id = " . GuildTechTypes::GUILD_TECH_MEMBER_LIMIT . "), 0) * " . GUILD_BONUS_MEMBER_LIMIT_PER_LVL . ")) as max_members
             FROM guilds g JOIN users u ON g.founder_id = u.id WHERE g.id = ?",
             [$guild_id])->fetch_assoc();
     }
@@ -694,7 +703,7 @@ class Guild
         if (!empty($motto) && (mb_strlen($motto) < GUILD_MOTTO_MIN || mb_strlen($motto) > GUILD_MOTTO_MAX)) {
             return "Motto darf zwischen " . GUILD_MOTTO_MIN . " und " . GUILD_MOTTO_MAX . " Zeichen lang sein.";
         }
-        if ($min_score < 0) {
+        if ($min_score < 0 && $min_score !== -1) {
             return "Mindestpunktzahl darf nicht negativ sein.";
         }
         if ($min_score > GUILD_MAX_MINIMUM_SCORE) {
@@ -719,7 +728,8 @@ class Guild
                 i.id, 
                 u.id AS invited_user_id, 
                 u.username, 
-                i.expires_at, 
+                i.expires_at,
+                inviter.id as inviter_id,
                 inviter.username as inviter_name
             FROM guild_invites i
             JOIN users u ON i.user_id = u.id
@@ -1020,7 +1030,13 @@ class Guild
 
     public function modify_storage_resource(string $res_key, int $diff): void
     {
-        $this->db->execute_query("UPDATE guilds SET `$res_key` = `$res_key` + ? WHERE id = ?", [$diff, $this->id]);
+        $current = $this->get_storage_amount($res_key);
+        $max_limit = $this->get_storage_limit($res_key);
+
+        $new_val = max(0, min($max_limit, $current + $diff));
+
+        $this->db->execute_query("UPDATE guilds SET `$res_key` = ? WHERE id = ?", [$new_val, $this->id]);
+        $this->storage[$res_key] = $new_val;
     }
 
     public function get_tech_level(int $tech_id): int
@@ -1130,6 +1146,19 @@ class Guild
 
     public function cancel_active_project(): void
     {
+        $project = $this->get_active_project();
+        if ($project) {
+            $cur_lvl = $this->get_tech_level($project["tech_id"]);
+            $costs = $this->calculate_tech_costs($project, $cur_lvl);
+
+            $special_keys = ["coal", "iron", "sapphire", "diamond"];
+            foreach ($special_keys as $k) {
+                if (($costs[$k] ?? 0) > 0) {
+                    $this->modify_storage_resource($k, $costs[$k]);
+                }
+            }
+        }
+
         $this->db->execute_query("DELETE FROM guild_projects WHERE guild_id = ?", [$this->id]);
         $this->db->execute_query("
             UPDATE guild_member_contributions 
@@ -1169,5 +1198,33 @@ class Guild
         while ($m = $members->fetch_assoc()) {
             send_server_message((int)$m["id"], $m["username"], $html, MessageCategories::CATEGORY_GUILD);
         }
+    }
+
+    public static function get_user_guild_tech_level(int $user_id, int $tech_id): int
+    {
+        if ($user_id <= 0) return 0;
+
+        $db = Database::get_instance()->get_connection();
+
+        $res = $db->execute_query("
+            SELECT gt.level 
+            FROM users u
+            JOIN guild_techs gt ON u.guildid = gt.guild_id
+            WHERE u.id = ? AND gt.tech_id = ?
+        ", [$user_id, $tech_id]);
+
+        return (int)($res->fetch_column() ?? 0);
+    }
+
+    public function get_max_members(?int $specific_guild_id = null): int
+    {
+        $gid = $specific_guild_id ?? $this->id;
+        if (!$gid || $gid <= 0) return GUILD_BASE_MEMBER_LIMIT;
+
+        $res = $this->db->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?",
+            [$gid, GuildTechTypes::GUILD_TECH_MEMBER_LIMIT]);
+        $tech_lvl = (int)($res->fetch_column() ?? 0);
+
+        return GUILD_BASE_MEMBER_LIMIT + ($tech_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
     }
 }

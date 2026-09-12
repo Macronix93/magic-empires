@@ -70,6 +70,13 @@ $soldiers_count = count($soldiers);
 // Standard soldier category
 $active_cat = 0;
 
+if (isset($_COOKIE["me_barracks_cat"])) {
+    $cookie_cat = (int)$_COOKIE["me_barracks_cat"];
+    if ($cookie_cat >= 0 && $cookie_cat <= SoldierTypes::SOLDIER_TYPE_SUPPORT) {
+        $active_cat = $cookie_cat;
+    }
+}
+
 if (isset($_GET["cat"])) {
     $cat = (int)$_GET["cat"];
 
@@ -80,6 +87,8 @@ if (isset($_GET["cat"])) {
     } else {
         $active_cat = $cat;
     }
+
+    setcookie("me_barracks_cat", (string)$active_cat, time() + 31536000, "/", "", false, false);
 } else if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
     $r_id = (int)$_GET["recruit"];
 
@@ -99,6 +108,10 @@ if (isset($_GET["cat"])) {
     if (isset($soldiers[$kingdom_recruiting_id])) {
         $active_cat = $soldiers[$kingdom_recruiting_id]->get_soldier_category();
     }
+}
+
+if ($active_cat === SoldierTypes::SOLDIER_TYPE_SUPPORT && !$show_support_feature) {
+    $active_cat = 0;
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"])) {
@@ -497,7 +510,7 @@ foreach ($result_combined as $row) {
         $total_smithy_atk += ($sol_count * $b_atk);
         $total_shrine_atk += ($sol_count * $unit_shrine_gain);
 
-        $total_k_units += $sol_count; // Hier zählen wir jetzt die Gesamt-Masse
+        $total_k_units += $sol_count;
     }
 }
 
@@ -561,7 +574,8 @@ $limit_class = ($total_occupied_space > $troop_limit) ? "error" : "";
 
 $res_support_sum = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$current_kingdom]);
 $total_support_units = (int)$res_support_sum->fetch_row()[0];
-$support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+$g_cap_lvl = Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+$support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
 
 $view .= "
 <div class='garnison-box'>
@@ -637,8 +651,11 @@ $view .= '<div id="kingdom-resources"
     data-dynamic-limit="' . $dynamic_limit . '"
     data-smithy-multiplier="' . $smithy_multiplier . '"
     data-space-left="' . $space_left . '"></div>';
-$view .= "<div class='tab'>";
 
+$show_all_checked = (($_COOKIE["me_list_view"] ?? $_COOKIE["me_barracks_all_units"] ?? "0") === "1");
+$is_support_tab = ($active_cat === SoldierTypes::SOLDIER_TYPE_SUPPORT);
+
+$view .= "<div class='tab' id='barracks-tabs-standard' style='" . ($show_all_checked ? "display: none;" : "") . "'>";
 foreach ($categories as $id => $name) {
     if ($id === SoldierTypes::SOLDIER_TYPE_SUPPORT && !$show_support_feature) {
         continue;
@@ -646,33 +663,48 @@ foreach ($categories as $id => $name) {
 
     if ($category_availability[$id]) {
         $active_class = ($id === $active_cat) ? "active" : "";
-
         $view .= "<div class='tablinks $active_class' data-on-click='filterBarracks' data-category='$id'>$name</div>";
     } else {
         $view .= "<div class='tablinks tab-disabled' title='Hier gibt es noch keine Einheiten'>$name</div>";
     }
 }
-
 $view .= "</div>";
 
-$recruitment_visible = ($active_cat !== SoldierTypes::SOLDIER_TYPE_SUPPORT);
+// Tab-Container 2: List View (Units & Support)
+$view .= "<div class='tab' id='barracks-tabs-list' style='" . ($show_all_checked ? "" : "display: none;") . "'>";
+$view .= "<div class='tablinks " . (!$is_support_tab ? "active" : "") . "' data-on-click='filterBarracksList' data-tab='units'>Einheiten</div>";
+if ($show_support_feature) {
+    $view .= "<div class='tablinks " . ($is_support_tab ? "active" : "") . "' data-on-click='filterBarracksList' data-tab='support'>Unterstützung</div>";
+}
+$view .= "</div>";
+
+$recruitment_visible = !$is_support_tab;
 
 $view .= '<table class="table" id="recruitment-table" style="' . ($recruitment_visible ? '' : "display: none;") . '">
                         <colgroup>
                             <col class="col-description">
                             <col class="col-action">
                         </colgroup>
-                        <tr id="recruitment-header">
+                        <tr id="recruitment-header" style="' . ($show_all_checked ? 'display: none;' : '') . '">
                             <td class="td-center td-gradient">
                                 <b>Soldat</b></td>
                             <td class="td-center td-gradient">
                                 <b>Aktion</b></td>
                         </tr>';
+
 $kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
 
 if ($kingdom_is_recruiting) {
     $kingdom_recruiting_id = $kingdom->get_kingdom_recruiting_id();
 }
+
+$prev_cat = -1;
+$category_names = [
+    SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
+    SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+    SoldierTypes::SOLDIER_TYPE_ARCHERS => "Fernkampf",
+    SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezialeinheiten"
+];
 
 for ($i = 0; $i < $soldiers_count; $i++) {
     $s_id_internal = $soldiers[$i]->get_soldier_id();
@@ -686,8 +718,23 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
     $can_train = ($req_lvl <= $barracks_lvl);
     $is_hero = ($soldiers[$i]->get_soldier_id() == Soldiers::SOLDIER_HERO);
-
     $unit_cat = $soldiers[$i]->get_soldier_category();
+
+    if ($prev_cat !== $unit_cat) {
+        $cat_label = $category_names[$unit_cat] ?? "";
+        $divider_style = ($show_all_checked && !$is_support_tab) ? "" : "display: none;";
+
+        $view .= "<tr class='unit-category-divider' style='$divider_style'>
+                    <td class='td-center td-gradient' style='border-top: 1px solid var(--box-header); border-bottom: 2px solid var(--box-header);'>
+                        <b>$cat_label</b>
+                    </td>
+                    <td class='td-center td-gradient' style='border-top: 1px solid var(--box-header); border-bottom: 2px solid var(--box-header);'>
+                        <b>Aktion</b>
+                    </td>
+                  </tr>";
+    }
+    $prev_cat = $unit_cat;
+
     $base_unit_time = $soldiers[$i]->get_soldier_time();
     $unit_time_display = (int)($base_unit_time * $smithy_multiplier);
 
@@ -735,12 +782,12 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $curr_founded = (int)$res_founded->fetch_row()[0];
 
             $res_imp = $db_instance->execute_query(
-                "SELECT COUNT(*) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
+                "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ?",
                 [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
             );
             $imp_bonus = (int)$res_imp->fetch_row()[0];
-
             $current_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
+
             $base_chance = fdec(BASE_SETTLER_CHANCE * 100);
 
             $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$base_chance%</b> Erfolgsrate</span>";
@@ -851,7 +898,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
         }
 
-        //$is_disabled = (!$can_train_at_least_one && !$can_upgrade_to_anything);
         $is_disabled = $can_train_at_least_one ? "" : "disabled";
 
         if (!$can_train_at_least_one && !$can_upgrade_to_anything) {
@@ -907,7 +953,10 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                   </form>";
     }
 
-    $row_style = ($unit_cat === $active_cat) ? "" : "display: none;";
+    $row_style = ($show_all_checked || $unit_cat === $active_cat) ? "" : "display: none;";
+    if ($is_support_tab) {
+        $row_style = "display: none;";
+    }
     $row_class = "unit-row" . (!$can_train ? " unit-not-trainable" : "");
 
     $view .= "<tr class='$row_class' data-unit-category='$unit_cat' style='$row_style'>

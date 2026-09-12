@@ -29,6 +29,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $partner = new User($partner_id, $partner_name);
         $partner_avatar = $partner->get_avatar();
 
+        $use_filter = ($_SESSION["chat_filter"] ?? 1);
+
         foreach ($history as $row) {
             $is_me = ($row["senderid"] == $user->get_user_id());
             $class = $is_me ? "receiver-bubble" : "sender-bubble";
@@ -46,6 +48,14 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                          data-text='" . e($row["message"]) . "' 
                          title='Zitieren' alt=''>";
             $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
+
+            $msg = e($row["message"]);
+            $msg = parse_chat_quotes($msg);
+            $msg = nl2br($msg);
+            if ($use_filter == 1) {
+                $msg = filter_chat_message($msg);
+            }
+            $msg = wrap_emojis($msg);
 
             $html .= "<div class='$class' id='msg-{$row["id"]}'>
                         <div class='message-border'>

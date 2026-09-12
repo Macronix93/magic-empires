@@ -8,19 +8,40 @@ $my_guild_id = (int)$user_data["guildid"];
 $guild_logic = new Guild($db_instance, $user, $my_guild_id);
 $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 
-$active_tab = $_GET["tab"] ?? "chat";
+$allowed_tabs = ["chat", "general", "settings", "storage", "research"];
+$active_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
+
+if (!in_array($active_tab, $allowed_tabs)) {
+    $active_tab = "chat";
+}
+
+if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
+    setcookie("me_guild_tab", $_GET["tab"], time() + 31536000, "/", "", false, false);
+}
+
+$is_invite_only = isset($_POST["g_invite_only"]) && $_POST["g_invite_only"] == "1";
 
 if (isset($_POST["create_guild"]) && $my_guild_id === -1) {
-    $min_score = (int)($_POST["g_min_score"] ?? 0);
-    $res = $guild_logic->create_guild($_POST["g_name"] ?? "", $_POST["g_tag"] ?? "", $_POST["g_motto"] ?? "", $min_score);
-
-    if ($res === null) {
-        $_SESSION["guild_success"] = "Gilde erfolgreich gegründet!";
-
-        change_location("guild.php");
-        exit;
+    if ($is_invite_only) {
+        $min_score = -1;
     } else {
-        $error = $res;
+        $min_score = (int)($_POST["g_min_score"] ?? 0);
+        if ($min_score < 0) {
+            $error = "Die Mindestpunktzahl darf nicht negativ sein!";
+        }
+    }
+
+    if (empty($error)) {
+        $res = $guild_logic->create_guild($_POST["g_name"] ?? "", $_POST["g_tag"] ?? "", $_POST["g_motto"] ?? "", $min_score);
+
+        if ($res === null) {
+            $_SESSION["guild_success"] = "Gilde erfolgreich gegründet!";
+
+            change_location("guild.php");
+            exit;
+        } else {
+            $error = $res;
+        }
     }
 }
 
@@ -46,12 +67,23 @@ if ((isset($_POST["save_avatar"]) || isset($_POST["save_identity"]) || isset($_P
         }
 
         if (isset($_POST["save_profile"])) {
-            $error = $guild_logic->update_settings(
-                $guild_logic->get_name(),
-                $guild_logic->get_tag(),
-                $_POST["g_motto"] ?? "",
-                (int)($_POST["g_min_score"] ?? 0)
-            );
+            if ($is_invite_only) {
+                $min_score = -1;
+            } else {
+                $min_score = (int)($_POST["g_min_score"] ?? 0);
+                if ($min_score < 0) {
+                    $error = "Die Mindestpunktzahl darf nicht negativ sein!";
+                }
+            }
+
+            if (empty($error)) {
+                $error = $guild_logic->update_settings(
+                    $guild_logic->get_name(),
+                    $guild_logic->get_tag(),
+                    $_POST["g_motto"] ?? "",
+                    $min_score
+                );
+            }
         }
 
         if ($error === null) {
@@ -71,7 +103,6 @@ if (isset($_GET["mark_project"]) && $my_guild_id !== -1) {
             $error = "Es läuft bereits eine Forschung. Erst nach Abschluss kann ein neues Projekt markiert werden.";
         } else {
             $tid = (int)$_GET["mark_project"];
-
             $existing_project = $guild_logic->get_active_project();
 
             if ($existing_project) {
@@ -83,16 +114,56 @@ if (isset($_GET["mark_project"]) && $my_guild_id !== -1) {
                 exit;
             }
 
-            $guild_logic->set_active_project((int)$_GET["mark_project"]);
+            $t_res = $db_instance->execute_query("SELECT * FROM guild_tech_list WHERE id = ?", [$tid]);
+            $tech_raw = $t_res->fetch_assoc();
+            $cur_lvl = $guild_logic->get_tech_level($tid);
+            $costs = $guild_logic->calculate_tech_costs($tech_raw, $cur_lvl);
 
-            $t_res = $db_instance->execute_query("SELECT name FROM guild_tech_list WHERE id = ?", [$tid]);
-            $t_name = $t_res->fetch_column();
+            $special_res_keys = [
+                "coal" => "Kohle",
+                "iron" => "Eisen",
+                "sapphire" => "Saphir",
+                "diamond" => "Diamant"
+            ];
+            $missing = false;
 
-            $guild_logic->notify_guild("Neues Gilden-Projekt",
-                "Ein neues Ziel wurde ausgerufen: <b>" . e($t_name) . "</b>.<br>Alle Mitglieder sind aufgerufen, Ressourcen beizusteuern!",
-                "Veranlasst durch: " . $user->get_user_name());
+            foreach ($special_res_keys as $key => $label) {
+                $req = $costs[$key] ?? 0;
+                $cur = $guild_logic->get_storage_amount($key);
 
-            $_SESSION["guild_success"] = "Neues Gilden-Projekt wurde markiert!";
+                if ($req > $cur) {
+                    $missing = true;
+                }
+            }
+
+            if ($missing) {
+                $_SESSION["guild_error"] = "Nicht genügend Spezialressourcen in der Schatzkammer!";
+
+                change_location("guild.php?tab=research");
+                exit;
+            }
+
+            $db_instance->begin_transaction();
+            try {
+                foreach ($special_res_keys as $key => $label) {
+                    if (($costs[$key] ?? 0) > 0) {
+                        $guild_logic->modify_storage_resource($key, -$costs[$key]);
+                    }
+                }
+
+                $guild_logic->set_active_project($tid);
+                $db_instance->commit();
+
+                $guild_logic->notify_guild("Neues Gilden-Projekt",
+                    "Ein neues Ziel wurde ausgerufen: <b>" . e($tech_raw["name"]) . "</b>.<br>Alle Mitglieder sind nun aufgerufen, Rohstoffe beizusteuern!",
+                    "Veranlasst durch: " . $user->get_user_name());
+
+                $_SESSION["guild_success"] = "Neues Gilden-Projekt wurde markiert!";
+            } catch (Exception $e) {
+                $db_instance->rollback();
+
+                $_SESSION["guild_error"] = "Fehler beim Starten des Projekts.";
+            }
         }
     }
 
@@ -202,45 +273,45 @@ if (isset($_POST["contribute_project"]) && $my_guild_id !== -1) {
 if (isset($_GET["cancel_project"]) && $my_guild_id !== -1) {
     $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 
-    if ($my_perms["can_edit_settings"]) {
-        $db_instance->begin_transaction();
+    $project = $guild_logic->get_active_project();
 
-        try {
-            $res_contributors = $db_instance->execute_query(
-                "SELECT * FROM guild_member_contributions WHERE guild_id = ? AND current_project_amount > 0",
-                [$my_guild_id]
-            );
+    if ($project) {
+        $total_donated = (int)$project["current_food"] + (int)$project["current_wood"] + (int)$project["current_stone"] + (int)$project["current_gold"];
+        $can_cancel = false;
 
-            while ($contri = $res_contributors->fetch_assoc()) {
-                $c_uid = (int)$contri["user_id"];
-
-                $res_k = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$c_uid]);
-                $target_kid = $res_k->fetch_column();
-
-                if ($target_kid) {
-                    $target_kingdom = new Kingdom($db_instance, $target_kid);
-
-                    $target_kingdom->give_kingdom_food($contri["food"]);
-                    $target_kingdom->give_kingdom_stone($contri["stone"]);
-                    $target_kingdom->give_kingdom_gold($contri["gold"]);
-                    $target_kingdom->give_kingdom_wood($contri["wood"]);
-                }
+        if ($total_donated === 0) {
+            if ($my_perms["can_edit_settings"]) {
+                $can_cancel = true;
+            } else {
+                $error = "Du hast keine Berechtigung, dieses Projekt abzubrechen.";
             }
+        } else {
+            if ($my_perms["is_founder"]) {
+                $can_cancel = true;
+            } else {
+                $error = "Da bereits Ressourcen gespendet wurden, kann das Projekt nur noch vom Gilden-Leader abgebrochen werden!";
+            }
+        }
 
-            $guild_logic->cancel_active_project();
+        if ($can_cancel) {
+            $db_instance->begin_transaction();
 
-            $db_instance->commit();
+            try {
+                $guild_logic->cancel_active_project();
 
-            $_SESSION["guild_success"] = "Projekt abgebrochen. Alle Spenden wurden den Mitgliedern in ihr Haupt-Königreich erstattet.";
+                $db_instance->commit();
 
-            $guild_logic->notify_guild("Projekt abgebrochen",
-                "Das aktuelle Projekt wurde von <b>" . $user->get_user_name() . "</b> abgebrochen. Deine gespendeten Ressourcen wurden dir zurückerstattet.",
-                "", "error");
+                $_SESSION["guild_success"] = "Das Gilden-Projekt wurde erfolgreich abgebrochen." . ($total_donated > 0 ? " Es erfolgte kein Refund der Spenden." : "");
 
-        } catch (Exception $e) {
-            $db_instance->rollback();
+                $guild_logic->notify_guild("Projekt abgebrochen",
+                    "Das aktuelle Projekt wurde von <b>" . $user->get_user_name() . "</b> abgebrochen.",
+                    "", "error");
 
-            $error = "Fehler bei der Rückerstattung: " . $e->getMessage();
+            } catch (Exception $e) {
+                $db_instance->rollback();
+
+                $error = "Fehler beim Abbrechen: " . $e->getMessage();
+            }
         }
     }
 
@@ -297,18 +368,21 @@ if ($my_guild_id === -1) {
     if ($guilds->num_rows > 0) {
         while ($g = $guilds->fetch_assoc()) {
             $user_score = $user_data["ranking_points"];
+            $is_invite_only = ($g["min_score"] == -1);
+
             $has_score = ($user_score >= $g["min_score"]);
             $has_space = ($g["member_count"] < $g["max_members"]);
 
             $btn_title = "";
-            if (!$has_score) $btn_title = "Mindestpunktzahl von " . fnum($g["min_score"], true) . " benötigt.";
+            if ($is_invite_only) $btn_title = "Dieser Gilde kann nur per Einladung beigetreten werden.";
+            else if (!$has_score) $btn_title = "Mindestpunktzahl von " . fnum($g["min_score"], true) . " benötigt.";
             else if (!$has_space) $btn_title = "Gilde ist voll.";
             else $btn_title = "Gilde beitreten";
 
-            $score_display = $g["min_score"] > 0 ? fnum($g["min_score"], true) : "-";
+            $score_display = $is_invite_only ? "Einladung" : ($g["min_score"] > 0 ? fnum($g["min_score"], true) : "-");
 
             $action_icon = "";
-            if ($has_score && $has_space) {
+            if (!$is_invite_only && $has_score && $has_space) {
                 $action_icon = "<img src='images/icons/icon_join_guild.png' 
                                      class='ressource-icons' 
                                      style='cursor: pointer' 
@@ -342,6 +416,10 @@ if ($my_guild_id === -1) {
     $k = new Kingdom($db_instance, $user->get_current_kingdom());
 
     if ($k->get_kingdom_building_level(BuildingTypes::BUILDING_EMBASSY) > 0) {
+        $checked_create = isset($_POST["g_invite_only"]) ? "checked" : "";
+        $disabled_create = isset($_POST["g_invite_only"]) ? "disabled" : "";
+        $post_min_score = e($_POST["g_min_score"] ?? "0");
+
         $view .= "<br><hr><br><div class='box-container' style='max-width: 650px; margin: 0 auto;'>
             <div class='box-header'>Eigene Gilde gründen</div>
             <form method='POST' class='box-content box-content-bg' style='padding: 15px;'>
@@ -362,10 +440,16 @@ if ($my_guild_id === -1) {
                             value='" . e($_POST["g_motto"] ?? "") . "'></td>
                     </tr>
                     <tr>
-                        <td>Mindestpunktzahl für Beitritt:</td>
-                        <td><input type='text' name='g_min_score' id='g_min_score' 
-                            value='" . e($_POST["g_min_score"] ?? "0") . "' 
-                            inputmode='numeric' pattern='[0-9]*' class='js-numeric-input'></td>
+                        <td>Beitritt:</td>
+                        <td>
+                            <label style='display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 5px;'>
+                                <input type='checkbox' name='g_invite_only' id='g_invite_only_create' value='1' data-on-change='toggleCreateInviteOnly' style='width: auto;' $checked_create>
+                                <span>Nur per Einladung</span>
+                            </label>
+                            <input type='text' name='g_min_score' id='g_min_score_create' maxlength='7'
+                                value='$post_min_score' 
+                                inputmode='numeric' pattern='[0-9]*' class='js-numeric-input' style='width: 120px;' $disabled_create>
+                        </td>
                     </tr>
                 </table>
                 <input type='submit' name='create_guild' value='Gilde gründen' style='margin-top: 15px;'>
@@ -413,7 +497,12 @@ if ($my_guild_id === -1) {
         $view .= "<p class='guild-motto' style='margin-bottom: 25px; color: rgb(208,208,208); opacity: 0.7;'><i>&bdquo;" . e($guild_info["motto"]) . "&ldquo;</i></p>";
     }
 
-    $view .= "<div class='title-border'>Mitgliederliste</div>";
+    $members = $guild_logic->get_members_detailed($my_guild_id);
+
+    $cur_members_count = $members->num_rows;
+    $max_m = $guild_logic->get_max_members();
+
+    $view .= "<div class='title-border'>Mitgliederliste ($cur_members_count / $max_m)</div>";
     $view .= "<table class='table' style='max-width: 650px;'>
             <colgroup>
                 <col>                               <!-- Name: -->
@@ -427,8 +516,6 @@ if ($my_guild_id === -1) {
                 <td class='td-gradient td-center'><b>Rang</b></td>
                 " . ($has_actions ? "<td class='td-gradient td-center'><b>Aktion</b></td>" : "") . "
             </tr>";
-
-    $members = $guild_logic->get_members_detailed($my_guild_id);
 
     while ($m = $members->fetch_assoc()) {
         $is_me = ($m["id"] == $user->get_user_id());
@@ -505,10 +592,11 @@ if ($my_guild_id === -1) {
                 $time_left = $p["expires_at"] - time();
 
                 $invited_user = new User($p["invited_user_id"], $p["username"]);
+                $inviter = new User($p["inviter_id"], $p["inviter_name"]);
 
                 $view .= "<tr>
                         <td>" . $invited_user->render_user() . "</td>
-                        <td class='td-center'>" . e($p["inviter_name"]) . "</td>
+                        <td>" . $inviter->render_user() . "</td>
                         <td class='td-center'>" . convert_sec_to_str($time_left, true) . "</td>
                         <td class='td-center'>
                             <img src='images/icons/icon_error.png' class='ressource-icons' 
@@ -591,7 +679,13 @@ if ($my_guild_id === -1) {
     $view .= "</div></div>";
 
     // Public Profile
+    $is_invite_only = ($guild_logic->get_min_score() == -1);
+    $checked_settings = $is_invite_only ? "checked" : "";
+    $disabled_settings = $is_invite_only ? "disabled" : "";
+    $score_settings_val = $is_invite_only ? 0 : $guild_logic->get_min_score();
+
     $td_styling = $can_edit ? "" : "style='width: 60%;'";
+
     $view .= "
     <div class='box-container' style='max-width: 600px; margin: 0 auto 0 auto;'>
         <div class='box-header'>Öffentliches Profil</div>
@@ -603,16 +697,20 @@ if ($my_guild_id === -1) {
                         <td $td_styling>" . ($can_edit ? "
                             <input type='text' name='g_motto' value='" . e($guild_logic->get_motto()) . "' 
                                    maxlength='" . GUILD_MOTTO_MAX . "'>
-                                       " : (!empty($guild_logic->get_motto())
+                        " : (!empty($guild_logic->get_motto())
             ? '<i>&bdquo;' . e($guild_logic->get_motto()) . '&ldquo;</i>'
             : 'Keins')) . "</td>
                     </tr>
                     <tr>
-                        <td>Beitritts-Limit:</td>
+                        <td>Beitritts-Modus:</td>
                         <td>" . ($can_edit ? "
-                            <input type='text' name='g_min_score' value='" . $guild_logic->get_min_score() . "' 
-                                   class='js-numeric-input'>
-                        " : "<b>" . fnum($guild_logic->get_min_score(), true) . "</b>") . "</td>
+                            <label style='display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 5px;'>
+                                <input type='checkbox' name='g_invite_only' id='g_invite_only_settings' value='1' $checked_settings data-on-change='toggleSettingsInviteOnly' style='width: auto;'>
+                                <span>Nur per Einladung</span>
+                            </label>
+                            <input type='text' name='g_min_score' id='g_min_score_settings' value='$score_settings_val' 
+                                   class='js-numeric-input' style='width: 120px;' $disabled_settings>
+                        " : "<b>" . ($is_invite_only ? "Nur per Einladung" : fnum($guild_logic->get_min_score(), true) . " Punkte") . "</b>") . "</td>
                     </tr>
                 </table>";
 
@@ -701,6 +799,29 @@ if ($my_guild_id === -1) {
               </div>";
         }
 
+        $special_res_map = [
+            "coal" => [ResourceTypes::RESOURCE_TYPE_COAL, "Kohle"],
+            "iron" => [ResourceTypes::RESOURCE_TYPE_IRON, "Eisen"],
+            "sapphire" => [ResourceTypes::RESOURCE_TYPE_SAPPHIRE, "Saphir"],
+            "diamond" => [ResourceTypes::RESOURCE_TYPE_DIAMOND, "Diamant"]
+        ];
+
+        foreach ($special_res_map as $key => $info) {
+            $req = $costs[$key] ?? 0;
+
+            if ($req > 0) {
+                $view .= "<div style='margin-bottom: 12px;'>
+                    <div class='split-content' style='margin-bottom: 4px;'>
+                        <span>" . get_resource_icon($info[0]) . " $info[1]</span>
+                        <span>" . fnum($req) . " / " . fnum($req) . " <span style='color: #0BDA51;'>(100%)</span></span>
+                    </div>
+                    <div class='tick-progress-bg' style='height: 10px;'>
+                        <div class='project-progress-fill' style='width: 100%;'></div>
+                    </div>
+                  </div>";
+            }
+        }
+
         $rem_food = max(0, $costs["food"] - $project["current_food"]);
         $rem_wood = max(0, $costs["wood"] - $project["current_wood"]);
         $rem_stone = max(0, $costs["stone"] - $project["current_stone"]);
@@ -769,6 +890,50 @@ if ($my_guild_id === -1) {
         }
     }
 
+    // Active Boni
+    $guild_boni_view = "";
+
+    $storage_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_TYPE_STORAGE);
+    if ($storage_lvl > 0) {
+        $guild_boni_view .= "<tr><td>Gilden-Schatzkammer:</td><td class='passed'>Stufe $storage_lvl (Erweiterte Kapazität)</td></tr>";
+    }
+
+    $event_gold_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_EVENT_GOLD);
+    if ($event_gold_lvl > 0) {
+        $val = fdec($event_gold_lvl * GUILD_BONUS_EVENT_GOLD_PER_LVL * 100);
+        $guild_boni_view .= "<tr><td>Kriegsbeute-Kult:</td><td class='passed'>+$val% Gold aus Welt-Events</td></tr>";
+    }
+
+    $trade_speed_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED);
+    if ($trade_speed_lvl > 0) {
+        $val = fdec($trade_speed_lvl * GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL * 100);
+        $guild_boni_view .= "<tr><td>Allianz-Handel:</td><td class='passed'>-$val% Marschzeit zu Verbündeten</td></tr>";
+    }
+
+    $support_cap_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+    if ($support_cap_lvl > 0) {
+        $val = fnum($support_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+        $guild_boni_view .= "<tr><td>Feldlager-Logistik:</td><td class='passed'>+$val stationierbare Unterstützungstruppen</td></tr>";
+    }
+
+    $support_speed_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_SUPPORT_SPEED);
+    if ($support_speed_lvl > 0) {
+        $val = fdec($support_speed_lvl * GUILD_BONUS_SUPPORT_SPEED_PER_LVL * 100);
+        $guild_boni_view .= "<tr><td>Eilige Verstärkung:</td><td class='passed'>-$val% Marschzeit für Unterstützung</td></tr>";
+    }
+
+    $member_limit_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_MEMBER_LIMIT);
+    if ($member_limit_lvl > 0) {
+        $val = fnum($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
+        $total_max = GUILD_BASE_MEMBER_LIMIT + ($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
+        $guild_boni_view .= "<tr><td>Große Ratsversammlung:</td><td class='passed'>+$val Mitgliederplätze (Gesamt: $total_max)</td></tr>";
+    }
+
+    if (!empty($guild_boni_view)) {
+        $view .= "<div class='title-border'>Aktive Gilden-Boni</div>";
+        $view .= "<table class='table' style='max-width: 550px; margin-bottom: 25px;'>$guild_boni_view</table>";
+    }
+
     // Tech List
     $view .= "<div class='title-border'>Verfügbare Forschungen</div>";
     $view .= "<table class='table' style='max-width: 700px;'>";
@@ -780,17 +945,34 @@ if ($my_guild_id === -1) {
         $costs = $guild_logic->calculate_tech_costs($t, $level);
 
         $res_html = "";
+        $special_res_html = "";
+
         if ($level < $max_lvl) {
-            $res_types = [
+            $base_res_types = [
                 "food" => ResourceTypes::RESOURCE_TYPE_FOOD,
                 "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
                 "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
                 "gold" => ResourceTypes::RESOURCE_TYPE_GOLD
             ];
 
-            foreach ($res_types as $key => $icon_id) {
-                if ($costs[$key] > 0) {
-                    $res_html .= "<div class='legend-item' style='margin-right: 10px;'>"
+            $special_res_types = [
+                "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
+                "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
+                "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+                "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
+            ];
+
+            foreach ($base_res_types as $key => $icon_id) {
+                if (($costs[$key] ?? 0) > 0) {
+                    $res_html .= "<div class='legend-item' style='margin-right: 8px;'>"
+                        . get_resource_icon($icon_id) . " " . fnum($costs[$key])
+                        . "</div>";
+                }
+            }
+
+            foreach ($special_res_types as $key => $icon_id) {
+                if (($costs[$key] ?? 0) > 0) {
+                    $special_res_html .= "<div class='legend-item' style='margin-right: 8px;'>"
                         . get_resource_icon($icon_id) . " " . fnum($costs[$key])
                         . "</div>";
                 }
@@ -805,16 +987,25 @@ if ($my_guild_id === -1) {
         } else if ($project && $project["tech_id"] == $t["id"]) {
             $action_btn = "<b class='passed'>AKTIV</b>";
 
-            if ($my_perms["can_edit_settings"]) {
-                $action_btn .= "<br><div style='margin-top:5px;'>
-                            <button data-on-click='confirmCancelProject'>
-                               Abbrechen
-                            </button>
-                        </div>";
+            $total_donated = (int)$project["current_food"] + (int)$project["current_wood"] + (int)$project["current_stone"] + (int)$project["current_gold"];
+            $show_cancel_btn = false;
+
+            if ($total_donated === 0 && $my_perms["can_edit_settings"]) {
+                $show_cancel_btn = true;
+            } else if ($total_donated > 0 && $my_perms["is_founder"]) {
+                $show_cancel_btn = true;
+            }
+
+            if ($show_cancel_btn) {
+                $action_btn .= "<br><div style='margin-top: 5px;'>
+                    <button data-on-click='confirmCancelProject' data-donated='$total_donated'>
+                       Abbrechen
+                    </button>
+                </div>";
             }
         } else if ($my_perms["can_edit_settings"]) {
             $action_btn = "<a href='guild.php?tab=research&mark_project={$t["id"]}'>
-                        <button type='button'>Projekt starten</button>
+                        <button type='button'>Markieren</button>
                       </a>";
         } else {
             $action_btn = "<i>Wartet auf Offizier</i>";
@@ -827,18 +1018,20 @@ if ($my_guild_id === -1) {
                         <img src='images/icons/{$t["icon"]}.png' class='buildable-icons' alt=''>
                     </div>
                     <div class='legend-item'>
-                        <b class='popup' id='gt_{$t["id"]}'>{$t["name"]} ($level/$max_lvl)
+                        <b class='popup' id='gt_{$t["id"]}'>{$t["name"]} ($level / $max_lvl)
                             <div id='gt_{$t["id"]}_box' class='popupbox'>{$t['description']}</div>
                         </b>
                     </div>
                 </div>";
 
         if ($level < $max_lvl) {
-            $view .= "
-            <div class='map-legend' style='justify-content: left; gap: 5px;'>
-                $res_html
-            </div>
-            <div style='opacity: 0.8; margin-top: 5px;'>
+            if (!empty($res_html)) {
+                $view .= "<div class='map-legend' style='justify-content: left; gap: 5px;'>$res_html</div>";
+            }
+            if (!empty($special_res_html)) {
+                $view .= "<div class='map-legend' style='justify-content: left; gap: 5px; margin-top: 4px;'>$special_res_html</div>";
+            }
+            $view .= "<div style='opacity: 0.8; margin-top: 5px;'>
                 " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($costs["time"]) . "
             </div>";
         }

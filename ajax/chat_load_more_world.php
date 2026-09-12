@@ -33,7 +33,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $del_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' 
                                                 data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
 
-            $msg = ($use_filter == 1) ? filter_chat_message($row["message"]) : $row["message"];
+            $msg = e($row["message"]);
+            $msg = parse_chat_quotes($msg);
+            $msg = nl2br($msg);
+            if ($use_filter == 1) {
+                $msg = filter_chat_message($msg);
+            }
             $msg = wrap_emojis($msg);
 
             $sender = new User($row["userid"], $row["username"]);

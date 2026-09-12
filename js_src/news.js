@@ -1,5 +1,4 @@
 registerAction("editNewsInline", (el, event) => {
-    // Verhindern, dass der Klick weiter nach oben steigt
     if (event) event.stopPropagation();
 
     const newsId = el.dataset.id;
@@ -10,7 +9,6 @@ registerAction("editNewsInline", (el, event) => {
     const contentDiv = newsBox.querySelector('.news-content');
     const headerTitle = newsBox.querySelector('.news-header-title');
 
-    // Falls bereits ein Formular offen ist, nichts tun
     if (contentDiv.querySelector('form')) return;
 
     const formHtml = `
@@ -39,12 +37,11 @@ registerAction("editNewsInline", (el, event) => {
     const tools = newsBox.querySelector('.news-admin-tools');
     if (tools) tools.style.display = 'none';
 
-    // FIX: Fokus mit minimaler Verzögerung setzen
     setTimeout(() => {
         const textarea = document.getElementById(`edit-news-text-${newsId}`);
         if (textarea) {
             textarea.focus();
-            // Cursor ans Ende setzen
+
             const val = textarea.value;
             textarea.value = '';
             textarea.value = val;

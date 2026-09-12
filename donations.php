@@ -22,7 +22,7 @@ $view = "<div style='max-width: 600px; margin: 0 auto; line-height: 1.6;'>
                     </head>
                     <body>
                         <script src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
-                        <script>
+                        <script nonce='$nonce'>
                             kofiwidget2.init('Support me on Ko-fi', '#72a4f2', 'L4U025JD0P');
                             kofiwidget2.draw();
                         </script>

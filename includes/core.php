@@ -31,9 +31,11 @@ if (!$is_cli) {
 }
 
 if (!$is_cli) {
+    $nonce = base64_encode(random_bytes(16));
+
     header("Content-Security-Policy: " .
         "default-src 'self'; " .
-        "script-src 'self' 'unsafe-inline' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://storage.ko-fi.com; " .
+        "script-src 'self' 'nonce-$nonce' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://storage.ko-fi.com; " .
         "frame-src https://www.google.com/recaptcha/ https://ko-fi.com; " .
         "style-src 'self' 'unsafe-inline' https://storage.ko-fi.com https://fonts.googleapis.com; " .
         "img-src 'self' data: https://storage.ko-fi.com https://ko-fi.com; " .

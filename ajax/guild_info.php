@@ -23,9 +23,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo "</div>";
 
+    $score_text = ($data["min_score"] == -1) ? "Nur per Einladung" : ($data["min_score"] > 0 ? fnum($data["min_score"], true) : "-");
+    $can_join = ($my_guild_id <= 0 && $data["min_score"] != -1 && $user_score >= $data["min_score"] && $data["members"] < $data["max_members"]);
+
     echo "<table class='table' style='width: 70%;'>
             <tr><td>Mitglieder:</td><td>" . $data["members"] . " / " . $data["max_members"] . "</td></tr>
-            <tr><td>Beitritt ab:</td><td>" . ($data["min_score"] > 0 ? fnum($data["min_score"], true) : "-") . "</td></tr>
+            <tr><td>Beitritt:</td><td>" . $score_text . "</td></tr>
             <tr><td>Gilden-Punkte:</td><td>" . fnum($data["score"]) . "</td></tr>
         </table>";
 
@@ -49,7 +52,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
         echo "<tr>
             <td>" . $guild_user->render_user() . "</td>
-            <td style='color: {$m["rank_color"]}; font-weight: bold;'>" . e($m["rank_name"]) . "</td>
+            <td class='td-center' style='color: {$m["rank_color"]}; font-weight: bold;'>" . e($m["rank_name"]) . "</td>
             <td class='td-center'>" . fnum($m["ranking_points"]) . "</td>
           </tr>";
     }

@@ -1,25 +1,67 @@
+registerAction("toggleAllUnitsSendTroops", (el) => {
+    const showAll = el.checked;
+
+    document.cookie = "me_list_view=" + (showAll ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
+
+    const tabs = document.getElementById("sendtroops-tabs");
+    const header = document.getElementById("sendtroops-header");
+    const dividers = document.querySelectorAll(".unit-category-divider");
+    const rows = document.querySelectorAll(".unit-row");
+
+    if (showAll) {
+        if (tabs) tabs.style.display = "none";
+        if (header) header.style.display = "none";
+
+        dividers.forEach(div => div.style.display = "");
+        rows.forEach(row => row.style.display = "");
+
+        const url = new URL(window.location);
+        url.searchParams.delete("cat");
+        window.history.replaceState({}, '', url);
+    } else {
+        if (tabs) tabs.style.display = "";
+        if (header) header.style.display = "";
+
+        dividers.forEach(div => div.style.display = "none");
+
+        const activeTab = tabs ? tabs.querySelector(".tablinks.active") : null;
+        const activeCat = activeTab ? String(activeTab.dataset.category) : "0";
+
+        rows.forEach(row => {
+            const rowCat = String(row.getAttribute("data-unit-category"));
+            row.style.display = (rowCat === activeCat) ? "" : "none";
+        });
+
+        const url = new URL(window.location);
+        url.searchParams.set("cat", activeCat);
+        window.history.replaceState({}, '', url);
+    }
+});
 registerAction("filterSendTroops", (el) => {
     const category = String(el.dataset.category);
     const allRows = document.querySelectorAll(".unit-row");
-    const allTabs = document.querySelectorAll(".tablinks");
+    const allTabs = document.querySelectorAll("#sendtroops-tabs .tablinks");
 
     allTabs.forEach(tab => tab.classList.remove("active"));
     el.classList.add("active");
+
+    document.querySelectorAll(".unit-category-divider").forEach(row => {
+        row.style.display = "none";
+    });
 
     allRows.forEach(row => {
         const rowCat = String(row.getAttribute("data-unit-category"));
 
         if (rowCat === category) {
-            row.style.display = "table-row";
+            row.style.display = "";
         } else {
             row.style.display = "none";
         }
     });
 
-    window.history.replaceState({}, '', `?${new URLSearchParams({
-        ...Object.fromEntries(new URLSearchParams(location.search)),
-        cat: category
-    })}`);
+    const url = new URL(window.location);
+    url.searchParams.set("cat", category);
+    window.history.replaceState({}, '', url);
 });
 registerAction("fillMaxAndRefresh", (el) => {
     const targetId = el.dataset.target;

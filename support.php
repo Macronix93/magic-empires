@@ -260,7 +260,7 @@ if (isset($_GET["tid"])) {
         $sql = "SELECT t.*, u.username FROM support_tickets t JOIN users u ON t.userid = u.id WHERE t.userid = ? ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
         $params = [$uid, $offset, $rows_per_page];
     } else {
-        $view .= "<h3 style='margin-top: 0;'>Alle Support-Anfragen</h3>";
+        $view .= "<div class='title-border'>Alle Support-Anfragen</div>";
         $total_items = $db_instance->execute_query("SELECT COUNT(*) FROM support_tickets")->fetch_row()[0];
 
         $sql = "SELECT t.*, u.username, a.username AS assigned_admin 

@@ -172,7 +172,7 @@ class User
         $status_dot = $status_color ? "<span class='status-indicator' style='background-color: " . e($status_color) . ";'></span>" : "";
 
         if ($content === "") {
-            $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$this->user_id}' data-title='Spieler-Info'>" . e($this->user_name) . "</a>";
+            $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$this->user_id' data-title='Spieler-Info'>" . e($this->user_name) . "</a>";
         }
 
         return "

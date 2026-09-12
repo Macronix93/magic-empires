@@ -57,7 +57,8 @@ if ($user_id) {
             if ($is_ally) {
                 $target_k_obj = new Kingdom($db_instance, $k["id"]);
                 $b_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
-                $limit = SUPPORT_LIMIT_BASE + ($b_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+                $g_cap_lvl = Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+                $limit = SUPPORT_LIMIT_BASE + ($b_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
 
                 $res_count = $db_instance->execute_query("
                     SELECT (
@@ -158,14 +159,13 @@ if ($user_id) {
             $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 
             $guild_display = "Keine Gilde";
-            if ($my_guild_id !== -1) {
-                $guild_logic->load_guild($my_guild_id);
+            if ($guild_id !== -1) {
+                $guild_logic->load_guild($guild_id);
 
                 $guild_display = "<div><span style='cursor: pointer;' 
                              data-on-click='openGuildInfo' 
-                             data-id='$my_guild_id'><b>[" . $guild_logic->get_tag() . "]</b></span> " . $guild_logic->get_name() . "</div>";
+                             data-id='$guild_id'><b>[" . $guild_logic->get_tag() . "]</b></span> " . $guild_logic->get_name() . "</div>";
             }
-
 
             echo "<td style='display: flex; justify-content: space-between; align-items: center;'>$guild_display";
 

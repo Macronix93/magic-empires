@@ -10,6 +10,23 @@ $uid = $user->get_user_id();
 $res_user = $db_instance->execute_query("SELECT linked_user, last_avatar_change FROM users WHERE id = ?", [$uid]);
 $user_data = $res_user->fetch_assoc();
 
+$allowed_tabs = ["profile", "game", "account"];
+$active_tab = $_GET['tab'] ?? ($_COOKIE['me_settings_tab'] ?? 'profile');
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST['submit_avatar']) || isset($_POST['change_username']) || isset($_POST['change_password']) || isset($_POST['change_email'])) {
+        $active_tab = "profile";
+    } else if (isset($_POST['update_display_settings']) || isset($_POST['rename_kingdom']) || isset($_POST['update_sharing']) || isset($_POST['update_privacy'])) {
+        $active_tab = "game";
+    } else if (isset($_POST['delete_account'])) {
+        $active_tab = "account";
+    }
+}
+
+if (!in_array($active_tab, $allowed_tabs)) {
+    $active_tab = "profile";
+}
+
 // Generate a random token
 if (!isset($_SESSION['csrf_token'])) {
     try {
@@ -72,8 +89,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                                     if ($nsfw_score > 0.8) {
                                         $error = "Dein Bild wurde als unangemessen eingestuft.";
-
-                                        //$logger->log_file("NSFW Blockiert", ["user" => $user->get_user_id(), "score" => $nsfw_score]);
                                     } else {
                                         $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
                                         $file_path = UPLOADS_FILE_PATH . $hashed_name;
@@ -126,7 +141,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if (preg_match('/\s/', $raw_name)) {
                     $error = "Benutzername darf keine Leerzeichen enthalten!";
                 } else {
-                    $clean_name = preg_replace('/[\p{C}]/u', '', $raw_name);
+                    $clean_name = preg_replace('/\p{C}/u', '', $raw_name);
                     $clean_name = preg_replace('/\s+/u', ' ', $clean_name);
                     $new_name = trim($clean_name);
 
@@ -242,7 +257,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (isset($_POST['rename_kingdom'])) {
             $raw_input = $_POST['new_kingdom_name'] ?? '';
 
-            $clean_name = preg_replace('/[\p{C}]/u', '', $raw_input);
+            $clean_name = preg_replace('/\p{C}/u', '', $raw_input);
             $clean_name = preg_replace('/\s+/u', ' ', $clean_name);
             $new_k_name = trim($clean_name);
 
@@ -307,6 +322,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $_SESSION['chat_filter'] = $filter_val;
 
             $view .= show_passed_box("Privatsphäre-Einstellungen gespeichert.");
+        }
+
+        // Update display settings
+        if (isset($_POST['update_display_settings'])) {
+            $raw_pagesize = trim($_POST['overview_pagesize'] ?? '');
+
+            if (!is_numeric($raw_pagesize)) {
+                $pagesize = OVERVIEW_PAGESIZE_DEFAULT;
+            } else {
+                $pagesize = (int)$raw_pagesize;
+                $pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $pagesize));
+            }
+
+            $list_view = isset($_POST['use_list_view']) ? "1" : "0";
+
+            setcookie("me_overview_pagesize", (string)$pagesize, time() + 31536000, "/", "", false, false);
+            setcookie("me_list_view", $list_view, time() + 31536000, "/", "", false, false);
+
+            $_COOKIE["me_overview_pagesize"] = (string)$pagesize;
+            $_COOKIE["me_list_view"] = $list_view;
+
+            $view .= show_passed_box("Anzeige-Einstellungen erfolgreich gespeichert.");
         }
 
         // Delete Account
@@ -387,12 +424,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
  */
 $title = "Einstellungen";
 $header = "Einstellungen";
+$script_files = ["settings", "timer"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;
 }
 
+$tab_menu = "
+<div class='tab' id='settings-tabs' style='margin: 0 auto 15px auto; max-width: 550px;'>
+    <div class='tablinks " . ($active_tab === 'profile' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='profile'>Profil</div>
+    <div class='tablinks " . ($active_tab === 'game' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='game'>Spiel & Anzeige</div>
+    <div class='tablinks " . ($active_tab === 'account' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='account''>Account</div>
+</div>";
+
+$view = $tab_menu . $view;
+
 $view .= '<div style="display: flex; align-items: center;  justify-content: center; flex-direction: column; max-width: 550px; width: 100%; margin: 0 auto;">';
+
+$view .= "<div id='tab_profile' class='settings-tab' style='display: " . ($active_tab === 'profile' ? 'block' : 'none') . "; width: 100%;'>";
+
 $view .= '
 <div class="box-container">
     <div class="box-header">Profilbild anpassen</div>
@@ -464,6 +514,55 @@ $view .= '
     </div>
 </div>';
 
+$view .= "</div>";
+
+$view .= "<div id='tab_game' class='settings-tab' style='display: " . ($active_tab === 'game' ? 'block' : 'none') . "; width: 100%;'>";
+
+$cur_pagesize = (int)($_COOKIE["me_overview_pagesize"] ?? OVERVIEW_PAGESIZE_DEFAULT);
+$cur_pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $cur_pagesize));
+$cur_list_view = (($_COOKIE["me_list_view"] ?? $_COOKIE["me_barracks_all_units"] ?? "0") === "1");
+
+$view .= '
+<div class="box-container">
+    <div class="box-header">Ansicht & Anzeige</div>
+    <div class="box-content box-content-bg" style="padding: 10px;">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <table class="table" style="width: 100%;">
+                <tr>
+                    <td>Einträge pro Seite (Übersicht):</td>
+                    <td>
+                        <input type="text" 
+                               name="overview_pagesize" 
+                               id="overview_pagesize" 
+                               class="js-pagesize-input"
+                               inputmode="numeric" 
+                               pattern="[0-9]*" 
+                               data-min="' . OVERVIEW_PAGESIZE_MIN . '" 
+                               data-max="' . OVERVIEW_PAGESIZE_MAX . '" 
+                               data-default="' . OVERVIEW_PAGESIZE_DEFAULT . '" 
+                               value="' . $cur_pagesize . '" 
+                               maxlength="2" 
+                               style="width: 50px; text-align: center;" 
+                               autocomplete="off" 
+                               required>
+                        <small style="opacity: 0.7; margin-left: 5px;">(' . OVERVIEW_PAGESIZE_MIN . ' - ' . OVERVIEW_PAGESIZE_MAX . ')</small>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-align: left; padding: 10px;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" name="use_list_view" value="1" style="width: auto;" ' . ($cur_list_view ? "checked" : "") . '>
+                            <span>Listenansicht standardmäßig aktivieren<br><small style="opacity: 0.7;">(Kaserne, Truppenentsendung)</small></span>
+                        </label>
+                    </td>
+                </tr>
+            </table><br>
+            <input type="submit" name="update_display_settings" value="Einstellungen speichern">
+        </form>
+    </div>
+</div>';
+
 $current_k_res = $db_instance->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
 $current_k_name = $current_k_res->fetch_column();
 
@@ -519,6 +618,43 @@ $view .= '
     </div>
 </div>';
 
+$view .= "</div>";
+
+$view .= "<div id='tab_account' class='settings-tab' style='display: " . ($active_tab === 'account' ? 'block' : 'none') . "; width: 100%;'>";
+
+// Get user data
+$uid = $user->get_user_id();
+$query = "SELECT u.username, u.email, u.registerdate, u.lastlogin, u.adminlevel, u.score,
+                k.kingdomname, k.mapx, k.mapy 
+          FROM users u 
+          JOIN kingdoms k ON u.mainkingdom = k.id 
+          WHERE u.id = ?";
+$res = $db_instance->execute_query($query, [$uid]);
+$data = $res->fetch_assoc();
+
+// Calculate rank
+$rank_res = $db_instance->execute_query("SELECT COUNT(*) + 1 AS rank FROM users WHERE score > ?", [$data["score"]]);
+$user_rank = $rank_res->fetch_column();
+
+$time_diff = time() - $_SESSION["currlogin"];
+
+$role = match ($data["adminlevel"]) {
+    ADMIN_LEVEL_SUPPORTER => "Supporter",
+    ADMIN_LEVEL_LIGHT_ADMIN => "Light Admin",
+    ADMIN_LEVEL_FULL_ADMIN => "Full Admin",
+    default => "User",
+};
+
+$view .= "<div class='title-border'>Account-Informationen</div>
+        <table class='table' style='max-width: 600px; margin-bottom: 20px;'>
+            <tr><td><b>Spieler-Name:</b></td><td>{$data["username"]}</td></tr>
+            <tr><td><b>E-Mail Adresse:</b></td><td>{$data["email"]}</td></tr>
+            <tr><td><b>Registriert seit:</b></td><td>" . date("d.m.Y H:i:s", $data["registerdate"]) . " Uhr</td></tr>
+            <tr><td><b>Letzter Login:</b></td><td>" . date("d.m.Y H:i:s", $data["lastlogin"]) . " Uhr</td></tr>
+            <tr><td><b>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
+            <tr><td><b>Account-Level:</b></td><td>{$data["adminlevel"]} ($role)</td></tr>
+        </table>";
+
 $view .= '
 <div class="box-container" style="border-color: #a62121;">
     <div class="box-header" style="background: #a62121; color: white; border-color: transparent; border-bottom: #340202 2px solid;">Account löschen</div>
@@ -534,6 +670,9 @@ $view .= '
         </form>
     </div>
 </div>';
+
+$view .= "</div>";
+
 $view .= '</div>';
 
 include("layout/base.php");

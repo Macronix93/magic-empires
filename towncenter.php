@@ -57,7 +57,7 @@ if (isset($_GET["action"])) {
                                 $error = "Die Botschaft kann maximal auf Stufe 1 ausgebaut werden!";
                             }
                         }
-                        
+
                         $target_level = $building_level + 1;
                         $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
 
@@ -157,7 +157,7 @@ for ($i = 0; $i < $building_count; $i++) {
 }
 
 if ($count_maxed_buildings === $building_count) {
-    $view = "Es wurden alle Gebäude gebaut.";
+    $view = "Es wurden alle Gebäude voll ausgebaut.";
 } else {
     $view .= '<table class="table">
                         <colgroup>

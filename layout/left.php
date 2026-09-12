@@ -135,10 +135,6 @@ $unread_guild = $messages->get_unread_guild_count();
                     <span class="msg-badge"><?= $unread_news ?></span>
                 <?php endif; ?>
             </div>
-            <div class="box<?= $current_page === 'userdetails.php' ? ' active' : '' ?>"
-                 data-on-click="navigate" data-url="userdetails.php">
-                <img src="images/icons/icon_userdetails.png" class="menu-icons" alt="Account-Info"/> Account-Info
-            </div>
             <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="settings.php">
                 <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen

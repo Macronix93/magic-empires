@@ -51,7 +51,6 @@ class Messages
     {
         $uid = $this->user->get_user_id();
 
-        // Wenn keine oldest_id da ist, laden wir die absolut neuesten 20
         if ($oldest_id === null) {
             $query = "SELECT * FROM messages 
                   WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
@@ -59,7 +58,6 @@ class Messages
                   ORDER BY id DESC LIMIT ?";
             $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $limit]);
         } else {
-            // Lade Nachrichten, die älter sind als die aktuelle oldest_id
             $query = "SELECT * FROM messages 
                   WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
                   AND deleted = 0 AND id < ?

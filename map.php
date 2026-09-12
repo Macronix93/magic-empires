@@ -28,7 +28,8 @@ $js_config = [
         "y" => $kingdom->get_kingdom_map_y(),
         "marchMultiplier" => $kingdom->get_march_speed_multiplier(),
         "troops" => $user_troops,
-        "guildId" => $user->get_user_guild_id()
+        "guildId" => $user->get_user_guild_id(),
+        "guildSupportSpeedLvl" => Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED)
     ],
     "fieldMeta" => $field_meta,
     "constants" => [
@@ -38,7 +39,8 @@ $js_config = [
         "MONSTER_CAMP_TRAVEL_BOOST" => MONSTER_CAMP_TRAVEL_BOOST,
         "MONSTER_CAMP_SCOUT_BOOST" => MONSTER_CAMP_SCOUT_BOOST,
         "PLAYER_KINGDOM_SCOUT_BOOST" => PLAYER_KINGDOM_SCOUT_BOOST,
-        "GUILD_SUPPORT_TRAVEL_BOOST" => GUILD_SUPPORT_TRAVEL_BOOST
+        "GUILD_SUPPORT_TRAVEL_BOOST" => GUILD_SUPPORT_TRAVEL_BOOST,
+        "GUILD_BONUS_SUPPORT_SPEED_PER_LVL" => GUILD_BONUS_SUPPORT_SPEED_PER_LVL
     ]
 ];
 

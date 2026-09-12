@@ -37,7 +37,9 @@ if ($building_id !== null) {
     if ($row) {
         $tech = new Kingdom($db_instance)->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
         $current_level_value = $tech ? $tech->get_tech_level() : 0;
-        $max_lvl_to_show = $row["maxlevel"];
+        $max_lvl_to_show = ($tech_id === TechTypes::TECH_TYPE_IMPERIAL)
+                ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
+                : $row["maxlevel"];
         $time_key = "timetoresearch";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME;
     }
@@ -183,12 +185,37 @@ if ($row) {
                 "diamond" => ["icon" => ResourceTypes::RESOURCE_TYPE_DIAMOND, "base" => GUILD_STORAGE_BASE_DIAMOND]
         ];
 
+        $res = match ($guild_tech_id) {
+            GuildTechTypes::GUILD_TECH_TYPE_STORAGE => ["", "Erhöht die Lagerkapazität der Gilden-Schatzkammer"],
+            GuildTechTypes::GUILD_TECH_EVENT_GOLD => ["+" . fdec(GUILD_BONUS_EVENT_GOLD_PER_LVL * 100) . "%", "Gold-Belohnung bei Welt-Events"],
+            GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED => ["-" . fdec(GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL * 100) . "%", "Laufzeit für Karawanen zu Verbündeten"],
+            GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY => ["+" . fnum(GUILD_BONUS_SUPPORT_CAP_PER_LVL), "zusätzliche Unterstützungstruppen"],
+            GuildTechTypes::GUILD_TECH_SUPPORT_SPEED => ["-" . fdec(GUILD_BONUS_SUPPORT_SPEED_PER_LVL * 100) . "%", "Marschzeit für Unterstützungstruppen"],
+            GuildTechTypes::GUILD_TECH_MEMBER_LIMIT => ["+" . GUILD_BONUS_MEMBER_LIMIT_PER_LVL, "maximale Gilden-Mitglieder"],
+            default => null
+        };
+
+        $guild_tech_bonus_info = "";
+        if ($res) {
+            $value = $res[0];
+            $text = $res[1];
+
+            $formatted_value = !empty($value) ? "<span class='passed'>$value</span> " : "";
+            $suffix = ($guild_tech_id === GuildTechTypes::GUILD_TECH_TYPE_STORAGE) ? "." : " pro Stufe.";
+
+            $guild_tech_bonus_info = "<div class='tech-info-box'>";
+            $guild_tech_bonus_info .= "<b>Forschungs-Effekt:</b><br>";
+            $guild_tech_bonus_info .= "$formatted_value$text$suffix";
+            $guild_tech_bonus_info .= "</div>";
+        }
+
         $view .= "<div class='big-box-container tech-info-page'>
                     <div class='big-box-header tech-info-header'>" . e($row["name"]) . "</div>
                     <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>
                             " . e($row["description"]) . "
                         </p>
+                        $guild_tech_bonus_info
                         <table class='table' style='width: 100%;'>
                             <tr>
                                 <td class='td-center td-gradient' style='width: 12%;'>Stufe</td>";

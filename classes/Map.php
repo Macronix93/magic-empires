@@ -138,9 +138,15 @@ class Map
         $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
 
         if ($is_support) {
-            $modified_time *= GUILD_SUPPORT_TRAVEL_BOOST;
+            $g_sup_lvl = Guild::get_user_guild_tech_level($this->user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED);
+            $support_speed_mult = max(0.1, 1.0 - ($g_sup_lvl * GUILD_BONUS_SUPPORT_SPEED_PER_LVL));
+
+            $modified_time *= (GUILD_SUPPORT_TRAVEL_BOOST * $support_speed_mult);
         } else if ($is_caravan) {
-            $modified_time *= CARAVAN_SPEED_FACTOR;
+            $g_trade_lvl = Guild::get_user_guild_tech_level($this->user->get_user_id(), GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED);
+            $caravan_speed_mult = max(0.1, 1.0 - ($g_trade_lvl * GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL));
+
+            $modified_time *= (CARAVAN_SPEED_FACTOR * $caravan_speed_mult);
         } else {
             if ($actual_target_id === -3 || $actual_target_id === -4) {
                 $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
@@ -155,8 +161,7 @@ class Map
             }
         }
 
-        //return (int)round($modified_time);
-        return 30;
+        return (int)round($modified_time);
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array

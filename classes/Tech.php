@@ -63,6 +63,14 @@ class Tech
         return $this->t_level;
     }
 
+    public function get_tech_max_level(): int
+    {
+        if ($this->tech_id === TechTypes::TECH_TYPE_IMPERIAL) {
+            return max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
+        }
+        return $this->t_maxlevel;
+    }
+
     public function add_tech_dependency(int $dependency_id,
                                         int $dependency_level,
                                         int $tech_dependency_id,
@@ -84,11 +92,6 @@ class Tech
     public function get_tech_description(): string
     {
         return $this->t_description;
-    }
-
-    public function get_tech_max_level(): int
-    {
-        return $this->t_maxlevel;
     }
 
     function calculate_tech_cost(): array
@@ -147,7 +150,6 @@ class Tech
     public function create_tech(array $row): Tech
     {
         $this->set_tech_id($row["id"]);
-        //$this->set_tech_kingdom_id($_SESSION["kingdomid"]);
         $this->set_tech_name($row["techname"]);
         $this->set_tech_score($row["techscore"]);
         $this->set_tech_description($row["description"]);

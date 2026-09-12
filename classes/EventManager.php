@@ -267,7 +267,7 @@ class EventManager
 
         // Calculate score
         $res = $this->mysqli->execute_query("SELECT techscore FROM tech_list WHERE id = ?", [$tech_id]);
-        $score_gain = $res->fetch_assoc()["techscore"] * $row["buildinglevel"] + 1;
+        $score_gain = $res->fetch_assoc()["techscore"] * ($row["buildinglevel"] + 1);
 
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
@@ -1014,8 +1014,8 @@ class EventManager
         $current_count = (int)$res_curr->fetch_column();
 
         $res_imp = $this->mysqli->execute_query("
-            SELECT COUNT(*) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id 
-            WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0
+            SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id 
+            WHERE k.userid = ? AND t.techid = ?
         ", [$uid, TechTypes::TECH_TYPE_IMPERIAL]);
         $imp_bonus = (int)$res_imp->fetch_column();
         $limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
@@ -1415,7 +1415,7 @@ class EventManager
                 WHERE t.kingdomid = ?", [$enemy_kingdom->get_kingdom_id()]);
             $village_tech_score = (int)($res_t_score->fetch_assoc()["loss"] ?? 0);
 
-            // Gesamtwert des Dorfes
+            // Total of the kingdom
             $total_village_value = $village_building_score + $village_tech_score;
 
             if ($has_more_kingdoms) {
@@ -1444,6 +1444,19 @@ class EventManager
                             $this->mysqli->execute_query(
                                 "UPDATE buildings SET kingdomid = ? WHERE kingdomid = ? AND buildingid = ?",
                                 [$new_main_id, $enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_EMBASSY]
+                            );
+                        }
+
+                        // Move Imperial Tech, if it exists
+                        $check_imperium = $this->mysqli->execute_query(
+                            "SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+                            [$enemy_kingdom->get_kingdom_id(), TechTypes::TECH_TYPE_IMPERIAL]
+                        );
+
+                        if ($check_imperium->num_rows > 0) {
+                            $this->mysqli->execute_query(
+                                "UPDATE techs SET kingdomid = ? WHERE kingdomid = ? AND techid = ?",
+                                [$new_main_id, $enemy_kingdom->get_kingdom_id(), TechTypes::TECH_TYPE_IMPERIAL]
                             );
                         }
                     }
@@ -2782,7 +2795,8 @@ class EventManager
         }
 
         $target_k = new Kingdom($this->mysqli, $target_kid);
-        $support_limit = SUPPORT_LIMIT_BASE + ($target_k->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) * SUPPORT_LIMIT_PER_BARRACKS);
+        $g_cap_lvl = Guild::get_user_guild_tech_level((int)$data["recipient_id"], GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+        $support_limit = SUPPORT_LIMIT_BASE + ($target_k->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
         $current_support = (int)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$target_kid])->fetch_column();
 
         $res_incoming = $this->mysqli->execute_query("SELECT soldierid, soldiercount, initial_count FROM sent_troops WHERE eventid = ?", [$event_id]);

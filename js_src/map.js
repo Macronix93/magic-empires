@@ -588,7 +588,7 @@ function dragEnd(e) {
 function handleWheel(e) {
     e.preventDefault();
 
-    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    const delta = e.deltaY > 0 ? -0.1 : 0.1; // old: 0.15
     const oldZoom = zoom;
     zoom = Math.max(0.15, Math.min(2.0, zoom + delta));
 
@@ -783,7 +783,9 @@ function selectField(x, y, shouldCenter = false) {
         if (kid !== gameConfig.currentKingdom.id) {
             const arrivalNormal = Math.round(baseTravelTime);
             const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.PLAYER_KINGDOM_SCOUT_BOOST);
-            const arrivalSupport = Math.round(baseTravelTime * gameConfig.constants.GUILD_SUPPORT_TRAVEL_BOOST);
+            const gSupLvl = gameConfig.currentKingdom.guildSupportSpeedLvl || 0;
+            const gSupFactor = Math.max(0.1, 1.0 - (gSupLvl * gameConfig.constants.GUILD_BONUS_SUPPORT_SPEED_PER_LVL));
+            const arrivalSupport = Math.round(baseTravelTime * gameConfig.constants.GUILD_SUPPORT_TRAVEL_BOOST * gSupFactor);
             let timeDisplay;
 
             const targetGuildId = enemyGuildId;

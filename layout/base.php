@@ -149,13 +149,19 @@ if ($user->is_logged_in()) {
     $cur_coords = $current_k->get_kingdom_map_x() . ":" . $current_k->get_kingdom_map_y();
     ?>
     <div class="mobile-nav-arrow" style="left: 60px; top: 1px;" data-on-click="switchKingdomPrev">
-        <p style="margin: 0; color: var(--link-color); font-size: 16px;">◀</p>
+        <img src="images/icons/icon_right_slow.png"
+             class="arrow-nav arrow-left"
+             data-on-click="switchKingdomPrev"
+             title="Vorheriges Königreich" alt="">
     </div>
     <div class="mobile-kingdom-display" style="top: 1px;">
         <span class="mobile-kingdom-title"><?= e($cur_kname) ?></span>
     </div>
     <div class="mobile-nav-arrow" style="right: 60px; top: 1px;" data-on-click="switchKingdomNext">
-        <p style="margin: 0; color: var(--link-color); font-size: 16px;">▶</p>
+        <img src="images/icons/icon_right_slow.png"
+             class="arrow-nav"
+             data-on-click="switchKingdomNext"
+             title="Nächstes Königreich" alt="">
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">

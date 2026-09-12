@@ -149,6 +149,8 @@ registerAction("confirmCancelInvite", (el) => {
 registerAction("switchGuildTab", (el) => {
     const tabName = el.dataset.tab;
 
+    document.cookie = "me_guild_tab=" + tabName + "; path=/; max-age=31536000; SameSite=Lax";
+
     document.querySelectorAll('.js-guild-tab').forEach(tab => {
         tab.style.display = "none";
     });
@@ -175,15 +177,39 @@ registerAction("switchGuildTab", (el) => {
     url.searchParams.set("tab", tabName);
     window.history.replaceState({}, '', url);
 });
-registerAction("confirmCancelProject", () => {
+registerAction("confirmCancelProject", (el) => {
+    const donated = parseInt(el.dataset.donated) || 0;
+
+    let msg;
+    if (donated > 0) {
+        msg = "⚠️ ACHTUNG: Für dieses Projekt wurde bereits von Mitgliedern gespendet!\n\nWenn du als Gilden-Leader jetzt abbrichst, gibt es KEINEN Refund für die eingezahlten Ressourcen! Bist du absolut sicher?";
+    } else {
+        msg = "Möchtest du das aktuelle Gilden-Projekt wirklich abbrechen?";
+    }
+
     showConfirmationDialog(
-        "Möchtest du das aktuelle Gilden-Projekt wirklich abbrechen? Alle bereits eingezahlten Ressourcen gehen verloren!",
-        "Ja, Projekt abbrechen",
-        "Nein, beibehalten",
+        msg,
+        "Ja, abbrechen",
+        "Nein",
         () => {
             window.location.href = "guild.php?tab=research&cancel_project=1";
         }
     );
+});
+registerAction("toggleCreateInviteOnly", (el) => {
+    const input = document.getElementById("g_min_score_create");
+    if (input) {
+        input.disabled = el.checked;
+        if (el.checked) input.value = "0";
+    }
+});
+
+registerAction("toggleSettingsInviteOnly", (el) => {
+    const input = document.getElementById("g_min_score_settings");
+    if (input) {
+        input.disabled = el.checked;
+        if (el.checked) input.value = "0";
+    }
 });
 
 const displayGuildError = (message) => {

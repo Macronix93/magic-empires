@@ -171,8 +171,13 @@ class WorldEvent
                     }
 
                     if ($diff["gold"] > 0 && $kingdom_id > 0) {
+                        $g_gold_lvl = Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_EVENT_GOLD);
+                        $gold_mult = 1.0 + ($g_gold_lvl * GUILD_BONUS_EVENT_GOLD_PER_LVL);
+                        $final_event_gold = (int)round($diff["gold"] * $gold_mult);
+
                         $k_obj = new Kingdom($this->mysqli, $kingdom_id);
-                        $k_obj->give_kingdom_gold($diff["gold"]);
+                        $k_obj->give_kingdom_gold($final_event_gold);
+                        $diff["gold"] = $final_event_gold;
                     }
 
                     $rewards_text = [];
@@ -334,7 +339,8 @@ class WorldEvent
             ResourceTypes::RESOURCE_TYPE_FOOD => (int)($base_res * (mt_rand(WORLD_EVENT_HP_RES_VAR_MIN, WORLD_EVENT_HP_RES_VAR_MAX) / 100)),
             ResourceTypes::RESOURCE_TYPE_WOOD => (int)($base_res * (mt_rand(WORLD_EVENT_HP_RES_VAR_MIN, WORLD_EVENT_HP_RES_VAR_MAX) / 100)),
             ResourceTypes::RESOURCE_TYPE_STONE => (int)($base_res * (mt_rand(WORLD_EVENT_HP_RES_VAR_MIN, WORLD_EVENT_HP_RES_VAR_MAX) / 100)),
-            ResourceTypes::RESOURCE_TYPE_GOLD => (int)($base_res * (mt_rand(WORLD_EVENT_HP_RES_VAR_MIN, WORLD_EVENT_HP_RES_VAR_MAX) / 100))
+            ResourceTypes::RESOURCE_TYPE_GOLD => (int)round(($base_res * (mt_rand(WORLD_EVENT_HP_RES_VAR_MIN, WORLD_EVENT_HP_RES_VAR_MAX) / 100))
+                * (1.0 + (Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_EVENT_GOLD) * GUILD_BONUS_EVENT_GOLD_PER_LVL)))
         ];
 
         // Calc soldiers
@@ -386,25 +392,6 @@ class WorldEvent
         }
 
         return ["resources" => $loot, "soldiers" => $reward_soldiers];
-    }
-
-    public function generate_dmg_event_loot(int $damage): array
-    {
-        if ($damage < WORLD_EVENT_REWARD_MIN_TRESHOLD) {
-            return ["coins" => 0, "gold_res" => 0];
-        }
-
-        if ($damage >= WORLD_EVENT_REWARD_TRESHOLD_5) $coins = WORLD_EVENT_REWARD_COINS_5;
-        else if ($damage >= WORLD_EVENT_REWARD_TRESHOLD_4) $coins = WORLD_EVENT_REWARD_COINS_4;
-        else if ($damage >= WORLD_EVENT_REWARD_TRESHOLD_3) $coins = WORLD_EVENT_REWARD_COINS_3;
-        else if ($damage >= WORLD_EVENT_REWARD_TRESHOLD_2) $coins = WORLD_EVENT_REWARD_COINS_2;
-        else if ($damage >= WORLD_EVENT_REWARD_TRESHOLD_1) $coins = WORLD_EVENT_REWARD_COINS_1;
-        else                                               $coins = WORLD_EVENT_REWARD_COINS_MIN;
-
-        $gold_res = (int)($damage / WORLD_EVENT_DMG_GOLD_RATIO);
-        $gold_res = min($gold_res, WORLD_EVENT_DMG_GOLD_MAX);
-
-        return ["coins" => $coins, "gold_res" => $gold_res];
     }
 
     public function get_valid_delivery_kingdom(int $user_id, int $preferred_id): int

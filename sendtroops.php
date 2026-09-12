@@ -69,13 +69,14 @@ $result_enemy = $db_instance->execute_query("
 $row_enemy = $result_enemy->fetch_assoc();
 
 if ($row_enemy) {
-    $enemy_score = $row_enemy["score"];
-    $enemy_user_id = $row_enemy["userid"];
-    $enemy_guild_id = $row_enemy["guildid"] ?? -1;
+    $enemy_score = (int)$row_enemy["score"];
+    $enemy_user_id = (int)$row_enemy["userid"];
+    $enemy_guild_id = (int)($row_enemy["guildid"] ?? -1);
 }
 
 $my_guild_id = $user->get_user_guild_id();
 $is_ally = ($my_guild_id > 0 && $my_guild_id === $enemy_guild_id && $enemy_user_id !== $user->get_user_id());
+
 $is_noob_protected = false;
 
 $current_support_load = 0;
@@ -84,7 +85,8 @@ $total_support_limit = 0;
 if ($is_ally) {
     $target_k_obj = new Kingdom($db_instance, $kingdom_id);
     $t_barracks_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
-    $total_support_limit = SUPPORT_LIMIT_BASE + ($t_barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+    $g_cap_lvl = Guild::get_user_guild_tech_level($enemy_user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+    $total_support_limit = SUPPORT_LIMIT_BASE + ($t_barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
 
     $res_load = $db_instance->execute_query("
         SELECT (
@@ -160,7 +162,7 @@ $field_name = $field_data["fieldname"];
 $expires_at = (int)$field_data["expires_at"];
 
 $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(),
-    $target_x, $target_y, $user->get_current_kingdom(), $kingdom_id);
+    $target_x, $target_y, $user->get_current_kingdom(), $kingdom_id, false, false, $is_ally);
 
 if ($expires_at > 0) {
     $remaining_time = $expires_at - time();
@@ -233,13 +235,12 @@ if (!empty($_POST["soldiers"])) {
         $current_settled_count = $res_k_count->fetch_assoc()["total"] ?? 0;
 
         $res_total_imp = $db_instance->execute_query("
-                    SELECT COUNT(*) AS total 
-                    FROM techs t
-                    JOIN kingdoms k ON t.kingdomid = k.id
-                    WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0
-                ", [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]);
-        $total_imperial_bonus = $res_total_imp->fetch_assoc()["total"] ?? 0;
-
+            SELECT IFNULL(MAX(t.techlevel), 0) AS total 
+            FROM techs t
+            JOIN kingdoms k ON t.kingdomid = k.id
+            WHERE k.userid = ? AND t.techid = ?
+        ", [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]);
+        $total_imperial_bonus = (int)($res_total_imp->fetch_assoc()["total"] ?? 0);
         $max_allowed_slots = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $total_imperial_bonus);
 
         $total_units_in_request = 0;
@@ -293,8 +294,9 @@ if (!empty($_POST["soldiers"])) {
             }
 
             $target_k_obj = new Kingdom($db_instance, $kingdom_id);
-            $barracks_lvl = $target_k_obj->get_kingdom_building_level(2);
-            $support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS);
+            $barracks_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
+            $g_cap_lvl = Guild::get_user_guild_tech_level($enemy_user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+            $support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
 
             $res_current = $db_instance->execute_query("
                 SELECT 
@@ -614,6 +616,8 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         }
     }
 
+    $show_all_checked = (($_COOKIE["me_list_view"] ?? $_COOKIE["me_barracks_all_units"] ?? "0") === "1");
+
     if ($barracks_level > 0) {
         if ($total_units_available > 0) {
             $button_label = "Truppen schicken";
@@ -644,7 +648,8 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
             $categories = SoldierTypes::get_labels();
 
-            $view .= "<div class='tab' style='margin-top: 10px;'>";
+            $view .= "<div class='tab' id='sendtroops-tabs' style='margin-top: 10px; " . ($show_all_checked ? "display: none;" : "") . "'>";
+
             foreach ($categories as $id => $name) {
                 if ($name === "Unterstützung") continue;
 
@@ -656,18 +661,27 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                     $view .= "<div class='tablinks tab-disabled'>$name</div>";
                 }
             }
+
             $view .= "</div>";
 
             // Show users soldiers
             $view .= '<table class="table send-selection-table" style="max-width: 500px;">
-                                                        <colgroup>
+                            <colgroup>
                                 <col style="width: auto;">
                                 <col style="width: 130px;">
                             </colgroup>
-                            <tr>
+                            <tr id="sendtroops-header" style="' . ($show_all_checked ? 'display: none;' : '') . '">
                                 <td class="td-center td-gradient">Soldat</td>
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
+
+            $prev_cat = -1;
+            $category_names = [
+                SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
+                SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+                SoldierTypes::SOLDIER_TYPE_ARCHERS => "Fernkampf",
+                SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezialeinheiten"
+            ];
 
             foreach ($soldiers as $soldier_id => $s_obj) {
                 $soldier_id = $s_obj->get_soldier_id();
@@ -682,6 +696,21 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                 if ($owned_count <= 0) {
                     continue;
                 }
+
+                if ($prev_cat !== $unit_cat) {
+                    $cat_label = $category_names[$unit_cat] ?? "";
+                    $divider_style = $show_all_checked ? "" : "display: none;";
+
+                    $view .= "<tr class='unit-category-divider' style='$divider_style'>
+                                <td class='td-center td-gradient' style='border-top: 1px solid var(--box-header); border-bottom: 2px solid var(--box-header);'>
+                                    <b>$cat_label</b>
+                                </td>
+                                <td class='td-center td-gradient' style='border-top: 1px solid var(--box-header); border-bottom: 2px solid var(--box-header);'>
+                                    <b>Anzahl</b>
+                                </td>
+                              </tr>";
+                }
+                $prev_cat = $unit_cat;
 
                 if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
                     $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
@@ -702,7 +731,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                 $real_atk = (int)round(($s_obj->get_soldier_attack() + $atk_bonus) * $shrine_mult);
                 $real_def = (int)($s_obj->get_soldier_defense() + $def_bonus);
 
-                $row_style = ($unit_cat === $first_active_cat) ? "" : "display: none;";
+                $row_style = ($show_all_checked || $unit_cat === $first_active_cat) ? "" : "display: none;";
 
                 $is_input_disabled = ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) ? "disabled" : "";
 

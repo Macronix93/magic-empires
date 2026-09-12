@@ -141,8 +141,8 @@ while ($ev = $finished_events->fetch_assoc()) {
 
             foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
                 if ($user_damage >= $threshold) {
-                    $total_coins = $rewards["coins"];
-                    $total_gold = $rewards["gold"];
+                    $total_coins += $rewards["coins"];
+                    $total_gold += $rewards["gold"];
                 }
             }
 
@@ -154,16 +154,16 @@ while ($ev = $finished_events->fetch_assoc()) {
                 $loot_display[ResourceTypes::RESOURCE_TYPE_GOLD] = $total_gold;
             }
 
-            $main_text_additional = ($user_damage >= WORLD_EVENT_REWARD_MIN_TRESHOLD)
+            $sub_text = ($user_damage >= WORLD_EVENT_REWARD_MIN_TRESHOLD)
                 ? "Alle Belohnungen wurden deinen Lagern und deiner Schatzkammer bereits während deiner Angriffe gutgeschrieben."
                 : "Du hast die Mindest-Schadensschwelle für Belohnungen leider nicht erreicht.";
 
             $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                     "Event-Abschluss",
-                    "Das Schadens-Event im Auge des Sturms ist beendet!<br>Für deinen Gesamtschaden von <b>" . fnum($user_damage, true) . "
-                             </b> hast du folgende Gesamt-Prämien erzielt:<br><br>$main_text_additional",
+                    "Das Schadens-Event im <b>Auge des Sturms</b> ist beendet!<br>Für deinen Gesamtschaden von <b>" . fnum($user_damage, true) . "
+                             </b> hast du folgende Gesamt-Prämien erzielt:<br><br>",
                     0, 0,
-                    "",
+                    $sub_text,
                     "neutral",
                     $loot_display
                 ) . "</div>";

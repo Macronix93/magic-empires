@@ -8,11 +8,24 @@ if (!($user->is_logged_in())) {
 
 $dependency_text = "";
 
+// Aktuelles Königreich
+$current_kid = $user->get_current_kingdom();
+$main_kid = $user->get_main_kingdom();
+
 // Fetch all buildings and their dependencies
 $kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
+
+if ($current_kid === $main_kid) {
+    $main_buildings = $buildings;
+    $main_techs = $techs;
+} else {
+    $main_k = new Kingdom($db_instance, $main_kid);
+    $main_buildings = $main_k->fetch_all_kingdom_buildings();
+    $main_techs = $main_k->fetch_all_kingdom_techs();
+}
 
 $view .= '<div class="title-border">Gebäude-Struktur</div>';
 $view .= '<table class="table">
@@ -24,17 +37,20 @@ $view .= '<table class="table">
     </tr>';
 
 for ($i = 0; $i < count($buildings); $i++) {
-    $current_building_level = $buildings[$i]->get_building_level();
+    $is_embassy = ($i === BuildingTypes::BUILDING_EMBASSY);
+    $target_buildings = $is_embassy ? $main_buildings : $buildings;
+
+    $current_building_level = $target_buildings[$i]->get_building_level();
     $building_dependencies = $buildings[$i]->get_building_dependencies();
 
     if (!empty($building_dependencies)) {
         foreach ($building_dependencies as $dependency) {
-            $level_of_dependency_building = $buildings[$dependency["dependencyid"]]->get_building_level();
+            $level_of_dependency_building = $target_buildings[$dependency["dependencyid"]]->get_building_level();
 
             if ($dependency["dependencylevel"] > $level_of_dependency_building) {
-                $dependency_text .= " <span class='error' style='white-space: nowrap;'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
+                $dependency_text .= " <span class='error' style='white-space: nowrap;'>" . $target_buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
             } else {
-                $dependency_text .= " <span class='passed' style='white-space: nowrap;'>" . $buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
+                $dependency_text .= " <span class='passed' style='white-space: nowrap;'>" . $target_buildings[$dependency["dependencyid"]]->get_building_name() . " (" . $dependency["dependencylevel"] . ")</span>";
             }
         }
     } else {
@@ -70,7 +86,7 @@ foreach ($techs as $t) {
     }
 }
 
-$renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, $techs) {
+$renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, $techs, $main_buildings, $main_techs) {
     $html = '<div class="title-border">' . $title . '</div>';
     $html .= '<table class="table">
         <tr>
@@ -79,7 +95,11 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
         </tr>';
 
     foreach ($tech_array as $t) {
-        $current_tech_level = $t->get_tech_level();
+        $is_imperial = ($t->get_tech_id() === TechTypes::TECH_TYPE_IMPERIAL);
+        $target_buildings = $is_imperial ? $main_buildings : $buildings;
+        $target_techs = $is_imperial ? $main_techs : $techs;
+
+        $current_tech_level = $target_techs[$t->get_tech_id()]->get_tech_level();
         $tech_dependencies = $t->get_tech_dependencies();
         $dependency_text = "";
 
@@ -88,16 +108,16 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
                 // Building dependencies
                 if (isset($dependency["dependencyid"]) && $dependency["dependencyid"] !== -1) {
                     $needed = $dependency["dependencylevel"];
-                    $current = $buildings[$dependency["dependencyid"]]->get_building_level();
+                    $current = $target_buildings[$dependency["dependencyid"]]->get_building_level();
                     $class = ($needed > $current) ? 'error' : 'passed';
-                    $dependency_text .= " <span class='$class' style='white-space: nowrap;'>{$buildings[$dependency["dependencyid"]]->get_building_name()} ($needed)</span>";
+                    $dependency_text .= " <span class='$class' style='white-space: nowrap;'>{$target_buildings[$dependency["dependencyid"]]->get_building_name()} ($needed)</span>";
                 }
                 // Tech dependencies
                 if (isset($dependency["techdepid"]) && $dependency["techdepid"] !== -1) {
                     $needed = $dependency["techdeplevel"];
-                    $current = $techs[$dependency["techdepid"]]->get_tech_level();
+                    $current = $target_techs[$dependency["techdepid"]]->get_tech_level();
                     $class = ($needed > $current) ? 'error' : 'passed';
-                    $dependency_text .= " <span class='$class' style='white-space: nowrap;'>{$techs[$dependency["techdepid"]]->get_tech_name()} ($needed)</span>";
+                    $dependency_text .= " <span class='$class' style='white-space: nowrap;'>{$target_techs[$dependency["techdepid"]]->get_tech_name()} ($needed)</span>";
                 }
             }
         } else {

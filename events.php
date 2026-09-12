@@ -193,7 +193,7 @@ if (!$active_event) {
                     <button data-on-click='redirect' data-url='" . $target_url . "' $disabled>Aktuelles Dorf senden</button>
                     <form method='POST' style='display: inline;'>
                         <button type='submit' name='attack_all_kingdoms' $disabled 
-                                title='Bündelt alle Truppen deines Accounts zu einem Angriff!'>⚔️ Massenmobilisierung</button>
+                                title='Bündelt alle Truppen deines Accounts zu einem Angriff!'>" . wrap_emojis("⚔️ Massenmobilisierung") . "</button>
                     </form>
                 </div>
               </div>";
@@ -301,13 +301,16 @@ if (!$active_event) {
         $view .= "<p class='monster-desc'>" . e($monster["desc"]) . "</p>";
         $view .= "<p>Verursache in maximal <b>" . WORLD_EVENT_MAX_ATTEMPTS . " Angriffen</b> so viel Schaden wie möglich!</p>";
 
+        $g_gold_lvl = Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_EVENT_GOLD);
+        $guild_gold_mult = 1.0 + ($g_gold_lvl * GUILD_BONUS_EVENT_GOLD_PER_LVL);
+
         $total_gold_earned = 0;
         $total_coins_earned = 0;
         $highest_reached_threshold = 0;
 
         foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
             if ($user_damage >= $threshold) {
-                $total_gold_earned += $rewards["gold"];
+                $total_gold_earned += (int)round($rewards["gold"] * $guild_gold_mult);
                 $total_coins_earned += $rewards["coins"];
                 $highest_reached_threshold = $threshold;
             }
@@ -336,14 +339,14 @@ if (!$active_event) {
         foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
             if ($user_damage < $threshold) {
                 $next_target_threshold = $threshold;
-                break; // Erstes noch nicht erreichtes Ziel gefunden -> Stop!
+                break;
             }
         }
 
         $view .= "
         <div class='box-container' style='max-width: 520px; margin: 20px auto;'>
             <div class='box-header'>Schadens-Stufen & Prämien</div>
-            <div class='box-content box-content-bg' style='padding: 15px 15px 0 15px;'>
+            <div class='box-content box-content-bg' style='padding: 15px;'>
                 <table class='table' style='width: 100%; border-collapse: collapse; font-size: 14px;'>
                     <tr style='font-weight: bold;'>
                         <td class='td-center td-gradient'>Gesamtschaden</td>
@@ -357,18 +360,23 @@ if (!$active_event) {
 
             $tr_style = $is_next_target ? "style='background: rgba(255, 255, 255, 0.05); font-weight: bold;'" : "";
 
-            if ($is_next_target) {
-                $cell_style = "";
-                $status_style = "class='td-center'";
-                $status_html = "";
-            } else if ($is_reached) {
+            if ($is_reached) {
                 $cell_style = "style='background: rgba(0, 0, 0, 0.05); color: rgba(230, 220, 200, 0.6);'";
                 $status_style = "class='td-center' style='background: rgba(0, 0, 0, 0.05);'";
                 $status_html = "<span style='color: #2fa22f;'>✔</span";
             } else {
                 $cell_style = "";
                 $status_style = "class='td-center'";
-                $status_html = "<span style='opacity: 0.3;'>-</span>";
+                $status_html = "";
+            }
+
+            $base_gold = (int)$rewards['gold'];
+            $boosted_gold = (int)round($base_gold * $guild_gold_mult);
+
+            if ($g_gold_lvl > 0) {
+                $gold_display = "<span title='Basis: " . fnum($base_gold) . " (+" . ($g_gold_lvl * GUILD_BONUS_EVENT_GOLD_PER_LVL * 100) . "% Gilden-Bonus)'>" . fnum($boosted_gold) . "</span>";
+            } else {
+                $gold_display = fnum($boosted_gold);
             }
 
             $view .= "<tr $tr_style>
@@ -376,7 +384,7 @@ if (!$active_event) {
                 <td $cell_style>
                     <div style='display: flex; justify-content: space-between; text-align: left;'>
                         <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " {$rewards['coins']}</span>
-                        <span style='min-width: 100px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($rewards['gold']) . "</span>
+                        <span style='min-width: 100px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " $gold_display</span>
                     </div>
                 </td>
                 <td $status_style>$status_html</td>

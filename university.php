@@ -22,12 +22,23 @@ $tech_count = count($techs);
 $current_tech = (empty($_GET["id"]) ? 0 : (int)$_GET["id"]);
 $tech_id = (empty($_GET["tid"]) ? 0 : (int)$_GET["tid"]);
 
-$res_global_imp = $db_instance->execute_query("
-    SELECT COUNT(*) as total FROM techs t 
-    JOIN kingdoms k ON t.kingdomid = k.id 
-    WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0
-", [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]);
-$global_imp_count = $res_global_imp->fetch_assoc()["total"] ?? 0;
+$uid = $user->get_user_id();
+$main_kid = $user->get_main_kingdom();
+
+$imp_data = $db_instance->execute_query("
+    SELECT 
+        (SELECT IFNULL(t.techlevel, 0) 
+         FROM techs t 
+         WHERE t.kingdomid = ? AND t.techid = ?) AS imp_level,
+        (SELECT COUNT(*) 
+         FROM kingdoms 
+         WHERE userid = ? AND creation_method = 0) AS founded_count
+", [$main_kid, TechTypes::TECH_TYPE_IMPERIAL, $uid])->fetch_assoc();
+
+$global_imp_level = (int)($imp_data["imp_level"] ?? 0);
+$curr_founded = (int)($imp_data["founded_count"] ?? 1);
+
+$max_settlement_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $global_imp_level);
 
 if (isset($_GET["action"])) {
     $kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
@@ -45,16 +56,20 @@ if (isset($_GET["action"])) {
         $cost_stone = $costs["cost_stone"];
         $cost_gold = $costs["cost_gold"];
 
-        // The action that was set is "building"
+        // The action that was set is "research"
         if ($_GET["action"] == "research") {
             if ($tech_level >= $tech_max_level) {
                 $error = "Die Forschung ist schon maximal erforscht!";
             } else {
                 if ($tech_id == TechTypes::TECH_TYPE_IMPERIAL) {
-                    if (BASE_SETTLEMENT_LIMIT + $global_imp_count >= GLOBAL_SETTLEMENT_MAX) {
-                        $error = "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungs-Slots ist bereits erreicht!";
+                    $max_imp_lvl = max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
+                    if ($current_kingdom != $user->get_main_kingdom()) {
+                        $error = "Die Imperium-Forschung kann nur in deinem Hauptkönigreich durchgeführt werden!";
+                    } else if ($tech_level >= $max_imp_lvl) {
+                        $error = "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungen ist bereits erreicht!";
                     }
                 }
+
                 if (empty($error)) {
                     if ($kingdom_is_researching) {
                         $error = "Du forschst bereits!";
@@ -195,10 +210,20 @@ if ($rites_lvl > 0) {
     $boni_view .= "<tr><td>Ahnenritus:</td><td class='passed'>+$effect% Schrein-Effektivität</td></tr>";
 }
 
-$settlement_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
-if ($settlement_lvl > 0) {
-    $effect = BASE_SETTLEMENT_LIMIT + $settlement_lvl;
-    $boni_view .= "<tr><td>Siedlungsgründungen:</td><td class='passed'>$effect Siedlungen</td></tr>";
+if ($current_kingdom == $user->get_main_kingdom()) {
+    $settlement_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
+    if ($settlement_lvl > 0) {
+        $current_allowed = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $settlement_lvl);
+
+        $boni_view .= "<tr>
+            <td>Imperium:</td>
+            <td>
+                <span class='passed'>+$settlement_lvl Gründungs-Slots</span><br>
+                <small style='opacity:0.8;'>Erlaubt: $current_allowed Dörfer (Max: " . GLOBAL_SETTLEMENT_MAX . ")</small><br>
+                <small style='opacity:0.8;'>Gegründet: $curr_founded / $current_allowed</small>
+            </td>
+        </tr>";
+    }
 }
 
 if (!empty($boni_view)) {
@@ -245,7 +270,11 @@ if ($count_maxed_techs === $tech_count) {
 
     for ($i = 0; $i < $tech_count; $i++) {
         $show_tech = true;
-        $tech_dependencies = $techs[$i]->get_tech_dependencies();
+        if ($techs[$i]->get_tech_id() == TechTypes::TECH_TYPE_IMPERIAL) {
+            if ($current_kingdom != $user->get_main_kingdom()) {
+                continue;
+            }
+        }
 
         $tech_dependencies = $techs[$i]->get_tech_dependencies();
         foreach ($tech_dependencies as $dependency) {
@@ -271,7 +300,6 @@ if ($count_maxed_techs === $tech_count) {
                 }
             }
         }
-
 
         $level = $techs[$i]->get_tech_level();
         $max_level = $techs[$i]->get_tech_max_level();
@@ -318,7 +346,7 @@ if ($count_maxed_techs === $tech_count) {
 
                     $limit_reached = false;
                     if ($i == TechTypes::TECH_TYPE_IMPERIAL) {
-                        if (BASE_SETTLEMENT_LIMIT + $global_imp_count >= GLOBAL_SETTLEMENT_MAX) {
+                        if ($level >= max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)) {
                             $limit_reached = true;
                         }
                     }
@@ -354,6 +382,7 @@ if ($count_maxed_techs === $tech_count) {
                     $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
                 }
 
+                $level_text = "";
                 $view .= "<tr>
                     <td>
                         <div class='map-legend' style='justify-content: left;'>

@@ -163,7 +163,11 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
 }
 
 $map = new Map($db_instance, $user);
-$limit = 7;
+
+$limit = OVERVIEW_PAGESIZE_DEFAULT;
+if (isset($_COOKIE["me_overview_pagesize"]) && is_numeric($_COOKIE["me_overview_pagesize"])) {
+    $limit = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, (int)$_COOKIE["me_overview_pagesize"]));
+}
 
 // -- INCOMING ENEMIES OVERVIEW ---
 $incoming_data = $_SESSION["active_attacks"] ?? [];
@@ -195,6 +199,263 @@ if (!empty($_SESSION["active_attacks"])) {
     $view .= '<table class="table" style="max-width: 550px">' . $incoming_html . '</table><br>';
 }
 
+// --- BUILDING, TECH & RECRUIT OVERVIEW ---
+$count_kp_res = $db_instance->execute_query("SELECT COUNT(*) as total FROM kingdoms WHERE userid = ?", [$uid]);
+$count_kp = (int)$count_kp_res->fetch_assoc()["total"];
+
+$pages_kp = max(1, (int)ceil($count_kp / $limit));
+$curr_kp = isset($_GET["kp"]) ? max(1, min($pages_kp, (int)$_GET["kp"])) : 1;
+$offset_kp = ($curr_kp - 1) * $limit;
+
+$user_kingdoms = $db_instance->execute_query(
+    "SELECT id, kingdomname, mapx, mapy,
+            food, maxfood, foodperhour,
+            wood, maxwood, woodperhour,
+            stone, maxstone, stoneperhour,
+            gold, maxgold, goldperhour,
+            villager, maxvillager, villagerperhour
+     FROM kingdoms WHERE userid = ? ORDER BY created_at, id LIMIT ?, ?",
+    [$uid, $offset_kp, $limit]
+)->fetch_all(MYSQLI_ASSOC);
+
+$k_events_res = $db_instance->execute_query("
+    SELECT e.*, sl.icon AS soldier_icon, sl.soldiername AS soldiername 
+    FROM events e 
+    LEFT JOIN soldier_list sl ON sl.id = e.soldierid 
+    WHERE e.userid = ? AND e.actionid IN (?, ?, ?, ?, ?)
+", [
+    $uid,
+    ActionTypes::ACTION_BUILD_BUILDING,
+    ActionTypes::ACTION_BUILD_TROOPS,
+    ActionTypes::ACTION_UPGRADE_TROOPS,
+    ActionTypes::ACTION_RESEARCH_TECH,
+    ActionTypes::ACTION_SMITHY_UPGRADE
+]);
+
+$events_by_kingdom = [];
+foreach ($k_events_res as $ev) {
+    $kid = (int)$ev["kingdomid"];
+    $act = (int)$ev["actionid"];
+
+    if ($act === ActionTypes::ACTION_BUILD_BUILDING) {
+        $events_by_kingdom[$kid]["build"] = $ev;
+    } else if ($act === ActionTypes::ACTION_RESEARCH_TECH || $act === ActionTypes::ACTION_SMITHY_UPGRADE) {
+        $events_by_kingdom[$kid]["research"][] = $ev;
+    } else if ($act === ActionTypes::ACTION_BUILD_TROOPS || $act === ActionTypes::ACTION_UPGRADE_TROOPS) {
+        $events_by_kingdom[$kid]["recruit"] = $ev;
+    }
+}
+
+$total_projects = $k_events_res->num_rows;
+$view .= '<div class="title-border">Bau & Entwicklung (' . $total_projects . ')</div>';
+$view .= "<table class='table overview-table'>
+    <colgroup>
+        <col class='col-overview-kingdom'>
+        <col class='col-overview-building'>
+        <col class='col-overview-tech'>
+        <col class='col-overview-recruit'>
+    </colgroup>
+    <tr>
+        <td class='td-center td-gradient'><b>Königreich</b></td>
+        <td class='td-center td-gradient'><b>Bau</b></td>
+        <td class='td-center td-gradient'><b>Forschung</b></td>
+        <td class='td-center td-gradient'><b>Ausbildung</b></td>
+    </tr>";
+
+foreach ($user_kingdoms as $k) {
+    $kid = (int)$k["id"];
+    $k_name = e($k["kingdomname"]);
+    $k_coords = e($k["mapx"] . ":" . $k["mapy"]);
+    $is_active_k = ($kid === (int)$active_k_id);
+    $row_style = $is_active_k ? "style='background: rgba(212, 175, 55, 0.08);'" : "";
+
+    $storage_warnings = [];
+    $storage_is_full = false;
+    $storage_is_warning = false;
+
+    $res_check = [
+        ["cur" => (int)$k["food"], "max" => (int)$k["maxfood"], "prod" => (int)$k["foodperhour"], "icon" => ResourceTypes::RESOURCE_TYPE_FOOD],
+        ["cur" => (int)$k["wood"], "max" => (int)$k["maxwood"], "prod" => (int)$k["woodperhour"], "icon" => ResourceTypes::RESOURCE_TYPE_WOOD],
+        ["cur" => (int)$k["stone"], "max" => (int)$k["maxstone"], "prod" => (int)$k["stoneperhour"], "icon" => ResourceTypes::RESOURCE_TYPE_STONE],
+        ["cur" => (int)$k["gold"], "max" => (int)$k["maxgold"], "prod" => (int)$k["goldperhour"], "icon" => ResourceTypes::RESOURCE_TYPE_GOLD],
+    ];
+
+    foreach ($res_check as $rc) {
+        if ($rc["cur"] >= $rc["max"]) {
+            $storage_is_full = true;
+            $storage_warnings[] = get_resource_icon($rc["icon"]) . " <span class='error'>" . fnum($rc["cur"]) . " / " . fnum($rc["max"]) . "</span>";
+        } elseif ($rc["prod"] > 0 && ($rc["cur"] + $rc["prod"] >= $rc["max"] || $rc["cur"] >= $rc["max"] * KINGDOM_OVERFLOW_FACTOR)) {
+            $storage_is_warning = true;
+            $storage_warnings[] = get_resource_icon($rc["icon"]) . " <span class='warning'>" . fnum($rc["cur"]) . " / " . fnum($rc["max"]) . "</span>";
+        }
+    }
+
+    $vill_cur = (int)$k["villager"];
+    $vill_max = (int)$k["maxvillager"];
+    $vill_prod = (int)$k["villagerperhour"];
+    $vill_is_full = ($vill_cur >= $vill_max && $vill_max > 0);
+    $vill_is_warning = (!$vill_is_full && $vill_prod > 0 && ($vill_cur + $vill_prod >= $vill_max || $vill_cur >= $vill_max * KINGDOM_OVERFLOW_FACTOR));
+
+    $vill_warnings = [];
+    if ($vill_is_full) {
+        $vill_warnings[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " <span class='error'>" . fnum($vill_cur) . " / " . fnum($vill_max) . "</span>";
+    } elseif ($vill_is_warning) {
+        $vill_warnings[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " <span class='warning'>" . fnum($vill_cur) . " / " . fnum($vill_max) . "</span>";
+    }
+
+    $indicators_html = "";
+    if ($storage_is_full || $storage_is_warning || $vill_is_full || $vill_is_warning) {
+        $indicators_html .= "<div class='kingdom-overflow-indicators'>";
+
+        if ($storage_is_full || $storage_is_warning) {
+            $s_class = $storage_is_full ? "danger" : "warning";
+            $s_title = $storage_is_full ? "Lager voll!" : "Lager droht vollzulaufen!";
+            $indicators_html .= "
+                <span class='popup' id='pop_overflow_storage_$kid'>
+                    <img src='images/icons/icon_building9.png' class='overflow-icon $s_class' alt='Lager-Status'>
+                    <div id='pop_overflow_storage_{$kid}_box' class='popupbox' style='text-align: left; min-width: 180px;'>
+                        <b>$s_title</b><br>
+                        " . implode("<br>", $storage_warnings) . "
+                    </div>
+                </span>";
+        }
+        if ($vill_is_full || $vill_is_warning) {
+            $v_class = $vill_is_full ? "danger" : "warning";
+            $v_title = $vill_is_full ? "Wohnraum voll!" : "Wohnraum droht vollzulaufen!";
+
+            $indicators_html .= "
+                <span class='popup' id='pop_overflow_vill_$kid'>
+                    <img src='images/icons/icon_villager.png' class='overflow-icon $v_class' alt='Bewohner-Status'>
+                    <div id='pop_overflow_vill_{$kid}_box' class='popupbox' style='text-align: left; min-width: 180px;'>
+                        <b>$v_title</b><br>
+                        " . implode("<br>", $vill_warnings) . "
+                    </div>
+                </span>";
+        }
+        $indicators_html .= "</div>";
+    }
+
+    $col_kingdom = "
+        <div class='kingdom-cell-wrapper'>
+            <a href='#' class='kingdom-link kingdom-name-break' data-on-click='switchKingdom' data-id='$kid' title='$k_name ($k_coords)'>
+                $k_name
+            </a>
+            $indicators_html
+        </div>";
+
+    $col_build = "<div class='td-center'>-</div>";
+    if (isset($events_by_kingdom[$kid]["build"])) {
+        $b_ev = $events_by_kingdom[$kid]["build"];
+        $next_lvl = $b_ev["buildinglevel"] + 1;
+        $b_diff = max(0, $b_ev["buildingtime"] - $now);
+        $b_icon = "<img src='images/icons/icon_building" . (int)$b_ev["buildingid"] . ".png' class='ressource-icons' alt=''>";
+
+        $col_build = "
+            <div class='col-wrapper'>
+                <div class='popup project-info' id='pop_tb_{$b_ev["eventid"]}'>
+                    $b_icon <span class='project-lvl'>($next_lvl)</span>
+                    <div id='pop_tb_{$b_ev["eventid"]}_box' class='popupbox'><b>" . e($b_ev["buildingname"]) . "</b> <span class='project-lvl-popup'>($next_lvl)</span></div>
+                </div>
+                <div class='timer'>
+                    <b><span class='js-countdown' data-seconds='$b_diff' data-no-reload='true'>" . format_time_for_js($b_diff) . "</span></b>
+                </div>
+            </div>";
+    }
+
+    $col_research = "<div class='td-center'>-</div>";
+    if (!empty($events_by_kingdom[$kid]["research"])) {
+        $research_items = [];
+        foreach ($events_by_kingdom[$kid]["research"] as $t_ev) {
+            $next_lvl = $t_ev["buildinglevel"] + 1;
+            $t_diff = max(0, $t_ev["buildingtime"] - $now);
+            $t_icon = "<img src='images/icons/icon_tech" . (int)$t_ev["buildingid"] . ".png' class='ressource-icons' alt=''>";
+
+            $research_items[] = "
+                <div class='col-wrapper'>
+                    <div class='popup project-info' id='pop_tr_{$t_ev["eventid"]}'>
+                        $t_icon <span class='project-lvl'>($next_lvl)</span>
+                        <div id='pop_tr_{$t_ev["eventid"]}_box' class='popupbox'><b>" . e($t_ev["buildingname"]) . "</b> <span class='project-lvl-popup'>($next_lvl)</span></div>
+                    </div>
+                    <div class='timer'>
+                        <b><span class='js-countdown' data-seconds='$t_diff' data-no-reload='true'>" . format_time_for_js($t_diff) . "</span></b>
+                    </div>
+                </div>";
+        }
+        $col_research = "<div class='stack-wrapper'>" . implode("", $research_items) . "</div>";
+    }
+
+    $col_recruit = "<div class='td-center'>-</div>";
+    if (isset($events_by_kingdom[$kid]["recruit"])) {
+        $r_ev = $events_by_kingdom[$kid]["recruit"];
+        $r_diff = max(0, $r_ev["recruittime"] - $now);
+        $r_icon = "<img src='images/icons/" . e($r_ev["soldier_icon"]) . ".png' class='ressource-icons' alt=''>";
+        $is_upg = ((int)$r_ev["actionid"] === ActionTypes::ACTION_UPGRADE_TROOPS);
+        $badge_title = ($is_upg ? "Aufwertung: " : "") . e($r_ev["soldiername"]);
+        $pop_id = "pop_rec_" . $r_ev["eventid"];
+
+        $upgrade_arrow = $is_upg ? "<img src='images/icons/icon_arrow_up.png' class='badge-arrow-up' alt='▲' title='Aufwertung'>" : "";
+
+        $col_recruit = "
+            <div class='col-wrapper'>
+                <div class='unit-badge popup' id='$pop_id'>
+                    $r_icon<b>" . fnum($r_ev["soldiergoal"]) . "$upgrade_arrow</b>
+                    <div id='{$pop_id}_box' class='popupbox'><b>$badge_title</b></div>
+                </div>
+                <div class='timer'>
+                    <b><span class='js-countdown' data-seconds='$r_diff' data-no-reload='true'>" . format_time_for_js($r_diff) . "</span></b>
+                </div>
+            </div>";
+    }
+
+    $view .= "<tr $row_style>
+        <td class='col-overview-kingdom-cell'>$col_kingdom</td>
+        <td>$col_build</td>
+        <td>$col_research</td>
+        <td>$col_recruit</td>
+    </tr>";
+}
+
+$view .= "</table>";
+
+// Pagination Bar
+if ($pages_kp > 1) {
+    $view .= '<div class="pagination-container"><div class="pagination-bar">';
+
+    if ($curr_kp > 1) {
+        $params = $_GET;
+        $params["kp"] = 1;
+        $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Erste Seite'>&laquo;</a>";
+
+        $params["kp"] = $curr_kp - 1;
+        $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Zurück'>&lsaquo;</a>";
+    }
+
+    $range = 2;
+    for ($i = ($curr_kp - $range); $i <= ($curr_kp + $range); $i++) {
+        if ($i > 0 && $i <= $pages_kp) {
+            $params = $_GET;
+            $params["kp"] = $i;
+
+            if ($i == $curr_kp) {
+                $view .= "<span class='page-link active'>$i</span>";
+            } else {
+                $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link'>$i</a>";
+            }
+        }
+    }
+
+    if ($curr_kp < $pages_kp) {
+        $params = $_GET;
+        $params["kp"] = $curr_kp + 1;
+        $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Weiter'>&rsaquo;</a>";
+
+        $params["kp"] = $pages_kp;
+        $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Letzte Seite'>&raquo;</a>";
+    }
+
+    $view .= '</div></div>';
+}
+
 // --- TROOP OVERVIEW ---
 $tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
 $tp_list = implode(',', $tp_actions);
@@ -207,13 +468,13 @@ $res_count_tp = $db_instance->execute_query("
 $count_tp_active_k = (int)$res_count_tp->fetch_assoc()['total'];
 
 $pages_tp = ceil($count_tp_active_k / $limit);
-$curr_tp = isset($_GET["tp"]) ? max(1, (int)$_GET["tp"]) : 1;
+$curr_tp = isset($_GET["tp"]) ? max(1, min(max(1, (int)$pages_tp), (int)$_GET["tp"])) : 1;
 $offset_tp = ($curr_tp - 1) * $limit;
 
 $tc_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
 $max_tp = BASE_SEND_TROOPS_LIMIT + $tc_lvl;
 
-$view .= '<div class="title-border">Truppenbewegungen (' . $count_tp_active_k . '/' . $max_tp . ')</div>';
+$view .= '<div class="title-border" style="margin-top: 30px;">Truppenbewegungen (' . $count_tp_active_k . '/' . $max_tp . ')</div>';
 
 $query = "
     SELECT 
@@ -249,7 +510,8 @@ $query = "
     LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     LEFT JOIN users u_sender ON e.userid = u_sender.id
-    GROUP BY e.eventid, st.soldierid
+    GROUP BY e.arrivaltime, e.eventid, st.soldierid
+    ORDER BY e.arrivaltime, e.eventid
 ";
 
 $result = $db_instance->execute_query($query, [
@@ -274,10 +536,10 @@ if ($result && $result->num_rows > 0) {
                 <col style='width: 29%;'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
-            <td class='td-center td-gradient'>Art</td>
-            <td class='td-center td-gradient'>Truppen</td>
-            <td class='td-center td-gradient'>Koordinaten</td>
-            <td class='td-center td-gradient'>Ankunft</td>
+            <td class='td-center td-gradient'><b>Art</b></td>
+            <td class='td-center td-gradient'><b>Truppen</b></td>
+            <td class='td-center td-gradient'><b>Koordinaten</b></td>
+            <td class='td-center td-gradient'><b>Ankunft</b></td>
         </tr>";
 
     $grouped_events = [];
@@ -377,7 +639,7 @@ if ($result && $result->num_rows > 0) {
                 $player_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
             }
 
-            $coords_str = "$names_str $player_info <small>$my_coords → $target_coords</small>";
+            $coords_str = "$names_str $player_info<br><small>$my_coords → $target_coords</small>";
         } else if ($action_id === ActionTypes::ACTION_RETURN_TROOPS || $action_id === ActionTypes::ACTION_SUPPORT_RETURN) {
             $action_type = ($action_id === ActionTypes::ACTION_SUPPORT_RETURN) ? "Support-Rückzug" : "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
@@ -505,197 +767,9 @@ if ($result && $result->num_rows > 0) {
     $view .= "Derzeit sind keine Truppen unterwegs.";
 }
 
-// --- BUILDING, TECH & RECRUIT OVERVIEW ---
-$pages_bp = ceil($count_bp / $limit);
-$curr_bp = isset($_GET["bp"]) ? max(1, (int)$_GET["bp"]) : 1;
-$offset_bp = ($curr_bp - 1) * $limit;
-
-$view .= '<div class="title-border" style="margin-top: 30px;">Bau & Entwicklung (' . $count_bp . ')</div>';
-
-$query_events = "
-    SELECT e.*, k.kingdomname, k.mapx, k.mapy, sl.icon AS soldier_icon, sl.soldiername AS soldiername, g.name as guild_name,
-           gtl.icon AS guild_tech_icon
-    FROM events e 
-    LEFT JOIN kingdoms k ON e.kingdomid = k.id
-    LEFT JOIN guilds g ON e.guild_id = g.id
-    LEFT JOIN soldier_list sl ON sl.id = e.soldierid
-    LEFT JOIN guild_tech_list gtl ON gtl.id = e.buildingid AND e.guild_id IS NOT NULL
-    WHERE (e.userid = ? OR (e.guild_id > 0 AND e.guild_id = ?)) 
-      AND e.actionid IN (?, ?, ?, ?, ?)
-    ORDER BY COALESCE(k.kingdomname, g.name), COALESCE(NULLIF(e.buildingtime, 0), e.recruittime)
-    LIMIT $offset_bp, $limit
-";
-
-$result_events = $db_instance->execute_query($query_events, [
-    $user->get_user_id(),
-    $my_guild_id,
-    ActionTypes::ACTION_BUILD_BUILDING,
-    ActionTypes::ACTION_BUILD_TROOPS,
-    ActionTypes::ACTION_RESEARCH_TECH,
-    ActionTypes::ACTION_UPGRADE_TROOPS,
-    ActionTypes::ACTION_SMITHY_UPGRADE
-]);
-
-if ($result_events && $result_events->num_rows > 0) {
-    $view .= "<table class='table overview-info-table' style='width: 100%;'>";
-    $view .= "<colgroup>
-                <col class='col-build-type'> <!-- Art -->
-                <col class='col-build-project'> <!-- Projekt -->
-                <col class='col-build-kingdom'> <!-- Königreich -->
-                <col class='col-build-timer'> <!-- Fertigstellung -->
-              </colgroup>";
-    $view .= "<tr>
-            <td class='td-center td-gradient'>Art</td>
-            <td class='td-center td-gradient'>Projekt</td>
-            <td class='td-center td-gradient'>Standort</td>
-            <td class='td-center td-gradient'>Dauer</td>
-        </tr>";
-
-    foreach ($result_events as $row) {
-        $event_id = $row["eventid"];
-        $action_id = $row["actionid"];
-        $k_name = $row["kingdomname"] ?? "Gilde";
-        $k_coords = $row["mapx"] ? "{$row["mapx"]}:{$row["mapy"]}" : "";
-
-        $type_text = "";
-        $project_text = "";
-        $finish_time = 0;
-        $hover_name = "";
-
-        switch ($action_id) {
-            case ActionTypes::ACTION_BUILD_BUILDING:
-                $type_text = "Bauauftrag";
-                $next_lvl = $row["buildinglevel"] + 1;
-
-                $icon = "<img src='images/icons/icon_building" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
-                $project_text = "$icon ($next_lvl)";
-                $finish_time = $row["buildingtime"];
-                $hover_name = $row["buildingname"];
-                break;
-            case ActionTypes::ACTION_RESEARCH_TECH:
-            case ActionTypes::ACTION_SMITHY_UPGRADE:
-                $type_text = ($action_id == ActionTypes::ACTION_RESEARCH_TECH) ? "Forschung" : "Verbesserung";
-                $next_lvl = $row["buildinglevel"] + 1;
-
-                if ($row["guild_id"] > 0) {
-                    $icon_name = $row["guild_tech_icon"] ?? "icon_tech0";
-                    $icon = "<img src='images/icons/" . $icon_name . ".png' class='ressource-icons' alt=''>";
-                } else {
-                    $icon = "<img src='images/icons/icon_tech" . (int)$row["buildingid"] . ".png' class='ressource-icons' alt=''>";
-                }
-
-                $project_text = "$icon ($next_lvl)";
-                $finish_time = $row["buildingtime"];
-                $hover_name = $row["buildingname"];
-                break;
-            case ActionTypes::ACTION_BUILD_TROOPS:
-                $type_text = "Rekrutierung";
-                $sol_obj = new Soldier();
-                $sol_obj->set_soldier_id($row["soldierid"]);
-                $sol_obj->set_soldier_icon($row["soldier_icon"]);
-                $sol_obj->set_soldier_name($row["soldiername"]);
-
-                $project_text = "<div class='unit-badge' title='" . e($row["soldiername"]) . "'>
-                            " . $sol_obj->get_soldier_icon("ressource-icons") . "
-                            <b>" . fnum($row["soldiergoal"]) . "</b>
-                         </div>";
-                $finish_time = $row["recruittime"];
-                $hover_name = $row["soldiername"];
-                break;
-            case ActionTypes::ACTION_UPGRADE_TROOPS:
-                $type_text = "Aufwertung";
-                $sol_obj = new Soldier();
-                $sol_obj->set_soldier_id($row["soldierid"]);
-                $sol_obj->set_soldier_icon($row["soldier_icon"]);
-                $sol_obj->set_soldier_name($row["soldiername"]);
-
-                $project_text = "<div class='unit-badge' title='Upgrade zu " . e($row["soldiername"]) . "'>
-                            " . $sol_obj->get_soldier_icon("ressource-icons") . "
-                            <b>" . fnum($row["soldiergoal"]) . "</b>
-                         </div>";
-
-                $res_s = $db_instance->execute_query("SELECT requiredtime FROM soldier_list WHERE id = ?", [$row["soldierid"]]);
-                $u_time = $res_s->fetch_assoc()["requiredtime"];
-
-                $finish_time = $row["recruittime"];
-                $hover_name = $row["soldiername"];
-                break;
-        }
-
-        $arrival_diff = max(0, $finish_time - $now);
-        $counter_id = "event_counter_" . $event_id;
-
-        $view .= "<tr>
-                <td class='td-center'>$type_text</td>
-                <td class='td-center'>
-                    <div class='popup' id='event_pop_$event_id'>
-                        $project_text
-                        <div id='event_pop_{$event_id}_box' class='popupbox'>
-                            <b>" . e($hover_name) . "</b>
-                        </div>
-                    </div>
-                </td>
-                <td class='td-center'>
-                    <div class='location-wrapper'>
-                        <div class='kingdom-name-break' style='min-width: 0;'>$k_name</div>
-                        <a href='#' style='flex-shrink: 0; white-space: nowrap; margin-left: 4px;' data-on-click='switchKingdom' data-id='" . e($row["kingdomid"]) . "'>" . e($k_coords) . "</a>
-                    </div>
-                </td>
-                <td class='td-center td-timer-cell' style='position: relative;'>
-                    <b><span class='js-countdown' 
-                       id='$counter_id' 
-                       data-seconds='$arrival_diff' 
-                       data-no-reload='true'>" . format_time_for_js($arrival_diff) . "</span></b>
-                </td>
-            </tr>";
-    }
-
-    $view .= "</table>";
-
-    if ($pages_bp > 1) {
-        $view .= '<div class="pagination-container"><div class="pagination-bar">';
-
-        if ($curr_bp > 1) {
-            $params = $_GET;
-            $params["bp"] = 1;
-            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Erste Seite'>&laquo;</a>";
-
-            $params["bp"] = $curr_bp - 1;
-            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Zurück'>&lsaquo;</a>";
-        }
-
-        $range = 2;
-        for ($i = ($curr_bp - $range); $i <= ($curr_bp + $range); $i++) {
-            if ($i > 0 && $i <= $pages_bp) {
-                $params = $_GET;
-                $params["bp"] = $i;
-
-                if ($i == $curr_bp) {
-                    $view .= "<span class='page-link active'>$i</span>";
-                } else {
-                    $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link'>$i</a>";
-                }
-            }
-        }
-
-        if ($curr_bp < $pages_bp) {
-            $params = $_GET;
-            $params["bp"] = $curr_bp + 1;
-            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Weiter'>&rsaquo;</a>";
-
-            $params["bp"] = $pages_bp;
-            $view .= "<a href='overview.php?" . http_build_query($params) . "' class='page-link' title='Letzte Seite'>&raquo;</a>";
-        }
-
-        $view .= '</div></div>';
-    }
-} else {
-    $view .= "Derzeit gibt es keine Bauaufträge, Forschungen oder Rekrutierungen.";
-}
-
 // --- MARKETPLACE AND TRANSPORTS OVERVIEW ---
 $pages_wp = ceil($count_wp / $limit);
-$curr_wp = isset($_GET["wp"]) ? max(1, (int)$_GET["wp"]) : 1;
+$curr_wp = isset($_GET["wp"]) ? max(1, min(max(1, (int)$pages_wp), (int)$_GET["wp"])) : 1;
 $offset_wp = ($curr_wp - 1) * $limit;
 
 $view .= '<div class="title-border" style="margin-top: 30px;">Warenlieferungen</div>';
@@ -720,10 +794,10 @@ if ($result_trades && $result_trades->num_rows > 0) {
                 <col class='col-rss-timer'> <!-- Ankunft -->
               </colgroup>";
     $view .= "<tr>
-            <td class='td-center td-gradient'>Art</td>
-            <td class='td-center td-gradient'>Ressourcen</td>
-            <td class='td-center td-gradient'>Ziel</td>
-            <td class='td-center td-gradient'>Ankunft</td>
+            <td class='td-center td-gradient'><b>Art</b></td>
+            <td class='td-center td-gradient'><b>Ressourcen</b></td>
+            <td class='td-center td-gradient'><b>Ziel</b></td>
+            <td class='td-center td-gradient'><b>Ankunft</b></td>
         </tr>";
 
     foreach ($result_trades as $row) {

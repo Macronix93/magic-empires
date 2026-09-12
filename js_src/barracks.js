@@ -1,21 +1,129 @@
+registerAction("toggleAllUnitsView", (el) => {
+    const showAll = el.checked;
+
+    document.cookie = "me_list_view=" + (showAll ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
+
+    const standardTabs = document.getElementById("barracks-tabs-standard");
+    const listTabs = document.getElementById("barracks-tabs-list");
+    const recruitmentTable = document.getElementById("recruitment-table");
+    const supportContainer = document.getElementById("support-container");
+
+    if (showAll) {
+        if (standardTabs) standardTabs.style.display = "none";
+        if (listTabs) listTabs.style.display = "";
+
+        if (listTabs) {
+            listTabs.querySelectorAll(".tablinks").forEach(t => t.classList.remove("active"));
+            const unitsTab = listTabs.querySelector('[data-tab="units"]');
+            if (unitsTab) unitsTab.classList.add("active");
+        }
+
+        if (recruitmentTable) recruitmentTable.style.display = "";
+        if (supportContainer) supportContainer.style.display = "none";
+
+        document.querySelectorAll(".unit-row").forEach(row => {
+            row.style.display = "";
+        });
+        document.querySelectorAll(".unit-category-divider").forEach(row => {
+            row.style.display = "";
+        });
+
+        const header = document.getElementById("recruitment-header");
+        if (header) header.style.display = "none";
+
+        const url = new URL(window.location);
+        url.searchParams.delete("cat");
+        window.history.replaceState({}, '', url);
+    } else {
+        if (standardTabs) standardTabs.style.display = "";
+        if (listTabs) listTabs.style.display = "none";
+
+        document.querySelectorAll(".unit-category-divider").forEach(row => {
+            row.style.display = "none";
+        });
+
+        const header = document.getElementById("recruitment-header");
+        if (header) header.style.display = "";
+
+        const activeStandardTab = standardTabs ? standardTabs.querySelector(".tablinks.active") : null;
+        const category = activeStandardTab ? activeStandardTab.dataset.category : "0";
+
+        if (category === "4") {
+            if (recruitmentTable) recruitmentTable.style.display = "none";
+            if (supportContainer) supportContainer.style.display = "";
+        } else {
+            if (recruitmentTable) recruitmentTable.style.display = "";
+            if (supportContainer) supportContainer.style.display = "none";
+
+            document.querySelectorAll(".unit-row").forEach(row => {
+                row.style.display = (row.dataset.unitCategory === category) ? "" : "none";
+            });
+        }
+    }
+});
+registerAction("filterBarracksList", (el) => {
+    const tab = el.dataset.tab;
+    const listTabs = document.getElementById("barracks-tabs-list");
+    const recruitmentTable = document.getElementById("recruitment-table");
+    const supportContainer = document.getElementById("support-container");
+
+    if (listTabs) {
+        listTabs.querySelectorAll(".tablinks").forEach(t => t.classList.remove("active"));
+    }
+    el.classList.add("active");
+
+    if (tab === "support") {
+        if (recruitmentTable) recruitmentTable.style.display = "none";
+        if (supportContainer) supportContainer.style.display = "";
+
+        document.cookie = "me_barracks_cat=4; path=/; max-age=31536000; SameSite=Lax";
+
+        const url = new URL(window.location);
+        url.searchParams.set("cat", "4");
+        window.history.replaceState({}, '', url);
+    } else {
+        if (recruitmentTable) recruitmentTable.style.display = "";
+        if (supportContainer) supportContainer.style.display = "none";
+
+        document.querySelectorAll(".unit-row").forEach(row => {
+            row.style.display = "";
+        });
+        document.querySelectorAll(".unit-category-divider").forEach(row => {
+            row.style.display = "";
+        });
+
+        document.cookie = "me_barracks_cat=0; path=/; max-age=31536000; SameSite=Lax";
+
+        const url = new URL(window.location);
+        url.searchParams.delete("cat");
+        window.history.replaceState({}, '', url);
+    }
+});
+
 registerAction("filterBarracks", (el) => {
     const category = el.dataset.category;
     const recruitmentTable = document.getElementById("recruitment-table");
     const supportContainer = document.getElementById("support-container");
-    const allTabs = document.querySelectorAll(".tablinks");
+    const allTabs = document.querySelectorAll("#barracks-tabs-standard .tablinks");
 
     allTabs.forEach(tab => tab.classList.remove("active"));
     el.classList.add("active");
 
+    document.querySelectorAll(".unit-category-divider").forEach(row => {
+        row.style.display = "none";
+    });
+
+    document.cookie = "me_barracks_cat=" + category + "; path=/; max-age=31536000; SameSite=Lax";
+
     if (category === "4") {
         if (recruitmentTable) recruitmentTable.style.display = "none";
-        if (supportContainer) supportContainer.style.display = "block";
+        if (supportContainer) supportContainer.style.display = "";
     } else {
-        if (recruitmentTable) recruitmentTable.style.display = "table";
+        if (recruitmentTable) recruitmentTable.style.display = "";
         if (supportContainer) supportContainer.style.display = "none";
 
         document.querySelectorAll(".unit-row").forEach(row => {
-            row.style.display = (row.dataset.unitCategory === category) ? "table-row" : "none";
+            row.style.display = (row.dataset.unitCategory === category) ? "" : "none";
         });
     }
 
@@ -161,14 +269,17 @@ function updateRecruitCosts(input) {
 
         const displayEl = document.getElementById(`cost-${res}-${id}`);
         if (displayEl) {
-            displayEl.innerText = formatNumJS(previewCostForOne);
+            const shortStr = formatNumJS(previewCostForOne);
+            const fullStr = previewCostForOne.toLocaleString("de-DE");
 
             if (previewCostForOne >= 100000) {
-                displayEl.title = previewCostForOne.toLocaleString("de-DE");
-                displayEl.style.cursor = "help";
+                displayEl.classList.add("popup");
+                displayEl.innerHTML = `${shortStr}<div id="${displayEl.id}_box" class="popupbox">${fullStr}</div>`;
             } else {
-                displayEl.title = "";
-                displayEl.style.cursor = "";
+                displayEl.classList.remove("popup");
+                displayEl.innerText = fullStr;
+                const oldBox = document.getElementById(`${displayEl.id}_box`);
+                if (oldBox) oldBox.remove();
             }
 
             if ((amount > 0 && totalCostForSelectedAmount > kRes[res]) || (amount === 0 && previewCostForOne > kRes[res])) {

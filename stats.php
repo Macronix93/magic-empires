@@ -66,7 +66,9 @@ $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 // --- SCORE BREAKDOWN ---
 // Building Score (all kingdoms)
 $res_score_b = $db_instance->execute_query("
-    SELECT IFNULL(SUM((b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore), 0)
+    SELECT IFNULL(SUM(
+        IF(b.buildingid IN (0, 3, 9), GREATEST(0, (b.buildinglevel * (b.buildinglevel + 1) / 2) - 1) * bl.buildingscore, (b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore)
+    ), 0)
     FROM buildings b
     JOIN building_list bl ON b.buildingid = bl.id
     JOIN kingdoms k ON b.kingdomid = k.id

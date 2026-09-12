@@ -257,5 +257,15 @@
                 Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/treasure-chest" title="treasure chest icons">Treasure chest
                 icons created by Eucalyp - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/trade" title="trade icons">Trade icons created by Smashicons -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/loot" title="loot icons">Loot icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/moving" title="moving icons">Moving icons created by
+                imaginationlol - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/clans" title="clans icons">Clans icons created by Slamlabs -
+                Flaticon</a></li>
     </ul>
 </div>

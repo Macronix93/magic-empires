@@ -145,7 +145,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 if ($row["is_banned"] == 1) {
                     $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
-                } else if (MAINTENANCE_MODE && $row["adminlevel"] == 0) {
+                } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
                     $warning = $maintenance_text;
                 } else {
                     if (!$row["status"]) {

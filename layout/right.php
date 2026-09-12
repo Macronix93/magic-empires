@@ -70,11 +70,13 @@
                     <?php
                     $result->data_seek(0);
 
+                    $pos = 1;
                     foreach ($result as $row) {
                         $id = $row["id"];
                         $selected = ($id == $user->get_current_kingdom()) ? "selected='selected'" : "";
 
-                        echo "<option value='$id' $selected>{$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
+                        echo "<option value='$id' $selected>$pos - {$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
+                        $pos++;
                     }
                     ?>
                 </select>
@@ -220,11 +222,11 @@
                             </div>";
 
                 if ($is_market && $total_market_offers > 0) {
-                    echo "<span style='color: var(--link-color); font-weight: bold;'>($total_market_offers)</span>";
+                    echo "<span class='msg-badge' style='background: linear-gradient(180deg, #E6C15A, #A67C00); border: 1px solid #4A3600;'>$total_market_offers</span>";
                 }
 
                 if ($is_wall && $kingdom->get_wall_hp() < $kingdom->get_wall_max_hp()) {
-                    echo "<span class='error' style='font-weight: bold;'>(!)</span>";
+                    echo "<span class='msg-badge'>!</span>";
                 }
 
                 echo "</div></div>";
