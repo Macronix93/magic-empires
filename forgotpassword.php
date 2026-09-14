@@ -1,7 +1,5 @@
 <?php
 
-use Random\RandomException;
-
 require_once("includes/core.php");
 
 if ($user->is_logged_in()) {
@@ -25,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 
             try {
                 $token = bin2hex(random_bytes(32));
-            } catch (RandomException $e) {
+            } catch (Throwable $e) {
                 $token = bin2hex(openssl_random_pseudo_bytes(32));
             }
 

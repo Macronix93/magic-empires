@@ -17,7 +17,7 @@ $user_id = (int)($_GET["userid"] ?? 0);
 if ($user_id) {
     $query = "
         SELECT users.id, users.username, users.lastactivity, users.guildid, users.registerdate,
-               users.ranking_points AS score,
+               users.ranking_points AS score, users.is_vacation, users.vacation_until,
                kingdoms.mapx, kingdoms.mapy
         FROM users
         JOIN kingdoms ON users.mainkingdom = kingdoms.id
@@ -125,13 +125,24 @@ if ($user_id) {
             <td style="width: 300px;">
                 <?php
                 if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
-                    echo "<i>" . $user_name . "</i> (Inaktiv)";
+                    echo "<i>" . e($user_name) . "</i> (Inaktiv)";
                 } else {
-                    echo $user_name;
+                    echo e($user_name);
                 }
                 ?>
             </td>
         </tr>
+        <?php
+        $is_vacation = (!empty($row["is_vacation"]) && (int)$row["vacation_until"] > time());
+        if ($is_vacation):
+            ?>
+            <tr>
+                <td><b>Status</b></td>
+                <td>
+                    <span style="color: #3498db; font-weight: bold;">🏖️ Im Urlaubsmodus</span><br>
+                </td>
+            </tr>
+        <?php endif; ?>
         <tr>
             <td><b>Letzte Aktivität</b></td>
             <td><?= $last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y \u\m  H:i:s", $last_activity) ?>

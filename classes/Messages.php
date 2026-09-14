@@ -22,6 +22,14 @@ class Messages
     {
         $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?)";
         $this->mysqli->execute_query($query, [$sender_id, $sender_name, $receiver_id, $receiver_name, $time, $message]);
+
+        send_user_push(
+            $receiver_id,
+            "📩 Neue Nachricht",
+            "{$_SESSION["username"]} hat dir eine Nachricht geschrieben.",
+            "messages",
+            "messages.php?action=read&s=" . $_SESSION["userid"]
+        );
     }
 
     public function get_server_history_paged(?int $oldest_id = null, string $category = "Alle", int $limit = 20): array
@@ -382,7 +390,7 @@ class Messages
                                     $delete_icon
                                 </span>
                             </div>
-                            " . $display_message . "
+                            <div class='chat-text'>" . $display_message . "</div>
                             <div class='chat-reaction-footer'>
                                 " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
                             </div>
@@ -400,7 +408,7 @@ class Messages
                                     $delete_icon
                                 </span>
                             </div>
-                            " . $display_message . "
+                            <div class='chat-text'>" . $display_message . "</div>
                             <div class='chat-reaction-footer'>
                                 " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
                             </div>
@@ -525,7 +533,7 @@ class Messages
                             $delete_icon
                         </span>
                     </div>
-                    $msg
+                    <div class='chat-text'>" . $msg . "</div>
                     <div class='chat-reaction-footer'>
                         " . render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
                     </div>
@@ -638,7 +646,7 @@ class Messages
                         $del_icon
                     </span>
                 </div>
-                $display_msg
+                <div class='chat-text'>" . $display_msg . "</div>
                 <div class='chat-reaction-footer'>
                     " . render_reactions_bar("guild_chat", $row["id"], $this->user, "badges_only") . "
                 </div>

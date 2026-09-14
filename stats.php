@@ -88,27 +88,19 @@ $score_techs = (int)$res_score_t->fetch_column();
 $res_score_u = $db_instance->execute_query("
     SELECT IFNULL(SUM(total_count * sl.scoregain), 0)
     FROM (
-        SELECT soldierid, SUM(soldiercount) AS total_count 
-        FROM soldiers 
-        WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?)
-        GROUP BY soldierid
-        
+        SELECT soldierid, SUM(soldiercount) AS total_count FROM soldiers WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) GROUP BY soldierid
         UNION ALL
-        
-        SELECT st.soldierid, SUM(st.soldiercount) AS total_count
-        FROM sent_troops st
-        JOIN events e ON st.eventid = e.eventid
-        WHERE e.userid = ?
-        GROUP BY st.soldierid
-        
+        SELECT st.soldierid, SUM(st.soldiercount) AS total_count FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.userid = ? GROUP BY st.soldierid
         UNION ALL
-        
-        SELECT soldier_id AS soldierid, SUM(soldiercount) AS total_count
-        FROM stationed_troops
-        WHERE owner_id = ?
-        GROUP BY soldier_id
+        SELECT soldier_id AS soldierid, SUM(soldiercount) AS total_count FROM stationed_troops WHERE owner_id = ? GROUP BY soldier_id
+        UNION ALL
+        SELECT mst.soldier_id AS soldierid, SUM(mst.soldiercount) AS total_count FROM mine_stationed_troops mst WHERE mst.user_id = ? GROUP BY mst.soldier_id
+        UNION ALL
+        SELECT e.buildingid AS soldierid, SUM(e.soldiergoal) AS total_count FROM events e WHERE e.userid = ? AND e.actionid = 7 GROUP BY e.buildingid
     ) AS all_units
-    JOIN soldier_list sl ON all_units.soldierid = sl.id", [$uid, $uid, $uid]);
+    JOIN soldier_list sl ON all_units.soldierid = sl.id
+    WHERE sl.id != " . Soldiers::SOLDIER_HERO,
+    [$uid, $uid, $uid, $uid, $uid]);
 $score_troops = (int)$res_score_u->fetch_column();
 
 $total_user_score = (int)$user->get_user_score();

@@ -12,6 +12,15 @@ if (!$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
         );
 
         if ($row = $res->fetch_assoc()) {
+            $u_vac = $db_instance->execute_query("SELECT is_vacation, vacation_until FROM users WHERE id = ?", [$row["userid"]])->fetch_assoc();
+
+            if (!empty($u_vac["is_vacation"]) && $u_vac["vacation_until"] > time()) {
+                setcookie("me_remember", '', time() - 3600, '/');
+
+                change_location("index.php?vacation_locked=1");
+                exit;
+            }
+
             $user->login_user($row["userid"]);
 
             $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE token_hash = ?", [$token_hash]);

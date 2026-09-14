@@ -74,12 +74,14 @@ class Map
                     $content = "";
                     if ($is_target) {
                         $content = "⭐";
-                    } elseif ($kid > 0) {
+                    } else if ($kid > 0) {
                         $content = "🏰";
-                    } elseif ($kid === -2) {
+                    } else if ($kid === MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
                         $content = "💎";
-                    } elseif ($kid === -3) {
+                    } else if ($kid === MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
                         $content = "👹";
+                    } else if ($kid === MapFieldTypes::MAP_FIELD_MINE) {
+                        $content = "⛏️";
                     }
 
                     $html .= "<div class='" . e($class) . "' style='background-color: " . e($color) . ";'>" . e($content) . "</div>";
@@ -148,20 +150,24 @@ class Map
 
             $modified_time *= (CARAVAN_SPEED_FACTOR * $caravan_speed_mult);
         } else {
-            if ($actual_target_id === -3 || $actual_target_id === -4) {
+            if ($actual_target_id === MapFieldTypes::MAP_FIELD_MONSTER_CAMP || $actual_target_id === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM
+                || $actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {
                 $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
+
                 $modified_time *= $boost;
-            } else if ($actual_target_id === -2 && $is_scouting) {
+            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_RESOURCE_TILE && $is_scouting) {
                 $modified_time *= MONSTER_CAMP_SCOUT_BOOST;
             } else if ($actual_target_id > 0 && $is_scouting) {
                 $modified_time *= PLAYER_KINGDOM_SCOUT_BOOST;
-            } else if ($actual_target_id === WORLD_EVENT_ID) {
+            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
                 $we = new WorldEvent($this->mysqli);
+
                 $modified_time = $we->get_current_duration();
             }
         }
 
-        return (int)round($modified_time);
+        //return (int)round($modified_time);
+        return 10;
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
@@ -265,8 +271,13 @@ class Map
 
     private function fetch_map_data(): array
     {
-        if (isset($_SESSION["cached_map_data"])) {
-            return $_SESSION["cached_map_data"];
+        static $map_cache = null;
+        if ($map_cache !== null) return $map_cache;
+
+        $cache_file = sys_get_temp_dir() . "/me_world_traversals.json";
+        if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 3600) {
+            $map_cache = json_decode(file_get_contents($cache_file), true);
+            return $map_cache;
         }
 
         $query = "SELECT m.mapx, m.mapy, f.traversaltime FROM map m JOIN field_types f ON m.fieldtype = f.fieldid";
@@ -277,7 +288,8 @@ class Map
             $map[$row["mapx"]][$row["mapy"]] = ["traversaltime" => $row["traversaltime"]];
         }
 
-        $_SESSION["cached_map_data"] = $map;
+        file_put_contents($cache_file, json_encode($map));
+        $map_cache = $map;
         return $map;
     }
 
@@ -352,5 +364,13 @@ class Map
             "seconds" => $seconds,
             "timestamp" => time() + $seconds
         ];
+    }
+
+    public static function clear_cache(): void
+    {
+        $cache_file = sys_get_temp_dir() . "/me_world_traversals.json";
+        if (file_exists($cache_file)) {
+            @unlink($cache_file);
+        }
     }
 }

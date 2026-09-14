@@ -5,6 +5,53 @@ check_user_login($user);
 
 $current_k_id = $user->get_current_kingdom();
 $kingdom = new Kingdom($db_instance, $current_k_id);
+$map = new Map($db_instance, $user);
+
+// Load biomes
+$res_fts = $db_instance->query("SELECT * FROM field_types ORDER BY fieldid");
+$field_types_data = [];
+while ($ft = $res_fts->fetch_assoc()) {
+    $field_types_data[(int)$ft["fieldid"]] = $ft;
+}
+
+$biomes_to_show = [5, 2, 3, 4, 1];
+$biome_html = "";
+
+foreach ($biomes_to_show as $fid) {
+    if (!isset($field_types_data[$fid])) continue;
+    $ft = $field_types_data[$fid];
+    $color = $map->get_field_type_color($fid);
+
+    $f_yield = round(BASE_FOOD_GAIN * $ft["foodrate"]);
+    $w_yield = round(BASE_WOOD_GAIN * $ft["woodrate"]);
+    $s_yield = round(BASE_STONE_GAIN * $ft["stonerate"]);
+    $g_yield = round(BASE_GOLD_GAIN * $ft["goldrate"]);
+    $traversal = convert_sec_to_str($ft["traversaltime"]);
+
+    $pop_id = "pop_biome_" . $fid;
+
+    $biome_html .= "
+    <div class='map-legend-item popup' id='$pop_id'>
+        <span class='map-legend-inner-item' style='background-color: $color;'></span> " . e($ft["fieldname"]) . "
+        <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 170px;'>
+            <b>" . e($ft["fieldname"]) . "</b><br>
+            <small style='opacity: 0.8;'>Marschzeit: $traversal / Feld</small>
+            <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+            <div style='display: flex; align-items: center; gap: 6px; margin-bottom: 2px;'>
+                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " <span>+$f_yield / Std.</span>
+            </div>
+            <div style='display: flex; align-items: center; gap: 6px; margin-bottom: 2px;'>
+                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " <span>+$w_yield / Std.</span>
+            </div>
+            <div style='display: flex; align-items: center; gap: 6px; margin-bottom: 2px;'>
+                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>+$s_yield / Std.</span>
+            </div>
+            <div style='display: flex; align-items: center; gap: 6px;'>
+                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>+$g_yield / Std.</span>
+            </div>
+        </div>
+    </div>";
+}
 
 // Load troops
 $res_troops = $db_instance->execute_query("SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ?", [$current_k_id]);
@@ -44,9 +91,20 @@ $js_config = [
     ]
 ];
 
-ob_start();
+// --- RECALL TROOPS FROM MINES ---
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])) {
+    $x = (int)($_POST["mine_x"] ?? 0);
+    $y = (int)($_POST["mine_y"] ?? 0);
 
-$map = new Map($db_instance, $user);
+    if ($kingdom->recall_mine_troops($x, $y)) {
+        $_SESSION["game_success"] = "Deine Schürfer haben die Mine verlassen und befinden sich mit der Beute auf dem Heimweg!";
+    }
+
+    change_location("map.php?startx=$x&starty=$y");
+    exit;
+}
+
+ob_start();
 
 // Coordinate logic
 $get_x = $_GET["startx"] ?? null;
@@ -83,11 +141,7 @@ if ($coords_valid) {
 // Map legend
 echo "<div class='map-toolbar'>
         <div class='legend-group'>
-            <div class='map-legend-item' title='Hochland'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(5)};'></span> Hochland</div>
-            <div class='map-legend-item' title='Küste'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(2)};'></span> Küste</div>
-            <div class='map-legend-item' title='Wald'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(3)};'></span> Wald</div>
-            <div class='map-legend-item' title='Wüste'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(4)};'></span> Wüste</div>
-            <div class='map-legend-item' title='Gebirge'><span class='map-legend-inner-item' style='background-color: {$map->get_field_type_color(1)};'></span> Gebirge</div>
+            $biome_html
         </div>
         <div class='legend-divider'></div>
         <div class='legend-group'>
@@ -120,6 +174,7 @@ echo '<div style="display: flex; justify-content: center; align-items: center; g
             <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-resources" checked> Lager</label>
             <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-monsters" checked> Monster</label>
             <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-ruins" checked> Ruinen</label>
+            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-mines" checked> Minen</label>
         </div>
     </div>';
 

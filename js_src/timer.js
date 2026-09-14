@@ -89,9 +89,15 @@ function startMasterTimer() {
                     const timerCat = timer.element.dataset.timerCat;
 
                     if (timerCat !== undefined) {
-                        const currentCat = new URLSearchParams(window.location.search).get("cat") || "0";
+                        const isListView = document.cookie.includes("me_list_view=1");
 
-                        if (currentCat === timerCat) {
+                        const activeTabEl = document.querySelector("#barracks-tabs-standard .tablinks.active");
+                        const domCat = activeTabEl ? activeTabEl.dataset.category : null;
+                        const urlCat = new URLSearchParams(window.location.search).get("cat");
+
+                        const currentCat = urlCat !== null ? urlCat : (domCat !== null ? domCat : "0");
+
+                        if (isListView || currentCat === timerCat || !document.getElementById("barracks-tabs-standard")) {
                             needsReload = true;
                             anyKeepParams = true;
                         }
@@ -157,12 +163,47 @@ function startCountup(target, initialSeconds) {
     setInterval(update, 1000);
 }
 
+function initMineProgress() {
+    const mineElements = document.querySelectorAll('.js-mine-progress');
+    if (mineElements.length === 0) return;
+
+    const clientStartTime = Date.now();
+
+    setInterval(() => {
+        const now = Date.now();
+        const elapsedSec = (now - clientStartTime) / 1000;
+
+        mineElements.forEach(el => {
+            const workDone = parseFloat(el.dataset.workDone) || 0;
+            const workTotal = parseFloat(el.dataset.workTotal) || 1;
+            const rate = parseFloat(el.dataset.rate) || 0;
+
+            if (rate <= 0) return;
+
+            const currentWork = Math.min(workTotal, workDone + (elapsedSec * rate));
+            const percent = Math.min(100, (currentWork / workTotal) * 100);
+
+            el.textContent = percent.toFixed(1).replace('.', ',') + " %";
+
+            const cell = el.closest('td');
+            if (cell) {
+                const bar = cell.querySelector('.js-mine-progress-bar');
+                if (bar) {
+                    bar.style.width = Math.min(100, percent) + "%";
+                }
+            }
+        });
+    }, 1000);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const el = document.getElementById("login-counter");
 
     if (el) {
         startCountup(el, parseInt(el.dataset.start));
     }
+
+    initMineProgress();
 });
 
 document.addEventListener("visibilitychange", () => {

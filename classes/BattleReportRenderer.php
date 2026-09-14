@@ -111,12 +111,20 @@ class BattleReportRenderer
             "food" => ResourceTypes::RESOURCE_TYPE_FOOD,
             "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
             "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
-            "gold" => ResourceTypes::RESOURCE_TYPE_GOLD
+            "gold" => ResourceTypes::RESOURCE_TYPE_GOLD,
+            "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
+            "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
+            "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+            "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
         ];
 
         $show_production = !empty($production);
 
         foreach ($types as $key => $constant) {
+            if (!array_key_exists($key, $stocks)) {
+                continue;
+            }
+
             $raw_stock = $stocks[$key] ?? 0;
 
             if (!$show_production && $raw_stock <= 0) {
@@ -206,15 +214,42 @@ class BattleReportRenderer
 
     public static function render_resource_list(array $resources): string
     {
-        if (empty($resources)) return "";
-
-        $html = "<div style='display: flex; gap: 15px; justify-content: center; margin-top: 10px;'>";
-
-        foreach ($resources as $res_id => $amount) {
-            $html .= "<div>" . get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
+        if (empty($resources)) {
+            return "";
         }
 
-        $html .= "</div>";
+        $special_resources = [
+            ResourceTypes::RESOURCE_TYPE_COAL,
+            ResourceTypes::RESOURCE_TYPE_IRON,
+            ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+            ResourceTypes::RESOURCE_TYPE_DIAMOND
+        ];
+
+        $normal_html = "";
+        $special_html = "";
+
+        foreach ($resources as $res_id => $amount) {
+            $html = "<div>" . get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
+
+            if (in_array($res_id, $special_resources, true)) {
+                $special_html .= $html;
+            } else {
+                $normal_html .= $html;
+            }
+        }
+
+        $html = "";
+        if ($normal_html !== "") {
+            $html .= "<div style='display: flex; gap: 15px; justify-content: center; margin-top: 10px;'>";
+            $html .= $normal_html;
+            $html .= "</div>";
+        }
+
+        if ($special_html !== "") {
+            $html .= "<div style='display: flex; gap: 15px; justify-content: center; margin-top: 10px;'>";
+            $html .= $special_html;
+            $html .= "</div>";
+        }
         return $html;
     }
 }

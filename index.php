@@ -1,7 +1,5 @@
 <?php
 
-use Random\RandomException;
-
 require_once("includes/core.php");
 
 $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
@@ -143,30 +141,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($result && $result->num_rows == 1) {
                 $row = $result->fetch_assoc();
 
-                if ($row["is_banned"] == 1) {
-                    $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
-                } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
-                    $warning = $maintenance_text;
-                } else {
-                    if (!$row["status"]) {
-                        $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
-                    } else if (!password_verify($pass, $row["password"])) {
-                        $logger->security("Login failed for user: $name");
+                if (!empty($row["is_vacation"])) {
+                    if ($row["vacation_until"] > $now) {
+                        $date_str = date("d.m.Y \u\m H:i", $row["vacation_until"]);
 
-                        $error .= "Nutzername oder Passwort ist falsch!";
+                        $error .= "Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.<br>Ein Login ist bis dahin gesperrt!";
                     } else {
-                        $keep_logged_in = isset($_POST["remember_me"]);
+                        $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$row["id"]]);
+                    }
+                }
 
-                        unset($_POST);
+                if (empty($error)) {
+                    if ($row["is_banned"] == 1) {
+                        $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
+                    } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
+                        $warning = $maintenance_text;
+                    } else {
+                        if (!$row["status"]) {
+                            $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
+                        } else if (!password_verify($pass, $row["password"])) {
+                            $logger->security("Login failed for user: $name");
 
-                        $user->login_user($row["id"]);
+                            $error .= "Nutzername oder Passwort ist falsch!";
+                        } else {
+                            $keep_logged_in = isset($_POST["remember_me"]);
 
-                        if ($keep_logged_in) {
-                            $user->create_remember_me_token();
+                            unset($_POST);
+
+                            $user->login_user($row["id"]);
+
+                            if ($keep_logged_in) {
+                                $user->create_remember_me_token();
+                            }
+
+                            change_location("overview.php");
+                            exit;
                         }
-
-                        change_location("overview.php");
-                        exit;
                     }
                 }
             } else {
@@ -289,7 +299,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
                         $success = $user->get_reg_status();
                         $mode = "login";
-                    } catch (RandomException $e) {
+                    } catch (Throwable $e) {
                         $logger->error("Registrierung fehlgeschlagen (RandomException): " . $e->getMessage());
                         $error .= "Ein interner Systemfehler ist aufgetreten. Bitte versuche es in wenigen Minuten erneut.<br>";
                         $mode = "register";

@@ -186,7 +186,7 @@ if ($row) {
         ];
 
         $res = match ($guild_tech_id) {
-            GuildTechTypes::GUILD_TECH_TYPE_STORAGE => ["", "Erhöht die Lagerkapazität der Gilden-Schatzkammer"],
+            GuildTechTypes::GUILD_TECH_TYPE_STORAGE => ["", "Erhöht die max. Lagerkapazität der Gilden-Schatzkammer"],
             GuildTechTypes::GUILD_TECH_EVENT_GOLD => ["+" . fdec(GUILD_BONUS_EVENT_GOLD_PER_LVL * 100) . "%", "Gold-Belohnung bei Welt-Events"],
             GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED => ["-" . fdec(GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL * 100) . "%", "Laufzeit für Karawanen zu Verbündeten"],
             GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY => ["+" . fnum(GUILD_BONUS_SUPPORT_CAP_PER_LVL), "zusätzliche Unterstützungstruppen"],
@@ -221,7 +221,7 @@ if ($row) {
                                 <td class='td-center td-gradient' style='width: 12%;'>Stufe</td>";
 
         if ($guild_tech_id === GuildTechTypes::GUILD_TECH_TYPE_STORAGE) {
-            $view .= "<td class='td-center td-gradient' style='width: 28%;'>Kapazität</td>";
+            $view .= "<td class='td-center td-gradient' style='width: 32%;'>Kapazität</td>";
         }
 
         foreach ($active_res as $icon_id) {

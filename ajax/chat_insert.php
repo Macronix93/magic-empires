@@ -88,11 +88,27 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                             <img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteChatMsg' data-id='$message_id' style='cursor: pointer;' alt=''>
                                         </span>
                                     </div>
-                                    " . $display_text . "
+                                    <div class='chat-text'>" . $display_text . "</div>
                                     <div class='chat-reaction-footer'>
                                         " . render_reactions_bar("chat", $message_id, $user, "badges_only") . "
                                     </div>
                                 </div>";
+
+            $res_unread = $db_instance->execute_query("
+                SELECT COUNT(*) FROM messages 
+                WHERE senderid = ? AND receiverid = ? AND hasread = 0 AND deleted = 0 AND id != ?
+            ", [$_SESSION["userid"], $receiver_id, $message_id]);
+            $existing_unread = (int)$res_unread->fetch_column();
+
+            if ($existing_unread === 0) {
+                send_user_push(
+                    $receiver_id,
+                    "📩 Neue Nachricht",
+                    "{$_SESSION["username"]} hat dir eine Nachricht geschrieben.",
+                    "messages",
+                    "messages.php?action=read&s=" . $_SESSION["userid"]
+                );
+            }
         }
     } else {
         $response["error"] = $error;

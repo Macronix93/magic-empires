@@ -67,36 +67,56 @@ $total_k_units = 0;
 
 $soldiers_count = count($soldiers);
 
+// Get ALL soldiers from the kingdom
+$total_kingdom_soldiers = [];
+$res_total_units = $db_instance->execute_query("
+    SELECT soldierid, SUM(cnt) as total_owned
+    FROM (
+        SELECT soldierid, soldiercount as cnt FROM soldiers WHERE kingdomid = ?
+        UNION ALL
+        SELECT soldierid, soldiercount as cnt FROM sent_troops WHERE source_kingdom_id = ?
+        UNION ALL
+        SELECT soldier_id as soldierid, soldiercount as cnt FROM stationed_troops WHERE source_kingdom_id = ?
+        UNION ALL
+        SELECT soldier_id as soldierid, soldiercount as cnt FROM mine_stationed_troops WHERE kingdom_id = ?
+    ) t
+    GROUP BY soldierid
+", [$current_kingdom, $current_kingdom, $current_kingdom, $current_kingdom]);
+
+while ($row_u = $res_total_units->fetch_assoc()) {
+    $total_kingdom_soldiers[(int)$row_u["soldierid"]] = (int)$row_u["total_owned"];
+}
+
 // Standard soldier category
 $active_cat = 0;
 
-if (isset($_COOKIE["me_barracks_cat"])) {
-    $cookie_cat = (int)$_COOKIE["me_barracks_cat"];
-    if ($cookie_cat >= 0 && $cookie_cat <= SoldierTypes::SOLDIER_TYPE_SUPPORT) {
-        $active_cat = $cookie_cat;
-    }
-}
+$last_recruited_soldier = $user->get_last_recruited_soldier($current_kingdom);
+$last_upgraded = $user->get_last_upgraded_soldier($current_kingdom);
 
-if (isset($_GET["cat"])) {
-    $cat = (int)$_GET["cat"];
-
-    if ($cat == SoldierTypes::SOLDIER_TYPE_SUPPORT) {
-        $active_cat = $show_support_feature ? SoldierTypes::SOLDIER_TYPE_SUPPORT : 0;
-    } else if ($cat < 0 || $cat > SoldierTypes::SOLDIER_TYPE_SUPPORT) {
-        $error = "Diese Kategorie gibt es nicht!";
+if (!empty($last_upgraded)) {
+    if (isset($last_upgraded["category"])) {
+        $active_cat = (int)$last_upgraded["category"];
     } else {
-        $active_cat = $cat;
+        foreach ($soldiers as $s) {
+            if ($s->get_soldier_name() === ($last_upgraded["name"] ?? "")) {
+                $active_cat = $s->get_soldier_category();
+                break;
+            }
+        }
     }
-
-    setcookie("me_barracks_cat", (string)$active_cat, time() + 31536000, "/", "", false, false);
-} else if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
-    $r_id = (int)$_GET["recruit"];
-
-    if (isset($soldiers[$r_id])) {
-        $active_cat = $soldiers[$r_id]->get_soldier_category();
+} else if (!empty($last_recruited_soldier)) {
+    if (isset($last_recruited_soldier["category"])) {
+        $active_cat = (int)$last_recruited_soldier["category"];
+    } else {
+        foreach ($soldiers as $s) {
+            if ($s->get_soldier_name() === ($last_recruited_soldier["soldiername"] ?? "")) {
+                $active_cat = $s->get_soldier_category();
+                break;
+            }
+        }
     }
-} else if ($kingdom_is_upgrading) {
-    $target_id = $upgrade_event["soldierid"];
+} else if ($kingdom_is_upgrading && isset($upgrade_event["soldierid"])) {
+    $target_id = (int)$upgrade_event["soldierid"];
 
     foreach ($soldiers as $s) {
         if ($s->get_soldier_id() == $target_id) {
@@ -104,9 +124,21 @@ if (isset($_GET["cat"])) {
             break;
         }
     }
-} else if ($kingdom_is_recruiting) {
-    if (isset($soldiers[$kingdom_recruiting_id])) {
-        $active_cat = $soldiers[$kingdom_recruiting_id]->get_soldier_category();
+} elseif ($kingdom_is_recruiting && isset($soldiers[$kingdom_recruiting_id])) {
+    $active_cat = $soldiers[$kingdom_recruiting_id]->get_soldier_category();
+} else if (isset($_GET["cat"])) {
+    $cat = (int)$_GET["cat"];
+
+    if ($cat === SoldierTypes::SOLDIER_TYPE_SUPPORT) {
+        $active_cat = $show_support_feature ? SoldierTypes::SOLDIER_TYPE_SUPPORT : 0;
+    } else if ($cat >= 0 && $cat <= SoldierTypes::SOLDIER_TYPE_SUPPORT) {
+        $active_cat = $cat;
+    }
+} else if (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) {
+    $r_id = (int)$_GET["recruit"];
+
+    if (isset($soldiers[$r_id])) {
+        $active_cat = $soldiers[$r_id]->get_soldier_category();
     }
 }
 
@@ -959,6 +991,15 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     }
     $row_class = "unit-row" . (!$can_train ? " unit-not-trainable" : "");
 
+    $owned_in_garrison = $kingdom_soldiers[$s_id_internal] ?? 0;
+    $owned_total = $total_kingdom_soldiers[$s_id_internal] ?? $owned_in_garrison;
+
+    $stock_info = "";
+    if ($owned_total > 0) {
+        $stock_info = "<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>"
+            . "<span style='font-size: 0.9em;'><b>Gesamt im Königreich:</b> " . fnum($owned_total) . "</span>";
+    }
+
     $view .= "<tr class='$row_class' data-unit-category='$unit_cat' style='$row_style'>
             <td>
                 <div class='map-legend' style='justify-content: left;'>
@@ -968,7 +1009,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                             <div id='description" . $i . "_box' class='popupbox'>
                                 " . $soldiers[$i]->get_soldier_description() . "
                                 " . $capacity_text . "
-                            </div> (" . ($kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0) . ")
+                                " . $stock_info . "
+                            </div> (" . $owned_in_garrison . ")
                         </b>
                     </div>
                 </div>";

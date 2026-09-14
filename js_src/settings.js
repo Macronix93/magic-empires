@@ -1,3 +1,90 @@
+registerAction("togglePushNotifications", async (el) => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Dein Browser unterstützt leider keine Push-Benachrichtigungen.');
+        return;
+    }
+
+    try {
+        el.disabled = true;
+        const reg = await navigator.serviceWorker.register('sw.js');
+        await navigator.serviceWorker.ready;
+
+        const currentSub = await reg.pushManager.getSubscription();
+
+        if (currentSub) {
+            // --- UNSUBSCRIBE ---
+            el.innerText = 'Melde ab...';
+
+            await currentSub.unsubscribe();
+
+            await fetch('ajax/push_unsubscribe.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify({endpoint: currentSub.endpoint})
+            });
+
+            el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
+            el.classList.remove("push-notifications-disable");
+            el.classList.add("push-notifications-enable");
+            el.disabled = false;
+
+            alert('Push-Benachrichtigungen auf diesem Gerät wurden erfolgreich deaktiviert.');
+        } else {
+            // --- SUBSCRIBE ---
+            const vapidKey = el.dataset.vapid;
+            if (!vapidKey) {
+                alert('Fehler: Kein VAPID Public Key hinterlegt.');
+                el.disabled = false;
+                return;
+            }
+
+            el.innerText = 'Warte auf Erlaubnis...';
+
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                alert('Benachrichtigungen wurden blockiert oder abgelehnt.');
+
+                el.disabled = false;
+                el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
+                el.classList.remove("push-notifications-disable");
+                el.classList.add("push-notifications-enable");
+                return;
+            }
+
+            const newSub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidKey)
+            });
+
+            const res = await fetch('ajax/push_subscribe.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+                body: JSON.stringify(newSub)
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                el.innerText = '🔕 Benachrichtigungen auf diesem Gerät deaktivieren';
+                el.disabled = false;
+                el.classList.remove("push-notifications-enable");
+                el.classList.add("push-notifications-disable");
+
+                alert('Erfolgreich aktiviert! Du erhältst ab sofort Warnungen auf diesem Gerät.');
+            } else {
+                alert('Fehler: ' + (result.error || 'Speichern fehlgeschlagen'));
+
+                el.disabled = false;
+                el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
+                el.classList.remove("push-notifications-disable");
+                el.classList.add("push-notifications-enable");
+            }
+        }
+    } catch (err) {
+        console.error('Push Toggle Fehler:', err);
+        alert('Vorgang fehlgeschlagen: ' + err.message);
+        el.disabled = false;
+    }
+});
 registerAction("switchSettingsTab", (el) => {
     const tabName = el.dataset.tab;
 
@@ -44,6 +131,41 @@ document.addEventListener("input", (e) => {
     }
 });
 
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function initPushStatus() {
+    const btn = document.getElementById("btn-push-toggle");
+    if (!btn || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    try {
+        const reg = await navigator.serviceWorker.getRegistration('sw.js');
+        if (!reg) return;
+
+        const sub = await reg.pushManager.getSubscription();
+
+        if (sub) {
+            btn.innerText = "🔕 Benachrichtigungen auf diesem Gerät deaktivieren";
+            btn.classList.remove("push-notifications-enable");
+            btn.classList.add("push-notifications-disable");
+        } else {
+            btn.innerText = "🔔 Benachrichtigungen auf diesem Gerät aktivieren";
+            btn.classList.remove("push-notifications-disable");
+            btn.classList.add("push-notifications-enable");
+        }
+    } catch (e) {
+        console.error("Fehler bei Status-Prüfung:", e);
+    }
+}
+
 document.addEventListener("blur", (e) => {
     if (e.target.classList.contains("js-pagesize-input")) {
         const input = e.target;
@@ -62,3 +184,8 @@ document.addEventListener("blur", (e) => {
         }
     }
 }, true);
+
+document.addEventListener("DOMContentLoaded", () => {
+    initPushStatus().then(_ => {
+    });
+});

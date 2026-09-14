@@ -246,36 +246,32 @@ if ($kingdom_is_researching) {
     $kingdom_research_id = $kingdom->get_kingdom_research_id();
 }
 
-// Count max upgraded buildings
-$count_maxed_techs = 0;
+$view .= '<table class="table">
+            <colgroup>
+                <col class="col-description">
+                <col class="col-action">
+            </colgroup>
+                <tr>
+                    <td class="td-center td-gradient">
+                        <b>Forschung</b></td>
+                    <td class="td-center td-gradient">
+                        <b>Aktion</b></td>
+                </tr>';
+
 for ($i = 0; $i < $tech_count; $i++) {
-    if ($techs[$i]->get_tech_level() >= $techs[$i]->get_tech_max_level())
-        $count_maxed_techs++;
-}
+    $tech_obj_id = $techs[$i]->get_tech_id();
 
-if ($count_maxed_techs === $tech_count) {
-    $view = "Es wurden alle Forschungen geforscht.";
-} else {
-    $view .= '<table class="table">
-                        <colgroup>
-                            <col class="col-description">
-                            <col class="col-action">
-                        </colgroup>
-                            <tr>
-                                <td class="td-center td-gradient">
-                                    <b>Forschung</b></td>
-                                <td class="td-center td-gradient">
-                                    <b>Aktion</b></td>
-                            </tr>';
+    // Imperium-Forschung nur im Haupt-Königreich anzeigen
+    if ($tech_obj_id == TechTypes::TECH_TYPE_IMPERIAL && $current_kingdom != $user->get_main_kingdom()) {
+        continue;
+    }
 
-    for ($i = 0; $i < $tech_count; $i++) {
+    $level = (int)$techs[$i]->get_tech_level();
+    $max_level = (int)$techs[$i]->get_tech_max_level();
+    $is_maxed = ($level >= $max_level);
+
+    if (!$is_maxed) {
         $show_tech = true;
-        if ($techs[$i]->get_tech_id() == TechTypes::TECH_TYPE_IMPERIAL) {
-            if ($current_kingdom != $user->get_main_kingdom()) {
-                continue;
-            }
-        }
-
         $tech_dependencies = $techs[$i]->get_tech_dependencies();
         foreach ($tech_dependencies as $dependency) {
             // BUILDING DEPENDENCIES check
@@ -301,111 +297,100 @@ if ($count_maxed_techs === $tech_count) {
             }
         }
 
-        $level = $techs[$i]->get_tech_level();
-        $max_level = $techs[$i]->get_tech_max_level();
-
-        if ($level < $max_level) {
-            if ($show_tech) {
-                if (!is_numeric($level)) {
-                    $level = "0";
-                }
-
-                $costs = $techs[$i]->calculate_tech_cost();
-                $cost_wood = $costs["cost_wood"];
-                $cost_food = $costs["cost_food"];
-                $cost_stone = $costs["cost_stone"];
-                $cost_gold = $costs["cost_gold"];
-
-                $text_wood = get_resource_text($cost_wood, $kingdom_wood);
-                $text_food = get_resource_text($cost_food, $kingdom_food);
-                $text_stone = get_resource_text($cost_stone, $kingdom_stone);
-                $text_gold = get_resource_text($cost_gold, $kingdom_gold);
-                $text_build = "";
-
-                if ($kingdom_is_researching) {
-                    if ($kingdom_research_id == $i) {
-                        $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?",
-                            [$current_kingdom, $i, ActionTypes::ACTION_RESEARCH_TECH]);
-                        $row = $result->fetch_assoc();
-
-                        $difference_time = $row["buildingtime"] - time();
-
-                        $text_build = "Forschungszeit:<br><b><span class='js-countdown' 
-                                               data-seconds='$difference_time' 
-                                               data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span></b><br>
-                                      <form id='cancel-form' action='university.php' method='GET'>
-                                        <input type='hidden' name='action' value='cancel'>
-                                        <input type='hidden' name='tid' value='" . $i . "'>
-                                        <input type='submit' value='Abbruch' style='margin-top: 5px;'>
-                                      </form>";
-                    } else {
-                        $text_build = "-";
-                    }
-                } else {
-                    $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-
-                    $limit_reached = false;
-                    if ($i == TechTypes::TECH_TYPE_IMPERIAL) {
-                        if ($level >= max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)) {
-                            $limit_reached = true;
-                        }
-                    }
-
-                    $disabled = ($res_disabled || $limit_reached) ? "disabled" : "";
-
-                    $btn_text = ($level > 0 ? "Upgrade" : "Forschen");
-                    if ($limit_reached) $btn_text = "Limit erreicht";
-
-                    $text_build = "<form action='university.php' method='GET'>
-                    <input type='hidden' name='action' value='research'>
-                    <input type='hidden' name='tid' value='" . $i . "'>
-                    <input type='submit' value='" . $btn_text . "' $disabled>";
-
-                    if ($limit_reached) {
-                        $text_build .= "<br><small class='error'>Max. Slots erreicht</small>";
-                    }
-
-                    $text_build .= "</form>";
-                }
-
-                $resource_costs = "";
-                if ($text_food > 0) {
-                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
-                }
-                if ($text_wood > 0) {
-                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
-                }
-                if ($text_stone > 0) {
-                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
-                }
-                if ($text_gold > 0) {
-                    $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
-                }
-
-                $level_text = "";
-                $view .= "<tr>
-                    <td>
-                        <div class='map-legend' style='justify-content: left;'>
-                        <div class='legend-item'>" . $techs[$i]->get_tech_icon() . "</div>
-                            <div class='legend-item'>
-                                <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
-                                    <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
-                                </b>
-                            </div>
-                        </div>
-                        <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
-                        $resource_costs
-                        </div>
-                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-                        " . convert_sec_to_str((int)round($techs[$i]->get_tech_time() * pow($techs[$i]->get_tech_mult(), $level))) . "
-                    </td>
-                    <td class='td-center'>" . $text_build . "</td>
-                </tr>";
-            }
+        if (!$show_tech) {
+            continue;
         }
     }
-    $view .= "</table>";
+
+    $text_build = "";
+    $resource_costs = "";
+
+    if ($is_maxed) {
+        $text_build = "<b class='passed'>MAX</b>";
+    } else {
+        $costs = $techs[$i]->calculate_tech_cost();
+        $cost_wood = $costs["cost_wood"];
+        $cost_food = $costs["cost_food"];
+        $cost_stone = $costs["cost_stone"];
+        $cost_gold = $costs["cost_gold"];
+
+        $text_wood = get_resource_text($cost_wood, $kingdom_wood);
+        $text_food = get_resource_text($cost_food, $kingdom_food);
+        $text_stone = get_resource_text($cost_stone, $kingdom_stone);
+        $text_gold = get_resource_text($cost_gold, $kingdom_gold);
+
+        if ($kingdom_is_researching) {
+            if ($kingdom_research_id == $i) {
+                $result = $db_instance->execute_query("SELECT buildingtime FROM events WHERE kingdomid = ? AND buildingid = ? AND actionid = ?",
+                    [$current_kingdom, $i, ActionTypes::ACTION_RESEARCH_TECH]);
+                $row = $result->fetch_assoc();
+
+                $difference_time = $row["buildingtime"] - time();
+
+                $text_build = "Forschungszeit:<br><b><span class='js-countdown' 
+                                       data-seconds='$difference_time' 
+                                       data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span></b><br>
+                              <form id='cancel-form' action='university.php' method='GET'>
+                                <input type='hidden' name='action' value='cancel'>
+                                <input type='hidden' name='tid' value='" . $i . "'>
+                                <input type='submit' value='Abbruch' style='margin-top: 5px;'>
+                              </form>";
+            } else {
+                $text_build = "-";
+            }
+        } else {
+            $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
+            $disabled = $res_disabled ? "disabled" : "";
+
+            $btn_text = ($level > 0 ? "Upgrade" : "Forschen");
+
+            $text_build = "<form action='university.php' method='GET'>
+            <input type='hidden' name='action' value='research'>
+            <input type='hidden' name='tid' value='" . $i . "'>
+            <input type='submit' value='" . $btn_text . "' $disabled>";
+            $text_build .= "</form>";
+        }
+
+        if ($cost_food > 0) {
+            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
+        }
+        if ($cost_wood > 0) {
+            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
+        }
+        if ($cost_stone > 0) {
+            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
+        }
+        if ($cost_gold > 0) {
+            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
+        }
+    }
+
+    $view .= "<tr>
+        <td>
+            <div class='map-legend' style='justify-content: left;'>
+            <div class='legend-item'>" . $techs[$i]->get_tech_icon() . "</div>
+                <div class='legend-item'>
+                    <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
+                        <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
+                    </b>
+                </div>
+            </div>";
+
+    if (!$is_maxed) {
+        $view .= "
+            <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                $resource_costs
+            </div>
+            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
+            " . convert_sec_to_str((int)round($techs[$i]->get_tech_time() * pow($techs[$i]->get_tech_mult(), $level)));
+    }
+
+    $view .= "
+        </td>
+        <td class='td-center'>" . $text_build . "</td>
+    </tr>";
 }
+$view .= "</table>";
 
 /*
  * HTML Section

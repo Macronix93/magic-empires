@@ -23,7 +23,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo "</div>";
 
-    $score_text = ($data["min_score"] == -1) ? "Nur per Einladung" : ($data["min_score"] > 0 ? fnum($data["min_score"], true) : "-");
+    $score_text = ($data["min_score"] == -1) ? "Nur per Einladung" : ($data["min_score"] > 0 ? fnum($data["min_score"], true) . " Punkte" : "Jeder");
     $can_join = ($my_guild_id <= 0 && $data["min_score"] != -1 && $user_score >= $data["min_score"] && $data["members"] < $data["max_members"]);
 
     echo "<table class='table' style='width: 70%;'>

@@ -55,7 +55,8 @@ document.addEventListener("DOMContentLoaded", () => {
         monster1: 'images/icons/icon_goblin.png',  // Level 1-3
         monster2: 'images/icons/icon_golem_small.png',  // Level 4-7
         monster3: 'images/icons/icon_dragon_small.png',  // Level 8-10
-        ruin: 'images/icons/icon_ruins.png'
+        ruin: 'images/icons/icon_ruins.png',
+        mine: 'images/icons/icon_mine.png'
     };
 
     let loadedCount = 0;
@@ -228,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    const filters = ["filter-players", "filter-resources", "filter-monsters"];
+    const filters = ["filter-players", "filter-resources", "filter-monsters", "filter-mines"];
     filters.forEach(id => {
         const el = document.getElementById(id);
 
@@ -330,7 +331,7 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , , myTroopIcon, enemyGuildId] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , , myTroopIcon, enemyGuildId, , mineInfo] = tile;
 
             if (kid === -1) return;
 
@@ -343,11 +344,13 @@ function draw() {
             const filterResources = document.getElementById("filter-resources").checked;
             const filterMonsters = document.getElementById("filter-monsters").checked;
             const filterRuins = document.getElementById("filter-ruins").checked;
+            const filterMines = document.getElementById("filter-mines")?.checked;
 
             if (kid > 0 && !filterPlayers) return;
             if (kid === -2 && !filterResources) return;
             if (kid === -3 && !filterMonsters) return;
             if (kid === -4 && !filterRuins) return;
+            if (kid === -5 && !filterMines) return;
 
             if (kid === -999) {
                 ctx.fillStyle = "rgba(230, 0, 0, 0.1)";
@@ -389,25 +392,45 @@ function draw() {
                 ctx.drawImage(mIcon, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
             } else if (kid === -4) {
                 ctx.drawImage(images.ruin, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
+            } else if (kid === -5) {
+                const mInfo = mineInfo || {};
+                const hasMyMiners = (mInfo.my_troops > 0);
+                const isAllyMine = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId === gameConfig.currentKingdom.guildId);
+
+                if (hasMyMiners) {
+                    ctx.fillStyle = "rgba(11, 218, 81, 0.4)";
+                    ctx.strokeStyle = "#0BDA51";
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                    ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+                } else if (isAllyMine) {
+                    ctx.fillStyle = "rgba(0, 123, 255, 0.2)";
+                    ctx.strokeStyle = "#007bff";
+                    ctx.lineWidth = 1;
+                    ctx.fillRect(posX, posY, scaledTile, scaledTile);
+                    ctx.strokeRect(posX, posY, scaledTile, scaledTile);
+                }
+
+                ctx.drawImage(images.mine, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
             } else if (kid > 0) {
                 const isOwn = (owner_id === gameConfig.currentKingdom.ownerId);
                 const isAlly = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId === gameConfig.currentKingdom.guildId);
                 const isEnemyGuild = (enemyGuildId !== -1 && enemyGuildId !== gameConfig.currentKingdom.guildId);
 
                 if (isOwn) {
-                    ctx.fillStyle = "rgba(11, 218, 81, 0.2)";
+                    ctx.fillStyle = "rgba(11, 218, 81, 0.4)";
                     ctx.strokeStyle = "#0BDA51";
                     ctx.lineWidth = 1;
                     ctx.fillRect(posX, posY, scaledTile, scaledTile);
                     ctx.strokeRect(posX, posY, scaledTile, scaledTile);
                 } else if (isAlly) {
-                    ctx.fillStyle = "rgba(0, 123, 255, 0.2)";
+                    ctx.fillStyle = "rgba(0, 123, 255, 0.4)";
                     ctx.strokeStyle = "#007bff";
                     ctx.lineWidth = 1;
                     ctx.fillRect(posX, posY, scaledTile, scaledTile);
                     ctx.strokeRect(posX, posY, scaledTile, scaledTile);
                 } else if (isEnemyGuild) {
-                    ctx.fillStyle = "rgba(220, 53, 69, 0.15)";
+                    ctx.fillStyle = "rgba(220, 53, 69, 0.4)";
                     ctx.strokeStyle = "#dc3545";
                     ctx.lineWidth = 1;
                     ctx.fillRect(posX, posY, scaledTile, scaledTile);
@@ -706,6 +729,108 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Verfällt in</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
         html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Ruine stürmen</button>`;
+        html += `</td></tr></table>`;
+    } else if (kid === -5) {
+        // --- MINE ---
+        const mineLvl = level;
+        const myGid = gameConfig.currentKingdom.guildId;
+        const isMyGuild = (myGid > 0 && enemyGuildId === myGid);
+        const isMineFree = (ownerId === 0 && enemyGuildId === -1);
+        const isEnemy = (!isMineFree && !isMyGuild && ownerId !== gameConfig.currentKingdom.ownerId);
+        const isFriendly = (isMineFree || isMyGuild || myTroops > 0);
+
+        const mInfo = tile[16] || {};
+        const wDone = mInfo.w_done || 0;
+        const wTotal = mInfo.w_total || 1;
+        const curTroops = mInfo.cur_troops || 0;
+        const maxTroops = mInfo.max_troops || 50;
+        const myTroops = mInfo.my_troops || 0;
+        const estSeconds = mInfo.est_seconds || 0;
+
+        const percent = Math.min(100, Math.floor((wDone / wTotal) * 100));
+        const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
+
+        let statusText = "<span class='passed'>Unbesetzt</span>";
+        if (isMyGuild) {
+            statusText = "<span style='color: #3498db;'>Abbau durch Gilde</span>";
+        } else if (!isMineFree) {
+            statusText = "<span class='error'>Abbau durch Gegner</span>";
+        }
+
+        let timerRow = "";
+        if (estSeconds > 0) {
+            timerRow = `<span class="js-countdown" data-seconds="${estSeconds}">-</span>`;
+        }
+
+        html += `<div class="title-border">Erzmine (Stufe ${mineLvl})</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>${statusText}</td></tr>`;
+        if (isFriendly && curTroops > 0) {
+            html += `<tr><td class="td-mapinfo"><b>Belegung</b></td><td>${curTroops} / ${maxTroops} Einheiten</td></tr>`;
+        }
+        html += `<tr><td class="td-mapinfo"><b>Abbau-Fortschritt</b></td><td>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px;">
+                        <span>${percent}% abgebaut</span>
+                        ${timerRow}
+                    </div>
+                    <div class="tick-progress-bg" style="height: 8px;">
+                        <div class="tick-progress-fill" style="width: ${percent}%;"></div>
+                    </div>
+                 </td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
+        const troops = gameConfig.currentKingdom.troops || {};
+        const scoutCount = troops[gameConfig.constants.SOLDIER_SCOUT] || 0;
+        let otherTroopsCount = 0;
+        for (let sId in troops) {
+            if (parseInt(sId) !== gameConfig.constants.SOLDIER_SCOUT) {
+                otherTroopsCount += troops[sId];
+            }
+        }
+
+        let btnHtml;
+
+        if (scoutCount === 0 && otherTroopsCount === 0) {
+            btnHtml = `<span class="error" style="font-size: 13px; font-weight: bold;">Truppen zum Abbauen benötigt</span>`;
+        } else {
+            const isFull = (curTroops >= maxTroops && isFriendly);
+
+            let actionBtnText = "Abbauen";
+            let actionUrl = `sendtroops.php?x=${tx}&y=${ty}`;
+
+            if (isMyGuild) {
+                actionBtnText = "Helfen";
+            } else if (isEnemy) {
+                actionBtnText = "Mine angreifen";
+            } else if (scoutCount > 0 && otherTroopsCount === 0) {
+                actionBtnText = "Spionieren";
+                actionUrl += `&mode=spy`;
+            }
+
+            let mineBtnDisabled = btnDisabled;
+            let mineBtnTitle = "";
+
+            if (isFull) {
+                mineBtnDisabled = "disabled";
+                mineBtnTitle = "title='Die Mine ist vollständig besetzt'";
+            }
+
+            btnHtml = `<button data-on-click="redirect" data-url="${actionUrl}" ${mineBtnDisabled} ${mineBtnTitle}>${isFull ? "Mine ist voll" : actionBtnText}</button>`;
+
+            if (myTroops > 0) {
+                btnHtml += `
+                <form method="POST" action="map.php" style="margin-top: 8px;">
+                    <input type="hidden" name="recall_mine_troops" value="1">
+                    <input type="hidden" name="mine_x" value="${tx}">
+                    <input type="hidden" name="mine_y" value="${ty}">
+                    <button type="submit">
+                        Truppen heimschicken (${myTroops} vor Ort)
+                    </button>
+                </form>`;
+            }
+        }
+
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">${btnHtml}</td></tr>`;
         html += `</td></tr></table>`;
     } else if (kid === -999) {
         // --- EVENT CENTER

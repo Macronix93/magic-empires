@@ -1,7 +1,5 @@
 <?php
 
-use Random\RandomException;
-
 require_once("includes/core.php");
 
 check_user_login($user);
@@ -31,7 +29,7 @@ if (!in_array($active_tab, $allowed_tabs)) {
 if (!isset($_SESSION['csrf_token'])) {
     try {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    } catch (RandomException $e) {
+    } catch (Throwable $e) {
         $_SESSION['csrf_token'] = md5(uniqid(mt_rand(), true));
     }
 }
@@ -346,6 +344,77 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $view .= show_passed_box("Anzeige-Einstellungen erfolgreich gespeichert.");
         }
 
+        // Activate Vacation Mode
+        if (isset($_POST['activate_vacation'])) {
+            $confirm_pw = $_POST['confirm_pw_vacation'] ?? "";
+            $days = max(MIN_VACATION_DAYS, min(MAX_VACATION_DAYS, (int)($_POST['vacation_days'] ?? 2)));
+
+            $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
+            $current_hash = $res->fetch_column();
+
+            if (!password_verify($confirm_pw, $current_hash)) {
+                $error = "Passwort-Bestätigung fehlgeschlagen.";
+            } else {
+                $vac_errors = check_vacation_eligibility($uid, $db_instance);
+
+                if (!empty($vac_errors)) {
+                    $error = "Urlaubsmodus kann nicht aktiviert werden:<br>• " . implode("<br>• ", $vac_errors);
+                } else {
+                    $vac_until = time() + ($days * 86400);
+
+                    $res_offers = $db_instance->execute_query("SELECT offerid, kingdomid, supply, supplyvalue FROM marketplace WHERE userid = ?", [$uid]);
+                    while ($off = $res_offers->fetch_assoc()) {
+                        $k_temp = new Kingdom($db_instance, (int)$off["kingdomid"]);
+                        $k_temp->modify_resource((int)$off["supply"], (int)$off["supplyvalue"]);
+                        $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$off["offerid"]]);
+                    }
+
+                    $db_instance->execute_query("UPDATE users SET is_vacation = 1, vacation_until = ? WHERE id = ?", [$vac_until, $uid]);
+
+                    $logger->log_game("ACCOUNT", "VACATION_START", ["until" => $vac_until, "days" => $days]);
+
+                    setcookie("me_remember", '', time() - 3600, '/');
+                    session_destroy();
+
+                    change_location("index.php?vacation_locked=1");
+                    exit;
+                }
+            }
+        }
+
+        // Remove all Push Devices
+        if (isset($_POST['delete_all_push_devices'])) {
+            $db_instance->execute_query("DELETE FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
+
+            $_SESSION["admin_flash_msg"] = "Alle registrierten Push-Geräte wurden erfolgreich abgemeldet.";
+
+            change_location("settings.php?tab=account");
+            exit;
+        }
+
+        if (isset($_POST['save_push_settings'])) {
+            $p_combat = isset($_POST['push_combat']) ? 1 : 0;
+            $p_troops = isset($_POST['push_troops']) ? 1 : 0;
+            $p_building = isset($_POST['push_building']) ? 1 : 0;
+            $p_storage = isset($_POST['push_storage']) ? 1 : 0;
+            $p_messages = isset($_POST['push_messages']) ? 1 : 0;
+
+            $db_instance->execute_query("
+                INSERT INTO user_push_settings (user_id, combat, troops, building, storage, messages)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    combat = VALUES(combat),
+                    troops = VALUES(troops),
+                    building = VALUES(building),
+                    storage = VALUES(storage),
+                    messages = VALUES(messages)
+            ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages]);
+
+            $_SESSION["admin_flash_msg"] = "Push-Einstellungen erfolgreich gespeichert.";
+            change_location("settings.php?tab=account");
+            exit;
+        }
+
         // Delete Account
         if (isset($_POST['delete_account'])) {
             $confirm_pw = $_POST['confirm_pw_delete'] ?? "";
@@ -654,6 +723,137 @@ $view .= "<div class='title-border'>Account-Informationen</div>
             <tr><td><b>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
             <tr><td><b>Account-Level:</b></td><td>{$data["adminlevel"]} ($role)</td></tr>
         </table>";
+
+$push_settings = $db_instance->execute_query(
+    "SELECT combat, troops, building, storage, messages FROM user_push_settings WHERE user_id = ?",
+    [$uid]
+)->fetch_assoc();
+
+$val_combat = $push_settings['combat'] ?? 1;
+$val_troops = $push_settings['troops'] ?? 1;
+$val_building = $push_settings['building'] ?? 1;
+$val_storage = $push_settings['storage'] ?? 1;
+$val_messages = $push_settings['messages'] ?? 1;
+
+$res_push_count = $db_instance->execute_query("SELECT COUNT(*) FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
+$push_devices_count = (int)$res_push_count->fetch_column();
+$vapid_public_key = getenv("VAPID_PUBLIC_KEY") ?: (defined('VAPID_PUBLIC_KEY') ? VAPID_PUBLIC_KEY : '');
+
+$view .= '
+<div class="box-container">
+    <div class="box-header">Push-Benachrichtigungen</div>
+    <div class="box-content box-content-bg" style="padding: 15px; text-align: left;">
+        <p style="margin-top: 0;">
+            Erhalte wichtige Ereignisse direkt auf dein Smartphone oder deinen Desktop – auch wenn das Spiel geschlossen ist.
+        </p>
+        
+        <div style="text-align: center; margin: 15px 0;">
+            <button type="button" 
+                    id="btn-push-toggle"
+                    data-on-click="togglePushNotifications" 
+                    data-vapid="' . e($vapid_public_key) . '">
+                🔔 Benachrichtigungen auf diesem Gerät aktivieren
+            </button>
+        </div>
+
+        <hr style="margin: 15px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
+
+        <h4 style="margin: 0 0 10px 0;">Benachrichtigungs-Arten anpassen:</h4>
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="push_combat" value="1" ' . ($val_combat ? "checked" : "") . '>
+                    ' . wrap_emojis('<span>⚔️ <b>Kampf & Wachturm:</b> Feindliche Angriffe und Gefechtsberichte</span>') . '
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="push_troops" value="1" ' . ($val_troops ? "checked" : "") . '>
+                    ' . wrap_emojis('<span>🛡️ <b>Truppenrückkehr:</b> Wenn Einheiten von Missionen heimkehren</span>') . '
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="push_building" value="1" ' . ($val_building ? "checked" : "") . '>
+                    ' . wrap_emojis('<span>🏰 <b>Bau & Forschung:</b> Fertigstellung von Gebäuden, Forschungen oder Rekrutierungen</span>') . '
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="push_storage" value="1" ' . ($val_storage ? "checked" : "") . '>
+                    ' . wrap_emojis('<span>🌾 <b>Lager-Warnung:</b> Wenn deine Speicher drohen vollzulaufen</span>') . '
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="push_messages" value="1" ' . ($val_messages ? "checked" : "") . '>
+                    ' . wrap_emojis('<span>📩 <b>Private Nachrichten:</b> Neue Chat-Mitteilung</span>') . '
+                </label>
+            </div>
+            <div style="margin-top: 15px; text-align: center;">
+                <input type="submit" name="save_push_settings" value="Kategorien speichern">
+            </div>
+        </form>
+
+        <div style="font-size: 13px; opacity: 0.8; text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; margin-top: 15px;">
+            <span>Aktuell verknüpfte Geräte für deinen Account: <b>' . $push_devices_count . '</b></span>';
+
+if ($push_devices_count > 0) {
+    $view .= '
+            <form method="POST" style="margin-top: 8px;">
+                <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+                <input type="submit" 
+                       name="delete_all_push_devices" 
+                       value="Alle registrierten Geräte entfernen" 
+                       style="font-size: 11px; padding: 3px 8px; background: #4b140a;">
+            </form>';
+}
+
+$view .= '
+        </div>
+    </div>
+</div>';
+
+$vac_checks = check_vacation_eligibility($uid, $db_instance);
+$can_vac = empty($vac_checks);
+
+$view .= '<div class="box-container" style="border-color: var(--border-gold); margin-bottom: 20px;">
+    <div class="box-header">Urlaubsmodus</div>
+    <div class="box-content box-content-bg" style="padding: 15px; text-align: left;">
+        <p style="margin-top: 0;">
+            Im Urlaubsmodus sind deine Königreiche vor allen Angriffen und Spionage geschützt. 
+            <b>Ein Login ist während dieser Zeit absolut unmöglich!</b>
+        </p>
+        
+        <b>Voraussetzungen:</b>
+        <ul style="margin: 5px 0 15px 2px;">
+            <li>Keine eigenen Truppen auf dem Marsch</li>
+            <li>Keine Schürfer in Minen</li>
+            <li>Keine Unterstützung bei Gildenmitgliedern</li>
+            <li>Keine feindlichen Angriffe im Anmarsch</li>
+        </ul>
+        ' . (!$can_vac ? '<div class="info-box event-error" style="margin-bottom: 10px;">
+                <span style="font-size: 13px;"><b>Nicht möglich:</b><br>' . implode("<br>", $vac_checks) . '</span>
+            </div>' : '') . '
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
+            <table class="table" style="width: 100%;">
+                <tr>
+                    <td style="width: 45%;">Dauer:</td>
+                    <td>
+                        <select name="vacation_days" ' . (!$can_vac ? "disabled" : '') . ' style="width: 100%;">
+                            <option value="2">2 Tage (Minimum)</option>
+                            <option value="3">3 Tage</option>
+                            <option value="5">5 Tage</option>
+                            <option value="7">7 Tage (1 Woche)</option>
+                            <option value="14">14 Tage (2 Wochen)</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Passwort:</td>
+                    <td><input type="password" name="confirm_pw_vacation" placeholder="Passwort..." required ' . (!$can_vac ? "disabled" : '') . ' style="width: 100%;"></td>
+                </tr>
+            </table><br>
+            <div style="text-align: center;">
+                <input type="submit" name="activate_vacation" value="Urlaubsmodus jetzt aktivieren" ' . (!$can_vac ? "disabled" : '') . '>
+            </div>
+        </form>
+    </div>
+</div>';
 
 $view .= '
 <div class="box-container" style="border-color: #a62121;">

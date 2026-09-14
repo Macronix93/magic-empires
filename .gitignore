@@ -7,6 +7,7 @@ sync_score_dhsga.php
 /logs/*
 /backups/*
 /uploads/*
+cache/
 
 ##### Windows
 # Windows thumbnail cache files

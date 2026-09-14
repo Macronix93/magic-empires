@@ -76,8 +76,6 @@ registerAction("filterBarracksList", (el) => {
         if (recruitmentTable) recruitmentTable.style.display = "none";
         if (supportContainer) supportContainer.style.display = "";
 
-        document.cookie = "me_barracks_cat=4; path=/; max-age=31536000; SameSite=Lax";
-
         const url = new URL(window.location);
         url.searchParams.set("cat", "4");
         window.history.replaceState({}, '', url);
@@ -91,8 +89,6 @@ registerAction("filterBarracksList", (el) => {
         document.querySelectorAll(".unit-category-divider").forEach(row => {
             row.style.display = "";
         });
-
-        document.cookie = "me_barracks_cat=0; path=/; max-age=31536000; SameSite=Lax";
 
         const url = new URL(window.location);
         url.searchParams.delete("cat");
@@ -112,8 +108,6 @@ registerAction("filterBarracks", (el) => {
     document.querySelectorAll(".unit-category-divider").forEach(row => {
         row.style.display = "none";
     });
-
-    document.cookie = "me_barracks_cat=" + category + "; path=/; max-age=31536000; SameSite=Lax";
 
     if (category === "4") {
         if (recruitmentTable) recruitmentTable.style.display = "none";

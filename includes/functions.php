@@ -1,5 +1,6 @@
 <?php
 
+use GuzzleHttp\Client;
 use JetBrains\PhpStorm\NoReturn;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -151,20 +152,30 @@ function fdec($number, $decimals = 1): string
 function format_num($number): string
 {
     if (!is_numeric($number)) return "0";
+    $n = (int)$number;
 
-    if ($number >= 1000000) {
-        $val = $number / 1000000;
-        $truncated = floor(($val + 0.000001) * 100) / 100;
-        return number_format($truncated, ($truncated == floor($truncated) ? 0 : 2), ",", ".") . 'M';
+    if ($n >= 1000000) {
+        $main = intdiv($n, 1000000);
+        $sub = intdiv($n % 1000000, 10000);
+
+        if ($sub === 0) return $main . 'M';
+
+        $subStr = str_pad((string)$sub, 2, '0', STR_PAD_LEFT);
+        $subStr = rtrim($subStr, '0');
+
+        return $main . ',' . $subStr . 'M';
     }
 
-    if ($number >= 100000) {
-        $val = $number / 1000;
-        $truncated = floor(($val + 0.000001) * 10) / 10;
-        return number_format($truncated, ($truncated == floor($truncated) ? 0 : 1), ",", ".") . 'k';
+    if ($n >= 100000) {
+        $main = intdiv($n, 1000);
+        $sub = intdiv($n % 1000, 100);
+
+        if ($sub === 0) return $main . 'k';
+
+        return $main . ',' . $sub . 'k';
     }
 
-    return number_format($number, (floor($number) == $number ? 0 : 1), ",", ".");
+    return number_format($n, 0, ",", ".");
 }
 
 function fnum($number, bool $simple_format = false, $is_barracks = false): string
@@ -723,6 +734,94 @@ function send_server_message(int $user_id, string $user_name, string $message, s
         [$user_id, $user_name, time(), $message, $category, $json]);
 }
 
+function send_user_push(int $user_id, string $title, string $message, string $category = "combat", string $target_url = "/overview.php"): bool
+{
+    global $db_instance;
+
+    $valid_categories = ["combat", "troops", "building", "storage", "messages"];
+    if (!in_array($category, $valid_categories)) {
+        $category = "combat";
+    }
+
+    $vapid_public = getenv("VAPID_PUBLIC_KEY") ?: (defined('VAPID_PUBLIC_KEY') ? VAPID_PUBLIC_KEY : '');
+    $vapid_private = getenv("VAPID_PRIVATE_KEY") ?: (defined('VAPID_PRIVATE_KEY') ? VAPID_PRIVATE_KEY : '');
+    $vapid_subject = getenv("VAPID_SUBJECT") ?: (defined('VAPID_SUBJECT') ? VAPID_SUBJECT : "mailto:webmaster@magic-empires.de");
+
+    if (empty($vapid_public) || empty($vapid_private)) {
+        return false;
+    }
+
+    try {
+        $res_pref = $db_instance->execute_query(
+            "SELECT `$category` FROM user_push_settings WHERE user_id = ?",
+            [$user_id]
+        );
+        $is_allowed = !($res_pref->num_rows > 0) || $res_pref->fetch_column();
+
+        if (!$is_allowed) {
+            return false;
+        }
+
+        $subscriptions = $db_instance->execute_query(
+            "SELECT id, endpoint, public_key, auth_token FROM user_push_subscriptions WHERE user_id = ?",
+            [$user_id]
+        )->fetch_all(MYSQLI_ASSOC);
+
+        if (empty($subscriptions)) {
+            return false;
+        }
+
+        $auth = [
+            "VAPID" => [
+                "subject" => $vapid_subject,
+                "publicKey" => $vapid_public,
+                "privateKey" => $vapid_private,
+            ],
+        ];
+
+        $http_client = new Client([
+            "timeout" => 5,
+            "verify" => !((defined("IS_DEV") && IS_DEV)),
+        ]);
+
+        $default_options = [
+            "timeout" => 5,
+        ];
+
+        $web_push = new Minishlink\WebPush\WebPush($auth, $default_options, $http_client);
+
+        $payload = json_encode([
+            "title" => $title,
+            "body" => $message,
+            "icon" => 'images/icons/icon_castle.png',
+            "url" => $target_url
+        ], JSON_UNESCAPED_UNICODE);
+
+        foreach ($subscriptions as $sub) {
+            $push_sub = Minishlink\WebPush\Subscription::create([
+                "endpoint" => $sub["endpoint"],
+                "publicKey" => $sub["public_key"],
+                "authToken" => $sub["auth_token"],
+            ]);
+            $web_push->queueNotification($push_sub, $payload);
+        }
+
+        foreach ($web_push->flush() as $report) {
+            if (!$report->isSuccess() && $report->isSubscriptionExpired()) {
+                $db_instance->execute_query(
+                    "DELETE FROM user_push_subscriptions WHERE endpoint = ?",
+                    [$report->getEndpoint()]
+                );
+            }
+        }
+
+        return true;
+    } catch (Throwable $e) {
+        Logger::get_instance()->error("WebPush Exception bei User ID $user_id: " . $e->getMessage());
+        return false;
+    }
+}
+
 function get_resource_text(int $cost, int $current_val): string
 {
     return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
@@ -765,7 +864,7 @@ function is_name_monotonous($name): bool
 
 function update_global_stat(string $name, int $increment = 1): void
 {
-    global $db_instance;
+    $db_instance = Database::get_instance()->get_connection();
 
     $query = "UPDATE system_settings SET value = value + ? WHERE name = ?";
     $db_instance->execute_query($query, [$increment, $name]);
@@ -773,7 +872,7 @@ function update_global_stat(string $name, int $increment = 1): void
 
 function update_player_stat(int $user_id, string $column, $increment = 1): void
 {
-    global $db_instance;
+    $db_instance = Database::get_instance()->get_connection();
 
     $query = "INSERT INTO player_stats (userid, `$column`) VALUES (?, ?) 
               ON DUPLICATE KEY UPDATE `$column` = `$column` + VALUES(`$column`)";
@@ -809,8 +908,9 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
 {
     $now = time();
 
+    // Attack on kingdoms and mines
     $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id as kingdom_id
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id
         FROM events e
         JOIN kingdoms k ON e.targetid = k.id
         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
@@ -820,25 +920,43 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
           AND e.is_processing = 0
           AND e.arrivaltime > ?
           AND (e.arrivaltime - ?) <= (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ")
-        ORDER BY e.arrivaltime
+
+        UNION ALL
+
+        SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id
+        FROM events e
+        JOIN mines mn ON e.targetx = mn.mapx AND e.targety = mn.mapy
+        JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
+        JOIN users u_sender ON e.userid = u_sender.id
+        JOIN users u_target ON mst.user_id = u_target.id
+        WHERE mst.user_id = ?
+          AND e.userid != ?
+          AND (u_sender.guildid <= 0 OR u_sender.guildid != u_target.guildid)
+          AND e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
+          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+          AND e.is_processing = 0
+          AND e.arrivaltime > ?
+        GROUP BY e.eventid, e.arrivaltime, mn.level, e.targetx, e.targety
+        ORDER BY arrivaltime
     ";
 
-    $result = $db->execute_query($query, [$uid, $now, $now]);
-    $attacks = $result->fetch_all(MYSQLI_ASSOC);
+    $result = $db->execute_query($query, [$uid, $now, $now, $uid, $uid, $now]);
+    $all_attacks = $result->fetch_all(MYSQLI_ASSOC);
 
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
-    foreach ($attacks as &$attack) {
-        $target_k = new Kingdom($db, (int)$attack["kingdom_id"]);
-        $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
+    foreach ($all_attacks as &$attack) {
+        if ((int)$attack["kingdom_id"] > 0) {
+            $target_k = new Kingdom($db, (int)$attack["kingdom_id"]);
+            $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
 
-        if ($intel_level < 1) {
-            $attack["arrivaltime"] = 0;
+            if ($intel_level < 1) {
+                $attack["arrivaltime"] = 0;
+            }
         }
-
         $attack["is_new"] = !in_array($attack["eventid"], $ack_ids);
     }
 
-    return $attacks;
+    return $all_attacks;
 }
 
 function check_for_incoming_support(int $uid, mysqli $db): array
@@ -1103,4 +1221,42 @@ function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
             $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$x, $y]);
         }
     }
+}
+
+function check_vacation_eligibility(int $uid, mysqli $db): array
+{
+    $errors = [];
+
+    // Troops on the way?
+    $res_events = $db->execute_query(
+        "SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
+        [$uid, ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS, ActionTypes::ACTION_STATION_TROOPS, ActionTypes::ACTION_SUPPORT_RETURN]
+    );
+    if ((int)$res_events->fetch_column() > 0) {
+        $errors[] = "Es befinden sich noch eigene Truppen auf dem Marsch.";
+    }
+
+    // Troops in mines?
+    $res_mines = $db->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE user_id = ?", [$uid]);
+    if ((int)$res_mines->fetch_column() > 0) {
+        $errors[] = "Du hast noch Schürftruppen in Minen stationiert.";
+    }
+
+    // Supporting troops at allied kingdoms?
+    $res_support = $db->execute_query("SELECT COUNT(*) FROM stationed_troops WHERE owner_id = ?", [$uid]);
+    if ((int)$res_support->fetch_column() > 0) {
+        $errors[] = "Du hast noch Unterstützungstruppen bei Gildenmitgliedern stehen.";
+    }
+
+    // Incoming attacks on kingdoms?
+    $res_attacks = $db->execute_query("
+        SELECT COUNT(*) FROM events e
+        JOIN kingdoms k ON e.targetid = k.id
+        WHERE k.userid = ? AND e.userid != ? AND e.actionid = ? AND e.arrivaltime > UNIX_TIMESTAMP()
+    ", [$uid, $uid, ActionTypes::ACTION_SEND_TROOPS]);
+    if ((int)$res_attacks->fetch_column() > 0) {
+        $errors[] = "Deine Dörfer werden aktuell angegriffen!";
+    }
+
+    return $errors;
 }

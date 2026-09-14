@@ -13,21 +13,38 @@ echo "[" . date("Y-m-d H:i:s") . "] Starte Cron-Tick...\n";
 
 $system_user = new User(-1, "System");
 $global_em = new EventManager($system_user);
+$global_em->process_mines();
 $global_em->cleanup_marketplace();
 $global_em->check_watchtower_notifications();
+
+$action_building_list = implode(',', [
+    ActionTypes::ACTION_BUILD_BUILDING,
+    ActionTypes::ACTION_RESEARCH_TECH,
+    ActionTypes::ACTION_SMITHY_UPGRADE
+]);
+
+$action_movement_list = implode(',', [
+    ActionTypes::ACTION_SEND_TROOPS,
+    ActionTypes::ACTION_RETURN_TROOPS,
+    ActionTypes::ACTION_RECEIVE_RESOURCES,
+    ActionTypes::ACTION_RETURN_RESOURCES,
+    ActionTypes::ACTION_STATION_TROOPS,
+    ActionTypes::ACTION_SUPPORT_RETURN
+]);
+
 
 $query = "SELECT e.*, u.username 
           FROM events e
           JOIN users u ON e.userid = u.id
           WHERE (e.is_processing = 0 OR e.is_processing < " . (time() - 60) . ")
           AND (
-              (e.actionid IN (0, 4, 8) AND e.buildingtime > 0 AND e.buildingtime <= ?) 
+              (e.actionid IN ($action_building_list) AND e.buildingtime > 0 AND e.buildingtime <= ?) 
               OR
-              (e.actionid IN (2, 3, 5, 6) AND e.arrivaltime > 0 AND e.arrivaltime <= ?)
+              (e.actionid IN ($action_movement_list) AND e.arrivaltime > 0 AND e.arrivaltime <= ?)
               OR
-              (e.actionid = 1 AND e.buildingtime <= ?)
+              (e.actionid = " . ActionTypes::ACTION_BUILD_TROOPS . " AND e.buildingtime <= ?)
               OR
-              (e.actionid = 7 AND e.recruittime > 0 AND e.recruittime <= ?)
+              (e.actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . " AND e.recruittime > 0 AND e.recruittime <= ?)
           )";
 
 $result = $db_instance->execute_query($query, [$now, $now, $now, $now]);
@@ -161,7 +178,7 @@ while ($ev = $finished_events->fetch_assoc()) {
             $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                     "Event-Abschluss",
                     "Das Schadens-Event im <b>Auge des Sturms</b> ist beendet!<br>Für deinen Gesamtschaden von <b>" . fnum($user_damage, true) . "
-                             </b> hast du folgende Gesamt-Prämien erzielt:<br><br>",
+                             </b> hast du folgende Gesamt-Prämien erzielt:",
                     0, 0,
                     $sub_text,
                     "neutral",
@@ -186,4 +203,22 @@ while ($ev = $finished_events->fetch_assoc()) {
     }
 
     $db_instance->execute_query("UPDATE world_events SET is_rewarded = 1, is_active = 0 WHERE id = ?", [$ev["id"]]);
+}
+
+//// Storage Push Message
+$full_storage = $db_instance->query("
+    SELECT k.userid, k.kingdomname 
+    FROM kingdoms k 
+    WHERE k.food >= k.maxfood OR k.wood >= k.maxwood OR k.stone >= k.maxstone OR k.gold >= k.maxgold
+");
+
+// Only when the storage freshly reached the limit
+while ($fs = $full_storage->fetch_assoc()) {
+    send_user_push(
+        (int)$fs["userid"],
+        "🌾 Lager voll: " . $fs["kingdomname"],
+        "Die Lagerkapazität in {$fs["kingdomname"]} ist erschöpft! Überschüssige Ressourcen verfallen.",
+        "storage",
+        "storage.php"
+    );
 }

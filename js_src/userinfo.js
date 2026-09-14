@@ -36,7 +36,7 @@ function applyOverlayStyles() {
 
     if (!overlay || overlay.style.display === "none") return;
 
-    if (window.innerHeight < 500) {
+    if (window.innerWidth <= 600 || window.innerHeight < 600) {
         overlay.style.top = "10px";
     } else {
         overlay.style.top = "50px";

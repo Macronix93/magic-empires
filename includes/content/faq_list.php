@@ -95,6 +95,14 @@
                     bekommt man pro Stunde automatisch, können aber auch durch Monstercamps erhalten werden.
                 </td>
             </tr>
+            <tr>
+                <td class="td-gradient"><b>Wie erfahre ich die Erträge der Feldtypen auf der Karte?</b></td>
+                <td>Du kannst auf der Weltkarte in der oberen Legende einfach mit der Maus über die jeweiligen Feldtypen
+                    (<b>Hochland</b>, <b>Wald</b>, <b>Wüste</b>, <b>Küste</b> oder <b>Gebirge</b>) fahren oder sie
+                    auf dem Smartphone antippen. Es öffnet sich ein Info-Fenster, das dir den genauen Marschzeit-Faktor
+                    sowie die Erträge für Nahrung, Holz, Stein und Gold pro Stunde anzeigt.
+                </td>
+            </tr>
         </table>
     </div>
 </div>
@@ -151,6 +159,56 @@
                 <td>Ein Upgrade kostet dich nur die <b>Differenz</b> der Ressourcenkosten. Es ist der effizienteste Weg,
                     deine Armee zu modernisieren, ohne dein Truppenlimit mit schwachen Einheiten zu belasten. Zudem
                     behältst du so deine militärische Schlagkraft bei minimalem Ressourcenaufwand.
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+<div class="box-container" style="margin-bottom: 20px;">
+    <div class="box-header">Gilden & Bündnisse</div>
+    <div class="box-content box-content-bg">
+        <table class="table" style="width: 100%; border: none;">
+            <tr>
+                <td class="td-gradient" style="width: 40%;"><b>Wie gründe ich eine Gilde?</b></td>
+                <td>Du benötigst in deinem Haupt-Königreich eine <b>Botschaft</b>. Anschließend kannst du im
+                    Menü unter „Gilde“ einen Namen, ein Kürzel (Tag) und ein optionales Motto festlegen.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Welche Vorteile bietet eine Gilde?</b></td>
+                <td>Als Gildenmitglied erhältst du Zugriff auf den internen <b>Gilden-Chat</b>, gemeinsame <b>Gildenforschungen</b>
+                    (die globale Boni für alle Mitglieder freischalten), eine gemeinsame <b>Schatzkammer</b> sowie die
+                    Möglichkeit, Verbündeten <b>militärische Unterstützung</b> ins Dorf zu stellen.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Wie funktionieren Gilden-Forschungen?</b></td>
+                <td>Die Gildenführung kann ein Forschungsprojekt ausrufen. Alle Mitglieder können Rohstoffe spenden, um
+                    den Bau voranzutreiben. Sobald das Ziel erreicht ist, startet die Forschung und die Boni (z. B. mehr
+                    Lagerplatz, schnellere Truppenmärsche, mehr Event-Gold) gelten dauerhaft für die gesamte Gilde.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Was ist die Gilden-Schatzkammer?</b></td>
+                <td>In der Schatzkammer werden seltene Spezial-Erze (Kohle, Eisen, Saphir und Diamant) gelagert, die
+                    deine Truppen beim Schürfen in <b>Erzminen</b> erbeuten. Diese Erze werden benötigt, um höhere
+                    Gilden-Technologien freizuschalten.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Wie kann ich Verbündete unterstützen?</b></td>
+                <td>Wähle auf der Karte das Königreich eines Gildenmitglieds an und sende Truppen mit dem Befehl <b>„Unterstützen“</b>.
+                    Deine Einheiten verteidigen fortan das befreundete Dorf gegen Angreifer und können jederzeit über
+                    deine eigene Kaserne zurückgerufen werden.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Was passiert, wenn ich eine Gilde verlasse?</b></td>
+                <td>Deine stationierten Unterstützungstruppen bei Gildenmitgliedern treten sofort den Rückmarsch in
+                    deine
+                    Kaserne an. Nach dem Verlassen gilt eine <b>Sperrfrist von <?= (GUILD_JOIN_COOLDOWN / 3600) ?>
+                        Stunden</b>, bevor du einer neuen
+                    Gilde beitreten oder eine gründen kannst.
                 </td>
             </tr>
         </table>

@@ -7,16 +7,25 @@ $user_data = $db_instance->execute_query("SELECT guildid, ranking_points FROM us
 $my_guild_id = (int)$user_data["guildid"];
 $guild_logic = new Guild($db_instance, $user, $my_guild_id);
 $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
+$k = new Kingdom($db_instance, $user->get_current_kingdom());
 
 $allowed_tabs = ["chat", "general", "settings", "storage", "research"];
 $active_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
-
-if (!in_array($active_tab, $allowed_tabs)) {
-    $active_tab = "chat";
-}
+$referer = $_SERVER['HTTP_REFERER'] ?? '';
+$is_external_nav = empty($referer) || !str_contains($referer, 'guild.php');
 
 if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
-    setcookie("me_guild_tab", $_GET["tab"], time() + 31536000, "/", "", false, false);
+    $active_tab = $_GET["tab"];
+
+    setcookie("me_guild_tab", $active_tab, time() + 31536000, "/", "", false, false);
+} else if ($is_external_nav) {
+    $active_tab = "chat";
+} else {
+    $active_tab = $_COOKIE["me_guild_tab"] ?? "chat";
+
+    if (!in_array($active_tab, $allowed_tabs)) {
+        $active_tab = "chat";
+    }
 }
 
 $is_invite_only = isset($_POST["g_invite_only"]) && $_POST["g_invite_only"] == "1";
@@ -107,7 +116,7 @@ if (isset($_GET["mark_project"]) && $my_guild_id !== -1) {
 
             if ($existing_project) {
                 if ($existing_project["tech_id"] != $tid) {
-                    $_SESSION["guild_error"] = "Es ist bereits ein Projekt aktiv (" . e($existing_project['name']) . "). Bitte brich dieses erst ab.";
+                    $_SESSION["guild_error"] = "Es ist bereits ein Projekt aktiv (" . e($existing_project["name"]) . "). Bitte brich dieses erst ab.";
                 }
 
                 change_location("guild.php?tab=research");
@@ -191,7 +200,6 @@ if (isset($_POST["contribute_project"]) && $my_guild_id !== -1) {
         $error = "Es ist kein Projekt markiert oder es wurde schon fertiggestellt.";
         $db_instance->rollback();
     } else {
-        $k = new Kingdom($db_instance, $user->get_current_kingdom());
         $input_amounts = [
             max(0, (int)($_POST["am"][0] ?? 0)), // Food
             max(0, (int)($_POST["am"][1] ?? 0)), // Wood
@@ -349,20 +357,19 @@ if ($my_guild_id === -1) {
     }
 
     $guilds = $guild_logic->get_guild_list();
-    $view .= "<table class='table'>
+    $view .= "<table class='table' style='hyphens: auto;'>
                 <colgroup>
-                    <col style='width: 40%'>
-                    <col>
-                    <col style='width: 15%'>
-                    <col style='width: 15%'>
-                    <col style='width: 5%'>
+                    <col style='width: 32%'>
+                    <col style='width: 24%'>
+                    <col style='width: 20%'>
+                    <col style='width: 18%'>
+                    <col style='width: 6%'>
                 </colgroup>
                 <tr>
                     <td class='td-gradient td-center'><b>Name</b></td>
                     <td class='td-gradient td-center'><b>Leader</b></td>
                     <td class='td-gradient td-center'><b>Mitglieder</b></td>
-                    <td class='td-gradient td-center'><b>Punkte</b></td>
-                    <td class='td-gradient td-center'></td>
+                    <td class='td-gradient td-center' colspan='2'><b>Beitritt</b></td>
                 </tr>";
 
     if ($guilds->num_rows > 0) {
@@ -379,7 +386,7 @@ if ($my_guild_id === -1) {
             else if (!$has_space) $btn_title = "Gilde ist voll.";
             else $btn_title = "Gilde beitreten";
 
-            $score_display = $is_invite_only ? "Einladung" : ($g["min_score"] > 0 ? fnum($g["min_score"], true) : "-");
+            $score_display = $is_invite_only ? "Einladung" : ($g["min_score"] > 0 ? fnum($g["min_score"]) . " Punkte" : "Jeder");
 
             $action_icon = "";
             if (!$is_invite_only && $has_score && $has_space) {
@@ -413,11 +420,10 @@ if ($my_guild_id === -1) {
     $view .= "</table>";
 
     // Founding section
-    $k = new Kingdom($db_instance, $user->get_current_kingdom());
-
     if ($k->get_kingdom_building_level(BuildingTypes::BUILDING_EMBASSY) > 0) {
-        $checked_create = isset($_POST["g_invite_only"]) ? "checked" : "";
-        $disabled_create = isset($_POST["g_invite_only"]) ? "disabled" : "";
+        $is_invite_checked = (!isset($_POST["create_guild"])) || !empty($_POST["g_invite_only"]);
+        $checked_create = $is_invite_checked ? "checked" : "";
+        $disabled_create = $is_invite_checked ? "disabled" : "";
         $post_min_score = e($_POST["g_min_score"] ?? "0");
 
         $view .= "<br><hr><br><div class='box-container' style='max-width: 650px; margin: 0 auto;'>
@@ -503,12 +509,12 @@ if ($my_guild_id === -1) {
     $max_m = $guild_logic->get_max_members();
 
     $view .= "<div class='title-border'>Mitgliederliste ($cur_members_count / $max_m)</div>";
-    $view .= "<table class='table' style='max-width: 650px;'>
+    $view .= "<table class='table guild-members-table' style='max-width: 650px;'>
             <colgroup>
-                <col>                               <!-- Name: -->
-                <col style='width: 15%'>                   <!-- Score -->
-                <col style='width: 20%'>                   <!-- Rang -->
-                " . ($has_actions ? "<col style='width: 140px;'>" : "") . " <!-- Aktion -->
+                <col>                                               <!-- Name -->
+                <col class='col-g-score' style='width: 16%;'>       <!-- Score -->
+                <col class='col-g-rank' style='width: 20%;'>        <!-- Rang -->
+                " . ($has_actions ? "<col class='col-g-action' style='width: 125px;'>" : "") . " <!-- Aktion -->
             </colgroup>
             <tr>
                 <td class='td-gradient td-center'><b>Name</b></td>
@@ -527,7 +533,8 @@ if ($my_guild_id === -1) {
         if ($has_actions && !$is_me) {
             if ($my_perms["can_edit_settings"]) {
                 if (!$m["is_founder"] || $my_perms["is_founder"]) {
-                    $action_content .= "<select data-on-change='changeMemberRank' data-userid='{$m["id"]}' style='font-size: 11px; margin-right: 10px; vertical-align: middle; width: 85px;'>";
+                    $action_content .= "<select data-on-change='changeMemberRank' data-userid='{$m["id"]}' class='guild-rank-select'>";
+
                     foreach ($ranks as $r) {
                         if ($r["id"] == GuildRanks::GUILD_LEADER && !$my_perms["is_founder"]) continue;
 
@@ -537,12 +544,13 @@ if ($my_guild_id === -1) {
 
                         $action_content .= "<option value='{$r["id"]}' $sel $disabled>" . e($r["rank_name"]) . "</option>";
                     }
+
                     $action_content .= "</select>";
                 }
             }
 
             if ($my_perms["can_kick"] && !$m["is_founder"]) {
-                $action_content .= "<img src='images/icons/icon_logout.png' class='ressource-icons' 
+                $action_content .= "<img src='images/icons/icon_logout.png' class='ressource-icons kick-icon' 
                                   style='cursor:pointer; vertical-align: middle;' 
                                   data-on-click='confirmKickMember' 
                                   data-userid='{$m["id"]}' 
@@ -555,12 +563,11 @@ if ($my_guild_id === -1) {
 
         $view .= "<tr $row_style>
                     <td>" . $guild_user->render_user() . "</td>
-                    <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>";
-
-        $view .= "<td class='td-center'>$rank_display</td>";
+                    <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>
+                    <td class='td-center'>$rank_display</td>";
 
         if ($has_actions) {
-            $view .= "<td class='td-center' style='white-space: nowrap;'>$action_content</td>";
+            $view .= "<td class='td-center guild-action-cell' style='white-space: nowrap;'>$action_content</td>";
         }
 
         $view .= "</tr>";
@@ -577,7 +584,7 @@ if ($my_guild_id === -1) {
             $view .= "<table class='table' style='max-width: 650px;'>
                     <colgroup>
                         <col>
-                        <col style='width: 30%'>
+                        <col style='width: 35%'>
                         <col style='width: 20%'>
                         <col style='width: 50px;'>
                     </colgroup>
@@ -597,7 +604,7 @@ if ($my_guild_id === -1) {
                 $view .= "<tr>
                         <td>" . $invited_user->render_user() . "</td>
                         <td>" . $inviter->render_user() . "</td>
-                        <td class='td-center'>" . convert_sec_to_str($time_left, true) . "</td>
+                        <td class='td-center'>" . convert_sec_to_str($time_left) . "</td>
                         <td class='td-center'>
                             <img src='images/icons/icon_error.png' class='ressource-icons' 
                                  style='cursor:pointer' 
@@ -624,7 +631,7 @@ if ($my_guild_id === -1) {
 
     // Avatar
     $view .= "
-    <div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
+    <div class='box-container' style='max-width: 600px; margin: 0 auto 10px auto;'>
         <div class='box-header'>Gilden-Wappen</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST' enctype='multipart/form-data'>" : "") . "
@@ -644,7 +651,7 @@ if ($my_guild_id === -1) {
 
     // Identity
     $view .= "
-    <div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
+    <div class='box-container' style='max-width: 600px; margin: 0 auto 10px auto;'>
         <div class='box-header'>Gilden-Identität</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST'>" : "") . "
@@ -740,7 +747,109 @@ if ($my_guild_id === -1) {
                     <div>" . get_resource_icon($type) . " " . fnum($cur) . "</div>von " . fnum($max) . "
                   </div>";
     }
-    $view .= "</div></div></div>";
+    $view .= "</div></div>";
+
+    // Active Guild Miners Listing
+    $view .= "<div class='title-border' style='margin-top: 30px;'>Aktive Minen-Schürfer</div>";
+
+    $active_mines_res = $db_instance->execute_query("
+        SELECT 
+            mn.id AS mine_id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total,
+            SUM(mst.soldiercount * mst.unit_atk) AS total_mine_atk
+        FROM mine_stationed_troops mst
+        JOIN users u ON mst.user_id = u.id
+        JOIN mines mn ON mst.mine_id = mn.id
+        WHERE u.guildid = ?
+        GROUP BY mn.id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total
+        ORDER BY mn.level DESC, mn.mapx
+    ", [$my_guild_id])->fetch_all(MYSQLI_ASSOC);
+
+    if (!empty($active_mines_res)) {
+        $view .= "<table class='table' style='max-width: 650px; margin: 0 auto 20px auto;'>
+                    <colgroup>
+                        <col style='width: 22%'>
+                        <col style='width: 26%'>
+                        <col style='width: 26%'>
+                        <col style='width: 26%'>
+                    </colgroup>
+                    <tr>
+                        <td class='td-gradient td-center'><b>Mine</b></td>
+                        <td class='td-gradient td-center'><b>Mitglieder</b></td>
+                        <td class='td-gradient td-center'><b>Truppen</b></td>
+                        <td class='td-gradient td-center'><b>Fortschritt</b></td>
+                    </tr>";
+
+        foreach ($active_mines_res as $am) {
+            $mine_id = (int)$am["mine_id"];
+            $mx = (int)$am["mapx"];
+            $my = (int)$am["mapy"];
+            $mine_lvl = (int)$am["level"];
+
+            $w_done = (int)$am["work_done"];
+            $w_total = max(1, (int)$am["work_total"]);
+            $percent_val = ($w_done / $w_total) * 100;
+            $percent_display = fdec($percent_val);
+
+            $rate = (float)$am["total_mine_atk"] * MINE_WORK_RATE_FACTOR;
+
+            $c_link = "<a href='map.php?startx=$mx&starty=$my' data-on-click='mapJump' data-x='$mx' data-y='$my'>$mx:$my</a>";
+
+            $users_res = $db_instance->execute_query("
+                SELECT DISTINCT u.id, u.username 
+                FROM mine_stationed_troops mst
+                JOIN users u ON mst.user_id = u.id
+                WHERE mst.mine_id = ? AND u.guildid = ?
+                ORDER BY u.username
+            ", [$mine_id, $my_guild_id]);
+
+            $members_html = "<div style='display: flex; flex-direction: column; gap: 4px; align-items: center;'>";
+            while ($u_row = $users_res->fetch_assoc()) {
+                $m_user = new User((int)$u_row["id"], $u_row["username"]);
+                $members_html .= $m_user->render_user();
+            }
+            $members_html .= "</div>";
+
+            $t_res = $db_instance->execute_query("
+                SELECT SUM(mst.soldiercount) as soldiercount, sl.soldiername, sl.icon 
+                FROM mine_stationed_troops mst
+                JOIN users u ON mst.user_id = u.id
+                JOIN soldier_list sl ON mst.soldier_id = sl.id
+                WHERE mst.mine_id = ? AND u.guildid = ?
+                GROUP BY mst.soldier_id, sl.soldiername, sl.icon
+                ORDER BY mst.soldier_id
+            ", [$mine_id, $my_guild_id]);
+
+            $troop_badges = "<div style='display:flex; flex-wrap:wrap; gap:3px; justify-content:center;'>";
+            while ($tr = $t_res->fetch_assoc()) {
+                $troop_badges .= "
+                    <div class='unit-badge' title='{$tr["soldiername"]}' style='padding: 2px 5px;'>
+                        <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''>
+                        <b>{$tr["soldiercount"]}</b>
+                    </div>";
+            }
+            $troop_badges .= "</div>";
+
+            $view .= "<tr>
+                        <td class='td-center'>
+                            <b>Stufe $mine_lvl</b><br>
+                            <small>($c_link)</small>
+                        </td>
+                        <td class='td-center'>$members_html</td>
+                        <td class='td-center'>$troop_badges</td>
+                        <td class='td-center' style='font-size: 13px;'>
+                            <b class='js-mine-progress' data-work-done='$w_done' data-work-total='$w_total' data-rate='$rate'>$percent_display %</b> abgebaut
+                            <div class='tick-progress-bg' style='height: 5px; width: 90px; margin: 8px auto;'>
+                                <div class='tick-progress-fill js-mine-progress-bar' style='width: " . min(100, $percent_val) . "%;'></div>
+                            </div>
+                        </td>
+                      </tr>";
+        }
+        $view .= "</table>";
+    } else {
+        $view .= "<p style='text-align: center; opacity: 0.6;'>Aktuell bauen keine Gildenmitglieder in Minen ab.</p>";
+    }
+
+    $view .= "</div>";
 
     // Guild Techs
     $view .= "<div id='guild_tab_research' class='js-guild-tab' style='display: " . ($active_tab == "research" ? "block" : "none") . ";'>";
@@ -759,7 +868,7 @@ if ($my_guild_id === -1) {
         $lvl = $guild_logic->get_tech_level($project["tech_id"]);
         $costs = $guild_logic->calculate_tech_costs($project, $lvl);
 
-        $view .= "<div class='box-container' style='border: 2px solid var(--border-gold); margin: 0 auto; width: 70%;'>
+        $view .= "<div class='box-container active-guild-project'>
                 <div class='box-header'>{$project["name"]} (Stufe " . ($lvl + 1) . ")</div>
                 <div class='box-content box-content-bg' style='padding: 20px;'>
                     <div style='display: flex; gap: 20px; align-items: center; justify-content: center; flex-wrap: wrap;'>
@@ -827,32 +936,58 @@ if ($my_guild_id === -1) {
         $rem_stone = max(0, $costs["stone"] - $project["current_stone"]);
         $rem_gold = max(0, $costs["gold"] - $project["current_gold"]);
 
+        $k_stock = [
+            0 => $k->get_kingdom_food(),
+            1 => $k->get_kingdom_wood(),
+            2 => $k->get_kingdom_stone(),
+            3 => $k->get_kingdom_gold()
+        ];
+        $needed_map = [
+            0 => [ResourceTypes::RESOURCE_TYPE_FOOD, $rem_food, "Nahrung"],
+            1 => [ResourceTypes::RESOURCE_TYPE_WOOD, $rem_wood, "Holz"],
+            2 => [ResourceTypes::RESOURCE_TYPE_STONE, $rem_stone, "Stein"],
+            3 => [ResourceTypes::RESOURCE_TYPE_GOLD, $rem_gold, "Gold"]
+        ];
+        $donate_html = "";
+
+        foreach ($needed_map as $idx => $n_info) {
+            $res_type = $n_info[0];
+            $rem = $n_info[1];
+            $stock = $k_stock[$idx];
+            $max_possible = max(0, min($rem, $stock));
+            $is_disabled = ($rem <= 0 || $stock <= 0);
+
+            $donate_html .= "<div style='display: flex; align-items: center; gap: 4px;'>
+                " . get_resource_icon($res_type) . "
+                <input type='text'
+                       name='am[$idx]'
+                       id='proj_am_$idx'
+                       class='js-project-res-input'
+                       placeholder='0'
+                       style='width: 100%;'
+                       inputmode='numeric'
+                       pattern='[0-9]*'
+                       data-needed='$rem'
+                       data-stock='$stock'
+                    " . ($rem <= 0 ? "disabled" : "") . ">
+                <input type='button'
+                       value='Max.'
+                       data-on-click='fillProjectMax'
+                       data-target='proj_am_$idx'
+                       data-max='$max_possible'
+                    " . ($is_disabled ? "disabled" : "") . "
+                       style='font-size: 11px;'>
+            </div>";
+        }
+
+
         $view .= "      </div>
                 </div>
                 <hr>
                 <h4 style='margin: 15px 0 10px 0;'>Projekt unterstützen</h4>
                 <form method='POST'>
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 300px; margin: 0 auto;'>
-                        <div style='display: flex; align-items: center; gap: 5px;'>
-                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " 
-                            <input type='text' name='am[0]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*' 
-                            data-needed='$rem_food' " . ($rem_food <= 0 ? "disabled" : "") . ">
-                        </div>
-                        <div style='display: flex; align-items: center; gap: 5px;'>
-                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " 
-                            <input type='text' name='am[1]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*'
-                            data-needed='$rem_wood' " . ($rem_wood <= 0 ? "disabled" : "") . ">
-                        </div>
-                        <div style='display: flex; align-items: center; gap: 5px;'>
-                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " 
-                            <input type='text' name='am[2]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*'
-                            data-needed='$rem_stone' " . ($rem_stone <= 0 ? "disabled" : "") . ">
-                        </div>
-                        <div style='display: flex; align-items: center; gap: 5px;'>
-                            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " 
-                            <input type='text' name='am[3]' class='js-internal-res-input' placeholder='0' style='width:100%;' inputmode='numeric' pattern='[0-9]*'
-                            data-needed='$rem_gold' " . ($rem_gold <= 0 ? "disabled" : "") . ">
-                        </div>
+                        $donate_html
                     </div>
                     <input type='submit' name='contribute_project' value='Ressourcen einzahlen' style='margin-top: 15px;'>
                 </form>
@@ -936,7 +1071,11 @@ if ($my_guild_id === -1) {
 
     // Tech List
     $view .= "<div class='title-border'>Verfügbare Forschungen</div>";
-    $view .= "<table class='table' style='max-width: 700px;'>";
+    $view .= "<table class='table'>";
+    $view .= '<colgroup>
+                <col class="col-guild-description">
+                <col class="col-guild-action">
+            </colgroup>';
 
     $all_techs = $guild_logic->get_all_techs();
     foreach ($all_techs as $t) {
@@ -1004,11 +1143,13 @@ if ($my_guild_id === -1) {
                 </div>";
             }
         } else if ($my_perms["can_edit_settings"]) {
+            $disabled = $project ? " disabled" : "";
+
             $action_btn = "<a href='guild.php?tab=research&mark_project={$t["id"]}'>
-                        <button type='button'>Markieren</button>
+                        <button type='button'$disabled>Markieren</button>
                       </a>";
         } else {
-            $action_btn = "<i>Wartet auf Offizier</i>";
+            $action_btn = "-";
         }
 
         $view .= "<tr>

@@ -411,7 +411,9 @@ class Guild
         $this->db->begin_transaction();
         try {
             $this->recall_all_stationed_troops($target_uid);
+            $this->recall_all_mine_troops($target_uid);
 
+            $this->db->execute_query("DELETE FROM guild_invites WHERE invited_by = ?", [$target_uid]);
             $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL WHERE id = ?", [$target_uid]);
 
             $guild_data = $this->get_guild_info($my_guild);
@@ -450,6 +452,9 @@ class Guild
 
         try {
             $this->recall_all_stationed_troops($uid);
+            $this->recall_all_mine_troops($uid);
+
+            $this->db->execute_query("DELETE FROM guild_invites WHERE invited_by = ?", [$uid]);
 
             if ($perms["is_founder"]) {
                 $res = $this->db->execute_query("
@@ -860,7 +865,8 @@ class Guild
     private function recall_all_stationed_troops(int $user_id): void
     {
         $res = $this->db->execute_query("
-            SELECT st.*, 
+            SELECT st.soldier_id, SUM(st.soldiercount) as soldiercount,
+                   st.source_kingdom_id, st.target_kingdom_id, st.owner_id,
                    k_src.mapx as src_x, k_src.mapy as src_y, k_src.kingdomname as src_name,
                    k_tgt.mapx as tgt_x, k_tgt.mapy as tgt_y, k_tgt.kingdomname as tgt_name,
                    u_owner.username as owner_name, u_owner.id as owner_uid,
@@ -872,11 +878,16 @@ class Guild
             JOIN users u_owner ON st.owner_id = u_owner.id
             JOIN users u_host ON k_tgt.userid = u_host.id
             JOIN soldier_list sl ON st.soldier_id = sl.id
-            WHERE st.owner_id = ? OR k_tgt.userid = ?
+            WHERE (st.owner_id = ? OR k_tgt.userid = ?) 
+              AND st.owner_id != k_tgt.userid
+            GROUP BY st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id,
+                     k_src.mapx, k_src.mapy, k_src.kingdomname,
+                     k_tgt.mapx, k_tgt.mapy, k_tgt.kingdomname,
+                     u_owner.username, u_owner.id, u_host.username, u_host.id,
+                     sl.soldiername, sl.icon
         ", [$user_id, $user_id]);
 
         $stacks = [];
-
         while ($t = $res->fetch_assoc()) {
             $key = $t["owner_uid"] . '_' . $t["source_kingdom_id"] . '_' . $t["target_kingdom_id"];
             if (!isset($stacks[$key])) {
@@ -896,9 +907,9 @@ class Guild
             $units = $stack["units"];
 
             $travel = $map_helper->get_arrival_time(
-                $info["tgt_x"], $info["tgt_y"],
-                $info["src_x"], $info["src_y"],
-                $info["source_kingdom_id"],
+                (int)$info["tgt_x"], (int)$info["tgt_y"],
+                (int)$info["src_x"], (int)$info["src_y"],
+                (int)$info["source_kingdom_id"],
                 null, false, false, true
             );
 
@@ -907,50 +918,55 @@ class Guild
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ", [
                 ActionTypes::ACTION_SUPPORT_RETURN,
-                $info["owner_uid"],
-                $info["source_kingdom_id"],
-                $info["target_kingdom_id"],
-                $info["tgt_x"],
-                $info["tgt_y"],
+                (int)$info["owner_uid"],
+                (int)$info["source_kingdom_id"],
+                (int)$info["target_kingdom_id"],
+                (int)$info["tgt_x"],
+                (int)$info["tgt_y"],
                 $now + $travel,
                 $now,
                 "Gilden-Rückzug"
             ]);
-
             $new_event_id = $this->db->insert_id;
+
+            $insert_troops = [];
             $units_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:15px;'>";
 
             foreach ($units as $u) {
-                $this->db->execute_query("
-                    INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) 
-                    VALUES (?, ?, ?, ?, ?)
-                ", [$new_event_id, $u["soldier_id"], $u["soldiercount"], $u["soldiercount"], $u["source_kingdom_id"]]);
+                $insert_troops[] = "($new_event_id, " . (int)$u["soldier_id"] . ", " . (int)$u["soldiercount"] . ", " . (int)$u["soldiercount"] . ", " . (int)$info["source_kingdom_id"] . ")";
 
                 $units_html .= BattleReportRenderer::render_unit_card(
                     $u["soldiername"],
-                    $u["soldiercount"],
+                    (int)$u["soldiercount"],
                     0,
                     $u["icon"],
                     true
                 );
-
-                $this->db->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$u["id"]]);
             }
             $units_html .= "</div>";
+
+            if (!empty($insert_troops)) {
+                $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
+            }
+
+            $this->db->execute_query("
+                DELETE FROM stationed_troops 
+                WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?
+            ", [(int)$info["owner_uid"], (int)$info["source_kingdom_id"], (int)$info["target_kingdom_id"]]);
 
             $msg_owner = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                     "Truppenrückzug: Allianz beendet",
                     "Da die Allianz mit <b>" . e($info["host_name"]) . "</b> nicht mehr besteht, haben deine Truppen das Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen und den Rückmarsch angetreten.$units_html",
                     0, 0, "Ankunft in " . convert_sec_to_str($travel), "support"
                 ) . "</div>";
-            send_server_message($info["owner_uid"], $info["owner_name"], $msg_owner, MessageCategories::CATEGORY_GUILD);
+            send_server_message((int)$info["owner_uid"], $info["owner_name"], $msg_owner, MessageCategories::CATEGORY_GUILD);
 
             $msg_host = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
                     "Unterstützung verloren",
-                    "Aufgrund des Gilden-Austritts/Kicks haben die Truppen von <b>" . e($info["owner_name"]) . "</b> dein Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen.$units_html",
+                    "Aufgrund einer Beendigung der Gildenallianz haben die Truppen von <b>" . e($info["owner_name"]) . "</b> dein Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen.$units_html",
                     0, 0, "Deine Verteidigung wurde geschwächt.", "error"
                 ) . "</div>";
-            send_server_message($info["host_uid"], $info["host_name"], $msg_host, MessageCategories::CATEGORY_GUILD);
+            send_server_message((int)$info["host_uid"], $info["host_name"], $msg_host, MessageCategories::CATEGORY_GUILD);
         }
     }
 
@@ -977,6 +993,7 @@ class Guild
                 $next_id = (int)$successor["id"];
                 $next_name = $successor["username"];
 
+                $this->db->execute_query("DELETE FROM guild_invites WHERE invited_by = ?", [$user_id]);
                 $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_LEADER, $next_id]);
                 $this->db->execute_query("UPDATE guilds SET founder_id = ? WHERE id = ?", [$next_id, $guild_id]);
 
@@ -1226,5 +1243,76 @@ class Guild
         $tech_lvl = (int)($res->fetch_column() ?? 0);
 
         return GUILD_BASE_MEMBER_LIMIT + ($tech_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
+    }
+
+    private function recall_all_mine_troops(int $user_id): void
+    {
+        $res = $this->db->execute_query("
+            SELECT DISTINCT mn.id as mine_id, mn.mapx, mn.mapy, mst.kingdom_id
+            FROM mine_stationed_troops mst
+            JOIN mines mn ON mst.mine_id = mn.id
+            WHERE mst.user_id = ?
+        ", [$user_id]);
+
+        $now = time();
+        while ($row = $res->fetch_assoc()) {
+            $kid = (int)$row["kingdom_id"];
+            $mx = (int)$row["mapx"];
+            $my = (int)$row["mapy"];
+            $mid = (int)$row["mine_id"];
+
+            $res_k = $this->db->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$kid])->fetch_assoc();
+            $kx = (int)($res_k["mapx"] ?? 1);
+            $ky = (int)($res_k["mapy"] ?? 1);
+
+            $map_helper = new Map($this->db, new User($user_id, ""));
+            $travel_time = $map_helper->get_arrival_time($kx, $ky, $mx, $my, $kid, MapFieldTypes::MAP_FIELD_MINE);
+
+            $this->db->execute_query("
+                INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, 
+                                    loot_food, loot_wood, loot_stone, loot_gold, loot_coal, loot_iron, loot_sapphire, loot_diamond, buildingname)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 'Minen-Rückzug')
+            ", [
+                ActionTypes::ACTION_RETURN_TROOPS, $user_id, $kid,
+                MapFieldTypes::MAP_FIELD_MINE, $mx, $my, $now + $travel_time, $now
+            ]);
+            $ret_id = $this->db->insert_id;
+
+            $troops = $this->db->execute_query("
+                SELECT soldier_id, SUM(soldiercount) as soldiercount 
+                FROM mine_stationed_troops 
+                WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
+                GROUP BY soldier_id
+            ", [$mid, $user_id, $kid]);
+
+            $insert_troops = [];
+            while ($t = $troops->fetch_assoc()) {
+                $sid = (int)$t["soldier_id"];
+                $scnt = (int)$t["soldiercount"];
+                $insert_troops[] = "($ret_id, $sid, $scnt, $scnt, $kid)";
+            }
+
+            if (!empty($insert_troops)) {
+                $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
+            }
+
+            $this->db->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mid, $user_id]);
+            $res_other = $this->db->execute_query("
+                SELECT user_id 
+                FROM mine_stationed_troops mst 
+                JOIN users u ON mst.user_id = u.id 
+                WHERE mst.mine_id = ? AND mst.user_id != ? AND u.guildid = ?
+                LIMIT 1
+            ", [$mid, $user_id, $this->id]);
+
+            if ($other = $res_other->fetch_assoc()) {
+                $this->db->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$other["user_id"], $mid]);
+            } else {
+                $rem_troops = (int)$this->db->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?", [$mid])->fetch_column();
+                if ($rem_troops === 0) {
+                    $this->db->execute_query("UPDATE mines SET claimed_guild_id = NULL, claimed_user_id = NULL WHERE id = ?", [$mid]);
+                }
+            }
+        }
     }
 }

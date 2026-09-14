@@ -196,30 +196,38 @@ $view .= '<table class="table">
             </tr>';
 
 foreach ($techs as $i => $tech) {
-    $show_tech = true;
-    $tech_dependencies = $tech->get_tech_dependencies();
+    $level = (int)$tech->get_tech_level();
+    $max_level = (int)$tech->get_tech_max_level();
+    $is_maxed = ($level >= $max_level);
 
-    foreach ($tech_dependencies as $dependency) {
-        if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
-            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                $show_tech = false;
-                break;
+    if (!$is_maxed) {
+        $show_tech = true;
+        $tech_dependencies = $tech->get_tech_dependencies();
+
+        foreach ($tech_dependencies as $dependency) {
+            if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
+                if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
+                    $show_tech = false;
+                    break;
+                }
+            }
+            if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
+                if ($dependency["techdeplevel"] > $all_techs_for_check[$dependency["techdepid"]]->get_tech_level()) {
+                    $show_tech = false;
+                    break;
+                }
             }
         }
-        if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
-            if ($dependency["techdeplevel"] > $all_techs_for_check[$dependency["techdepid"]]->get_tech_level()) {
-                $show_tech = false;
-                break;
-            }
-        }
+
+        if (!$show_tech) continue;
     }
 
-    if (!$show_tech) continue;
+    $text_build = "";
+    $res_html = "";
 
-    $level = $tech->get_tech_level();
-    $max_level = $tech->get_tech_max_level();
-
-    if ($level < $max_level) {
+    if ($is_maxed) {
+        $text_build = "<b class='passed'>MAX</b>";
+    } else {
         $costs = $tech->calculate_tech_cost();
         $cost_wood = $costs["cost_wood"];
         $cost_food = $costs["cost_food"];
@@ -231,13 +239,10 @@ foreach ($techs as $i => $tech) {
         $text_stone = get_resource_text($cost_stone, $kingdom_stone);
         $text_gold = get_resource_text($cost_gold, $kingdom_gold);
 
-        $res_html = "";
         if ($cost_food > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
         if ($cost_wood > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
         if ($cost_stone > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
         if ($cost_gold > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
-
-        $text_build = "";
 
         if ($kingdom_is_researching) {
             if ($kingdom_research_id == $i) {
@@ -266,26 +271,32 @@ foreach ($techs as $i => $tech) {
                             <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Forschen") . "' $disabled>
                           </form>";
         }
-
-        $view .= "<tr>
-            <td>
-                <div class='map-legend' style='justify-content: left;'>
-                <div class='legend-item'>" . $tech->get_tech_icon() . "</div>
-                    <div class='legend-item'>
-                        <b class='popup' id='description" . $i . "'>" . $tech->get_tech_name() . " 
-                            <div id='description" . $i . "_box' class='popupbox'>" . $tech->get_tech_description() . "</div> ($level)
-                        </b>
-                    </div>
-                </div>
-                <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
-                    $res_html
-                </div>
-                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-                " . convert_sec_to_str((int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level))) . "
-            </td>
-            <td class='td-center'>" . $text_build . "</td>
-        </tr>";
     }
+
+    $view .= "<tr>
+        <td>
+            <div class='map-legend' style='justify-content: left;'>
+            <div class='legend-item'>" . $tech->get_tech_icon() . "</div>
+                <div class='legend-item'>
+                    <b class='popup' id='description" . $i . "'>" . $tech->get_tech_name() . " 
+                        <div id='description" . $i . "_box' class='popupbox'>" . $tech->get_tech_description() . "</div> ($level)
+                    </b>
+                </div>
+            </div>";
+
+    if (!$is_maxed) {
+        $view .= "
+            <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
+                $res_html
+            </div>
+            " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
+            " . convert_sec_to_str((int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level)));
+    }
+
+    $view .= "
+        </td>
+        <td class='td-center'>" . $text_build . "</td>
+    </tr>";
 }
 $view .= "</table>";
 

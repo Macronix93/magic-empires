@@ -51,7 +51,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         $del_icon
                     </span>
                 </div>
-                $msg
+                <div class='chat-text'>" . $msg . "</div>
                 <div class='chat-reaction-footer'>
                     " . render_reactions_bar("guild_chat", $row["id"], $user, "badges_only") . "
                 </div>

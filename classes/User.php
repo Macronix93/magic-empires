@@ -1,7 +1,5 @@
 <?php
 
-use Random\RandomException;
-
 class User
 {
     private object $mysqli;
@@ -9,6 +7,7 @@ class User
     private int $user_id;
     private string $user_name;
     private int $current_kingdom;
+    private ?array $cached_unread_counts = null;
 
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
@@ -19,7 +18,7 @@ class User
     }
 
     /**
-     * @throws RandomException
+     * @throws Throwable
      */
     public function register_user(string $name, string $email, string $pass): void
     {
@@ -71,6 +70,9 @@ class User
         }
     }
 
+    /**
+     * @throws Throwable
+     */
     public function login_user(int $user_id): void
     {
         $timestamp = time();
@@ -262,24 +264,29 @@ class User
         return $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
     }
 
-    public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count): void
+    public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count, int $category = 0): void
     {
         if (!isset($_SESSION["last_recruited_soldier"])) {
             $_SESSION["last_recruited_soldier"] = array();
         }
         $_SESSION["last_recruited_soldier"][$kingdom_id] = [
             "soldiername" => $soldier_name,
-            "soldiercount" => $soldier_count
+            "soldiercount" => $soldier_count,
+            "category" => $category
         ];
     }
 
-    public function set_last_upgraded_soldier(int $kingdom_id, string $name, int $count): void
+    public function set_last_upgraded_soldier(int $kingdom_id, string $name, int $count, int $category = 0): void
     {
         if (!isset($_SESSION["last_upgraded"][$kingdom_id])) {
             $_SESSION["last_upgraded"] = array();
         }
 
-        $_SESSION["last_upgraded"][$kingdom_id] = ["name" => $name, "count" => $count];
+        $_SESSION["last_upgraded"][$kingdom_id] = [
+            "name" => $name,
+            "count" => $count,
+            "category" => $category
+        ];
     }
 
     public function get_last_upgraded_soldier(int $kingdom_id): ?array
@@ -292,9 +299,48 @@ class User
         unset($_SESSION["last_upgraded"][$kingdom_id]);
     }
 
-    public function get_unread_messages(): int
+//    public function get_unread_messages(): int
+//    {
+//        $uid = $this->get_user_id();
+//        $gid = $this->get_user_guild_id();
+//        $is_staff = ($this->get_user_admin_level() > 0);
+//
+//        $support_subquery = $is_staff
+//            ? "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE sm.is_admin_reply = 0 AND sm.hasread = 0 AND t.status = 1)"
+//            : "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE t.userid = u.id AND sm.is_admin_reply = 1 AND sm.hasread = 0)";
+//
+//        $guild_subquery = ($gid > 0)
+//            ? "(SELECT COUNT(*) FROM guild_chat WHERE guild_id = $gid AND id > u.last_guild_chat_id AND userid != u.id AND deleted = 0)"
+//            : "0";
+//
+//        $query = "
+//            SELECT
+//                (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) +
+//                (SELECT COUNT(*) FROM server_messages WHERE receiverid = u.id AND hasread = 0) +
+//                (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) +
+//                $support_subquery +
+//                $guild_subquery
+//            AS total
+//            FROM users u
+//            WHERE u.id = ?";
+//
+//        $result = $this->mysqli->execute_query($query, [$uid]);
+//        $row = $result->fetch_assoc();
+//
+//        return (int)($row["total"] ?? 0);
+//    }
+
+    public function get_unread_counts(): array
     {
+        if ($this->cached_unread_counts !== null) {
+            return $this->cached_unread_counts;
+        }
+
         $uid = $this->get_user_id();
+        if ($uid <= 0) {
+            return ["pms" => 0, "server" => 0, "world" => 0, "guild" => 0, "support" => 0, "news" => 0, "total" => 0];
+        }
+
         $gid = $this->get_user_guild_id();
         $is_staff = ($this->get_user_admin_level() > 0);
 
@@ -307,20 +353,43 @@ class User
             : "0";
 
         $query = "
-            SELECT 
-                (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) +
-                (SELECT COUNT(*) FROM server_messages WHERE receiverid = u.id AND hasread = 0) +
-                (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) +
-                $support_subquery +
-                $guild_subquery
-            AS total
-            FROM users u 
-            WHERE u.id = ?";
+        SELECT 
+            (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) AS pms,
+            (SELECT COUNT(*) FROM server_messages WHERE receiverid = u.id AND hasread = 0) AS server,
+            (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) AS world,
+            $guild_subquery AS guild,
+            $support_subquery AS support,
+            (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news
+        FROM users u 
+        WHERE u.id = ?";
 
-        $result = $this->mysqli->execute_query($query, [$uid]);
-        $row = $result->fetch_assoc();
+        $res = $this->mysqli->execute_query($query, [$uid])->fetch_assoc();
 
-        return (int)($row["total"] ?? 0);
+        $pms = (int)($res["pms"] ?? 0);
+        $server = (int)($res["server"] ?? 0);
+        $world = (int)($res["world"] ?? 0);
+        $guild = (int)($res["guild"] ?? 0);
+        $support = (int)($res["support"] ?? 0);
+        $news = (int)($res["news"] ?? 0);
+
+        $total = $pms + $server + $world + $guild + $support;
+
+        $this->cached_unread_counts = [
+            "pms" => $pms,
+            "server" => $server,
+            "world" => $world,
+            "guild" => $guild,
+            "support" => $support,
+            "news" => $news,
+            "total" => $total
+        ];
+
+        return $this->cached_unread_counts;
+    }
+
+    public function get_unread_messages(): int
+    {
+        return $this->get_unread_counts()["total"];
     }
 
     public function set_user_score(int $score): void
@@ -432,7 +501,7 @@ class User
     }
 
     /**
-     * @throws RandomException
+     * @throws Throwable
      */
     public function create_remember_me_token(): void
     {

@@ -412,18 +412,21 @@ class Conquest
             }
 
             if ($this->initial_soldiers[$id]["initial_enemy_soldiers"] > 0) {
-                if ($this->initial_soldiers[$id]["enemy_losses"] >= $this->initial_soldiers[$id]["initial_enemy_soldiers"]) {
+                $res_own_garrison = $this->mysqli->execute_query(
+                    "SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
+                    [$this->enemy_kingdom->get_kingdom_id(), $id]
+                )->fetch_column() ?: 0;
+
+                $own_losses = min((int)$this->initial_soldiers[$id]["enemy_losses"], (int)$res_own_garrison);
+
+                if ($own_losses >= $res_own_garrison) {
                     $this->mysqli->execute_query("DELETE FROM soldiers WHERE kingdomid = ? AND soldierid = ?", [$this->enemy_kingdom->get_kingdom_id(), $id]);
                 } else {
-                    $enemy_survivors = $this->initial_soldiers[$id]["initial_enemy_soldiers"] - $this->initial_soldiers[$id]["enemy_losses"];
-
-                    if ($enemy_survivors != $this->initial_soldiers[$id]["initial_enemy_soldiers"]) {
-                        $this->mysqli->execute_query("UPDATE soldiers SET soldiercount = ? WHERE kingdomid = ? AND soldierid = ?",
-                            [$enemy_survivors, $this->enemy_kingdom->get_kingdom_id(), $id]);
-                    }
+                    $this->mysqli->execute_query("UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?",
+                        [$own_losses, $this->enemy_kingdom->get_kingdom_id(), $id]);
                 }
 
-                $this->enemy_score_loss += $this->initial_soldiers[$id]["enemy_losses"] * $soldier["score"];
+                $this->enemy_score_loss += $own_losses * $soldier["score"];
             }
 
             $this->my_loss_count += $this->initial_soldiers[$id]["my_losses"];

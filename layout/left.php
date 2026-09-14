@@ -1,12 +1,17 @@
 <?php
 $current_page = basename($_SERVER["PHP_SELF"]);
 $messages = new Messages($db_instance, $user);
-$unread = $user->get_unread_messages();
-$unread_news = get_unread_news_count($user, $db_instance);
-$unread_world = $messages->get_unread_world_count();
-$unread_guild = $messages->get_unread_guild_count();
+
+$unreads = $user->get_unread_counts();
+
+$unread_total = $unreads["total"];
+$unread_news = $unreads["news"];
+$unread_world = $unreads["world"];
+$unread_guild = $unreads["guild"];
+
+$inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 ?>
-    <div class="box-container">
+    <div class="box-container left-right-container">
         <div class="box-header">
             <?php
             echo "<div style='width: 100%; padding: 0 12px; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
@@ -25,8 +30,6 @@ $unread_guild = $messages->get_unread_guild_count();
                 <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
                 <span>Nachrichten</span>
                 <?php
-                $inbox_only_unread = $unread - $unread_world - $unread_guild;
-
                 if ($inbox_only_unread > 0): ?>
                     <span class="msg-badge" id="badge-priv-messages">
                 <?= $messages->show_messages_indicator($inbox_only_unread) ?>
@@ -44,7 +47,7 @@ $unread_guild = $messages->get_unread_guild_count();
                 <?php endif; ?>
             </div>
             <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" data-on-click="navigate"
-                 data-url="guild.php">
+                 data-url="guild.php?tab=chat">
                 <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/>
                 <span style="flex: 1;">Gilde</span>
                 <?php
@@ -116,7 +119,7 @@ $unread_guild = $messages->get_unread_guild_count();
             ?>
         </div>
     </div>
-    <div class="box-container">
+    <div class="box-container left-right-container">
         <div class="box-header">Allgemeines</div>
         <div class="box-content">
             <?php
@@ -153,7 +156,7 @@ $unread_guild = $messages->get_unread_guild_count();
             </div>
         </div>
     </div>
-    <div class="box-container" style="margin-bottom: 0;">
+    <div class="box-container left-right-container" style="margin-bottom: 0;">
         <div class="box-header">Sonstiges</div>
         <div class="box-content">
             <div class="box box-disabled" data-on-click="navigate" data-url="https://board.magic-empires.de">

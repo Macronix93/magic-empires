@@ -34,9 +34,11 @@ if (!$user->is_admin()) {
         $db_instance->query("DELETE FROM kingdoms"); // Cascades Buildings, Soldiers, Techs
         $db_instance->query("DELETE FROM game_logs");
         $db_instance->query("DELETE FROM server_messages");
+        $db_instance->query("DELETE FROM mine_stationed_troops");
+        $db_instance->query("DELETE FROM mines");
 
         // Reset Auto Increments
-        $tables = ["kingdoms", "events", "marketplace", "server_messages", "game_logs"];
+        $tables = ["kingdoms", "events", "marketplace", "server_messages", "game_logs", "mines", "mine_stationed_troops"];
         foreach ($tables as $t) {
             $db_instance->query("ALTER TABLE $t AUTO_INCREMENT = 1");
         }
@@ -339,6 +341,111 @@ if (!$user->is_admin()) {
                 }
             } else {
                 $report[] = "Monsterlimit ($total_on_map/" . MAX_MONSTER_CAMPS . ") bereits erreicht.";
+            }
+        }
+
+        // --- MINES ---
+        if ($spawn_type === "all" || $spawn_type === "mines") {
+            $mine_count = (int)$db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE)->fetch_column();
+
+            if ($mine_count < MAX_MINES) {
+                $limit = min(MINE_SPAWN_RATE, MAX_MINES - $mine_count);
+
+                $count_mines_res = $db_instance->query("
+                    SELECT 
+                        SUM(IF(level = 1, 1, 0)) AS lvl1,
+                        SUM(IF(level = 2, 1, 0)) AS lvl2,
+                        SUM(IF(level = 3, 1, 0)) AS lvl3,
+                        SUM(IF(level = 4, 1, 0)) AS lvl4,
+                        SUM(IF(level = 5, 1, 0)) AS lvl5
+                    FROM mines
+                ")->fetch_assoc();
+
+                $current_mine_counts = [
+                    1 => (int)($count_mines_res["lvl1"] ?? 0),
+                    2 => (int)($count_mines_res["lvl2"] ?? 0),
+                    3 => (int)($count_mines_res["lvl3"] ?? 0),
+                    4 => (int)($count_mines_res["lvl4"] ?? 0),
+                    5 => (int)($count_mines_res["lvl5"] ?? 0)
+                ];
+
+                $mine_targets = [
+                    1 => MAX_MINES * MINE_WEIGHT_LVL_1,
+                    2 => MAX_MINES * MINE_WEIGHT_LVL_2,
+                    3 => MAX_MINES * MINE_WEIGHT_LVL_3,
+                    4 => MAX_MINES * MINE_WEIGHT_LVL_4,
+                    5 => MAX_MINES * MINE_WEIGHT_LVL_5
+                ];
+
+                $free_fields = $db_instance->execute_query("
+                    SELECT m.mapx, m.mapy FROM map m 
+                    WHERE m.kingdomid = -1 
+                    AND NOT EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy)
+                    ORDER BY RAND() LIMIT ?", [$limit]);
+
+                if ($free_fields->num_rows > 0) {
+                    $insert_mines = [];
+                    $update_coords = [];
+
+                    $variance = function (int $val) {
+                        if ($val <= 0) return 0;
+                        $pct = mt_rand(MINE_RESOURCE_MIN_RANGE, MINE_RESOURCE_MAX_RANGE) / 100;
+                        return max(1, (int)round($val * $pct));
+                    };
+
+                    foreach ($free_fields as $f) {
+                        $x = (int)$f["mapx"];
+                        $y = (int)$f["mapy"];
+
+                        $fill_grades = [];
+                        foreach ($mine_targets as $m_lvl => $targetVal) {
+                            $fill_grades[$m_lvl] = ($targetVal > 0) ? $current_mine_counts[$m_lvl] / $targetVal : 1;
+                        }
+                        asort($fill_grades);
+                        $lvl = (int)array_key_first($fill_grades);
+                        $current_mine_counts[$lvl]++;
+
+                        $max_troops = MINE_CAPACITY;
+                        $work_total = MINE_WORK_BY_LEVEL[$lvl];
+                        $base_res = MINE_BASE_RESOURCES_BY_LEVEL[$lvl];
+                        $guild_res = MINE_GUILD_RESOURCES_BY_LEVEL[$lvl];
+
+                        $stone = $variance($base_res);
+                        $gold = $variance($base_res);
+
+                        $all_specials = ["coal", "iron", "sapphire", "diamond"];
+                        $available_specials = [];
+                        foreach ($all_specials as $k) {
+                            if (($guild_res[$k] ?? 0) > 0) $available_specials[] = $k;
+                        }
+                        shuffle($available_specials);
+                        $num_to_pick = min(count($available_specials), mt_rand(2, 4));
+                        $active_specials = array_slice($available_specials, 0, $num_to_pick);
+
+                        $coal = 0;
+                        $iron = 0;
+                        $sapphire = 0;
+                        $diamond = 0;
+                        foreach ($active_specials as $s_key) {
+                            $base_val = $guild_res[$s_key] > 0 ? $guild_res[$s_key] : 150;
+                            $$s_key = $variance($base_val);
+                        }
+
+                        $expires = $now + mt_rand(MINE_LIFETIME_MIN * 86400, MINE_LIFETIME_MAX * 86400);
+
+                        $insert_mines[] = "($x, $y, $lvl, $max_troops, $stone, $gold, $coal, $iron, $sapphire, $diamond, $work_total, $expires)";
+                        $update_coords[] = "($x, $y)";
+                    }
+
+                    if (!empty($insert_mines)) {
+                        $db_instance->query("INSERT INTO mines (mapx, mapy, level, max_troops, stone, gold, coal, iron, sapphire, diamond, work_total, expires_at) VALUES " . implode(',', $insert_mines));
+                        $db_instance->query("UPDATE map SET kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " WHERE (mapx, mapy) IN (" . implode(',', $update_coords) . ")");
+
+                        $report[] = count($insert_mines) . " Erzminen balance-optimiert generiert.";
+                    }
+                }
+            } else {
+                $report[] = "Minenlimit ($mine_count/" . MAX_MINES . ") bereits erreicht.";
             }
         }
 
@@ -850,6 +957,7 @@ if (!$user->is_admin()) {
                                 <option value='all'>Alles füllen</option>
                                 <option value='resources'>Nur Ressourcen</option>
                                 <option value='monsters'>Nur Monster</option>
+                                <option value='mines'>Nur Minen</option>
                             </select>
                             <input type='submit' name='spawn_map_entities' value='Generieren'>
                         </form>

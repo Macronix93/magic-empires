@@ -9,6 +9,21 @@ $active_event = $world_event_manager->get_active_event();
 $user_id = $user->get_user_id();
 
 if ($active_event && isset($_POST["attack_all_kingdoms"])) {
+    $current_kid = $user->get_current_kingdom();
+    $current_k_obj = new Kingdom($db_instance, $current_kid);
+
+    $res_any_barracks = $db_instance->execute_query(
+        "SELECT COUNT(*) FROM buildings b 
+         JOIN kingdoms k ON b.kingdomid = k.id 
+         WHERE k.userid = ? AND b.buildingid = ? AND b.buildinglevel > 0",
+        [$user_id, BuildingTypes::BUILDING_BARRACKS]
+    );
+    $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
+
+    if (!$has_any_barracks) {
+        $_SESSION["game_error"] = "Befehl verweigert: Du besitzt in keinem deiner Königreiche eine Kaserne!";
+    }
+
     // Check if user has attempts left for damage event
     if ($active_event["event_type"] === "DAMAGE") {
         $res_check = $db_instance->execute_query(
@@ -43,7 +58,7 @@ if ($active_event && isset($_POST["attack_all_kingdoms"])) {
                 $db_instance->execute_query(
                     "INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime) 
                      VALUES (?, ?, ?, ?, 50, 50, ?, ?)",
-                    [ActionTypes::ACTION_SEND_TROOPS, $user_id, $current_kid, WORLD_EVENT_ID, $now + $arrival_delay, $now]
+                    [ActionTypes::ACTION_SEND_TROOPS, $user_id, $current_kid, MapFieldTypes::MAP_FIELD_WORLD_EVENT, $now + $arrival_delay, $now]
                 );
                 $event_id = $db_instance->insert_id;
 
@@ -91,7 +106,7 @@ if (!$active_event) {
         GROUP BY 
             e.eventid, st.soldierid, e.actionid, e.arrivaltime, e.targetid, 
             sl.soldiername, sl.icon
-        ORDER BY e.arrivaltime", [$user_id, WORLD_EVENT_ID]);
+        ORDER BY e.arrivaltime", [$user_id, MapFieldTypes::MAP_FIELD_WORLD_EVENT]);
 
     if ($res_mv->num_rows > 0) {
         $view .= "<div class='title-border'>Deine Truppenbewegungen</div>";
@@ -184,16 +199,36 @@ if (!$active_event) {
     $pool = $world_event_manager->get_monster_pool();
     $monster = $pool[$active_event["monster_index"]];
 
+    $current_kid = $user->get_current_kingdom();
+    $current_k_obj = new Kingdom($db_instance, $current_kid);
+    $has_current_barracks = ($current_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) > 0);
+
+    $res_any_barracks = $db_instance->execute_query(
+        "SELECT COUNT(*) FROM buildings b 
+         JOIN kingdoms k ON b.kingdomid = k.id 
+         WHERE k.userid = ? AND b.buildingid = ? AND b.buildinglevel > 0",
+        [$user_id, BuildingTypes::BUILDING_BARRACKS]
+    );
+    $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
+
+    $is_event_locked = ($is_boss_dead && $event_type == "BOSS_HP") ||
+        ($event_type == "DAMAGE" && $user_attempts >= WORLD_EVENT_MAX_ATTEMPTS);
+
+    $single_disabled = ($is_event_locked || !$has_current_barracks) ? "disabled" : "";
+    $single_title = !$has_current_barracks ? "title='Kaserne im aktuellen Dorf benötigt!'" : "";
+
+    $mass_disabled = ($is_event_locked || !$has_any_barracks) ? "disabled" : "";
+    $mass_title = !$has_any_barracks ? "title='Du besitzt keine Kaserne!'" : "title='Bündelt alle Truppen deines Accounts zu einem Angriff!'";
+
     $view .= "<div class='title-border'>" . e($monster["name"]) . "</div>";
     $view .= "<div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-direction: column; margin-bottom: 20px;'>
                 <div style='display: flex; justify-content: space-between; width: 240px;'>
                     Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
                 </div>
                 <div style='display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;'>
-                    <button data-on-click='redirect' data-url='" . $target_url . "' $disabled>Aktuelles Dorf senden</button>
+                    <button data-on-click='redirect' data-url='" . $target_url . "' $single_disabled $single_title>Aktuelles Dorf senden</button>
                     <form method='POST' style='display: inline;'>
-                        <button type='submit' name='attack_all_kingdoms' $disabled 
-                                title='Bündelt alle Truppen deines Accounts zu einem Angriff!'>" . wrap_emojis("⚔️ Massenmobilisierung") . "</button>
+                        <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title>" . wrap_emojis("⚔️ Massenmobilisierung") . "</button>
                     </form>
                 </div>
               </div>";

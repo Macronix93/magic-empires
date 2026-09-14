@@ -139,11 +139,13 @@ body {
 
 /****************/
 
-.col-description {
+.col-description,
+.col-guild-description {
     width: auto;
 }
 
-.col-action {
+.col-action,
+.col-guild-action {
     width: 180px;
 }
 
@@ -629,6 +631,11 @@ hr {
     margin-top: 20px;
 }
 
+.chat-text {
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
 #chat-loading-wrapper {
     position: relative;
     border: 2px ridge var(--border-gold);
@@ -949,6 +956,14 @@ input.btn-accept {
     background-image: url("images/icons/icon_checked.png") !important;
 }
 
+.push-notifications-enable {
+    background: linear-gradient(0deg, #0a4b0f 0%, #147819 39%);
+}
+
+.push-notifications-disable {
+    background: linear-gradient(0deg, #4b140a 0%, #781e14 39%);
+}
+
 input[type=submit],
 input[type=button],
 button {
@@ -992,10 +1007,14 @@ select:-webkit-autofill {
 }
 
 .user-image {
-    border-radius: 16px;
+    border-radius: 50%;
     width: 32px;
     height: 32px;
+    object-fit: cover;
+    object-position: center;
     background-color: rgb(239, 236, 232);
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .status-indicator {
@@ -2721,6 +2740,19 @@ img[data-on-click] {
     filter: drop-shadow(0 0 2px #f1c40f);
 }
 
+.active-guild-project {
+    border: 2px solid var(--border-gold);
+    margin: 0 auto;
+    width: 70%;
+}
+
+.guild-rank-select {
+    font-size: 11px;
+    width: 85px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -2744,6 +2776,41 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .guild-members-table colgroup col.col-g-action {
+        width: 85px !important;
+    }
+
+    .guild-members-table colgroup col.col-g-score {
+        width: 20% !important;
+    }
+
+    .guild-members-table colgroup col.col-g-rank {
+        width: 22% !important;
+    }
+
+    .guild-rank-select {
+        width: 45px !important;
+        font-size: 10px !important;
+        padding: 2px 8px 2px 3px !important;
+        background-position: right 1px center, center !important;
+        margin-right: 4px !important;
+    }
+
+    .guild-action-cell .kick-icon {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    .info-box-overlay {
+        width: 90% !important;
+        max-width: 92vw !important;
+        box-sizing: border-box !important;
+    }
+
+    .active-guild-project {
+        width: 90%;
     }
 
     .overview-table td.col-overview-kingdom-cell {
@@ -3156,6 +3223,14 @@ img[data-on-click] {
         max-width: 160px;
     }
 
+    .overlay-header {
+        font-size: 13px;
+    }
+
+    .overlay-modal td {
+        font-size: 11px;
+    }
+
     .kingdom-name-break {
         max-width: 120px;
     }
@@ -3305,6 +3380,14 @@ img[data-on-click] {
     }
 
     .col-action {
+        width: auto;
+    }
+
+    .col-guild-description {
+        width: 265px;
+    }
+
+    .col-guild-action {
         width: auto;
     }
 
@@ -3465,8 +3548,13 @@ img[data-on-click] {
         padding: 5px;
     }
 
-    .box-container {
-        box-shadow: none;
+    .left-right-container {
+        border-radius: 0;
+        border-bottom-width: 0;
+    }
+
+    .mobile-side-nav {
+        margin: 0;
     }
 
     .overlay-body {
@@ -3771,7 +3859,6 @@ img[data-on-click] {
     }
 
     .box-container {
-        border-radius: 0;
         width: 100%;
         margin: 0;
     }

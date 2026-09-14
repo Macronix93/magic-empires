@@ -93,5 +93,5 @@ while ($data = $res_aligns->fetch_assoc()) {
  * HTML Section
  */
 $title = "Schrein der Ahnen";
-$header = "Schrein der Ahnen";
+$header = "Schrein der Ahnen" . " (" . $building->get_building_level() . ")";
 include("layout/base.php");

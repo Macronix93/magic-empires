@@ -69,7 +69,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                 $del_btn
                             </span>
                         </div>
-                        {$row["message"]}
+                        <div class='chat-text'>" . $row["message"] . "</div>
                         <div class='chat-reaction-footer'>
                             " . render_reactions_bar("chat", $row["id"], $user, "badges_only") . "
                         </div>

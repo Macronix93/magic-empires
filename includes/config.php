@@ -39,6 +39,8 @@ const DEFAULT_AVATAR = UPLOADS_FILE_PATH . "default_avatar.jpg";
 const AVATAR_SALT = "Dpf89!jkl#45mAlmDlp";
 const MAX_UPLOAD_FILE_SIZE = 128; // In KB
 const MAX_EMAIL_LENGTH = 64;
+const MIN_VACATION_DAYS = 2;
+const MAX_VACATION_DAYS = 14;
 
 // --- Worldmap ---
 const MAX_X = 100;
@@ -190,7 +192,7 @@ const MONSTER_DMG_CLAMPED_MAX_VAL = 4.0;
 const MONSTER_DMG_LOSS_EXPONENT = 1.15;
 
 // --- Communication & UI ---
-const MAX_MESSAGE_LENGTH = 500;
+const MAX_MESSAGE_LENGTH = 1000;
 const MAX_LINE_BREAK_COUNT = 10;
 const MESSAGES_RATE_INTERVAL = 60;
 const MAX_MESSAGES_RATELIMIT = 10;
@@ -207,7 +209,6 @@ const TITLE_FLASH_SECONDS = 120;
 
 // --- World Events ---
 const WORLD_EVENT_DURATION = 86400;
-const WORLD_EVENT_ID = -999;
 const WORLD_EVENT_HP_REWARD_TIME = 1800;
 const WORLD_EVENT_POWER_FACTOR = 8;
 const WORLD_EVENT_HP_ATTACK_DURATION = 900;
@@ -303,10 +304,61 @@ const OVERVIEW_PAGESIZE_MIN = 5;
 const OVERVIEW_PAGESIZE_MAX = 30;
 const OVERVIEW_PAGESIZE_DEFAULT = 7;
 
+// --- Worldmap Mines ---
+const MAX_MINES = 75;
+const MINE_SPAWN_RATE = 20;
+const MINE_LIFETIME_MIN = 2;
+const MINE_LIFETIME_MAX = 4;
+const MINE_RESOURCE_MIN_RANGE = 85;
+const MINE_RESOURCE_MAX_RANGE = 105;
+const MINE_WEIGHT_LVL_1 = 0.35;
+const MINE_WEIGHT_LVL_2 = 0.3;
+const MINE_WEIGHT_LVL_3 = 0.2;
+const MINE_WEIGHT_LVL_4 = 0.1;
+const MINE_WEIGHT_LVL_5 = 0.05;
+// Max troop capacity per Mine Level
+const MINE_CAPACITY = 100;
+
+// Required Work Points per Mine Level
+const MINE_WORK_BY_LEVEL = [
+    1 => 90000,
+    2 => 180000,
+    3 => 360000,
+    4 => 740000,
+    5 => 1000000
+];
+// Base Resources per Level
+const MINE_BASE_RESOURCES_BY_LEVEL = [
+    1 => 2000,
+    2 => 4500,
+    3 => 8750,
+    4 => 15000,
+    5 => 25000
+];
+// Guild Special Resources per Level
+const MINE_GUILD_RESOURCES_BY_LEVEL = [
+    1 => ["coal" => 100, "iron" => 50, "sapphire" => 10, "diamond" => 2],
+    2 => ["coal" => 250, "iron" => 120, "sapphire" => 30, "diamond" => 8],
+    3 => ["coal" => 450, "iron" => 250, "sapphire" => 80, "diamond" => 25],
+    4 => ["coal" => 700, "iron" => 450, "sapphire" => 200, "diamond" => 75],
+    5 => ["coal" => 1000, "iron" => 700, "sapphire" => 400, "diamond" => 200]
+];
+// Mining Speed: 1 ATK Point = X Work Points per second
+const MINE_WORK_RATE_FACTOR = 0.0075;
 
 /*
  * Interfaces
  */
+
+interface MapFieldTypes
+{
+    const int MAP_FIELD_EMPTY = -1;
+    const int MAP_FIELD_RESOURCE_TILE = -2;
+    const int MAP_FIELD_MONSTER_CAMP = -3;
+    const int MAP_FIELD_ABANDONED_KINGDOM = -4;
+    const int MAP_FIELD_MINE = -5;
+    const int MAP_FIELD_WORLD_EVENT = -999;
+}
 
 interface GuildTechTypes
 {
@@ -395,6 +447,7 @@ interface ActionTypes
     const int ACTION_SMITHY_UPGRADE = 8;
     const int ACTION_STATION_TROOPS = 9;
     const int ACTION_SUPPORT_RETURN = 10;
+    const int ACTION_MINE_GATHER = 11;
 }
 
 interface TechTypes

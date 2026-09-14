@@ -309,31 +309,29 @@ function sendReaction(type, id, emoji, sourceContainer) {
 }
 
 function formatNumJS(number) {
-    if (number === null || number === undefined) return "0";
+    if (!number || isNaN(number)) return "0";
+    let n = Math.floor(Number(number));
 
-    if (number >= 1000000) {
-        let val = number / 1000000;
-        let truncated = Math.floor((val + 0.000001) * 100) / 100;
-        return truncated.toFixed(2)
-                .replace('.', ',')
-                .replace(/,00$/, '')
-                .replace(/,(\d)0$/, ',$1')
-            + 'M';
+    if (n >= 1000000) {
+        let main = Math.floor(n / 1000000);
+        let sub = Math.floor((n % 1000000) / 10000);
+
+        if (sub === 0) return main + 'M';
+
+        let subStr = sub.toString().padStart(2, '0').replace(/0$/, '');
+        return main + ',' + subStr + 'M';
     }
 
-    if (number >= 100000) {
-        let val = number / 1000;
-        let truncated = Math.floor((val + 0.000001) * 10) / 10;
-        return truncated.toFixed(1)
-                .replace('.', ',')
-                .replace(/,0$/, '')
-            + 'k';
+    if (n >= 100000) {
+        let main = Math.floor(n / 1000);
+        let sub = Math.floor((n % 1000) / 100);
+
+        if (sub === 0) return main + 'k';
+
+        return main + ',' + sub + 'k';
     }
 
-    return number.toLocaleString('de-DE', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 1
-    });
+    return n.toLocaleString("de-DE");
 }
 
 function setup() {
@@ -559,7 +557,15 @@ function updateKingdom(selectElement, keepMenu = true) {
                         "map.php",
                     ];
 
-                    if (keepParamsPages.includes(filename)) {
+                    if (filename === "barracks.php") {
+                        const cat = currentUrl.searchParams.get("cat");
+
+                        if (cat !== null) {
+                            window.location.href = `${pathname}?cat=${cat}`;
+                        } else {
+                            window.location.href = pathname;
+                        }
+                    } else if (keepParamsPages.includes(filename)) {
                         window.location.href = pathname + search;
                     } else {
                         window.location.href = pathname;

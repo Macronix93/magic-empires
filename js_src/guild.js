@@ -11,7 +11,14 @@ registerAction("inviteToGuildDialog", (el) => {
         }
     );
 });
+registerAction("fillProjectMax", (el) => {
+    const targetId = el.dataset.target;
+    const input = document.getElementById(targetId);
+    if (!input || input.disabled) return;
 
+    const maxVal = parseInt(el.dataset.max) || 0;
+    input.value = maxVal > 0 ? maxVal : "";
+});
 registerAction("acceptGuildInvite", (el) => {
     const inviteId = el.dataset.id;
     const msgId = el.closest('[id^="msg-"]')?.id.replace('msg-', '') || '';
@@ -283,5 +290,35 @@ document.addEventListener("input", (e) => {
         }
 
         e.target.value = val > 0 ? val : "";
+    }
+
+    if (e.target.classList.contains('js-project-res-input')) {
+        let val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+        const needed = parseInt(e.target.dataset.needed) || 0;
+        const stock = parseInt(e.target.dataset.stock) || 0;
+        const maxAllowed = Math.min(needed, stock);
+
+        if (val > maxAllowed) {
+            val = maxAllowed;
+        }
+
+        e.target.value = val > 0 ? val : "";
+    }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.innerWidth <= 1392) {
+        const chatTab = document.getElementById("guild_tab_chat");
+
+        if (chatTab && window.getComputedStyle(chatTab).display !== "none") {
+            const chatWrapper = document.getElementById("chat-loading-wrapper") || chatTab;
+
+            setTimeout(() => {
+                const yOffset = -20;
+                const y = chatWrapper.getBoundingClientRect().top + window.pageYOffset + yOffset;
+
+                window.scrollTo({top: y, behavior: "smooth"});
+            }, 250);
+        }
     }
 });

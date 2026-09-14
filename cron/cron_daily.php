@@ -81,6 +81,120 @@ if ($deleted_count > 0) {
 $db->execute_query("DELETE FROM abandoned_kingdoms WHERE expires_at < ?", [$now]);
 $db->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -4 AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM abandoned_kingdoms)");
 
+
+//// Generate mines
+// Delete mines that aren't on the map anymore
+$db->execute_query("DELETE FROM mines WHERE expires_at < ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
+$db->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM mines)");
+
+$current_mines = (int)$db->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE)->fetch_column();
+
+if ($current_mines < MAX_MINES) {
+    $needed = MAX_MINES - $current_mines;
+    $limit = min(MINE_SPAWN_RATE, $needed);
+
+    $count_mines_res = $db->query("
+        SELECT 
+            SUM(IF(level = 1, 1, 0)) AS lvl1,
+            SUM(IF(level = 2, 1, 0)) AS lvl2,
+            SUM(IF(level = 3, 1, 0)) AS lvl3,
+            SUM(IF(level = 4, 1, 0)) AS lvl4,
+            SUM(IF(level = 5, 1, 0)) AS lvl5
+        FROM mines
+    ")->fetch_assoc();
+
+    $current_mine_counts = [
+        1 => (int)($count_mines_res["lvl1"] ?? 0),
+        2 => (int)($count_mines_res["lvl2"] ?? 0),
+        3 => (int)($count_mines_res["lvl3"] ?? 0),
+        4 => (int)($count_mines_res["lvl4"] ?? 0),
+        5 => (int)($count_mines_res["lvl5"] ?? 0)
+    ];
+
+    $mine_targets = [
+        1 => MAX_MINES * MINE_WEIGHT_LVL_1,
+        2 => MAX_MINES * MINE_WEIGHT_LVL_2,
+        3 => MAX_MINES * MINE_WEIGHT_LVL_3,
+        4 => MAX_MINES * MINE_WEIGHT_LVL_4,
+        5 => MAX_MINES * MINE_WEIGHT_LVL_5
+    ];
+
+    $free_fields = $db->execute_query("
+        SELECT m.mapx, m.mapy FROM map m 
+        WHERE m.kingdomid = -1 
+        AND NOT EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy)
+        ORDER BY RAND() LIMIT ?", [$limit]);
+
+    if ($free_fields->num_rows > 0) {
+        $insert_mines = [];
+        $update_coords = [];
+
+        foreach ($free_fields as $f) {
+            $x = (int)$f["mapx"];
+            $y = (int)$f["mapy"];
+
+            $fill_grades = [];
+            foreach ($mine_targets as $m_lvl => $targetVal) {
+                $fill_grades[$m_lvl] = ($targetVal > 0) ? $current_mine_counts[$m_lvl] / $targetVal : 1;
+            }
+            asort($fill_grades);
+            $lvl = (int)array_key_first($fill_grades);
+            $current_mine_counts[$lvl]++;
+
+            $max_troops = MINE_CAPACITY;
+            $work_total = MINE_WORK_BY_LEVEL[$lvl];
+            $base_res = MINE_BASE_RESOURCES_BY_LEVEL[$lvl];
+            $guild_res = MINE_GUILD_RESOURCES_BY_LEVEL[$lvl];
+
+            $variance = function (int $val) {
+                if ($val <= 0) return 0;
+                $pct = mt_rand(MINE_RESOURCE_MIN_RANGE, MINE_RESOURCE_MAX_RANGE) / 100;
+                return max(1, (int)round($val * $pct));
+            };
+
+            $stone = 0;
+            $gold = 0;
+            if (mt_rand(0, 1) === 0) {
+                $stone = $variance($base_res);
+            } else {
+                $gold = $variance($base_res);
+            }
+
+            $all_specials = ["coal", "iron", "sapphire", "diamond"];
+            $available_specials = [];
+            foreach ($all_specials as $k) {
+                if (($guild_res[$k] ?? 0) > 0) $available_specials[] = $k;
+            }
+            if (count($available_specials) < 2) {
+                $available_specials = ["coal", "iron"]; // Fallback für Stufe 1
+            }
+            shuffle($available_specials);
+            $num_to_pick = min(count($available_specials), mt_rand(2, 4));
+            $active_specials = array_slice($available_specials, 0, $num_to_pick);
+
+            $coal = 0;
+            $iron = 0;
+            $sapphire = 0;
+            $diamond = 0;
+            foreach ($active_specials as $s_key) {
+                $base_val = $guild_res[$s_key] > 0 ? $guild_res[$s_key] : 150;
+                $$s_key = $variance($base_val);
+            }
+
+            $expires = $now + mt_rand(MINE_LIFETIME_MIN * 86400, MINE_LIFETIME_MAX * 86400);
+
+            $insert_mines[] = "($x, $y, $lvl, $max_troops, $stone, $gold, $coal, $iron, $sapphire, $diamond, $work_total, $expires)";
+            $update_coords[] = "($x, $y)";
+        }
+
+        if (!empty($insert_mines)) {
+            $db->query("INSERT INTO mines (mapx, mapy, level, max_troops, stone, gold, coal, iron, sapphire, diamond, work_total, expires_at) VALUES " . implode(',', $insert_mines));
+            $db->query("UPDATE map SET kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " WHERE (mapx, mapy) IN (" . implode(',', $update_coords) . ")");
+        }
+        echo "[" . date("H:i:s") . "] " . count($insert_mines) . " Minen balance-optimiert platziert.\n";
+    }
+}
+
 //// Generate resource tiles
 // Delete camps that aren't on the map anymore
 $expired_camps_res = $db->execute_query("SELECT mapx, mapy FROM monster_camps WHERE expires_at < ?", [$now]);
@@ -361,6 +475,7 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
 }
 
 // Cleanup old events
+$we_logic = new WorldEvent($db);
 $deleted_events = $we_logic->cleanup_old_events();
 if ($deleted_events > 0) {
     echo "[" . date("H:i:s") . "] Cleanup: $deleted_events alte Welt-Events aus der Datenbank entfernt.\n";

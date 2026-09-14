@@ -1,4 +1,4 @@
-<div class="box-container" id="ressource-box">
+<div class="box-container left-right-container" id="ressource-box">
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
@@ -189,7 +189,7 @@
         </div>
     </div>
 </div>
-<div class="box-container" style="margin-bottom: 0;">
+<div class="box-container left-right-container" style="margin-bottom: 0;">
     <div class="box-header">Gebäude</div>
     <div class="box-content">
         <div id="kingdom-buildings">

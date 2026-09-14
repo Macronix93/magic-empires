@@ -78,6 +78,18 @@ if (!empty($_SESSION["active_supports"])) {
     }
 }
 
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])) {
+    $x = (int)($_POST["mine_x"] ?? 0);
+    $y = (int)($_POST["mine_y"] ?? 0);
+
+    if ($kingdom->recall_mine_troops($x, $y)) {
+        $_SESSION["game_success"] = "Deine Schürfer treten mit der Beute den Rückweg an!";
+    }
+
+    change_location("overview.php");
+    exit;
+}
+
 // Fetch all sent troops events from the user
 if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])) {
     $event_id = (int)$_GET["eid"];
@@ -335,11 +347,43 @@ foreach ($user_kingdoms as $k) {
         $indicators_html .= "</div>";
     }
 
+    $k_pop_id = "pop_k_preview_" . $kid;
+    $k_res_popup = "
+        <div id='{$k_pop_id}_box' class='popupbox' style='text-align: left; min-width: 200px;'>
+            <b>$k_name</b> <small>($k_coords)</small>
+            <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+            <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " Nahrung:</span>
+                <b>" . fnum((int)$k["food"]) . " / " . fnum((int)$k["maxfood"]) . "</b>
+            </div>
+            <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " Holz:</span>
+                <b>" . fnum((int)$k["wood"]) . " / " . fnum((int)$k["maxwood"]) . "</b>
+            </div>
+            <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " Stein:</span>
+                <b>" . fnum((int)$k["stone"]) . " / " . fnum((int)$k["maxstone"]) . "</b>
+            </div>
+            <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " Gold:</span>
+                <b>" . fnum((int)$k["gold"]) . " / " . fnum((int)$k["maxgold"]) . "</b>
+            </div>
+            <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1);'>
+            <div style='display: flex; justify-content: space-between; gap: 12px;'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " Bewohner:</span>
+                <b>" . fnum((int)$k["villager"]) . " / " . fnum((int)$k["maxvillager"]) . "</b>
+            </div>
+        </div>
+    ";
+
     $col_kingdom = "
         <div class='kingdom-cell-wrapper'>
-            <a href='#' class='kingdom-link kingdom-name-break' data-on-click='switchKingdom' data-id='$kid' title='$k_name ($k_coords)'>
-                $k_name
-            </a>
+            <div class='popup' id='$k_pop_id' style='display: flex; align-items: center; min-width: 0; flex: 1;'>
+                <a href='#' class='kingdom-link kingdom-name-break' data-on-click='switchKingdom' data-id='$kid'>
+                    $k_name
+                </a>
+                $k_res_popup
+            </div>
             $indicators_html
         </div>";
 
@@ -460,12 +504,25 @@ if ($pages_kp > 1) {
 $tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
 $tp_list = implode(',', $tp_actions);
 
-$res_count_tp = $db_instance->execute_query("
-    SELECT COUNT(*) as total 
-    FROM events 
-    WHERE userid = ? AND kingdomid = ? AND actionid IN ($tp_list)
-", [$user->get_user_id(), $active_k_id]);
-$count_tp_active_k = (int)$res_count_tp->fetch_assoc()['total'];
+$res_tp_combined = $db_instance->execute_query("
+    SELECT 
+        (SELECT COUNT(*) FROM events 
+         WHERE userid = ? AND kingdomid = ? AND actionid IN (?, ?)) AS count_events,
+        (SELECT COUNT(DISTINCT mine_id) FROM mine_stationed_troops 
+         WHERE kingdom_id = ?) AS count_mines
+", [
+    $user->get_user_id(),
+    $active_k_id,
+    ActionTypes::ACTION_SEND_TROOPS,
+    ActionTypes::ACTION_RETURN_TROOPS,
+    $active_k_id
+]);
+
+$tp_data = $res_tp_combined->fetch_assoc();
+$count_tp_events = (int)($tp_data["count_events"] ?? 0);
+$count_active_mines = (int)($tp_data["count_mines"] ?? 0);
+
+$count_tp_active_k = $count_tp_events + $count_active_mines;
 
 $pages_tp = ceil($count_tp_active_k / $limit);
 $curr_tp = isset($_GET["tp"]) ? max(1, min(max(1, (int)$pages_tp), (int)$_GET["tp"])) : 1;
@@ -481,6 +538,7 @@ $query = "
         e.eventid, e.actionid, e.userid, e.kingdomid, e.targetid, 
         e.targetx, e.targety, e.arrivaltime, e.buildingtime, e.is_processing,
         e.loot_food, e.loot_wood, e.loot_stone, e.loot_gold, e.loot_coins,
+        e.loot_coal, e.loot_iron, e.loot_sapphire, e.loot_diamond,
         st.soldierid AS st_soldierid, 
         SUM(st.soldiercount) AS soldiercount,
         sl.icon AS soldier_icon, 
@@ -496,7 +554,8 @@ $query = "
         SELECT 
             eventid, actionid, userid, kingdomid, targetid, 
             targetx, targety, arrivaltime, buildingtime, is_processing,
-            loot_food, loot_wood, loot_stone, loot_gold, loot_coins
+            loot_food, loot_wood, loot_stone, loot_gold, loot_coins,
+            loot_coal, loot_iron, loot_sapphire, loot_diamond
         FROM events 
         WHERE 
             (userid = ? AND kingdomid = ? AND actionid IN (?, ?, ?, ?)) 
@@ -527,23 +586,8 @@ $result = $db_instance->execute_query($query, [
     $limit
 ]);
 
+$grouped_events = [];
 if ($result && $result->num_rows > 0) {
-    $view .= "<table class='table sent-troops-table' style='width: 100%;'>";
-    $view .= "<colgroup>
-                <col style='width: 18%;'> <!-- Art -->
-                <col style='width: 32%;'> <!-- Truppen -->
-                <col style='width: 21%;'> <!-- Koordinaten -->
-                <col style='width: 29%;'> <!-- Ankunft -->
-              </colgroup>";
-    $view .= "<tr>
-            <td class='td-center td-gradient'><b>Art</b></td>
-            <td class='td-center td-gradient'><b>Truppen</b></td>
-            <td class='td-center td-gradient'><b>Koordinaten</b></td>
-            <td class='td-center td-gradient'><b>Ankunft</b></td>
-        </tr>";
-
-    $grouped_events = [];
-
     // Group each sent soldier type, so that no extra rows are created with multiple soldiers
     foreach ($result as $row) {
         $event_id = $row["eventid"];
@@ -571,6 +615,10 @@ if ($result && $result->num_rows > 0) {
                 "loot_stone" => $row["loot_stone"],
                 "loot_gold" => $row["loot_gold"],
                 "loot_coins" => $row["loot_coins"],
+                "loot_coal" => (int)($row["loot_coal"] ?? 0),
+                "loot_iron" => (int)($row["loot_iron"] ?? 0),
+                "loot_sapphire" => (int)($row["loot_sapphire"] ?? 0),
+                "loot_diamond" => (int)($row["loot_diamond"] ?? 0),
                 "is_scouting" => true,
                 "soldiers" => []
             ];
@@ -588,6 +636,51 @@ if ($result && $result->num_rows > 0) {
             "name" => $row["s_name"]
         ];
     }
+}
+
+$res_active_miners = $db_instance->execute_query("
+    SELECT 
+        mn.id as mine_id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total,
+        (SELECT IFNULL(SUM(mst2.soldiercount * mst2.unit_atk), 0) FROM mine_stationed_troops mst2 WHERE mst2.mine_id = mn.id) as total_mine_atk,
+        st.soldier_id, SUM(st.soldiercount) as soldiercount, sl.soldiername, sl.icon
+    FROM mine_stationed_troops st
+    JOIN mines mn ON st.mine_id = mn.id
+    JOIN soldier_list sl ON st.soldier_id = sl.id
+    WHERE st.user_id = ? AND st.kingdom_id = ?
+    GROUP BY mn.id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total, st.soldier_id, sl.soldiername, sl.icon
+    ORDER BY mn.id, st.soldier_id
+", [$uid, $active_k_id]);
+
+$miners_by_mine = [];
+while ($m_row = $res_active_miners->fetch_assoc()) {
+    $mid = (int)$m_row["mine_id"];
+    if (!isset($miners_by_mine[$mid])) {
+        $miners_by_mine[$mid] = [
+            "mapx" => $m_row["mapx"],
+            "mapy" => $m_row["mapy"],
+            "work_done" => (int)$m_row["work_done"],
+            "work_total" => max(1, (int)$m_row["work_total"]),
+            "total_atk" => (int)$m_row["total_mine_atk"],
+            "troops" => []
+        ];
+    }
+    $miners_by_mine[$mid]["troops"][] = $m_row;
+}
+
+if (!empty($grouped_events) || !empty($miners_by_mine)) {
+    $view .= "<table class='table sent-troops-table' style='width: 100%;'>";
+    $view .= "<colgroup>
+                <col style='width: 18%;'> <!-- Art -->
+                <col style='width: 32%;'> <!-- Truppen -->
+                <col style='width: 21%;'> <!-- Koordinaten -->
+                <col style='width: 29%;'> <!-- Ankunft -->
+              </colgroup>";
+    $view .= "<tr>
+            <td class='td-center td-gradient'><b>Art</b></td>
+            <td class='td-center td-gradient'><b>Truppen</b></td>
+            <td class='td-center td-gradient'><b>Koordinaten</b></td>
+            <td class='td-center td-gradient'><b>Ankunft</b></td>
+        </tr>";
 
     foreach ($grouped_events as $event_id => $event_data) {
         $action_id = $event_data["actionid"];
@@ -644,12 +737,16 @@ if ($result && $result->num_rows > 0) {
             $action_type = ($action_id === ActionTypes::ACTION_SUPPORT_RETURN) ? "Support-Rückzug" : "Rückkehr";
             $coords_str = "$target_coords → $my_coords";
         } else if ($action_id === ActionTypes::ACTION_SEND_TROOPS) {
-            if ($event_data["targetid"] == -1) {
+            if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_EMPTY) {
                 $action_type = "Gründung";
-            } else if ($event_data["targetid"] == -2) {
+            } else if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
                 $action_type = $is_pure_scout ? "Spionage" : "Plündern";
-            } else if ($event_data["targetid"] == -3) {
+            } else if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
                 $action_type = $is_pure_scout ? "Spionage" : "Monstercamp";
+            } else if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
+                $action_type = $is_pure_scout ? "Spionage" : "Ruine";
+            } else if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_MINE) {
+                $action_type = "Mine";
             } else if ($is_target_my_kingdom) {
                 $action_type = "Stationieren";
             } else {
@@ -668,7 +765,8 @@ if ($result && $result->num_rows > 0) {
             $soldier_name = e($soldier["name"]);
             $icon_path = "images/icons/" . e($soldier["icon"]) . ".png";
 
-            $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0 || $event_data["loot_gold"] > 0);
+            $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0 || $event_data["loot_gold"] > 0 || ($event_data["loot_coal"] ?? 0) > 0
+                || ($event_data["loot_iron"] ?? 0) > 0 || ($event_data["loot_sapphire"] ?? 0) > 0 || ($event_data["loot_diamond"] ?? 0) > 0);
             $is_carrier = ($soldier["soldierid"] == Soldiers::SOLDIER_THIEF || $soldier["soldierid"] == Soldiers::SOLDIER_RAIDER);
 
             $popup_class = "";
@@ -685,6 +783,10 @@ if ($result && $result->num_rows > 0) {
                 if ($event_data["loot_stone"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($event_data["loot_stone"]) . " ";
                 if ($event_data["loot_gold"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($event_data["loot_gold"]) . " ";
                 if ($event_data["loot_coins"] > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . fnum($event_data["loot_coins"]) . " ";
+                if (($event_data["loot_coal"] ?? 0) > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " " . fnum($event_data["loot_coal"]) . " ";
+                if (($event_data["loot_iron"] ?? 0) > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " " . fnum($event_data["loot_iron"]) . " ";
+                if (($event_data["loot_sapphire"] ?? 0) > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " " . fnum($event_data["loot_sapphire"]) . " ";
+                if (($event_data["loot_diamond"] ?? 0) > 0) $popup_content .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " " . fnum($event_data["loot_diamond"]) . " ";
                 $popup_content .= "</div>";
             }
 
@@ -722,6 +824,48 @@ if ($result && $result->num_rows > 0) {
               </div>";
         }
         $view .= "</tr>";
+    }
+
+    foreach ($miners_by_mine as $mine_data) {
+        $mx = $mine_data["mapx"];
+        $my = $mine_data["mapy"];
+        $m_coords = "<a href='#' data-on-click='mapJump' data-x='$mx' data-y='$my'>$mx:$my</a>";
+        $home_coords = "<a href='#' data-on-click='mapJump' data-x='{$kingdom->get_kingdom_map_x()}' data-y='{$kingdom->get_kingdom_map_y()}'>{$kingdom->get_kingdom_map_x()}:{$kingdom->get_kingdom_map_y()}</a>";
+
+        $rate = $mine_data["total_atk"] * MINE_WORK_RATE_FACTOR;
+        $rem_work = max(0, $mine_data["work_total"] - $mine_data["work_done"]);
+        $rem_sec = $rate > 0 ? (int)ceil($rem_work / $rate) : 0;
+        $percent_val = ($mine_data["work_total"] > 0) ? ($mine_data["work_done"] / $mine_data["work_total"]) * 100 : 0;
+        $percent_display = fdec($percent_val);
+
+        $badge_html = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
+        foreach ($mine_data["troops"] as $t) {
+            $badge_html .= "<div class='unit-badge' title='{$t["soldiername"]}'>
+                                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
+                                <b>" . fnum($t["soldiercount"]) . "</b>
+                            </div>";
+        }
+        $badge_html .= "</div>";
+
+        $view .= "<tr>
+            <td class='td-center'><span style='color: #E6C15A;'>Minen-Abbau</span></td>
+            <td class='td-center'>$badge_html</td>
+            <td class='td-center'>$home_coords → $m_coords</td>
+            <td class='td-center td-timer-cell' style='position: relative;'>
+                <b><span class='js-countdown' data-seconds='$rem_sec' data-no-reload='true'>" . format_time_for_js($rem_sec) . "</span></b><br>
+                <small style='opacity: 0.8;'>
+                    <b class='js-mine-progress' data-work-done='{$mine_data["work_done"]}' data-work-total='{$mine_data["work_total"]}' data-rate='$rate'>$percent_display %</b> abgebaut
+                </small>
+                <div class='delete-btn'>
+                    <form action='overview.php' method='POST' style='display: inline;'>
+                        <input type='hidden' name='recall_mine_troops' value='1'>
+                        <input type='hidden' name='mine_x' value='$mx'>
+                        <input type='hidden' name='mine_y' value='$my'>
+                        <input type='submit' value='' class='btn-delete' title='Truppen mit Beute heimrufen'>
+                    </form>
+                </div>
+            </td>
+        </tr>";
     }
 
     $view .= "</table>";

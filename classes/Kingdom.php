@@ -863,4 +863,139 @@ class Kingdom
 
         return $total;
     }
+
+    public function recall_mine_troops(int $mine_x, int $mine_y): bool
+    {
+        $now = time();
+        $this->mysqli->begin_transaction();
+
+        $mine = $this->mysqli->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ? FOR UPDATE", [$mine_x, $mine_y])->fetch_assoc();
+        if (!$mine) {
+            $this->mysqli->rollback();
+            return false;
+        }
+
+        $mine_id = (int)$mine["id"];
+
+        $last_update = (int)($mine["last_update"] ?: $now);
+        $elapsed = max(0, $now - $last_update);
+        $current_atk = (float)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
+
+        if ($elapsed > 0 && $current_atk > 0) {
+            $work_delta = $current_atk * MINE_WORK_RATE_FACTOR * $elapsed;
+            $this->mysqli->execute_query("
+                UPDATE mine_stationed_troops 
+                SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
+                WHERE mine_id = ?
+            ", [$work_delta, $current_atk, $mine_id]);
+
+            $mine["work_done"] += $work_delta;
+            $this->mysqli->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$mine["work_done"], $now, $mine_id]);
+        }
+
+        $my_troops = $this->mysqli->execute_query("
+            SELECT * FROM mine_stationed_troops 
+            WHERE mine_id = ? AND user_id = ? 
+            FOR UPDATE
+        ", [$mine_id, $this->kingdom_owner_id])->fetch_all(MYSQLI_ASSOC);
+
+        if (empty($my_troops)) {
+            $this->mysqli->rollback();
+            return false;
+        }
+
+        $work_total = max(1, (int)$mine["work_total"]);
+        $work_done = (int)$mine["work_done"];
+        $mined_ratio = min(1.0, $work_done / $work_total);
+
+        $my_work = array_sum(array_column($my_troops, "work_contributed"));
+        $share = ($work_done > 0) ? min(1.0, $my_work / $work_done) : 0;
+
+        $loot_stone = (int)floor($mine["stone"] * $mined_ratio * $share);
+        $loot_gold = (int)floor($mine["gold"] * $mined_ratio * $share);
+        $loot_coal = (int)floor($mine["coal"] * $mined_ratio * $share);
+        $loot_iron = (int)floor($mine["iron"] * $mined_ratio * $share);
+        $loot_sapphire = (int)floor($mine["sapphire"] * $mined_ratio * $share);
+        $loot_diamond = (int)floor($mine["diamond"] * $mined_ratio * $share);
+
+        $kid = (int)$my_troops[0]["kingdom_id"];
+
+        $map = new Map($this->mysqli, new User($this->kingdom_owner_id, ""));
+        $travel_time = $map->get_arrival_time(
+            $this->map_x,
+            $this->map_y,
+            $mine_x,
+            $mine_y,
+            $kid,
+            MapFieldTypes::MAP_FIELD_MINE
+        );
+
+        $this->mysqli->execute_query("
+            INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, 
+                                loot_food, loot_wood, loot_stone, loot_gold, loot_coal, loot_iron, loot_sapphire, loot_diamond, buildingname)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+        ", [
+            ActionTypes::ACTION_RETURN_TROOPS, $this->kingdom_owner_id, $kid,
+            MapFieldTypes::MAP_FIELD_MINE, $mine_x, $mine_y, $now + $travel_time, $now,
+            $loot_stone, $loot_gold, $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond, "Minen-Rückzug"
+        ]);
+        $ret_id = $this->mysqli->insert_id;
+
+        $grouped_troops = $this->mysqli->execute_query("
+            SELECT soldier_id, SUM(soldiercount) as soldiercount 
+            FROM mine_stationed_troops 
+            WHERE mine_id = ? AND user_id = ? 
+            GROUP BY soldier_id
+        ", [$mine_id, $this->kingdom_owner_id])->fetch_all(MYSQLI_ASSOC);
+
+        $insert_troops = [];
+        foreach ($grouped_troops as $t) {
+            $sid = (int)$t["soldier_id"];
+            $scnt = (int)$t["soldiercount"];
+            $insert_troops[] = "($ret_id, $sid, $scnt, $scnt, $kid)";
+        }
+
+        if (!empty($insert_troops)) {
+            $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
+        }
+
+        $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mine_id, $this->kingdom_owner_id]);
+        $this->mysqli->execute_query("
+            UPDATE mines SET 
+                stone = GREATEST(0, stone - ?),
+                gold = GREATEST(0, gold - ?),
+                coal = GREATEST(0, coal - ?),
+                iron = GREATEST(0, iron - ?),
+                sapphire = GREATEST(0, sapphire - ?),
+                diamond = GREATEST(0, diamond - ?),
+                last_update = ?
+            WHERE id = ?
+        ", [
+            $loot_stone, $loot_gold,
+            $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond,
+            $now, $mine_id
+        ]);
+
+        $rem_troops = (int)$this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
+
+        if ($rem_troops > 0) {
+            if ((int)$mine["claimed_user_id"] === $this->kingdom_owner_id) {
+                $new_claimer = (int)$this->mysqli->execute_query("SELECT user_id FROM mine_stationed_troops WHERE mine_id = ? LIMIT 1", [$mine_id])->fetch_column();
+                $this->mysqli->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$new_claimer, $mine_id]);
+            }
+        } else {
+            $this->mysqli->execute_query("UPDATE mines SET claimed_guild_id = NULL, claimed_user_id = NULL WHERE id = ?", [$mine_id]);
+        }
+
+        Logger::get_instance()->log_game("ECONOMY", "MINE_RECALL", [
+            "mine_coords" => "$mine_x:$mine_y",
+            "loot" => [
+                "stone" => $loot_stone, "gold" => $loot_gold,
+                "coal" => $loot_coal, "iron" => $loot_iron, "sapphire" => $loot_sapphire, "diamond" => $loot_diamond
+            ]
+        ], $kid);
+
+        $this->mysqli->commit();
+        return true;
+    }
 }

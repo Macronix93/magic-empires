@@ -63,7 +63,10 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
  * AutoLoad classes
  */
 spl_autoload_register(function ($class_name) {
-    include(__DIR__ . "/../classes/" . $class_name . ".php");
+    $file = __DIR__ . "/../classes/" . str_replace('\\', '/', $class_name) . ".php";
+    if (file_exists($file)) {
+        require_once $file;
+    }
 });
 
 // Load .env file
