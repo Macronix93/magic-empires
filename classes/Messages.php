@@ -6,9 +6,9 @@ class Messages
     private User $user;
     private string $view = "";
 
-    public function __construct(object $db_conn, User $user)
+    public function __construct(User $user)
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
         $this->user = $user;
     }
 

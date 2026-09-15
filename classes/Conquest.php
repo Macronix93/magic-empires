@@ -26,9 +26,9 @@ class Conquest
     private string $my_message = "";
     private string $enemy_message = "";
 
-    public function __construct(object $db_conn)
+    public function __construct()
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
     }
 
     public function set_target_id(int $target_id): void
@@ -267,7 +267,7 @@ class Conquest
 
     public function calculate_wall_bonus(): int
     {
-        $wall = new Kingdom($this->mysqli)->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
+        $wall = new Kingdom()->fetch_kingdom_building($this->enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_WALL);
 
         if (!$wall) {
             return 0;
@@ -770,7 +770,7 @@ class Conquest
 
     private function send_combined_support_report(int $uid, array $troop_results, string $attacker_name): void
     {
-        $target_k = new Kingdom($this->mysqli, $this->target_id);
+        $target_k = new Kingdom($this->target_id);
         $tx = $target_k->get_kingdom_map_x();
         $ty = $target_k->get_kingdom_map_y();
         $target_c_link = "<a href='#' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";

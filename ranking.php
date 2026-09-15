@@ -47,12 +47,21 @@ $guilds_res = $db_instance->execute_query("
 
 /* --- VIEW --- */
 $view .= "<div class='tab' style='margin: 0 auto 10px auto; max-width: 340px;'>
-    <div class='tablinks " . ($active_tab === 'players' ? 'active' : '') . "' data-on-click='switchRankingTab' data-tab='players' style='padding: 6px;'>Spieler</div>
-    <div class='tablinks " . ($active_tab === 'guilds' ? 'active' : '') . "' data-on-click='switchRankingTab' data-tab='guilds' style='padding: 6px;'>Gilden</div>
+    <div class='tablinks " . ($active_tab === "players" ? "active" : '') . "' data-on-click='switchRankingTab' data-tab='players' style='padding: 6px;'>Spieler</div>
+    <div class='tablinks " . ($active_tab === "guilds" ? "active" : '') . "' data-on-click='switchRankingTab' data-tab='guilds' style='padding: 6px;'>Gilden</div>
 </div>";
 
-$view .= "<div id='ranking_players' class='js-ranking-tab' style='display: " . ($active_tab === 'players' ? 'block' : 'none') . ";'>";
-$view .= '<table class="table">
+$ranking_colgroup = '
+    <colgroup>
+        <col style="width: 12%;">
+        <col style="width: 63%;">
+        <col style="width: 25%;">
+    </colgroup>';
+
+// --- CONTAINER PLAYERS ---
+$view .= "<div id='ranking_players' class='js-ranking-tab' style='display: " . ($active_tab === "players" ? "block" : "none") . ";'>";
+$view .= '<table class="table ranking-table">
+            ' . $ranking_colgroup . '
             <tr>
                 <td class="td-center td-gradient"><b>#</b></td>
                 <td class="td-center td-gradient"><b>Spieler</b></td>
@@ -109,8 +118,9 @@ $view .= render_ranking_pagination($current_page_players, $player_pages);
 $view .= "</div>";
 
 // --- CONTAINER GUILDS ---
-$view .= "<div id='ranking_guilds' class='js-ranking-tab' style='display: " . ($active_tab === 'guilds' ? 'block' : 'none') . ";'>";
-$view .= '<table class="table">
+$view .= "<div id='ranking_guilds' class='js-ranking-tab' style='display: " . ($active_tab === "guilds" ? "block" : "none") . ";'>";
+$view .= '<table class="table ranking-table">
+            ' . $ranking_colgroup . '
             <tr>
                 <td class="td-center td-gradient"><b>#</b></td>
                 <td class="td-center td-gradient"><b>Gilde</b></td>
@@ -121,15 +131,16 @@ $pos = $offset_guilds + 1;
 
 if ($guilds_res->num_rows > 0) {
     foreach ($guilds_res as $row) {
-        $guild_logic = new Guild($db_instance, $user);
+        $guild_logic = new Guild($user);
         $badge = $guild_logic->render_badge($row["id"], $row["tag"], $row["name"]);
 
         $view .= "<tr>
-            <td class='td-shrink' style='text-align: right;'>$pos</td>
+            <td class='td-shrink td-center' style='text-align: right;'>$pos</td>
             <td class='td-expand' style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$row["id"]}'>
-                <div style='display: flex; justify-content: space-between; align-items: center;'>
-                    <div>$badge</div>
-                    <small style='opacity: 0.6;'>{$row["member_count"]} " . ($row["member_count"] == 1 ? "Mitglied" : "Mitglieder") . "</small>
+                <div style='display: flex; justify-content: space-between; align-items: center; gap: 8px;'>
+                    <div style='word-break: break-word;'>$badge</div>
+                    <small style='opacity: 0.6; white-space: nowrap; flex-shrink: 0;'>{$row["member_count"]} <span class='badge-hide-mobile'>" . ($row["member_count"] == 1 ? "Mitglied" : "Mitglieder") . "</span>
+                    <span class='badge-hide-desktop'>Mitgl.</span></small>
                 </div>
             </td>
             <td class='td-score'>" . fnum($row["total_score"], true) . "</td>
@@ -141,10 +152,10 @@ if ($guilds_res->num_rows > 0) {
     $view .= "<tr><td colspan='3' class='td-center'>Noch keine Gilden gegründet.</td></tr>";
 }
 $view .= "</table>";
-$view .= render_ranking_pagination($current_page_guilds, $guild_pages, 'guilds');
+$view .= render_ranking_pagination($current_page_guilds, $guild_pages, "guilds");
 $view .= "</div>";
 
-function render_ranking_pagination(int $current, int $total, string $tab = 'players'): string
+function render_ranking_pagination(int $current, int $total, string $tab = "players"): string
 {
     if ($total <= 1) return "";
 

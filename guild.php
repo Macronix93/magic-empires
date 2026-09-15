@@ -5,9 +5,9 @@ check_user_login($user);
 
 $user_data = $db_instance->execute_query("SELECT guildid, ranking_points FROM users WHERE id = ?", [$user->get_user_id()])->fetch_assoc();
 $my_guild_id = (int)$user_data["guildid"];
-$guild_logic = new Guild($db_instance, $user, $my_guild_id);
+$guild_logic = new Guild($user, $my_guild_id);
 $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
-$k = new Kingdom($db_instance, $user->get_current_kingdom());
+$k = new Kingdom($user->get_current_kingdom());
 
 $allowed_tabs = ["chat", "general", "settings", "storage", "research"];
 $active_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
@@ -490,7 +490,7 @@ if ($my_guild_id === -1) {
         <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research'>Forschung</div>
     </div>";
     $view .= "<div id='guild_tab_chat' class='js-guild-tab' style='display: " . ($active_tab == "chat" ? "block" : "none") . ";'>";
-    $messages = new Messages($db_instance, $user);
+    $messages = new Messages($user);
     $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Chat</div>";
     $view .= $messages->show_guild_chat();
     $view .= "</div>";
@@ -531,25 +531,29 @@ if ($my_guild_id === -1) {
         $action_content = "";
 
         if ($has_actions && !$is_me) {
-            if ($my_perms["can_edit_settings"]) {
-                if (!$m["is_founder"] || $my_perms["is_founder"]) {
-                    $action_content .= "<select data-on-change='changeMemberRank' data-userid='{$m["id"]}' class='guild-rank-select'>";
+            $my_rank = $user->get_guild_rank_id();
 
-                    foreach ($ranks as $r) {
-                        if ($r["id"] == GuildRanks::GUILD_LEADER && !$my_perms["is_founder"]) continue;
+            $can_manage_target = $my_perms["is_founder"] || ($m["rank_id"] > $my_rank);
 
-                        $is_selected = ($r["id"] == $m["rank_id"]);
-                        $disabled = $is_selected ? "disabled" : "";
-                        $sel = $is_selected ? "selected" : "";
+            if ($my_perms["can_edit_settings"] && $can_manage_target) {
+                $action_content .= "<select data-on-change='changeMemberRank' data-userid='{$m["id"]}' class='guild-rank-select'>";
 
-                        $action_content .= "<option value='{$r["id"]}' $sel $disabled>" . e($r["rank_name"]) . "</option>";
-                    }
+                foreach ($ranks as $r) {
+                    if ($r["id"] == GuildRanks::GUILD_LEADER && !$my_perms["is_founder"]) continue;
 
-                    $action_content .= "</select>";
+                    if (!$my_perms["is_founder"] && $r["id"] <= $my_rank) continue;
+
+                    $is_selected = ($r["id"] == $m["rank_id"]);
+                    $disabled = $is_selected ? "disabled" : "";
+                    $sel = $is_selected ? "selected" : "";
+
+                    $action_content .= "<option value='{$r["id"]}' $sel $disabled>" . e($r["rank_name"]) . "</option>";
                 }
+
+                $action_content .= "</select>";
             }
 
-            if ($my_perms["can_kick"] && !$m["is_founder"]) {
+            if ($my_perms["can_kick"] && !$m["is_founder"] && $can_manage_target) {
                 $action_content .= "<img src='images/icons/icon_logout.png' class='ressource-icons kick-icon' 
                                   style='cursor:pointer; vertical-align: middle;' 
                                   data-on-click='confirmKickMember' 

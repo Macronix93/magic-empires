@@ -4,9 +4,9 @@ class WorldEvent
 {
     private object $mysqli;
 
-    public function __construct(object $db_conn)
+    public function __construct()
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
     }
 
     public function get_active_event(): ?array
@@ -175,7 +175,7 @@ class WorldEvent
                         $gold_mult = 1.0 + ($g_gold_lvl * GUILD_BONUS_EVENT_GOLD_PER_LVL);
                         $final_event_gold = (int)round($diff["gold"] * $gold_mult);
 
-                        $k_obj = new Kingdom($this->mysqli, $kingdom_id);
+                        $k_obj = new Kingdom($kingdom_id);
                         $k_obj->give_kingdom_gold($final_event_gold);
                         $diff["gold"] = $final_event_gold;
                     }

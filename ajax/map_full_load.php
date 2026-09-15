@@ -155,7 +155,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         ];
     }
 
-    $world_event_manager = new WorldEvent($db_instance);
+    $world_event_manager = new WorldEvent();
     $active_event = $world_event_manager->get_active_event();
 
     $event_info = ["is_active" => false];

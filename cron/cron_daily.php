@@ -134,8 +134,8 @@ if ($current_mines < MAX_MINES) {
             $y = (int)$f["mapy"];
 
             $fill_grades = [];
-            foreach ($mine_targets as $m_lvl => $targetVal) {
-                $fill_grades[$m_lvl] = ($targetVal > 0) ? $current_mine_counts[$m_lvl] / $targetVal : 1;
+            foreach ($mine_targets as $m_lvl => $target_val) {
+                $fill_grades[$m_lvl] = ($target_val > 0) ? $current_mine_counts[$m_lvl] / $target_val : 1;
             }
             asort($fill_grades);
             $lvl = (int)array_key_first($fill_grades);
@@ -166,7 +166,7 @@ if ($current_mines < MAX_MINES) {
                 if (($guild_res[$k] ?? 0) > 0) $available_specials[] = $k;
             }
             if (count($available_specials) < 2) {
-                $available_specials = ["coal", "iron"]; // Fallback für Stufe 1
+                $available_specials = ["coal", "iron"];
             }
             shuffle($available_specials);
             $num_to_pick = min(count($available_specials), mt_rand(2, 4));
@@ -475,7 +475,7 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
 }
 
 // Cleanup old events
-$we_logic = new WorldEvent($db);
+$we_logic = new WorldEvent();
 $deleted_events = $we_logic->cleanup_old_events();
 if ($deleted_events > 0) {
     echo "[" . date("H:i:s") . "] Cleanup: $deleted_events alte Welt-Events aus der Datenbank entfernt.\n";

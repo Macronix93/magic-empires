@@ -25,7 +25,7 @@ if ($building_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM building_list WHERE id = ?", [$building_id])->fetch_assoc();
 
     if ($row) {
-        $building = new Kingdom($db_instance)->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
+        $building = new Kingdom()->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
         $current_level_value = $building ? $building->get_building_level() : 0;
         $max_lvl_to_show = ($building_id == BuildingTypes::BUILDING_EMBASSY) ? 1 : MAX_BUILDING_LEVEL;
         $time_key = "timetobuild";
@@ -35,7 +35,7 @@ if ($building_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM tech_list WHERE id = ?", [$tech_id])->fetch_assoc();
 
     if ($row) {
-        $tech = new Kingdom($db_instance)->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
+        $tech = new Kingdom()->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
         $current_level_value = $tech ? $tech->get_tech_level() : 0;
         $max_lvl_to_show = ($tech_id === TechTypes::TECH_TYPE_IMPERIAL)
                 ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
@@ -55,7 +55,7 @@ if ($building_id !== null) {
     if ($row) {
         $is_guild_tech = true;
         $my_gid = $user->get_user_guild_id();
-        $guild_logic = new Guild($db_instance, $user, $my_gid);
+        $guild_logic = new Guild($user, $my_gid);
         $current_level_value = ($my_gid > 0) ? $guild_logic->get_tech_level($guild_tech_id) : 0;
         $max_lvl_to_show = (int)$row["max_level"];
         $time_key = "base_time";
@@ -69,6 +69,19 @@ if ($row) {
         $is_hero = ($row["id"] == Soldiers::SOLDIER_HERO);
         $is_raider = ($row["id"] == Soldiers::SOLDIER_RAIDER);
         $is_thief = ($row["id"] == Soldiers::SOLDIER_THIEF);
+
+        $attack_val = (int)($row["attack"] ?? 0);
+        $mining_rate_per_sec = $attack_val * MINE_WORK_RATE_FACTOR;
+        $mining_rate_formatted = fdec($mining_rate_per_sec, 3);
+
+        $mining_info_html = "";
+        if ($attack_val > 0) {
+            $mining_info_html = "
+            <div class='tech-info-box' style='margin-top: 15px;'>
+                <b>Bergbau-Effizienz:</b><br>
+                Arbeitsleistung in Minen: <span class='passed'>$mining_rate_formatted Arbeitspunkte / Sekunde</span>.
+            </div>";
+        }
 
         $chance_info = "";
         if ($soldier_id === Soldiers::SOLDIER_CONQUEROR) {
@@ -114,6 +127,7 @@ if ($row) {
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) .
                 ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
                 ($is_thief ? "<br>Der Dieb hat eine Tragekapazität von maximal " . THIEF_BASE_CAPACITY . " Ressourcen pro Einheit." : "") . " " . $chance_info . "</p>
+                        $mining_info_html
                         <table class='table' style='width: 100%;'>
                             <tr>";
         if ($row["attack"] > 0) {

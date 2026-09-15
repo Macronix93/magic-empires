@@ -144,7 +144,7 @@ if ($user->is_logged_in()) {
 </div>
 <?php if ($kingdom_count > 1): ?>
     <?php
-    $current_k = new Kingdom($db_instance, $user->get_current_kingdom());
+    $current_k = new Kingdom($user->get_current_kingdom());
     $cur_kname = $current_k->get_kingdom_name();
     $cur_coords = $current_k->get_kingdom_map_x() . ":" . $current_k->get_kingdom_map_y();
     ?>

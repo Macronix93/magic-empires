@@ -4,8 +4,8 @@ require_once("includes/core.php");
 check_user_login($user);
 
 $current_k_id = $user->get_current_kingdom();
-$kingdom = new Kingdom($db_instance, $current_k_id);
-$map = new Map($db_instance, $user);
+$kingdom = new Kingdom($current_k_id);
+$map = new Map($user);
 
 // Load biomes
 $res_fts = $db_instance->query("SELECT * FROM field_types ORDER BY fieldid");
@@ -87,7 +87,8 @@ $js_config = [
         "MONSTER_CAMP_SCOUT_BOOST" => MONSTER_CAMP_SCOUT_BOOST,
         "PLAYER_KINGDOM_SCOUT_BOOST" => PLAYER_KINGDOM_SCOUT_BOOST,
         "GUILD_SUPPORT_TRAVEL_BOOST" => GUILD_SUPPORT_TRAVEL_BOOST,
-        "GUILD_BONUS_SUPPORT_SPEED_PER_LVL" => GUILD_BONUS_SUPPORT_SPEED_PER_LVL
+        "GUILD_BONUS_SUPPORT_SPEED_PER_LVL" => GUILD_BONUS_SUPPORT_SPEED_PER_LVL,
+        "MINE_TRAVEL_BOOST" => MINE_TRAVEL_BOOST
     ]
 ];
 
@@ -148,6 +149,7 @@ echo "<div class='map-toolbar'>
             <div class='map-legend-item'><img src='images/icons/icon_town.png' alt='' class='map-legend-entity-item'> Spieler</div>
             <div class='map-legend-item'><img src='images/icons/icon_gems.png' alt='' class='map-legend-entity-item'> Lager</div>
             <div class='map-legend-item'><img src='images/icons/icon_goblin.png' alt='' class='map-legend-entity-item'> Monster</div>
+            <div class='map-legend-item'><img src='images/icons/icon_mine.png' alt='' class='map-legend-entity-item'> Minen</div>
             <div class='map-legend-item' title='Eigenes Königreich'><span class='map-legend-inner-item legend-own-kingdom'></span> Eigene</div>
             <div class='map-legend-item' title='Allianz / Eigene Gilde'><span class='map-legend-inner-item legend-ally-kingdom'></span> Allianz</div>
             <div class='map-legend-item' title='Feindliche Gilde'><span class='map-legend-inner-item legend-enemy-guild-kingdom'></span> Gegner</div>

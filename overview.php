@@ -10,7 +10,7 @@ $active_k_id = $user->get_current_kingdom();
 $uid = $user->get_user_id();
 $my_guild_id = $user->get_user_guild_id();
 $now = time();
-$kingdom = new Kingdom($db_instance, $active_k_id);
+$kingdom = new Kingdom($active_k_id);
 
 $tp_actions = [
     ActionTypes::ACTION_SEND_TROOPS,
@@ -33,7 +33,6 @@ $wp_actions = [
 $tp_list = implode(',', $tp_actions);
 $bp_list = implode(',', $bp_actions);
 $wp_list = implode(',', $wp_actions);
-
 
 $counts = $db_instance->execute_query("
     SELECT 
@@ -174,7 +173,7 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
     }
 }
 
-$map = new Map($db_instance, $user);
+$map = new Map($user);
 
 $limit = OVERVIEW_PAGESIZE_DEFAULT;
 if (isset($_COOKIE["me_overview_pagesize"]) && is_numeric($_COOKIE["me_overview_pagesize"])) {
@@ -679,7 +678,7 @@ if (!empty($grouped_events) || !empty($miners_by_mine)) {
             <td class='td-center td-gradient'><b>Art</b></td>
             <td class='td-center td-gradient'><b>Truppen</b></td>
             <td class='td-center td-gradient'><b>Koordinaten</b></td>
-            <td class='td-center td-gradient'><b>Ankunft</b></td>
+            <td class='td-center td-gradient'><b>Zeit</b></td>
         </tr>";
 
     foreach ($grouped_events as $event_id => $event_data) {

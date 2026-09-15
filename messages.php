@@ -2,7 +2,7 @@
 require_once("includes/core.php");
 
 check_user_login($user);
-$messages = new Messages($db_instance, $user);
+$messages = new Messages($user);
 
 // Starting a new conversation (or insert message in existing conversation)
 if (isset($_POST["sendpm"])) {
@@ -135,6 +135,12 @@ if (isset($_GET["action"])) {
                 // Get chat partner name based on id
                 $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$sender_id]);
                 $chat_partner = $result->fetch_assoc()["username"] ?? "";
+
+                // Set all unread msgs as read
+                $db_instance->execute_query(
+                    "UPDATE messages SET hasread = 1 WHERE senderid = ? AND receiverid = ? AND hasread = 0",
+                    [$sender_id, $user->get_user_id()]
+                );
 
                 // Check if conversation between the two exists
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";

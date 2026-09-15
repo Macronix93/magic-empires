@@ -22,9 +22,7 @@ registerAction("switchRankingTab", (el) => {
 
 document.addEventListener("DOMContentLoaded", () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const tabFromUrl = urlParams.get("tab");
-
-    const activeTab = tabFromUrl || sessionStorage.getItem("active_ranking_tab") || "players";
+    const activeTab = urlParams.get("tab") || "players";
 
     const tabBtn = document.querySelector(`[data-tab="${activeTab}"]`);
     if (tabBtn && !tabBtn.classList.contains("active")) {

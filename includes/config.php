@@ -318,6 +318,7 @@ const MINE_WEIGHT_LVL_4 = 0.1;
 const MINE_WEIGHT_LVL_5 = 0.05;
 // Max troop capacity per Mine Level
 const MINE_CAPACITY = 100;
+const MINE_TRAVEL_BOOST = 0.3; // 70% reduction
 
 // Required Work Points per Mine Level
 const MINE_WORK_BY_LEVEL = [
@@ -337,11 +338,11 @@ const MINE_BASE_RESOURCES_BY_LEVEL = [
 ];
 // Guild Special Resources per Level
 const MINE_GUILD_RESOURCES_BY_LEVEL = [
-    1 => ["coal" => 100, "iron" => 50, "sapphire" => 10, "diamond" => 2],
-    2 => ["coal" => 250, "iron" => 120, "sapphire" => 30, "diamond" => 8],
-    3 => ["coal" => 450, "iron" => 250, "sapphire" => 80, "diamond" => 25],
-    4 => ["coal" => 700, "iron" => 450, "sapphire" => 200, "diamond" => 75],
-    5 => ["coal" => 1000, "iron" => 700, "sapphire" => 400, "diamond" => 200]
+    1 => ["coal" => 100, "iron" => 20, "sapphire" => 5, "diamond" => 2],
+    2 => ["coal" => 200, "iron" => 40, "sapphire" => 10, "diamond" => 4],
+    3 => ["coal" => 300, "iron" => 60, "sapphire" => 15, "diamond" => 8],
+    4 => ["coal" => 400, "iron" => 80, "sapphire" => 20, "diamond" => 10],
+    5 => ["coal" => 500, "iron" => 100, "sapphire" => 25, "diamond" => 12]
 ];
 // Mining Speed: 1 ATK Point = X Work Points per second
 const MINE_WORK_RATE_FACTOR = 0.0075;

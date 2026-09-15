@@ -2,7 +2,7 @@
 require_once("includes/core.php");
 check_user_login($user);
 
-$support = new Support($db_instance, $user);
+$support = new Support($user);
 $is_staff = ($user->get_user_admin_level() > 0);
 $uid = $user->get_user_id();
 

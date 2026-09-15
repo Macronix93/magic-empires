@@ -1366,6 +1366,13 @@ a:hover b {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
 }
 
+.ranking-table {
+    table-layout: fixed !important;
+    max-width: 650px;
+    width: 70%;
+    margin: 0 auto;
+}
+
 td {
     background-color: var(--table-color);
     border: solid 1px rgba(0, 0, 0, 0.2);
@@ -2040,6 +2047,12 @@ tr:first-child td.td-gradient {
 .td-expand .image-and-user a {
     overflow-wrap: break-word;
     word-break: break-word;
+}
+
+.td-expand .image-and-user span {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
 }
 
 body.modal-open .content-box,
@@ -2733,11 +2746,11 @@ img[data-on-click] {
 }
 
 .overflow-icon.danger {
-    filter: drop-shadow(0 0 2px #ff4d4d);
+    filter: drop-shadow(0 0 1px #ff4d4d);
 }
 
 .overflow-icon.warning {
-    filter: drop-shadow(0 0 2px #f1c40f);
+    filter: drop-shadow(0 0 1px #f1c40f);
 }
 
 .active-guild-project {
@@ -2832,14 +2845,6 @@ img[data-on-click] {
     .kingdom-overflow-indicators .overflow-icon {
         width: 9px;
         height: 9px;
-    }
-
-    .overflow-icon.danger {
-        filter: drop-shadow(0 0 1px #ff4d4d);
-    }
-
-    .overflow-icon.warning {
-        filter: drop-shadow(0 0 1px #f1c40f);
     }
 
     .col-overview-kingdom {
@@ -3551,6 +3556,7 @@ img[data-on-click] {
     .left-right-container {
         border-radius: 0;
         border-bottom-width: 0;
+        margin: 0;
     }
 
     .mobile-side-nav {
@@ -3626,6 +3632,10 @@ img[data-on-click] {
     .table {
         table-layout: auto;
         width: 100%;
+    }
+
+    .ranking-table {
+        width: 100% !important;
     }
 
     td, .td-mapinfo {
@@ -3860,7 +3870,6 @@ img[data-on-click] {
 
     .box-container {
         width: 100%;
-        margin: 0;
     }
 
     .table tr:first-child td {

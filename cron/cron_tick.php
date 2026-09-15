@@ -82,7 +82,7 @@ if ($count > 0) {
 }
 
 //// World Event Logic
-$we_logic = new WorldEvent($db);
+$we_logic = new WorldEvent();
 
 $finished_events = $db->execute_query("SELECT * FROM world_events WHERE is_rewarded = 0 AND end_time <= ?", [time()]);
 
@@ -106,7 +106,7 @@ while ($ev = $finished_events->fetch_assoc()) {
         if ($ev["event_type"] === "BOSS_HP") {
             if ($ev["current_hp"] <= 0) {
                 if ($actual_target_kid > 0) {
-                    $target_k_obj = new Kingdom($db_instance, $actual_target_kid);
+                    $target_k_obj = new Kingdom($actual_target_kid);
                     $loot = $we_logic->generate_hp_boss_loot($u_id);
 
                     // Resources

@@ -12,9 +12,9 @@ class Guild
     private int $last_settings_change = 0;
     private array $storage = [];
 
-    public function __construct(mysqli $db, User $user, ?int $guild_id = null)
+    public function __construct(User $user, ?int $guild_id = null)
     {
-        $this->db = $db;
+        $this->db = Database::get_instance()->get_connection();
         $this->user = $user;
 
         if ($guild_id !== null && $guild_id > 0) {
@@ -52,7 +52,7 @@ class Guild
             return $error;
         }
 
-        $k = new Kingdom($this->db, $this->user->get_current_kingdom());
+        $k = new Kingdom($this->user->get_current_kingdom());
         if ($k->get_kingdom_building_level(BuildingTypes::BUILDING_EMBASSY) <= 0) {
             return "Du benötigst eine Botschaft, um eine Gilde zu gründen!";
         }
@@ -344,6 +344,19 @@ class Guild
             return "Du kannst den Rang des Leaders nicht ändern!";
         }
 
+        $my_rank = $this->user->get_guild_rank_id();
+        $target_rank = (int)$target["guild_rank_id"];
+
+        if (!$perms["is_founder"]) {
+            if ($target_rank <= $my_rank) {
+                return "Du kannst nur Mitglieder verwalten, die einen niedrigeren Rang als du haben!";
+            }
+
+            if ($rank_id <= $my_rank) {
+                return "Du kannst niemanden auf deinen eigenen oder einen höheren Rang befördern!";
+            }
+        }
+
         $this->db->begin_transaction();
 
         try {
@@ -408,7 +421,13 @@ class Guild
             return "Der Leader kann nicht gekickt werden.";
         }
 
+        $my_rank = $this->user->get_guild_rank_id();
+        if (!$perms["is_founder"] && (int)$target["guild_rank_id"] <= $my_rank) {
+            return "Du kannst nur Mitglieder entfernen, die einen niedrigeren Rang als du haben!";
+        }
+
         $this->db->begin_transaction();
+
         try {
             $this->recall_all_stationed_troops($target_uid);
             $this->recall_all_mine_troops($target_uid);
@@ -899,7 +918,7 @@ class Guild
             $stacks[$key]["units"][] = $t;
         }
 
-        $map_helper = new Map($this->db, $this->user);
+        $map_helper = new Map($this->user);
         $now = time();
 
         foreach ($stacks as $stack) {
@@ -1265,7 +1284,7 @@ class Guild
             $kx = (int)($res_k["mapx"] ?? 1);
             $ky = (int)($res_k["mapy"] ?? 1);
 
-            $map_helper = new Map($this->db, new User($user_id, ""));
+            $map_helper = new Map(new User($user_id, ""));
             $travel_time = $map_helper->get_arrival_time($kx, $ky, $mx, $my, $kid, MapFieldTypes::MAP_FIELD_MINE);
 
             $this->db->execute_query("

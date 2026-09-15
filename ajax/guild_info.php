@@ -3,7 +3,7 @@ require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $guild_id = (int)($_GET["id"] ?? 0);
-    $guild_logic = new Guild($db_instance, $user);
+    $guild_logic = new Guild($user);
     $data = $guild_logic->get_guild_details($guild_id);
 
     if (!$data) {

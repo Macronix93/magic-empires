@@ -144,6 +144,44 @@ function updateTroopSummary() {
     const actionButtons = document.getElementById("troop-action-buttons");
     const form = document.getElementById("send-troops-form");
 
+    if (form && form.dataset.isMine === "true") {
+        const scoutId = form.dataset.scoutId || "12";
+        const scoutInput = document.getElementById("sol_" + scoutId);
+        let hasScoutVal = scoutInput && parseInt(scoutInput.value) > 0;
+        let hasNormalVal = false;
+
+        inputs.forEach(inp => {
+            if (inp.id !== "sol_" + scoutId && parseInt(inp.value) > 0) {
+                hasNormalVal = true;
+            }
+        });
+
+        inputs.forEach(inp => {
+            const container = inp.closest("div");
+            const buttons = container ? container.querySelectorAll("input[type='button']") : [];
+
+            if (inp.id === "sol_" + scoutId) {
+                if (hasNormalVal) {
+                    inp.disabled = true;
+                    buttons.forEach(b => b.disabled = true);
+                    if (document.activeElement !== inp) inp.value = "";
+                } else {
+                    inp.disabled = false;
+                    buttons.forEach(b => b.disabled = false);
+                }
+            } else {
+                if (hasScoutVal) {
+                    inp.disabled = true;
+                    buttons.forEach(b => b.disabled = true);
+                    if (document.activeElement !== inp) inp.value = "";
+                } else {
+                    inp.disabled = false;
+                    buttons.forEach(b => b.disabled = false);
+                }
+            }
+        });
+    }
+
     if (!summaryList || !summaryContainer || !summaryTotals) return;
 
     const hasMineLimit = form && form.dataset.mineLimit !== undefined;
@@ -337,6 +375,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 updateTroopSummary();
             }
+        });
+
+        form.addEventListener("submit", () => {
+            sessionStorage.setItem("restore_map_filters_after_send", "true");
         });
 
         updateTroopSummary();

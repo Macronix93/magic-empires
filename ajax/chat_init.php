@@ -3,7 +3,7 @@ require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $type = $_GET["type"] ?? "private";
-    $messages = new Messages($db_instance, $user);
+    $messages = new Messages($user);
     $html = "";
 
     if ($type === "private") {

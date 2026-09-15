@@ -3,14 +3,14 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
-$world_event_manager = new WorldEvent($db_instance);
+$world_event_manager = new WorldEvent();
 $active_event = $world_event_manager->get_active_event();
 
 $user_id = $user->get_user_id();
 
 if ($active_event && isset($_POST["attack_all_kingdoms"])) {
     $current_kid = $user->get_current_kingdom();
-    $current_k_obj = new Kingdom($db_instance, $current_kid);
+    $current_k_obj = new Kingdom($current_kid);
 
     $res_any_barracks = $db_instance->execute_query(
         "SELECT COUNT(*) FROM buildings b 
@@ -200,7 +200,7 @@ if (!$active_event) {
     $monster = $pool[$active_event["monster_index"]];
 
     $current_kid = $user->get_current_kingdom();
-    $current_k_obj = new Kingdom($db_instance, $current_kid);
+    $current_k_obj = new Kingdom($current_kid);
     $has_current_barracks = ($current_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) > 0);
 
     $res_any_barracks = $db_instance->execute_query(

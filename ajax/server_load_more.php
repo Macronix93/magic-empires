@@ -7,7 +7,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $category = $_GET["category"] ?? "Alle";
         $limit = SHOW_MESSAGES_LIMIT;
 
-        $messages_obj = new Messages($db_instance, $user);
+        $messages_obj = new Messages($user);
         $history = $messages_obj->get_server_history_paged($oldest_id, $category, $limit + 1);
 
         $has_more = false;

@@ -5,9 +5,9 @@ class Support
     private mysqli $db;
     private User $user;
 
-    public function __construct(mysqli $db, User $user)
+    public function __construct(User $user)
     {
-        $this->db = $db;
+        $this->db = Database::get_instance()->get_connection();
         $this->user = $user;
     }
 

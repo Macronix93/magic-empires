@@ -7,9 +7,9 @@ class Map
     private static array $path_cache = [];
 
     // Constructor
-    public function __construct(object $db_conn, User $user)
+    public function __construct(User $user)
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
         $this->user = $user;
     }
 
@@ -135,7 +135,7 @@ class Map
         }
 
         $kid = ($origin_kingdom_id != -1) ? $origin_kingdom_id : $this->user->get_current_kingdom();
-        $kingdom = new Kingdom($this->mysqli, $kid);
+        $kingdom = new Kingdom($kid);
 
         $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
 
@@ -150,7 +150,9 @@ class Map
 
             $modified_time *= (CARAVAN_SPEED_FACTOR * $caravan_speed_mult);
         } else {
-            if ($actual_target_id === MapFieldTypes::MAP_FIELD_MONSTER_CAMP || $actual_target_id === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM
+            if ($actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {
+                $modified_time *= MINE_TRAVEL_BOOST;
+            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_MONSTER_CAMP || $actual_target_id === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM
                 || $actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {
                 $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
 
@@ -160,7 +162,7 @@ class Map
             } else if ($actual_target_id > 0 && $is_scouting) {
                 $modified_time *= PLAYER_KINGDOM_SCOUT_BOOST;
             } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
-                $we = new WorldEvent($this->mysqli);
+                $we = new WorldEvent();
 
                 $modified_time = $we->get_current_duration();
             }

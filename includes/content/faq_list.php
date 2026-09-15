@@ -103,6 +103,37 @@
                     sowie die Erträge für Nahrung, Holz, Stein und Gold pro Stunde anzeigt.
                 </td>
             </tr>
+            <tr>
+                <td class="td-gradient" style="width: 40%;"><b>Was sind Erzminen?</b></td>
+                <td>Erzminen sind spezielle Ressourcen-Kacheln auf der Weltkarte, in denen du seltene Spezial-Erze
+                    (Kohle, Eisen, Saphir, Diamant) für deine Gilden-Schatzkammer abbauen kannst.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Wie berechnet sich die Abbau-Geschwindigkeit?</b></td>
+                <td>Die Geschwindigkeit basiert auf dem Gesamt-Angriffswert aller in der Mine stationierten
+                    Truppen. Jede Einheit erzeugt Arbeitspunkte (zu sehen im Techtree). Je stärker und größer die
+                    Armee, desto schneller ist die Mine leergeräumt!
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Welche Arbeitspunkte werden pro Minen-Stufe benötigt?</b></td>
+                <td>
+                    <?php
+                    for ($i = 1; $i < count(MINE_WORK_BY_LEVEL) + 1; $i++) {
+                        echo "• <b>Stufe " . ($i) . ":</b> " . fnum(MINE_WORK_BY_LEVEL[$i], true) . " Arbeitspunkte<br>";
+                    }
+                    ?>
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient"><b>Was passiert, wenn eine Mine von einer anderen Gilde übernommen wird?</b>
+                </td>
+                <td>Wenn eine feindliche Gilde eine stärkere Armee in eine von dir besetzte Mine schickt, verlierst du
+                    zwar <b>keine Truppen</b>, aber die feindliche Gilde übernimmt die Mine und führt den Abbau ab
+                    diesem Moment für sich fort. Deine Truppen treten dann automatisch den Heimweg an.
+                </td>
+            </tr>
         </table>
     </div>
 </div>

@@ -35,9 +35,9 @@ class Kingdom
     private int $alignment;
     private ?array $shrine_cache = null;
 
-    public function __construct(object $db_conn, int $kingdom_id = -1)
+    public function __construct(int $kingdom_id = -1)
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
         $this->kingdom_id = -1;
         $this->alignment = 0;
         $this->wall_hp = 0;
@@ -178,7 +178,7 @@ class Kingdom
             BuildingTypes::BUILDING_STORAGE
         ]);
 
-        $new_k = new Kingdom($this->mysqli, $insert_id);
+        $new_k = new Kingdom($insert_id);
         $new_k->recalculate_production();
 
         return $insert_id;
@@ -263,7 +263,7 @@ class Kingdom
             return null;
         }
 
-        $tech = new Tech($this->mysqli);
+        $tech = new Tech();
         $tech->set_tech_name($row['techname']);
         $tech->set_tech_level((int)$row['techlevel']);
         $tech->set_tech_id($tech_id);
@@ -706,7 +706,7 @@ class Kingdom
         $result_techs = $this->mysqli->execute_query($query, [$this->kingdom_id]);
 
         foreach ($result_techs as $row) {
-            $tech = new Tech($this->mysqli);
+            $tech = new Tech();
             $techs[$row["id"]] = $tech->create_tech($row);
 
             $techs[$row["id"]]->set_tech_kingdom_id($this->kingdom_id);
@@ -920,7 +920,7 @@ class Kingdom
 
         $kid = (int)$my_troops[0]["kingdom_id"];
 
-        $map = new Map($this->mysqli, new User($this->kingdom_owner_id, ""));
+        $map = new Map(new User($this->kingdom_owner_id, ""));
         $travel_time = $map->get_arrival_time(
             $this->map_x,
             $this->map_y,

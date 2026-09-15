@@ -238,7 +238,38 @@ function checkSessionSync() {
 
 window.addEventListener("focus", function () {
     checkSessionSync();
+
+    isUpdatingChat = false;
+
+    const messageSection = document.getElementById("messages-section");
+    const chatType = messageSection?.dataset.chatType;
+
+    if (messageSection && chatType && ["private", "world", "guild"].includes(chatType)) {
+        const chatPartner = messageSection.dataset.partnerId
+            || (new URLSearchParams(window.location.search)).get("s")
+            || "0";
+
+        updateChat(chatPartner);
+    }
 });
+
+document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+        isUpdatingChat = false;
+
+        const messageSection = document.getElementById("messages-section");
+        const chatType = messageSection?.dataset.chatType;
+
+        if (messageSection && chatType && ["private", "world", "guild"].includes(chatType)) {
+            const chatPartner = messageSection.dataset.partnerId
+                || (new URLSearchParams(window.location.search)).get("s")
+                || "0";
+
+            updateChat(chatPartner);
+        }
+    }
+});
+
 
 function updateChat(chatPartner) {
     if (isUpdatingChat) return;
@@ -247,6 +278,14 @@ function updateChat(chatPartner) {
     if (!messageSection) return;
 
     const chatType = messageSection.dataset.chatType;
+    if (!chatType || !["private", "world", "guild"].includes(chatType)) {
+        return;
+    }
+
+    if (chatType === "private" && !document.getElementById("message-input")) {
+        return;
+    }
+
     let endpoint;
     let queryParams = `?last_id=${lastSeenId}`;
 
@@ -283,7 +322,6 @@ function updateChat(chatPartner) {
             /** @type {{ html: string, messagesToDelete: array, error: string, chatPartner: string }} */
             const response = data;
             /** @type {HTMLElement} */
-            const messageSection = document.getElementById("messages-section");
             const newMessageLine = document.getElementById("new-message-line");
             const infoBox = document.querySelector(".info-box");
 

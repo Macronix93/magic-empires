@@ -177,7 +177,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
 
     if (!empty($all_troops)) {
         $now = time();
-        $map_helper = new Map($db_instance, $user);
+        $map_helper = new Map($user);
         $travel_time = $map_helper->get_arrival_time(
             $all_troops[0]["tgt_x"], $all_troops[0]["tgt_y"],
             $all_troops[0]["src_x"], $all_troops[0]["src_y"],

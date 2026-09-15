@@ -665,7 +665,7 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     $current_kingdom = $user->get_current_kingdom();
 
     // Get kingdom info
-    $kingdom = new Kingdom($db_instance, $current_kingdom);
+    $kingdom = new Kingdom($current_kingdom);
 
     // Get building info
     $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
@@ -946,7 +946,7 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
     foreach ($all_attacks as &$attack) {
         if ((int)$attack["kingdom_id"] > 0) {
-            $target_k = new Kingdom($db, (int)$attack["kingdom_id"]);
+            $target_k = new Kingdom((int)$attack["kingdom_id"]);
             $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
 
             if ($intel_level < 1) {

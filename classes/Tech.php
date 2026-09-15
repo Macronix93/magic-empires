@@ -18,9 +18,9 @@ class Tech
     private string $t_description;
     private array $t_dependencies = [];
 
-    public function __construct(object $db_conn)
+    public function __construct()
     {
-        $this->mysqli = $db_conn;
+        $this->mysqli = Database::get_instance()->get_connection();
     }
 
     public function get_tech_kingdom_id(): int

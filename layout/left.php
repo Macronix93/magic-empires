@@ -1,6 +1,6 @@
 <?php
 $current_page = basename($_SERVER["PHP_SELF"]);
-$messages = new Messages($db_instance, $user);
+$messages = new Messages($user);
 
 $unreads = $user->get_unread_counts();
 
@@ -23,7 +23,7 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
         <div class="box-content">
             <div class="box<?= $current_page === 'overview.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="index.php">
-                <img src="images/icons/icon_overview.png" class="menu-icons" alt="Übersicht"/> Übersicht
+                <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Übersicht"/> Übersicht
             </div>
             <div class="box<?= ($current_page === 'messages.php' && !isset($_GET["worldchat"])) ? " active" : '' ?>"
                  data-on-click="navigate" data-url="messages.php">
@@ -94,11 +94,11 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
             </div>
             <div class="box<?= $current_page === 'map.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="map.php">
-                <img src="images/icons/icon_map.png" class="menu-icons" alt="Karte"/> Karte
+                <img src="images/icons/icon_tech6.png" class="menu-icons" alt="Karte"/> Karte
             </div>
             <div class="box<?= $current_page === 'techtree.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="techtree.php">
-                <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Gebäude"/> Techtree
+                <img src="images/icons/icon_techtree.png" class="menu-icons" alt="Gebäude"/> Techtree
             </div>
             <div class="box<?= $current_page === 'warsim.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="warsim.php">
@@ -108,7 +108,8 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                  data-on-click="navigate" data-url="halloffame.php">
                 <img src="images/icons/icon_score.png" class="menu-icons" alt="Hall of Fame"/> Ruhmeshalle
             </div>
-            <?php $we = new WorldEvent($db_instance);
+            <?php
+            $we = new WorldEvent();
             $active = $we->get_active_event();
 
             if ($active) {
@@ -152,7 +153,7 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
             </div>
             <div class="box<?= $current_page === 'donations.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="donations.php">
-                <img src="images/icons/icon_donation.png" class="menu-icons" alt="Spenden"/> Spenden
+                <img src="images/icons/icon_guildtech1.png" class="menu-icons" alt="Spenden"/> Spenden
             </div>
         </div>
     </div>

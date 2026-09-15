@@ -5,7 +5,7 @@ $_SERVER["REQUEST_METHOD"] = "GET";
 
 require_once(__DIR__ . "/../includes/core.php");
 
-$we_logic = new WorldEvent($db_instance);
+$we_logic = new WorldEvent();
 $today_day = (int)date('w'); // 0 (Sunday) to 6 (Saturday)
 $today_start = strtotime("today midnight");
 

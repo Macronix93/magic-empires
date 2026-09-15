@@ -13,7 +13,7 @@ $current_kid = $user->get_current_kingdom();
 $main_kid = $user->get_main_kingdom();
 
 // Fetch all buildings and their dependencies
-$kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
+$kingdom = new Kingdom($user->get_current_kingdom());
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
@@ -22,7 +22,7 @@ if ($current_kid === $main_kid) {
     $main_buildings = $buildings;
     $main_techs = $techs;
 } else {
-    $main_k = new Kingdom($db_instance, $main_kid);
+    $main_k = new Kingdom($main_kid);
     $main_buildings = $main_k->fetch_all_kingdom_buildings();
     $main_techs = $main_k->fetch_all_kingdom_techs();
 }
@@ -144,7 +144,7 @@ $view .= $renderTechTable($smithy_techs, "Schmiede-Verbesserungen", "Schmiede-In
 
 // --- GUILD TECHS ---
 $my_guild_id = $user->get_user_guild_id();
-$guild_logic = new Guild($db_instance, $user, $my_guild_id);
+$guild_logic = new Guild($user, $my_guild_id);
 $has_embassy = ($buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level() > 0);
 $in_guild = ($my_guild_id > 0);
 

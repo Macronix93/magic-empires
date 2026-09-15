@@ -41,7 +41,7 @@ if (!empty($_GET["key"])) {
                     [$max_news_id, $max_chat_id, $user_id]
             );
 
-            $kingdom = new Kingdom($db_instance);
+            $kingdom = new Kingdom();
             $main_kingdom = $kingdom->create_kingdom($user_id, $username);
 
             if ($main_kingdom) {
@@ -329,7 +329,7 @@ $count_online = $res_online->fetch_row()[0];
     <img src="images/header.png" alt="Header"/>
 </div>
 
-<div class="middle-container" style="margin: auto; width: 1100px; max-width: 95%;">
+<div class="middle-container" style="margin: auto; width: 1100px; max-width: 98%;">
     <div class="big-box-container">
         <?php if (!empty($success) || !empty($error) || !empty($warning)): ?>
             <div class="landing-messages">

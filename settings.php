@@ -364,7 +364,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     $res_offers = $db_instance->execute_query("SELECT offerid, kingdomid, supply, supplyvalue FROM marketplace WHERE userid = ?", [$uid]);
                     while ($off = $res_offers->fetch_assoc()) {
-                        $k_temp = new Kingdom($db_instance, (int)$off["kingdomid"]);
+                        $k_temp = new Kingdom((int)$off["kingdomid"]);
                         $k_temp->modify_resource((int)$off["supply"], (int)$off["supplyvalue"]);
                         $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$off["offerid"]]);
                     }
@@ -466,7 +466,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $deleted_username, "email" => $u_data['email']]);
 
                 // Check if user was in a guild and leader
-                $guild_manager = new Guild($db_instance, $user, $user->get_user_guild_id());
+                $guild_manager = new Guild($user, $user->get_user_guild_id());
                 $guild_manager->handle_leader_deletion($uid);
 
                 convert_user_kingdoms_to_ruins($db_instance, $uid);

@@ -85,7 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const shouldRestore = sessionStorage.getItem("restore_map_zoom_after_send");
         const savedZoom = sessionStorage.getItem("last_map_zoom");
-
         if (shouldRestore === "true" && savedZoom !== null) {
             const parsed = parseFloat(savedZoom);
 
@@ -95,6 +94,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
             sessionStorage.removeItem("restore_map_zoom_after_send");
             sessionStorage.removeItem("last_map_zoom");
+        }
+
+        const shouldRestoreFilters = sessionStorage.getItem("restore_map_filters_after_send");
+        if (shouldRestoreFilters === "true") {
+            sessionStorage.removeItem("restore_map_filters_after_send");
+            const savedFilters = sessionStorage.getItem("me_map_temp_filters");
+
+            if (savedFilters) {
+                try {
+                    const filterStates = JSON.parse(savedFilters);
+                    ["filter-players", "filter-resources", "filter-monsters", "filter-ruins", "filter-mines"].forEach(id => {
+                        const el = document.getElementById(id);
+
+                        if (el && filterStates[id] !== undefined) {
+                            el.checked = filterStates[id];
+                        }
+                    });
+                } catch (e) {
+                    console.error("Filter-Restore-Fehler:", e);
+                }
+
+                sessionStorage.removeItem("me_map_temp_filters");
+            }
         }
 
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
@@ -133,6 +155,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (btn) {
             sessionStorage.setItem("last_map_zoom", zoom.toString());
             sessionStorage.setItem("restore_map_zoom_after_send", "true");
+
+            saveCurrentFilters();
         }
     });
     window.addEventListener("resize", resizeCanvas);
@@ -229,12 +253,26 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    const filters = ["filter-players", "filter-resources", "filter-monsters", "filter-mines"];
-    filters.forEach(id => {
-        const el = document.getElementById(id);
+    const filterIds = ["filter-players", "filter-resources", "filter-monsters", "filter-ruins", "filter-mines"];
 
+    function saveCurrentFilters() {
+        const filterStates = {};
+        filterIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) filterStates[id] = el.checked;
+        });
+        sessionStorage.setItem("me_map_temp_filters", JSON.stringify(filterStates));
+    }
+
+    filterIds.forEach(id => {
+        const el = document.getElementById(id);
         if (el) {
-            el.addEventListener("change", () => draw());
+            localStorage.removeItem("me_map_" + id);
+
+            el.addEventListener("change", () => {
+                saveCurrentFilters();
+                draw();
+            });
         }
     });
 });
@@ -404,7 +442,7 @@ function draw() {
                     ctx.fillRect(posX, posY, scaledTile, scaledTile);
                     ctx.strokeRect(posX, posY, scaledTile, scaledTile);
                 } else if (isAllyMine) {
-                    ctx.fillStyle = "rgba(0, 123, 255, 0.2)";
+                    ctx.fillStyle = "rgba(0, 123, 255, 0.4)";
                     ctx.strokeStyle = "#007bff";
                     ctx.lineWidth = 1;
                     ctx.fillRect(posX, posY, scaledTile, scaledTile);
@@ -737,7 +775,6 @@ function selectField(x, y, shouldCenter = false) {
         const isMyGuild = (myGid > 0 && enemyGuildId === myGid);
         const isMineFree = (ownerId === 0 && enemyGuildId === -1);
         const isEnemy = (!isMineFree && !isMyGuild && ownerId !== gameConfig.currentKingdom.ownerId);
-        const isFriendly = (isMineFree || isMyGuild || myTroops > 0);
 
         const mInfo = tile[16] || {};
         const wDone = mInfo.w_done || 0;
@@ -747,15 +784,15 @@ function selectField(x, y, shouldCenter = false) {
         const myTroops = mInfo.my_troops || 0;
         const estSeconds = mInfo.est_seconds || 0;
 
+        const isFriendly = (isMineFree || isMyGuild || myTroops > 0);
+
         const percent = Math.min(100, Math.floor((wDone / wTotal) * 100));
         const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
+        const travelMine = Math.round(baseTravelTime * (gameConfig.constants.MINE_TRAVEL_BOOST || 0.3));
 
-        let statusText = "<span class='passed'>Unbesetzt</span>";
-        if (isMyGuild) {
-            statusText = "<span style='color: #3498db;'>Abbau durch Gilde</span>";
-        } else if (!isMineFree) {
-            statusText = "<span class='error'>Abbau durch Gegner</span>";
-        }
+        const lifetime = expiresAt - now;
+        const isTooSlow = travelMine > lifetime;
+        const timeColorStyle = isTooSlow ? "style='color: #ff4d4d;'" : "";
 
         let timerRow = "";
         if (estSeconds > 0) {
@@ -765,20 +802,31 @@ function selectField(x, y, shouldCenter = false) {
         html += `<div class="title-border">Erzmine (Stufe ${mineLvl})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>${statusText}</td></tr>`;
+
+        if (isMyGuild && curTroops > 0 && myTroops === 0) {
+            html += `<tr><td class="td-mapinfo"><b>Status</b></td><td><span style="color: #3498db;">Abbau durch Gilde</span></td></tr>`;
+        }
+
         if (isFriendly && curTroops > 0) {
             html += `<tr><td class="td-mapinfo"><b>Belegung</b></td><td>${curTroops} / ${maxTroops} Einheiten</td></tr>`;
         }
-        html += `<tr><td class="td-mapinfo"><b>Abbau-Fortschritt</b></td><td>
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px;">
-                        <span>${percent}% abgebaut</span>
-                        ${timerRow}
-                    </div>
-                    <div class="tick-progress-bg" style="height: 8px;">
-                        <div class="tick-progress-fill" style="width: ${percent}%;"></div>
-                    </div>
-                 </td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
+
+        const showProgress = (myTroops > 0 || (isMyGuild && curTroops > 0));
+        if (showProgress) {
+            html += `<tr><td class="td-mapinfo"><b>Abbau-Fortschritt</b></td><td>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px;">
+                            <span>${percent}% abgebaut</span>
+                            ${timerRow}
+                        </div>
+                        <div class="tick-progress-bg" style="height: 8px;">
+                            <div class="tick-progress-fill" style="width: ${percent}%;"></div>
+                        </div>
+                     </td></tr>`;
+        }
+
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(travelMine)}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
+
         const troops = gameConfig.currentKingdom.troops || {};
         const scoutCount = troops[gameConfig.constants.SOLDIER_SCOUT] || 0;
         let otherTroopsCount = 0;

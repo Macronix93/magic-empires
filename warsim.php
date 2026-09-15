@@ -3,7 +3,7 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
-$kingdom = new Kingdom($db_instance, $user->get_current_kingdom());
+$kingdom = new Kingdom($user->get_current_kingdom());
 
 $mil_tech_ids_attacker = [
     TechTypes::TECH_TYPE_BLADES,

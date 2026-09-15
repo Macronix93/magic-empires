@@ -14,7 +14,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $p_data = $res->fetch_assoc();
         $partner_name = $p_data["username"] ?? "Unbekannt";
 
-        $messages_obj = new Messages($db_instance, $user);
+        $messages_obj = new Messages($user);
         $history = $messages_obj->get_chat_history_paged($partner_id, $oldest_id, $limit + 1);
 
         $has_more = false;
@@ -69,7 +69,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                 $del_btn
                             </span>
                         </div>
-                        <div class='chat-text'>" . $row["message"] . "</div>
+                        <div class='chat-text'>" . $msg . "</div>
                         <div class='chat-reaction-footer'>
                             " . render_reactions_bar("chat", $row["id"], $user, "badges_only") . "
                         </div>

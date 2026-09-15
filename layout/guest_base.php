@@ -4,13 +4,13 @@
 <body>
 <?php include_once("layout/banner.html"); ?>
 
-<div class="middle-container" style="margin: auto;">
+<div class="middle-container" style="margin: auto; width: 900px; max-width: 98%;">
     <div class="big-box-container">
         <div class="big-box-header">
             <?= $header ?? "Information" ?>
         </div>
         <div class="big-box-content">
-            <?= str_contains($view, "Credits") || str_contains($view, "Datenschutz") || str_contains($view, "Fragen") ?
+            <?= str_contains($view, "Credits") || str_contains($view, "Datenschutz") || str_contains($view, "Fragen") || str_contains($view, "Regeln") ?
                     "<a href='index.php'>
                         <button type='button'>Zurück zur Startseite</button>
                     </a><br><br>"

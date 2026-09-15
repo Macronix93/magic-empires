@@ -8,7 +8,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     $action = $_GET["action"] ?? '';
-    $guild_logic = new Guild($db_instance, $user);
+    $guild_logic = new Guild($user);
     $response = ["success" => false];
 
     switch ($action) {

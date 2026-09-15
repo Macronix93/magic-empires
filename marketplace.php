@@ -32,7 +32,7 @@ $max_capacity = $building->get_building_level() * MARKET_CAPACITY_PER_LEVEL;
 
 $my_x = $kingdom->get_kingdom_map_x();
 $my_y = $kingdom->get_kingdom_map_y();
-$map = new Map($db_instance, $user);
+$map = new Map($user);
 
 $default_supply = ResourceTypes::RESOURCE_TYPE_FOOD;
 $default_demand = ResourceTypes::RESOURCE_TYPE_WOOD;
@@ -187,7 +187,7 @@ if (isset($_GET["accept"])) {
         $supply = $row["supply"];
         $supply_value = $row["supplyvalue"];
         $origin_kingdom_id = $row["kingdomid"];
-        $origin_kingdom = new Kingdom($db_instance, $origin_kingdom_id);
+        $origin_kingdom = new Kingdom($origin_kingdom_id);
 
         // Give supply resources back to kingdom
         $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
@@ -474,7 +474,7 @@ $view .= '<form action="marketplace.php" method="GET"
                 <div id="fee_info_box" class="popupbox" style="text-align: left; min-width: 250px;">
                     <b>Verkäufer (Einstellgebühr):</b><br>
                     Wird sofort fällig. 1 Münze pro ' . fnum(MARKET_LISTING_FEE_STEP) . ' Ressourcen (Angebot).<br>
-                    <i class="error">Wird bei Löschung/Ablauf NICHT erstattet.</i><br><br>
+                    <i class="error">Wird bei Löschung NICHT erstattet. Erst bei Ablauf.</i><br><br>
                     <b>Käufer (Handelsgebühr):</b><br>
                     Wird in das Angebot eingerechnet und vom Käufer bei Annahme bezahlt.
                 </div>

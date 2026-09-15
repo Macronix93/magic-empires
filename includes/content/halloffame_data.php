@@ -212,7 +212,7 @@ function render_hof_tab_content(array $data, mysqli $db, User $current_user): st
 
     $rank = 1;
     if ($res && $res->num_rows > 0) {
-        $guild_logic = new Guild($db, $current_user);
+        $guild_logic = new Guild($current_user);
 
         while ($row = $res->fetch_assoc()) {
             $rank_class = match ($rank) {

@@ -123,7 +123,7 @@ if (!$user->is_admin()) {
 
         // Create new kingdom for every registered and activated user
         $res_users = $db_instance->query("SELECT id, username FROM users WHERE status = 1");
-        $kingdom_manager = new Kingdom($db_instance);
+        $kingdom_manager = new Kingdom();
 
         while ($u = $res_users->fetch_assoc()) {
             $new_k_id = $kingdom_manager->create_kingdom($u["id"], $u["username"]);
@@ -398,8 +398,8 @@ if (!$user->is_admin()) {
                         $y = (int)$f["mapy"];
 
                         $fill_grades = [];
-                        foreach ($mine_targets as $m_lvl => $targetVal) {
-                            $fill_grades[$m_lvl] = ($targetVal > 0) ? $current_mine_counts[$m_lvl] / $targetVal : 1;
+                        foreach ($mine_targets as $m_lvl => $target_val) {
+                            $fill_grades[$m_lvl] = ($target_val > 0) ? $current_mine_counts[$m_lvl] / $target_val : 1;
                         }
                         asort($fill_grades);
                         $lvl = (int)array_key_first($fill_grades);
@@ -896,7 +896,7 @@ if (!$user->is_admin()) {
             delete_user_avatar_files($user_id);
 
             // Check if user was in a guild and leader
-            $guild_manager = new Guild($db_instance, $user);
+            $guild_manager = new Guild($user);
             $guild_manager->handle_leader_deletion($user_id);
 
             // Convert users kingdoms to abandoned kingdoms

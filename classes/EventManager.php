@@ -151,7 +151,7 @@ class EventManager
                 break;
             case ActionTypes::ACTION_RETURN_RESOURCES:
                 $origin_kingdom_id = (int)$row["kingdomid"];
-                $kingdom = new Kingdom($this->mysqli, $origin_kingdom_id);
+                $kingdom = new Kingdom($origin_kingdom_id);
                 $returned_resources = [];
 
                 // Classic Trade
@@ -210,7 +210,7 @@ class EventManager
                 [$kingdom_id, $tech_id]);
         }
 
-        $kingdom = new Kingdom($this->mysqli, $kingdom_id);
+        $kingdom = new Kingdom($kingdom_id);
 
         // Apply resource effects
         switch ($tech_id) {
@@ -218,7 +218,7 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_wood_rate = base_wood_rate + ? WHERE id = ?",
                     [RESEARCH_WOOD_INC, $kingdom_id]);
 
-                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
+                $kingdom = new Kingdom($kingdom_id);
                 $kingdom->recalculate_production();
                 break;
 
@@ -226,7 +226,7 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_food_rate = base_food_rate + ? WHERE id = ?",
                     [RESEARCH_FOOD_INC, $kingdom_id]);
 
-                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
+                $kingdom = new Kingdom($kingdom_id);
                 $kingdom->recalculate_production();
                 break;
 
@@ -234,7 +234,7 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_stone_rate = base_stone_rate + ? WHERE id = ?",
                     [RESEARCH_STONE_INC, $kingdom_id]);
 
-                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
+                $kingdom = new Kingdom($kingdom_id);
                 $kingdom->recalculate_production();
                 break;
 
@@ -242,7 +242,7 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE kingdoms SET base_gold_rate = base_gold_rate + ? WHERE id = ?",
                     [RESEARCH_GOLD_INC, $kingdom_id]);
 
-                $kingdom = new Kingdom($this->mysqli, $kingdom_id);
+                $kingdom = new Kingdom($kingdom_id);
                 $kingdom->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_STORAGE_INC:
@@ -404,7 +404,7 @@ class EventManager
         $soldiers = $this->load_soldier_data();
         $s_id = $row["soldierid"];
 
-        $kingdom = new Kingdom($this->mysqli, $row["kingdomid"]);
+        $kingdom = new Kingdom($row["kingdomid"]);
         $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
         $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
 
@@ -474,12 +474,12 @@ class EventManager
         $attacker_name = $atk_data["username"] ?? "Unbekannt";
         $attacker_user_obj = new User($attacker_id, $attacker_name, (int)$row["kingdomid"]);
 
-        $home_kingdom = new Kingdom($this->mysqli, $row["kingdomid"]);
+        $home_kingdom = new Kingdom($row["kingdomid"]);
 
         $message = "";
         $return_time = (int)($row["arrivaltime"] - $row["buildingtime"]);
 
-        $conquest = new Conquest($this->mysqli);
+        $conquest = new Conquest();
         $conquest->set_event_id($row["eventid"]);
         $conquest->fetch_sent_troops();
         $conquest->initialize_soldier_types();
@@ -517,7 +517,7 @@ class EventManager
         $result_dmg = 0;
 
         if ($target_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
-            $world_event_manager = new WorldEvent($this->mysqli);
+            $world_event_manager = new WorldEvent();
             $active_event = $world_event_manager->get_active_event();
 
             if ($active_event) {
@@ -538,7 +538,7 @@ class EventManager
                     $src_kid = (int)$t["source_kingdom_id"];
 
                     if (!isset($kingdom_cache[$src_kid])) {
-                        $temp_k = new Kingdom($this->mysqli, $src_kid);
+                        $temp_k = new Kingdom($src_kid);
                         $kingdom_cache[$src_kid] = [
                             "alignment" => $temp_k->get_kingdom_alignment(),
                             "shrine_mod" => $temp_k->get_shrine_modifier(),
@@ -699,6 +699,28 @@ class EventManager
             }
 
             // BATTLE FOR THE MINE
+            if ((int)$mine["level"] === 1) {
+                $claimed_uid = (int)$mine["claimed_user_id"];
+                $claimed_score = (int)$this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$claimed_uid])->fetch_column();
+
+                if ($conquest->has_noob_protection($attacker_user_obj->get_user_score(), $claimed_score)) {
+                    $this->mysqli->execute_query(
+                        "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                        [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
+                    );
+
+                    $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                    $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Angriff abgebrochen: Noob-Schutz",
+                            "Die Schürfer in dieser <b>Stufe-1-Mine</b> ($c_link) stehen unter Noob-Schutz! Deine Truppen kehren kampflos um.",
+                            0, 0, "", "error"
+                        ) . "</div>";
+
+                    send_server_message($attacker_id, $attacker_name, $msg, MessageCategories::CATEGORY_WAR);
+                    return;
+                }
+            }
+
             // Attacker Boni per Kingdom
             $atk_shrine = 1.0;
             if ($home_kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
@@ -720,9 +742,12 @@ class EventManager
                 JOIN soldier_list sl ON st.soldierid = sl.id 
                 WHERE st.eventid = ?", [$event_id])->fetch_all(MYSQLI_ASSOC);
 
-            $atk_power = 0;
-            $atk_cards = [];
+            $total_atk_units = array_sum(array_column($res_atk_troops, "soldiercount"));
+            $total_def_units = array_sum(array_column($defenders, "soldiercount"));
 
+            // Troop cards and base values for Attacker
+            $atk_cards = [];
+            $atk_prepared = [];
             foreach ($res_atk_troops as $at) {
                 $cat = (int)$at["category"];
                 $t_bonus_a = $atk_techs[$cat]["a"] ?? 0;
@@ -731,20 +756,26 @@ class EventManager
                 $final_atk = (int)round(($at["attack"] * $atk_shrine) + $t_bonus_a);
                 $final_def = (int)round($at["defense"] + $t_bonus_d);
 
-                $atk_power += (int)$at["soldiercount"] * ($final_atk + $final_def);
+                $atk_prepared[] = [
+                    "count" => (int)$at["soldiercount"],
+                    "cat" => $cat,
+                    "atk" => $final_atk,
+                    "def" => $final_def
+                ];
+
                 $atk_cards[] = ["name" => $at["soldiername"], "initial" => (int)$at["soldiercount"], "losses" => 0, "icon" => $at["icon"], "atk" => $final_atk, "def" => $final_def];
             }
 
-            // Defender Boni per Kingdom
-            $def_power = 0;
+            // Troop cards and base values for Defender
             $def_cards = [];
+            $def_prepared = [];
             $k_cache = [];
 
             foreach ($defenders as $dt) {
                 $dkid = (int)$dt["kingdom_id"];
 
                 if (!isset($k_cache[$dkid])) {
-                    $k_obj = new Kingdom($this->mysqli, $dkid);
+                    $k_obj = new Kingdom($dkid);
                     $sh_mod = 1.0;
 
                     if ($k_obj->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
@@ -772,8 +803,49 @@ class EventManager
                 $final_atk = (int)round(($dt["attack"] * $d_shrine) + $d_bonus_a);
                 $final_def = (int)round($dt["defense"] + $d_bonus_d);
 
-                $def_power += (int)$dt["soldiercount"] * ($final_atk + $final_def);
+                $def_prepared[] = [
+                    "count" => (int)$dt["soldiercount"],
+                    "cat" => $cat,
+                    "atk" => $final_atk,
+                    "def" => $final_def
+                ];
+
                 $def_cards[] = ["name" => $dt["soldiername"], "initial" => (int)$dt["soldiercount"], "losses" => 0, "icon" => $dt["icon"], "atk" => $final_atk, "def" => $final_def];
+            }
+
+            // Calculate Battle with RPS
+            $atk_power = 0;
+            foreach ($atk_prepared as $ap) {
+                $bonus = 1.0;
+
+                if ($total_def_units > 0) {
+                    foreach ($def_prepared as $dp) {
+                        $d_share = $dp["count"] / $total_def_units;
+                        if (($ap["cat"] === 0 && $dp["cat"] === 1) ||
+                            ($ap["cat"] === 1 && $dp["cat"] === 2) ||
+                            ($ap["cat"] === 2 && $dp["cat"] === 0)) {
+                            $bonus += (RPS_BONUS * $d_share);
+                        }
+                    }
+                }
+
+                $atk_power += $ap["count"] * (($ap["atk"] * $bonus) + $ap["def"]);
+            }
+
+            $def_power = 0;
+            foreach ($def_prepared as $dp) {
+                $bonus = 1.0;
+                if ($total_atk_units > 0) {
+                    foreach ($atk_prepared as $ap) {
+                        $a_share = $ap["count"] / $total_atk_units;
+                        if (($dp["cat"] === 0 && $ap["cat"] === 1) ||
+                            ($dp["cat"] === 1 && $ap["cat"] === 2) ||
+                            ($dp["cat"] === 2 && $ap["cat"] === 0)) {
+                            $bonus += (RPS_BONUS * $a_share);
+                        }
+                    }
+                }
+                $def_power += $dp["count"] * (($dp["atk"] * $bonus) + $dp["def"]);
             }
 
             $attacker_wins = ($atk_power > $def_power);
@@ -795,7 +867,7 @@ class EventManager
                     $dg_x = (int)($res_dg_k["mapx"] ?? 1);
                     $dg_y = (int)($res_dg_k["mapy"] ?? 1);
 
-                    $map_helper = new Map($this->mysqli, new User((int)$dg["user_id"], ""));
+                    $map_helper = new Map(new User((int)$dg["user_id"], ""));
                     $travel_time = $map_helper->get_arrival_time($dg_x, $dg_y, $tx, $ty, (int)$dg["kingdom_id"], MapFieldTypes::MAP_FIELD_MINE);
 
                     $this->mysqli->execute_query("
@@ -950,7 +1022,7 @@ class EventManager
             return;
         }
 
-        $enemy_kingdom = new Kingdom($this->mysqli, $target_id);
+        $enemy_kingdom = new Kingdom($target_id);
 
         // User only sent spies to scout
         if ($combat_units === 0 && $scout_count > 0 && $attacker_id != $enemy_kingdom->get_kingdom_owner_id()) {
@@ -1062,7 +1134,7 @@ class EventManager
                 $field_name = $map_info["fieldname"] ?? "Unbekannt";
             }
         } else {
-            $enemy_k = new Kingdom($this->mysqli, $row["targetid"]);
+            $enemy_k = new Kingdom($row["targetid"]);
             $field_name = " {$enemy_k->get_kingdom_owner_name()} ({$enemy_k->get_kingdom_name()})";
         }
 
@@ -1105,7 +1177,7 @@ class EventManager
         }
         $units_html .= "</div>";
 
-        $home_k = new Kingdom($this->mysqli, $row["kingdomid"]);
+        $home_k = new Kingdom($row["kingdomid"]);
         $home_name = $home_k->get_kingdom_name();
 
         $c_link = "<a href='map.php?startx=$target_x&starty=$target_y' data-on-click='mapJump' data-x='$target_x' data-y='$target_y'>$target_x:$target_y</a>";
@@ -1154,7 +1226,7 @@ class EventManager
 
         if ($user_gid > 0 && ($loot_coal > 0 || $loot_iron > 0 || $loot_sapphire > 0 || $loot_diamond > 0)) {
             $owner_user_obj = new User($owner_id, $owner_username);
-            $guild_logic = new Guild($this->mysqli, $owner_user_obj, $user_gid);
+            $guild_logic = new Guild($owner_user_obj, $user_gid);
 
             if ($loot_coal > 0) $guild_logic->modify_storage_resource("coal", $loot_coal);
             if ($loot_iron > 0) $guild_logic->modify_storage_resource("iron", $loot_iron);
@@ -1263,7 +1335,7 @@ class EventManager
             return;
         }
 
-        $target_k = new Kingdom($this->mysqli, $target_kingdom_id);
+        $target_k = new Kingdom($target_kingdom_id);
         $loot_received = [];
 
         // Normal Trading
@@ -1360,7 +1432,7 @@ class EventManager
 
         $this->mysqli->execute_query("UPDATE kingdoms SET $base_field = $base_field + ? WHERE id = ?", [$increase, $kid]);
 
-        $kingdom = new Kingdom($this->mysqli, $kid);
+        $kingdom = new Kingdom($kid);
         $kingdom->recalculate_production();
     }
 
@@ -1417,7 +1489,7 @@ class EventManager
             $chance = min(MAX_SETTLER_CHANCE, $chance);
 
             if (mt_rand(0, 100) <= ($chance * 100)) {
-                $new_kingdom_obj = new Kingdom($this->mysqli);
+                $new_kingdom_obj = new Kingdom();
                 $new_kingdom_id = $new_kingdom_obj->create_kingdom(
                     $attacker_user->get_user_id(),
                     $attacker_user->get_user_name(),
@@ -1894,7 +1966,7 @@ class EventManager
                 }
                 $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE owner_id = ?", [$enemy_user->get_user_id()]);
 
-                $new_k_id = new Kingdom($this->mysqli)->create_kingdom($enemy_user->get_user_id(), $enemy_user->get_user_name());
+                $new_k_id = new Kingdom()->create_kingdom($enemy_user->get_user_id(), $enemy_user->get_user_name());
 
                 if ($new_k_id) {
                     $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $enemy_user->get_user_id()]);
@@ -2021,7 +2093,7 @@ class EventManager
         $results = $this->mysqli->query($query);
 
         foreach ($results as $row) {
-            $target_kingdom = new Kingdom($this->mysqli, $row["targetid"]);
+            $target_kingdom = new Kingdom($row["targetid"]);
             $wt_level = $target_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
 
             if ($wt_level <= 0) continue;
@@ -2403,7 +2475,7 @@ class EventManager
         $raider_count = ($res->num_rows > 0) ? (int)$res->fetch_column() : 0;
 
         if ($raider_count > 0) {
-            $home_k = new Kingdom($this->mysqli, $home_kingdom_id);
+            $home_k = new Kingdom($home_kingdom_id);
             $plunder_lvl = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
             $tile_total = $tile["food"] + $tile["wood"] + $tile["stone"] + $tile["gold"];
 
@@ -2613,7 +2685,7 @@ class EventManager
 
         $message = "<div class='battle-report'>";
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-        $home_k = new Kingdom($this->mysqli, (int)$row["kingdomid"]);
+        $home_k = new Kingdom((int)$row["kingdomid"]);
         $home_name = e($home_k->get_kingdom_name());
         $hx = $home_k->get_kingdom_map_x();
         $hy = $home_k->get_kingdom_map_y();
@@ -2831,7 +2903,7 @@ class EventManager
             return;
         }
 
-        $conquest = new Conquest($this->mysqli);
+        $conquest = new Conquest();
         $conquest->set_event_id($event_id);
         $conquest->fetch_sent_troops();
         $conquest->initialize_soldier_types();
@@ -3087,7 +3159,7 @@ class EventManager
         $message .= "<div class='battle-column'>";
 
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-        $home_k = new Kingdom($this->mysqli, (int)$row["kingdomid"]);
+        $home_k = new Kingdom((int)$row["kingdomid"]);
         $home_name = e($home_k->get_kingdom_name());
         $hx = $home_k->get_kingdom_map_x();
         $hy = $home_k->get_kingdom_map_y();
@@ -3204,7 +3276,7 @@ class EventManager
             return;
         }
 
-        $target_k = new Kingdom($this->mysqli, $target_kid);
+        $target_k = new Kingdom($target_kid);
         $g_cap_lvl = Guild::get_user_guild_tech_level((int)$data["recipient_id"], GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
         $support_limit = SUPPORT_LIMIT_BASE + ($target_k->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
         $current_support = (int)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$target_kid])->fetch_column();
@@ -3372,7 +3444,7 @@ class EventManager
         $tech_name = $row["buildingname"];
         $new_lvl = (int)$this->mysqli->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?", [$guild_id, $tech_id])->fetch_column();
 
-        new Guild($this->mysqli, $this->user, $guild_id)->notify_guild(
+        new Guild($this->user, $guild_id)->notify_guild(
             "Gildenforschung abgeschlossen",
             "Die Forschung <b>" . e($tech_name) . "</b> wurde erfolgreich auf <b>Stufe $new_lvl</b> verbessert!",
             "",
@@ -3421,7 +3493,7 @@ class EventManager
             ];
         }
 
-        $conquest = new Conquest($this->mysqli);
+        $conquest = new Conquest();
         $conquest->set_event_id($event_id);
         $conquest->fetch_sent_troops();
         $conquest->initialize_soldier_types();
@@ -3663,7 +3735,7 @@ class EventManager
                     $kx = (int)($res_k["mapx"] ?? 1);
                     $ky = (int)($res_k["mapy"] ?? 1);
 
-                    $map_helper = new Map($this->mysqli, new User((int)$p["user_id"], ""));
+                    $map_helper = new Map(new User((int)$p["user_id"], ""));
                     $travel_time = $map_helper->get_arrival_time($kx, $ky, (int)$m["mapx"], (int)$m["mapy"], (int)$p["kingdom_id"], MapFieldTypes::MAP_FIELD_MINE);
 
                     $this->mysqli->execute_query("
@@ -3728,7 +3800,7 @@ class EventManager
         }
 
         $mine_id = (int)$mine["id"];
-        $home_k = new Kingdom($this->mysqli, (int)$row["kingdomid"]);
+        $home_k = new Kingdom((int)$row["kingdomid"]);
         $home_name = e($home_k->get_kingdom_name());
         $hx = $home_k->get_kingdom_map_x();
         $hy = $home_k->get_kingdom_map_y();
