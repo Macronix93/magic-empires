@@ -12,25 +12,23 @@ registerAction("togglePushNotifications", async (el) => {
         const currentSub = await reg.pushManager.getSubscription();
 
         if (currentSub) {
-            // --- UNSUBSCRIBE ---
+            // --- DEACTIVATE ---
             el.innerText = 'Melde ab...';
 
+            const endpoint = currentSub.endpoint;
             await currentSub.unsubscribe();
 
             await fetch('ajax/push_unsubscribe.php', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
-                body: JSON.stringify({endpoint: currentSub.endpoint})
+                body: JSON.stringify({endpoint: endpoint})
             });
 
-            el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
-            el.classList.remove("push-notifications-disable");
-            el.classList.add("push-notifications-enable");
-            el.disabled = false;
+            localStorage.removeItem('me_push_endpoint');
 
-            alert('Push-Benachrichtigungen auf diesem Gerät wurden erfolgreich deaktiviert.');
+            window.location.reload();
         } else {
-            // --- SUBSCRIBE ---
+            // --- ACTIVATE ---
             const vapidKey = el.dataset.vapid;
             if (!vapidKey) {
                 alert('Fehler: Kein VAPID Public Key hinterlegt.');
@@ -43,12 +41,23 @@ registerAction("togglePushNotifications", async (el) => {
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
                 alert('Benachrichtigungen wurden blockiert oder abgelehnt.');
-
                 el.disabled = false;
                 el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
                 el.classList.remove("push-notifications-disable");
                 el.classList.add("push-notifications-enable");
                 return;
+            }
+
+            const oldEndpoint = localStorage.getItem('me_push_endpoint');
+            if (oldEndpoint) {
+                try {
+                    await fetch('ajax/push_unsubscribe.php', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+                        body: JSON.stringify({endpoint: oldEndpoint})
+                    });
+                } catch (e) {
+                }
             }
 
             const newSub = await reg.pushManager.subscribe({
@@ -64,15 +73,10 @@ registerAction("togglePushNotifications", async (el) => {
 
             const result = await res.json();
             if (result.success) {
-                el.innerText = '🔕 Benachrichtigungen auf diesem Gerät deaktivieren';
-                el.disabled = false;
-                el.classList.remove("push-notifications-enable");
-                el.classList.add("push-notifications-disable");
-
-                alert('Erfolgreich aktiviert! Du erhältst ab sofort Warnungen auf diesem Gerät.');
+                localStorage.setItem('me_push_endpoint', newSub.endpoint);
+                window.location.reload();
             } else {
                 alert('Fehler: ' + (result.error || 'Speichern fehlgeschlagen'));
-
                 el.disabled = false;
                 el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
                 el.classList.remove("push-notifications-disable");
@@ -109,7 +113,7 @@ registerAction("switchSettingsTab", (el) => {
     window.history.replaceState({}, '', url);
 });
 document.addEventListener("input", (e) => {
-    if (e.target.classList.contains("js-pagesize-input")) {
+    if (e.target && e.target.classList.contains("js-pagesize-input")) {
         const input = e.target;
         let raw = input.value.replace(/\D/g, '');
 
@@ -151,15 +155,37 @@ async function initPushStatus() {
         if (!reg) return;
 
         const sub = await reg.pushManager.getSubscription();
+        const savedEndpoint = localStorage.getItem('me_push_endpoint');
 
-        if (sub) {
-            btn.innerText = "🔕 Benachrichtigungen auf diesem Gerät deaktivieren";
-            btn.classList.remove("push-notifications-enable");
-            btn.classList.add("push-notifications-disable");
-        } else {
+        if (Notification.permission !== 'granted' || !sub) {
             btn.innerText = "🔔 Benachrichtigungen auf diesem Gerät aktivieren";
             btn.classList.remove("push-notifications-disable");
             btn.classList.add("push-notifications-enable");
+
+            if (savedEndpoint) {
+                localStorage.removeItem('me_push_endpoint');
+
+                if (sub) {
+                    try {
+                        await sub.unsubscribe();
+                    } catch (e) {
+                    }
+                }
+
+                await fetch('ajax/push_unsubscribe.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+                    body: JSON.stringify({endpoint: savedEndpoint})
+                });
+
+                window.location.reload();
+            }
+        } else {
+            btn.innerText = "🔕 Benachrichtigungen auf diesem Gerät deaktivieren";
+            btn.classList.remove("push-notifications-enable");
+            btn.classList.add("push-notifications-disable");
+
+            localStorage.setItem('me_push_endpoint', sub.endpoint);
         }
     } catch (e) {
         console.error("Fehler bei Status-Prüfung:", e);
@@ -167,7 +193,7 @@ async function initPushStatus() {
 }
 
 document.addEventListener("blur", (e) => {
-    if (e.target.classList.contains("js-pagesize-input")) {
+    if (e.target && e.target.classList.contains("js-pagesize-input")) {
         const input = e.target;
         const min = parseInt(input.dataset.min, 10) || 5;
         const max = parseInt(input.dataset.max, 10) || 30;
@@ -188,4 +214,21 @@ document.addEventListener("blur", (e) => {
 document.addEventListener("DOMContentLoaded", () => {
     initPushStatus().then(_ => {
     });
+
+    const avatarForm = document.getElementById("avatar-upload-form");
+    if (avatarForm) {
+        avatarForm.addEventListener("submit", function () {
+            const btn = document.getElementById("btn-submit-avatar");
+            const fileInput = document.getElementById("image");
+
+            if (fileInput && fileInput.files.length > 0) {
+                if (btn) {
+                    setTimeout(() => {
+                        btn.disabled = true;
+                        btn.value = "Wird geprüft...";
+                    }, 1);
+                }
+            }
+        });
+    }
 });

@@ -39,12 +39,17 @@ class Support
         $now = time();
         $clean_msg = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message);
 
+        $t_res = $this->db->execute_query("SELECT userid FROM support_tickets WHERE id = ?", [$tid]);
+        $ticket_creator_id = (int)($t_res->fetch_column() ?? 0);
+
+        $is_staff_reply = ($is_admin && $uid !== $ticket_creator_id);
+
         $this->db->execute_query(
-            "INSERT INTO support_messages (ticketid, senderid, message, is_admin_reply, created_at) VALUES (?, ?, ?, ?, ?)",
-            [$tid, $uid, $clean_msg, $is_admin ? 1 : 0, $now]
+            "INSERT INTO support_messages (ticketid, senderid, message, is_admin_reply, hasread, created_at) VALUES (?, ?, ?, ?, 0, ?)",
+            [$tid, $uid, $clean_msg, $is_staff_reply ? 1 : 0, $now]
         );
 
-        if ($is_admin) {
+        if ($is_staff_reply) {
             $sql = "UPDATE support_tickets SET updated_at = ?, assigned_to = IFNULL(assigned_to, ?) WHERE id = ?";
             $params = [$now, $uid, $tid];
         } else {

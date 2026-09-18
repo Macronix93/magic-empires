@@ -825,7 +825,7 @@ class Kingdom
                 (SELECT IFNULL(SUM(st.soldiercount), 0) 
                  FROM sent_troops st 
                  JOIN events e ON st.eventid = e.eventid 
-                 WHERE e.kingdomid = ?) + 
+                 WHERE st.source_kingdom_id = ?) + 
                 (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?)
             ) AS total";
 
@@ -882,7 +882,10 @@ class Kingdom
         $current_atk = (float)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
 
         if ($elapsed > 0 && $current_atk > 0) {
-            $work_delta = $current_atk * MINE_WORK_RATE_FACTOR * $elapsed;
+            $max_rate = (float)$mine["work_total"] / MINE_MIN_DURATION_SECONDS;
+            $effective_rate = min($current_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+            $work_delta = $effective_rate * $elapsed;
+            
             $this->mysqli->execute_query("
                 UPDATE mine_stationed_troops 
                 SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))

@@ -29,7 +29,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     echo "<table class='table' style='width: 70%;'>
             <tr><td>Mitglieder:</td><td>" . $data["members"] . " / " . $data["max_members"] . "</td></tr>
             <tr><td>Beitritt:</td><td>" . $score_text . "</td></tr>
-            <tr><td>Gilden-Punkte:</td><td>" . fnum($data["score"]) . "</td></tr>
+            <tr><td>Gilden-Punkte:</td><td>" . fnum($data["score"], true) . "</td></tr>
         </table>";
 
     if ($can_join) {
@@ -39,7 +39,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     echo "<div class='title-border' style='margin-top: 15px;'>Mitglieder-Liste</div>";
-    echo "<table class='table' style='width: 80%;'>
+    echo "<table class='table guild-members-table'>
         <tr>
             <td class='td-gradient td-center'><b>Spieler</b></td>
             <td class='td-gradient td-center'><b>Rang</b></td>

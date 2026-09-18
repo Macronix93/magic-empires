@@ -37,16 +37,67 @@ if ($active_event && isset($_POST["attack_all_kingdoms"])) {
         }
     }
 
+    // Is there still time left to send troops?
+    $arrival_delay = $world_event_manager->get_current_duration();
+    $time_left = $active_event["end_time"] - time();
+
+    if ($time_left < $arrival_delay) {
+        $_SESSION["game_error"] = "Befehl verweigert: Der Anmarsch dauert " . convert_sec_to_str($arrival_delay) . ", aber das Event endet bereits in " . convert_sec_to_str($time_left) . "!";
+    }
+
+    // Check, if troop marching limit was reached
+    $current_tc_lvl = $current_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+    $max_commands = BASE_SEND_TROOPS_LIMIT + $current_tc_lvl;
+
+    $res_commands = $db_instance->execute_query("
+        SELECT 
+            (SELECT COUNT(*) FROM events 
+             WHERE kingdomid = ? AND actionid IN (?, ?)) AS active_events,
+            (SELECT COUNT(DISTINCT mine_id) FROM mine_stationed_troops 
+             WHERE kingdom_id = ?) AS active_mines
+    ", [
+        $current_kid,
+        ActionTypes::ACTION_SEND_TROOPS,
+        ActionTypes::ACTION_RETURN_TROOPS,
+        $current_kid
+    ]);
+    $cmd_data = $res_commands->fetch_assoc();
+    $total_occupied_commands = (int)($cmd_data["active_events"] ?? 0) + (int)($cmd_data["active_mines"] ?? 0);
+
+    if ($total_occupied_commands >= $max_commands) {
+        $_SESSION["game_error"] = "Befehlslimit erreicht: Deine Offiziere in <b>" . e($current_k_obj->get_kingdom_name()) . "</b> sind bereits voll ausgelastet ($total_occupied_commands/$max_commands Befehle)!";
+    }
+
     if (empty($_SESSION["game_error"])) {
-        // Get all available troops from every kingdom of the user
+        // Get all available troops from every kingdom of the user and exclude specific ones
+        $exclude_specials = isset($_POST["exclude_specials"]);
+        setcookie("me_mass_exclude_specials", $exclude_specials ? "1" : "0", time() + 31536000, "/", "", false, false);
+        $_COOKIE["me_mass_exclude_specials"] = $exclude_specials ? "1" : "0";
+
+        $excluded_units = [
+            Soldiers::SOLDIER_CONQUEROR,
+            Soldiers::SOLDIER_SETTLER_WAGON
+        ];
+
+        if ($exclude_specials) {
+            $excluded_units = array_merge($excluded_units, [
+                Soldiers::SOLDIER_THIEF,
+                Soldiers::SOLDIER_SCOUT,
+                Soldiers::SOLDIER_RAIDER,
+                Soldiers::SOLDIER_RAM
+            ]);
+        }
+        $excluded_str = implode(',', $excluded_units);
+
         $query_troops = "SELECT kingdomid, soldierid, soldiercount FROM soldiers 
                          WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                         AND soldierid NOT IN ($excluded_str)
                          AND soldiercount > 0";
         $res_troops = $db_instance->execute_query($query_troops, [$user_id]);
         $troops = $res_troops->fetch_all(MYSQLI_ASSOC);
 
         if (empty($troops)) {
-            $_SESSION["game_error"] = "Du hast aktuell in keinem deiner Königreiche Einheiten zur Verfügung.";
+            $_SESSION["game_error"] = "Du hast aktuell in keinem deiner Königreiche Einheiten zur Verfügung (Spezial-Einheiten, außer Helden, ausgenommen).";
         } else {
             $db_instance->begin_transaction();
 
@@ -69,7 +120,10 @@ if ($active_event && isset($_POST["attack_all_kingdoms"])) {
                 $db_instance->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_values));
 
                 $db_instance->execute_query(
-                    "UPDATE soldiers SET soldiercount = 0 WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) AND soldiercount > 0",
+                    "UPDATE soldiers SET soldiercount = 0 
+                     WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                       AND soldierid NOT IN ($excluded_str) 
+                       AND soldiercount > 0",
                     [$user_id]
                 );
 
@@ -189,9 +243,6 @@ if (!$active_event) {
     $avg_lvl = $world_event_manager->get_user_max_building_avg($user_id);
     $max_tc = $world_event_manager->get_max_tc_level($user_id);
 
-    $disabled = ($is_boss_dead && $event_type == "BOSS_HP") ||
-    ($event_type == "DAMAGE" && $user_attempts >= WORLD_EVENT_MAX_ATTEMPTS) ? "disabled" : "";
-
     $num_slots = ($max_tc >= WORLD_EVENT_HP_SLOT_HIGH_TC) ? 3 : ($max_tc >= WORLD_EVENT_HP_SLOT_MID_TC ? 2 : WORLD_EVENT_HP_SLOT_LOW);
     $special_chance = WORLD_EVENT_HP_SPECIAL_CHANCE_BASE + ($max_tc * WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT);
 
@@ -211,24 +262,52 @@ if (!$active_event) {
     );
     $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
 
+    $arrival_delay = $world_event_manager->get_current_duration();
+    $is_time_too_short = ($time_left < $arrival_delay);
+
     $is_event_locked = ($is_boss_dead && $event_type == "BOSS_HP") ||
-        ($event_type == "DAMAGE" && $user_attempts >= WORLD_EVENT_MAX_ATTEMPTS);
+        ($event_type == "DAMAGE" && $user_attempts >= WORLD_EVENT_MAX_ATTEMPTS) ||
+        $is_time_too_short;
 
     $single_disabled = ($is_event_locked || !$has_current_barracks) ? "disabled" : "";
-    $single_title = !$has_current_barracks ? "title='Kaserne im aktuellen Dorf benötigt!'" : "";
+    $single_title = "";
+    if ($is_time_too_short) {
+        $single_title = "title='Die verbleibende Event-Zeit reicht für den Anmarsch (" . convert_sec_to_str($arrival_delay) . ") nicht mehr aus!'";
+    } else if (!$has_current_barracks) {
+        $single_title = "title='Kaserne im aktuellen Königreich benötigt!'";
+    }
 
     $mass_disabled = ($is_event_locked || !$has_any_barracks) ? "disabled" : "";
-    $mass_title = !$has_any_barracks ? "title='Du besitzt keine Kaserne!'" : "title='Bündelt alle Truppen deines Accounts zu einem Angriff!'";
+    $mass_title = "";
+    if ($is_time_too_short) {
+        $mass_title = "title='Die verbleibende Event-Zeit reicht für den Anmarsch (" . convert_sec_to_str($arrival_delay) . ") nicht mehr aus!'";
+    } else if (!$has_any_barracks) {
+        $mass_title = "title='Du besitzt keine Kaserne!'";
+    } else {
+        $mass_title = "title='Bündelt alle Truppen deiner Königreiche zu einem Angriff!'";
+    }
+
+    $exclude_specials_cookie = ($_COOKIE["me_mass_exclude_specials"] ?? "1") === "1";
+    $checkbox_checked = $exclude_specials_cookie ? "checked" : "";
 
     $view .= "<div class='title-border'>" . e($monster["name"]) . "</div>";
     $view .= "<div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-direction: column; margin-bottom: 20px;'>
                 <div style='display: flex; justify-content: space-between; width: 240px;'>
                     Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
                 </div>
-                <div style='display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;'>
-                    <button data-on-click='redirect' data-url='" . $target_url . "' $single_disabled $single_title>Aktuelles Dorf senden</button>
-                    <form method='POST' style='display: inline;'>
-                        <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title>" . wrap_emojis("⚔️ Massenmobilisierung") . "</button>
+                <div style='display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 320px;'>
+                    <button data-on-click='redirect' data-url='" . $target_url . "' $single_disabled $single_title style='width: 230px;'>
+                        Aus Königreich auswählen
+                    </button>
+                    <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
+                    <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
+                        <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
+                            " . wrap_emojis("⚔️ Massenmobilisierung") . "
+                        </button>
+                        <label style='display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;'>
+                            <input type='checkbox' name='exclude_specials' value='1' data-on-change='toggleMassExcludeSpecials' $checkbox_checked style='margin: 0; width: auto;'>
+                            <span class='mass-troop-label'>Ohne Spezial-Einheiten (außer Helden)</span>
+                        </label>
                     </form>
                 </div>
               </div>";

@@ -8,7 +8,6 @@ class Logger
 
     private function __construct()
     {
-        $this->db = Database::get_instance()->get_connection();
         $this->log_path = __DIR__ . "/../logs/";
     }
 
@@ -34,13 +33,20 @@ class Logger
     {
         global $user;
 
-        $user_id = ($user && $user->get_user_id() > 0) ? $user->get_user_id() : null;
+        try {
+            if (!isset($this->db)) {
+                $this->db = Database::get_instance()->get_connection();
+            }
 
-        $details_json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $ip = $_SERVER["REMOTE_ADDR"] ?? "0.0.0.0";
+            $user_id = ($user && $user->get_user_id() > 0) ? $user->get_user_id() : null;
+            $details_json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $ip = $_SERVER["REMOTE_ADDR"] ?? "0.0.0.0";
 
-        $query = "INSERT INTO game_logs (userid, kingdomid, category, action, details, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        $this->db->execute_query($query, [$user_id, $kid, $category, $action, $details_json, $ip, time()]);
+            $query = "INSERT INTO game_logs (userid, kingdomid, category, action, details, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $this->db->execute_query($query, [$user_id, $kid, $category, $action, $details_json, $ip, time()]);
+        } catch (Throwable $e) {
+            $this->log_file("error", "Konnte Game-Log nicht in DB schreiben: " . $e->getMessage(), "ERROR");
+        }
     }
 
     // Helper methods

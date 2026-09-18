@@ -8,7 +8,7 @@ if (!($user->is_logged_in())) {
 
 $dependency_text = "";
 
-// Aktuelles Königreich
+// Current kingdom
 $current_kid = $user->get_current_kingdom();
 $main_kid = $user->get_main_kingdom();
 
@@ -21,10 +21,12 @@ $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level()
 if ($current_kid === $main_kid) {
     $main_buildings = $buildings;
     $main_techs = $techs;
+    $embassy_level = $buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level();
 } else {
     $main_k = new Kingdom($main_kid);
     $main_buildings = $main_k->fetch_all_kingdom_buildings();
     $main_techs = $main_k->fetch_all_kingdom_techs();
+    $embassy_level = $main_buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level();
 }
 
 $view .= '<div class="title-border">Gebäude-Struktur</div>';
@@ -145,7 +147,7 @@ $view .= $renderTechTable($smithy_techs, "Schmiede-Verbesserungen", "Schmiede-In
 // --- GUILD TECHS ---
 $my_guild_id = $user->get_user_guild_id();
 $guild_logic = new Guild($user, $my_guild_id);
-$has_embassy = ($buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level() > 0);
+$has_embassy = ($embassy_level > 0);
 $in_guild = ($my_guild_id > 0);
 
 $view .= '<div class="title-border">Gilden-Forschungen</div>';
@@ -156,23 +158,13 @@ $view .= '<table class="table">
     </tr>';
 
 $all_guild_techs = $guild_logic->get_all_techs();
-foreach ($all_guild_techs as $gt) {
+
+$guild_tech_count = count($all_guild_techs);
+
+foreach ($all_guild_techs as $index => $gt) {
     $cur_lvl = (int)$gt["current_level"];
     $max_lvl = (int)$gt["max_level"];
     $icon = "images/icons/" . e($gt["icon"]) . ".png";
-
-    $req_html = "";
-    if (!$has_embassy) {
-        $req_html .= "<span class='error' style='white-space: nowrap;'>Botschaft (1)</span> ";
-    } else {
-        $req_html .= "<span class='passed' style='white-space: nowrap;'>Botschaft (1)</span> ";
-    }
-
-    if (!$in_guild) {
-        $req_html .= "<span class='error' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
-    } else {
-        $req_html .= "<span class='passed' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
-    }
 
     $lvl_display = $in_guild ? "($cur_lvl/$max_lvl)" : "";
 
@@ -181,14 +173,37 @@ foreach ($all_guild_techs as $gt) {
                     <img src='$icon' class='buildable-icons' alt=''>
                 </td>
                 <td style='width: 35%;'>
-                    <a href='#' data-on-click='openOverlay' data-url='techinfo.php?gtid=" . (int)$gt["id"] . "' data-title='Gilden-Forschung'>
+                    <a href='#'
+                       data-on-click='openOverlay'
+                       data-url='techinfo.php?gtid=" . (int)$gt["id"] . "'
+                       data-title='Gilden-Forschung'>
                         " . e($gt["name"]) . " $lvl_display
                     </a>
-                </td>
-                <td class='techtree-requirements'>$req_html</td>
-              </tr>";
+                </td>";
+
+    if ($index === 0) {
+        $req_html = "";
+
+        if (!$has_embassy) {
+            $req_html .= "<span class='error' style='white-space: nowrap;'>Botschaft (1)</span> ";
+        } else {
+            $req_html .= "<span class='passed' style='white-space: nowrap;'>Botschaft (1)</span> ";
+        }
+
+        if (!$in_guild) {
+            $req_html .= "<span class='error' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
+        } else {
+            $req_html .= "<span class='passed' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
+        }
+
+        $view .= "<td class='techtree-requirements' rowspan='$guild_tech_count' style='text-align: center;'>
+                    $req_html
+                  </td>";
+    }
+
+    $view .= "</tr>";
 }
-$view .= '</table><br>';
+$view .= '</table>';
 
 $view .= '<div class="title-border">Einheiten</div>';
 $view .= '<table class="table">

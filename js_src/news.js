@@ -21,7 +21,7 @@ registerAction("editNewsInline", (el, event) => {
                    maxlength="50" style="width: 100%; margin-bottom: 15px;" required>
             
             <label style="font-size: 14px; color: var(--link-color);">Inhalt:</label><br>
-            <textarea name="content" id="edit-news-text-${newsId}" rows="8" maxlength="2000" 
+            <textarea name="content" id="edit-news-text-${newsId}" rows="8" maxlength="3000" 
                       style="width: 100%; margin-bottom: 15px; resize: vertical;" required>${oldContent}</textarea>
             
             <div style="display: flex; gap: 10px; justify-content: center;">

@@ -67,7 +67,13 @@ while ($ft = $res_ft_meta->fetch_assoc()) {
     $field_meta[(int)$ft["fieldid"]] = (int)$ft["traversaltime"];
 }
 
+$use_map_popup = (($_COOKIE["me_map_popup"] ?? "1") === "1");
+
 $js_config = [
+    "useAutoTiling" => MAP_USE_AUTOTILING,
+    "autoTilingRadius" => MAP_AUTOTILING_RADIUS,
+    "autoTilingPadding" => MAP_AUTOTILING_PADDING,
+    "usePopup" => $use_map_popup,
     "currentKingdom" => [
         "id" => $current_k_id,
         "ownerId" => $user->get_user_id(),
@@ -159,7 +165,7 @@ echo "<div class='map-toolbar'>
 // Search
 $show_path_checked = (isset($_COOKIE["me_map_show_path"]) && $_COOKIE["me_map_show_path"] === "1") ? "checked" : "";
 
-echo '<div style="display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 12px; font-size: 14px;">
+echo '<div class="map-options">
         <form id="update-map" style="display: inline-flex; align-items: center; gap: 6px; margin: 0;">
             <b>X:</b><input type="text" inputmode="numeric" id="startx" name="startx" size="2" maxlength="3" value="' . $x . '" style="width: 45px; text-align: center;">
             <b>Y:</b><input type="text" inputmode="numeric" id="starty" name="starty" size="2" maxlength="3" value="' . $y . '" style="width: 45px; text-align: center;">
@@ -191,14 +197,15 @@ echo '<div id="map-loader">
             <div class="loader-text">Kartograph zeichnet Karte...</div>
           </div>';
 echo '<div id="coords-display" class="map-coords-overlay">X: ' . $x . ' | Y: ' . $y . '</div>';
-
 echo '<div class="map-viewport" id="map-viewport">
             <canvas id="map-canvas" style="display: block;"></canvas>
           </div>';
+echo '<div id="field-popup-box" class="map-floating-popup"></div>';
 echo '</div>';
 
+
 // Info Box
-echo '<div id="field-info">';
+echo '<div id="field-info" style="' . ($use_map_popup ? "display: none;" : "margin-top: 20px;") . '">';
 $map->render_field_info();
 echo '</div>';
 

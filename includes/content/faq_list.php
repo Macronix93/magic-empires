@@ -1,7 +1,7 @@
 <div class="box-container" style="margin-bottom: 20px;">
     <div class="box-header">Allgemeine Fragen</div>
     <div class="box-content box-content-bg">
-        <table class="table" style="width: 100%; border: none;">
+        <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
                 <td class="td-gradient" style="width: 40%;"><b>Was ist Magic Empires?</b></td>
                 <td>Magic Empires ist ein klassisches Aufbau-Strategiespiel im Browser. Du schlüpfst in die Rolle eines
@@ -33,7 +33,7 @@
 <div class="box-container" style="margin-bottom: 20px;">
     <div class="box-header">Wirtschaft & Gebäude</div>
     <div class="box-content box-content-bg">
-        <table class="table" style="width: 100%; border: none;">
+        <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
                 <td class="td-gradient" style="width: 40%;"><b>Wie steigere ich meine Rohstoff-Erträge?</b></td>
                 <td>Deine Erträge hängen von der Stufe deiner Produktionsgebäude (Mühle, Sägewerk, Steinbruch, Goldmine)
@@ -140,7 +140,83 @@
 <div class="box-container">
     <div class="box-header">Militär & Expansion</div>
     <div class="box-content box-content-bg">
-        <table class="table" style="width: 100%; border: none;">
+        <table class="table faq-table" style="width: 100%; border: none;">
+            <tr>
+                <td class="td-gradient" style="width: 40%; vertical-align: top;"><b>Wie funktioniert das Kampfsystem im
+                        Detail?</b></td>
+                <td>
+                    Kämpfe finden in Echtzeit exakt in der Sekunde des Eintreffens am Zielort statt. Die Berechnung
+                    erfolgt nach folgenden Regeln:
+                    <br><br>
+                    <b>1. Vorbereitung & Modifikatoren:</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li>Jede Einheit besitzt Basis-Angriffs- und Verteidigungswerte.</li>
+                        <li><b>Schmiede-Upgrades:</b> Verbessern die Basiswerte jeder Gattung dauerhaft.
+                        </li>
+                        <li><b>Schrein der Ahnen (Kriegsgott):</b> Erhöht den gesamten Angriffswert der Armee um einen
+                            prozentualen Bonus.
+                        </li>
+                    </ul>
+                    <b>2. Das Schere-Stein-Papier-Prinzip (<?= (RPS_BONUS * 100) ?>% Bonus):</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li><b>Infanterie</b> schlägt <b>Kavallerie</b></li>
+                        <li><b>Kavallerie</b> schlägt <b>Fernkampf</b></li>
+                        <li><b>Fernkampf</b> schlägt <b>Infanterie</b></li>
+                        <li><i>Wichtig:</i> Der Bonus wird dynamisch anhand des prozentualen Anteils der jeweiligen
+                            Einheit in der gegnerischen Armee verrechnet. Eine gemischte Armee schützt vor Kontern!
+                        </li>
+                    </ul>
+                    <b>3. Stadtmauer, Gegenwehr & Rammböcke:</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li><b>Defensiv-Bonus:</b> Eine intakte Mauer spendiert zusätzliche Verteidigung.
+                        </li>
+                        <li><b>Schadensabsorption:</b> Die Mauer schluckt einen festen Betrag des ankommenden Schadens,
+                            bevor die Verteidiger getroffen werden.
+                        </li>
+                        <li><b>Gegenwehr:</b> <?= (WALL_COUNTER_DAMAGE_FACTOR * 100) ?>% des Mauer-Verteidigungswertes
+                            werden als Gegenschlag direkt auf die
+                            Angreifer zurückgeworfen.
+                        </li>
+                        <li><b>Mauerschaden:</b> Normale Truppen können
+                            maximal <?= (WALL_MAX_NORMAL_DAMAGE_PERCENT * 100) ?>% Mauerschaden pro Angriff anrichten.
+                            Für echte Zerstörung werden <b>Rammböcke</b> benötigt.
+                        </li>
+                    </ul>
+                    <b>4. Verlustberechnung:</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li>Beide Seiten schlagen simultan zu. Die Verluste berechnen sich aus dem Verhältnis des
+                            gegnerischen Angriffspools zum eigenen Verteidigungspool.
+                        </li>
+                        <li>Im <b>PvP</b> beträgt der Tödlichkeitsfaktor <?= LETHALITY_PVP ?> (Truppen halten mehr
+                            Schaden aus als ihren reinen DEF-Wert).
+                        </li>
+                        <li>Im <b>PvE</b> beträgt der Faktor <?= LETHALITY_PVE ?>. Zusätzlich greift eine
+                            Dämpfungskurve, damit bei großer Übermacht gegen Monster die eigenen Verluste minimal
+                            bleiben.
+                        </li>
+                    </ul>
+                    <b>5. Gilden-Verstärkung:</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li>Unterstützungstruppen von Gildenmitgliedern kämpfen gleichberechtigt in der
+                            Verteidigungslinie. Verluste werden prozentual gleichmäßig auf den Besitzer und alle
+                            anwesenden Unterstützer aufgeteilt.
+                        </li>
+                    </ul>
+                    <b>6. Nach dem Kampf (Beute & Eroberung):</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li><b>Diebe:</b> Haben die Angreifer gewonnen und Diebe überleben, stehlen sie ungeschützte
+                            Ressourcen.
+                        </li>
+                        <li><b>Eroberer:</b> Besiegt die Angriffsarmee alle Verteidiger restlos und führt einen <i>Eroberer</i>
+                            mit, besteht eine Chance, das Königreich
+                            einzunehmen. Bei Erfolg opfert sich ein Eroberer.
+                        </li>
+                        <li><b>Späher:</b> Überleben Späher im Gefecht, bringen sie unabhängig vom Kampfausgang
+                            Spionageberichte über das gegnerische Dorf mit nach Hause.
+                        </li>
+                    </ul>
+                </td>
+            </tr>
             <tr>
                 <td class="td-gradient" style="width: 40%;"><b>Was ist der Noob-Schutz?</b></td>
                 <td>Um faire Bedingungen zu schaffen, können Spieler mit sehr hohem Punktestand keine Anfänger
@@ -198,7 +274,7 @@
 <div class="box-container" style="margin-bottom: 20px;">
     <div class="box-header">Gilden & Bündnisse</div>
     <div class="box-content box-content-bg">
-        <table class="table" style="width: 100%; border: none;">
+        <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
                 <td class="td-gradient" style="width: 40%;"><b>Wie gründe ich eine Gilde?</b></td>
                 <td>Du benötigst in deinem Haupt-Königreich eine <b>Botschaft</b>. Anschließend kannst du im
@@ -248,7 +324,7 @@
 <div class="box-container" style="margin-bottom: 20px;">
     <div class="box-header">Welt-Events</div>
     <div class="box-content box-content-bg">
-        <table class="table" style="width: 100%; border: none;">
+        <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
                 <td class="td-gradient" style="width: 40%;"><b>Wann finden Welt-Events statt?</b></td>
                 <td>Jeden <b>Dienstag</b> und <b>Freitag</b> um <b>16:00 Uhr</b> öffnen sich die Siegel im Zentrum der

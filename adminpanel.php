@@ -346,10 +346,13 @@ if (!$user->is_admin()) {
 
         // --- MINES ---
         if ($spawn_type === "all" || $spawn_type === "mines") {
+            $db_instance->execute_query("DELETE FROM mines WHERE expires_at < ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
+            $db_instance->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM mines)");
+
             $mine_count = (int)$db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE)->fetch_column();
 
             if ($mine_count < MAX_MINES) {
-                $limit = min(MINE_SPAWN_RATE, MAX_MINES - $mine_count);
+                $limit = MAX_MINES - $mine_count;
 
                 $count_mines_res = $db_instance->query("
                     SELECT 
@@ -410,13 +413,21 @@ if (!$user->is_admin()) {
                         $base_res = MINE_BASE_RESOURCES_BY_LEVEL[$lvl];
                         $guild_res = MINE_GUILD_RESOURCES_BY_LEVEL[$lvl];
 
-                        $stone = $variance($base_res);
-                        $gold = $variance($base_res);
+                        $stone = 0;
+                        $gold = 0;
+                        if (mt_rand(0, 1) === 0) {
+                            $stone = $variance($base_res);
+                        } else {
+                            $gold = $variance($base_res);
+                        }
 
                         $all_specials = ["coal", "iron", "sapphire", "diamond"];
                         $available_specials = [];
                         foreach ($all_specials as $k) {
                             if (($guild_res[$k] ?? 0) > 0) $available_specials[] = $k;
+                        }
+                        if (count($available_specials) < 2) {
+                            $available_specials = ["coal", "iron"];
                         }
                         shuffle($available_specials);
                         $num_to_pick = min(count($available_specials), mt_rand(2, 4));
@@ -441,11 +452,11 @@ if (!$user->is_admin()) {
                         $db_instance->query("INSERT INTO mines (mapx, mapy, level, max_troops, stone, gold, coal, iron, sapphire, diamond, work_total, expires_at) VALUES " . implode(',', $insert_mines));
                         $db_instance->query("UPDATE map SET kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " WHERE (mapx, mapy) IN (" . implode(',', $update_coords) . ")");
 
-                        $report[] = count($insert_mines) . " Erzminen balance-optimiert generiert.";
+                        $report[] = count($insert_mines) . " Erzminen generiert (Voll: " . MAX_MINES . ").";
                     }
                 }
             } else {
-                $report[] = "Minenlimit ($mine_count/" . MAX_MINES . ") bereits erreicht.";
+                $report[] = "Minenlimit (" . MAX_MINES . ") bereits erreicht.";
             }
         }
 

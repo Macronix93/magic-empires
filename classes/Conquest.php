@@ -102,17 +102,20 @@ class Conquest
     {
         $current_wall_hp = $this->enemy_kingdom->get_wall_hp();
         $wall_level = $this->enemy_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
-        $wall_absorption = $wall_level * WALL_ABSORPTION_PER_LEVEL;
+        $max_wall_hp = $this->enemy_kingdom->get_wall_max_hp();
 
+        $wall_absorption = $wall_level * (WALL_ABSORPTION_PER_LEVEL * WALL_ABSORPTION_MULTIPLIER);
         $damage_diff = $this->accumulated_damage - $this->enemy_def_without_wall;
 
         $effective_damage = max(0, $damage_diff - $wall_absorption);
-        $damage_to_wall = max($effective_damage * WALL_EFFECTIVE_DMG_FACTOR, $this->accumulated_damage * WALL_ACCUMULATED_DMG_FACTOR);
+
+        $normal_troop_wall_dmg = $effective_damage * (WALL_EFFECTIVE_DMG_FACTOR * WALL_NORMAL_TROOP_DAMAGE_FACTOR);
+
+        $max_normal_dmg_cap = $max_wall_hp * WALL_MAX_NORMAL_DAMAGE_PERCENT;
+        $normal_troop_wall_dmg = min($normal_troop_wall_dmg, $max_normal_dmg_cap);
 
         $ram_count = (int)($this->soldiers[Soldiers::SOLDIER_RAM]["initial"] ?? 0);
-
-        $damage_to_wall += ($ram_count * RAM_FLAT_DAMAGE);
-
+        $ram_damage = ($ram_count * RAM_FLAT_DAMAGE);
         $ram_bonus = min(RAM_WALL_DAMAGE_LIMIT, $ram_count * RAM_WALL_DAMAGE_FACTOR);
 
         $res_atk = $this->mysqli->execute_query("SELECT kingdomid FROM events WHERE eventid = ?", [$this->event_id]);
@@ -124,7 +127,8 @@ class Conquest
 
         $multiplier = 1 + ($siege_lvl * SMITHY_SIEGE_BONUS) + $ram_bonus;
 
-        $final_damage = (int)round($damage_to_wall * $multiplier);
+        $total_wall_dmg = ($normal_troop_wall_dmg + $ram_damage) * $multiplier;
+        $final_damage = (int)round($total_wall_dmg);
 
         return max(0, $current_wall_hp - $final_damage);
     }
@@ -344,9 +348,14 @@ class Conquest
             $defender_def_pool += $wall_bonus;
         }
 
+        $effective_defender_counter_damage = $defender_atk_pool;
+        if ($wall_bonus > 0) {
+            $effective_defender_counter_damage += ($wall_bonus * WALL_COUNTER_DAMAGE_FACTOR);
+        }
+
         $lethality = LETHALITY_PVP;
 
-        $attacker_loss_ratio = ($attacker_def_pool > 0) ? min(1.0, $defender_atk_pool / ($attacker_def_pool * $lethality)) : 1.0;
+        $attacker_loss_ratio = ($attacker_def_pool > 0) ? min(1.0, $effective_defender_counter_damage / ($attacker_def_pool * $lethality)) : 1.0;
         $defender_loss_ratio = ($defender_def_pool > 0) ? min(1.0, $attacker_atk_pool / ($defender_def_pool * $lethality)) : 1.0;
 
         $attacker_loss_ratio = round($attacker_loss_ratio, 6);

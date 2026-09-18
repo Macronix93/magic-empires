@@ -268,10 +268,13 @@ function updateTroopSummary() {
         }
     }
 
+
     if (form && form.dataset.mineRemWork !== undefined) {
-        const remWork = parseFloat(form.dataset.mineRemWork) || 0;
+        const workTotal = parseFloat(form.dataset.mineWorkTotal) || 0;
         const curAtk = parseFloat(form.dataset.mineCurrentAtk) || 0;
-        const rateFactor = parseFloat(form.dataset.mineWorkFactor) || 0.15;
+        const rateFactor = parseFloat(form.dataset.mineWorkFactor) || 0.0075;
+        const mineMinDuration = parseInt(form.dataset.mineMinDuration) || 1800;
+        const maxRate = workTotal / mineMinDuration;
 
         const rateDisplay = document.getElementById("mine-rate-display");
         const durDisplay = document.getElementById("mine-duration-display");
@@ -279,11 +282,12 @@ function updateTroopSummary() {
         let hasOnlyScouts;
         let nonScoutCount = 0;
         let scoutCount = 0;
+        const scoutId = form.dataset.scoutId || "12";
 
         inputs.forEach(input => {
             const val = parseInt(input.value) || 0;
             if (val > 0) {
-                if (parseInt(input.dataset.id) === 12) scoutCount += val;
+                if (input.dataset.id === scoutId) scoutCount += val;
                 else nonScoutCount += val;
             }
         });
@@ -293,31 +297,27 @@ function updateTroopSummary() {
             if (rateDisplay) rateDisplay.innerHTML = `<i>Spionage-Mission (kein Abbau)</i>`;
             if (durDisplay) durDisplay.innerHTML = `-`;
         } else {
-            const squadRate = totalAtk * rateFactor;
-            const totalRate = (curAtk + totalAtk) * rateFactor;
+            const squadRate = Math.min(totalAtk * rateFactor, maxRate);
+            const totalRate = Math.min((curAtk + totalAtk) * rateFactor, maxRate);
 
             if (rateDisplay) {
                 if (totalAtk > 0) {
-                    const formattedTotalRate = totalRate.toFixed(1).replace('.', ',');
                     const formattedSquadRate = squadRate.toFixed(1).replace('.', ',');
-                    const totalText = curAtk > 0 ? ` <small style="opacity: 0.7;">(Gesamt: ${formattedTotalRate}/s)</small>` : "";
+                    const totalText = curAtk > 0 ? ` <small style="opacity: 0.7;">(Gesamt: ${totalRate.toFixed(1).replace('.', ',')}/s)</small>` : "";
                     rateDisplay.innerHTML = `+${formattedSquadRate} Pkt./s${totalText}`;
                 } else if (curAtk > 0) {
-                    const formattedCurRate = (curAtk * rateFactor).toFixed(1).replace('.', ',');
-                    rateDisplay.innerHTML = `${formattedCurRate} Pkt./s`;
+                    rateDisplay.innerHTML = `${(curAtk * rateFactor).toFixed(1).replace('.', ',')} Pkt./s`;
                 } else {
-                    rateDisplay.innerHTML = `<i>Keine Schürfer</i>`;
+                    rateDisplay.innerHTML = `<i>Keine Truppen gewählt</i>`;
                 }
             }
 
             if (durDisplay) {
-                if (totalRate > 0 && remWork > 0) {
-                    const estSec = Math.ceil(remWork / totalRate);
+                if (totalRate > 0 && workTotal > 0) {
+                    const estSec = Math.max(1800, Math.ceil(workTotal / totalRate));
                     durDisplay.innerHTML = `ca. ${formatMineDuration(estSec)}`;
-                } else if (remWork <= 0) {
-                    durDisplay.innerHTML = `<span class="passed">Erschöpft</span>`;
                 } else {
-                    durDisplay.innerHTML = `<i>Stillstand (Truppen wählen)</i>`;
+                    durDisplay.innerHTML = `<i>Keine Truppen gewählt</i>`;
                 }
             }
         }

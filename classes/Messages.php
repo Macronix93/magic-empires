@@ -711,7 +711,7 @@ class Messages
 
                 if ($data["raiders_lost"] > 0) {
                     $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
-                    $main_text .= "⚠️ <b>Verluste:</b> {$data['raiders_lost']} Räuber wurden bei Kämpfen im Hinterhalt verletzt oder getötet.";
+                    $main_text .= wrap_emojis("⚠️ <b>Verluste:</b> {$data["raiders_lost"]} Räuber wurden bei Kämpfen im Hinterhalt verletzt oder getötet.");
                     $main_text .= "</div>";
                 }
 

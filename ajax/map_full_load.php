@@ -120,7 +120,9 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $w_done = (int)$row["work_done"];
             $w_total = max(1, (int)$row["work_total"]);
             $m_atk = (int)$row["current_mine_atk"];
-            $rate_per_sec = $m_atk * MINE_WORK_RATE_FACTOR;
+
+            $max_rate = $w_total / MINE_MIN_DURATION_SECONDS;
+            $rate_per_sec = min($m_atk * MINE_WORK_RATE_FACTOR, $max_rate);
             $rem_work = max(0, $w_total - $w_done);
             $est_seconds = ($rate_per_sec > 0) ? (int)ceil($rem_work / $rate_per_sec) : 0;
 

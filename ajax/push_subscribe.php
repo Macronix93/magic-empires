@@ -18,6 +18,11 @@ $token = $data["keys"]["auth"];
 $db_instance->execute_query("
     INSERT INTO user_push_subscriptions (user_id, endpoint, public_key, auth_token, created_at)
     VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())
+    ON DUPLICATE KEY UPDATE 
+        user_id = VALUES(user_id),
+        public_key = VALUES(public_key), 
+        auth_token = VALUES(auth_token), 
+        created_at = UNIX_TIMESTAMP()
 ", [$uid, $endpoint, $key, $token]);
 
 echo json_encode(["success" => true]);

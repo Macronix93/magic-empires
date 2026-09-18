@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_STORAGE);
+$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_STORAGE);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];
@@ -12,6 +12,20 @@ $level = $building->get_building_level();
 $secure_percent = $level * STORAGE_SECURE_PERCENT_STEP;
 $display_percent = $secure_percent * 100;
 $example_secure_units = floor($kingdom->get_kingdom_max_food() * $secure_percent);
+
+$next_level_text = "";
+if ($level < MAX_BUILDING_LEVEL) {
+    $next_level = $level + 1;
+    $next_max = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $next_level - 1));
+    $next_display_percent = fdec($next_level * STORAGE_SECURE_PERCENT_STEP * 100);
+
+    $next_level_text = "
+        <div class='split-content' style='margin: 10px auto; width: fit-content; gap: 5px;'>
+            <div><b>Nächste Stufe:</b></div>
+            <div class='passed'>" . fnum($next_max) . " Kapazität ($next_display_percent% geschützt)</div>
+        </div>";
+}
+
 
 /*
  * HTML Content Part
@@ -46,6 +60,7 @@ $view .= "
         </span>
     </div>
 ";
+$view .= $next_level_text;
 
 /*
  * HTML Section

@@ -11,7 +11,7 @@ require_once("includes/core.php");
     "k_stone" => $kingdom_stone,
     "k_gold" => $kingdom_gold,
     "k_villager" => $kingdom_villager
-] = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_TOWNCENTER);
+] = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_TOWNCENTER);
 
 $kingdom_is_building = false;
 $kingdom_building_id = -1;

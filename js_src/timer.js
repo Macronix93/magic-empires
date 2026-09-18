@@ -169,6 +169,14 @@ function initMineProgress() {
 
     const clientStartTime = Date.now();
 
+    const formatPercent = (num) => {
+        let fixed = num.toFixed(1);
+        if (fixed.endsWith('.0')) {
+            fixed = fixed.slice(0, -2);
+        }
+        return fixed.replace('.', ',') + " %";
+    };
+
     setInterval(() => {
         const now = Date.now();
         const elapsedSec = (now - clientStartTime) / 1000;
@@ -183,7 +191,7 @@ function initMineProgress() {
             const currentWork = Math.min(workTotal, workDone + (elapsedSec * rate));
             const percent = Math.min(100, (currentWork / workTotal) * 100);
 
-            el.textContent = percent.toFixed(1).replace('.', ',') + " %";
+            el.textContent = formatPercent(percent);
 
             const cell = el.closest('td');
             if (cell) {

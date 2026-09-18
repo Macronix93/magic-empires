@@ -163,11 +163,19 @@ $view .= '<div id="live-power-container" style="display: flex; justify-content: 
                 <div class="box-container" style="max-width: 230px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Spieler</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
-                        <div title="Gesamt-Angriffswert">
-                            <img src="images/icons/icon_sword.png" class="ressource-icons" alt=""> <b id="live-atk-own">0</b>
+                        <div class="popup" id="pop_live_atk_own" style="text-align: center;">
+                            <img src="images/icons/icon_sword.png" class="ressource-icons" alt=""> 
+                            <b id="live-atk-own">0</b>
+                            <div id="pop_live_atk_own_box" class="popupbox" style="text-align:left;">
+                                <span id="live-atk-own-full">0</span>
+                            </div>
                         </div>
-                        <div title="Gesamt-Verteidigungswert">
-                            <img src="images/icons/icon_shield.png" class="ressource-icons" alt=""> <b id="live-def-own">0</b>
+                        <div class="popup" id="pop_live_def_own">
+                            <img src="images/icons/icon_shield.png" class="ressource-icons" alt=""> 
+                            <b id="live-def-own">0</b>
+                            <div id="pop_live_def_own_box" class="popupbox" style="text-align:left;">
+                                <span id="live-def-own-full">0</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -175,11 +183,19 @@ $view .= '<div id="live-power-container" style="display: flex; justify-content: 
                 <div class="box-container" style="max-width: 230px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Gegner</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
-                        <div title="Gesamt-Angriffswert">
-                            <img src="images/icons/icon_sword.png" class="ressource-icons" alt=""> <b id="live-atk-enemy">0</b>
+                        <div class="popup" id="pop_live_atk_enemy">
+                            <img src="images/icons/icon_sword.png" class="ressource-icons" alt=""> 
+                            <b id="live-atk-enemy">0</b>
+                            <div id="pop_live_atk_enemy_box" class="popupbox" style="text-align:left;">
+                                <span id="live-atk-enemy-full">0</span>
+                            </div>
                         </div>
-                        <div title="Gesamt-Verteidigungswert">
-                            <img src="images/icons/icon_shield.png" class="ressource-icons" alt=""> <b id="live-def-enemy">0</b>
+                        <div class="popup" id="pop_live_def_enemy">
+                            <img src="images/icons/icon_shield.png" class="ressource-icons" alt=""> 
+                            <b id="live-def-enemy">0</b>
+                            <div id="pop_live_def_enemy_box" class="popupbox" style="text-align:left;">
+                                <span id="live-def-enemy-full">0</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -358,7 +374,11 @@ $view .= '<div id="warsim-data"
                 data-lethality_pvp="' . LETHALITY_PVP . '"
                 data-lethality_pve="' . LETHALITY_PVE . '"
                 data-monster_dmg_clamped_max_val="' . MONSTER_DMG_CLAMPED_MAX_VAL . '"
-                data-monster_dmg_loss_exponent="' . MONSTER_DMG_LOSS_EXPONENT . '">
+                data-monster_dmg_loss_exponent="' . MONSTER_DMG_LOSS_EXPONENT . '"
+                data-wall_counter_dmg_factor="' . WALL_COUNTER_DAMAGE_FACTOR . '"
+                data-wall_absorption_mult="' . WALL_ABSORPTION_MULTIPLIER . '"
+                data-wall_normal_dmg_factor="' . WALL_NORMAL_TROOP_DAMAGE_FACTOR . '"
+                data-wall_max_normal_dmg_perc="' . WALL_MAX_NORMAL_DAMAGE_PERCENT . '">
             </div>';
 
 $monster_import = $_GET["import_monsters"] ?? "";

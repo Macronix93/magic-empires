@@ -357,18 +357,18 @@ if ($my_guild_id === -1) {
     }
 
     $guilds = $guild_logic->get_guild_list();
-    $view .= "<table class='table' style='hyphens: auto;'>
+    $view .= "<table class='table guild-list-table' style='hyphens: auto;'>
                 <colgroup>
-                    <col style='width: 32%'>
-                    <col style='width: 24%'>
-                    <col style='width: 20%'>
-                    <col style='width: 18%'>
-                    <col style='width: 6%'>
+                    <col class='guild-list-name'>
+                    <col class='guild-list-leader'>
+                    <col class='guild-list-members'>
+                    <col class='guild-list-join-type'>
+                    <col class='guild-list-join'>
                 </colgroup>
                 <tr>
                     <td class='td-gradient td-center'><b>Name</b></td>
                     <td class='td-gradient td-center'><b>Leader</b></td>
-                    <td class='td-gradient td-center'><b>Mitglieder</b></td>
+                    <td class='td-gradient td-center'><b>Mitgl.</b></td>
                     <td class='td-gradient td-center' colspan='2'><b>Beitritt</b></td>
                 </tr>";
 
@@ -509,7 +509,7 @@ if ($my_guild_id === -1) {
     $max_m = $guild_logic->get_max_members();
 
     $view .= "<div class='title-border'>Mitgliederliste ($cur_members_count / $max_m)</div>";
-    $view .= "<table class='table guild-members-table' style='max-width: 650px;'>
+    $view .= "<table class='table guild-members-table'>
             <colgroup>
                 <col>                                               <!-- Name -->
                 <col class='col-g-score' style='width: 16%;'>       <!-- Score -->
@@ -585,7 +585,7 @@ if ($my_guild_id === -1) {
 
         if ($pending->num_rows > 0) {
             $view .= "<div class='title-border' style='margin-top: 35px;'>Offene Einladungen</div>";
-            $view .= "<table class='table' style='max-width: 650px;'>
+            $view .= "<table class='table'>
                     <colgroup>
                         <col>
                         <col style='width: 35%'>
@@ -769,12 +769,12 @@ if ($my_guild_id === -1) {
     ", [$my_guild_id])->fetch_all(MYSQLI_ASSOC);
 
     if (!empty($active_mines_res)) {
-        $view .= "<table class='table' style='max-width: 650px; margin: 0 auto 20px auto;'>
+        $view .= "<table class='table guild-mining-table' style='margin: 0 auto;'>
                     <colgroup>
-                        <col style='width: 22%'>
-                        <col style='width: 26%'>
-                        <col style='width: 26%'>
-                        <col style='width: 26%'>
+                        <col class='guild-mining-table-mine'>
+                        <col class='guild-mining-table-members'>
+                        <col class='guild-mining-table-troops'>
+                        <col class='guild-mining-table-progress'>
                     </colgroup>
                     <tr>
                         <td class='td-gradient td-center'><b>Mine</b></td>
@@ -823,7 +823,7 @@ if ($my_guild_id === -1) {
                 ORDER BY mst.soldier_id
             ", [$mine_id, $my_guild_id]);
 
-            $troop_badges = "<div style='display:flex; flex-wrap:wrap; gap:3px; justify-content:center;'>";
+            $troop_badges = "<div style='display: flex; flex-wrap: wrap; gap: 3px; justify-content: center;'>";
             while ($tr = $t_res->fetch_assoc()) {
                 $troop_badges .= "
                     <div class='unit-badge' title='{$tr["soldiername"]}' style='padding: 2px 5px;'>
@@ -840,9 +840,9 @@ if ($my_guild_id === -1) {
                         </td>
                         <td class='td-center'>$members_html</td>
                         <td class='td-center'>$troop_badges</td>
-                        <td class='td-center' style='font-size: 13px;'>
-                            <b class='js-mine-progress' data-work-done='$w_done' data-work-total='$w_total' data-rate='$rate'>$percent_display %</b> abgebaut
-                            <div class='tick-progress-bg' style='height: 5px; width: 90px; margin: 8px auto;'>
+                        <td class='td-center'>
+                            <span><b class='js-mine-progress' data-work-done='$w_done' data-work-total='$w_total' data-rate='$rate'>$percent_display %</b></span>
+                            <div class='tick-progress-bg mining-progress'>
                                 <div class='tick-progress-fill js-mine-progress-bar' style='width: " . min(100, $percent_val) . "%;'></div>
                             </div>
                         </td>
@@ -1114,9 +1114,14 @@ if ($my_guild_id === -1) {
             }
 
             foreach ($special_res_types as $key => $icon_id) {
-                if (($costs[$key] ?? 0) > 0) {
+                $cost = ($costs[$key] ?? 0);
+
+                if ($cost > 0) {
+                    $current_stock = $guild_logic->get_storage_amount($key);
+                    $cost_display = get_resource_text($cost, $current_stock);
+
                     $special_res_html .= "<div class='legend-item' style='margin-right: 8px;'>"
-                        . get_resource_icon($icon_id) . " " . fnum($costs[$key])
+                        . get_resource_icon($icon_id) . " " . $cost_display
                         . "</div>";
                 }
             }

@@ -15,6 +15,8 @@ let velocityX = 0;
 let velocityY = 0;
 let lastMouseX = 0;
 let lastMouseY = 0;
+let initialMouseX = 0;
+let initialMouseY = 0;
 let lastMoveTime = 0;
 let momentumID = null;
 const friction = 0.95;
@@ -29,6 +31,8 @@ const MAX_Y = MAP_DIMENSION
 const BASE_TILE_SIZE = 60;
 let initialPinchDistance = null;
 
+let isMobileView = window.innerWidth < 600;
+
 let gameConfig = {};
 
 const COLORS = {
@@ -38,6 +42,63 @@ const COLORS = {
     4: "#dca34b", // Wüste
     5: "#78a55a"  // Hochland
 };
+
+registerAction("closeMapPopup", () => {
+    const popupBox = document.getElementById("field-popup-box");
+    if (popupBox) {
+        popupBox.style.display = "none";
+
+        selectedX = null;
+        selectedY = null;
+
+        draw();
+    }
+});
+
+function buildBiomeMapCache() {
+    const grid = {};
+    mapData.forEach(t => {
+        if (!grid[t[0]]) grid[t[0]] = {};
+        grid[t[0]][t[1]] = t[2];
+    });
+
+    const getB = (x, y, self) => (grid[x] && grid[x][y] !== undefined) ? grid[x][y] : self;
+
+    mapCache = {1: [], 2: [], 3: [], 4: []};
+
+    mapData.forEach(tile => {
+        const [x, y, fieldtype] = tile;
+        if (fieldtype === 5) return;
+
+        const n = getB(x, y - 1, fieldtype) === fieldtype;
+        const s = getB(x, y + 1, fieldtype) === fieldtype;
+        const w = getB(x - 1, y, fieldtype) === fieldtype;
+        const o = getB(x + 1, y, fieldtype) === fieldtype;
+
+        const nw = getB(x - 1, y - 1, fieldtype) === fieldtype;
+        const no = getB(x + 1, y - 1, fieldtype) === fieldtype;
+        const sw = getB(x - 1, y + 1, fieldtype) === fieldtype;
+        const so = getB(x + 1, y + 1, fieldtype) === fieldtype;
+
+        const rTL = !n && !w;
+        const rTR = !n && !o;
+        const rBR = !s && !o;
+        const rBL = !s && !w;
+
+        const inTL = n && w && !nw;
+        const inTR = n && o && !no;
+        const inBR = s && o && !so;
+        const inBL = s && w && !sw;
+
+        mapCache[fieldtype].push({
+            x: x,
+            y: y,
+            corners: [rTL, rTR, rBR, rBL],
+            edges: [!n, !s, !w, !o],
+            inners: [inTL, inTR, inBR, inBL]
+        });
+    });
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     viewport = document.getElementById("map-viewport");
@@ -73,6 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const mapCont = document.getElementById("map-container");
 
         gameConfig = JSON.parse(mapCont.dataset.config);
+        const usePopup = gameConfig.usePopup !== false;
 
         selectedX = parseInt(mapCont.dataset.startX) || 1;
         selectedY = parseInt(mapCont.dataset.startY) || 1;
@@ -119,6 +181,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasCoordsParam = urlParams.has("startx") && urlParams.has("starty");
+
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(r => r.json())
             .then(data => {
@@ -126,24 +191,36 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.activeEventInfo = data.event_info;
                 mapCache = null;
 
+                if (gameConfig.useAutoTiling) {
+                    buildBiomeMapCache();
+                }
+
                 resizeCanvas();
                 centerMapOn(selectedX, selectedY, true);
 
                 document.getElementById("map-loader").style.display = "none";
-                selectField(selectedX, selectedY, true);
 
-                if (window.innerWidth <= 1392) {
-                    const statusMsg = document.querySelector(".big-box-content > .info-box");
-                    const legend = document.getElementById("map-container");
+                if (!usePopup || hasCoordsParam) {
+                    selectField(selectedX, selectedY, true);
 
-                    const targetElement = statusMsg || legend;
-                    const yOffset = targetElement === statusMsg ? -60 : -20;
+                    if (window.innerWidth <= 1392 && !usePopup) {
+                        const statusMsg = document.querySelector(".big-box-content > .info-box");
+                        const legend = document.getElementById("map-container");
 
-                    if (targetElement) {
-                        const y = targetElement.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                        const targetElement = statusMsg || legend;
+                        const yOffset = targetElement === statusMsg ? -60 : -20;
 
-                        window.scrollTo({top: y, behavior: "smooth"});
+                        if (targetElement) {
+                            const y = targetElement.getBoundingClientRect().top + window.pageYOffset + yOffset;
+
+                            window.scrollTo({top: y, behavior: "smooth"});
+                        }
                     }
+                } else {
+                    selectedX = null;
+                    selectedY = null;
+
+                    draw();
                 }
             });
     }
@@ -151,6 +228,19 @@ document.addEventListener("DOMContentLoaded", () => {
     // Events
     document.addEventListener("click", (e) => {
         const btn = e.target.closest('[data-url*="sendtroops.php"]');
+        const mapContainer = document.getElementById("map-container");
+        const popupBox = document.getElementById("field-popup-box");
+
+        if (!popupBox || popupBox.style.display === "none") return;
+
+        if (mapContainer && !mapContainer.contains(e.target) && !e.target.closest("#onpage-overlay, #info-box-overlay")) {
+            popupBox.style.display = "none";
+
+            selectedX = null;
+            selectedY = null;
+
+            draw();
+        }
 
         if (btn) {
             sessionStorage.setItem("last_map_zoom", zoom.toString());
@@ -159,6 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
             saveCurrentFilters();
         }
     });
+
     window.addEventListener("resize", resizeCanvas);
     viewport.addEventListener("wheel", handleWheel, {passive: false});
     viewport.addEventListener("mousedown", dragStart);
@@ -169,6 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
             dragStart(e.touches[0]);
         } else if (e.touches.length === 2) {
             cancelAnimationFrame(momentumID);
+
             initialPinchDistance = Math.hypot(
                 e.touches[0].pageX - e.touches[1].pageX,
                 e.touches[0].pageY - e.touches[1].pageY
@@ -179,6 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("touchmove", (e) => {
         if (e.touches.length === 1 && isDragging) {
             if (e.cancelable) e.preventDefault();
+
             dragMove(e.touches[0]);
         } else if (e.touches.length === 2) {
             if (e.cancelable) e.preventDefault();
@@ -295,12 +388,24 @@ function applyZoomAt(newZoom, mouseX, mouseY) {
 
 function resizeCanvas() {
     const ratio = window.devicePixelRatio || 1;
+    const newWidth = viewport.offsetWidth;
+    const newHeight = viewport.offsetHeight;
 
-    canvas.width = viewport.offsetWidth * ratio;
-    canvas.height = viewport.offsetHeight * ratio;
+    const currentIsMobile = window.innerWidth < 600;
+    if (currentIsMobile !== isMobileView) {
+        isMobileView = currentIsMobile;
+        zoom = isMobileView ? 0.5 : 1.0;
 
-    canvas.style.width = viewport.offsetWidth + "px";
-    canvas.style.height = viewport.offsetHeight + "px";
+        if (selectedX && selectedY) {
+            centerMapOn(selectedX, selectedY, true);
+        }
+    }
+
+    canvas.width = newWidth * ratio;
+    canvas.height = newHeight * ratio;
+
+    canvas.style.width = newWidth + "px";
+    canvas.style.height = newHeight + "px";
 
     ctx.scale(ratio, ratio);
 
@@ -313,23 +418,90 @@ function resizeCanvas() {
     draw();
 }
 
-function draw() {
-    if (!mapData.length) return;
-
-    if (!mapCache) {
-        mapCache = {1: [], 2: [], 3: [], 4: [], 5: []};
-        mapData.forEach(tile => {
-            if (mapCache[tile[2]]) mapCache[tile[2]].push(tile);
-        });
-    }
-
-    ctx.fillStyle = "#1a120b";
+function drawAutoTiles(scaledTile) {
+    ctx.fillStyle = COLORS[5];
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const scaledTile = BASE_TILE_SIZE * zoom;
+    const size = scaledTile + 0.4;
+    const useCurves = zoom > 0.2;
+    const r = Math.max(2, Math.round(scaledTile * gameConfig.autoTilingRadius));
+    const pad = Math.round(scaledTile * gameConfig.autoTilingPadding);
 
-    const showGrid = zoom > 0.15;
-    const showIcons = zoom > 0.1;
+    [2, 4, 3, 1].forEach(type => {
+        const tiles = mapCache[type];
+        if (!tiles) return;
+
+        ctx.fillStyle = COLORS[type];
+
+        tiles.forEach(tile => {
+            const posX = (tile.x - 1) * scaledTile + currentTranslateX;
+            const posY = (tile.y - 1) * scaledTile + currentTranslateY;
+
+            if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
+
+            if (useCurves) {
+                const [cTL, cTR, cBR, cBL] = tile.corners;
+                const [edgeN, edgeS, edgeW, edgeO] = tile.edges;
+                const [inTL, inTR, inBR, inBL] = tile.inners;
+
+                const x = posX + (edgeW ? pad : 0);
+                const y = posY + (edgeN ? pad : 0);
+                const w = size - (edgeW ? pad : 0) - (edgeO ? pad : 0);
+                const h = size - (edgeN ? pad : 0) - (edgeS ? pad : 0);
+
+                ctx.beginPath();
+                ctx.roundRect(x, y, w, h, [
+                    cTL ? r : 0,
+                    cTR ? r : 0,
+                    cBR ? r : 0,
+                    cBL ? r : 0
+                ]);
+                ctx.fill();
+
+                if (inTL || inTR || inBR || inBL) {
+                    ctx.fillStyle = COLORS[5];
+
+                    if (inTL) {
+                        ctx.beginPath();
+                        ctx.moveTo(posX, posY);
+                        ctx.arc(posX, posY, pad, 0, 0.5 * Math.PI, false);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    if (inTR) {
+                        ctx.beginPath();
+                        ctx.moveTo(posX + size, posY);
+                        ctx.arc(posX + size, posY, pad, 0.5 * Math.PI, Math.PI, false);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    if (inBR) {
+                        ctx.beginPath();
+                        ctx.moveTo(posX + size, posY + size);
+                        ctx.arc(posX + size, posY + size, pad, Math.PI, 1.5 * Math.PI, false);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    if (inBL) {
+                        ctx.beginPath();
+                        ctx.moveTo(posX, posY + size);
+                        ctx.arc(posX, posY + size, pad, 1.5 * Math.PI, 2 * Math.PI, false);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+
+                    ctx.fillStyle = COLORS[type];
+                }
+            } else {
+                ctx.fillRect(posX, posY, size, size);
+            }
+        });
+    });
+}
+
+function drawNormal(scaledTile) {
+    ctx.fillStyle = "#1a120b";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     for (let type in mapCache) {
         ctx.fillStyle = COLORS[type];
@@ -348,6 +520,32 @@ function draw() {
 
         ctx.fill();
     }
+}
+
+function draw() {
+    if (!mapData.length) return;
+
+    if (!mapCache) {
+        if (gameConfig.useAutoTiling) {
+            buildBiomeMapCache();
+        } else {
+            mapCache = {1: [], 2: [], 3: [], 4: [], 5: []};
+            mapData.forEach(tile => {
+                if (mapCache[tile[2]]) mapCache[tile[2]].push(tile);
+            });
+        }
+    }
+
+    const scaledTile = BASE_TILE_SIZE * zoom;
+
+    if (gameConfig.useAutoTiling) {
+        drawAutoTiles(scaledTile);
+    } else {
+        drawNormal(scaledTile);
+    }
+
+    const showGrid = zoom > 0.15;
+    const showIcons = zoom > 0.1;
 
     if (showGrid) {
         ctx.strokeStyle = "rgba(0,0,0,0.1)";
@@ -453,7 +651,7 @@ function draw() {
             } else if (kid > 0) {
                 const isOwn = (owner_id === gameConfig.currentKingdom.ownerId);
                 const isAlly = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId === gameConfig.currentKingdom.guildId);
-                const isEnemyGuild = (enemyGuildId !== -1 && enemyGuildId !== gameConfig.currentKingdom.guildId);
+                const isEnemyGuild = (gameConfig.currentKingdom.guildId > 0 && enemyGuildId !== -1 && enemyGuildId !== gameConfig.currentKingdom.guildId);
 
                 if (isOwn) {
                     ctx.fillStyle = "rgba(11, 218, 81, 0.4)";
@@ -596,6 +794,10 @@ function dragStart(e) {
 
     isDragging = true;
     wasDragged = false;
+
+    initialMouseX = e.pageX;
+    initialMouseY = e.pageY;
+
     startX = e.pageX - currentTranslateX;
     startY = e.pageY - currentTranslateY;
     lastMouseX = e.pageX;
@@ -607,11 +809,19 @@ function dragMove(e) {
     if (!isDragging) return;
     const now = Date.now();
 
-    const moveX = Math.abs(e.pageX - (startX + currentTranslateX));
-    const moveY = Math.abs(e.pageY - (startY + currentTranslateY));
+    const moveX = Math.abs(e.pageX - initialMouseX);
+    const moveY = Math.abs(e.pageY - initialMouseY);
 
-    if (moveX > 2 || moveY > 2) {
+    if (!wasDragged && (moveX > 2 || moveY > 2)) {
         wasDragged = true;
+
+        const popupBox = document.getElementById("field-popup-box");
+        if (popupBox && popupBox.style.display !== "none") {
+            popupBox.style.display = "none";
+
+            selectedX = null;
+            selectedY = null;
+        }
     }
 
     velocityX = e.pageX - lastMouseX;
@@ -673,6 +883,7 @@ function selectField(x, y, shouldCenter = false) {
 
     selectedX = x;
     selectedY = y;
+
     draw();
 
     if (shouldCenter) centerMapOn(x, y);
@@ -774,7 +985,6 @@ function selectField(x, y, shouldCenter = false) {
         const myGid = gameConfig.currentKingdom.guildId;
         const isMyGuild = (myGid > 0 && enemyGuildId === myGid);
         const isMineFree = (ownerId === 0 && enemyGuildId === -1);
-        const isEnemy = (!isMineFree && !isMyGuild && ownerId !== gameConfig.currentKingdom.ownerId);
 
         const mInfo = tile[16] || {};
         const wDone = mInfo.w_done || 0;
@@ -815,7 +1025,7 @@ function selectField(x, y, shouldCenter = false) {
         if (showProgress) {
             html += `<tr><td class="td-mapinfo"><b>Abbau-Fortschritt</b></td><td>
                         <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px;">
-                            <span>${percent}% abgebaut</span>
+                            <span>${percent}%</span>
                             ${timerRow}
                         </div>
                         <div class="tick-progress-bg" style="height: 8px;">
@@ -843,16 +1053,16 @@ function selectField(x, y, shouldCenter = false) {
         } else {
             const isFull = (curTroops >= maxTroops && isFriendly);
 
-            let actionBtnText = "Abbauen";
+            let actionBtnText;
             let actionUrl = `sendtroops.php?x=${tx}&y=${ty}`;
 
-            if (isMyGuild) {
+            if (myTroops > 0 || isMyGuild) {
                 actionBtnText = "Helfen";
-            } else if (isEnemy) {
-                actionBtnText = "Mine angreifen";
             } else if (scoutCount > 0 && otherTroopsCount === 0) {
                 actionBtnText = "Spionieren";
                 actionUrl += `&mode=spy`;
+            } else {
+                actionBtnText = "Abbauen";
             }
 
             let mineBtnDisabled = btnDisabled;
@@ -992,15 +1202,61 @@ function selectField(x, y, shouldCenter = false) {
         html += `</table>`;
     }
 
-    document.getElementById("field-info").innerHTML = html;
-
+    const usePopup = gameConfig.usePopup !== false;
+    const popupBox = document.getElementById("field-popup-box");
     const fieldInfoEl = document.getElementById("field-info");
-    if (fieldInfoEl) {
-        fieldInfoEl.innerHTML = html;
 
-        if (typeof initAutomaticCountdowns === "function") {
-            initAutomaticCountdowns();
+    if (usePopup) {
+        if (fieldInfoEl) fieldInfoEl.style.display = "none";
+
+        if (popupBox) {
+            const closeBtnHtml = `<button type="button" class="map-popup-close-btn" data-on-click="closeMapPopup" title="Schließen">&times;</button>`;
+            popupBox.innerHTML = closeBtnHtml + html;
+            popupBox.style.display = "block";
+
+            const scaledTile = BASE_TILE_SIZE * zoom;
+            const tileScreenX = (tx - 1) * scaledTile + currentTranslateX;
+            const tileScreenY = (ty - 1) * scaledTile + currentTranslateY;
+
+            const containerWidth = viewport.offsetWidth;
+            const containerHeight = viewport.offsetHeight;
+
+            const popupWidth = popupBox.offsetWidth;
+            const popupHeight = popupBox.offsetHeight;
+
+            let posX = tileScreenX + (scaledTile / 2) - (popupWidth / 2);
+            let posY = tileScreenY + scaledTile + 8;
+
+            if (posY + popupHeight > containerHeight - 10) {
+                posY = tileScreenY - popupHeight - 8;
+            }
+            if (posY < 10) {
+                posY = 10;
+            }
+            if (posX + popupWidth > containerWidth - 10) {
+                posX = containerWidth - popupWidth - 10;
+            }
+            if (posX < 10) {
+                posX = 10;
+            }
+
+            popupBox.style.left = posX + "px";
+            popupBox.style.top = posY + "px";
         }
+    } else {
+        if (popupBox) popupBox.style.display = "none";
+
+        if (fieldInfoEl) {
+            fieldInfoEl.style.display = "block";
+            fieldInfoEl.innerHTML = html;
+        }
+    }
+
+    if (typeof initAutomaticCountdowns === "function") {
+        initAutomaticCountdowns();
+    }
+    if (typeof setup === "function") {
+        setup();
     }
 
     draw();
@@ -1023,7 +1279,7 @@ function drawPath(scaledTile) {
     ctx.setLineDash([]);
 }
 
-function centerMapOn(x, y, immediate = false) {
+function centerMapOn(x, y, immediate = false, onComplete = null) {
     const scaledTile = BASE_TILE_SIZE * zoom;
     const scaledSize = scaledTile * MAP_DIMENSION;
 
@@ -1053,6 +1309,7 @@ function centerMapOn(x, y, immediate = false) {
 
         clampMapPosition();
         draw();
+        if (onComplete) onComplete();
         return;
     }
 
@@ -1066,6 +1323,7 @@ function centerMapOn(x, y, immediate = false) {
 
             clampMapPosition();
             draw();
+            if (onComplete) onComplete();
             return;
         }
 
@@ -1099,7 +1357,9 @@ function updateCenterCoords() {
 }
 
 function formatTimeJS(s, showSeconds = true) {
-    if (s <= 0) return "0s";
+    s = parseInt(s);
+    if (isNaN(s) || s <= 0) return "0s";
+
     const d = Math.floor(s / 86400);
     const h = Math.floor((s % 86400) / 3600);
     const m = Math.floor((s % 3600) / 60);
@@ -1109,9 +1369,12 @@ function formatTimeJS(s, showSeconds = true) {
     if (d > 0) parts.push(d + "T");
     if (h > 0) parts.push(h + " Std.");
     if (m > 0) parts.push(m + " Min.");
-    if (showSeconds && (sec > 0 || parts.length === 0)) parts.push(sec + " Sek.");
 
-    return parts.join(" ");
+    if ((showSeconds && sec > 0) || parts.length === 0) {
+        parts.push(sec + " Sek.");
+    }
+
+    return parts.length > 0 ? parts.join(" ") : "0s";
 }
 
 function calculatePathLocal(sx, sy, ex, ey) {
@@ -1199,7 +1462,9 @@ function jumpTo(x, y) {
             return;
         }
 
-        selectField(x, y, true);
+        centerMapOn(x, y, false, () => {
+            selectField(x, y, false);
+        });
     }
 }
 

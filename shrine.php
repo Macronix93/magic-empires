@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_SHRINE);
+$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_SHRINE);
 $current_kingdom = $result['current_kingdom'];
 $kingdom = $result['kingdom'];
 $building = $result['building'];

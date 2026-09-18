@@ -26,6 +26,7 @@ $stats_query = "
         (SELECT COUNT(*) FROM map WHERE kingdomid > 0) as occupied_fields,
         (SELECT COUNT(*) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as resource_tiles,
         (SELECT COUNT(*) FROM monster_camps WHERE expires_at > UNIX_TIMESTAMP()) as monster_camps,
+        (SELECT COUNT(*) FROM mines WHERE expires_at > UNIX_TIMESTAMP()) as active_mines,
         
         -- Military
         ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers) + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)) as total_soldiers,
@@ -144,7 +145,7 @@ $view = "
                 <div class='split-content'><span>📜 Forschung:</span> <b>" . fnum($score_techs) . " <small style='opacity: 0.7;'>($perc_t %)</small></b></div>
                 <div class='split-content'><span>⚔️ Armee:</span> <b>" . fnum($score_troops) . " <small style='opacity: 0.7;'>($perc_u %)</small></b></div>
                 <div class='split-content' style='margin-top: 18px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1);'>
-                    <span>Gesamtpunkte:</span> <b class='passed'>" . fnum($score_buildings + $score_techs + $score_troops) . "</b>
+                    <span>Gesamtpunkte:</span> <b class='passed'>" . fnum($score_buildings + $score_techs + $score_troops, true) . "</b>
                 </div>") . "
             </div>
 
@@ -159,20 +160,20 @@ $view = "
                 <div class='split-content'><span>Angebote:</span> <b>" . fnum($stats["market_volume"]) . " Res.</b></div>
                 
                 <div style='margin-top: 15px;'>
-                    <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Exportiert (Gesendet):</div>
+                    <div class='stats-import-export'>Exportiert (Gesendet):</div>
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;'>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_sent_food']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_sent_wood']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_sent_stone']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_sent_gold']) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " <span>" . fnum($my_stats["trade_sent_food"]) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " <span>" . fnum($my_stats["trade_sent_wood"]) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>" . fnum($my_stats["trade_sent_stone"]) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>" . fnum($my_stats["trade_sent_gold"]) . "</span></div>
                     </div>
                     
-                    <div style='font-size: 14px; opacity: 0.8; margin-bottom: 8px;'>Importiert (Erhalten):</div>
+                    <div class='stats-import-export'>Importiert (Erhalten):</div>
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px;'>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(0) . " <span>" . fnum($my_stats['trade_received_food']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(1) . " <span>" . fnum($my_stats['trade_received_wood']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(2) . " <span>" . fnum($my_stats['trade_received_stone']) . "</span></div>
-                        <div style='display: flex; align-items: center; gap: 8px;' class='trade-grid-item'> " . get_resource_icon(3) . " <span>" . fnum($my_stats['trade_received_gold']) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " <span>" . fnum($my_stats["trade_received_food"]) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " <span>" . fnum($my_stats["trade_received_wood"]) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>" . fnum($my_stats["trade_received_stone"]) . "</span></div>
+                        <div class='trade-grid-item'> " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>" . fnum($my_stats["trade_received_gold"]) . "</span></div>
                     </div>
                 </div>
             </div>
@@ -211,24 +212,25 @@ $view = "
         <div class='box-header'>Globale Entwicklung</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <div class='split-content'><span>Besiedelte Fläche:</span> <b>" . fdec($map_percentage, 2) . " %</b></div>
-            <div class='split-content'><span>Königreiche:</span> <b>{$stats['occupied_fields']}</b></div>
-            <div class='split-content'><span>Vorratslager (Karte):</span> <b>{$stats['resource_tiles']}</b></div>
-            <div class='split-content'><span>Monstercamps (Karte):</span> <b>{$stats['monster_camps']}</b></div>
-            <div class='split-content'><span>Ø Gebäude-Stufe:</span> <b>" . fdec($stats['avg_building_lvl']) . "</b></div>
-            <div class='split-content'><span>Erforschte Tech-Stufen:</span> <b>" . fnum($stats['total_tech_lvls']) . "</b></div>
+            <div class='split-content'><span>Königreiche:</span> <b>{$stats["occupied_fields"]}</b></div>
+            <div class='split-content'><span>Vorratslager:</span> <b>{$stats["resource_tiles"]}</b></div>
+            <div class='split-content'><span>Monstercamps:</span> <b>{$stats["monster_camps"]}</b></div>
+            <div class='split-content'><span>Erzminen:</span> <b>{$stats["active_mines"]}</b></div>
+            <div class='split-content'><span>Ø Gebäude-Stufe:</span> <b>" . fdec($stats["avg_building_lvl"]) . "</b></div>
+            <div class='split-content'><span>Erforschte Tech-Stufen:</span> <b>" . fnum($stats["total_tech_lvls"]) . "</b></div>
             <hr>
             <div style='text-align:center; margin-bottom: 5px;'><b>Militär</b></div>
-            <div class='split-content'><span>Truppen:</span> <b>" . fnum($stats['total_soldiers']) . "</b></div>
-            <div class='split-content'><span>Gefallene Truppen:</span> <b>" . fnum($stats['total_fallen']) . "</b></div>
-            <div class='split-content'><span>Besiegte Monster:</span> <b>" . fnum($stats['total_monsters_slain']) . "</b></div> 
-            <div class='split-content'><span>Schlachten:</span> <b>" . fnum($stats['total_battles']) . "</b></div>
+            <div class='split-content'><span>Truppen:</span> <b>" . fnum($stats["total_soldiers"]) . "</b></div>
+            <div class='split-content'><span>Gefallene Truppen:</span> <b>" . fnum($stats["total_fallen"]) . "</b></div>
+            <div class='split-content'><span>Besiegte Monster:</span> <b>" . fnum($stats["total_monsters_slain"]) . "</b></div> 
+            <div class='split-content'><span>Schlachten:</span> <b>" . fnum($stats["total_battles"]) . "</b></div>
         </div>
     </div>
     <div class='box-container' style='width: 310px;'>
         <div class='box-header'>Server-Statistiken</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
-            <div class='split-content'><span>Registrierte Nutzer:</span> <b>{$stats['total_users']}</b></div>
-            <div class='split-content'><span>Aktive Nutzer (24h):</span> <b>{$stats['active_users_24h']}</b></div>
+            <div class='split-content'><span>Registrierte Nutzer:</span> <b>{$stats["total_users"]}</b></div>
+            <div class='split-content'><span>Aktive Nutzer (24h):</span> <b>{$stats["active_users_24h"]}</b></div>
             <div class='split-content'><span>Gesamtbevölkerung:</span> <b>" . fnum($stats["total_pop"]) . "</b></div>
             <div class='split-content'><span>Privatnachrichten:</span> <b>" . fnum($stats["total_msgs"]) . "</b></div>
         </div>

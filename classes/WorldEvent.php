@@ -247,7 +247,17 @@ class WorldEvent
         );
         $msg .= "</div>";
 
-        broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
+        $users = broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
+
+        foreach ($users as $u) {
+            send_user_push(
+                (int)$u["id"],
+                "👹 Weltenboss gesichtet: " . $monster["name"],
+                "Ein mächtiger Gegner ist im Auge des Sturms erschienen!",
+                "events",
+                "events.php"
+            );
+        }
     }
 
     public function broadcast_defeat_notification(int $event_id): void
@@ -267,7 +277,17 @@ class WorldEvent
         $msg .= BattleReportRenderer::render_outcome_box($title, $text, 0, 0, "", "success");
         $msg .= "</div>";
 
-        broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
+        $users = broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
+
+        foreach ($users as $u) {
+            send_user_push(
+                (int)$u["id"],
+                "🏆 Weltenboss besiegt!",
+                "Das Monster " . $monster["name"] . " wurde von den Spielern bezwungen!",
+                "events",
+                "events.php"
+            );
+        }
     }
 
     public function get_last_event_type(): ?string

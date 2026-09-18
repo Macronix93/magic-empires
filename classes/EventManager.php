@@ -26,9 +26,24 @@ class EventManager
             SELECT e.* 
             FROM events e
             LEFT JOIN kingdoms k ON e.targetid = k.id
-            WHERE (e.userid = ? OR k.userid = ? OR (e.guild_id > 0 AND e.guild_id = (SELECT guildid FROM users WHERE id = ? LIMIT 1)))
+            WHERE (
+                e.userid = ? 
+                    OR k.userid = ? 
+                    OR (e.guild_id > 0 AND e.guild_id = (SELECT guildid FROM users WHERE id = ? LIMIT 1))
+                    OR (
+                        e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
+                        AND EXISTS (
+                            SELECT 1 
+                            FROM mines mn 
+                            JOIN mine_stationed_troops mst ON mn.id = mst.mine_id 
+                            WHERE mn.mapx = e.targetx 
+                                AND mn.mapy = e.targety 
+                                AND mst.user_id = ?
+                    )
+                )
+            )
         ";
-        $result = $this->mysqli->execute_query($query, [$uid, $uid, $uid]);
+        $result = $this->mysqli->execute_query($query, [$uid, $uid, $uid, $uid]);
 
         foreach ($result as $row) {
             $is_due = false;
@@ -653,9 +668,10 @@ class EventManager
             $now = time();
 
             $defenders = $this->mysqli->execute_query("
-                SELECT mst.*, u.username, sl.soldiername, sl.icon, sl.attack, sl.defense, IFNULL(sl.category, 0) AS category
+                SELECT mst.*, u.username, k.kingdomname, sl.soldiername, sl.icon, sl.attack, sl.defense, IFNULL(sl.category, 0) AS category
                 FROM mine_stationed_troops mst
                 JOIN users u ON mst.user_id = u.id
+                JOIN kingdoms k ON mst.kingdom_id = k.id
                 JOIN soldier_list sl ON mst.soldier_id = sl.id
                 WHERE mst.mine_id = ?
             ", [$mine_id])->fetch_all(MYSQLI_ASSOC);
@@ -666,35 +682,201 @@ class EventManager
 
             // PEACEFUL ARRIVAL
             if ($is_mine_empty || $same_guild || $same_user) {
+                $max_capacity = (int)$mine["max_troops"];
+
+                $current_troops_count = (int)$this->mysqli->execute_query(
+                    "SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE mine_id = ?",
+                    [$mine_id]
+                )->fetch_column();
+
+                $free_space = max(0, $max_capacity - $current_troops_count);
+
                 $res_sent = $this->mysqli->execute_query("
-                    SELECT st.soldierid, st.soldiercount, sl.attack 
+                    SELECT st.soldierid, st.soldiercount, sl.attack, sl.soldiername, sl.icon 
                     FROM sent_troops st 
                     JOIN soldier_list sl ON st.soldierid = sl.id 
-                    WHERE st.eventid = ?", [$event_id]);
+                    WHERE st.eventid = ?", [$event_id]
+                );
+                $incoming_troops = $res_sent->fetch_all(MYSQLI_ASSOC);
 
-                $insert_batch = [];
-                while ($t = $res_sent->fetch_assoc()) {
-                    $insert_batch[] = "($mine_id, $attacker_id, " . (int)$row["kingdomid"] . ", " . (int)$t["soldierid"] . ", " . (int)$t["soldiercount"] . ", " . (int)$t["attack"] . ", $now)";
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $src_k = new Kingdom((int)$row["kingdomid"]);
+                $src_kname = e($src_k->get_kingdom_name());
+                $sx = $src_k->get_kingdom_map_x();
+                $sy = $src_k->get_kingdom_map_y();
+                $h_link = "<a href='map.php?startx=$sx&starty=$sy' data-on-click='mapJump' data-x='$sx' data-y='$sy'>$sx:$sy</a>";
+
+                if ($free_space <= 0 && !$is_mine_empty) {
+                    $this->mysqli->execute_query(
+                        "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                        [ActionTypes::ACTION_RETURN_TROOPS, $now + $return_time, $event_id]
+                    );
+
+                    $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
+                    foreach ($incoming_troops as $u) {
+                        $units_html .= BattleReportRenderer::render_unit_card($u["soldiername"], (int)$u["soldiercount"], 0, $u["icon"], true);
+                    }
+                    $units_html .= "</div>";
+
+                    $msg_text = "Deine Truppen haben die <b>Mine</b> ($c_link) erreicht. Da die Kapazität von <b>$max_capacity Einheiten</b> jedoch bereits vollständig belegt ist, konnten sie nicht schürfen und haben sofort den Rückmarsch nach <b>$src_kname</b> angetreten.$units_html";
+
+                    send_server_message($attacker_id, $attacker_name, "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Minen-Kapazität erschöpft",
+                            $msg_text,
+                            0, 0, "Die Einheiten kehren ohne Beute zurück.", "error"
+                        ) . "</div>", MessageCategories::CATEGORY_WAR);
+
+                    send_user_push(
+                        $attacker_id,
+                        "⛏️ Mine voll!",
+                        "Deine Truppen konnten die Mine bei ($tx:$ty) nicht betreten, da sie voll ist.",
+                        "troops",
+                        "overview.php"
+                    );
+
+                    return;
                 }
 
+                $troops_to_station = [];
+                $troops_to_return = [];
+                $remaining_slots = $free_space;
+
+                foreach ($incoming_troops as $t) {
+                    $cnt = (int)$t["soldiercount"];
+                    $sid = (int)$t["soldierid"];
+                    $atk = (int)$t["attack"];
+
+                    if ($remaining_slots > 0) {
+                        $take = min($cnt, $remaining_slots);
+                        $overflow = $cnt - $take;
+
+                        $troops_to_station[] = [
+                            "soldierid" => $sid,
+                            "soldiercount" => $take,
+                            "attack" => $atk,
+                            "soldiername" => $t["soldiername"],
+                            "icon" => $t["icon"]
+                        ];
+                        $remaining_slots -= $take;
+
+                        if ($overflow > 0) {
+                            $troops_to_return[] = [
+                                "soldierid" => $sid,
+                                "soldiercount" => $overflow,
+                                "soldiername" => $t["soldiername"],
+                                "icon" => $t["icon"]
+                            ];
+                        }
+                    } else {
+                        $troops_to_return[] = [
+                            "soldierid" => $sid,
+                            "soldiercount" => $cnt,
+                            "soldiername" => $t["soldiername"],
+                            "icon" => $t["icon"]
+                        ];
+                    }
+                }
+
+                $last_update = (int)($mine["last_update"] ?: $now);
+                $elapsed = max(0, $now - $last_update);
+                if ($elapsed > 0 && !$is_mine_empty) {
+                    $cur_atk = (float)$this->mysqli->execute_query(
+                        "SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?",
+                        [$mine_id]
+                    )->fetch_column();
+
+                    if ($cur_atk > 0) {
+                        $work_total = (float)$mine["work_total"];
+                        $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
+                        $effective_rate = min($cur_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+                        $work_delta = $effective_rate * $elapsed;
+
+                        $this->mysqli->execute_query("
+                            UPDATE mine_stationed_troops 
+                            SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
+                            WHERE mine_id = ?
+                        ", [$work_delta, $cur_atk, $mine_id]);
+
+                        $this->mysqli->execute_query(
+                            "UPDATE mines SET work_done = work_done + ?, last_update = ? WHERE id = ?",
+                            [$work_delta, $now, $mine_id]
+                        );
+                    }
+                }
+
+                $insert_batch = [];
+                foreach ($troops_to_station as $ts) {
+                    $insert_batch[] = "($mine_id, $attacker_id, " . (int)$row["kingdomid"] . ", {$ts["soldierid"]}, {$ts["soldiercount"]}, {$ts["attack"]}, $now)";
+                }
                 if (!empty($insert_batch)) {
                     $this->mysqli->query("INSERT INTO mine_stationed_troops (mine_id, user_id, kingdom_id, soldier_id, soldiercount, unit_atk, arrived_at) VALUES " . implode(',', $insert_batch));
                 }
 
                 if ($is_mine_empty) {
-                    $this->mysqli->execute_query("UPDATE mines SET claimed_guild_id = ?, claimed_user_id = ?, last_update = ? WHERE id = ?",
-                        [$attacker_guild_id > 0 ? $attacker_guild_id : null, $attacker_id, $now, $mine_id]);
+                    $this->mysqli->execute_query(
+                        "UPDATE mines SET claimed_guild_id = ?, claimed_user_id = ?, last_update = ? WHERE id = ?",
+                        [$attacker_guild_id > 0 ? $attacker_guild_id : null, $attacker_id, $now, $mine_id]
+                    );
                 }
 
                 $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+                if (empty($troops_to_return)) {
+                    $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
 
-                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-                send_server_message($attacker_id, $attacker_name, "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                        "Schürfarbeiten begonnen",
-                        "Deine Truppen haben die <b>Mine</b> ($c_link) erreicht und bauen nun Ressourcen ab.",
-                        0, 0, "", "success"
-                    ) . "</div>", MessageCategories::CATEGORY_WAR);
+                    $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
+                    foreach ($troops_to_station as $u) {
+                        $units_html .= BattleReportRenderer::render_unit_card($u["soldiername"], (int)$u["soldiercount"], 0, $u["icon"], true);
+                    }
+                    $units_html .= "</div>";
+
+                    $msg_text = "Deine Truppen aus <b>$src_kname</b> ($h_link) haben die <b>Mine</b> ($c_link) erreicht und bauen nun Ressourcen ab.$units_html";
+
+                    send_server_message($attacker_id, $attacker_name, "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Schürfarbeiten begonnen",
+                            $msg_text,
+                            0, 0, "", "success"
+                        ) . "</div>", MessageCategories::CATEGORY_WAR);
+
+                } else {
+                    $return_batch = [];
+                    foreach ($troops_to_return as $tr) {
+                        $return_batch[] = "($event_id, {$tr["soldierid"]}, {$tr["soldiercount"]}, {$tr["soldiercount"]}, " . (int)$row["kingdomid"] . ")";
+                    }
+                    if (!empty($return_batch)) {
+                        $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $return_batch));
+                    }
+
+                    $this->mysqli->execute_query(
+                        "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                        [ActionTypes::ACTION_RETURN_TROOPS, $now + $return_time, $event_id]
+                    );
+
+                    $stationed_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; justify-content: center;'>";
+                    foreach ($troops_to_station as $ts) {
+                        $stationed_html .= BattleReportRenderer::render_unit_card($ts["soldiername"], (int)$ts["soldiercount"], 0, $ts["icon"], true);
+                    }
+                    $stationed_html .= "</div>";
+
+                    $return_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; justify-content: center;'>";
+                    foreach ($troops_to_return as $tr) {
+                        $return_html .= BattleReportRenderer::render_unit_card($tr["soldiername"], (int)$tr["soldiercount"], 0, $tr["icon"], true);
+                    }
+                    $return_html .= "</div>";
+
+                    $total_stationed = array_sum(array_column($troops_to_station, "soldiercount"));
+                    $total_returned = array_sum(array_column($troops_to_return, "soldiercount"));
+
+                    $msg_text = "Deine Truppen haben die <b>Mine</b> ($c_link) erreicht. Da die Mine fast voll war, 
+                                 konnten nur <b>$total_stationed Einheiten</b> den Abbau aufnehmen.<br>Die restlichen <b>$total_returned Einheiten</b> befinden sich auf dem Rückmarsch nach <b>$src_kname</b>.<br>"
+                        . "<div class='report-section-title' style='margin-top: 15px;'>Eingesetzte Schürfer</div>" . $stationed_html
+                        . "<div class='report-section-title' style='margin-top: 15px;'>Rückkehrende Einheiten</div>" . $return_html;
+
+                    send_server_message($attacker_id, $attacker_name, "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Mine teilweise belegt",
+                            $msg_text
+                        ) . "</div>", MessageCategories::CATEGORY_WAR);
+                }
+
                 return;
             }
 
@@ -851,6 +1033,9 @@ class EventManager
             $attacker_wins = ($atk_power > $def_power);
             $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
 
+            $def_k_names = array_unique(array_filter(array_column($defenders, "kingdomname")));
+            $def_list = !empty($def_k_names) ? e(implode(", ", $def_k_names)) : "Unbekannt";
+
             if ($attacker_wins) {
                 // ATTACKER WINS - MINE OVERTAKEN
                 $def_groups = [];
@@ -888,11 +1073,19 @@ class EventManager
                     $msg_def .= BattleReportRenderer::render_vs_grid($def_cards, $atk_cards, "Deine Minen-Truppen", "Übermacht von " . e($attacker_name));
                     $msg_def .= BattleReportRenderer::render_outcome_box(
                         "Aus Mine vertrieben!",
-                        "Deine Truppen wurden bei $c_link von einer feindlichen Streitmacht vertrieben! Sie mussten die Mine fluchtartig ohne Beute verlassen.",
+                        "Deine Truppen wurden aus der <b>Mine</b> ($c_link) von einer feindlichen Streitmacht vertrieben! Sie mussten diese fluchtartig ohne Beute verlassen.",
                         0, 0, "Die Truppen kehren unversehrt heim.", "error"
                     );
                     $msg_def .= "</div>";
                     send_server_message($dg["user_id"], $dg["username"], $msg_def, MessageCategories::CATEGORY_WAR);
+
+                    send_user_push(
+                        (int)$dg["user_id"],
+                        "⚔️ Mine verloren!",
+                        "Deine Schürfer in der Erzmine bei ($tx:$ty) wurden von $attacker_name vertrieben!",
+                        "combat",
+                        "map.php?startx=$tx&starty=$ty"
+                    );
                 }
 
                 $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id]);
@@ -917,7 +1110,7 @@ class EventManager
                 $msg_atk .= BattleReportRenderer::render_vs_grid($atk_cards, $def_cards, "Deine Streitmacht", "Vertriebene Besatzung");
                 $msg_atk .= BattleReportRenderer::render_outcome_box(
                     "Mine erobert!",
-                    "Deine Truppen haben die <b>Mine</b> ($c_link) erfolgreich eingenommen und bauen die restlichen Rohstoffe ab!",
+                    "Deine Truppen haben die <b>Mine</b> ($c_link) von <b>$def_list</b> erfolgreich eingenommen und bauen die restlichen Rohstoffe ab!",
                     0, 0, "", "success"
                 );
                 $msg_atk .= "</div>";
@@ -937,7 +1130,7 @@ class EventManager
                 $msg_atk .= BattleReportRenderer::render_vs_grid($atk_cards, $def_cards, "Deine Streitmacht", "Minen-Besatzung");
                 $msg_atk .= BattleReportRenderer::render_outcome_box(
                     "Angriff abgewehrt",
-                    "Die Verteidiger der Mine bei $c_link waren überlegen. Deine Truppen wurden kampflos zurückgedrängt.",
+                    "Die Verteidiger <b>$def_list</b> der Mine bei $c_link waren überlegen. Deine Truppen wurden kampflos zurückgedrängt.",
                     0, 0, "", "error"
                 );
                 $msg_atk .= "</div>";
@@ -948,7 +1141,7 @@ class EventManager
                     $dname = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$duid])->fetch_column();
 
                     $msg_def = "<div class='battle-report'>";
-                    $msg_def .= BattleReportRenderer::render_vs_grid($def_cards, $atk_cards, "Deine Minen-Truppen", "Abgewehrter Angreifer (" . e($attacker_name) . ")");
+                    $msg_def .= BattleReportRenderer::render_vs_grid($def_cards, $atk_cards, "Deine Minen-Truppen", "Abgewehrt (" . e($attacker_name) . ")");
                     $msg_def .= BattleReportRenderer::render_outcome_box(
                         "Mine verteidigt!",
                         "Ein Übernahmeversuch von <b>" . e($attacker_name) . "</b> bei $c_link wurde erfolgreich abgewehrt. Der Abbau geht ungehindert weiter!",
@@ -956,6 +1149,14 @@ class EventManager
                     );
                     $msg_def .= "</div>";
                     send_server_message($duid, $dname, $msg_def, MessageCategories::CATEGORY_WAR);
+
+                    send_user_push(
+                        (int)$duid,
+                        "🛡️ Mine verteidigt!",
+                        "Ein Angriff von $attacker_name auf deine Erzmine bei ($tx:$ty) wurde erfolgreich abgewehrt!",
+                        "combat",
+                        "map.php?startx=$tx&starty=$ty"
+                    );
                 }
 
                 Logger::get_instance()->log_game("COMBAT", "MINE_DEFENDED", [
@@ -1264,18 +1465,28 @@ class EventManager
         }
 
         // Send push message
-        $has_loot = !empty($loot);
-        $return_text = $has_loot
-            ? "Deine Truppen sind mit Beute nach $home_name zurückgekehrt!"
-            : "Deine Einheiten sind wohlbehalten nach $home_name zurückgekehrt.";
+        if ((int)$row["targetid"] === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
+            send_user_push(
+                $owner_id,
+                "👹 Weltevent: Truppen zurückgekehrt",
+                "Deine Truppen sind aus dem Auge des Sturms zurückgekehrt und stehen für einen weiteren Angriff bereit!",
+                "events",
+                "events.php"
+            );
+        } else {
+            $has_loot = !empty($loot);
+            $return_text = $has_loot
+                ? "Deine Truppen sind mit Beute nach $home_name zurückgekehrt!"
+                : "Deine Einheiten sind wohlbehalten nach $home_name zurückgekehrt.";
 
-        send_user_push(
-            $owner_id,
-            "🛡️ Heimkehr: $home_name",
-            $return_text,
-            "troops",
-            "overview.php"
-        );
+            send_user_push(
+                $owner_id,
+                "🛡️ Heimkehr: $home_name",
+                $return_text,
+                "troops",
+                "overview.php"
+            );
+        }
 
         // Cleanup
         $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
@@ -1443,13 +1654,22 @@ class EventManager
         $target_y = $row["targety"];
         $uid = $attacker_user->get_user_id();
 
-        $check_field = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ? FOR UPDATE",
-            [$target_x, $target_y])->fetch_assoc();
+        $check_field = $this->mysqli->execute_query("
+            SELECT m.kingdomid, ft.fieldname 
+            FROM map m 
+            JOIN field_types ft ON m.fieldtype = ft.fieldid 
+            WHERE m.mapx = ? AND m.mapy = ? FOR UPDATE",
+            [$target_x, $target_y]
+        )->fetch_assoc();
+
+        $field_name = $check_field["fieldname"] ?? "Unbekannt";
+        $c_link = "<a href='map.php?startx=$target_x&starty=$target_y' data-on-click='mapJump' data-x='$target_x' data-y='$target_y'>$target_x:$target_y</a>";
+        $location_str = "$c_link <b>(" . e($field_name) . ")</b>";
 
         if (!$check_field || (int)$check_field["kingdomid"] !== MapFieldTypes::MAP_FIELD_EMPTY) {
             $message .= BattleReportRenderer::render_outcome_box(
                 "Gründung abgebrochen",
-                "Bei der Ankunft mussten unsere Siedler feststellen, dass das Land nicht mehr frei ist.",
+                "Bei der Ankunft bei $location_str mussten unsere Siedler feststellen, dass das Land nicht mehr frei ist.",
                 0, 0,
                 "In der Zwischenzeit hat sich dort etwas anderes niedergelassen. Die Truppen kehren um.",
                 "error"
@@ -1470,7 +1690,7 @@ class EventManager
         if ($current_count >= $limit) {
             $message .= BattleReportRenderer::render_outcome_box(
                 "Gründung untersagt",
-                "Deine Siedler sind bereit, das Banner zu hissen, aber deine Verwaltung meldet: <b>Limit erreicht!</b>",
+                "Deine Siedler sind bei $location_str bereit, das Banner zu hissen, aber deine Verwaltung meldet: <b>Limit erreicht!</b>",
                 0, 0,
                 "Das Imperium kann derzeit keine weiteren Königreiche verwalten. Die Truppen kehren um.",
                 "error"
@@ -1504,7 +1724,7 @@ class EventManager
 
                     $this->mysqli->execute_query(
                         "UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?",
-                        [$wagon_score, $wagon_score, $uid]
+                        [$wagon_score, $uid]
                     );
 
                     if ($wagon_count > 1) {
@@ -1521,7 +1741,7 @@ class EventManager
 
                     $founded_name = $new_kingdom_obj->get_kingdom_name();
 
-                    $atk_main = "<b>Erfolg!</b> Unsere Siedler haben fruchtbares Land erschlossen.";
+                    $atk_main = "<b>Erfolg!</b> Unsere Siedler haben bei $location_str fruchtbares Land erschlossen.";
                     $atk_sub = "Das neue Königreich <b>" . e($founded_name) . "</b> wurde erfolgreich gegründet und steht nun unter deinem Banner. Die restlichen Truppen kehren heim.";
                     $message .= BattleReportRenderer::render_outcome_box("Neues Dorf gegründet", $atk_main, 0, 0, $atk_sub, "success");
 
@@ -1536,7 +1756,7 @@ class EventManager
                         "Kontaktiere bitte den Support.", "error");
                 }
             } else {
-                $atk_main = "Die Gründung ist fehlgeschlagen.";
+                $atk_main = "Die Gründung bei $location_str ist fehlgeschlagen.";
                 $atk_sub = "Die Siedler konnten sich nicht auf einen Standort einigen. Bei einer Erfolgschance von " . ($chance * 100) . "% haben sie aufgegeben und kehren um.";
                 $message .= BattleReportRenderer::render_outcome_box("Expedition gescheitert", $atk_main, 0, 0, $atk_sub, "error");
 
@@ -1547,7 +1767,7 @@ class EventManager
                 ], $row["kingdomid"]);
             }
         } else {
-            $atk_main = "Hier kann eine Siedlung errichtet werden.";
+            $atk_main = "Hier bei $location_str kann eine Siedlung errichtet werden.";
             $atk_sub = "Du hast zwar Truppen geschickt, aber keinen <b>Gründungskarren</b>. Ohne Siedler können wir dieses Land nicht beanspruchen.";
             $message .= BattleReportRenderer::render_outcome_box("Keine Siedler", $atk_main, 0, 0, $atk_sub);
         }
@@ -2027,11 +2247,24 @@ class EventManager
                 );
             }
 
-            $loot = [$res_type => $amount];
+            $listing_fee = calculate_listing_fee((int)$amount);
+            $user_obj = new User($u_id, $u_name);
+            $user_obj->give_user_coins($listing_fee);
+
+            $loot = [
+                $res_type => $amount,
+                ResourceTypes::RESOURCE_TYPE_COINS => $listing_fee
+            ];
+
             $msg = "<div class='battle-report'>";
-            $msg .= BattleReportRenderer::render_outcome_box("Marktplatz-Info", "Ein Handelsangebot ist abgelaufen.", 0, 0,
-                "Die Ressourcen wurden sicher in dein Lager zurückgebracht.",
-                "neutral", $loot);
+            $msg .= BattleReportRenderer::render_outcome_box(
+                "Marktplatz-Info",
+                "Ein Handelsangebot ist abgelaufen.",
+                0, 0,
+                "Die Ressourcen wurden sicher in dein Lager zurückgebracht und die Einstellgebühr von $listing_fee Münzen wurde deinem Konto erstattet.",
+                "neutral",
+                $loot
+            );
             $msg .= "</div>";
 
             send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_TRADE);
@@ -2072,14 +2305,17 @@ class EventManager
     public function check_watchtower_notifications(?int $specific_user_id = null): void
     {
         $current_time = time();
-
         $user_filter = $specific_user_id ? " AND k.userid = " . $specific_user_id : "";
 
         $query = "
             SELECT e.eventid, e.arrivaltime, e.targetid, e.kingdomid AS source_id,
-                   k.userid, k.username, k.kingdomname
+                   k.userid, k.username, k.kingdomname, k.last_watchtower_push,
+                   b.buildinglevel AS wt_level
             FROM events e
             JOIN kingdoms k ON e.targetid = k.id
+            JOIN buildings b ON k.id = b.kingdomid 
+                 AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . " 
+                 AND b.buildinglevel > 0
             WHERE e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
               AND e.userid != k.userid
               AND e.notification_sent = 0
@@ -2092,11 +2328,11 @@ class EventManager
         ";
         $results = $this->mysqli->query($query);
 
+        $push_queue = [];
+
         foreach ($results as $row) {
             $target_kingdom = new Kingdom($row["targetid"]);
-            $wt_level = $target_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
-
-            if ($wt_level <= 0) continue;
+            $wt_level = (int)$row["wt_level"];
 
             $visibility_window = $wt_level * WATCHTOWER_DETECTION_PER_LEVEL;
             $detection_time = $row["arrivaltime"] - $visibility_window;
@@ -2117,17 +2353,10 @@ class EventManager
                 $msg = "<div class='battle-report'>";
                 $main_text = "Unsere Grenzwachen in <b>" . e($row["kingdomname"]) . "</b> haben herannahende Truppen gesichtet!<br>";
 
-                $sub_text = "";
-                if ($intel_level < 1) {
-                    $sub_text = "Die Truppen sind auf dem Vormarsch.";
-                }
+                // Level 1: Show arrivaltime
+                $sub_text = ($intel_level < 1) ? "Die Truppen sind auf dem Vormarsch." : "Ankunft in ca.: " . $time_to_arrival;
 
-                // Level 1: Estimated arrival time
-                if ($intel_level >= 1) {
-                    $sub_text = "Ankunft in ca.: " . $time_to_arrival;
-                }
-
-                // Level 2: Enemy Kingdom Name
+                // Level 2: Enemy kingdom
                 if ($intel_level >= 2) {
                     $res_source = $this->mysqli->execute_query("SELECT kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$row["source_id"]]);
                     if ($src = $res_source->fetch_assoc()) {
@@ -2135,7 +2364,7 @@ class EventManager
                     }
                 }
 
-                // Level 3: Rough Troop Strength
+                // Level 3: Roundabout troop strength
                 if ($intel_level >= 3) {
                     $res_count = $this->mysqli->execute_query("SELECT SUM(soldiercount) as total FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
                     $total_units = $res_count->fetch_assoc()["total"] ?? 0;
@@ -2148,7 +2377,7 @@ class EventManager
                     $main_text .= "<br>Späherbericht: <i>$strength_label (ca. " . fnum($total_units) . " Einheiten)</i>";
                 }
 
-                // Level 4 and higher: Exact Troop Strength and Troop Power
+                // Level 4: Exact unit composition
                 if ($intel_level >= 4) {
                     $main_text .= "<br><br><b>Identifizierte Einheiten:</b><br>";
                     $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;'>";
@@ -2157,14 +2386,13 @@ class EventManager
                     $total_def = 0;
 
                     $res_troops = $this->mysqli->execute_query("
-                                                SELECT sl.soldiername, sl.icon, sl.attack, sl.defense, st.soldiercount 
-                                                FROM sent_troops st 
-                                                JOIN soldier_list sl ON st.soldierid = sl.id 
-                                                WHERE st.eventid = ?", [$row["eventid"]]);
+                        SELECT sl.soldiername, sl.icon, sl.attack, sl.defense, st.soldiercount 
+                        FROM sent_troops st 
+                        JOIN soldier_list sl ON st.soldierid = sl.id 
+                        WHERE st.eventid = ?", [$row["eventid"]]);
 
                     while ($t = $res_troops->fetch_assoc()) {
                         $count = (int)$t["soldiercount"];
-
                         $total_atk += (int)round($count * $t["attack"]);
                         $total_def += (int)round($count * $t["defense"]);
 
@@ -2176,13 +2404,12 @@ class EventManager
                     }
                     $main_text .= "</div>";
 
+                    // Level 5: Battle Strength
                     if ($intel_level >= 5) {
                         $main_text .= "<div style='margin-top: 12px; padding-top: 8px; border-top: 1px ridge rgba(212,175,55,0.4); text-align: left;'>";
                         $main_text .= "<b>Geschätzte Gesamtstärke:</b><br>";
-
                         $main_text .= "<span style='margin-right: 20px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_atk) . "</span>";
                         $main_text .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_def) . "</span>";
-
                         $main_text .= "</div>";
                     }
                 }
@@ -2192,14 +2419,46 @@ class EventManager
 
                 send_server_message($row["userid"], $row["username"], $msg, MessageCategories::CATEGORY_WAR);
 
+                $kid = (int)$row["targetid"];
+                if (!isset($push_queue[$kid])) {
+                    $push_queue[$kid] = [
+                        "user_id" => (int)$row["userid"],
+                        "kingdom_name" => $row["kingdomname"],
+                        "last_push" => (int)$row["last_watchtower_push"],
+                        "has_time_intel" => ($intel_level >= 1),
+                        "earliest_arrival" => $time_to_arrival,
+                        "count" => 0
+                    ];
+                }
+                $push_queue[$kid]["count"]++;
+            }
+        }
 
-                $arrival_time_html = $intel_level >= 1 ? "Ankunft in ca. $time_to_arrival." : "";
+        $push_cooldown = 300;
+
+        foreach ($push_queue as $kid => $data) {
+            if (($current_time - $data["last_push"]) >= $push_cooldown) {
+                $arrival_text = $data["has_time_intel"] ? " Ankunft in ca. {$data["earliest_arrival"]}." : "";
+
+                if ($data["count"] === 1) {
+                    $push_title = "⚠️ Wachturm: " . $data["kingdom_name"];
+                    $push_body = "Feindliche Truppen vor {$data["kingdom_name"]} gesichtet!$arrival_text";
+                } else {
+                    $push_title = "🚨 Alarm: " . $data["kingdom_name"];
+                    $push_body = "{$data["count"]} feindliche Angriffswellen im Anmarsch auf {$data["kingdom_name"]}!$arrival_text";
+                }
+
                 send_user_push(
-                    (int)$row["userid"],
-                    "⚠️ Wachturm: " . $row["kingdomname"],
-                    "Feindliche Truppen wurden vor {$row["kingdomname"]} gesichtet!$arrival_time_html",
+                    $data["user_id"],
+                    $push_title,
+                    $push_body,
                     "combat",
                     "overview.php"
+                );
+
+                $this->mysqli->execute_query(
+                    "UPDATE kingdoms SET last_watchtower_push = ? WHERE id = ?",
+                    [$current_time, $kid]
                 );
             }
         }
@@ -2314,6 +2573,14 @@ class EventManager
         send_server_message($attacker_id, $attacker_name, $msg_atk, MessageCategories::CATEGORY_WAR);
         send_server_message($enemy_owner_id, $enemy_owner_name, $msg_def, MessageCategories::CATEGORY_WAR);
 
+        send_user_push(
+            $enemy_owner_id,
+            "🕵️ Späher gesichtet: " . $enemy_k->get_kingdom_name(),
+            "Späher von $attacker_name wurden in {$enemy_k->get_kingdom_name()} entdeckt!",
+            "combat",
+            "messages.php?servermsgs"
+        );
+
         if ($atk_losses + $def_losses > 0) {
             update_global_stat("total_fallen_soldiers", ($atk_losses + $def_losses));
         }
@@ -2341,7 +2608,7 @@ class EventManager
         $report = "<div class='battle-report'>";
         $report .= "<div class='battle-column'>";
         $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-        $report .= "<div class='title-border'>Spionagebericht: " . e($enemy_k->get_kingdom_name()) . " ($c_link)</div>";
+        $report .= "<div class='title-border'>Spionage: " . e($enemy_k->get_kingdom_name()) . " ($c_link)</div>";
         $report .= "<div class='report-section-title'>Ressourcen</div>";
 
         // TIER 1: Resources
@@ -2595,7 +2862,7 @@ class EventManager
                 update_player_stat($attacker_user->get_user_id(), "units_fallen_pve", $losses);
 
                 $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
-                $main_text .= "⚠️ <b>Verluste:</b> $losses Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet.";
+                $main_text .= wrap_emojis("⚠️️ <b>Verluste:</b> $losses Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet.");
                 $main_text .= "</div>";
             }
 
@@ -2660,13 +2927,13 @@ class EventManager
             return;
         }
 
-        $base_danger = BASE_DANGER_RATE_SCOUTING / 2;
-        $safety_bonus = sqrt($atk_scouts);
-        $detection_chance = $base_danger / $safety_bonus;
+        $detection_chance = BASE_DANGER_RATE_SCOUTING + min(5, (int)($atk_scouts / 5));
 
         $losses = 0;
         if (mt_rand(1, 100) <= $detection_chance) {
-            $losses = 1;
+            $loss_pct = mt_rand(RAIDER_LOSS_MIN_PERC, RAIDER_LOSS_MAX_PERC) / 100;
+            $losses = max(1, (int)ceil($atk_scouts * $loss_pct));
+            $losses = min($losses, $atk_scouts);
         }
 
         $survivors = $atk_scouts - $losses;
@@ -2675,7 +2942,7 @@ class EventManager
             $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
             $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
 
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$scout_score_val, $u_id]);
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$losses * $scout_score_val, $u_id]);
             update_global_stat("total_fallen_soldiers", $losses);
             update_player_stat($u_id, "units_fallen_pve", $losses);
 
@@ -2692,7 +2959,7 @@ class EventManager
         $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
 
         if ($survivors > 0) {
-            $message .= "<div class='title-border'>Spionagebericht: Vorratslager ($c_link)</div>";
+            $message .= "<div class='title-border'>Spionage: Vorratslager ($c_link)</div>";
             $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
             $message .= "<div class='report-section-title'>Gefundene Vorräte</div>";
 
@@ -3131,13 +3398,16 @@ class EventManager
 
         $camp_lvl = $units[0]["level"] ?? 1;
 
-        $base_danger = BASE_DANGER_RATE_SCOUTING;
-        $safety_bonus = sqrt($atk_scouts);
-        $detection_chance = $base_danger / $safety_bonus;
+        $detection_chance = BASE_DANGER_RATE_SCOUTING + ($camp_lvl - 1);
 
         $losses = 0;
         if (mt_rand(1, 100) <= $detection_chance) {
-            $losses = 1;
+            $min_pct = RAIDER_LOSS_MIN_PERC;
+            $max_pct = RAIDER_LOSS_MAX_PERC + (int)floor($camp_lvl / 2);
+            $loss_pct = mt_rand($min_pct, $max_pct) / 100;
+
+            $losses = max(1, (int)ceil($atk_scouts * $loss_pct));
+            $losses = min($losses, $atk_scouts);
         }
 
         $survivors = $atk_scouts - $losses;
@@ -3165,7 +3435,7 @@ class EventManager
         $hy = $home_k->get_kingdom_map_y();
         $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
 
-        $message .= "<div class='title-border'>Spionagebericht: Monstercamp ($c_link)</div>";
+        $message .= "<div class='title-border'>Spionage: Monstercamp ($c_link)</div>";
         $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 6px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
 
         if ($survivors > 0) {
@@ -3207,7 +3477,7 @@ class EventManager
             $est_max_coins = (int)($est_max_coins);
             $base_res_amount *= $reward_factor;
 
-            $message .= "<div class='report-section-title'>Geschätzte Beute</div>";
+            $message .= "<div class='report-section-title' style='margin-top: 10px;'>Geschätzte Beute</div>";
             $message .= "<div style='background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; text-align: left;'>";
             $message .= "<b>Münzen:</b> $est_min_coins bis $est_max_coins " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . "<br>";
 
@@ -3657,6 +3927,8 @@ class EventManager
     {
         $now = time();
 
+        $this->mysqli->execute_query("DELETE FROM mines WHERE expires_at <= ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
+
         $active_mines = $this->mysqli->query("
             SELECT m.*, IFNULL(SUM(mst.soldiercount * mst.unit_atk), 0) AS current_atk 
             FROM mines m
@@ -3669,19 +3941,26 @@ class EventManager
             $elapsed = max(0, $now - $last_update);
             $current_atk = (float)$m["current_atk"];
 
-            if ($elapsed <= 0 || $current_atk <= 0) continue;
-
-            $work_delta = $current_atk * MINE_WORK_RATE_FACTOR * $elapsed;
-            $new_work_done = (float)$m["work_done"] + $work_delta;
             $work_total = (float)$m["work_total"];
+            $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
+            $effective_rate = min($current_atk * MINE_WORK_RATE_FACTOR, $max_rate);
 
-            $this->mysqli->execute_query("
-                UPDATE mine_stationed_troops 
-                SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
-                WHERE mine_id = ?
-            ", [$work_delta, $current_atk, $m["id"]]);
+            $work_delta = 0;
+            if ($elapsed > 0 && $current_atk > 0) {
+                $work_delta = $effective_rate * $elapsed;
 
-            if ($new_work_done >= $work_total) {
+                $this->mysqli->execute_query("
+                    UPDATE mine_stationed_troops 
+                    SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
+                    WHERE mine_id = ?
+                ", [$work_delta, max(1, $current_atk), $m["id"]]);
+            }
+
+            $new_work_done = (float)$m["work_done"] + $work_delta;
+            $is_completed = ($new_work_done >= $work_total);
+            $is_expired = ((int)$m["expires_at"] <= $now);
+
+            if ($is_completed || $is_expired) {
                 $participants = $this->mysqli->execute_query("
                     SELECT user_id, kingdom_id, SUM(work_contributed) as my_work 
                     FROM mine_stationed_troops 
@@ -3689,15 +3968,26 @@ class EventManager
                     GROUP BY user_id, kingdom_id
                 ", [$m["id"]])->fetch_all(MYSQLI_ASSOC);
 
-                $total_participant_work = (float)array_sum(array_column($participants, 'my_work'));
+                $total_participant_work = (float)array_sum(array_column($participants, "my_work"));
                 $num_participants = count($participants);
 
-                $rem_stone = (int)$m["stone"];
-                $rem_gold = (int)$m["gold"];
-                $rem_coal = (int)$m["coal"];
-                $rem_iron = (int)$m["iron"];
-                $rem_sapphire = (int)$m["sapphire"];
-                $rem_diamond = (int)$m["diamond"];
+                $completion_ratio = min(1.0, $new_work_done / $work_total);
+
+                $total_stone = (int)floor($m["stone"] * $completion_ratio);
+                $total_gold = (int)floor($m["gold"] * $completion_ratio);
+                $total_coal = (int)floor($m["coal"] * $completion_ratio);
+                $total_iron = (int)floor($m["iron"] * $completion_ratio);
+                $total_sapphire = (int)floor($m["sapphire"] * $completion_ratio);
+                $total_diamond = (int)floor($m["diamond"] * $completion_ratio);
+
+                $rem_stone = $total_stone;
+                $rem_gold = $total_gold;
+                $rem_coal = $total_coal;
+                $rem_iron = $total_iron;
+                $rem_sapphire = $total_sapphire;
+                $rem_diamond = $total_diamond;
+
+                $event_name = $is_completed ? "Minen-Ertrag" : "Minen-Ablauf";
 
                 foreach ($participants as $idx => $p) {
                     $is_last = ($idx === $num_participants - 1);
@@ -3716,12 +4006,12 @@ class EventManager
                         $p_sapphire = $rem_sapphire;
                         $p_diamond = $rem_diamond;
                     } else {
-                        $p_stone = (int)floor($m["stone"] * $share);
-                        $p_gold = (int)floor($m["gold"] * $share);
-                        $p_coal = (int)floor($m["coal"] * $share);
-                        $p_iron = (int)floor($m["iron"] * $share);
-                        $p_sapphire = (int)floor($m["sapphire"] * $share);
-                        $p_diamond = (int)floor($m["diamond"] * $share);
+                        $p_stone = (int)floor($total_stone * $share);
+                        $p_gold = (int)floor($total_gold * $share);
+                        $p_coal = (int)floor($total_coal * $share);
+                        $p_iron = (int)floor($total_iron * $share);
+                        $p_sapphire = (int)floor($total_sapphire * $share);
+                        $p_diamond = (int)floor($total_diamond * $share);
 
                         $rem_stone -= $p_stone;
                         $rem_gold -= $p_gold;
@@ -3745,7 +4035,7 @@ class EventManager
                     ", [
                         ActionTypes::ACTION_RETURN_TROOPS, $p["user_id"], $p["kingdom_id"],
                         MapFieldTypes::MAP_FIELD_MINE, $m["mapx"], $m["mapy"], $now + $travel_time, $now,
-                        $p_stone, $p_gold, $p_coal, $p_iron, $p_sapphire, $p_diamond, "Minen-Ertrag"
+                        $p_stone, $p_gold, $p_coal, $p_iron, $p_sapphire, $p_diamond, $event_name
                     ]);
                     $return_eid = $this->mysqli->insert_id;
 
@@ -3766,16 +4056,28 @@ class EventManager
                     if (!empty($insert_troops)) {
                         $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
                     }
+
+                    $k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$p["kingdom_id"]])->fetch_column() ?: "Dein Königreich";
+                    $status_text = $is_completed ? "vollständig abgebaut" : "abgelaufen und geräumt";
+                    send_user_push(
+                        (int)$p["user_id"],
+                        "⛏️ Mine geräumt: $k_name",
+                        "Die Erzmine bei ({$m['mapx']}:{$m['mapy']}) ist $status_text. Deine Truppen treten mit ihrer Beute den Rückmarsch an.",
+                        "troops",
+                        "overview.php"
+                    );
                 }
 
                 $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$m["id"]]);
                 $this->mysqli->execute_query("DELETE FROM mines WHERE id = ?", [$m["id"]]);
                 $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$m["mapx"], $m["mapy"]]);
 
-                Logger::get_instance()->log_game("ECONOMY", "MINE_DEPLETED", [
+                $log_action = $is_completed ? "MINE_DEPLETED" : "MINE_EXPIRED";
+                Logger::get_instance()->log_game("ECONOMY", $log_action, [
                     "mine_id" => $m["id"],
                     "coords" => "{$m['mapx']}:{$m['mapy']}",
-                    "level" => $m["level"]
+                    "level" => $m["level"],
+                    "completion_percent" => round($completion_ratio * 100, 1)
                 ]);
             } else {
                 $this->mysqli->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$new_work_done, $now, $m["id"]]);
@@ -3783,7 +4085,7 @@ class EventManager
         }
     }
 
-    public function process_mine_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void
+    private function process_mine_spy_mission(array $row, int $atk_scouts, User $attacker_user, int $return_time): void
     {
         $attacker_id = $attacker_user->get_user_id();
         $attacker_name = $attacker_user->get_user_name();
@@ -3800,6 +4102,42 @@ class EventManager
         }
 
         $mine_id = (int)$mine["id"];
+        $now = time();
+
+        // Sync live mining status
+        $last_update = (int)($mine["last_update"] ?: $now);
+        $elapsed = max(0, $now - $last_update);
+
+        $current_atk = (float)$this->mysqli->execute_query(
+            "SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?",
+            [$mine_id]
+        )->fetch_column();
+
+        $work_total = max(1.0, (float)$mine["work_total"]);
+        $work_done = (float)$mine["work_done"];
+
+        if ($elapsed > 0 && $current_atk > 0) {
+            $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
+            $effective_rate = min($current_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+            $work_delta = $effective_rate * $elapsed;
+            $work_done = min($work_total, $work_done + $work_delta);
+
+            $this->mysqli->execute_query("
+                UPDATE mine_stationed_troops 
+                SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
+                WHERE mine_id = ?
+            ", [$work_delta, max(1, $current_atk), $mine_id]);
+
+            $this->mysqli->execute_query(
+                "UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?",
+                [$work_done, $now, $mine_id]
+            );
+        }
+
+        // Calculate remaining loot
+        $mined_ratio = min(1.0, $work_done / $work_total);
+        $remaining_ratio = max(0.0, 1.0 - $mined_ratio);
+
         $home_k = new Kingdom((int)$row["kingdomid"]);
         $home_name = e($home_k->get_kingdom_name());
         $hx = $home_k->get_kingdom_map_x();
@@ -3809,79 +4147,153 @@ class EventManager
 
         // Get stationed troops
         $defenders = $this->mysqli->execute_query("
-            SELECT mst.*, u.username, sl.soldiername, sl.icon
+            SELECT mst.*, u.username, u.guildid, sl.soldiername, sl.icon
             FROM mine_stationed_troops mst
             JOIN users u ON mst.user_id = u.id
             JOIN soldier_list sl ON mst.soldier_id = sl.id
             WHERE mst.mine_id = ?
         ", [$mine_id])->fetch_all(MYSQLI_ASSOC);
 
-        $message = "<div class='battle-report'><div class='battle-column'>";
-        $message .= "<div class='title-border'>Spionagebericht: Erzmine (Stufe {$mine["level"]}) ($c_link)</div>";
-        $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
+        // Calculate scout losses
+        $losses = 0;
+        if (!empty($defenders)) {
+            $def_count = array_sum(array_column($defenders, "soldiercount"));
+            $detection_chance = BASE_DANGER_RATE_SCOUTING + ((int)$mine["level"] * 3) + min(30, (int)($def_count / 10));
 
-        // Normal Resources
-        $message .= "<div class='report-section-title'>Verbleibende Rohstoffe</div>";
-        $res_loot = [
-            "stone" => (int)$mine["stone"],
-            "gold" => (int)$mine["gold"]
-        ];
-        $message .= BattleReportRenderer::render_scout_resource_bar($res_loot);
+            if (mt_rand(1, 100) <= $detection_chance) {
+                $min_pct = RAIDER_LOSS_MIN_PERC;
+                $max_pct = RAIDER_LOSS_MAX_PERC + (int)$mine["level"];
+                $loss_pct = mt_rand($min_pct, $max_pct) / 100;
 
-        // Special Resources
-        $res_special = [
-            "coal" => (int)$mine["coal"],
-            "iron" => (int)$mine["iron"],
-            "sapphire" => (int)$mine["sapphire"],
-            "diamond" => (int)$mine["diamond"]
-        ];
+                $losses = max(1, (int)ceil($atk_scouts * $loss_pct));
+                $losses = min($losses, $atk_scouts);
+            }
+        }
 
-        if (array_sum($res_special) > 0) {
+        $survivors = $atk_scouts - $losses;
+
+        if ($losses > 0) {
+            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
+            $total_score_loss = $losses * $scout_score_val;
+
+            $this->mysqli->execute_query(
+                "UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                [$losses, $event_id, Soldiers::SOLDIER_SCOUT]
+            );
+
+            update_global_stat("total_fallen_soldiers", $losses);
+            update_player_stat($attacker_id, "units_fallen_pvp", $losses);
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+        }
+
+        if ($survivors > 0) {
+            $message = "<div class='battle-report'><div class='battle-column'>";
+            $message .= "<div class='title-border'>Spionagebericht: Erzmine (Stufe {$mine["level"]}) ($c_link)</div>";
+            $message .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
+
+            $res_loot = [
+                "stone" => (int)floor($mine["stone"] * $remaining_ratio),
+                "gold" => (int)floor($mine["gold"] * $remaining_ratio)
+            ];
+
+            $message .= "<div class='report-section-title'>Verbleibende Rohstoffe</div>";
+            if (array_sum($res_loot) > 0) {
+                $message .= BattleReportRenderer::render_scout_resource_bar($res_loot);
+            } else {
+                $message .= "<div style='text-align: center; padding: 5px; opacity: 0.8;'><i>Keine Rohstoffe mehr vorhanden.</i></div>";
+            }
+
+            $res_special = [
+                "coal" => (int)floor($mine["coal"] * $remaining_ratio),
+                "iron" => (int)floor($mine["iron"] * $remaining_ratio),
+                "sapphire" => (int)floor($mine["sapphire"] * $remaining_ratio),
+                "diamond" => (int)floor($mine["diamond"] * $remaining_ratio)
+            ];
+
             $message .= "<div class='report-section-title' style='margin-top: 15px;'>Spezial-Erze (für Gilden-Schatzkammer)</div>";
-            $message .= BattleReportRenderer::render_scout_resource_bar($res_special);
-        }
-
-        // Stationed Troops
-        $message .= "<div class='report-section-title' style='margin-top: 15px;'>Stationierte Truppen</div>";
-        if (!empty($defenders)) {
-            $occupier_names = array_unique(array_column($defenders, "username"));
-
-            $message .= "<div style='text-align: center; margin-bottom: 8px; font-size: 13px; color: var(--link-color);'>Besetzt durch: <b>
-                            " . implode(", ", array_map('htmlspecialchars', $occupier_names)) . "</b></div>";
-            $message .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
-
-            foreach ($defenders as $d) {
-                $message .= BattleReportRenderer::render_unit_card($d["soldiername"], (int)$d["soldiercount"], 0, $d["icon"], true);
+            if (array_sum($res_special) > 0) {
+                $message .= BattleReportRenderer::render_scout_resource_bar($res_special);
+            } else {
+                $message .= "<div style='text-align: center; padding: 5px; opacity: 0.8;'><i>Keine Spezial-Erze mehr vorhanden.</i></div>";
             }
 
-            $message .= "</div>";
+            // Stationierte Truppen
+            $message .= "<div class='report-section-title' style='margin-top: 15px;'>Stationierte Truppen</div>";
+            if (!empty($defenders)) {
+                $occupier_names = array_unique(array_column($defenders, "username"));
+
+                $message .= "<div style='text-align: center; margin-bottom: 8px; font-size: 13px; color: var(--link-color);'>Besetzt durch: <b>" .
+                    implode(", ", array_map('htmlspecialchars', $occupier_names)) . "</b></div>";
+                $message .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
+
+                foreach ($defenders as $d) {
+                    $message .= BattleReportRenderer::render_unit_card($d["soldiername"], (int)$d["soldiercount"], 0, $d["icon"], true);
+                }
+
+                $message .= "</div>";
+            } else {
+                $message .= "<div style='text-align: center; padding: 5px; opacity: 0.8;'><i>Die Mine ist aktuell unbesetzt.</i></div>";
+            }
+
+            if ($losses > 0) {
+                $message .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em; text-align: center;'>";
+                $message .= wrap_emojis("⚠️ <b>Verluste:</b> $losses Späher wurden von der Minen-Besatzung entdeckt und ausgeschaltet.");
+                $message .= "</div>";
+            }
+
+            $message .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
+            $message .= "</div></div>";
+
+            send_server_message($attacker_id, $attacker_name, $message, MessageCategories::CATEGORY_WAR);
+
+            $attacker_gid = $attacker_user->get_user_guild_id();
+            $is_friendly_mine = ($attacker_id === (int)($mine["claimed_user_id"] ?? 0))
+                || ($attacker_gid > 0 && $attacker_gid === (int)($mine["claimed_guild_id"] ?? 0));
+
+            // Inform defenders of scouting
+            if (!empty($defenders) && !$is_friendly_mine) {
+                $def_users = [];
+                foreach ($defenders as $d) {
+                    $def_users[(int)$d["user_id"]] = [
+                        "username" => $d["username"],
+                        "guildid" => (int)$d["guildid"]
+                    ];
+                }
+
+                foreach ($def_users as $duid => $dinfo) {
+                    if (($duid === $attacker_id) || ($attacker_gid > 0 && $attacker_gid === $dinfo["guildid"])) {
+                        continue;
+                    }
+
+                    $def_msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                            "Späher abgewehrt",
+                            "Feindliche Späher von <b>" . e($attacker_name) . "</b> haben unsere Schürfer in der Mine bei $c_link beobachtet, wurden aber entdeckt.",
+                            0, 0, "Unsere Truppen schürfen wachsam weiter."
+                        ) . "</div>";
+
+                    send_server_message($duid, $dinfo["username"], $def_msg, MessageCategories::CATEGORY_WAR);
+                }
+            }
+
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+
         } else {
-            $message .= "<div style='text-align: center; padding: 5px; opacity: 0.8;'><i>Die Mine ist aktuell unbesetzt.</i></div>";
+            $message = "<div class='battle-report'>";
+            $message .= BattleReportRenderer::render_outcome_box(
+                "Spionage gescheitert",
+                "Deine Späher wurden bei der Erzmine ($c_link) von der Besatzung entdeckt und vollständig ausgelöscht!",
+                0, 0, "Es konnten keine Informationen beschafft werden.", "error"
+            );
+            $message .= "<div style='display: flex; justify-content: center; margin-top: 10px;'>" . BattleReportRenderer::render_unit_card("Deine Späher", $atk_scouts, $losses, "icon_scout", true) . "</div>";
+            $message .= "</div>";
+
+            send_server_message($attacker_id, $attacker_name, $message, MessageCategories::CATEGORY_WAR);
+
+            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
-
-        $message .= BattleReportRenderer::render_own_scout_status($atk_scouts, 0);
-        $message .= "</div></div>";
-
-        send_server_message($attacker_id, $attacker_name, $message, MessageCategories::CATEGORY_WAR);
-
-        // Inform Defenders
-        if (!empty($defenders)) {
-            $def_uids = array_unique(array_column($defenders, "user_id"));
-
-            foreach ($def_uids as $duid) {
-                $dname = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$duid])->fetch_column();
-
-                $def_msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                        "Späher gesichtet!",
-                        "Feindliche Späher von <b>" . e($attacker_name) . "</b> haben unsere Schürfer in der Mine bei $c_link beobachtet und die Bestände geschätzt.",
-                        0, 0, "Unsere Truppen schürfen wachsam weiter."
-                    ) . "</div>";
-                send_server_message($duid, $dname, $def_msg, MessageCategories::CATEGORY_WAR);
-            }
-        }
-
-        $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
-            [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
 
         update_player_stat($attacker_id, "spy_count");
     }

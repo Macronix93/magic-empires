@@ -71,11 +71,12 @@ if ($row) {
         $is_thief = ($row["id"] == Soldiers::SOLDIER_THIEF);
 
         $attack_val = (int)($row["attack"] ?? 0);
+        $soldier_cat = (int)($row["category"] ?? 0);
         $mining_rate_per_sec = $attack_val * MINE_WORK_RATE_FACTOR;
         $mining_rate_formatted = fdec($mining_rate_per_sec, 3);
 
         $mining_info_html = "";
-        if ($attack_val > 0) {
+        if ($attack_val > 0 && $soldier_cat !== SoldierTypes::SOLDIER_TYPE_SPECIAL) {
             $mining_info_html = "
             <div class='tech-info-box' style='margin-top: 15px;'>
                 <b>Bergbau-Effizienz:</b><br>
@@ -183,7 +184,11 @@ if ($row) {
                 "food_cost" => ResourceTypes::RESOURCE_TYPE_FOOD,
                 "wood_cost" => ResourceTypes::RESOURCE_TYPE_WOOD,
                 "stone_cost" => ResourceTypes::RESOURCE_TYPE_STONE,
-                "gold_cost" => ResourceTypes::RESOURCE_TYPE_GOLD
+                "gold_cost" => ResourceTypes::RESOURCE_TYPE_GOLD,
+                "coal_cost" => ResourceTypes::RESOURCE_TYPE_COAL,
+                "iron_cost" => ResourceTypes::RESOURCE_TYPE_IRON,
+                "sapphire_cost" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+                "diamond_cost" => ResourceTypes::RESOURCE_TYPE_DIAMOND
         ];
 
         foreach ($res_fields as $col => $icon_id) {

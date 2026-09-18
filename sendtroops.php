@@ -110,33 +110,7 @@ if ($is_ally) {
         }
 
         $is_noob_protected = new Conquest()->has_noob_protection($user->get_user_score(), $enemy_score);
-    }
-}
-
-// Noob check for level 1 mines
-if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
-    $res_mine_check = $db_instance->execute_query(
-        "SELECT id, level, claimed_guild_id, claimed_user_id FROM mines WHERE mapx = ? AND mapy = ?",
-        [$target_x, $target_y]
-    )->fetch_assoc();
-
-    if ($res_mine_check && (int)$res_mine_check["level"] === 1) {
-        $claimed_uid = (int)$res_mine_check["claimed_user_id"];
-        $claimed_gid = (int)$res_mine_check["claimed_guild_id"];
-
-        $res_has_miners = $db_instance->execute_query(
-            "SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?",
-            [$res_mine_check["id"]]
-        )->fetch_column();
-
-        $is_mine_friendly = ($claimed_uid === $user->get_user_id()) || ($my_guild_id > 0 && $claimed_gid === $my_guild_id);
-
-        if ($res_has_miners > 0 && !$is_mine_friendly && $claimed_uid > 0) {
-            $enemy_user_id = $claimed_uid;
-            $enemy_score = (int)$db_instance->execute_query("SELECT score FROM users WHERE id = ?", [$claimed_uid])->fetch_column();
-
-            $is_noob_protected = new Conquest()->has_noob_protection($user->get_user_score(), $enemy_score);
-        }
+        $only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id > 0 && $enemy_user_id != $user->get_user_id());
     }
 }
 
@@ -234,15 +208,16 @@ if (!empty($_POST["soldiers"])) {
                 if ($s_obj) {
                     $cat = $s_obj->get_soldier_category();
 
-                    if ($cat == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
-                        if ($soldier_id == Soldiers::SOLDIER_SCOUT) {
-                            $has_scouts = true;
-                        } else {
-                            $has_other_special = true;
-                        }
+                    if ($soldier_id === Soldiers::SOLDIER_SCOUT) {
+                        $has_scouts = true;
                     } else {
-                        $has_normal_units = true;
                         $has_non_scout_units = true;
+
+                        if ($cat == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
+                            $has_other_special = true;
+                        } else {
+                            $has_normal_units = true;
+                        }
                     }
                 }
 
@@ -253,11 +228,22 @@ if (!empty($_POST["soldiers"])) {
             }
         }
 
-        if (empty($error) && $kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
-            if ($has_other_special) {
-                $error = "Spezialeinheiten (außer Späher) können nicht in Minen eingesetzt werden!";
-            } else if ($has_normal_units && $has_scouts) {
-                $error = "Späher können nicht mit normalen Kampfeinheiten in Minen gemischt werden!";
+        if (empty($error)) {
+            if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
+                if ($has_other_special) {
+                    $error = "Spezialeinheiten (außer Späher) können nicht in Minen eingesetzt werden!";
+                } else if ($has_normal_units && $has_scouts) {
+                    $error = "Späher können nicht mit normalen Kampfeinheiten in Minen gemischt werden!";
+                }
+            } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
+                foreach ($_POST["soldiers"] as $soldier_id => $count) {
+                    $cnt = (int)$count;
+
+                    if ($cnt > 0 && (int)$soldier_id !== Soldiers::SOLDIER_RAIDER && (int)$soldier_id !== Soldiers::SOLDIER_SCOUT) {
+                        $error = "Für Vorratslager können nur Räuber (zum Plündern) oder Späher (zur Spionage) entsendet werden!";
+                        break;
+                    }
+                }
             }
         }
 
@@ -348,7 +334,8 @@ if (!empty($_POST["soldiers"])) {
                 $error = "Keine weiteren Siedlungs-Slots frei! Du hast bereits $current_settled_count Königreiche gegründet und $ongoing_foundations Gründungen laufen (Limit: $max_allowed_slots).";
             }
         } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
-            $res_mine = $db_instance->execute_query("SELECT id, level, max_troops, claimed_guild_id, claimed_user_id FROM mines WHERE mapx = ? AND mapy = ?", [$target_x, $target_y])->fetch_assoc();
+            $res_mine = $db_instance->execute_query("SELECT id, level, max_troops, claimed_guild_id, claimed_user_id, work_total FROM mines WHERE mapx = ? AND mapy = ?",
+                [$target_x, $target_y])->fetch_assoc();
 
             if (!$res_mine) {
                 $error = "Diese Mine ist nicht mehr verfügbar!";
@@ -525,9 +512,11 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
     exit;
 } else {
     // Noob protection check
-    if ($is_noob_protected && $enemy_user_id != -1) {
-        $my_score = $user->get_user_score();
+    $only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
+    $scout_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0);
 
+    if ($only_scouts_allowed) {
+        $my_score = $user->get_user_score();
         $min_allowed = floor($my_score * NOOB_PROTECTION_MULT);
         $max_allowed = floor($my_score / NOOB_PROTECTION_MULT);
 
@@ -537,13 +526,9 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                     Du kannst nur Spieler angreifen, die einen Score von <b>" . fnum($min_allowed) . "</b> bis <b>" . fnum($max_allowed) . "</b> haben <b>(" . (NOOB_PROTECTION_MULT * 100) . "%)</b>.<br>
                     Reine Spionage (nur Späher) ist allerdings möglich.
                 ");
-        $only_scouts_allowed = true;
-    } else {
-        $only_scouts_allowed = false;
     }
 
-    $only_scouts_allowed = (!$is_ally && $is_noob_protected);
-    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy");
+    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
 
     if (!empty($_POST["soldiers"])) {
         $is_spying = true;
@@ -581,32 +566,38 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         $is_friendly = ($my_gid > 0 && $claimed_gid === $my_gid) || ($claimed_uid === $user->get_user_id());
         $mine_limit = ($is_friendly && !$is_mine_empty) ? $free_space : $max_capacity;
 
-        if ($is_friendly || $is_mine_empty) {
-            $cap_text = $current_mine_troops . ' / ' . $max_capacity . ' Einheiten';
+        $current_mine_atk = 0;
+        if ($is_friendly && !$is_mine_empty) {
+            $res_atk = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [(int)$res_mine["id"]]);
+            $current_mine_atk = (int)$res_atk->fetch_column();
+
+            $cap_display = $current_mine_troops . ' / ' . $max_capacity . ' Einheiten';
+        } else if ($is_mine_empty) {
+            $cap_display = '0 / ' . $max_capacity . ' Einheiten';
         } else {
-            $cap_text = '0 / ' . $max_capacity . ' Einheiten';
+            $cap_display = 'Max. ' . $max_capacity . ' Einheiten';
         }
 
-        $res_atk = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [(int)$res_mine["id"]]);
-        $current_mine_atk = (int)$res_atk->fetch_column();
         $work_rem = max(0, (int)$res_mine["work_total"] - (int)$res_mine["work_done"]);
 
-        $initial_rate = $current_mine_atk * MINE_WORK_RATE_FACTOR;
+        $max_rate = (int)$res_mine["work_total"] / MINE_MIN_DURATION_SECONDS;
+        $initial_rate = min($current_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+
         if ($initial_rate > 0) {
             $initial_rate_text = fdec($initial_rate) . " Pkt./s";
-            $initial_dur_sec = (int)ceil($work_rem / $initial_rate);
+            $initial_dur_sec = max(MINE_MIN_DURATION_SECONDS, (int)ceil($work_rem / $initial_rate));
             $initial_dur_text = "ca. " . convert_sec_to_str($initial_dur_sec);
         } else {
-            $initial_rate_text = "<i>Keine Schürfer</i>";
-            $initial_dur_text = "<i>Stillstand (Truppen wählen)</i>";
+            $initial_rate_text = "<i>Keine Truppen gewählt</i>";
+            $initial_dur_text = "<i>Keine Truppen gewählt</i>";
         }
 
-        $send_title = $is_spying ? "Mine auskundschaften (Stufe $mine_lvl)" : "Mine abbauen (Stufe $mine_lvl)";
+        $send_title = $is_spying ? "Mine auskundschaften" : "Mine abbauen";
 
-        $view .= '<div class="title-border">Erzmine Stufe ' . $mine_lvl . '</div>
+        $view .= '<div class="title-border">Erzmine (Stufe ' . $mine_lvl . ')</div>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                      <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $target_x . ':' . $target_y . '</td></tr>
-                      <tr><td class="td-mapinfo"><b>Kapazität</b></td><td><span id="mine-capacity-display">' . $cap_text . '</span></td></tr>';
+                      <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $target_x . ':' . $target_y . '</td></tr>';
+        $view .= '<tr><td class="td-mapinfo"><b>Kapazität</b></td><td><span id="mine-capacity-display">' . $cap_display . '</span></td></tr>';
 
         if (!$is_spying) {
             $view .= '<tr><td class="td-mapinfo"><b>Abbau-Tempo</b></td><td><span id="mine-rate-display">' . $initial_rate_text . '</span></td></tr>
@@ -656,15 +647,11 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         $res_m = $db_instance->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
         $m_lvl = $res_m->fetch_column() ?: 1;
 
-        $view .= '<div class="title-border">Monstercamp</div>
+        $view .= '<div class="title-border">Monstercamp (Stufe ' . $m_lvl . ')</div>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                       <tr>
                           <td class="td-mapinfo"><b>Koordinaten</b></td>
                           <td>' . $target_x . ':' . $target_y . '</td>
-                      </tr>
-                      <tr>
-                          <td class="td-mapinfo"><b>Gefahrenstufe</b></td>
-                          <td>Stufe ' . $m_lvl . '</td>
                       </tr>
                       <tr>
                           <td class="td-mapinfo"><b>Ankunftszeit</b></td>
@@ -784,9 +771,13 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
     foreach ($soldiers as $soldier_id => $s_obj) {
         $count = $kingdom_soldiers[$soldier_id] ?? 0;
+
         if ($count > 0) {
-            if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
-                && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
+            if (($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
+                    && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
+                    && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) ||
+                $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
+                && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_RAIDER
                 && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) {
                 continue;
             }
@@ -800,9 +791,10 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
     $scout_count = $kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0;
     $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
-    if ($only_scouts_allowed && $scout_count > 0) {
+    if (($only_scouts_allowed && $scout_count > 0) || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
         $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
-    } else if ($first_active_cat === -1 && ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"]))) {
+    } else if ($first_active_cat === -1 && ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY
+            || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"]))) {
         $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
     }
 
@@ -836,10 +828,12 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                 data-mine-limit="' . $mine_limit . '" 
                                 data-mine-current="' . ($is_friendly ? $current_mine_troops : 0) . '" 
                                 data-mine-max="' . $max_capacity . '" 
-                                data-mine-friendly="' . ($is_friendly ? "true" : "false") . '"
+                                data-mine-friendly="' . ($is_friendly && !$is_mine_empty ? "true" : "false") . '"
                                 data-mine-rem-work="' . $work_rem . '" 
-                                data-mine-current-atk="' . $current_mine_atk . '" 
-                                data-mine-work-factor="' . MINE_WORK_RATE_FACTOR . '"';
+                                data-mine-work-total="' . (int)$res_mine["work_total"] . '"
+                                data-mine-current-atk="' . ($is_friendly ? $current_mine_atk : 0) . '" 
+                                data-mine-work-factor="' . MINE_WORK_RATE_FACTOR . '"
+                                data-mine-min-duration="' . MINE_MIN_DURATION_SECONDS . '"';
             }
 
             $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form"' . $mine_attrs . '>
@@ -914,13 +908,11 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                 $def_bonus = 0;
                 $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
 
-                if ($owned_count <= 0) {
-                    continue;
-                }
-
-                if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
-                    && $unit_cat == SoldierTypes::SOLDIER_TYPE_SPECIAL
-                    && $soldier_id !== Soldiers::SOLDIER_SCOUT) {
+                if (($owned_count <= 0) || ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
+                        && $unit_cat == SoldierTypes::SOLDIER_TYPE_SPECIAL
+                        && $soldier_id !== Soldiers::SOLDIER_SCOUT) || ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
+                        && $soldier_id !== Soldiers::SOLDIER_RAIDER
+                        && $soldier_id !== Soldiers::SOLDIER_SCOUT)) {
                     continue;
                 }
 
@@ -1014,8 +1006,12 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
             $view .= '</table></form>';
         } else {
+            $no_units_msg = ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE)
+                ? "In diesem Königreich befinden sich aktuell weder Räuber noch Späher für das Vorratslager."
+                : "In diesem Königreich befinden sich aktuell keine Truppen.";
+
             $view .= "<div style='margin-top: 20px;'>" .
-                show_warning_box("In diesem Königreich befinden sich aktuell keine Truppen.") .
+                show_warning_box($no_units_msg) .
                 "</div>";
         }
     } else {

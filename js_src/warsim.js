@@ -25,7 +25,11 @@ const W_CONF = {
     lethalityPvp: parseFloat(warsimConstEl.dataset.lethality_pvp),
     lethalityPve: parseFloat(warsimConstEl.dataset.lethality_pve),
     monsterDmgClampedMaxVal: parseFloat(warsimConstEl.dataset.monster_dmg_clamped_max_val),
-    monsterDmgLossExponent: parseFloat(warsimConstEl.dataset.monster_dmg_loss_exponent)
+    monsterDmgLossExponent: parseFloat(warsimConstEl.dataset.monster_dmg_loss_exponent),
+    wallCounterDmgFactor: parseFloat(warsimConstEl.dataset.wall_counter_dmg_factor),
+    wallAbsorptionMult: parseInt(warsimConstEl.dataset.wall_absorption_mult),
+    wallNormalDmgFactor: parseFloat(warsimConstEl.dataset.wall_normal_dmg_factor),
+    wallMaxNormalDmgPerc: parseFloat(warsimConstEl.dataset.wall_max_normal_dmg_perc)
 };
 let currentSimWallHp = null;
 let lastSimState = null;
@@ -372,7 +376,13 @@ function calculateWarOutcome(soldierTypes) {
     const lethality = isMonsterMode ? W_CONF.lethalityPve : W_CONF.lethalityPvp;
 
     // Calculate losses
-    let pRatio = (playerDefPool > 0) ? Math.min(1.0, enemyAtkPool / (playerDefPool * lethality)) : 1.0;
+    let effectiveEnemyCounterDamage = enemyAtkPool;
+    if (!isMonsterMode && wallBonus > 0 && totalEnemyUnits > 0) {
+        effectiveEnemyCounterDamage += (wallBonus * W_CONF.wallCounterDmgFactor);
+    }
+
+    // Calculate losses
+    let pRatio = (playerDefPool > 0) ? Math.min(1.0, effectiveEnemyCounterDamage / (playerDefPool * lethality)) : 1.0;
     let eRatio = (enemyDefPool > 0) ? Math.min(1.0, playerAtkPool / (enemyDefPool * lethality)) : 1.0;
 
     if (isMonsterMode && playerAtkPool > 0 && enemyAtkPool > 0) {
@@ -423,22 +433,35 @@ function calculateWarOutcome(soldierTypes) {
 
     // Wall Damage (only PvP)
     if (!isMonsterMode) {
-        const wallAbsorption = lvl * W_CONF.wallAbsorptionPerLevel;
+        // Calculate Max HP of Wall (Base-HP + Tech)
+        const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
+        const maxHp = (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc);
+
+        // Higher base absorption per level
+        const wallAbsorption = lvl * (W_CONF.wallAbsorptionPerLevel * W_CONF.wallAbsorptionMult);
         const damageDiff = playerAtkPool - enemyDefWithoutWall;
 
         let effectiveDamage = Math.max(0, damageDiff - wallAbsorption);
 
-        let wallDmgBase = Math.max(effectiveDamage * W_CONF.wallEffDmgFactor, playerAtkPool * W_CONF.wallAccDmgFactor);
+        // Normal troops only do minimal damage
+        let normalTroopWallDmg = effectiveDamage * (W_CONF.wallEffDmgFactor * W_CONF.wallNormalDmgFactor);
 
+        // Cap: Max 20% wall damage by normal units
+        const maxNormalDmgCap = maxHp * W_CONF.wallMaxNormalDmgPerc;
+        normalTroopWallDmg = Math.min(normalTroopWallDmg, maxNormalDmgCap);
+
+        // Siege Techs + ram count
         const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
         const ramCount = parseInt(document.getElementById("Rammbock_own")?.value) || 0;
 
-        wallDmgBase += (ramCount * W_CONF.ramFlat);
-
+        // Rams do absolute damage to walls
+        let ramDamage = (ramCount * W_CONF.ramFlat);
         const ramBonus = Math.min(W_CONF.ramLimit, ramCount * W_CONF.ramFactor);
         const multiplier = 1 + (siegeLvl * W_CONF.siegeBonus) + ramBonus;
 
-        currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(wallDmgBase * multiplier));
+        let totalWallDmg = (normalTroopWallDmg + ramDamage) * multiplier;
+
+        currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(totalWallDmg));
     }
 
     updateLivePowerSummary();
@@ -540,17 +563,21 @@ function updateLivePowerSummary() {
     enemyAtkEl.title = tAtkE.toLocaleString("de-DE");
 
     const updateDisplay = (id, value) => {
-        const el = document.getElementById(id);
-        if (!el) return;
+        const shortEl = document.getElementById(id);
+        const fullEl = document.getElementById(id + "-full");
+        const boxEl = document.getElementById("pop_" + id.replace(/-/g, "_") + "_box");
+        const triggerEl = document.getElementById("pop_" + id.replace(/-/g, "_"));
 
-        el.innerText = formatNumJS(value);
+        if (shortEl) shortEl.innerText = formatNumJS(value);
+        if (fullEl) fullEl.innerText = value.toLocaleString("de-DE");
 
-        if (value >= 100000) {
-            el.title = value.toLocaleString();
-            el.style.cursor = "help";
-        } else {
-            el.title = "";
-            el.style.cursor = "";
+        if (boxEl && triggerEl) {
+            if (value >= 100000) {
+                boxEl.dataset.enabled = "true";
+            } else {
+                boxEl.dataset.enabled = "false";
+                boxEl.style.display = "none";
+            }
         }
     };
 

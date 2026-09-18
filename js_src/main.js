@@ -27,7 +27,28 @@ registerAction("fillMax", (el) => {
         input.value = maxValue;
     }
 });
-registerAction("switchKingdom", (el) => {
+registerAction("toggleMobileKingdomMenu", (el, e) => {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById("mobile-kingdom-dropdown");
+    if (dropdown) {
+        dropdown.classList.toggle("open");
+    }
+});
+registerAction("selectMobileKingdom", (el) => {
+    const kingdomId = el.dataset.id;
+    const dropdown = document.getElementById("mobile-kingdom-dropdown");
+    if (dropdown) dropdown.classList.remove("open");
+
+    if (typeof switchKingdomAndReload === "function") {
+        switchKingdomAndReload(kingdomId);
+    }
+});
+registerAction("switchKingdom", (el, e) => {
+    if (window.innerWidth <= 600) {
+        if (e) e.preventDefault();
+        return;
+    }
+
     const kingdomId = el.dataset.id;
     if (typeof switchKingdomAndReload === "function") {
         switchKingdomAndReload(kingdomId);
@@ -152,6 +173,9 @@ registerAction("openReactorList", (el) => {
     if (typeof openOverlay === "function") {
         openOverlay(`ajax/reaction_details.php?type=${type}&id=${id}`, "Wer hat reagiert?");
     }
+});
+registerAction("toggleMassExcludeSpecials", (el) => {
+    document.cookie = "me_mass_exclude_specials=" + (el.checked ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
 });
 
 function registerAction(name, callback) {
@@ -346,6 +370,8 @@ function setup() {
             }
 
             const positionBox = function (e) {
+                if (box.dataset.enabled === "false") return;
+
                 let mousePos = getMouseLocation(e);
 
                 box.style.position = "absolute";
@@ -618,6 +644,7 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
     buttonYes.innerText = buttonYesText;
 
     infoBoxTextBox.innerText = dialogText;
+    infoBoxTextBox.style.marginBottom = 0;
 
     infoBoxBg.id = "info-box-bg";
     infoBoxBg.classList.add("info-box-bg");
@@ -731,6 +758,14 @@ window.addEventListener("DOMContentLoaded", function () {
     document.addEventListener("click", function (e) {
         const menu = document.getElementById("emoji-menu");
         const trigger = document.querySelector(".emoji-trigger");
+        const kingdomDropdown = document.getElementById("mobile-kingdom-dropdown");
+        const kingdomDisplay = document.querySelector(".mobile-kingdom-display");
+
+        if (kingdomDropdown && kingdomDropdown.classList.contains("open")) {
+            if (!kingdomDropdown.contains(e.target) && !kingdomDisplay.contains(e.target)) {
+                kingdomDropdown.classList.remove("open");
+            }
+        }
 
         if (menu && !menu.contains(e.target) && e.target !== trigger) {
             menu.classList.remove("open");

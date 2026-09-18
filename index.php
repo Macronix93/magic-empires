@@ -405,15 +405,15 @@ $count_online = $res_online->fetch_row()[0];
                                     </tr>
                                     <tr>
                                         <td style="padding: 5px 10px; text-align: left;">
-                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
-                                                <input type="checkbox" name="remember_me" style="width: auto;">
+                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                                <input type="checkbox" name="remember_me">
                                                 Angemeldet bleiben
                                             </label>
                                         </td>
                                     </tr>
                                 </table>
                                 <input type="submit" name="login" value="Einloggen"
-                                       style="width:150px; height:40px; margin: 10px 0;"/>
+                                       style="width: 150px; margin: 10px 0;"/>
                                 <a href="forgotpassword.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
                                     vergessen?</a><br>
                                 <a href="index.php?action=register"
@@ -470,8 +470,8 @@ $count_online = $res_online->fetch_row()[0];
                                         <tr>
                                             <td style="padding: 10px; text-align: left; font-size: 14px;">
                                                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                                    <input type="checkbox" name="accept_rules" value="1"
-                                                           style="width: auto;" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
+                                                    <input type="checkbox" name="accept_rules"
+                                                           value="1" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
                                                     <span>Ich akzeptiere die <a href="rules.php" target="_blank"
                                                                                 style="text-decoration: underline; color: var(--link-color);">Regeln</a>.</span>
                                                 </label>
@@ -492,7 +492,7 @@ $count_online = $res_online->fetch_row()[0];
                                         </tr>
                                     </table>
                                     <input type="submit" name="register" value="Registrieren"
-                                           style="height:40px; margin: 10px 0;"/>
+                                           style="width: 150px; margin: 10px 0;"/>
                                     <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück
                                         zum
                                         Login</a>

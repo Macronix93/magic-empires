@@ -8,13 +8,13 @@ $offset = ($current_page - 1) * $rows_per_page;
 $now = time();
 
 // Load Data
-$active_tab = $_GET['tab'] ?? 'players';
-if (!in_array($active_tab, ['players', 'guilds'])) {
-    $active_tab = 'players';
+$active_tab = $_GET["tab"] ?? "players";
+if (!in_array($active_tab, ["players", "guilds"])) {
+    $active_tab = "players";
 }
 
-$current_page_players = ($active_tab === 'players') ? max(1, (int)($_GET["currentpage"] ?? 1)) : 1;
-$current_page_guilds = ($active_tab === 'guilds') ? max(1, (int)($_GET["currentpage"] ?? 1)) : 1;
+$current_page_players = ($active_tab === "players") ? max(1, (int)($_GET["currentpage"] ?? 1)) : 1;
+$current_page_guilds = ($active_tab === "guilds") ? max(1, (int)($_GET["currentpage"] ?? 1)) : 1;
 
 $offset_players = ($current_page_players - 1) * $rows_per_page;
 $offset_guilds = ($current_page_guilds - 1) * $rows_per_page;

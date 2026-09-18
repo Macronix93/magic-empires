@@ -52,43 +52,50 @@
         $php_tick_timer_text = sprintf("%02d:%02d", $display_min, $display_sec);
         $php_tick_percent = ($seconds_into_hour / 3600) * 100;
         ?>
-        <form method="POST">
-            <div class="kingdom-switch-container">
-                <?php
-                $kingdom_count = $result->num_rows;
-
-                if ($kingdom_count > 1): ?>
-                    <img src="images/icons/icon_right_slow.png"
-                         class="arrow-nav arrow-left"
-                         data-on-click="switchKingdomPrev"
-                         title="Vorheriges Königreich" alt="">
-                <?php endif; ?>
-
-
-                <label for="choosekingdom" style="display: none;">Königreich wählen</label>
-                <select id='choosekingdom' name='choosekingdom' data-on-change='changeKingdomSelect'>
+        <div class="desktop-only-switch">
+            <form method="POST">
+                <div class="kingdom-switch-container">
                     <?php
-                    $result->data_seek(0);
+                    $kingdom_count = $result->num_rows;
 
-                    $pos = 1;
-                    foreach ($result as $row) {
-                        $id = $row["id"];
-                        $selected = ($id == $user->get_current_kingdom()) ? "selected='selected'" : "";
+                    if ($kingdom_count > 1): ?>
+                        <img src="images/icons/icon_right_slow.png"
+                             class="arrow-nav arrow-left"
+                             data-on-click="switchKingdomPrev"
+                             title="Vorheriges Königreich" alt="">
+                    <?php endif; ?>
 
-                        echo "<option value='$id' $selected>$pos - {$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
-                        $pos++;
-                    }
-                    ?>
-                </select>
+                    <label for="choosekingdom" style="display: none;">Königreich wählen</label>
+                    <select id='choosekingdom' name='choosekingdom' data-on-change='changeKingdomSelect'>
+                        <?php
+                        $result->data_seek(0);
 
-                <?php if ($kingdom_count > 1): ?>
-                    <img src="images/icons/icon_right_slow.png"
-                         class="arrow-nav"
-                         data-on-click="switchKingdomNext"
-                         title="Nächstes Königreich" alt="">
-                <?php endif; ?>
+                        $pos = 1;
+                        foreach ($result as $row) {
+                            $id = $row["id"];
+                            $selected = ($id == $user->get_current_kingdom()) ? "selected='selected'" : "";
+
+                            echo "<option value='$id' $selected>$pos - {$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
+                            $pos++;
+                        }
+                        ?>
+                    </select>
+
+                    <?php if ($kingdom_count > 1): ?>
+                        <img src="images/icons/icon_right_slow.png"
+                             class="arrow-nav"
+                             data-on-click="switchKingdomNext"
+                             title="Nächstes Königreich" alt="">
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+        <div class="mobile-only-kname">
+            <div style="font-size: 16px; text-align: center; margin-bottom: 6px;">
+                <?= e($kingdom->get_kingdom_name()) ?> <span
+                        style="opacity: 0.7; font-size: 13px;">(<?= $kingdom->get_kingdom_map_x() ?>:<?= $kingdom->get_kingdom_map_y() ?>)</span>
             </div>
-        </form>
+        </div>
         <div class="resource-tick-wrapper">
             <div class="tick-label">
                 <span>Nächster Ertrag in:</span>

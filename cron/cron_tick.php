@@ -206,19 +206,74 @@ while ($ev = $finished_events->fetch_assoc()) {
 }
 
 //// Storage Push Message
-$full_storage = $db_instance->query("
-    SELECT k.userid, k.kingdomname 
-    FROM kingdoms k 
-    WHERE k.food >= k.maxfood OR k.wood >= k.maxwood OR k.stone >= k.maxstone OR k.gold >= k.maxgold
-");
+$storage_push_cooldown = 14400; // 4 Stunden Cooldown, falls Lager voll bleibt
+$warning_threshold = 0.95;     // Warnt ab 95% bzw. wenn voll
 
-// Only when the storage freshly reached the limit
-while ($fs = $full_storage->fetch_assoc()) {
+// 1. Königreiche finden, die voll sind oder vollzulaufen drohen und deren Cooldown abgelaufen ist
+$full_storage_query = "
+    SELECT k.id AS kingdom_id, k.userid, k.kingdomname,
+           k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,
+           k.last_storage_push
+    FROM kingdoms k
+    WHERE (
+        k.food >= (k.maxfood * $warning_threshold) OR 
+        k.wood >= (k.maxwood * $warning_threshold) OR 
+        k.stone >= (k.maxstone * $warning_threshold) OR 
+        k.gold >= (k.maxgold * $warning_threshold)
+    )
+    AND (? - k.last_storage_push) >= ?
+";
+
+$res_storage = $db_instance->execute_query($full_storage_query, [$now, $storage_push_cooldown]);
+
+$user_notifications = [];
+$updated_kingdom_ids = [];
+
+while ($fs = $res_storage->fetch_assoc()) {
+    $uid = (int)$fs["userid"];
+    $kname = $fs["kingdomname"];
+    $kid = (int)$fs["kingdom_id"];
+
+    $user_notifications[$uid][] = $kname;
+    $updated_kingdom_ids[] = $kid;
+}
+
+foreach ($user_notifications as $uid => $kingdom_names) {
+    $k_count = count($kingdom_names);
+
+    if ($k_count === 1) {
+        $title = "🌾 Lager voll: " . $kingdom_names[0];
+        $body = "Die Lagerkapazität in $kingdom_names[0] ist fast oder vollständig erschöpft!";
+    } else {
+        $names_preview = implode(", ", array_slice($kingdom_names, 0, 3));
+        if ($k_count > 3) {
+            $names_preview .= " und " . ($k_count - 3) . " weitere";
+        }
+
+        $title = "🌾 Lager voll in $k_count Königreichen";
+        $body = "In folgenden Reichen drohen Ressourcen zu verfallen: $names_preview.";
+    }
+
     send_user_push(
-        (int)$fs["userid"],
-        "🌾 Lager voll: " . $fs["kingdomname"],
-        "Die Lagerkapazität in {$fs["kingdomname"]} ist erschöpft! Überschüssige Ressourcen verfallen.",
+        $uid,
+        $title,
+        $body,
         "storage",
-        "storage.php"
+        "overview.php"
     );
 }
+
+if (!empty($updated_kingdom_ids)) {
+    $ids_str = implode(',', $updated_kingdom_ids);
+    $db_instance->execute_query("UPDATE kingdoms SET last_storage_push = ? WHERE id IN ($ids_str)", [$now]);
+}
+
+$db_instance->execute_query("
+    UPDATE kingdoms 
+    SET last_storage_push = 0 
+    WHERE last_storage_push > 0 
+      AND food < (maxfood * 0.85) 
+      AND wood < (maxwood * 0.85) 
+      AND stone < (maxstone * 0.85) 
+      AND gold < (maxgold * 0.85)
+");

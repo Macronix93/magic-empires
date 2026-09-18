@@ -852,15 +852,19 @@ class Guild
             return "Ungültiger Bildinhalt.";
         }
 
-        $nsfw_result = check_image_content($file_tmp);
-        if ($nsfw_result === "loading") {
-            return "Sicherheitsprüfung läuft noch, bitte erneut versuchen.";
+        $check_result = check_image_content($file_tmp);
+
+        if ($check_result === "loading") {
+            return "Sicherheitsprüfung lädt noch... Bitte in 15 Sekunden erneut versuchen.";
         }
-        if (is_string($nsfw_result) && str_starts_with($nsfw_result, "error")) {
-            return "Sicherheitscheck fehlgeschlagen.";
+        if (str_starts_with($check_result, "error")) {
+            return "Technischer Fehler bei der Bildprüfung: " . htmlspecialchars($check_result);
         }
-        if ((float)$nsfw_result > 0.8) {
-            return "Das Bild wurde als unangemessen eingestuft.";
+        if ($check_result === "blocked") {
+            return "Dein Bild wurde als unangemessen eingestuft und ist nicht erlaubt.";
+        }
+        if ($check_result !== "ok") {
+            return "Bild konnte nicht verifiziert werden (" . htmlspecialchars($check_result) . ").";
         }
 
         $hashed_name = substr(hash("sha256", $guild_id . "GUILD_AVATAR_SALT"), 0, 12);
@@ -1064,15 +1068,25 @@ class Guild
         return $res->num_rows > 0;
     }
 
-    public function modify_storage_resource(string $res_key, int $diff): void
+    public function modify_storage_resource(string $res_key, int $diff): int
     {
-        $current = $this->get_storage_amount($res_key);
+        $allowed = ["coal", "iron", "sapphire", "diamond"];
+        if (!in_array($res_key, $allowed) || $this->id <= 0) return 0;
+
         $max_limit = $this->get_storage_limit($res_key);
 
+        $current = (int)$this->db->execute_query(
+            "SELECT `$res_key` FROM guilds WHERE id = ? FOR UPDATE",
+            [$this->id]
+        )->fetch_column();
+
         $new_val = max(0, min($max_limit, $current + $diff));
+        $actual_diff = $new_val - $current;
 
         $this->db->execute_query("UPDATE guilds SET `$res_key` = ? WHERE id = ?", [$new_val, $this->id]);
         $this->storage[$res_key] = $new_val;
+
+        return $actual_diff;
     }
 
     public function get_tech_level(int $tech_id): int
@@ -1274,12 +1288,89 @@ class Guild
         ", [$user_id]);
 
         $now = time();
+
         while ($row = $res->fetch_assoc()) {
+            $mid = (int)$row["mine_id"];
             $kid = (int)$row["kingdom_id"];
             $mx = (int)$row["mapx"];
             $my = (int)$row["mapy"];
-            $mid = (int)$row["mine_id"];
 
+            // Are there still other users in the mine?
+            $other_users_count = (int)$this->db->execute_query("
+                SELECT COUNT(DISTINCT user_id) 
+                FROM mine_stationed_troops 
+                WHERE mine_id = ? AND user_id != ?
+            ", [$mid, $user_id])->fetch_column();
+
+            // CASE A: Player is ALONE in the mine
+            // Troops stay, guild id gets removed
+            if ($other_users_count === 0) {
+                $this->db->execute_query("
+                    UPDATE mines 
+                    SET claimed_guild_id = NULL, claimed_user_id = ? 
+                    WHERE id = ?
+                ", [$user_id, $mid]);
+                continue;
+            }
+
+            // CASE B: SHARED mine with other guild members
+            // Remove troops but calculate share of stone and gold
+            $mine = $this->db->execute_query("SELECT * FROM mines WHERE id = ? FOR UPDATE", [$mid])->fetch_assoc();
+            if (!$mine) continue;
+
+            // Update mining progress up to this point
+            $last_update = (int)($mine["last_update"] ?: $now);
+            $elapsed = max(0, $now - $last_update);
+            $current_atk = (float)$this->db->execute_query(
+                "SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?",
+                [$mid]
+            )->fetch_column();
+
+            if ($elapsed > 0 && $current_atk > 0) {
+                $max_rate = (float)$mine["work_total"] / MINE_MIN_DURATION_SECONDS;
+                $effective_rate = min($current_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+                $work_delta = $effective_rate * $elapsed;
+
+                $this->db->execute_query("
+                    UPDATE mine_stationed_troops 
+                    SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
+                    WHERE mine_id = ?
+                ", [$work_delta, $current_atk, $mid]);
+
+                $mine["work_done"] += $work_delta;
+                $this->db->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$mine["work_done"], $now, $mid]);
+            }
+
+            // Calculate own work load
+            $my_troops = $this->db->execute_query("
+                SELECT * FROM mine_stationed_troops 
+                WHERE mine_id = ? AND user_id = ? 
+                FOR UPDATE
+            ", [$mid, $user_id])->fetch_all(MYSQLI_ASSOC);
+
+            if (empty($my_troops)) continue;
+
+            $work_total = max(1, (int)$mine["work_total"]);
+            $work_done = (int)$mine["work_done"];
+            $mined_ratio = min(1.0, $work_done / $work_total);
+
+            $my_work = array_sum(array_column($my_troops, "work_contributed"));
+            $share = ($work_done > 0) ? min(1.0, $my_work / $work_done) : 0;
+
+            // Give leaving user his share of stone and gold
+            $loot_stone = (int)floor($mine["stone"] * $mined_ratio * $share);
+            $loot_gold = (int)floor($mine["gold"] * $mined_ratio * $share);
+
+            // Remove user from mine (Ores remain for remaining guild members)
+            $this->db->execute_query("
+                UPDATE mines SET 
+                    stone = GREATEST(0, stone - ?),
+                    gold = GREATEST(0, gold - ?),
+                    last_update = ?
+                WHERE id = ?
+            ", [$loot_stone, $loot_gold, $now, $mid]);
+
+            // Calculate movement time
             $res_k = $this->db->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$kid])->fetch_assoc();
             $kx = (int)($res_k["mapx"] ?? 1);
             $ky = (int)($res_k["mapy"] ?? 1);
@@ -1287,25 +1378,28 @@ class Guild
             $map_helper = new Map(new User($user_id, ""));
             $travel_time = $map_helper->get_arrival_time($kx, $ky, $mx, $my, $kid, MapFieldTypes::MAP_FIELD_MINE);
 
+            // Create return event with loot
             $this->db->execute_query("
                 INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, 
                                     loot_food, loot_wood, loot_stone, loot_gold, loot_coal, loot_iron, loot_sapphire, loot_diamond, buildingname)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 'Minen-Rückzug')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 0, 0, 0, 0, 'Minen-Rückzug')
             ", [
                 ActionTypes::ACTION_RETURN_TROOPS, $user_id, $kid,
-                MapFieldTypes::MAP_FIELD_MINE, $mx, $my, $now + $travel_time, $now
+                MapFieldTypes::MAP_FIELD_MINE, $mx, $my, $now + $travel_time, $now,
+                $loot_stone, $loot_gold
             ]);
             $ret_id = $this->db->insert_id;
 
-            $troops = $this->db->execute_query("
+            // Insert troops in sent_troops table
+            $grouped_troops = $this->db->execute_query("
                 SELECT soldier_id, SUM(soldiercount) as soldiercount 
                 FROM mine_stationed_troops 
-                WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
+                WHERE mine_id = ? AND user_id = ? 
                 GROUP BY soldier_id
-            ", [$mid, $user_id, $kid]);
+            ", [$mid, $user_id]);
 
             $insert_troops = [];
-            while ($t = $troops->fetch_assoc()) {
+            while ($t = $grouped_troops->fetch_assoc()) {
                 $sid = (int)$t["soldier_id"];
                 $scnt = (int)$t["soldiercount"];
                 $insert_troops[] = "($ret_id, $sid, $scnt, $scnt, $kid)";
@@ -1315,23 +1409,27 @@ class Guild
                 $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
             }
 
+            // Remove user from mine
             $this->db->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mid, $user_id]);
-            $res_other = $this->db->execute_query("
-                SELECT user_id 
-                FROM mine_stationed_troops mst 
-                JOIN users u ON mst.user_id = u.id 
-                WHERE mst.mine_id = ? AND mst.user_id != ? AND u.guildid = ?
-                LIMIT 1
-            ", [$mid, $user_id, $this->id]);
 
-            if ($other = $res_other->fetch_assoc()) {
-                $this->db->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$other["user_id"], $mid]);
-            } else {
-                $rem_troops = (int)$this->db->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?", [$mid])->fetch_column();
-                if ($rem_troops === 0) {
-                    $this->db->execute_query("UPDATE mines SET claimed_guild_id = NULL, claimed_user_id = NULL WHERE id = ?", [$mid]);
+            // If the user was the first in the mine -> transfer claimer id
+            if ((int)$mine["claimed_user_id"] === $user_id) {
+                $new_claimer = (int)$this->db->execute_query(
+                    "SELECT user_id FROM mine_stationed_troops WHERE mine_id = ? LIMIT 1",
+                    [$mid]
+                )->fetch_column();
+
+                if ($new_claimer > 0) {
+                    $this->db->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$new_claimer, $mid]);
                 }
             }
+
+            Logger::get_instance()->log_game("ECONOMY", "MINE_GUILD_LEAVE_RECALL", [
+                "mine_id" => $mid,
+                "coords" => "$mx:$my",
+                "loot_stone" => $loot_stone,
+                "loot_gold" => $loot_gold
+            ], $kid);
         }
     }
 }

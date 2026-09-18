@@ -98,11 +98,12 @@ function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_se
     if ($days > 0) $output .= $days . "T ";
     if ($hours > 0) $output .= $hours . " Std. ";
     if ($minutes > 0) $output .= $minutes . " Min. ";
-    if ($show_seconds && ($seconds > 0 || empty($output))) {
+    if (($show_seconds && $seconds > 0) || empty($output)) {
         $output .= $seconds . " Sek.";
     }
 
-    return trim($output);
+    $trimmed = trim($output);
+    return !empty($trimmed) ? $trimmed : "0s";
 }
 
 function change_location(string $url, int $seconds = 0): void
@@ -201,12 +202,7 @@ function fnum($number, bool $simple_format = false, $is_barracks = false): strin
 
     $uid = "val_" . substr(md5(mt_rand()), 0, 6);
 
-    return "<span class='popup' id='$uid'>
-                $short
-                <div id='{$uid}_box' class='popupbox' style=''>
-                    $full
-                </div>
-            </span>";
+    return "<span class='popup' id='$uid'>$short<div id='{$uid}_box' class='popupbox'>$full</div></span>";
 }
 
 function regex_pattern(): string
@@ -341,60 +337,61 @@ function calculate_listing_fee(int $supply_value): int
     return (int)max(1, ceil($supply_value / 20000));
 }
 
-function check_image_content($tempFilePath)
+function check_image_content($temp_file_path): string
 {
-    $api_url = getenv("CHECK_NSFW_API_URL");
-    $api_token = getenv("CHECK_NSFW_API_KEY");
+    $api_user = getenv("SIGHTENGINE_API_USER");
+    $api_secret = getenv("SIGHTENGINE_API_SECRET");
 
-    $imageData = file_get_contents($tempFilePath);
-    if ($imageData === false) return "Datei nicht lesbar";
+    if (empty($api_user) || empty($api_secret)) {
+        return "error: Sightengine API-Zugangsdaten fehlen in der .env";
+    }
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $api_url);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $imageData);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Authorization: Bearer " . $api_token,
-        "Content-Type: application/octet-stream"
-    ]);
+    $cfile = new CURLFile($temp_file_path);
+
+    $params = [
+        "media" => $cfile,
+        "models" => "nudity-2.0,wad,gore",
+        "api_user" => $api_user,
+        "api_secret" => $api_secret
+    ];
+
+    $ch = curl_init("https://api.sightengine.com/1.0/check.json");
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
     $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
     if ($response === false) {
-        return "Verbindung fehlgeschlagen";
+        return "error: Verbindung zu Moderations-API fehlgeschlagen";
     }
 
-    $result = json_decode($response, true);
+    $data = json_decode($response, true);
 
-    if ($httpCode === 503) return "loading";
-    if (isset($result["error"])) return "error: " . $result["error"];
-
-    $nsfw_score = 0;
-    $normal_score = 0;
-
-    if (is_array($result)) {
-        $data = isset($result[0][0]) ? $result[0] : $result;
-
-        foreach ($data as $prediction) {
-            if (isset($prediction["label"]) && isset($prediction["score"])) {
-                $label = strtolower($prediction["label"]);
-
-                if ($label === "nsfw") $nsfw_score = $prediction["score"];
-                if ($label === "normal") $normal_score = $prediction["score"];
-            }
-        }
+    if (!isset($data["status"]) || $data["status"] !== "success") {
+        return "error: " . ($data["error"]["message"] ?? "Unbekannter API-Fehler");
     }
 
-    if ($nsfw_score > $normal_score) {
-        return $nsfw_score;
+    $firearm_score = (float)($data["weapon_firearm"] ?? $data["weapon"]["firearm"] ?? 0);
+    if ($firearm_score > 0.50) {
+        return "blocked";
     }
 
-    return 0;
+    $nudity_score = (float)($data["nudity"]["sexual_activity"] ?? 0)
+        + (float)($data["nudity"]["sexual_display"] ?? 0)
+        + (float)($data["nudity"]["erotica"] ?? 0);
+    if ($nudity_score > 0.50) {
+        return "blocked";
+    }
+
+    $gore_score = (float)($data["gore"]["prob"] ?? 0);
+    if ($gore_score > 0.50) {
+        return "blocked";
+    }
+
+    return "ok";
 }
 
 function wrap_emojis($text): array|string|null
@@ -416,18 +413,6 @@ function get_chat_emojis(): array
         '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
         '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻'
     ];
-}
-
-function get_unread_news_count($user, $db_instance): int
-{
-    $uid = $user->get_user_id();
-    if ($uid <= 0) return 0;
-
-    $result = $db_instance->execute_query(
-        "SELECT COUNT(*) FROM news WHERE id > (SELECT last_news_read FROM users WHERE id = ?)",
-        [$uid]
-    );
-    return (int)$result->fetch_row()[0];
 }
 
 function get_include_contents($filename, $variables = []): false|string
@@ -653,7 +638,7 @@ function is_message_blocked($text): bool
 /*
  * Check if user is logged in and get kingdom and building relevant infos
  */
-function check_user_login_and_kingdom($user, $db_instance, $building_type): array
+function check_user_login_and_kingdom($user, $building_type): array
 {
     // Check if user is logged in
     if (!($user->is_logged_in())) {
@@ -689,20 +674,22 @@ function check_user_login_and_kingdom($user, $db_instance, $building_type): arra
     ];
 }
 
-function broadcast_server_message(string $message, string $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): void
+function broadcast_server_message(string $message, string $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
 {
     $db = Database::get_instance()->get_connection();
     $now = time();
     $json = is_array($data) ? json_encode($data) : null;
 
     $res = $db->query("SELECT id, username FROM users WHERE status = 1");
-    if ($res->num_rows === 0) return;
+    if ($res->num_rows === 0) return [];
 
     $rows = [];
     $types = "";
     $params = [];
+    $users = [];
 
     while ($u = $res->fetch_assoc()) {
+        $users[] = $u;
         $rows[] = "(?, ?, ?, ?, ?, ?)";
         $types .= "isisss";
         $params[] = (int)$u["id"];
@@ -718,6 +705,8 @@ function broadcast_server_message(string $message, string $category = MessageCat
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
+
+    return $users;
 }
 
 function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT,
@@ -738,7 +727,7 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
 {
     global $db_instance;
 
-    $valid_categories = ["combat", "troops", "building", "storage", "messages"];
+    $valid_categories = ["combat", "troops", "building", "storage", "messages", "events"];
     if (!in_array($category, $valid_categories)) {
         $category = "combat";
     }
@@ -936,6 +925,11 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
           AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
           AND e.is_processing = 0
           AND e.arrivaltime > ?
+          AND EXISTS (
+              SELECT 1 FROM sent_troops st 
+              WHERE st.eventid = e.eventid 
+              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+          )
         GROUP BY e.eventid, e.arrivaltime, mn.level, e.targetx, e.targety
         ORDER BY arrivaltime
     ";

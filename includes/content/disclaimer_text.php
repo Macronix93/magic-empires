@@ -267,5 +267,27 @@
                 imaginationlol - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/clans" title="clans icons">Clans icons created by Slamlabs -
                 Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/scroll" title="scroll icons">Scroll icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/ancient" title="ancient icons">Ancient icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/candle" title="candle icons">Candle icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/blacksmith" title="blacksmith icons">Blacksmith icons created
+                by Smashicons - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/tree-of-life" title="tree of life icons">Tree of life icons
+                created by Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/mannequin" title="mannequin icons">Mannequin icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/fortress" title="fortress icons">Fortress icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/knight" title="knight icons">Knight icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/crown" title="crown icons">Crown icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/target" title="target icons">Target icons created by Magnific -
+                Flaticon</a></li>
     </ul>
 </div>

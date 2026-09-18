@@ -218,38 +218,21 @@ class BattleReportRenderer
             return "";
         }
 
-        $special_resources = [
-            ResourceTypes::RESOURCE_TYPE_COAL,
-            ResourceTypes::RESOURCE_TYPE_IRON,
-            ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
-            ResourceTypes::RESOURCE_TYPE_DIAMOND
-        ];
-
-        $normal_html = "";
-        $special_html = "";
+        $items_html = "";
 
         foreach ($resources as $res_id => $amount) {
-            $html = "<div>" . get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
-
-            if (in_array($res_id, $special_resources, true)) {
-                $special_html .= $html;
-            } else {
-                $normal_html .= $html;
+            if ($amount > 0) {
+                $items_html .= "<div style='display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;'>" .
+                    get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
             }
         }
 
-        $html = "";
-        if ($normal_html !== "") {
-            $html .= "<div style='display: flex; gap: 15px; justify-content: center; margin-top: 10px;'>";
-            $html .= $normal_html;
-            $html .= "</div>";
+        if (empty($items_html)) {
+            return "";
         }
 
-        if ($special_html !== "") {
-            $html .= "<div style='display: flex; gap: 15px; justify-content: center; margin-top: 10px;'>";
-            $html .= $special_html;
-            $html .= "</div>";
-        }
-        return $html;
+        return "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 10px;'>
+            $items_html
+        </div>";
     }
 }

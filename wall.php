@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_WALL);
+$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_WALL);
 
 $current_kingdom = $result["current_kingdom"];
 $building = $result["building"];
@@ -20,6 +20,19 @@ $maintenance_mult = $kingdom->get_repair_cost_multiplier();
 $repair_cost = (int)round($hp_difference * BASE_WALL_REPAIR_COST * $maintenance_mult);
 $disabled = $repair_cost > $kingdom_stone || $hp_difference == 0 ? "disabled" : "";
 $bonus_defense_text = $bonus_defense == 0 ? "0" : "+$bonus_defense";
+
+$next_level_text = "";
+if ($wall_level < MAX_BUILDING_LEVEL) {
+    $next_lvl = $wall_level + 1;
+    $next_max_hp = DEFAULT_WALL_HP * $next_lvl + ($wall_tech_level * RESEARCH_WALL_HP_INC);
+    $next_defense = $kingdom->calculate_wall_defense($next_max_hp, $next_lvl);
+
+    $next_level_text = "
+        <div class='split-content'>
+            <div><b>Nächste Stufe:</b></div>
+            <div class='passed'>" . fnum($next_max_hp) . " HP | +" . $next_defense . " DEF</div>
+        </div>";
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
     $step_percent = (int)$_POST["repair_percent"];
@@ -54,13 +67,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
     }
 }
 
-
 /*
  * HTML Content Part
  */
+$view .= "<div style='margin: 0 auto 15px; width: 350px;'>
+            <div class='split-content'><b>Verteidigungswert:</b> $bonus_defense_text</div>
+            $next_level_text
+          </div>
+";
 $view .= "<div style='display: flex; flex-direction: column; gap: 15px; align-items: center;'>
-            <div><b>Verteidigungswert:</b> $bonus_defense_text</div>
-            
             <div style='width: 100%; max-width: 400px;'>
                 <div style='display: flex; align-items: center; gap: 10px; font-size: 14px; margin-bottom: 5px;'>
                     <span><img src='images/icons/icon_health.png' class='ressource-icons' alt='Haltbarkeit'></span>

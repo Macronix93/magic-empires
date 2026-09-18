@@ -83,7 +83,7 @@ class User
         setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, score, mainkingdom, msgcount, lastsentmsgend, adminlevel, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT username, lastlogin, mainkingdom, msgcount, lastsentmsgend, adminlevel, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
@@ -91,7 +91,6 @@ class User
         $_SESSION["username"] = $row["username"];
         $_SESSION["kingdomid"] = $row["mainkingdom"];
         $_SESSION["adminlevel"] = $row["adminlevel"];
-        $_SESSION["score"] = $row["score"];
         $_SESSION["message_count"] = $row["msgcount"];
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
         $_SESSION["device_id"] = $device_id;
@@ -299,37 +298,6 @@ class User
         unset($_SESSION["last_upgraded"][$kingdom_id]);
     }
 
-//    public function get_unread_messages(): int
-//    {
-//        $uid = $this->get_user_id();
-//        $gid = $this->get_user_guild_id();
-//        $is_staff = ($this->get_user_admin_level() > 0);
-//
-//        $support_subquery = $is_staff
-//            ? "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE sm.is_admin_reply = 0 AND sm.hasread = 0 AND t.status = 1)"
-//            : "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE t.userid = u.id AND sm.is_admin_reply = 1 AND sm.hasread = 0)";
-//
-//        $guild_subquery = ($gid > 0)
-//            ? "(SELECT COUNT(*) FROM guild_chat WHERE guild_id = $gid AND id > u.last_guild_chat_id AND userid != u.id AND deleted = 0)"
-//            : "0";
-//
-//        $query = "
-//            SELECT
-//                (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) +
-//                (SELECT COUNT(*) FROM server_messages WHERE receiverid = u.id AND hasread = 0) +
-//                (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) +
-//                $support_subquery +
-//                $guild_subquery
-//            AS total
-//            FROM users u
-//            WHERE u.id = ?";
-//
-//        $result = $this->mysqli->execute_query($query, [$uid]);
-//        $row = $result->fetch_assoc();
-//
-//        return (int)($row["total"] ?? 0);
-//    }
-
     public function get_unread_counts(): array
     {
         if ($this->cached_unread_counts !== null) {
@@ -345,8 +313,18 @@ class User
         $is_staff = ($this->get_user_admin_level() > 0);
 
         $support_subquery = $is_staff
-            ? "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE sm.is_admin_reply = 0 AND sm.hasread = 0 AND t.status = 1)"
-            : "(SELECT COUNT(*) FROM support_messages sm JOIN support_tickets t ON sm.ticketid = t.id WHERE t.userid = u.id AND sm.is_admin_reply = 1 AND sm.hasread = 0)";
+            ? "(SELECT COUNT(*) FROM support_messages sm 
+                JOIN support_tickets t ON sm.ticketid = t.id 
+                WHERE sm.hasread = 0 
+                  AND sm.senderid != u.id 
+                  AND (
+                      (sm.is_admin_reply = 0 AND t.status = 1 AND t.userid != u.id) 
+                      OR 
+                      (sm.is_admin_reply = 1 AND t.userid = u.id)
+                  ))"
+            : "(SELECT COUNT(*) FROM support_messages sm 
+                JOIN support_tickets t ON sm.ticketid = t.id 
+                WHERE t.userid = u.id AND sm.is_admin_reply = 1 AND sm.hasread = 0 AND sm.senderid != u.id)";
 
         $guild_subquery = ($gid > 0)
             ? "(SELECT COUNT(*) FROM guild_chat WHERE guild_id = $gid AND id > u.last_guild_chat_id AND userid != u.id AND deleted = 0)"

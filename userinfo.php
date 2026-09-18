@@ -33,6 +33,19 @@ if ($user_id) {
         return;
     }
 
+    // Check, if a conversation already exists with that user
+    $res_conv = $db_instance->execute_query("
+        SELECT 1 FROM messages 
+        WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+          AND deleted = 0 
+        LIMIT 1",
+            [$user->get_user_id(), $user_id, $user_id, $user->get_user_id()]
+    );
+    $has_conversation = ($res_conv->num_rows > 0);
+    $msg_url = $has_conversation
+            ? "messages.php?action=read&s=" . $user_id
+            : "messages.php?action=new&receiver=" . urlencode($row["username"]);
+
     $res_all_k = $db_instance->execute_query(
             "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY id",
             [$user_id]
@@ -123,13 +136,19 @@ if ($user_id) {
         <tr>
             <td style="width: 200px;"><b>Spieler</b></td>
             <td style="width: 300px;">
-                <?php
-                if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
-                    echo "<i>" . e($user_name) . "</i> (Inaktiv)";
-                } else {
-                    echo e($user_name);
-                }
-                ?>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <?php
+                    if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
+                        echo "<i>" . e($user_name) . "</i> (Inaktiv)";
+                    } else {
+                        echo e($user_name);
+                    }
+                    if ($user_id !== $user->get_user_id()): ?>
+                        <button data-on-click="redirect" data-url="<?= $msg_url ?>">
+                            Nachricht senden
+                        </button>
+                    <?php endif; ?>
+                </div>
             </td>
         </tr>
         <?php

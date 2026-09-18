@@ -9,20 +9,31 @@ $res_user = $db_instance->execute_query("SELECT linked_user, last_avatar_change 
 $user_data = $res_user->fetch_assoc();
 
 $allowed_tabs = ["profile", "game", "account"];
-$active_tab = $_GET['tab'] ?? ($_COOKIE['me_settings_tab'] ?? 'profile');
+$referer = $_SERVER['HTTP_REFERER'] ?? '';
+$is_external_nav = empty($referer) || !str_contains($referer, 'settings.php');
+
+if (isset($_GET['tab']) && in_array($_GET['tab'], $allowed_tabs)) {
+    $active_tab = $_GET['tab'];
+
+    setcookie("me_settings_tab", $active_tab, time() + 31536000, "/", "", false, false);
+} else if ($is_external_nav) {
+    $active_tab = "profile";
+} else {
+    $active_tab = $_COOKIE['me_settings_tab'] ?? 'profile';
+
+    if (!in_array($active_tab, $allowed_tabs)) {
+        $active_tab = "profile";
+    }
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST['submit_avatar']) || isset($_POST['change_username']) || isset($_POST['change_password']) || isset($_POST['change_email'])) {
         $active_tab = "profile";
     } else if (isset($_POST['update_display_settings']) || isset($_POST['rename_kingdom']) || isset($_POST['update_sharing']) || isset($_POST['update_privacy'])) {
         $active_tab = "game";
-    } else if (isset($_POST['delete_account'])) {
+    } else if (isset($_POST['delete_account']) || isset($_POST['save_push_settings']) || isset($_POST['activate_vacation']) || isset($_POST['delete_all_push_devices'])) {
         $active_tab = "account";
     }
-}
-
-if (!in_array($active_tab, $allowed_tabs)) {
-    $active_tab = "profile";
 }
 
 // Generate a random token
@@ -34,12 +45,9 @@ if (!isset($_SESSION['csrf_token'])) {
     }
 }
 
-// Add the token as a hidden input in the form
-$csrf_token = $_SESSION['csrf_token'];
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
         $error = "Ungültiger Token!";
     } else {
         if (isset($_POST['submit_avatar'])) {
@@ -76,39 +84,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             } else if (getimagesize($file_tmp) === false) {
                                 $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
                             } else {
-                                $nsfw_result = check_image_content($file_tmp);
+                                $check_result = check_image_content($file_tmp);
 
-                                if ($nsfw_result === "loading") {
-                                    $error = "Ladefehler... Bitte versuche es in 20 Sekunden nochmal.";
-                                } else if (is_string($nsfw_result) && str_starts_with($nsfw_result, "error")) {
-                                    $error = "Inhaltsprüfung fehlgeschlagen: " . $nsfw_result;
+                                if ($check_result === "loading") {
+                                    $error = "Sicherheitsprüfung lädt noch... Bitte in 15 Sekunden erneut versuchen.";
+                                } else if (str_starts_with($check_result, "error")) {
+                                    $error = "Technischer Fehler bei der Bildprüfung: " . htmlspecialchars($check_result);
+                                } else if ($check_result === "blocked") {
+                                    $error = "Dein Bild wurde als unangemessen eingestuft und ist nicht erlaubt.";
+                                } else if ($check_result !== "ok") {
+                                    $error = "Bild konnte nicht verifiziert werden (" . htmlspecialchars($check_result) . ").";
                                 } else {
-                                    $nsfw_score = (float)$nsfw_result;
+                                    $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
+                                    $file_path = UPLOADS_FILE_PATH . $hashed_name;
 
-                                    if ($nsfw_score > 0.8) {
-                                        $error = "Dein Bild wurde als unangemessen eingestuft.";
+                                    array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
+
+                                    if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
+                                        $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [time(), $uid]);
+
+                                        $view = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
+
+                                        $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
+                                            "filename" => $file_name,
+                                            "extension" => $file_ext,
+                                            "mime" => $mime_type,
+                                            "size" => $file_size
+                                        ]);
                                     } else {
-                                        $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
-                                        $file_path = UPLOADS_FILE_PATH . $hashed_name;
-
-                                        array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
-
-                                        if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                                            $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [time(), $uid]);
-
-                                            $view = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
-
-                                            $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
-                                                "filename" => $file_name,
-                                                "extension" => $file_ext,
-                                                "mime" => $mime_type,
-                                                "size" => $file_size
-                                            ]);
-
-                                            unset($_SESSION['csrf_token']);
-                                        } else {
-                                            $error = "Fehler beim Hochladen der Datei auf den Server!";
-                                        }
+                                        $error = "Fehler beim Hochladen der Datei auf den Server!";
                                     }
                                 }
                             }
@@ -334,12 +338,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
 
             $list_view = isset($_POST['use_list_view']) ? "1" : "0";
+            $map_popup = isset($_POST['use_map_popup']) ? "1" : "0";
 
             setcookie("me_overview_pagesize", (string)$pagesize, time() + 31536000, "/", "", false, false);
             setcookie("me_list_view", $list_view, time() + 31536000, "/", "", false, false);
+            setcookie("me_map_popup", $map_popup, time() + 31536000, "/", "", false, false);
 
             $_COOKIE["me_overview_pagesize"] = (string)$pagesize;
             $_COOKIE["me_list_view"] = $list_view;
+            $_COOKIE["me_map_popup"] = $map_popup;
 
             $view .= show_passed_box("Anzeige-Einstellungen erfolgreich gespeichert.");
         }
@@ -398,17 +405,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $p_building = isset($_POST['push_building']) ? 1 : 0;
             $p_storage = isset($_POST['push_storage']) ? 1 : 0;
             $p_messages = isset($_POST['push_messages']) ? 1 : 0;
+            $p_events = isset($_POST['push_events']) ? 1 : 0;
 
             $db_instance->execute_query("
-                INSERT INTO user_push_settings (user_id, combat, troops, building, storage, messages)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO user_push_settings (user_id, combat, troops, building, storage, messages, events)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     combat = VALUES(combat),
                     troops = VALUES(troops),
                     building = VALUES(building),
                     storage = VALUES(storage),
-                    messages = VALUES(messages)
-            ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages]);
+                    messages = VALUES(messages),
+                    events = VALUES(events)
+            ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages, $p_events]);
 
             $_SESSION["admin_flash_msg"] = "Push-Einstellungen erfolgreich gespeichert.";
             change_location("settings.php?tab=account");
@@ -485,7 +494,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
     }
+
+    try {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    } catch (Throwable $e) {
+        $_SESSION['csrf_token'] = md5(uniqid(mt_rand(), true));
+    }
 }
+
+$csrf_token = $_SESSION['csrf_token'];
 
 
 /*
@@ -522,11 +539,12 @@ $view .= '
                  alt="Aktueller Avatar" 
                  style="width: 60px; height: 60px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);">
         </div>
-        <form action="settings.php" method="POST" enctype="multipart/form-data">
+        <form action="settings.php" method="POST" enctype="multipart/form-data" id="avatar-upload-form">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <input type="hidden" name="submit_avatar" value="1">
             <p>Neues Benutzerbild hochladen (Max. ' . MAX_UPLOAD_FILE_SIZE . ' KB):</p>
-            <input type="file" name="image" id="image" required><br><br>
-            <input type="submit" name="submit_avatar" value="Bild hochladen">
+            <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif" required><br><br>
+            <input type="submit" id="btn-submit-avatar" value="Bild hochladen">
         </form>
         <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
             Hinweis: Das Profilbild kann nur alle ' . AVATAR_CHANGE_COOLDOWN_DAYS . ' Tage geändert werden.
@@ -590,6 +608,7 @@ $view .= "<div id='tab_game' class='settings-tab' style='display: " . ($active_t
 $cur_pagesize = (int)($_COOKIE["me_overview_pagesize"] ?? OVERVIEW_PAGESIZE_DEFAULT);
 $cur_pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $cur_pagesize));
 $cur_list_view = (($_COOKIE["me_list_view"] ?? $_COOKIE["me_barracks_all_units"] ?? "0") === "1");
+$cur_map_popup = (($_COOKIE["me_map_popup"] ?? "1") === "1");
 
 $view .= '
 <div class="box-container">
@@ -623,6 +642,10 @@ $view .= '
                         <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" name="use_list_view" value="1" style="width: auto;" ' . ($cur_list_view ? "checked" : "") . '>
                             <span>Listenansicht standardmäßig aktivieren<br><small style="opacity: 0.7;">(Kaserne, Truppenentsendung)</small></span>
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" name="use_map_popup" value="1" style="width: auto;" ' . ($cur_map_popup ? "checked" : "") . '>
+                            <span>Schwebendes Info-Popup auf der Karte anzeigen<br><small style="opacity: 0.7;">(Wenn deaktiviert, wird die Info als feste Tabelle unter der Karte gerendert)</small></span>
                         </label>
                     </td>
                 </tr>
@@ -725,7 +748,7 @@ $view .= "<div class='title-border'>Account-Informationen</div>
         </table>";
 
 $push_settings = $db_instance->execute_query(
-    "SELECT combat, troops, building, storage, messages FROM user_push_settings WHERE user_id = ?",
+    "SELECT combat, troops, building, storage, messages, events FROM user_push_settings WHERE user_id = ?",
     [$uid]
 )->fetch_assoc();
 
@@ -734,6 +757,7 @@ $val_troops = $push_settings['troops'] ?? 1;
 $val_building = $push_settings['building'] ?? 1;
 $val_storage = $push_settings['storage'] ?? 1;
 $val_messages = $push_settings['messages'] ?? 1;
+$val_events = $push_settings['events'] ?? 1;
 
 $res_push_count = $db_instance->execute_query("SELECT COUNT(*) FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
 $push_devices_count = (int)$res_push_count->fetch_column();
@@ -781,6 +805,10 @@ $view .= '
                 <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_messages" value="1" ' . ($val_messages ? "checked" : "") . '>
                     ' . wrap_emojis('<span>📩 <b>Private Nachrichten:</b> Neue Chat-Mitteilung</span>') . '
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="push_events" value="1" ' . ($val_events ? "checked" : "") . '>
+                    ' . wrap_emojis('<span>👹 <b>Welt-Events:</b> Falls Events stattfinden</span>') . '
                 </label>
             </div>
             <div style="margin-top: 15px; text-align: center;">

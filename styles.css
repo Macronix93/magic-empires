@@ -1369,7 +1369,7 @@ a:hover b {
 .ranking-table {
     table-layout: fixed !important;
     max-width: 650px;
-    width: 70%;
+    width: 75%;
     margin: 0 auto;
 }
 
@@ -1724,9 +1724,20 @@ tr:first-child td.td-gradient {
     font-size: 13px;
 }
 
+.map-options {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
 .legend-group {
     display: flex;
     align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 8px;
 }
@@ -1879,6 +1890,92 @@ tr:first-child td.td-gradient {
     border: 2px solid rgb(246, 34, 34) !important;
 }
 
+
+/* Floating Map Info Popup */
+.map-floating-popup {
+    position: absolute;
+    display: none;
+    background-color: var(--box-content-color);
+    border: 4px double var(--box-selected);
+    border-radius: 5px;
+    padding: 12px 16px;
+    z-index: 1000;
+    width: max-content;
+    min-width: 450px;
+    max-width: 580px;
+    pointer-events: auto;
+    animation: popup-fade-in 0.15s ease-out;
+}
+
+.map-floating-popup .table {
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5) !important;
+    border: 2px solid var(--box-header) !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+.map-floating-popup td {
+    font-size: 18px !important;
+    padding: 6px 12px !important;
+    text-align: left !important;
+    height: auto !important;
+    box-shadow: none !important;
+    vertical-align: middle !important;
+    background-color: var(--table-color) !important;
+    border: 1px solid rgba(0, 0, 0, 0.2) !important;
+}
+
+.map-floating-popup .td-mapinfo {
+    font-size: 18px !important;
+    padding: 6px 12px !important;
+    text-align: left !important;
+    width: 38% !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+}
+
+.map-floating-popup .td-mapinfo + td {
+    text-align: left !important;
+    padding: 6px 12px !important;
+    font-size: 18px !important;
+    word-break: normal !important;
+    white-space: nowrap !important;
+}
+
+.map-floating-popup td.td-center,
+.map-floating-popup td[colspan] {
+    text-align: center !important;
+    white-space: normal !important;
+}
+
+.map-floating-popup .title-border {
+    font-size: 18px !important;
+    line-height: 28px !important;
+    margin: 0 auto 10px auto !important;
+    width: fit-content !important;
+    min-width: unset !important;
+    padding: 0 10px !important;
+    text-transform: uppercase !important;
+}
+
+.map-popup-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    padding: 0 !important;
+    font-size: 13px !important;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    z-index: 1010;
+}
+
 /* Mobile Nav Logic */
 .nav-notification-dot {
     position: absolute;
@@ -1938,7 +2035,7 @@ tr:first-child td.td-gradient {
     align-items: center;
     padding: 0 5px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
-    pointer-events: none;
+    pointer-events: auto;
     user-select: none;
     transition: opacity 0.3s;
 }
@@ -1952,6 +2049,70 @@ tr:first-child td.td-gradient {
     text-overflow: ellipsis;
     max-width: 100%;
     line-height: 1.2;
+}
+
+.mobile-kingdom-dropdown {
+    display: none;
+    position: fixed;
+    top: 36px;
+    left: 85px;
+    right: 85px;
+    background: var(--box-content-color);
+    border: 2px solid var(--border-gold);
+    border-radius: 5px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.85);
+    z-index: 2850;
+    max-height: 400px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.mobile-kingdom-dropdown.open {
+    display: block;
+}
+
+.mobile-kingdom-dropdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: rgb(230, 220, 200);
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background-color 0.15s;
+}
+
+.mobile-kingdom-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.mobile-kingdom-dropdown-item:hover,
+.mobile-kingdom-dropdown-item:active {
+    background-color: var(--box-selected);
+}
+
+.mobile-kingdom-dropdown-item.active {
+    background-color: var(--box-selected);
+    color: var(--link-color);
+    font-weight: bold;
+}
+
+.mobile-dropdown-kname {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 8px;
+}
+
+.mobile-dropdown-coords {
+    font-size: 12px;
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+.mobile-only-kname {
+    display: none;
 }
 
 #nav-left-trigger {
@@ -2112,15 +2273,12 @@ body.modal-open footer {
 }
 
 .overlay-close-btn {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 24px;
-    cursor: pointer;
-}
-
-.overlay-close-btn:hover {
-    color: #f00;
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .kingdom-switch-container {
@@ -2381,6 +2539,10 @@ input[type="button"],
     -ms-user-select: none; /* IE/Edge */
     user-select: none; /* Standard */
     -webkit-tap-highlight-color: transparent;
+}
+
+.mass-troop-label {
+    font-size: 14px;
 }
 
 img[data-on-click] {
@@ -2660,7 +2822,6 @@ img[data-on-click] {
 }
 
 .overview-table .kingdom-link {
-    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2766,6 +2927,84 @@ img[data-on-click] {
     vertical-align: middle;
 }
 
+.guild-members-table {
+    width: 80% !important;
+}
+
+.guild-members-table colgroup col.col-g-score {
+    width: 20% !important;
+}
+
+.guild-members-table colgroup col.col-g-rank {
+    width: 25% !important;
+}
+
+.stats-import-export {
+    font-size: 14px;
+    opacity: 0.8;
+    margin-bottom: 8px;
+}
+
+.trade-grid-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.guild-mining-table span {
+    font-size: 16px;
+}
+
+.guild-mining-table-mine {
+    width: 22%;
+}
+
+.guild-mining-table-members {
+    width: 26%;
+}
+
+.guild-mining-table-troops {
+    width: 26%;
+}
+
+.guild-mining-table-progress {
+    width: 26%;
+}
+
+.mining-progress {
+    height: 5px;
+    width: 100%;
+    margin: 8px auto;
+}
+
+.guild-list-name {
+    width: 41%;
+}
+
+.guild-list-leader {
+    width: 20%;
+}
+
+.guild-list-members {
+    width: 15%;
+}
+
+.guild-list-join-type {
+    width: 18%;
+}
+
+.guild-list-join {
+    width: 6%;
+}
+
+.no-event {
+    opacity: 0.6;
+}
+
+.faq-table tr:first-child td.td-gradient {
+    border-bottom: none;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -2791,16 +3030,158 @@ img[data-on-click] {
         --map-viewport-height: 350px;
     }
 
+    .mass-troop-label {
+        font-size: 11px;
+    }
+
+    .guild-list-table td {
+        font-size: 11px;
+    }
+
+    .guild-list-name {
+        width: 40%;
+    }
+
+    .guild-list-leader {
+        width: 24%;
+    }
+
+    .guild-list-members {
+        width: 18%;
+    }
+
+    .guild-list-join-type {
+        width: 26%;
+    }
+
+    .guild-list-join {
+        width: 1%;
+    }
+
+    .mining-progress {
+        width: 60px;
+    }
+
+    .guild-mining-table-mine {
+        width: 18%;
+    }
+
+    .guild-mining-table-members {
+        width: 30%;
+    }
+
+    .guild-mining-table-troops {
+        width: 30%;
+    }
+
+    .guild-mining-table-progress {
+        width: 30%;
+    }
+
+    .guild-mining-table td,
+    .guild-mining-table span,
+    .guild-mining-table .unit-badge b {
+        font-size: 10px !important;
+    }
+
+    .no-event {
+        font-size: 14px;
+    }
+
+    .unit-badge b::before {
+        margin: 0;
+    }
+
+    .desktop-only-switch {
+        display: none !important;
+    }
+
+    .mobile-only-kname {
+        display: block !important;
+    }
+
+    .overlay-close-btn {
+        font-size: 16px !important;
+    }
+
+    .map-options {
+        font-size: 12px;
+        gap: 5px;
+    }
+
+    input[type="checkbox"] {
+        width: 12px;
+        font-size: 12px;
+    }
+
+    /* Floating Map Info Popup SMARTPHONE */
+    .map-floating-popup {
+        min-width: 260px !important;
+        max-width: 320px !important;
+        padding: 8px 10px !important;
+        border-width: 2px !important;
+    }
+
+    .map-floating-popup .title-border {
+        font-size: 14px !important;
+        line-height: 20px !important;
+        margin: 0 auto 6px auto !important;
+        letter-spacing: 1px !important;
+    }
+
+    .map-floating-popup td {
+        font-size: 13px !important;
+        padding: 4px 8px !important;
+        line-height: 1.2 !important;
+    }
+
+    .map-floating-popup .td-mapinfo {
+        font-size: 13px !important;
+        padding: 4px 8px !important;
+        width: 40% !important;
+    }
+
+    .map-floating-popup .td-mapinfo + td {
+        font-size: 13px !important;
+        padding: 4px 8px !important;
+    }
+
+    .map-floating-popup .ressource-icons {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    .map-floating-popup button {
+        padding: 4px 10px !important;
+        font-size: 12px !important;
+    }
+
+    .map-floating-popup .map-popup-close-btn {
+        top: 2px !important;
+        right: 2px !important;
+        width: 16px !important;
+        height: 16px !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        border-width: 1px !important;
+        font-size: 13px !important;
+        line-height: 1 !important;
+    }
+
+    /*************************************/
+    .battle-report div[style*="margin-top: -12px"] {
+        margin-top: -3px !important;
+        margin-bottom: 12px !important;
+        font-size: 11px !important;
+    }
+
+    .guild-members-table {
+        width: 100% !important;
+    }
+
     .guild-members-table colgroup col.col-g-action {
         width: 85px !important;
-    }
-
-    .guild-members-table colgroup col.col-g-score {
-        width: 20% !important;
-    }
-
-    .guild-members-table colgroup col.col-g-rank {
-        width: 22% !important;
     }
 
     .guild-rank-select {
@@ -2902,7 +3283,6 @@ img[data-on-click] {
     .overview-table .unit-badge {
         padding: 4px 5px 4px 0 !important;
         gap: 2px !important;
-        font-size: 9px !important;
         margin: 0 !important;
     }
 
@@ -3233,7 +3613,7 @@ img[data-on-click] {
     }
 
     .overlay-modal td {
-        font-size: 11px;
+        font-size: 12px;
     }
 
     .kingdom-name-break {
@@ -3303,6 +3683,10 @@ img[data-on-click] {
 
     .garnison-box {
         max-width: 320px;
+    }
+
+    .header {
+        min-height: 120px;
     }
 
     .header img {
@@ -3489,8 +3873,8 @@ img[data-on-click] {
     }
 
     .landing-hero {
-        padding: 15px;
-        font-size: 0.85em;
+        padding: 10px;
+        font-size: 0.75em;
     }
 
     .news-header-title {
@@ -3607,9 +3991,12 @@ img[data-on-click] {
     }
 
     input,
-    textarea,
+    textarea {
+        font-size: 13px !important;
+    }
+
     button {
-        font-size: 14px;
+        font-size: 11px !important;
     }
 
     textarea {
@@ -3663,14 +4050,20 @@ img[data-on-click] {
     }
 
     .map-toolbar {
-        gap: 6px;
-        padding: 4px 6px;
-        font-size: 11px;
+        gap: 10px;
+        font-size: 10px;
+        padding: 4px;
     }
 
     .map-legend-item {
-        font-size: 11px;
+        font-size: 10px;
         gap: 3px;
+    }
+
+    .map-toolbar .map-legend-inner-item,
+    .map-legend-entity-item {
+        width: 10px;
+        height: 10px;
     }
 
     .legend-divider {
@@ -3741,6 +4134,16 @@ img[data-on-click] {
         min-width: 60px;
     }
 
+    .sent-troops-table .unit-badge {
+        padding: 4px 5px 4px 0 !important;
+        gap: 2px !important;
+        margin: 0 !important;
+    }
+
+    .sent-troops-table .unit-badge b {
+        font-size: 9px;
+    }
+
     .sent-troops-table colgroup col:nth-child(3) {
         width: 20% !important;
     }
@@ -3783,8 +4186,8 @@ img[data-on-click] {
     }
 
     .td-timer-cell input.btn-delete {
-        width: 16px !important;
-        height: 16px !important;
+        width: 14px !important;
+        height: 14px !important;
     }
 
     table:has(#sv),

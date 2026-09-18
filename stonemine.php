@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, $db_instance, BuildingTypes::BUILDING_STONEMINE);
+$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_STONEMINE);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];
@@ -60,7 +60,17 @@ $res_ft = $db_instance->execute_query("
 $ft_res = $res_ft->fetch_assoc();
 $boost_value = (int)($ft_res["stonerate"] * BASE_STONE_GAIN);
 
-$view .= "<div style='margin-bottom: 15px;'><b>Steinertrag pro Stunde:</b> " . fnum($kingdom->get_base_stone_rate()) . " $boost_display</div>";
+$next_level_text = "";
+if ($lvl < MAX_BUILDING_LEVEL) {
+    $next_increase = (int)round(BASE_STONE_GAIN * $ft_res["stonerate"]);
+    $next_level_text = "<div class='split-content'><b>Nächste Stufe:</b><div class='passed'>+" . fnum($next_increase) . " / Std.</div></div>";
+}
+
+$view .= "<div style='margin: auto; width: 350px;'>
+                <div class='split-content'><b>Steinertrag pro Stunde:</b> " . fnum($kingdom->get_base_stone_rate()) . " $boost_display</div>
+                $next_level_text
+            </div>
+";
 
 if ($ticks_left > 0) {
     $view .= "Ertragsboost aktiv!<br>Verbleibende Erträge: <span>$ticks_left</span>";

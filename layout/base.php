@@ -144,9 +144,22 @@ if ($user->is_logged_in()) {
 </div>
 <?php if ($kingdom_count > 1): ?>
     <?php
-    $current_k = new Kingdom($user->get_current_kingdom());
-    $cur_kname = $current_k->get_kingdom_name();
-    $cur_coords = $current_k->get_kingdom_map_x() . ":" . $current_k->get_kingdom_map_y();
+    $all_mobile_kingdoms = $db_instance->execute_query(
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at",
+            [$user->get_user_id()]
+    )->fetch_all(MYSQLI_ASSOC);
+
+    $cur_k_id = $user->get_current_kingdom();
+    $cur_kname = "";
+    $cur_pos = 1;
+
+    foreach ($all_mobile_kingdoms as $idx => $k) {
+        if ($k["id"] == $cur_k_id) {
+            $cur_pos = $idx + 1;
+            $cur_kname = $k["kingdomname"];
+            break;
+        }
+    }
     ?>
     <div class="mobile-nav-arrow" style="left: 60px; top: 1px;" data-on-click="switchKingdomPrev">
         <img src="images/icons/icon_right_slow.png"
@@ -154,8 +167,23 @@ if ($user->is_logged_in()) {
              data-on-click="switchKingdomPrev"
              title="Vorheriges Königreich" alt="">
     </div>
-    <div class="mobile-kingdom-display" style="top: 1px;">
-        <span class="mobile-kingdom-title"><?= e($cur_kname) ?></span>
+    <div class="mobile-kingdom-display" style="top: 1px;" data-on-click="toggleMobileKingdomMenu">
+        <span class="mobile-kingdom-title"><?= $cur_pos ?> - <?= e($cur_kname) ?> <span
+                    style="font-size: 10px; opacity: 0.7;">▾</span></span>
+    </div>
+    <div id="mobile-kingdom-dropdown" class="mobile-kingdom-dropdown">
+        <?php
+        foreach ($all_mobile_kingdoms as $idx => $m_k):
+            $pos = $idx + 1;
+            $is_active = ($m_k["id"] == $cur_k_id);
+            ?>
+            <div class="mobile-kingdom-dropdown-item<?= $is_active ? ' active' : '' ?>"
+                 data-on-click="selectMobileKingdom"
+                 data-id="<?= $m_k["id"] ?>">
+                <span class="mobile-dropdown-kname"><?= $pos ?> - <?= e($m_k["kingdomname"]) ?></span>
+                <span class="mobile-dropdown-coords">(<?= $m_k["mapx"] ?>:<?= $m_k["mapy"] ?>)</span>
+            </div>
+        <?php endforeach; ?>
     </div>
     <div class="mobile-nav-arrow" style="right: 60px; top: 1px;" data-on-click="switchKingdomNext">
         <img src="images/icons/icon_right_slow.png"

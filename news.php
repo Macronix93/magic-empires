@@ -167,8 +167,8 @@ if ($result->num_rows > 0) {
         $view .= "
         <div class='box-container'>
             <div class='box-header news-flex-header'>
-                    <div class='news-header-title' title='" . e($row["title"]) . "'>
-                        " . e($row["title"]) . "
+                    <div class='news-header-title' title='" . $row["title"] . "'>
+                        " . wrap_emojis($row["title"]) . "
                     </div>
                     $del_button
                 </div>

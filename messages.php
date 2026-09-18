@@ -342,11 +342,24 @@ if (isset($_GET["worldchat"])) {
 
     // Support Button
     $is_staff = ($user->get_user_admin_level() > 0);
-    $support_unread_query = $is_staff
-        ? "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE m.is_admin_reply = 0 AND m.hasread = 0 AND t.status = 1"
-        : "SELECT COUNT(*) FROM support_messages m JOIN support_tickets t ON m.ticketid = t.id WHERE t.userid = ? AND m.is_admin_reply = 1 AND m.hasread = 0";
+    $uid = $user->get_user_id();
 
-    $support_unread = $db_instance->execute_query($support_unread_query, $is_staff ? [] : [$user->get_user_id()])->fetch_row()[0];
+    $support_unread_query = $is_staff
+        ? "SELECT COUNT(*) FROM support_messages sm 
+           JOIN support_tickets t ON sm.ticketid = t.id 
+           WHERE sm.hasread = 0 
+             AND sm.senderid != ? 
+             AND (
+                 (sm.is_admin_reply = 0 AND t.status = 1 AND t.userid != ?) 
+                 OR 
+                 (sm.is_admin_reply = 1 AND t.userid = ?)
+             )"
+        : "SELECT COUNT(*) FROM support_messages sm 
+           JOIN support_tickets t ON sm.ticketid = t.id 
+           WHERE t.userid = ? AND sm.is_admin_reply = 1 AND sm.hasread = 0 AND sm.senderid != ?";
+
+    $params_support = $is_staff ? [$uid, $uid, $uid] : [$uid, $uid];
+    $support_unread = $db_instance->execute_query($support_unread_query, $params_support)->fetch_row()[0];
 
     $view .= "<a href='support.php' class='msg-button'>
     <div class='msg-left'>
