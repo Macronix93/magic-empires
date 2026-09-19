@@ -39,20 +39,7 @@ registerAction("selectMobileKingdom", (el) => {
     const dropdown = document.getElementById("mobile-kingdom-dropdown");
     if (dropdown) dropdown.classList.remove("open");
 
-    if (typeof switchKingdomAndReload === "function") {
-        switchKingdomAndReload(kingdomId);
-    }
-});
-registerAction("switchKingdom", (el, e) => {
-    if (window.innerWidth <= 600) {
-        if (e) e.preventDefault();
-        return;
-    }
-
-    const kingdomId = el.dataset.id;
-    if (typeof switchKingdomAndReload === "function") {
-        switchKingdomAndReload(kingdomId);
-    }
+    switchKingdomById(kingdomId);
 });
 registerAction("switchKingdomPrev", () => {
     if (isKingdomSwitching) return;
@@ -251,6 +238,47 @@ observer.observe(document.body, {
     attributes: true,
     attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
 });
+
+function switchKingdomById(kingdomId) {
+    let formData = new FormData();
+    formData.append("choosekingdom", kingdomId);
+
+    fetch("ajax/change_kingdom.php", {
+        method: "POST",
+        headers: {"X-Requested-With": "XMLHttpRequest"},
+        body: formData
+    }).then(response => {
+        if (response.ok) {
+            let currentUrl = new URL(window.location.href);
+            let pathname = currentUrl.pathname;
+            let filename = pathname.split('/').pop();
+
+            const keepParamsPages = [
+                "messages.php",
+                "ranking.php",
+                "support.php",
+                "sendtroops.php",
+                "map.php",
+            ];
+
+            let targetUrl;
+            if (filename === "barracks.php") {
+                const cat = currentUrl.searchParams.get("cat");
+                targetUrl = cat !== null ? `${pathname}?cat=${cat}` : pathname;
+            } else if (keepParamsPages.includes(filename)) {
+                targetUrl = pathname + currentUrl.search;
+            } else {
+                targetUrl = pathname;
+            }
+
+            if (window.location.pathname === pathname && !window.location.search) {
+                window.location.reload();
+            } else {
+                window.location.href = targetUrl;
+            }
+        }
+    }).catch(err => console.error("Kingdom-Switch Fehler:", err));
+}
 
 function cleanupPopups() {
     const boxes = document.querySelectorAll('body > .popupbox');

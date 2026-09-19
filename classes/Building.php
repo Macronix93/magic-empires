@@ -93,17 +93,6 @@ class Building
         ];
     }
 
-    public function get_building_cost(int $type): int
-    {
-        return match ($type) {
-            ResourceTypes::RESOURCE_TYPE_WOOD => $this->b_woodcost,
-            ResourceTypes::RESOURCE_TYPE_FOOD => $this->b_foodcost,
-            ResourceTypes::RESOURCE_TYPE_STONE => $this->b_stonecost,
-            ResourceTypes::RESOURCE_TYPE_GOLD => $this->b_goldcost,
-            default => 0,
-        };
-    }
-
     public function get_building_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_building$this->building_id.png";

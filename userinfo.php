@@ -55,11 +55,6 @@ if ($user_id) {
     $target_guild_id = (int)$row["guildid"];
     $is_ally = ($my_guild_id > 0 && $my_guild_id === $target_guild_id && $user->get_user_id() !== $user_id);
 
-    $res_all_k = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY id",
-            [$user_id]
-    );
-
     $all_kingdoms_html = "";
     if ($res_all_k->num_rows > 0) {
         $all_kingdoms_html .= "<div style='display: flex; flex-direction: column; gap: 4px;'>";
@@ -139,15 +134,14 @@ if ($user_id) {
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <?php
                     if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
-                        echo "<i>" . e($user_name) . "</i> (Inaktiv)";
+                        echo "<div><i>" . e($user_name) . "</i> (Inaktiv)</div>";
                     } else {
                         echo e($user_name);
                     }
                     if ($user_id !== $user->get_user_id()): ?>
-                        <button data-on-click="redirect" data-url="<?= $msg_url ?>"
-                                style="padding: 4px 8px; font-size: 12px;">
-                            Nachricht senden
-                        </button>
+                        <div data-on-click="redirect" data-url="<?= $msg_url ?>"
+                             style="font-size: 18px; cursor: pointer;"><?= wrap_emojis("✉️") ?>
+                        </div>
                     <?php endif; ?>
                 </div>
             </td>

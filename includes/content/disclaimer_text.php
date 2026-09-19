@@ -289,5 +289,7 @@
                 Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/target" title="target icons">Target icons created by Magnific -
                 Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                pmicon - Flaticon</a></li>
     </ul>
 </div>

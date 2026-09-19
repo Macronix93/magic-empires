@@ -104,7 +104,6 @@ $res_score_u = $db_instance->execute_query("
     [$uid, $uid, $uid, $uid, $uid]);
 $score_troops = (int)$res_score_u->fetch_column();
 
-$total_user_score = (int)$user->get_user_score();
 $sum_breakdown = $score_buildings + $score_techs + $score_troops;
 
 // Percentage

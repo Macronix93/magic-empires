@@ -724,10 +724,6 @@ $query = "SELECT u.username, u.email, u.registerdate, u.lastlogin, u.adminlevel,
 $res = $db_instance->execute_query($query, [$uid]);
 $data = $res->fetch_assoc();
 
-// Calculate rank
-$rank_res = $db_instance->execute_query("SELECT COUNT(*) + 1 AS rank FROM users WHERE score > ?", [$data["score"]]);
-$user_rank = $rank_res->fetch_column();
-
 $time_diff = time() - $_SESSION["currlogin"];
 
 $role = match ($data["adminlevel"]) {

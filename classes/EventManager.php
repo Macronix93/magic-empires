@@ -1032,7 +1032,7 @@ class EventManager
 
             $attacker_wins = ($atk_power > $def_power);
             $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-            
+
             $def_players = [];
             foreach ($defenders as $d) {
                 $key = $d["username"] . " (" . $d["kingdomname"] . ")";
@@ -2555,34 +2555,68 @@ class EventManager
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
+            $tx = $enemy_k->get_kingdom_map_x();
+            $ty = $enemy_k->get_kingdom_map_y();
+            $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+            $hx = $home_k->get_kingdom_map_x();
+            $hy = $home_k->get_kingdom_map_y();
+            $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
+
+            $badge_html = "<div style='display: flex; justify-content: center; margin-top: 15px;'>" .
+                BattleReportRenderer::render_unit_card("Deine Späher", $atk_scouts, $atk_losses, "icon_scout") .
+                "</div>";
+
+            $main_text = "Unsere Späher wurden im Königreich <b>" . e($enemy_k->get_kingdom_name()) . "</b> von <b>" . e($enemy_owner_name) . "</b> entdeckt und abgefangen." . $badge_html;
+
             $msg_atk = "<div class='battle-report'>";
+            $msg_atk .= "<div class='title-border'>Spionagebericht: <b>" . e($enemy_owner_name) . "</b> ($c_link)</div>";
+            $msg_atk .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>" . e($home_k->get_kingdom_name()) . "</b> ($h_link)</div>";
             $msg_atk .= BattleReportRenderer::render_outcome_box(
                 "Spionage gescheitert",
-                "Unsere Späher wurden in <b>" . e($enemy_k->get_kingdom_name()) . "</b> entdeckt und abgefangen.",
+                $main_text,
                 0, 0,
                 "Kein einziger Späher kehrte lebend zurück.",
                 "error"
             );
-            $msg_atk .= "<div style='display: flex; justify-content: center; margin-top: 10px;'>" . BattleReportRenderer::render_unit_card("Deine Späher", $atk_scouts, $atk_losses, "icon_scout", true) . "</div>";
             $msg_atk .= "</div>";
 
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         // Defender Message
-        $msg_def = "<div class='battle-report'>";
-        $def_sub = ($atk_losses >= $atk_scouts) ? "Unsere Wachen konnten alle Spione eliminieren." : "Einigen Spionen gelang die Flucht.";
-        $msg_def .= BattleReportRenderer::render_outcome_box(
-            "Grenzwache: Eindringlinge!",
-            "Späher aus <b>" . e($home_k->get_kingdom_name()) . "</b> wurden dabei ertappt, wie sie unsere Stadt ausspionierten.",
-            0, 0,
-            $def_sub
-        );
-
+        $badge_def_html = "";
         if ($def_scouts > 0) {
-            $msg_def .= "<div style='display: flex; justify-content: center; margin-top: 10px;'>" . BattleReportRenderer::render_unit_card("Deine Späher", $def_scouts, $def_losses, "icon_scout", true) . "</div>";
+            $badge_def_html = "<div style='display: flex; justify-content: center; margin-top: 15px;'>" .
+                BattleReportRenderer::render_unit_card("Deine Späher", $def_scouts, $def_losses, "icon_scout") .
+                "</div>";
         }
 
+        $hx = $home_k->get_kingdom_map_x();
+        $hy = $home_k->get_kingdom_map_y();
+        $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
+
+        $tx = $enemy_k->get_kingdom_map_x();
+        $ty = $enemy_k->get_kingdom_map_y();
+        $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+        $def_main = "Späher von <b>" . e($attacker_name) . "</b> aus <b>" . e($home_k->get_kingdom_name()) . "</b> ($h_link) wurden dabei ertappt, wie sie unser Königreich 
+                        <b>" . e($enemy_k->get_kingdom_name()) . "</b> ($c_link) ausspionierten." . $badge_def_html;
+
+        $def_sub = ($atk_losses >= $atk_scouts)
+            ? "Unsere Wachen konnten alle feindlichen Spione eliminieren."
+            : "Einigen feindlichen Spionen gelang leider die Flucht mit Informationen.";
+
+        $def_box_type = ($atk_losses >= $atk_scouts) ? "success" : "neutral";
+
+        $msg_def = "<div class='battle-report'>";
+        $msg_def .= BattleReportRenderer::render_outcome_box(
+            "Grenzwache: Eindringlinge!",
+            $def_main,
+            0, 0,
+            $def_sub,
+            $def_box_type
+        );
         $msg_def .= "</div>";
 
         send_server_message($attacker_id, $attacker_name, $msg_atk, MessageCategories::CATEGORY_WAR);

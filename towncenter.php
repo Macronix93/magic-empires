@@ -19,7 +19,6 @@ $kingdom_building_id = -1;
 // Fetch all buildings and their dependencies
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $building_count = count($buildings);
-$current_building = (empty($_GET["id"]) ? 0 : (int)$_GET["id"]);
 $build_id = (empty($_GET["bid"]) ? 0 : (int)$_GET["bid"]);
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 

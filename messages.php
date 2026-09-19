@@ -61,7 +61,6 @@ if (isset($_POST["sendpm"])) {
 
 if (isset($_GET["action"])) {
     if ($_GET["action"] == "new") {
-        $receiver = isset($_GET["s"]) ? (int)$_GET["s"] : "";
         $receiver_value = isset($_GET["receiver"]) ? e($_GET["receiver"]) : (isset($_POST["receiver"]) ? e($_POST["receiver"]) : "");
         $message = isset($_POST["text"]) ? e($_POST["text"]) : "";
 
@@ -111,15 +110,6 @@ if (isset($_GET["action"])) {
         }
     } else if ($_GET["action"] == "read") {
         $inbox_header = "Privatnachrichten";
-        $current_time = time();
-        $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
-        $message_count = $_SESSION["message_count"] ?? 0;
-
-        // Check if the current time is past the message timeframe
-        if ($current_time > $message_timeframe_end) {
-            $_SESSION["message_count"] = 0;
-            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-        }
 
         if (!isset($_GET["s"])) {
             change_location("messages.php?privmsgs");

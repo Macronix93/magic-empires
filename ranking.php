@@ -3,8 +3,6 @@ require_once("includes/core.php");
 check_user_login($user);
 
 $rows_per_page = MAX_ROWS_PER_RANKING_PAGE;
-$current_page = max(1, (int)($_GET["currentpage"] ?? 1));
-$offset = ($current_page - 1) * $rows_per_page;
 $now = time();
 
 // Load Data
@@ -88,7 +86,6 @@ foreach ($players_res as $row) {
     $vacation_badge = "";
 
     if ($is_on_vacation) {
-        $vac_end_str = date("d.m.Y H:i", $row["vacation_until"]);
         $vacation_badge = " <span class='popup' id='vac_{$row["id"]}' style='cursor: help;'>🏖️<div id='vac_{$row["id"]}_box' class='popupbox'><b>Im Urlaubsmodus</b></div>";
     }
 

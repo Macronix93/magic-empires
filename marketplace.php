@@ -34,9 +34,6 @@ $my_x = $kingdom->get_kingdom_map_x();
 $my_y = $kingdom->get_kingdom_map_y();
 $map = new Map($user);
 
-$default_supply = ResourceTypes::RESOURCE_TYPE_FOOD;
-$default_demand = ResourceTypes::RESOURCE_TYPE_WOOD;
-
 $res_map = [
     ResourceTypes::RESOURCE_TYPE_FOOD => "food",
     ResourceTypes::RESOURCE_TYPE_WOOD => "wood",

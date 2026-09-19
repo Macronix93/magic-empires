@@ -61,10 +61,6 @@ foreach ($result as $row) {
     $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
 }
 
-$total_k_atk = 0;
-$total_k_def = 0;
-$total_k_units = 0;
-
 $soldiers_count = count($soldiers);
 
 // Get ALL soldiers from the kingdom
@@ -575,11 +571,11 @@ if (!$category_availability[$active_cat]) {
     }
 }
 
-$kingdom_food = $kingdom->get_kingdom_food();
-$kingdom_gold = $kingdom->get_kingdom_gold();
-$kingdom_stone = $kingdom->get_kingdom_stone();
-$kingdom_wood = $kingdom->get_kingdom_wood();
-$kingdom_villager = $kingdom->get_kingdom_villager();
+//$kingdom_food = $kingdom->get_kingdom_food();
+//$kingdom_gold = $kingdom->get_kingdom_gold();
+//$kingdom_stone = $kingdom->get_kingdom_stone();
+//$kingdom_wood = $kingdom->get_kingdom_wood();
+//$kingdom_villager = $kingdom->get_kingdom_villager();
 $last_recruited_soldier = $user->get_last_recruited_soldier($current_kingdom);
 $last_upgraded = $user->get_last_upgraded_soldier($current_kingdom);
 

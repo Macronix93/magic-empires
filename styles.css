@@ -2009,15 +2009,21 @@ tr:first-child td.td-gradient {
 .mobile-nav-arrow {
     display: none;
     position: fixed;
-    top: 10px;
-    width: 30px;
-    height: 30px;
+    top: 1px;
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(180deg, #4a3728 0%, #2b1d12 100%);
+    border: 1px solid var(--border-gold);
     border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
     z-index: 2800;
     justify-content: center;
     align-items: center;
     cursor: pointer;
-    transition: opacity 0.3s;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.3s, background 0.15s;
 }
 
 .mobile-kingdom-display {
@@ -2311,6 +2317,24 @@ body.modal-open footer {
     transform: scaleX(-1);
 }
 
+.arrow-nav-symbol,
+.mobile-kingdom-display {
+    cursor: pointer;
+}
+
+.arrow-nav-symbol {
+    font-size: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--link-color);
+}
+
+.mobile-nav-arrow:hover,
+.mobile-kingdom-display:hover {
+    filter: brightness(1.2);
+}
+
 .resource-tick-wrapper {
     margin-top: 10px;
     margin-bottom: 10px;
@@ -2533,6 +2557,7 @@ input[type="button"],
 .box,
 .tablinks,
 .arrow-nav,
+.arrow-nav-symbol,
 .mobile-trigger {
     -webkit-user-select: none; /* Safari */
     -moz-user-select: none; /* Firefox */

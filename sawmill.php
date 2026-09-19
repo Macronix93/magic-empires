@@ -74,10 +74,9 @@ $view .= "<div style='margin: auto; width: 350px;'>
 ";
 
 if ($ticks_left > 0) {
-    $view .= "Ertragsboost aktiv!<br>Verbleibende Erträge: <span>$ticks_left</span>";
+    $view .= "<p>Ertragsboost aktiv!<br>Verbleibende Erträge: <span>$ticks_left</span></p>";
 } else {
     $view .= "<p>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
-
     $view .= "<form method='POST'>
                 <button type='submit' name='activate_boost' $disabled>
                     Boost aktivieren für $cost_display_html

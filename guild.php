@@ -475,7 +475,6 @@ if ($my_guild_id === -1) {
     $ranks = $ranks_res->fetch_all(MYSQLI_ASSOC);
 
     $has_actions = ($my_perms["can_kick"] || $my_perms["can_edit_settings"]);
-    $col_count = $has_actions ? 4 : 3;
     $cooldown_time = convert_sec_to_str(GUILD_JOIN_COOLDOWN);
 
     $view .= "<div class='msg-back-button-container'>

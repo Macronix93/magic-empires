@@ -4,8 +4,6 @@ require_once("includes/core.php");
 check_user_login($user);
 
 // Get main kingdom of user
-$result = $db_instance->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$_SESSION["userid"]]);
-$row_main = $result->fetch_assoc();
 $active_k_id = $user->get_current_kingdom();
 $uid = $user->get_user_id();
 $my_guild_id = $user->get_user_guild_id();
@@ -55,14 +53,6 @@ $count_wp = (int)($counts["count_wp"] ?? 0);
 
 if (!isset($_SESSION["acknowledged_attacks"])) {
     $_SESSION["acknowledged_attacks"] = [];
-}
-
-if (!empty($_SESSION["active_attacks"])) {
-    foreach ($_SESSION["active_attacks"] as $attack) {
-        if (!in_array($attack["eventid"], $_SESSION["acknowledged_attacks"])) {
-            $_SESSION["acknowledged_attacks"][] = $attack["eventid"];
-        }
-    }
 }
 
 if (!isset($_SESSION["acknowledged_supports"])) {
@@ -506,9 +496,6 @@ if ($pages_kp > 1) {
 }
 
 // --- TROOP OVERVIEW ---
-$tp_actions = [ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS];
-$tp_list = implode(',', $tp_actions);
-
 $res_tp_combined = $db_instance->execute_query("
     SELECT 
         (SELECT COUNT(*) FROM events 

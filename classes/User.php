@@ -189,12 +189,6 @@ class User
             </div>";
     }
 
-    public function get_user_database_id(string $activation_key)
-    {
-        $result = $this->mysqli->execute_query("SELECT id FROM users WHERE activationkey = ?", [$activation_key]);
-        return $result->fetch_assoc()["id"] ?? -1;
-    }
-
     public function is_logged_in(): bool
     {
         return isset($_SESSION["userid"]);
@@ -368,11 +362,6 @@ class User
     public function get_unread_messages(): int
     {
         return $this->get_unread_counts()["total"];
-    }
-
-    public function set_user_score(int $score): void
-    {
-        $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [$score, $this->get_user_id()]);
     }
 
     public function get_user_score(): int

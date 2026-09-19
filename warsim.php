@@ -76,10 +76,6 @@ foreach ($result as $row) {
     $soldiers[] = $soldier;
 }
 
-$soldiers_array = json_encode(array_map(function ($soldier) {
-    return $soldier->get_soldier_name();
-}, $soldiers));
-
 // Owned Troops
 $owned_troops = [];
 $query_all_troops = "

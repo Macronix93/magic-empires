@@ -909,6 +909,11 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
           AND e.is_processing = 0
           AND e.arrivaltime > ?
           AND (e.arrivaltime - ?) <= (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ")
+          AND EXISTS (
+              SELECT 1 FROM sent_troops st 
+              WHERE st.eventid = e.eventid 
+              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+          )
 
         UNION ALL
 

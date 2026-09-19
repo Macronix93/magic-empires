@@ -601,7 +601,6 @@ if (!$active_event) {
             $is_me = ($r["id"] === $user->get_user_id());
             $style = $is_me ? "style='background: rgba(212, 175, 55, 0.2);'" : "";
             $player = new User($r["id"], $r["username"]);
-            $avatar = $player->get_avatar() ?? "";
 
             $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $r["id"] . "' data-title='Spieler-Info'>" . e($r["username"]) . "</a>";
 

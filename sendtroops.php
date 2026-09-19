@@ -4,12 +4,10 @@ require_once("includes/core.php");
 // Barracks required for sending troops
 check_user_login($user);
 
-$current_k_id = $user->get_current_kingdom();
-$kingdom = new Kingdom($current_k_id);
+$kingdom = new Kingdom($user->get_current_kingdom());
 $barracks_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
 
 $map = new Map($user);
-$kingdom = new Kingdom($user->get_current_kingdom());
 $target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : 1;
 $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : 1;
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
@@ -314,11 +312,7 @@ if (!empty($_POST["soldiers"])) {
         }
 
         $my_guild_id = $user->get_user_guild_id();
-        $target_user_guild = -1;
-        if ($enemy_user_id > 0) {
-            $res_g = $db_instance->execute_query("SELECT guildid FROM users WHERE id = ?", [$enemy_user_id]);
-            $target_user_guild = $res_g->fetch_column();
-        }
+        $target_user_guild = $enemy_guild_id;
 
         $is_support = ($my_guild_id > 0 && $my_guild_id === $target_user_guild && $enemy_user_id !== $user->get_user_id());
         $action_id = $is_support ? ActionTypes::ACTION_STATION_TROOPS : ActionTypes::ACTION_SEND_TROOPS;

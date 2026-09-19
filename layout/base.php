@@ -162,10 +162,7 @@ if ($user->is_logged_in()) {
     }
     ?>
     <div class="mobile-nav-arrow" style="left: 60px; top: 1px;" data-on-click="switchKingdomPrev">
-        <img src="images/icons/icon_right_slow.png"
-             class="arrow-nav arrow-left"
-             data-on-click="switchKingdomPrev"
-             title="Vorheriges Königreich" alt="">
+        <span class="arrow-nav-symbol" data-on-click="switchKingdomPrev" title="Vorheriges Königreich">❮</span>
     </div>
     <div class="mobile-kingdom-display" style="top: 1px;" data-on-click="toggleMobileKingdomMenu">
         <span class="mobile-kingdom-title"><?= $cur_pos ?> - <?= e($cur_kname) ?> <span
@@ -186,10 +183,7 @@ if ($user->is_logged_in()) {
         <?php endforeach; ?>
     </div>
     <div class="mobile-nav-arrow" style="right: 60px; top: 1px;" data-on-click="switchKingdomNext">
-        <img src="images/icons/icon_right_slow.png"
-             class="arrow-nav"
-             data-on-click="switchKingdomNext"
-             title="Nächstes Königreich" alt="">
+        <span class="arrow-nav-symbol" data-on-click="switchKingdomNext" title="Nächstes Königreich">❯</span>
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">

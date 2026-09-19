@@ -916,13 +916,6 @@ if (!$user->is_admin()) {
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
 
-            // Reset map spots that were taken by the users kingdoms
-            foreach ($result as $row) {
-                if ($row["kingdomid"] !== null) {
-                    $db_instance->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = ?", [$row["kingdomid"]]);
-                }
-            }
-
             $em = new EventManager($user);
             $em->process_orphaned_support();
 

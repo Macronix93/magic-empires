@@ -17,8 +17,6 @@ $kingdom_stone = $kingdom->get_kingdom_stone();
 
 $hp_difference = $wall_max_hp - $wall_hp;
 $maintenance_mult = $kingdom->get_repair_cost_multiplier();
-$repair_cost = (int)round($hp_difference * BASE_WALL_REPAIR_COST * $maintenance_mult);
-$disabled = $repair_cost > $kingdom_stone || $hp_difference == 0 ? "disabled" : "";
 $bonus_defense_text = $bonus_defense == 0 ? "0" : "+$bonus_defense";
 
 $next_level_text = "";
@@ -30,7 +28,7 @@ if ($wall_level < MAX_BUILDING_LEVEL) {
     $next_level_text = "
         <div class='split-content'>
             <div><b>Nächste Stufe:</b></div>
-            <div class='passed'>" . fnum($next_max_hp) . " HP | +" . $next_defense . " DEF</div>
+            <div class='passed'>" . fnum($next_max_hp) . " HP (" . $next_defense . " DEF)</div>
         </div>";
 }
 
