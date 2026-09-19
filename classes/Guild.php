@@ -433,7 +433,7 @@ class Guild
             $this->recall_all_mine_troops($target_uid);
 
             $this->db->execute_query("DELETE FROM guild_invites WHERE invited_by = ?", [$target_uid]);
-            $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL WHERE id = ?", [$target_uid]);
+            $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL, last_guild_join = ? WHERE id = ?", [time(), $target_uid]);
 
             $guild_data = $this->get_guild_info($my_guild);
             $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
@@ -500,7 +500,7 @@ class Guild
                 }
             }
 
-            $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL WHERE id = ?", [$uid]);
+            $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL, last_guild_join = ? WHERE id = ?", [time(), $uid]);
             $this->db->commit();
 
             return null;

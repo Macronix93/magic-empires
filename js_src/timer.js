@@ -78,7 +78,14 @@ function startMasterTimer() {
             const secLeft = Math.ceil(msLeft / 1000);
 
             if (msLeft <= 0) {
-                timer.element.textContent = (timer.timerType === 0) ? "Fertig!" : "00:00";
+                timer.element.textContent = timer.element.dataset.zeroText || (timer.timerType === 0 ? "Fertig!" : "00:00");
+
+                if (timer.element.id === "counter") {
+                    const errorBox = timer.element.closest('.event-error, .info-box');
+                    if (errorBox) {
+                        errorBox.style.display = "none";
+                    }
+                }
 
                 if (timer.hideID) {
                     const hideEl = document.getElementById(timer.hideID);

@@ -4,6 +4,7 @@ registerAction("editNewsInline", (el, event) => {
     const newsId = el.dataset.id;
     const oldTitle = el.dataset.title;
     const oldContent = el.dataset.content;
+    const messageLength = el.dataset.messageLength;
 
     const newsBox = el.closest('.box-container');
     const contentDiv = newsBox.querySelector('.news-content');
@@ -21,7 +22,7 @@ registerAction("editNewsInline", (el, event) => {
                    maxlength="50" style="width: 100%; margin-bottom: 15px;" required>
             
             <label style="font-size: 14px; color: var(--link-color);">Inhalt:</label><br>
-            <textarea name="content" id="edit-news-text-${newsId}" rows="8" maxlength="3000" 
+            <textarea name="content" id="edit-news-text-${newsId}" rows="8" maxlength="${messageLength}" 
                       style="width: 100%; margin-bottom: 15px; resize: vertical;" required>${oldContent}</textarea>
             
             <div style="display: flex; gap: 10px; justify-content: center;">

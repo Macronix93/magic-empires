@@ -63,7 +63,7 @@ $boost_value = (int)($ft_res["foodrate"] * BASE_FOOD_GAIN);
 $next_level_text = "";
 if ($lvl < MAX_BUILDING_LEVEL) {
     $next_increase = (int)round(BASE_FOOD_GAIN * $ft_res["foodrate"]);
-    $next_level_text = "<div class='split-content'><b>Nächste Stufe:</b><div class='passed'>+" . fnum($next_increase) . " / Std.</div></div>";
+    $next_level_text = "<div class='split-content'><b>Nächste Stufe:</b><div class='passed'>" . fnum($kingdom->get_base_food_rate() + $next_increase) . " (+" . fnum($next_increase) . ")</div></div>";
 }
 
 $view .= "<div style='margin: auto; width: 350px;'>

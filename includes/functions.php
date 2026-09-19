@@ -407,7 +407,7 @@ function get_chat_emojis(): array
         '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
         '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
         '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
-        '😟', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '😱', '😰', '😢', '😭', '❤️',
+        '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
         '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
         '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
         '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
@@ -919,6 +919,7 @@ function check_for_incoming_attacks(int $uid, mysqli $db): array
         JOIN users u_sender ON e.userid = u_sender.id
         JOIN users u_target ON mst.user_id = u_target.id
         WHERE mst.user_id = ?
+          AND mst.soldiercount > 0
           AND e.userid != ?
           AND (u_sender.guildid <= 0 OR u_sender.guildid != u_target.guildid)
           AND e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "

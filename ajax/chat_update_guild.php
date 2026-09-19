@@ -1,6 +1,11 @@
 <?php
 require_once("../includes/core.php");
 
+if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
+    echo json_encode(["error" => "redirect"]);
+    exit;
+}
+
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $last_id = (int)($_GET["last_id"] ?? 0);
     $u_id = $user->get_user_id();
@@ -89,4 +94,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "messagesToDelete" => $deleted_ids,
         "reactionUpdates" => $reaction_updates
     ]);
+} else {
+    change_location("overview.php");
 }

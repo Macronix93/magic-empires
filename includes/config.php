@@ -203,7 +203,7 @@ const MAX_MESSAGES_RATELIMIT = 10;
 const SHOW_MESSAGES_LIMIT = 30;
 const CONV_INACTIVITY_TIME = 1209600;
 const MAX_NEWS_TITLE_LENGTH = 50;
-const MAX_NEWS_CONTENT_LENGTH = 3000;
+const MAX_NEWS_CONTENT_LENGTH = 4000;
 const MAX_WORLD_CHAT_MESSAGES_SHOWN = 30;
 const MAX_UNIT_BADGES_PER_ROW_DESKTOP = 5;
 const MAX_UNIT_BADGES_PER_ROW_MOBILE = 3;
@@ -276,7 +276,7 @@ const GUILD_MOTTO_MAX = 100;
 const GUILD_INVITE_DURATION = 172800;           // 48 hours
 const GUILD_BASE_MEMBER_LIMIT = 5;
 const GUILD_MAX_MINIMUM_SCORE = 9999999;
-const GUILD_JOIN_COOLDOWN = 0;              // 86400 24 hours
+const GUILD_JOIN_COOLDOWN = 86400;              // 24 hours
 const MAX_GUILD_CHAT_MESSAGES_SHOWN = 30;
 const SUPPORT_LIMIT_BASE = 50;
 const SUPPORT_LIMIT_PER_BARRACKS = 100;
@@ -312,10 +312,10 @@ const OVERVIEW_PAGESIZE_DEFAULT = 7;
 const MAP_USE_AUTOTILING = true;
 const MAP_AUTOTILING_RADIUS = 0.1;
 const MAP_AUTOTILING_PADDING = 0.13;
-const MAX_MINES = 100;
-const MINE_SPAWN_RATE = 25;
-const MINE_LIFETIME_MIN = 2;
-const MINE_LIFETIME_MAX = 4;
+const MAX_MINES = 125;
+const MINE_SPAWN_RATE = 50;
+const MINE_LIFETIME_MIN = 4;
+const MINE_LIFETIME_MAX = 7;
 const MINE_RESOURCE_MIN_RANGE = 85;
 const MINE_RESOURCE_MAX_RANGE = 105;
 const MINE_WEIGHT_LVL_1 = 0.3;
@@ -323,8 +323,7 @@ const MINE_WEIGHT_LVL_2 = 0.25;
 const MINE_WEIGHT_LVL_3 = 0.2;
 const MINE_WEIGHT_LVL_4 = 0.15;
 const MINE_WEIGHT_LVL_5 = 0.1;
-// Max troop capacity per Mine Level
-const MINE_CAPACITY = 100;
+const MINE_CAPACITY = 100; // Max troop capacity per Mine Level
 const MINE_TRAVEL_BOOST = 0.3; // 70% reduction
 const MINE_MIN_DURATION_SECONDS = 1800;
 
@@ -336,6 +335,7 @@ const MINE_WORK_BY_LEVEL = [
     4 => 880000,
     5 => 1200000
 ];
+
 // Base Resources per Level
 const MINE_BASE_RESOURCES_BY_LEVEL = [
     1 => 2000,
@@ -344,6 +344,7 @@ const MINE_BASE_RESOURCES_BY_LEVEL = [
     4 => 15000,
     5 => 25000
 ];
+
 // Guild Special Resources per Level
 const MINE_GUILD_RESOURCES_BY_LEVEL = [
     1 => ["coal" => 100, "iron" => 20, "sapphire" => 5, "diamond" => 2],
@@ -352,12 +353,20 @@ const MINE_GUILD_RESOURCES_BY_LEVEL = [
     4 => ["coal" => 400, "iron" => 80, "sapphire" => 20, "diamond" => 10],
     5 => ["coal" => 500, "iron" => 100, "sapphire" => 25, "diamond" => 12]
 ];
+
 // Mining Speed: 1 ATK Point = X Work Points per second
 const MINE_WORK_RATE_FACTOR = 0.0075;
 
 /*
  * Interfaces
  */
+
+interface TransportTypes
+{
+    const string TRANSPORT_TYPE_INTERNAL = "Intern";
+    const string TRANSPORT_TYPE_TRADE_DELIVERY = "Warenlieferung";
+    const string TRANSPORT_TYPE_TRADE_RETURN = "Transport-Rückkehr";
+}
 
 interface MapFieldTypes
 {

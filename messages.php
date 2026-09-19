@@ -43,11 +43,11 @@ if (isset($_POST["sendpm"])) {
                 if ($message_count >= MAX_MESSAGES_RATELIMIT) {
                     // Calculate remaining time to wait
                     $remaining_time_in_seconds = $message_timeframe_end - $current_time;
+
                     $response["counter"] = $remaining_time_in_seconds;
                     $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte: ";
                 } else {
                     $_SESSION["message_count"] = ++$message_count;
-                    $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
 
                     // Send message to the receiver
                     $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_name, $current_time, $message);

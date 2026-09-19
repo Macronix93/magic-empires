@@ -50,7 +50,7 @@ $my_stats = $db_instance->execute_query("SELECT * FROM player_stats WHERE userid
 
 if (!$my_stats) {
     $cols = ["units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve", "monster_kills", "buildings_upgraded", "trades_count",
-        "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen", "resources_looted"];
+        "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen", "resources_looted", "mines_depleted", "special_resources_mined"];
     $my_stats = array_fill_keys($cols, 0);
 
     $res_keys = ["food", "wood", "stone", "gold"];
@@ -126,6 +126,7 @@ $view = "
                 <div class='split-content'><span>Monster besiegt:</span> <b>" . fnum($my_stats["monster_kills"]) . "</b></div>
                 <div class='split-content'><span>Camps gesäubert:</span> <b>" . fnum($my_stats["camps_cleared"]) . "</b></div>
                 <div class='split-content'><span>Lager geplündert:</span> <b>" . fnum($my_stats["res_tiles_cleared"]) . "</b></div>
+                <div class='split-content'><span>Minen abgebaut:</span> <b>" . fnum($my_stats["mines_depleted"]) . "</b></div>
                 <div class='split-content'><span>Spionagen:</span> <b>" . fnum($my_stats["spy_count"]) . "</b></div>
                 <div class='split-content'><span>Verluste (PvP/PvE):</span> <b><span>" . fnum($my_stats["units_fallen_pvp"]) . "</span> / <span>" . fnum($my_stats["units_fallen_pve"]) . "</span></b></div>
                 <hr>
@@ -136,6 +137,7 @@ $view = "
                 <div class='split-content'><span>Truppen rekrutiert:</span> <b>" . fnum($my_stats["units_produced"]) . "</b></div>
                 <div class='split-content'><span>Truppen aufgewertet:</span> <b>" . fnum($my_stats["units_upgraded"]) . "</b></div>
                 <div class='split-content'><span>Beute (Camps/Lager):</span> <b>" . fnum($my_stats["resources_looted"]) . "</b></div>
+                <div class='split-content'><span>Spezial-Erze geschürft:</span> <b>" . fnum($my_stats["special_resources_mined"]) . "</b></div>
                 <div class='split-content'><span>Spieler beklaut:</span> <b>" . fnum($my_stats["resources_stolen"]) . "</b></div>
                 <hr>
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>

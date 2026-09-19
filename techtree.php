@@ -196,7 +196,7 @@ foreach ($all_guild_techs as $index => $gt) {
             $req_html .= "<span class='passed' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
         }
 
-        $view .= "<td class='techtree-requirements' rowspan='$guild_tech_count' style='text-align: center;'>
+        $view .= "<td class='techtree-requirements' rowspan='$guild_tech_count'>
                     $req_html
                   </td>";
     }

@@ -57,7 +57,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
           LEFT JOIN abandoned_kingdoms ak ON m.mapx = ak.mapx AND m.mapy = ak.mapy
           LEFT JOIN mines mn ON m.mapx = mn.mapx AND m.mapy = mn.mapy
           LEFT JOIN users u_mn ON mn.claimed_user_id = u_mn.id
-          -- Hoch-optimierter Aggregations-Join für alle Minentruppen auf einmal
           LEFT JOIN (
               SELECT 
                   mst.mine_id,
@@ -100,11 +99,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
           ORDER BY m.mapy, m.mapx";
 
     $result = $db_instance->execute_query($query, [
-        $uid, // has_outgoing_event k.userid check
-        $uid, // mst_agg my_mine_troops
-        $uid, // mst_agg my_mine_troop_icon CASE
-        $uid, // mst_agg my_mine_troop_icon ORDER BY
-        $uid  // e_mov e.userid
+        $uid,                  // has_outgoing_event k.userid check
+        $uid,   // mst_agg my_mine_troops
+        $uid,   // mst_agg my_mine_troop_icon CASE
+        $uid,   // mst_agg my_mine_troop_icon ORDER BY
+        $uid                   // e_mov e.userid
     ]);
 
     $map_data = [];

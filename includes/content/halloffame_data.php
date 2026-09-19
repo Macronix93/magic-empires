@@ -55,6 +55,17 @@ $categories = [
                     WHERE s.resources_looted > 0 
                     ORDER BY val DESC, uid"
     ],
+    "mines" => [
+        "label" => "Minen",
+        "title" => "Minen vollständig abgebaut",
+        "limit" => 20,
+        "type" => "player",
+        "query" => "SELECT u.username, u.id as uid, s.mines_depleted as val 
+                    FROM player_stats s 
+                    JOIN users u ON s.userid = u.id 
+                    WHERE s.mines_depleted > 0 
+                    ORDER BY val DESC, uid"
+    ],
     "thieves" => [
         "label" => "Diebesgilde",
         "title" => "Gestohlene Rohstoffe",
@@ -149,6 +160,16 @@ $categories = [
                     JOIN guild_techs gt ON g.id = gt.guild_id 
                     WHERE gt.level > 0 
                     GROUP BY g.id, g.name, g.tag 
+                    ORDER BY val DESC, gid"
+    ],
+    "guild_ores" => [
+        "label" => "Gilden-Erze",
+        "title" => "Eingelagerte Spezial-Erze",
+        "limit" => 20,
+        "type" => "guild",
+        "query" => "SELECT g.name as gname, g.tag, g.id as gid, g.total_special_mined as val 
+                    FROM guilds g 
+                    WHERE g.total_special_mined > 0 
                     ORDER BY val DESC, gid"
     ],
     "coins" => [

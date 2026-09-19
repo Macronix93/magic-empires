@@ -150,26 +150,23 @@ class Map
 
             $modified_time *= (CARAVAN_SPEED_FACTOR * $caravan_speed_mult);
         } else {
-            if ($actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {
-                $modified_time *= MINE_TRAVEL_BOOST;
-            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_MONSTER_CAMP || $actual_target_id === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM
-                || $actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {
+            if ($actual_target_id === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
+                $we = new WorldEvent();
+                $modified_time = $we->get_current_duration();
+            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {
+                $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MINE_TRAVEL_BOOST;
+                $modified_time *= $boost;
+            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_MONSTER_CAMP || $actual_target_id === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
                 $boost = $is_scouting ? MONSTER_CAMP_SCOUT_BOOST : MONSTER_CAMP_TRAVEL_BOOST;
-
                 $modified_time *= $boost;
             } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_RESOURCE_TILE && $is_scouting) {
                 $modified_time *= MONSTER_CAMP_SCOUT_BOOST;
             } else if ($actual_target_id > 0 && $is_scouting) {
                 $modified_time *= PLAYER_KINGDOM_SCOUT_BOOST;
-            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
-                $we = new WorldEvent();
-
-                $modified_time = $we->get_current_duration();
             }
         }
 
-        //return (int)round($modified_time);
-        return 30;
+        return (int)round($modified_time);
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
@@ -293,64 +290,6 @@ class Map
         file_put_contents($cache_file, json_encode($map));
         $map_cache = $map;
         return $map;
-    }
-
-    private function encode($node): string
-    {
-        return $node["x"] . ',' . $node["y"];
-    }
-
-    private function heuristic($a, $b): int
-    {
-        return abs($a["x"] - $b["x"]) + abs($a["y"] - $b["y"]);
-    }
-
-    private function decode($encoded): array
-    {
-        list($x, $y) = explode(',', $encoded);
-        return ["x" => (int)$x, "y" => (int)$y];
-    }
-
-    private function reconstruct_path($came_from, $current, $map, $start_x, $start_y): array
-    {
-        $path = [$current];
-        $total_time = 0;
-
-        while (isset($came_from[$this->encode($current)])) {
-            $current = $came_from[$this->encode($current)];
-            $path[] = $current;
-        }
-
-        foreach ($path as &$coord) {
-            if ($coord["x"] == $start_x && $coord["y"] == $start_y) {
-                $coord["traversaltime"] = 0;
-            } else {
-                $coord["traversaltime"] = $map[$coord["x"]][$coord["y"]]["traversaltime"];
-            }
-            $total_time += $coord["traversaltime"];
-        }
-
-        $path = array_reverse($path);
-
-        return ["path" => $path, "totaltime" => $total_time];
-    }
-
-    // Render and show the map
-    private function get_neighbours($node, $map): array
-    {
-        $neighbors = [];
-        $moves = [[0, 1], [1, 0], [0, -1], [-1, 0]];
-
-        foreach ($moves as $move) {
-            $x = $node["x"] + $move[0];
-            $y = $node["y"] + $move[1];
-
-            if (isset($map[$x][$y])) {
-                $neighbors[] = ["x" => $x, "y" => $y];
-            }
-        }
-
-        return $neighbors;
     }
 
     public function get_field_kingdom_id(int $map_x, int $map_y): int

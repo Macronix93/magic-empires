@@ -144,7 +144,8 @@ if ($user_id) {
                         echo e($user_name);
                     }
                     if ($user_id !== $user->get_user_id()): ?>
-                        <button data-on-click="redirect" data-url="<?= $msg_url ?>">
+                        <button data-on-click="redirect" data-url="<?= $msg_url ?>"
+                                style="padding: 4px 8px; font-size: 12px;">
                             Nachricht senden
                         </button>
                     <?php endif; ?>

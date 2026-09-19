@@ -153,7 +153,8 @@ if ($result->num_rows > 0) {
                            data-on-click='editNewsInline' 
                            data-id='{$row["id"]}'
                            data-title='" . e($row["title"]) . "'
-                           data-content='" . e($raw_content) . "'>
+                           data-content='" . e($raw_content) . "'
+                           data-message-length='" . MAX_NEWS_CONTENT_LENGTH . "'>
                             <img src='images/icons/icon_edit.png' class='ressource-icons' alt='Edit' title='Eintrag bearbeiten'>
                         </a>
                         <a href='#' 

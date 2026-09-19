@@ -551,10 +551,9 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         $max_capacity = (int)($res_mine["max_troops"] ?? 50);
 
         $res_curr = $db_instance->execute_query("
-            SELECT (
-                (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE mine_id = ?) +
-                (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? AND e.actionid = ?)
-            ) AS total", [(int)($res_mine["id"] ?? 0), MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS]);
+            SELECT IFNULL(SUM(soldiercount), 0)
+            FROM mine_stationed_troops
+            WHERE mine_id = ?", [(int)($res_mine["id"] ?? 0)]);
         $current_mine_troops = (int)$res_curr->fetch_column();
         $free_space = max(0, $max_capacity - $current_mine_troops);
 

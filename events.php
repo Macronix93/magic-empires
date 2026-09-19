@@ -411,7 +411,7 @@ if (!$active_event) {
         $view .= "</div></div>";
     } else {
         // --- DAMAGE EVENT LOGIC ---
-        $view .= "<img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "'>";
+        $view .= "<img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "' style='width: 94px; height: 94px;'>";
         $view .= "<p class='monster-desc'>" . e($monster["desc"]) . "</p>";
         $view .= "<p>Verursache in maximal <b>" . WORLD_EVENT_MAX_ATTEMPTS . " Angriffen</b> so viel Schaden wie möglich!</p>";
 

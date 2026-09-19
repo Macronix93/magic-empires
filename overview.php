@@ -136,7 +136,7 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
                 $db_instance->rollback();
                 $error = "Truppen konnten nicht zurückgerufen werden (bereits am Ziel angekommen).";
             }
-        } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == "Interner Transport") {
+        } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == TransportTypes::TRANSPORT_TYPE_INTERNAL) {
             $total_duration = $event["arrivaltime"] - $event["buildingtime"];
             $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
             $new_arrival_time = $now + $already_marched;
@@ -149,7 +149,7 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
                     $event["targetid"],
                     $event["kingdomid"],
                     $new_arrival_time,
-                    "Transport-Rückkehr",
+                    TransportTypes::TRANSPORT_TYPE_TRADE_RETURN,
                     $event_id
                 ]
             );
@@ -196,7 +196,7 @@ if (!empty($_SESSION["active_attacks"])) {
         $diff = $attack["arrivaltime"] - $now;
 
         $time_display = ($attack["arrivaltime"] > 0)
-            ? "Ankunft in <span class='js-countdown' data-seconds='$diff' data-no-reload='true'>" . format_time_for_js($diff) . "</span>"
+            ? "Ankunft in <span class='js-countdown' data-seconds='$diff' data-no-reload='true' data-zero-text='00:00'>" . format_time_for_js($diff) . "</span>"
             : "Ankunft unbekannt!";
 
         $tx = (int)($attack["targetx"] ?? 0);
@@ -874,23 +874,13 @@ if (!empty($grouped_events) || !empty($miners_by_mine)) {
         $percent_val = ($mine_data["work_total"] > 0) ? ($mine_data["work_done"] / $mine_data["work_total"]) * 100 : 0;
         $percent_display = fdec($percent_val);
 
-        $badge_html = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
-        foreach ($mine_data["troops"] as $t) {
-            $badge_html .= "<div class='unit-badge' title='{$t["soldiername"]}'>
-                                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
-                                <b>" . fnum($t["soldiercount"]) . "</b>
-                            </div>";
-        }
-        $badge_html .= "</div>";
-
-        // Popup-Inhalt für die Beute zusammenstellen
         $loot_items = [];
-        if (($mine_data["loot"]["stone"] ?? 0) > 0) $loot_items[] = "<div style='display: flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>" . fnum($mine_data["loot"]["stone"]) . "</span></div>";
-        if (($mine_data["loot"]["gold"] ?? 0) > 0) $loot_items[] = "<div style='display: flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>" . fnum($mine_data["loot"]["gold"]) . "</span></div>";
-        if (($mine_data["loot"]["coal"] ?? 0) > 0) $loot_items[] = "<div style='display: flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " <span>" . fnum($mine_data["loot"]["coal"]) . "</span></div>";
-        if (($mine_data["loot"]["iron"] ?? 0) > 0) $loot_items[] = "<div style='display: flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " <span>" . fnum($mine_data["loot"]["iron"]) . "</span></div>";
-        if (($mine_data["loot"]["sapphire"] ?? 0) > 0) $loot_items[] = "<div style='display: flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span>" . fnum($mine_data["loot"]["sapphire"]) . "</span></div>";
-        if (($mine_data["loot"]["diamond"] ?? 0) > 0) $loot_items[] = "<div style='display: flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span>" . fnum($mine_data["loot"]["diamond"]) . "</span></div>";
+        if (($mine_data["loot"]["stone"] ?? 0) > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>" . fnum($mine_data["loot"]["stone"]) . "</span></div>";
+        if (($mine_data["loot"]["gold"] ?? 0) > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>" . fnum($mine_data["loot"]["gold"]) . "</span></div>";
+        if (($mine_data["loot"]["coal"] ?? 0) > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " <span>" . fnum($mine_data["loot"]["coal"]) . "</span></div>";
+        if (($mine_data["loot"]["iron"] ?? 0) > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " <span>" . fnum($mine_data["loot"]["iron"]) . "</span></div>";
+        if (($mine_data["loot"]["sapphire"] ?? 0) > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span>" . fnum($mine_data["loot"]["sapphire"]) . "</span></div>";
+        if (($mine_data["loot"]["diamond"] ?? 0) > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span>" . fnum($mine_data["loot"]["diamond"]) . "</span></div>";
 
         if (!empty($loot_items)) {
             $loot_popup_content = "<div style='display: flex; gap: 4px; margin-top: 5px;'>" . implode("", $loot_items) . "</div>";
@@ -898,17 +888,23 @@ if (!empty($grouped_events) || !empty($miners_by_mine)) {
             $loot_popup_content = "<div style='margin-top: 5px; opacity: 0.8;'><i>Noch keine Erze abgebaut.</i></div>";
         }
 
-        $pop_id = "pop_mine_loot_" . $mid;
-        $action_cell_html = "
-            <div class='popup' id='$pop_id'>
-                <span style='color: #E6C15A;'>Minen-Abbau</span>
-                <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 130px;'>
-                    $loot_popup_content
-                </div>
-            </div>";
+        $badge_html = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
+        foreach ($mine_data["troops"] as $t) {
+            $s_id = (int)$t["soldier_id"];
+            $p_id = "pop_mine_loot_{$mid}_$s_id";
+
+            $badge_html .= "<div class='unit-badge popup' id='$p_id'>
+                                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
+                                <b>" . fnum($t["soldiercount"]) . "</b>
+                                <div id='{$p_id}_box' class='popupbox' style='text-align: left; min-width: 130px;'>
+                                    <b>Geschürfte Ressourcen:</b><br>$loot_popup_content
+                                </div>
+                            </div>";
+        }
+        $badge_html .= "</div>";
 
         $view .= "<tr>
-            <td class='td-center'>$action_cell_html</td>
+            <td class='td-center'><span style='color: #E6C15A;'>Minen-Abbau</span></td>
             <td class='td-center'>$badge_html</td>
             <td class='td-center'>$m_coords</td>
             <td class='td-center td-timer-cell' style='position: relative;'>
@@ -1012,7 +1008,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
         $arrival_diff = max(0, $row["arrivaltime"] - $now);
         $counter_id = "trade_counter_" . $event_id;
 
-        $is_cancelable = ($row["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $row["buildingname"] == "Interner Transport");
+        $is_cancelable = ($row["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $row["buildingname"] == TransportTypes::TRANSPORT_TYPE_INTERNAL);
 
         $res_display = "";
 

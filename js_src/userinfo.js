@@ -252,6 +252,7 @@ function redirectToMap(x, y) {
     }
 }
 
+// In userinfo.js ersetzen:
 function switchKingdomAndReload(kingdomId) {
     let formData = new FormData();
     formData.append("choosekingdom", kingdomId);
@@ -259,7 +260,26 @@ function switchKingdomAndReload(kingdomId) {
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
-            window.location.reload();
+            let currentUrl = new URL(window.location.href);
+            let pathname = currentUrl.pathname;
+            let filename = pathname.split('/').pop();
+
+            const keepParamsPages = [
+                "messages.php",
+                "ranking.php",
+                "support.php",
+                "sendtroops.php",
+                "map.php",
+            ];
+
+            if (filename === "barracks.php") {
+                const cat = currentUrl.searchParams.get("cat");
+                window.location.href = cat !== null ? `${pathname}?cat=${cat}` : pathname;
+            } else if (keepParamsPages.includes(filename)) {
+                window.location.href = pathname + currentUrl.search;
+            } else {
+                window.location.href = pathname;
+            }
         }
     };
     xhttp.open("POST", "ajax/change_kingdom.php", true);

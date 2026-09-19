@@ -228,6 +228,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // Events
     document.addEventListener("click", (e) => {
         const btn = e.target.closest('[data-url*="sendtroops.php"]');
+
+        if (btn) {
+            sessionStorage.setItem("last_map_zoom", zoom.toString());
+            sessionStorage.setItem("restore_map_zoom_after_send", "true");
+
+            saveCurrentFilters();
+        }
+
         const mapContainer = document.getElementById("map-container");
         const popupBox = document.getElementById("field-popup-box");
 
@@ -240,13 +248,6 @@ document.addEventListener("DOMContentLoaded", () => {
             selectedY = null;
 
             draw();
-        }
-
-        if (btn) {
-            sessionStorage.setItem("last_map_zoom", zoom.toString());
-            sessionStorage.setItem("restore_map_zoom_after_send", "true");
-
-            saveCurrentFilters();
         }
     });
 
@@ -1013,12 +1014,14 @@ function selectField(x, y, shouldCenter = false) {
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
 
-        if (isMyGuild && curTroops > 0 && myTroops === 0) {
-            html += `<tr><td class="td-mapinfo"><b>Status</b></td><td><span style="color: #3498db;">Abbau durch Gilde</span></td></tr>`;
-        }
+        if (curTroops > 0) {
+            if (isMyGuild && myTroops === 0) {
+                html += `<tr><td class="td-mapinfo"><b>Status</b></td><td><span style="color: #3498db;">Abbau durch Gilde</span> (${owner})</td></tr>`;
+            }
 
-        if (isFriendly && curTroops > 0) {
-            html += `<tr><td class="td-mapinfo"><b>Belegung</b></td><td>${curTroops} / ${maxTroops} Einheiten</td></tr>`;
+            if (isFriendly) {
+                html += `<tr><td class="td-mapinfo"><b>Belegung</b></td><td>${curTroops} / ${maxTroops} Einheiten</td></tr>`;
+            }
         }
 
         const showProgress = (myTroops > 0 || (isMyGuild && curTroops > 0));

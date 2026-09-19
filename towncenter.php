@@ -41,7 +41,8 @@ if (isset($_GET["action"])) {
         // The action that was set is "building"
         if ($_GET["action"] == "build") {
             $max_allowed_for_this_building = match ($build_id) {
-                BuildingTypes::BUILDING_SHRINE => 7,
+                BuildingTypes::BUILDING_SHRINE => 5,
+                BuildingTypes::BUILDING_EMBASSY => 1,
                 default => MAX_BUILDING_LEVEL
             };
 
@@ -175,7 +176,8 @@ for ($i = 0; $i < $building_count; $i++) {
 
     $level = (int)$buildings[$i]->get_building_level();
     $max_allowed_for_this_building = match ($building_id) {
-        BuildingTypes::BUILDING_SHRINE => 7,
+        BuildingTypes::BUILDING_SHRINE => 5,
+        BuildingTypes::BUILDING_EMBASSY => 1,
         default => MAX_BUILDING_LEVEL
     };
     $is_maxed = ($level >= $max_allowed_for_this_building);

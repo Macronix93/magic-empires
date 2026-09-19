@@ -9,7 +9,7 @@ check_user_login($user);
 $title = "Spenden";
 $header = "Spenden";
 $view = "<div style='max-width: 600px; margin: 0 auto; line-height: 1.6;'>
-            <p>Seid gegrüßt, Eure Hoheit!</p>
+            <p style='margin-top: 0;'>Seid gegrüßt, Eure Hoheit!</p>
             <p>Die Welt von <b>Magic Empires</b> ist ein Reich, das aus Leidenschaft und in unzähligen Stunden harter Arbeit erschaffen wurde. 
             Um die Magie aufrechtzuerhalten, die Server zu bewachen und die Grenzen unseres gemeinsamen Reiches zu erweitern, bedarf es einiger Ressourcen.</p>
             <p>Wenn Ihr das Projekt unterstützen und zur Stärkung der königlichen Schatzkammer beitragen möchtet, könnt Ihr hier einen freiwilligen Obolus entrichten. 

@@ -3005,6 +3005,12 @@ img[data-on-click] {
     border-bottom: none;
 }
 
+.loot-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {

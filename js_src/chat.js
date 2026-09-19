@@ -5,6 +5,7 @@ let canLoadMore = true;
 let lastSeenId = 0;
 let isUpdatingChat = false;
 let lastReactionClick = 0;
+let isSendingChat = false;
 
 registerAction("toggleReaction", (el) => {
     lastReactionClick = Date.now();
@@ -50,12 +51,18 @@ registerAction("confirmDeleteConversation", (el) => {
     }
 });
 registerAction("sendWorldMessage", () => {
+    if (isSendingChat) return;
+
     const messageInput = document.getElementById("message-input");
     const text = messageInput.value;
+    const form = document.getElementById("world-chat-form");
+    const submitBtn = form?.querySelector('input[type="button"], input[type="submit"]');
 
-    if (text === "") {
-        return;
-    }
+    if (text === "") return;
+
+    isSendingChat = true;
+    if (messageInput) messageInput.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
 
     const formData = new URLSearchParams();
     formData.append("text", text);
@@ -82,6 +89,16 @@ registerAction("sendWorldMessage", () => {
 
                 scrollDown(true);
             }
+        })
+        .catch(err => console.error("Error:", err))
+        .finally(() => {
+            isSendingChat = false;
+
+            if (messageInput) {
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+            if (submitBtn) submitBtn.disabled = false;
         });
 });
 registerAction("deleteWorldChatMsg", (el) => {
@@ -128,9 +145,16 @@ registerAction("confirmDeleteAllServer", (el) => {
     );
 });
 registerAction("sendGuildMessage", () => {
+    const form = document.getElementById("guild-chat-form");
+    const submitBtn = form?.querySelector('input[type="button"], input[type="submit"]');
     const messageInput = document.getElementById("message-input");
     const text = messageInput.value;
+
     if (text.trim() === "") return;
+
+    isSendingChat = true;
+    if (messageInput) messageInput.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
 
     const formData = new URLSearchParams();
     formData.append("text", text);
@@ -156,6 +180,16 @@ registerAction("sendGuildMessage", () => {
 
                 scrollDown(true);
             }
+        })
+        .catch(err => console.error("Error:", err))
+        .finally(() => {
+            isSendingChat = false;
+
+            if (messageInput) {
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+            if (submitBtn) submitBtn.disabled = false;
         });
 });
 registerAction("deleteGuildChatMsg", (el) => {
@@ -511,15 +545,20 @@ function removeEmptyPlaceholder() {
 
 function insertNewChatMessage(e) {
     if (e) e.preventDefault();
+    if (isSendingChat) return;
 
     const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
     const messageInput = document.getElementById("message-input");
+    const form = document.getElementById("newmessage");
+    const submitBtn = form?.querySelector('input[type="submit"], input[type="button"]');
     let receiver = document.querySelector('input[name="receiver"]').value;
     const text = messageInput.value;
 
-    if (text === "") {
-        return;
-    }
+    if (text === "") return;
+
+    isSendingChat = true;
+    if (messageInput) messageInput.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
 
     const formData = new URLSearchParams();
     formData.append("receiver", receiver);
@@ -558,7 +597,16 @@ function insertNewChatMessage(e) {
                 scrollDown(true);
             }
         })
-        .catch(error => console.error("Error:", error));
+        .catch(error => console.error("Error:", error))
+        .finally(() => {
+            isSendingChat = false;
+
+            if (messageInput) {
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+            if (submitBtn) submitBtn.disabled = false;
+        });
 }
 
 function conversationDeletionDialog(chatPartnerID, chatPartner) {
@@ -707,6 +755,7 @@ function initializeChat() {
 function filterServerMessages(element) {
     let category = element.textContent.trim();
     let messages = document.querySelectorAll('.server-bubble');
+    let newLine = document.getElementById('new-message-line');
 
     messages.forEach(msg => {
         if (category === "Alle" || msg.dataset.category === category) {
@@ -715,6 +764,10 @@ function filterServerMessages(element) {
             msg.style.display = "none";
         }
     });
+
+    if (newLine) {
+        newLine.style.display = (category === "Alle") ? "flex" : "none";
+    }
 
     canLoadMore = true;
 
@@ -1002,6 +1055,18 @@ function displayChatError(message, seconds = undefined) {
 
 document.addEventListener("DOMContentLoaded", () => {
     const messageSection = document.getElementById("messages-section");
+    const classicNewForm = document.querySelector("form[action='messages.php?action=new']");
+
+    if (classicNewForm) {
+        classicNewForm.addEventListener("submit", function () {
+            const btn = this.querySelector('input[type="submit"]');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.value = "Wird gesendet...";
+            }
+        });
+    }
 
     if (messageSection) {
         messageSection.addEventListener("scroll", () => {

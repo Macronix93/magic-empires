@@ -433,8 +433,13 @@ class User
 
     public function get_user_guild_id(): int
     {
+        if ($this->user_id <= 0) {
+            return -1;
+        }
+
         $result = $this->mysqli->execute_query("SELECT guildid FROM users WHERE id = ?", [$this->user_id]);
-        return $result->fetch_assoc()["guildid"];
+        $row = $result->fetch_assoc();
+        return (int)($row["guildid"] ?? -1);
     }
 
     public function get_guild_rank_id(): int

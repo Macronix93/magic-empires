@@ -119,7 +119,7 @@ if (isset($_GET["accept"])) {
 
                     $db_instance->execute_query(
                         "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $current_kingdom, $supply, $supply_value, "Warenlieferung", $buyer_arrival_time]
+                        [ActionTypes::ACTION_RECEIVE_RESOURCES, $user->get_user_id(), $current_kingdom, $supply, $supply_value, TransportTypes::TRANSPORT_TYPE_TRADE_DELIVERY, $buyer_arrival_time]
                     );
 
                     $db_instance->execute_query(
@@ -369,7 +369,7 @@ if (isset($_GET["send_own"])) {
                             $my_x,
                             $my_y,
                             time(),
-                            "Interner Transport",
+                            TransportTypes::TRANSPORT_TYPE_INTERNAL,
                             (int)($amounts[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
                             (int)($amounts[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
                             (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),

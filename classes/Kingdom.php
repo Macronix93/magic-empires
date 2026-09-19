@@ -876,6 +876,7 @@ class Kingdom
         }
 
         $mine_id = (int)$mine["id"];
+        $kid = $this->kingdom_id;
 
         $last_update = (int)($mine["last_update"] ?: $now);
         $elapsed = max(0, $now - $last_update);
@@ -885,7 +886,7 @@ class Kingdom
             $max_rate = (float)$mine["work_total"] / MINE_MIN_DURATION_SECONDS;
             $effective_rate = min($current_atk * MINE_WORK_RATE_FACTOR, $max_rate);
             $work_delta = $effective_rate * $elapsed;
-            
+
             $this->mysqli->execute_query("
                 UPDATE mine_stationed_troops 
                 SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
@@ -898,9 +899,9 @@ class Kingdom
 
         $my_troops = $this->mysqli->execute_query("
             SELECT * FROM mine_stationed_troops 
-            WHERE mine_id = ? AND user_id = ? 
+            WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
             FOR UPDATE
-        ", [$mine_id, $this->kingdom_owner_id])->fetch_all(MYSQLI_ASSOC);
+        ", [$mine_id, $this->kingdom_owner_id, $kid])->fetch_all(MYSQLI_ASSOC);
 
         if (empty($my_troops)) {
             $this->mysqli->rollback();
@@ -912,7 +913,7 @@ class Kingdom
         $mined_ratio = min(1.0, $work_done / $work_total);
 
         $my_work = array_sum(array_column($my_troops, "work_contributed"));
-        $share = ($work_done > 0) ? min(1.0, $my_work / $work_done) : 0;
+        $share = ($work_done > 0) ? min(1.0, (float)$my_work / (float)$work_done) : 0;
 
         $loot_stone = (int)floor($mine["stone"] * $mined_ratio * $share);
         $loot_gold = (int)floor($mine["gold"] * $mined_ratio * $share);
@@ -920,8 +921,6 @@ class Kingdom
         $loot_iron = (int)floor($mine["iron"] * $mined_ratio * $share);
         $loot_sapphire = (int)floor($mine["sapphire"] * $mined_ratio * $share);
         $loot_diamond = (int)floor($mine["diamond"] * $mined_ratio * $share);
-
-        $kid = (int)$my_troops[0]["kingdom_id"];
 
         $map = new Map(new User($this->kingdom_owner_id, ""));
         $travel_time = $map->get_arrival_time(
@@ -947,9 +946,9 @@ class Kingdom
         $grouped_troops = $this->mysqli->execute_query("
             SELECT soldier_id, SUM(soldiercount) as soldiercount 
             FROM mine_stationed_troops 
-            WHERE mine_id = ? AND user_id = ? 
+            WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
             GROUP BY soldier_id
-        ", [$mine_id, $this->kingdom_owner_id])->fetch_all(MYSQLI_ASSOC);
+        ", [$mine_id, $this->kingdom_owner_id, $kid])->fetch_all(MYSQLI_ASSOC);
 
         $insert_troops = [];
         foreach ($grouped_troops as $t) {
@@ -962,7 +961,7 @@ class Kingdom
             $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
         }
 
-        $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mine_id, $this->kingdom_owner_id]);
+        $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?", [$mine_id, $this->kingdom_owner_id, $kid]);
         $this->mysqli->execute_query("
             UPDATE mines SET 
                 stone = GREATEST(0, stone - ?),
@@ -978,13 +977,16 @@ class Kingdom
             $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond,
             $now, $mine_id
         ]);
-
         $rem_troops = (int)$this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
 
         if ($rem_troops > 0) {
             if ((int)$mine["claimed_user_id"] === $this->kingdom_owner_id) {
-                $new_claimer = (int)$this->mysqli->execute_query("SELECT user_id FROM mine_stationed_troops WHERE mine_id = ? LIMIT 1", [$mine_id])->fetch_column();
-                $this->mysqli->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$new_claimer, $mine_id]);
+                $user_still_here = (int)$this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mine_id, $this->kingdom_owner_id])->fetch_column();
+
+                if ($user_still_here === 0) {
+                    $new_claimer = (int)$this->mysqli->execute_query("SELECT user_id FROM mine_stationed_troops WHERE mine_id = ? LIMIT 1", [$mine_id])->fetch_column();
+                    $this->mysqli->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$new_claimer, $mine_id]);
+                }
             }
         } else {
             $this->mysqli->execute_query("UPDATE mines SET claimed_guild_id = NULL, claimed_user_id = NULL WHERE id = ?", [$mine_id]);

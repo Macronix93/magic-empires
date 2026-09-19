@@ -1032,9 +1032,13 @@ class EventManager
 
             $attacker_wins = ($atk_power > $def_power);
             $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-
-            $def_k_names = array_unique(array_filter(array_column($defenders, "kingdomname")));
-            $def_list = !empty($def_k_names) ? e(implode(", ", $def_k_names)) : "Unbekannt";
+            
+            $def_players = [];
+            foreach ($defenders as $d) {
+                $key = $d["username"] . " (" . $d["kingdomname"] . ")";
+                $def_players[$key] = true;
+            }
+            $def_list = !empty($def_players) ? e(implode(", ", array_keys($def_players))) : "Unbekannt";
 
             if ($attacker_wins) {
                 // ATTACKER WINS - MINE OVERTAKEN
@@ -1434,29 +1438,40 @@ class EventManager
             if ($loot_sapphire > 0) $guild_logic->modify_storage_resource("sapphire", $loot_sapphire);
             if ($loot_diamond > 0) $guild_logic->modify_storage_resource("diamond", $loot_diamond);
 
-            $g_res_items = [];
-            if ($loot_coal > 0) {
-                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " <span class='passed'>+" . fnum($loot_coal) . "</span></div>";
-            }
-            if ($loot_iron > 0) {
-                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " <span class='passed'>+" . fnum($loot_iron) . "</span></div>";
-            }
-            if ($loot_sapphire > 0) {
-                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span class='passed'>+" . fnum($loot_sapphire) . "</span></div>";
-            }
-            if ($loot_diamond > 0) {
-                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span class='passed'>+" . fnum($loot_diamond) . "</span></div>";
-            }
+//            $g_res_items = [];
+//            if ($loot_coal > 0) {
+//                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " <span class='passed'>+" . fnum($loot_coal) . "</span></div>";
+//            }
+//            if ($loot_iron > 0) {
+//                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " <span class='passed'>+" . fnum($loot_iron) . "</span></div>";
+//            }
+//            if ($loot_sapphire > 0) {
+//                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span class='passed'>+" . fnum($loot_sapphire) . "</span></div>";
+//            }
+//            if ($loot_diamond > 0) {
+//                $g_res_items[] = "<div>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span class='passed'>+" . fnum($loot_diamond) . "</span></div>";
+//            }
+//
+//            $res_badge_html = "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 10px;'>" . implode("", $g_res_items) . "</div>";
+//
+//            $guild_logic->notify_guild(
+//                "Minen-Erze eingelagert!",
+//                "Die Schürfer von <b>" . e($owner_username) . "</b> sind wohlbehalten heimgekehrt und haben folgende Schätze in die Gilden-Schatzkammer eingelagert:$res_badge_html",
+//                "",
+//                "neutral",
+//                [$owner_id]
+//            );
 
-            $res_badge_html = "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin: 10px;'>" . implode("", $g_res_items) . "</div>";
+            $total_special_loot = $loot_coal + $loot_iron + $loot_sapphire + $loot_diamond;
 
-            $guild_logic->notify_guild(
-                "Minen-Erze eingelagert!",
-                "Die Schürfer von <b>" . e($owner_username) . "</b> sind wohlbehalten heimgekehrt und haben folgende Schätze in die Gilden-Schatzkammer eingelagert:$res_badge_html",
-                "",
-                "neutral",
-                [$owner_id]
-            );
+            if ($total_special_loot > 0) {
+                update_player_stat($owner_id, "special_resources_mined", $total_special_loot);
+
+                $this->mysqli->execute_query(
+                    "UPDATE guilds SET total_special_mined = total_special_mined + ? WHERE id = ?",
+                    [$total_special_loot, $user_gid]
+                );
+            }
         }
 
         // Send server message to owner
@@ -4066,6 +4081,10 @@ class EventManager
                         "troops",
                         "overview.php"
                     );
+
+                    if ($is_completed) {
+                        update_player_stat((int)$p["user_id"], "mines_depleted");
+                    }
                 }
 
                 $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$m["id"]]);
