@@ -68,10 +68,18 @@ $view .= '<table class="table ranking-table">
 
 $pos = $offset_players + 1;
 
+$conquest_helper = new Conquest();
+$my_score = $user->get_user_score();
+$my_uid = $user->get_user_id();
+$my_guild_id = $user->get_user_guild_id();
+
 foreach ($players_res as $row) {
     $user_id = $row["id"];
     $user_name = $row["username"];
     $last_active = $row["lastactivity"];
+    $user_score = $row["score"];
+    $user_guild_id = $row["guildid"];
+    $is_attackable = !$conquest_helper->has_noob_protection($my_score, $user_score) && $my_uid != $user_id && $my_guild_id != $user_guild_id;
 
     $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $last_activity_text = ($last_active == 0) ? "Nicht verfügbar" : (date("d.m.Y", $last_active) . " um " . date("H:i:s", $last_active) . " Uhr " . ($inactive ? "(Inaktiv)" : ""));
@@ -79,14 +87,25 @@ foreach ($players_res as $row) {
 
     $color = ($now - $last_active > ONLINE_MAX_SECONDS) ? "#F55353" : ($now - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
 
-    $guild_display = $row["guild_tag"] ? " <b style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$row["guildid"]}'>[" . e($row["guild_tag"]) . "]</b>" : "";
+    $guild_display = $row["guild_tag"] ? " <b style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$user_guild_id}'>[" . e($row["guild_tag"]) . "]</b>" : "";
     $name_style = $row["rank_color"] && $row["rank_id"] != GuildRanks::GUILD_MEMBER ? " color: {$row["rank_color"]};" : "";
 
     $is_on_vacation = (!empty($row["is_vacation"]) && (int)$row["vacation_until"] > $now);
     $vacation_badge = "";
 
     if ($is_on_vacation) {
-        $vacation_badge = " <span class='popup' id='vac_{$row["id"]}' style='cursor: help;'>🏖️<div id='vac_{$row["id"]}_box' class='popupbox'><b>Im Urlaubsmodus</b></div>";
+        $vacation_badge = " <span class='popup' id='vac_{$row["id"]}'>🏖️<div id='vac_{$row["id"]}_box' class='popupbox'><b>Im Urlaubsmodus</b></div></span>";
+    }
+
+    $sword_icon = "";
+    if ($is_attackable) {
+        $sword_icon = "
+            <span class='popup ranking-attack-sword' id='atk_range_{$row["id"]}'>
+                <img src='images/icons/icon_sword.png' alt='Angreifbar'>
+                <div id='atk_range_{$row["id"]}_box' class='popupbox' style='text-align: left;'>
+                    <b>Angreifbar</b>
+                </div>
+            </span>";
     }
 
     $player = new User($user_id, $user_name);
@@ -104,7 +123,7 @@ foreach ($players_res as $row) {
     $view .= "<tr>
                 <td class='td-shrink' style='text-align: right;'>$pos</td>
                 <td class='td-expand'>" . $player->render_user("$user_link $guild_display $vacation_badge", $color, $pos) . "</td>
-                <td class='td-score'>" . fnum($row["score"], true) . "</td>
+                <td class='td-score'>" . fnum($row["score"], true) . " $sword_icon</td>
             </tr>";
     $pos++;
 }

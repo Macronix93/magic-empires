@@ -121,6 +121,9 @@ const WALL_COUNTER_DAMAGE_FACTOR = 0.5;
 const WALL_ABSORPTION_MULTIPLIER = 5;
 const WALL_NORMAL_TROOP_DAMAGE_FACTOR = 0.15;
 const WALL_MAX_NORMAL_DAMAGE_PERCENT = 0.2;
+const PVP_DAMPING_THRESHOLD = 1.0;                  // At which Superiority Factor does damp begin
+const PVP_DAMPING_MAX_RATIO = 3.0;                  // At which Superiority Factor is damage = 0 (Chip Damage Immunity)
+const PVP_DAMPING_EXPONENT = 1.15;                  // Exponent for curve progress (like PvE)
 
 // --- Troops, Recruiting ---
 const MIN_SOLDIERS_RECRUIT_INPUT = 10;
@@ -326,6 +329,7 @@ const MINE_WEIGHT_LVL_5 = 0.1;
 const MINE_CAPACITY = 100; // Max troop capacity per Mine Level
 const MINE_TRAVEL_BOOST = 0.3; // 70% reduction
 const MINE_MIN_DURATION_SECONDS = 1800;
+const NUM_MINES_PER_PAGE = 10;
 
 // Required Work Points per Mine Level
 const MINE_WORK_BY_LEVEL = [

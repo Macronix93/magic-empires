@@ -183,6 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const urlParams = new URLSearchParams(window.location.search);
         const hasCoordsParam = urlParams.has("startx") && urlParams.has("starty");
+        const fromSendTroops = document.referrer.includes("sendtroops.php");
 
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(r => r.json())
@@ -202,6 +203,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (!usePopup || hasCoordsParam) {
                     selectField(selectedX, selectedY, true);
+
+                    if (fromSendTroops && usePopup) {
+                        const popupBox = document.getElementById("field-popup-box");
+
+                        if (popupBox) {
+                            popupBox.style.display = "none";
+                        }
+                    }
 
                     if (window.innerWidth <= 1392 && !usePopup) {
                         const statusMsg = document.querySelector(".big-box-content > .info-box");
@@ -1041,11 +1050,14 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
 
         const troops = gameConfig.currentKingdom.troops || {};
-        const scoutCount = troops[gameConfig.constants.SOLDIER_SCOUT] || 0;
+        const scoutId = gameConfig.constants.SOLDIER_SCOUT;
+        const scoutCount = parseInt(troops[scoutId]) || 0;
         let otherTroopsCount = 0;
+
         for (let sId in troops) {
-            if (parseInt(sId) !== gameConfig.constants.SOLDIER_SCOUT) {
-                otherTroopsCount += troops[sId];
+            const idNum = parseInt(sId);
+            if (idNum >= 0 && idNum <= 8) {
+                otherTroopsCount += (parseInt(troops[sId]) || 0);
             }
         }
 
@@ -1059,11 +1071,11 @@ function selectField(x, y, shouldCenter = false) {
             let actionBtnText;
             let actionUrl = `sendtroops.php?x=${tx}&y=${ty}`;
 
-            if (myTroops > 0 || isMyGuild) {
-                actionBtnText = "Helfen";
-            } else if (scoutCount > 0 && otherTroopsCount === 0) {
+            if (scoutCount > 0 && otherTroopsCount === 0) {
                 actionBtnText = "Spionieren";
                 actionUrl += `&mode=spy`;
+            } else if (myTroops > 0 || isMyGuild) {
+                actionBtnText = "Helfen";
             } else {
                 actionBtnText = "Abbauen";
             }

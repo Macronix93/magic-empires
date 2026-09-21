@@ -29,7 +29,10 @@ const W_CONF = {
     wallCounterDmgFactor: parseFloat(warsimConstEl.dataset.wall_counter_dmg_factor),
     wallAbsorptionMult: parseInt(warsimConstEl.dataset.wall_absorption_mult),
     wallNormalDmgFactor: parseFloat(warsimConstEl.dataset.wall_normal_dmg_factor),
-    wallMaxNormalDmgPerc: parseFloat(warsimConstEl.dataset.wall_max_normal_dmg_perc)
+    wallMaxNormalDmgPerc: parseFloat(warsimConstEl.dataset.wall_max_normal_dmg_perc),
+    pvpDampingThreshold: parseFloat(warsimConstEl.dataset.pvp_damping_threshold),
+    pvpDampingMaxRatio: parseFloat(warsimConstEl.dataset.pvp_damping_max_ratio),
+    pvpDampingExponent: parseFloat(warsimConstEl.dataset.pvp_damping_exponent)
 };
 let currentSimWallHp = null;
 let lastSimState = null;
@@ -116,7 +119,6 @@ registerAction("resetFields", () => {
 
     const filterToggle = document.getElementById('toggle-relevant-units');
     if (filterToggle) {
-        filterToggle.checked = false;
         applyRelevantFilter(false);
     }
 });
@@ -390,6 +392,20 @@ function calculateWarOutcome(soldierTypes) {
         const lossMultiplier = Math.pow(1.0 - Math.max(0.0, Math.min(1.0, ratio / W_CONF.monsterDmgClampedMaxVal)), W_CONF.monsterDmgLossExponent);
 
         pRatio = pRatio * lossMultiplier;
+    } else if (!isMonsterMode && playerAtkPool > 0 && effectiveEnemyCounterDamage > 0) {
+        const range = Math.max(0.01, W_CONF.pvpDampingMaxRatio - W_CONF.pvpDampingThreshold);
+
+        const ratioDef = effectiveEnemyCounterDamage / playerAtkPool;
+        if (ratioDef > W_CONF.pvpDampingThreshold) {
+            const clamped = Math.max(0.0, Math.min(1.0, (ratioDef - W_CONF.pvpDampingThreshold) / range));
+            eRatio *= Math.pow(1.0 - clamped, W_CONF.pvpDampingExponent);
+        }
+
+        const ratioAtk = playerAtkPool / effectiveEnemyCounterDamage;
+        if (ratioAtk > W_CONF.pvpDampingThreshold) {
+            const clamped = Math.max(0.0, Math.min(1.0, (ratioAtk - W_CONF.pvpDampingThreshold) / range));
+            pRatio *= Math.pow(1.0 - clamped, W_CONF.pvpDampingExponent);
+        }
     }
 
     soldierTypes.forEach(type => {
@@ -686,7 +702,23 @@ function loadWarsimState() {
 
     for (let id in state.inputs) {
         const el = document.getElementById(id);
-        if (el) el.value = state.inputs[id];
+        if (!el) continue;
+
+        if (kingdomSwitched && id.endsWith("_own")) {
+            const row = el.closest("tr");
+            const owned = parseInt(row?.querySelector('[data-value]')?.dataset.value) || 0;
+
+            if (owned <= 0) {
+                el.value = "";
+            } else {
+                const prevVal = parseInt(state.inputs[id]) || 0;
+                el.value = prevVal > 0 ? Math.min(prevVal, owned) : "";
+            }
+            el.style.color = "";
+            continue;
+        }
+
+        el.value = state.inputs[id];
     }
 
     if (!kingdomSwitched) {

@@ -522,7 +522,16 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                 ");
     }
 
-    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
+    $mining_units_count = 0;
+    for ($i = 0; $i <= 8; $i++) {
+        $mining_units_count += (int)($kingdom_soldiers[$i] ?? 0);
+    }
+
+    if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
+        $is_spying = $only_scouts_allowed || ($mining_units_count === 0 && $scout_count > 0);
+    } else {
+        $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
+    }
 
     if (!empty($_POST["soldiers"])) {
         $is_spying = true;
@@ -566,7 +575,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
             $cap_display = $current_mine_troops . ' / ' . $max_capacity . ' Einheiten';
         } else if ($is_mine_empty) {
-            $cap_display = '0 / ' . $max_capacity . ' Einheiten';
+            $cap_display = '<b>0</b> / ' . $max_capacity . ' Einheiten';
         } else {
             $cap_display = 'Max. ' . $max_capacity . ' Einheiten';
         }
@@ -590,10 +599,9 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         $view .= '<div class="title-border">Erzmine (Stufe ' . $mine_lvl . ')</div>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                       <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $target_x . ':' . $target_y . '</td></tr>';
-        $view .= '<tr><td class="td-mapinfo"><b>Kapazität</b></td><td><span id="mine-capacity-display">' . $cap_display . '</span></td></tr>';
-
         if (!$is_spying) {
-            $view .= '<tr><td class="td-mapinfo"><b>Abbau-Tempo</b></td><td><span id="mine-rate-display">' . $initial_rate_text . '</span></td></tr>
+            $view .= '<tr><td class="td-mapinfo"><b>Kapazität</b></td><td><span id="mine-capacity-display">' . $cap_display . '</span></td></tr>
+                      <tr><td class="td-mapinfo"><b>Abbau-Tempo</b></td><td><span id="mine-rate-display">' . $initial_rate_text . '</span></td></tr>
                       <tr><td class="td-mapinfo"><b>Abbauzeit</b></td><td><span id="mine-duration-display">' . $initial_dur_text . '</span></td></tr>';
         }
 

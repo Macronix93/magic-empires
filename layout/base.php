@@ -9,9 +9,44 @@ $js_suffix = ".js";
 $js_main_file = "main.js";
 
 $kingdom_count = 0;
+$all_user_kingdoms = [];
+$sidebar_data = [
+        "has_world_event" => false,
+        "market_offers" => 0,
+        "guild_status" => ''
+];
+
 if ($user->is_logged_in()) {
     $show_attack_alert = false;
     $show_support_alert = false;
+    $uid = $user->get_user_id();
+    $gid = $user->get_user_guild_id();
+
+    $all_user_kingdoms = $db_instance->execute_query(
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at",
+            [$uid]
+    )->fetch_all(MYSQLI_ASSOC);
+
+    $kingdom_count = count($all_user_kingdoms);
+
+    $res_sidebar = $db_instance->execute_query("
+        SELECT 
+            (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
+            (SELECT COUNT(*) FROM marketplace) AS market_count,
+            (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
+            (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name
+    ", [$gid, $gid])->fetch_assoc();
+
+    $sidebar_data["has_world_event"] = !empty($res_sidebar["has_event"]);
+    $sidebar_data["market_offers"] = (int)($res_sidebar["market_count"] ?? 0);
+
+    if ($gid > 0) {
+        if (!empty($res_sidebar["guild_research_active"])) {
+            $sidebar_data["guild_status"] = '<img src="images/icons/icon_time.png" class="ressource-icons" title="Gildenforschung läuft..." alt="Forschung">';
+        } elseif (!empty($res_sidebar["guild_project_name"])) {
+            $sidebar_data["guild_status"] = '<img src="images/icons/icon_hammer.png" class="ressource-icons" title="Projekt aktiv: ' . e($res_sidebar["guild_project_name"]) . '" alt="Projekt">';
+        }
+    }
 
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
     $ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
@@ -144,16 +179,11 @@ if ($user->is_logged_in()) {
 </div>
 <?php if ($kingdom_count > 1): ?>
     <?php
-    $all_mobile_kingdoms = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at",
-            [$user->get_user_id()]
-    )->fetch_all(MYSQLI_ASSOC);
-
     $cur_k_id = $user->get_current_kingdom();
     $cur_kname = "";
     $cur_pos = 1;
 
-    foreach ($all_mobile_kingdoms as $idx => $k) {
+    foreach ($all_user_kingdoms as $idx => $k) {
         if ($k["id"] == $cur_k_id) {
             $cur_pos = $idx + 1;
             $cur_kname = $k["kingdomname"];
@@ -170,7 +200,7 @@ if ($user->is_logged_in()) {
     </div>
     <div id="mobile-kingdom-dropdown" class="mobile-kingdom-dropdown">
         <?php
-        foreach ($all_mobile_kingdoms as $idx => $m_k):
+        foreach ($all_user_kingdoms as $idx => $m_k):
             $pos = $idx + 1;
             $is_active = ($m_k["id"] == $cur_k_id);
             ?>

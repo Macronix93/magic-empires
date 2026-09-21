@@ -34,6 +34,7 @@ class Kingdom
     private int $wall_hp;
     private int $alignment;
     private ?array $shrine_cache = null;
+    private ?array $building_levels_cache = null;
 
     public function __construct(int $kingdom_id = -1)
     {
@@ -306,10 +307,18 @@ class Kingdom
 
     public function get_kingdom_building_level(int $building_id): int
     {
-        $result = $this->mysqli->execute_query("SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
-            [$this->kingdom_id, $building_id]);
-        $row = $result->fetch_assoc();
-        return $row ? $row["buildinglevel"] : 0;
+        if ($this->building_levels_cache === null) {
+            $this->building_levels_cache = [];
+            $res = $this->mysqli->execute_query(
+                "SELECT buildingid, buildinglevel FROM buildings WHERE kingdomid = ?",
+                [$this->kingdom_id]
+            );
+            while ($r = $res->fetch_assoc()) {
+                $this->building_levels_cache[(int)$r["buildingid"]] = (int)$r["buildinglevel"];
+            }
+        }
+
+        return $this->building_levels_cache[$building_id] ?? 0;
     }
 
     public function is_kingdom_researching(int $kingdom_id): bool

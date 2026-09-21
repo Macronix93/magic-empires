@@ -53,7 +53,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         echo "<tr>
             <td>" . $guild_user->render_user() . "</td>
             <td class='td-center' style='color: {$m["rank_color"]}; font-weight: bold;'>" . e($m["rank_name"]) . "</td>
-            <td class='td-center'>" . fnum($m["ranking_points"]) . "</td>
+            <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>
           </tr>";
     }
     echo "</table><br>";

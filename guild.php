@@ -14,11 +14,15 @@ $active_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
 $referer = $_SERVER['HTTP_REFERER'] ?? '';
 $is_external_nav = empty($referer) || !str_contains($referer, 'guild.php');
 
+if (isset($_GET["minepage"])) {
+    $active_tab = "storage";
+}
+
 if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
     $active_tab = $_GET["tab"];
 
     setcookie("me_guild_tab", $active_tab, time() + 31536000, "/", "", false, false);
-} else if ($is_external_nav) {
+} else if ($is_external_nav && !isset($_GET["minepage"])) {
     $active_tab = "chat";
 } else {
     $active_tab = $_COOKIE["me_guild_tab"] ?? "chat";
@@ -470,6 +474,12 @@ if ($my_guild_id === -1) {
 } else {
     $header = "Gilden-Halle";
 
+    $messages = new Messages($user);
+    $unread_guild = $messages->get_unread_guild_count();
+    $should_show_badge = ($active_tab !== "chat" && $unread_guild > 0);
+    $unread_badge_style = $should_show_badge ? "display: inline-flex;" : "display: none;";
+    $unread_badge_text = $messages->show_messages_indicator($unread_guild);
+
     $guild_info = $guild_logic->get_guild_info($my_guild_id);
     $ranks_res = $guild_logic->get_ranks();
     $ranks = $ranks_res->fetch_all(MYSQLI_ASSOC);
@@ -482,14 +492,13 @@ if ($my_guild_id === -1) {
             </div>";
 
     $view .= "<div class='tab'>
-        <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>Chat</div>
+        <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>Chat <span class='msg-badge' id='badge-guild-tab' style='$unread_badge_style margin-left: 0;'>$unread_badge_text</span></div>
         <div class='tablinks " . ($active_tab == "general" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='general'>Allgemein</div>
         <div class='tablinks " . ($active_tab == "settings" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='settings'>Einstellungen</div>
         <div class='tablinks " . ($active_tab == "storage" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='storage'>Lager</div>
         <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research'>Forschung</div>
     </div>";
     $view .= "<div id='guild_tab_chat' class='js-guild-tab' style='display: " . ($active_tab == "chat" ? "block" : "none") . ";'>";
-    $messages = new Messages($user);
     $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Chat</div>";
     $view .= $messages->show_guild_chat();
     $view .= "</div>";
@@ -755,17 +764,26 @@ if ($my_guild_id === -1) {
     // Active Guild Miners Listing
     $view .= "<div class='title-border' style='margin-top: 30px;'>Aktive Minen-Schürfer</div>";
 
+    $mines_per_page = NUM_MINES_PER_PAGE;
+    $current_mine_page = max(1, (int)($_GET["minepage"] ?? 1));
+    $mine_offset = ($current_mine_page - 1) * $mines_per_page;
+
     $active_mines_res = $db_instance->execute_query("
         SELECT 
             mn.id AS mine_id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total,
-            SUM(mst.soldiercount * mst.unit_atk) AS total_mine_atk
+            SUM(mst.soldiercount * mst.unit_atk) AS total_mine_atk,
+            COUNT(*) OVER() AS total_count
         FROM mine_stationed_troops mst
         JOIN users u ON mst.user_id = u.id
         JOIN mines mn ON mst.mine_id = mn.id
         WHERE u.guildid = ?
         GROUP BY mn.id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total
         ORDER BY mn.level DESC, mn.mapx
-    ", [$my_guild_id])->fetch_all(MYSQLI_ASSOC);
+        LIMIT ?, ?
+    ", [$my_guild_id, $mine_offset, $mines_per_page])->fetch_all(MYSQLI_ASSOC);
+
+    $total_active_mines = !empty($active_mines_res) ? (int)$active_mines_res[0]["total_count"] : 0;
+    $total_mine_pages = ceil($total_active_mines / $mines_per_page);
 
     if (!empty($active_mines_res)) {
         $view .= "<table class='table guild-mining-table' style='margin: 0 auto;'>
@@ -848,6 +866,25 @@ if ($my_guild_id === -1) {
                       </tr>";
         }
         $view .= "</table>";
+
+        if ($total_mine_pages > 1) {
+            $view .= '<div class="pagination-container"><div class="pagination-bar">';
+            if ($current_mine_page > 1) {
+                $prev = $current_mine_page - 1;
+                $view .= "<a href='guild.php?tab=storage&minepage=1' class='page-link'>&laquo;</a>";
+                $view .= "<a href='guild.php?tab=storage&minepage=$prev' class='page-link'>&lsaquo;</a>";
+            }
+            for ($i = max(1, $current_mine_page - 2); $i <= min($total_mine_pages, $current_mine_page + 2); $i++) {
+                $active = ($i == $current_mine_page) ? "active" : "";
+                $view .= ($i == $current_mine_page) ? "<span class='page-link active'>$i</span>" : "<a href='guild.php?tab=storage&minepage=$i' class='page-link'>$i</a>";
+            }
+            if ($current_mine_page < $total_mine_pages) {
+                $next = $current_mine_page + 1;
+                $view .= "<a href='guild.php?tab=storage&minepage=$next' class='page-link'>&rsaquo;</a>";
+                $view .= "<a href='guild.php?tab=storage&minepage=$total_mine_pages' class='page-link'>&raquo;</a>";
+            }
+            $view .= '</div></div>';
+        }
     } else {
         $view .= "<p style='text-align: center; opacity: 0.6;'>Aktuell bauen keine Gildenmitglieder in Minen ab.</p>";
     }
@@ -902,8 +939,8 @@ if ($my_guild_id === -1) {
 
             $view .= "<div style='margin-bottom: 12px;'>
                 <div class='split-content' style='margin-bottom: 4px;'>
-                    <span>" . get_resource_icon($info[0]) . " $info[1]</span>
-                    <span>" . fnum($cur) . " / " . fnum($req) . " <span style='$color'>(" . $perc_display . "%)</span></span>
+                    <span class='guild-project-res-type'>" . get_resource_icon($info[0]) . " $info[1]</span>
+                    <span class='guild-project-res-type'>" . fnum($cur) . " / " . fnum($req) . " <span style='$color'>(" . $perc_display . "%)</span></span>
                 </div>
                 <div class='tick-progress-bg' style='height: 10px;'>
                     <div class='project-progress-fill' style='width: $bar_width%;'></div>
@@ -924,8 +961,8 @@ if ($my_guild_id === -1) {
             if ($req > 0) {
                 $view .= "<div style='margin-bottom: 12px;'>
                     <div class='split-content' style='margin-bottom: 4px;'>
-                        <span>" . get_resource_icon($info[0]) . " $info[1]</span>
-                        <span>" . fnum($req) . " / " . fnum($req) . " <span style='color: #0BDA51;'>(100%)</span></span>
+                        <span class='guild-project-res-type'>" . get_resource_icon($info[0]) . " $info[1]</span>
+                        <span class='guild-project-res-type'>" . fnum($req) . " / " . fnum($req) . " <span style='color: #0BDA51;'>(100%)</span></span>
                     </div>
                     <div class='tick-progress-bg' style='height: 10px;'>
                         <div class='project-progress-fill' style='width: 100%;'></div>
@@ -1088,6 +1125,7 @@ if ($my_guild_id === -1) {
 
         $res_html = "";
         $special_res_html = "";
+        $has_special_resources = true;
 
         if ($level < $max_lvl) {
             $base_res_types = [
@@ -1117,8 +1155,12 @@ if ($my_guild_id === -1) {
 
                 if ($cost > 0) {
                     $current_stock = $guild_logic->get_storage_amount($key);
-                    $cost_display = get_resource_text($cost, $current_stock);
 
+                    if ($cost > $current_stock) {
+                        $has_special_resources = false;
+                    }
+
+                    $cost_display = get_resource_text($cost, $current_stock);
                     $special_res_html .= "<div class='legend-item' style='margin-right: 8px;'>"
                         . get_resource_icon($icon_id) . " " . $cost_display
                         . "</div>";
@@ -1151,7 +1193,7 @@ if ($my_guild_id === -1) {
                 </div>";
             }
         } else if ($my_perms["can_edit_settings"]) {
-            $disabled = $project ? " disabled" : "";
+            $disabled = ($project || !$has_special_resources) ? " disabled" : "";
 
             $action_btn = "<a href='guild.php?tab=research&mark_project={$t["id"]}'>
                         <button type='button'$disabled>Markieren</button>

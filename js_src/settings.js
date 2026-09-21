@@ -43,8 +43,6 @@ registerAction("togglePushNotifications", async (el) => {
                 alert('Benachrichtigungen wurden blockiert oder abgelehnt.');
                 el.disabled = false;
                 el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
-                el.classList.remove("push-notifications-disable");
-                el.classList.add("push-notifications-enable");
                 return;
             }
 
@@ -79,8 +77,6 @@ registerAction("togglePushNotifications", async (el) => {
                 alert('Fehler: ' + (result.error || 'Speichern fehlgeschlagen'));
                 el.disabled = false;
                 el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
-                el.classList.remove("push-notifications-disable");
-                el.classList.add("push-notifications-enable");
             }
         }
     } catch (err) {
@@ -159,8 +155,6 @@ async function initPushStatus() {
 
         if (Notification.permission !== 'granted' || !sub) {
             btn.innerText = "🔔 Benachrichtigungen auf diesem Gerät aktivieren";
-            btn.classList.remove("push-notifications-disable");
-            btn.classList.add("push-notifications-enable");
 
             if (savedEndpoint) {
                 localStorage.removeItem('me_push_endpoint');
@@ -182,8 +176,6 @@ async function initPushStatus() {
             }
         } else {
             btn.innerText = "🔕 Benachrichtigungen auf diesem Gerät deaktivieren";
-            btn.classList.remove("push-notifications-enable");
-            btn.classList.add("push-notifications-disable");
 
             localStorage.setItem('me_push_endpoint', sub.endpoint);
         }

@@ -215,15 +215,51 @@ $curr_kp = isset($_GET["kp"]) ? max(1, min($pages_kp, (int)$_GET["kp"])) : 1;
 $offset_kp = ($curr_kp - 1) * $limit;
 
 $user_kingdoms = $db_instance->execute_query(
-    "SELECT id, kingdomname, mapx, mapy,
-            food, maxfood, foodperhour,
-            wood, maxwood, woodperhour,
-            stone, maxstone, stoneperhour,
-            gold, maxgold, goldperhour,
-            villager, maxvillager, villagerperhour
-     FROM kingdoms WHERE userid = ? ORDER BY created_at, id LIMIT ?, ?",
+    "SELECT k.id, k.kingdomname, k.mapx, k.mapy,
+            k.food, k.maxfood, k.foodperhour,
+            k.wood, k.maxwood, k.woodperhour,
+            k.stone, k.maxstone, k.stoneperhour,
+            k.gold, k.maxgold, k.goldperhour,
+            k.villager, k.maxvillager, k.villagerperhour,
+            IFNULL(b_tc.buildinglevel, 1) AS tc_level
+     FROM kingdoms k 
+     LEFT JOIN buildings b_tc ON k.id = b_tc.kingdomid AND b_tc.buildingid = " . BuildingTypes::BUILDING_TOWNCENTER . "
+     WHERE k.userid = ? ORDER BY k.created_at, k.id LIMIT ?, ?",
     [$uid, $offset_kp, $limit]
 )->fetch_all(MYSQLI_ASSOC);
+
+$tp_actions = [
+    ActionTypes::ACTION_SEND_TROOPS,
+    ActionTypes::ACTION_RETURN_TROOPS,
+    ActionTypes::ACTION_STATION_TROOPS,
+    ActionTypes::ACTION_SUPPORT_RETURN
+];
+$tp_list = implode(',', $tp_actions);
+
+$all_cmds_res = $db_instance->execute_query("
+    SELECT 
+        k.id AS kingdomid,
+        (IFNULL(e.cnt, 0) + IFNULL(m.cnt, 0)) AS total_commands
+    FROM kingdoms k
+    LEFT JOIN (
+        SELECT kingdomid, COUNT(*) AS cnt 
+        FROM events 
+        WHERE userid = ? AND actionid IN ($tp_list) 
+        GROUP BY kingdomid
+    ) e ON k.id = e.kingdomid
+    LEFT JOIN (
+        SELECT kingdom_id, COUNT(DISTINCT mine_id) AS cnt 
+        FROM mine_stationed_troops 
+        WHERE user_id = ? 
+        GROUP BY kingdom_id
+    ) m ON k.id = m.kingdom_id
+    WHERE k.userid = ?
+", [$uid, $uid, $uid]);
+
+$commands_by_kingdom = [];
+while ($cmd = $all_cmds_res->fetch_assoc()) {
+    $commands_by_kingdom[(int)$cmd["kingdomid"]] = (int)$cmd["total_commands"];
+}
 
 $k_events_res = $db_instance->execute_query("
     SELECT e.*, sl.icon AS soldier_icon, sl.soldiername AS soldiername 
@@ -342,31 +378,56 @@ foreach ($user_kingdoms as $k) {
         $indicators_html .= "</div>";
     }
 
+    $max_commands = BASE_SEND_TROOPS_LIMIT + (int)$k["tc_level"];
+    $active_commands = $commands_by_kingdom[$kid] ?? 0;
+
+    if ($kid === (int)$active_k_id && isset($count_tp_active_k)) {
+        $active_commands = $count_tp_active_k;
+    }
+
+    $cmd_class = ($active_commands >= $max_commands) ? "error" : "";
+
+    $get_res_class = function (int $cur, int $max, int $prod) {
+        if ($cur >= $max) return "error";
+        if ($prod > 0 && ($cur + $prod >= $max || $cur >= $max * KINGDOM_OVERFLOW_FACTOR)) return "warning";
+        return "";
+    };
+
+    $food_class = $get_res_class((int)$k["food"], (int)$k["maxfood"], (int)$k["foodperhour"]);
+    $wood_class = $get_res_class((int)$k["wood"], (int)$k["maxwood"], (int)$k["woodperhour"]);
+    $stone_class = $get_res_class((int)$k["stone"], (int)$k["maxstone"], (int)$k["stoneperhour"]);
+    $gold_class = $get_res_class((int)$k["gold"], (int)$k["maxgold"], (int)$k["goldperhour"]);
+    $vill_class = $get_res_class((int)$k["villager"], (int)$k["maxvillager"], (int)$k["villagerperhour"]);
+
     $k_pop_id = "pop_k_preview_" . $kid;
     $k_res_popup = "
         <div id='{$k_pop_id}_box' class='popupbox' style='text-align: left; min-width: 200px;'>
-            <b>$k_name</b> <small>($k_coords)</small>
+            <div style='display: flex; justify-content: space-between;'><b>$k_name</b> <small>$k_coords</small></div>
             <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
             <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
                 <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " Nahrung:</span>
-                <span style='white-space: nowrap;'>" . fnum((int)$k["food"]) . " / " . fnum((int)$k["maxfood"]) . "</span>
+                <span style='white-space: nowrap;' class='$food_class'>" . fnum((int)$k["food"]) . " / " . fnum((int)$k["maxfood"]) . "</span>
             </div>
             <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
                 <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " Holz:</span>
-                <span style='white-space: nowrap;'>" . fnum((int)$k["wood"]) . " / " . fnum((int)$k["maxwood"]) . "</span>
+                <span style='white-space: nowrap;' class='$wood_class'>" . fnum((int)$k["wood"]) . " / " . fnum((int)$k["maxwood"]) . "</span>
             </div>
             <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
                 <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " Stein:</span>
-                <span style='white-space: nowrap;'>" . fnum((int)$k["stone"]) . " / " . fnum((int)$k["maxstone"]) . "</span>
+                <span style='white-space: nowrap;' class='$stone_class'>" . fnum((int)$k["stone"]) . " / " . fnum((int)$k["maxstone"]) . "</span>
             </div>
             <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
                 <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " Gold:</span>
-                <span style='white-space: nowrap;'>" . fnum((int)$k["gold"]) . " / " . fnum((int)$k["maxgold"]) . "</span>
+                <span style='white-space: nowrap;' class='$gold_class'>" . fnum((int)$k["gold"]) . " / " . fnum((int)$k["maxgold"]) . "</span>
+            </div>
+            <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " Bewohner:</span>
+                <span style='white-space: nowrap;' class='$vill_class'>" . fnum((int)$k["villager"]) . " / " . fnum((int)$k["maxvillager"]) . "</span>
             </div>
             <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1);'>
             <div style='display: flex; justify-content: space-between; gap: 12px;'>
-                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " Bewohner:</span>
-                <span style='white-space: nowrap;'>" . fnum((int)$k["villager"]) . " / " . fnum((int)$k["maxvillager"]) . "</span>
+                <span>Truppenbewegungen:</span>
+                <span style='white-space: nowrap;'><span class='$cmd_class'>$active_commands / $max_commands</span></span>
             </div>
         </div>
     ";

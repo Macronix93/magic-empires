@@ -146,11 +146,6 @@ class User
         return $this->user_id;
     }
 
-    public function set_user_id(int $user_id): void
-    {
-        $this->user_id = $user_id;
-    }
-
     public function get_avatar(): string
     {
         $hashedName = substr(hash("sha256", $this->user_id . AVATAR_SALT), 0, 12);
@@ -173,7 +168,7 @@ class User
         $status_dot = $status_color ? "<span class='status-indicator' style='background-color: " . e($status_color) . ";'></span>" : "";
 
         if ($content === "") {
-            $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$this->user_id' data-title='Spieler-Info'>" . e($this->user_name) . "</a>";
+            $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$this->user_id' data-title='Spieler-Info' >" . e($this->user_name) . "</a>";
         }
 
         return "
@@ -185,7 +180,9 @@ class User
                         <img src='$avatar' style='width: 80px; height: 80px; border-radius: 5px;' alt='Avatar'>
                     </div>
                 </div>
-                $content
+                <div style='text-align: left; min-width: 0; flex: 1;'>
+                    $content
+                </div>
             </div>";
     }
 
@@ -383,11 +380,6 @@ class User
     public function get_user_name(): string
     {
         return $this->user_name;
-    }
-
-    public function set_user_name(string $user_name): void
-    {
-        $this->user_name = $user_name;
     }
 
     public function get_main_kingdom(): int

@@ -84,7 +84,9 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $reaction_updates[$r["id"]] = render_reactions_bar("guild_chat", $r["id"], $user, "badges_only");
     }
 
-    if ($new_last_id > $last_id) {
+    $is_active = (int)($_GET["active"] ?? 0);
+
+    if ($is_active && $new_last_id > $last_id) {
         $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$new_last_id, $u_id]);
     }
 
@@ -92,7 +94,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "html" => $html,
         "lastId" => $new_last_id,
         "messagesToDelete" => $deleted_ids,
-        "reactionUpdates" => $reaction_updates
+        "reactionUpdates" => $reaction_updates,
+        "guildUnread" => new Messages($user)->get_unread_guild_count()
     ]);
 } else {
     change_location("overview.php");

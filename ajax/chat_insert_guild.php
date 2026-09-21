@@ -50,6 +50,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $result = $db_instance->execute_query($query, [$guild_id, $u_id, $u_name, $cleaned_text, $current_time]);
         $message_id = $result->fetch_assoc()["id"];
 
+        $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
+
         $text = e($cleaned_text);
         $text = parse_chat_quotes($text);
         $text = nl2br($text);

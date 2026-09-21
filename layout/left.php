@@ -51,31 +51,7 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                 <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/>
                 <span style="flex: 1;">Gilde</span>
                 <?php
-                $gid = $user->get_user_guild_id();
-                $guild_status_icon = "";
-
-                if ($gid > 0) {
-                    $res_research = $db_instance->execute_query(
-                            "SELECT 1 FROM events WHERE guild_id = ? AND actionid = ? LIMIT 1",
-                            [$gid, ActionTypes::ACTION_RESEARCH_TECH]
-                    );
-
-                    if ($res_research->num_rows > 0) {
-                        $guild_status_icon = '<img src="images/icons/icon_time.png" class="ressource-icons" title="Gildenforschung läuft..." alt="Forschung">';
-                    } else {
-                        $res_project = $db_instance->execute_query(
-                                "SELECT gp.tech_id, gtl.name 
-                                 FROM guild_projects gp 
-                                 JOIN guild_tech_list gtl ON gp.tech_id = gtl.id 
-                                 WHERE gp.guild_id = ? LIMIT 1",
-                                [$gid]
-                        );
-
-                        if ($p_row = $res_project->fetch_assoc()) {
-                            $guild_status_icon = '<img src="images/icons/icon_hammer.png" class="ressource-icons" title="Projekt aktiv: ' . e($p_row["name"]) . ' (Ressourcen werden gesammelt)" alt="Projekt">';
-                        }
-                    }
-                }
+                $guild_status_icon = $sidebar_data["guild_status"];
 
                 if (!empty($guild_status_icon) || $unread_guild > 0): ?>
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -109,13 +85,10 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                 <img src="images/icons/icon_score.png" class="menu-icons" alt="Hall of Fame"/> Ruhmeshalle
             </div>
             <?php
-            $we = new WorldEvent();
-            $active = $we->get_active_event();
-
-            if ($active) {
+            if ($sidebar_data["has_world_event"]) {
                 echo "<div class='box' data-on-click='navigate' data-url='events.php' style='background-color: rgba(73,72,68,0.95);'>
-                        <img src='images/icons/icon_lich.png' class='menu-icons'  alt='Event'/> Event 
-                      </div>";
+                            <img src='images/icons/icon_lich.png' class='menu-icons' alt='Event'/> Event 
+                          </div>";
             }
             ?>
         </div>

@@ -172,6 +172,9 @@ registerAction("switchGuildTab", (el) => {
         el.classList.add("active");
 
         if (tabName === "chat") {
+            const guildTabBadge = document.getElementById("badge-guild-tab");
+            if (guildTabBadge) guildTabBadge.style.display = "none";
+
             setTimeout(() => {
                 if (typeof scrollDown === "function") {
                     scrollDown(true);

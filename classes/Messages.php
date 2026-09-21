@@ -490,7 +490,7 @@ class Messages
                 $last_id = $row["id"];
                 $is_me = ($row["userid"] == $this->user->get_user_id());
 
-                if (!$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
+                if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
                     $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
                     $unread_line_shown = true;
                 }
@@ -614,7 +614,7 @@ class Messages
         foreach ($rows as $row) {
             $is_me = ($row["userid"] == $u_id);
 
-            if (!$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
+            if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
                 $html .= "<div id='new-message-line' class='error'>Neue Gilden-Nachrichten</div>";
                 $unread_line_shown = true;
             }
@@ -664,74 +664,48 @@ class Messages
 
     private function render_message_template(array $data): string
     {
-        $type = $data["type"] ?? "text";
+        $type = $data["template"] ?? $data["type"] ?? "text";
 
         switch ($type) {
+            case "troop_return":
+                $target_x = (int)($data["target_x"] ?? 0);
+                $target_y = (int)($data["target_y"] ?? 0);
+                $target_name = e($data["target_name"] ?? "Unbekannt");
+                $home_name = e($data["home_name"] ?? "Königreich");
+
+                $c_link = "<a href='map.php?startx=$target_x&starty=$target_y' data-on-click='mapJump' data-x='$target_x' data-y='$target_y'>$target_x:$target_y</a>";
+
+                $loot = $data["loot"] ?? [];
+                $units = $data["units"] ?? [];
+
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; justify-content: center;'>";
+                foreach ($units as $t) {
+                    $units_html .= BattleReportRenderer::render_unit_card($t["name"], (int)$t["initial"], (int)$t["losses"], $t["icon"]);
+                }
+                $units_html .= "</div>";
+
+                $main_text = "Deine Truppen sind vom Feldzug zu <b>$target_name</b> ($c_link) zurückgekehrt. ";
+                $main_text .= !empty($loot) ? "Die Heimkehrer haben wertvolle Beute im Gepäck!" : "Die Soldaten beziehen wieder ihre Quartiere.";
+                $main_text .= BattleReportRenderer::render_resource_list($loot);
+                $main_text .= $units_html;
+
+                return "<div class='battle-report'>" .
+                    BattleReportRenderer::render_outcome_box("Truppenrückkehr - $home_name", $main_text) .
+                    "</div>";
+
             case "battle":
-                $html = "<div class='battle-report'>";
-                $html .= BattleReportRenderer::render_vs_grid($data["atk_units"], $data["def_units"], $data["atk_label"], $data["def_label"]);
-                $html .= BattleReportRenderer::render_outcome_box(
-                    $data["title"],
-                    $data["main_text"],
-                    $data["wall_before"] ?? 0,
-                    $data["wall_after"] ?? 0,
-                    $data["sub_text"] ?? "",
-                    $data["result_type"] ?? "neutral",
-                    $data["loot"] ?? []
-                );
-                $html .= "</div>";
-                return $html;
+                return "<div class='battle-report'>" .
+                    BattleReportRenderer::render_vs_grid($data["atk_units"], $data["def_units"], $data["atk_label"], $data["def_label"]) .
+                    BattleReportRenderer::render_outcome_box($data["title"], $data["main_text"], $data["wall_before"] ?? 0, $data["wall_after"] ?? 0, $data["sub_text"] ?? "", $data["result_type"] ?? "neutral", $data["loot"] ?? []) .
+                    "</div>";
 
             case "trade_received":
-                $html = "<div class='battle-report'>";
-                $html .= BattleReportRenderer::render_outcome_box(
-                    "Warenlieferung",
-                    $data["text"],
-                    0, 0, "", "neutral", $data["resources"]
-                );
-                $html .= "</div>";
-                return $html;
-
-            case "plunder":
-                $html = "<div class='battle-report'>";
-
-                $coords = "(<a href='#' data-on-click='mapJump' data-x='{$data['target_x']}' data-y='{$data['target_y']}'>{$data['target_x']}:{$data['target_y']}</a>)";
-
-                $main_text = "Unsere Räuber haben ein verlassenes Lager $coords überfallen und Ressourcen erbeutet:";
-
-                $main_text .= BattleReportRenderer::render_resource_list($data["loot"]);
-
-                if ($data["is_empty"]) {
-                    $main_text .= "<br><b>Das Lager wurde komplett geleert.</b>";
-                }
-
-                $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
-                $main_text .= BattleReportRenderer::render_unit_card("Räuber", $data["raiders_sent"], $data["raiders_lost"], "icon_robber");
-                $main_text .= "</div>";
-
-                if ($data["raiders_lost"] > 0) {
-                    $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
-                    $main_text .= wrap_emojis("⚠️ <b>Verluste:</b> {$data["raiders_lost"]} Räuber wurden bei Kämpfen im Hinterhalt verletzt oder getötet.");
-                    $main_text .= "</div>";
-                }
-
-                $sub_text = ($data["raiders_sent"] > $data["raiders_lost"])
-                    ? "Die Überlebenden treten mit der Beute den Rückweg an."
-                    : "Niemand kehrte lebend zurück, die Beute ging verloren!";
-
-                $html .= BattleReportRenderer::render_outcome_box(
-                    "Erfolgreiche Plünderung",
-                    $main_text,
-                    0, 0,
-                    $sub_text,
-                    "normal"
-                );
-
-                $html .= "</div>";
-                return $html;
+                return "<div class='battle-report'>" .
+                    BattleReportRenderer::render_outcome_box("Warenlieferung", $data["text"], 0, 0, "", "neutral", $data["resources"]) .
+                    "</div>";
 
             default:
-                return $data["text"] ?? "Keine Nachricht.";
+                return $data["text"] ?? $data["message"] ?? "Keine Nachricht.";
         }
     }
 }

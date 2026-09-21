@@ -358,6 +358,25 @@ class Conquest
         $attacker_loss_ratio = ($attacker_def_pool > 0) ? min(1.0, $effective_defender_counter_damage / ($attacker_def_pool * $lethality)) : 1.0;
         $defender_loss_ratio = ($defender_def_pool > 0) ? min(1.0, $attacker_atk_pool / ($defender_def_pool * $lethality)) : 1.0;
 
+        // PvP Damage Damping
+        if ($attacker_atk_pool > 0 && $effective_defender_counter_damage > 0) {
+            $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
+
+            // Superiority of Defender saves him from chip damage
+            $ratio_def = $effective_defender_counter_damage / $attacker_atk_pool;
+            if ($ratio_def > PVP_DAMPING_THRESHOLD) {
+                $clamped = max(0.0, min(1.0, ($ratio_def - PVP_DAMPING_THRESHOLD) / $range));
+                $defender_loss_ratio *= pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+            }
+
+            // Superiority of Attacker saves him from counter chip damage:
+            $ratio_atk = $attacker_atk_pool / $effective_defender_counter_damage;
+            if ($ratio_atk > PVP_DAMPING_THRESHOLD) {
+                $clamped = max(0.0, min(1.0, ($ratio_atk - PVP_DAMPING_THRESHOLD) / $range));
+                $attacker_loss_ratio *= pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+            }
+        }
+
         $attacker_loss_ratio = round($attacker_loss_ratio, 6);
         $defender_loss_ratio = round($defender_loss_ratio, 6);
 

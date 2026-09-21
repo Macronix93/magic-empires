@@ -327,6 +327,9 @@ function updateChat(chatPartner) {
         endpoint = 'ajax/chat_update_world.php';
     } else if (chatType === "guild") {
         endpoint = 'ajax/chat_update_guild.php';
+
+        const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
+        queryParams += `&active=${chatTabActive ? 1 : 0}`;
     } else {
         const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
 
@@ -426,6 +429,20 @@ function updateChat(chatPartner) {
                         }
                     }
                 });
+            }
+
+            if (data.guildUnread !== undefined) {
+                const guildTabBadge = document.getElementById("badge-guild-tab");
+                const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
+
+                if (guildTabBadge && !chatTabActive) {
+                    if (data.guildUnread > 0) {
+                        guildTabBadge.innerText = data.guildUnread > 9 ? "9+" : data.guildUnread;
+                        guildTabBadge.style.display = "inline-flex";
+                    } else {
+                        guildTabBadge.style.display = "none";
+                    }
+                }
             }
 
             cleanupPopups();

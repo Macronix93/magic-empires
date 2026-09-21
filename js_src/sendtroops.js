@@ -143,9 +143,9 @@ function updateTroopSummary() {
     const summaryContainer = document.getElementById("troop-summary-container");
     const actionButtons = document.getElementById("troop-action-buttons");
     const form = document.getElementById("send-troops-form");
+    const scoutId = form ? (form.dataset.scoutId || "12") : "12";
 
     if (form && form.dataset.isMine === "true") {
-        const scoutId = form.dataset.scoutId || "12";
         const scoutInput = document.getElementById("sol_" + scoutId);
         let hasScoutVal = scoutInput && parseInt(scoutInput.value) > 0;
         let hasNormalVal = false;
@@ -191,6 +191,7 @@ function updateTroopSummary() {
 
     let badgesHtml = "";
     let totalUnits = 0;
+    let totalMiningUnits = 0;
     let totalAtk = 0;
     let totalDef = 0;
 
@@ -226,6 +227,10 @@ function updateTroopSummary() {
                            </div>`;
 
             totalUnits += val;
+
+            if (input.dataset.id !== scoutId) {
+                totalMiningUnits += val;
+            }
         }
     });
 
@@ -258,16 +263,17 @@ function updateTroopSummary() {
         const isFriendly = form.dataset.mineFriendly === "true";
 
         if (isFriendly) {
-            const totalWithTroops = mineCurrent + totalUnits;
+            const totalWithTroops = mineCurrent + totalMiningUnits;
             const isFull = totalWithTroops >= mineMax;
-            const addedHtml = totalUnits > 0 ? ` <span class="${isFull ? 'warning' : 'passed'}">(+${totalUnits})</span>` : "";
+            const addedHtml = totalMiningUnits > 0 ? ` <span class="${isFull ? 'warning' : 'passed'}">(+${totalMiningUnits})</span>` : "";
+
             mineCapDisplay.innerHTML = `<b>${totalWithTroops}</b> / ${mineMax} Einheiten${addedHtml}`;
         } else {
-            const isFull = totalUnits >= mineMax;
-            mineCapDisplay.innerHTML = `<b class="${isFull ? 'warning' : ''}">${totalUnits}</b> / ${mineMax} Einheiten`;
+            const isFull = totalMiningUnits >= mineMax;
+
+            mineCapDisplay.innerHTML = `<b class="${isFull ? 'warning' : ''}">${totalMiningUnits}</b> / ${mineMax} Einheiten`;
         }
     }
-
 
     if (form && form.dataset.mineRemWork !== undefined) {
         const workTotal = parseFloat(form.dataset.mineWorkTotal) || 0;

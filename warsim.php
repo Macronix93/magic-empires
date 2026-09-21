@@ -374,7 +374,10 @@ $view .= '<div id="warsim-data"
                 data-wall_counter_dmg_factor="' . WALL_COUNTER_DAMAGE_FACTOR . '"
                 data-wall_absorption_mult="' . WALL_ABSORPTION_MULTIPLIER . '"
                 data-wall_normal_dmg_factor="' . WALL_NORMAL_TROOP_DAMAGE_FACTOR . '"
-                data-wall_max_normal_dmg_perc="' . WALL_MAX_NORMAL_DAMAGE_PERCENT . '">
+                data-wall_max_normal_dmg_perc="' . WALL_MAX_NORMAL_DAMAGE_PERCENT . '"
+                data-pvp_damping_threshold="' . PVP_DAMPING_THRESHOLD . '"
+                data-pvp_damping_max_ratio="' . PVP_DAMPING_MAX_RATIO . '"
+                data-pvp_damping_exponent="' . PVP_DAMPING_EXPONENT . '">
             </div>';
 
 $monster_import = $_GET["import_monsters"] ?? "";

@@ -4,6 +4,7 @@ const originalTitle = document.title;
 const TITLE_INTERVAL = 2000;
 let isKingdomSwitching = false;
 let flashTimeout = null;
+let activeHoverPopup = null;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -40,6 +41,16 @@ registerAction("selectMobileKingdom", (el) => {
     if (dropdown) dropdown.classList.remove("open");
 
     switchKingdomById(kingdomId);
+});
+registerAction("switchKingdom", (el) => {
+    if (window.innerWidth <= 600) {
+        return;
+    }
+
+    const kid = el.dataset.id;
+    if (kid) {
+        switchKingdomById(kid);
+    }
 });
 registerAction("switchKingdomPrev", () => {
     if (isKingdomSwitching) return;
@@ -281,6 +292,13 @@ function switchKingdomById(kingdomId) {
 }
 
 function cleanupPopups() {
+    const isGuildPage = window.location.pathname.includes("guild.php");
+    const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
+
+    if (isGuildPage && !chatTabActive) {
+        return;
+    }
+
     const boxes = document.querySelectorAll('body > .popupbox');
     boxes.forEach(box => {
         const triggerId = box.id.replace('_box', '');
@@ -314,6 +332,8 @@ function sendReaction(type, id, emoji, sourceContainer) {
     } else {
         mode = "full";
     }
+
+    const isNewEmoji = (chatBubble && !targetContainer.querySelector(`.reaction-badge[data-emoji="${emoji}"]`));
 
     const badge = targetContainer.querySelector(`.reaction-badge[data-emoji="${emoji}"]`);
     if (badge) {
@@ -350,6 +370,44 @@ function sendReaction(type, id, emoji, sourceContainer) {
 
                 if (chatBubble) {
                     targetContainer.innerHTML = res.html;
+
+                    if (isNewEmoji) {
+                        setTimeout(() => {
+                            const messagesSection = document.getElementById("messages-section");
+
+                            if (messagesSection && messagesSection.contains(chatBubble)) {
+                                const sectionRect = messagesSection.getBoundingClientRect();
+                                const bubbleRect = chatBubble.getBoundingClientRect();
+
+                                const isFullyVisible =
+                                    bubbleRect.top >= sectionRect.top &&
+                                    bubbleRect.bottom <= sectionRect.bottom;
+
+                                if (!isFullyVisible) {
+                                    const bubbleBottom = chatBubble.offsetTop + chatBubble.offsetHeight;
+                                    const targetScroll = bubbleBottom - messagesSection.clientHeight + 15;
+
+                                    messagesSection.scrollTo({
+                                        top: targetScroll,
+                                        behavior: "smooth"
+                                    });
+                                }
+                            } else if (chatBubble) {
+                                const rect = chatBubble.getBoundingClientRect();
+
+                                const isFullyVisible =
+                                    rect.top >= 0 &&
+                                    rect.bottom <= window.innerHeight;
+
+                                if (!isFullyVisible) {
+                                    chatBubble.scrollIntoView({
+                                        behavior: "smooth",
+                                        block: "end"
+                                    });
+                                }
+                            }
+                        }, 50);
+                    }
                 } else {
                     targetContainer.outerHTML = res.html;
                 }
@@ -394,8 +452,21 @@ function setup() {
 
         if (box) {
             if (box.parentNode !== document.body) {
+                const existingInBody = document.getElementById(box.id);
+
+                if (existingInBody && existingInBody !== box) {
+                    existingInBody.remove();
+                }
+
                 document.body.appendChild(box);
             }
+
+            const hideBox = function () {
+                box.style.display = "none";
+                if (activeHoverPopup && activeHoverPopup.box === box) {
+                    activeHoverPopup = null;
+                }
+            };
 
             const positionBox = function (e) {
                 if (box.dataset.enabled === "false") return;
@@ -437,14 +508,15 @@ function setup() {
                 box.style.left = left + "px";
                 box.style.top = top + "px";
                 box.style.visibility = "visible";
+
+                activeHoverPopup = {box: box, trigger: trigger};
             };
 
             // Mouse Events
             trigger.onmouseover = positionBox;
             trigger.onmousemove = positionBox;
-            trigger.onmouseout = function () {
-                box.style.display = "none";
-            };
+            trigger.onmouseout = hideBox;
+            trigger.onmouseleave = hideBox;
 
             // Touch Support
             trigger.addEventListener("touchstart", function (e) {
@@ -453,7 +525,7 @@ function setup() {
                 }
 
                 if (box.style.display === "block") {
-                    box.style.display = "none";
+                    hideBox();
                 } else {
                     document.querySelectorAll('.popupbox').forEach(b => b.style.display = "none");
                     positionBox(e);
@@ -588,10 +660,15 @@ function updateKingdom(selectElement, keepMenu = true) {
         formData.append("choosekingdom", kingdomID);
 
         // Make an AJAX request to update the kingdom info
-        let xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState === 4) {
-                if (this.status === 200) {
+        fetch("ajax/change_kingdom.php", {
+            method: "POST",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: formData
+        })
+            .then(response => {
+                if (response.ok) {
                     if (keepMenu && window.innerWidth <= 1392) {
                         sessionStorage.setItem("keepRightMenuOpen", "true");
                     } else {
@@ -627,11 +704,12 @@ function updateKingdom(selectElement, keepMenu = true) {
                 } else {
                     isKingdomSwitching = false;
                 }
-            }
-        };
-        xhttp.open("POST", "ajax/change_kingdom.php", true);
-        xhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-        xhttp.send(formData);
+            })
+            .catch(err => {
+                console.error("Kingdom-Switch Fehler:", err);
+
+                isKingdomSwitching = false;
+            });
     }
 }
 
@@ -854,6 +932,22 @@ window.addEventListener("DOMContentLoaded", function () {
             }
         }
     }, true);
+
+    document.addEventListener("mousemove", (e) => {
+        if (activeHoverPopup) {
+            if (!activeHoverPopup.trigger.contains(e.target)) {
+                activeHoverPopup.box.style.display = "none";
+                activeHoverPopup = null;
+            }
+        }
+    }, {passive: true});
+
+    document.addEventListener("scroll", () => {
+        if (activeHoverPopup) {
+            activeHoverPopup.box.style.display = "none";
+            activeHoverPopup = null;
+        }
+    }, {passive: true, capture: true});
 
     setTimeout(() => {
         document.body.classList.remove("preload");

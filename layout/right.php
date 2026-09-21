@@ -4,10 +4,6 @@
         <?php
         $kingdom = new Kingdom($user->get_current_kingdom());
 
-        // Get all kingdoms of a player for him to change anytime
-        $result = $db_instance->execute_query("SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at", [$user->get_user_id()]);
-        $row = $result->fetch_assoc();
-
         $active_boosts = $kingdom->get_active_boosts(); // Get active resource boosts
         $current_align = $kingdom->get_kingdom_alignment();
         $shrine_mod = $kingdom->get_shrine_modifier();
@@ -56,7 +52,7 @@
             <form method="POST">
                 <div class="kingdom-switch-container">
                     <?php
-                    $kingdom_count = $result->num_rows;
+                    $kingdom_count = count($all_user_kingdoms);
 
                     if ($kingdom_count > 1): ?>
                         <img src="images/icons/icon_right_slow.png"
@@ -68,14 +64,14 @@
                     <label for="choosekingdom" style="display: none;">Königreich wählen</label>
                     <select id='choosekingdom' name='choosekingdom' data-on-change='changeKingdomSelect'>
                         <?php
-                        $result->data_seek(0);
-
                         $pos = 1;
-                        foreach ($result as $row) {
-                            $id = $row["id"];
-                            $selected = ($id == $user->get_current_kingdom()) ? "selected='selected'" : "";
+                        $current_kid = $user->get_current_kingdom();
 
-                            echo "<option value='$id' $selected>$pos - {$row["kingdomname"]} ({$row["mapx"]}:{$row["mapy"]})</option>";
+                        foreach ($all_user_kingdoms as $row) {
+                            $id = $row["id"];
+                            $selected = ($id == $current_kid) ? "selected='selected'" : "";
+
+                            echo "<option value='$id' $selected>$pos - " . e($row["kingdomname"]) . " ({$row["mapx"]}:{$row["mapy"]})</option>";
                             $pos++;
                         }
                         ?>
@@ -202,8 +198,7 @@
         <div id="kingdom-buildings">
             <?php
             // Number of marketplace offers
-            $res_market = $db_instance->query("SELECT COUNT(*) FROM marketplace");
-            $total_market_offers = $res_market->fetch_row()[0] ?? 0;
+            $total_market_offers = $sidebar_data["market_offers"];
 
             // Show kingdom buildings
             $kingdom_buildings = $kingdom->get_kingdom_buildings($user->get_current_kingdom());

@@ -21,7 +21,7 @@ self.addEventListener("push", function (event) {
                 icon: payload.icon || "images/icons/icon_town.png",
                 badge: "images/icons/icon_castle.png",
                 vibrate: [200, 100, 200],
-                tag: payload.tag || "game-notification",
+                tag: payload.tag || undefined,
                 renotify: true,
                 timestamp: Date.now(),
                 data: {

@@ -2682,17 +2682,20 @@ class EventManager
             $report .= "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left;'>";
 
             if ($survivors >= 15) {
-                // Tier 3: ALl Buildings
-                $b_res = $this->mysqli->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? ORDER BY buildinglevel DESC", [$enemy_k->get_kingdom_id()]);
+                $b_res = $this->mysqli->execute_query("SELECT buildingid, buildingname, buildinglevel FROM buildings WHERE kingdomid = ? ORDER BY buildinglevel DESC", [$enemy_k->get_kingdom_id()]);
 
                 while ($b = $b_res->fetch_assoc()) {
-                    $report .= "<div>• {$b["buildingname"]} (Stufe " . (int)$b["buildinglevel"] . ")</div>";
+                    $bid = (int)$b["buildingid"];
+                    $report .= "<div class='scout-item'><img src='images/icons/icon_building$bid.png' class='ressource-icons' alt=''> <span>" . e($b["buildingname"]) . " (" . (int)$b["buildinglevel"] . ")</span></div>";
                 }
             } else {
-                // Tier 2: Only Main Buildings
-                $report .= "<div>• Dorfzentrum (Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER) . ")</div>";
-                $report .= "<div>• Mauer (Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_WALL) . ")</div>";
-                $report .= "<div>• Lager (Stufe " . $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_STORAGE) . ")</div>";
+                $tc_lvl = $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+                $wall_lvl = $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+                $storage_lvl = $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_STORAGE);
+
+                $report .= "<div class='scout-item'><img src='images/icons/icon_building0.png' class='ressource-icons' alt=''> <span>Dorfzentrum ($tc_lvl)</span></div>";
+                $report .= "<div class='scout-item'><img src='images/icons/icon_building3.png' class='ressource-icons' alt=''> <span>Mauer ($wall_lvl)</span></div>";
+                $report .= "<div class='scout-item'><img src='images/icons/icon_building9.png' class='ressource-icons' alt=''> <span>Lager ($storage_lvl)</span></div>";
             }
             $report .= "</div>";
         }
@@ -2734,13 +2737,15 @@ class EventManager
             $report .= "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left;'>";
 
             $t_res = $this->mysqli->execute_query(
-                "SELECT techname, techlevel FROM techs WHERE kingdomid = ? ORDER BY techlevel DESC",
+                "SELECT techid, techname, techlevel FROM techs WHERE kingdomid = ? ORDER BY techlevel DESC",
                 [$enemy_k->get_kingdom_id()]
             );
 
             if ($t_res->num_rows > 0) {
                 while ($t = $t_res->fetch_assoc()) {
-                    $report .= "<div>• {$t["techname"]} (Stufe " . (int)$t["techlevel"] . ")</div>";
+                    $tid = (int)$t["techid"];
+
+                    $report .= "<div class='scout-item'><img src='images/icons/icon_tech$tid.png' class='ressource-icons' alt=''> <span>" . e($t["techname"]) . " (" . (int)$t["techlevel"] . ")</span></div>";
                 }
             } else {
                 $report .= "<i>Keine nennenswerten Forschungen gefunden.</i>";

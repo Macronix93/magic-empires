@@ -13,7 +13,6 @@ if (!$user->is_admin()) {
     $chat_backup_section = "";
     $game_logs_table = "";
     $user_info_html = "";
-    $user_list = "";
 
     $active_tab = $_GET['tab'] ?? 'system';
     if (isset($_GET['logpage'])) $active_tab = 'gamelogs';
@@ -26,25 +25,54 @@ if (!$user->is_admin()) {
         $db_instance->execute_query("UPDATE system_settings SET value = '1' WHERE name = 'maintenance_mode'");
 
         // Clear tables (Order is important dude to foreign keys)
-        $db_instance->query("DELETE FROM marketplace");
-        $db_instance->query("DELETE FROM events");
-        $db_instance->query("DELETE FROM sent_troops");
-        $db_instance->query("DELETE FROM kingdom_boosts");
-        $db_instance->query("DELETE FROM resource_tiles_data");
-        $db_instance->query("DELETE FROM kingdoms"); // Cascades Buildings, Soldiers, Techs
-        $db_instance->query("DELETE FROM game_logs");
-        $db_instance->query("DELETE FROM server_messages");
-        $db_instance->query("DELETE FROM mine_stationed_troops");
-        $db_instance->query("DELETE FROM mines");
+        $tables_to_clear = [
+            "marketplace",
+            "events",
+            "mine_stationed_troops",
+            "mines",
+            "monster_camps",
+            "abandoned_kingdoms",
+            "resource_tiles_data",
+            "kingdoms",
+            "guilds",
+            "world_events",
+            "server_messages",
+            "player_stats",
+            "reactions"
+        ];
 
-        // Reset Auto Increments
-        $tables = ["kingdoms", "events", "marketplace", "server_messages", "game_logs", "mines", "mine_stationed_troops"];
-        foreach ($tables as $t) {
+        foreach ($tables_to_clear as $t) {
+            $db_instance->query("DELETE FROM $t");
             $db_instance->query("ALTER TABLE $t AUTO_INCREMENT = 1");
         }
 
-        // Reset User Scores and Main Kingdom
-        $db_instance->execute_query("UPDATE users SET score = ?, mainkingdom = -1, coins = 0", [STARTING_SCORE]);
+        // Reset map
+        $db_instance->query("DELETE FROM map");
+        $db_instance->query("ALTER TABLE map AUTO_INCREMENT = 1");
+
+        // Reset global counters
+        $db_instance->execute_query("
+            UPDATE system_settings 
+            SET value = '0' 
+            WHERE name IN ('total_fallen_soldiers', 'total_slain_monsters', 'total_battles', 'total_trades')
+        ");
+
+        // Reset Users
+        $db_instance->execute_query("
+            UPDATE users SET 
+                score = ?, 
+                ranking_points = ?, 
+                mainkingdom = -1, 
+                coins = 0, 
+                guildid = -1, 
+                guild_rank_id = NULL, 
+                is_vacation = 0, 
+                vacation_until = 0, 
+                daily_trades_count = 0, 
+                last_trade_reset = 0,
+                last_world_chat_id = 0,
+                last_guild_chat_id = 0
+        ", [STARTING_SCORE, STARTING_SCORE]);
 
         // Generate a new random map
         $db_instance->query("DELETE FROM map");

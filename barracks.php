@@ -571,14 +571,6 @@ if (!$category_availability[$active_cat]) {
     }
 }
 
-//$kingdom_food = $kingdom->get_kingdom_food();
-//$kingdom_gold = $kingdom->get_kingdom_gold();
-//$kingdom_stone = $kingdom->get_kingdom_stone();
-//$kingdom_wood = $kingdom->get_kingdom_wood();
-//$kingdom_villager = $kingdom->get_kingdom_villager();
-$last_recruited_soldier = $user->get_last_recruited_soldier($current_kingdom);
-$last_upgraded = $user->get_last_upgraded_soldier($current_kingdom);
-
 if (!empty($last_upgraded)) {
     $view .= show_weighted_box($last_upgraded["name"] . " (+" . $last_upgraded["count"] . ")", "Aufwertung abgeschlossen:");
 

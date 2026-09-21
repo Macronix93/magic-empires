@@ -67,8 +67,8 @@ if ($lvl < MAX_BUILDING_LEVEL) {
     $next_level_text = "<div class='split-content'><b>Nächste Stufe:</b><div class='passed'>" . fnum($kingdom->get_base_wood_rate() + $next_increase) . " (+" . fnum($next_increase) . ")</div></div>";
 }
 
-$view .= "<div style='margin: auto; width: 350px;'>
-                <div class='split-content'><b>Holzertrag pro Stunde:</b> " . fnum($kingdom->get_base_wood_rate()) . " $boost_display</div>
+$view .= "<div class='res-building-content'>
+                <div class='split-content'><b>Holzertrag pro Stunde:</b> <div>" . fnum($kingdom->get_base_wood_rate()) . " $boost_display</div></div>
                 $next_level_text
             </div>
 ";
