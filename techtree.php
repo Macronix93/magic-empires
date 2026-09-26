@@ -56,7 +56,7 @@ for ($i = 0; $i < count($buildings); $i++) {
             }
         }
     } else {
-        $dependency_text = " - ";
+        $dependency_text = "<span style='white-space: nowrap;'>Keine</span>";
     }
 
     $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>

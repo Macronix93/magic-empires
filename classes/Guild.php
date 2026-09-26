@@ -135,18 +135,13 @@ class Guild
         $invite_id = $this->db->insert_id;
         $guild_name = $this->db->execute_query("SELECT name FROM guilds WHERE id = ?", [$guild_id])->fetch_column();
 
-        $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                "Gilden-Einladung",
-                "Du wurdest eingeladen, der Gilde <b>" . e($guild_name) . "</b> beizutreten.<br><br>
-                <div style='display: flex; gap: 10px; justify-content: center;'>
-                    <button data-on-click='acceptGuildInvite' data-id='$invite_id'>Annehmen</button>
-                    <button data-on-click='declineGuildInvite' data-id='$invite_id'>Ablehnen</button>
-                </div>",
-                0, 0,
-                "Die Einladung ist 48 Stunden gültig."
-            ) . "</div>";
+        $invite_json = [
+            "template" => "guild_invite",
+            "guild_name" => $guild_name,
+            "invite_id" => $invite_id
+        ];
 
-        send_server_message($target_id, $target["username"], $msg, MessageCategories::CATEGORY_GUILD);
+        send_server_message($target_id, $target["username"], MessageCategories::CATEGORY_GUILD, $invite_json);
 
         return null;
     }
@@ -171,13 +166,13 @@ class Guild
 
         $this->db->execute_query("DELETE FROM guild_invites WHERE id = ?", [$invite_id]);
 
-        $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                "Einladung abgelehnt",
-                "Der Spieler <b>" . $this->user->get_user_name() . "</b> hat deine Einladung zu <b>" . e($data["guild_name"]) . "</b> abgelehnt.",
-                0, 0, "", "error"
-            ) . "</div>";
+        $decline_json = [
+            "template" => "guild_invite_declined",
+            "declined_by" => $this->user->get_user_name(),
+            "guild_name" => $data["guild_name"]
+        ];
 
-        send_server_message($data["invited_by"], $data["inviter_name"], $msg, MessageCategories::CATEGORY_GUILD);
+        send_server_message((int)$data["invited_by"], $data["inviter_name"], MessageCategories::CATEGORY_GUILD, $decline_json);
 
         return null;
     }
@@ -263,15 +258,12 @@ class Guild
             if ($inviter_id) {
                 $inviter_name = $this->db->execute_query("SELECT username FROM users WHERE id = ?", [$inviter_id])->fetch_column();
 
-                $msg_recruiter = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                        "Rekrutierung erfolgreich",
-                        "Deine Einladung zur Gilde wurde von <b>" . e($new_member_name) . "</b> akzeptiert.",
-                        0, 0,
-                        "Heißt das neue Mitglied im Gilden-Rat willkommen!",
-                        "success"
-                    ) . "</div>";
+                $recruiter_json = [
+                    "template" => "guild_recruitment_success",
+                    "member_name" => $new_member_name
+                ];
 
-                send_server_message($inviter_id, $inviter_name, $msg_recruiter, MessageCategories::CATEGORY_GUILD);
+                send_server_message($inviter_id, $inviter_name, MessageCategories::CATEGORY_GUILD, $recruiter_json);
             }
 
             $exclude_ids = [$uid];
@@ -280,10 +272,8 @@ class Guild
             }
 
             $this->notify_guild(
-                "Neues Gilden-Mitglied",
-                "<b>" . e($new_member_name) . "</b> ist deiner Gilde soeben beigetreten.",
-                "",
-                "success",
+                "guild_new_member",
+                ["name" => $new_member_name],
                 $exclude_ids,
                 null,
                 $target_guild_id
@@ -372,13 +362,13 @@ class Guild
             $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [$rank_id, $target_uid]);
 
             $rank_name = $this->db->execute_query("SELECT rank_name FROM guild_rank_list WHERE id = ?", [$rank_id])->fetch_column();
-            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Rangänderung",
-                    "Dein Rang in der Gilde wurde auf <b>" . e($rank_name) . "</b> geändert.",
-                    0, 0, "Veranlasst durch " . $this->user->get_user_name()
-                ) . "</div>";
+            $rank_json = [
+                "template" => "guild_rank_changed",
+                "rank_name" => $rank_name,
+                "changed_by" => $this->user->get_user_name()
+            ];
 
-            send_server_message($target_uid, $target["username"], $msg, MessageCategories::CATEGORY_GUILD);
+            send_server_message($target_uid, $target["username"], MessageCategories::CATEGORY_GUILD, $rank_json);
 
             $this->db->commit();
 
@@ -436,15 +426,13 @@ class Guild
             $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL, last_guild_join = ? WHERE id = ?", [time(), $target_uid]);
 
             $guild_data = $this->get_guild_info($my_guild);
-            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Gildenausschluss",
-                    "Du wurdest aus der Gilde <b>[" . e($guild_data["tag"]) . "] " . e($guild_data["name"]) . "</b> entfernt.",
-                    0, 0,
-                    "",
-                    "error"
-                ) . "</div>";
+            $kick_json = [
+                "template" => "guild_kicked",
+                "guild_tag" => $guild_data["tag"],
+                "guild_name" => $guild_data["name"]
+            ];
 
-            send_server_message($target_uid, $target["username"], $msg, MessageCategories::CATEGORY_GUILD);
+            send_server_message($target_uid, $target["username"], MessageCategories::CATEGORY_GUILD, $kick_json);
 
             $this->db->commit();
 
@@ -488,17 +476,26 @@ class Guild
                     $this->db->execute_query("UPDATE guilds SET founder_id = ? WHERE id = ?", [$successor["id"], $my_guild]);
                     $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_LEADER, $successor["id"]]);
 
-                    $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                            "Gildenführung",
-                            "Der bisherige Gilden-Anführer hat die Gilde verlassen. <b>Du bist nun der neue Anführer!</b>",
-                            0, 0, "", "success"
-                        ) . "</div>";
+                    $lead_json = [
+                        "template" => "guild_leadership_transferred",
+                        "reason" => "leader_left"
+                    ];
 
-                    send_server_message($successor["id"], $successor["username"], $msg, MessageCategories::CATEGORY_GUILD);
+                    send_server_message((int)$successor["id"], $successor["username"], MessageCategories::CATEGORY_GUILD, $lead_json);
                 } else {
                     $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$my_guild]);
                 }
             }
+
+            $leaver_name = $this->user->get_user_name();
+
+            $this->notify_guild(
+                "guild_member_left",
+                ["name" => $leaver_name],
+                [$uid],
+                null,
+                $my_guild
+            );
 
             $this->db->execute_query("UPDATE users SET guildid = -1, guild_rank_id = NULL, last_guild_join = ? WHERE id = ?", [time(), $uid]);
             $this->db->commit();
@@ -698,10 +695,8 @@ class Guild
         }
 
         $changes_str = implode(", ", $changed_fields);
-        $this->notify_guild(
-            "Gilden-Update",
-            "Die Gilden-Einstellungen wurden durch <b>" . $this->user->get_user_name() . "</b> aktualisiert:<br>
-            <div style='text-align: center; margin-top: 15px;'><i>$changes_str</i></div>", "", "neutral", [$uid], GuildRanks::GUILD_OFFICER
+        $this->notify_guild("guild_settings_updated", ["by" => $this->user->get_user_name(), "changes" => $changes_str],
+            [$uid], GuildRanks::GUILD_OFFICER
         );
 
         return null;
@@ -893,21 +888,18 @@ class Guild
                    k_src.mapx as src_x, k_src.mapy as src_y, k_src.kingdomname as src_name,
                    k_tgt.mapx as tgt_x, k_tgt.mapy as tgt_y, k_tgt.kingdomname as tgt_name,
                    u_owner.username as owner_name, u_owner.id as owner_uid,
-                   u_host.username as host_name, u_host.id as host_uid,
-                   sl.soldiername, sl.icon
+                   u_host.username as host_name, u_host.id as host_uid
             FROM stationed_troops st
             JOIN kingdoms k_src ON st.source_kingdom_id = k_src.id
             JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
             JOIN users u_owner ON st.owner_id = u_owner.id
             JOIN users u_host ON k_tgt.userid = u_host.id
-            JOIN soldier_list sl ON st.soldier_id = sl.id
             WHERE (st.owner_id = ? OR k_tgt.userid = ?) 
               AND st.owner_id != k_tgt.userid
             GROUP BY st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id,
                      k_src.mapx, k_src.mapy, k_src.kingdomname,
                      k_tgt.mapx, k_tgt.mapy, k_tgt.kingdomname,
-                     u_owner.username, u_owner.id, u_host.username, u_host.id,
-                     sl.soldiername, sl.icon
+                     u_owner.username, u_owner.id, u_host.username, u_host.id
         ", [$user_id, $user_id]);
 
         $stacks = [];
@@ -953,20 +945,10 @@ class Guild
             $new_event_id = $this->db->insert_id;
 
             $insert_troops = [];
-            $units_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:15px;'>";
 
             foreach ($units as $u) {
                 $insert_troops[] = "($new_event_id, " . (int)$u["soldier_id"] . ", " . (int)$u["soldiercount"] . ", " . (int)$u["soldiercount"] . ", " . (int)$info["source_kingdom_id"] . ")";
-
-                $units_html .= BattleReportRenderer::render_unit_card(
-                    $u["soldiername"],
-                    (int)$u["soldiercount"],
-                    0,
-                    $u["icon"],
-                    true
-                );
             }
-            $units_html .= "</div>";
 
             if (!empty($insert_troops)) {
                 $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
@@ -977,19 +959,28 @@ class Guild
                 WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?
             ", [(int)$info["owner_uid"], (int)$info["source_kingdom_id"], (int)$info["target_kingdom_id"]]);
 
-            $msg_owner = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Truppenrückzug: Allianz beendet",
-                    "Da die Allianz mit <b>" . e($info["host_name"]) . "</b> nicht mehr besteht, haben deine Truppen das Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen und den Rückmarsch angetreten.$units_html",
-                    0, 0, "Ankunft in " . convert_sec_to_str($travel), "support"
-                ) . "</div>";
-            send_server_message((int)$info["owner_uid"], $info["owner_name"], $msg_owner, MessageCategories::CATEGORY_GUILD);
+            $units_data = [];
+            foreach ($units as $u) {
+                $units_data[] = [
+                    "id" => (int)$u["soldier_id"],
+                    "count" => (int)$u["soldiercount"]
+                ];
+            }
 
-            $msg_host = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Unterstützung verloren",
-                    "Aufgrund einer Beendigung der Gildenallianz haben die Truppen von <b>" . e($info["owner_name"]) . "</b> dein Königreich <b>" . e($info["tgt_name"]) . "</b> verlassen.$units_html",
-                    0, 0, "Deine Verteidigung wurde geschwächt.", "error"
-                ) . "</div>";
-            send_server_message((int)$info["host_uid"], $info["host_name"], $msg_host, MessageCategories::CATEGORY_GUILD);
+            $base_alliance_json = [
+                "template" => "support_alliance_ended",
+                "host_name" => $info["host_name"],
+                "owner_name" => $info["owner_name"],
+                "target_name" => $info["tgt_name"],
+                "travel_time" => $travel,
+                "units" => $units_data
+            ];
+
+            $owner_json = array_merge($base_alliance_json, ["role" => "owner"]);
+            $host_json = array_merge($base_alliance_json, ["role" => "host"]);
+
+            send_server_message((int)$info["owner_uid"], $info["owner_name"], MessageCategories::CATEGORY_GUILD, $owner_json);
+            send_server_message((int)$info["host_uid"], $info["host_name"], MessageCategories::CATEGORY_GUILD, $host_json);
         }
     }
 
@@ -1020,15 +1011,13 @@ class Guild
                 $this->db->execute_query("UPDATE users SET guild_rank_id = ? WHERE id = ?", [GuildRanks::GUILD_LEADER, $next_id]);
                 $this->db->execute_query("UPDATE guilds SET founder_id = ? WHERE id = ?", [$next_id, $guild_id]);
 
-                $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                        "Gildenführung übertragen",
-                        "Der bisherige Gilden-Anführer <b>" . e($old_leader_name) . "</b> hat das Reich verlassen. <br><br><b>Du bist nun der neue Anführer der Gilde!</b>",
-                        0, 0,
-                        "Verwalte deine Mitglieder weise und führe sie zu Ruhm.",
-                        "success"
-                    ) . "</div>";
+                $lead_del_json = [
+                    "template" => "guild_leadership_transferred",
+                    "reason" => "leader_deleted",
+                    "old_leader_name" => $old_leader_name
+                ];
 
-                send_server_message($next_id, $next_name, $msg, MessageCategories::CATEGORY_GUILD);
+                send_server_message($next_id, $next_name, MessageCategories::CATEGORY_GUILD, $lead_del_json);
             } else {
                 $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$guild_id]);
             }
@@ -1141,12 +1130,6 @@ class Guild
             ON DUPLICATE KEY UPDATE tech_id = VALUES(tech_id), 
             current_food = 0, current_wood = 0, current_stone = 0, current_gold = 0",
             [$this->id, $tech_id]);
-
-        $this->db->execute_query("
-            UPDATE guild_member_contributions 
-            SET current_project_amount = 0 
-            WHERE guild_id = ?",
-            [$this->id]);
     }
 
     public function add_contribution(int $uid, array $amounts): void
@@ -1210,43 +1193,42 @@ class Guild
         }
 
         $this->db->execute_query("DELETE FROM guild_projects WHERE guild_id = ?", [$this->id]);
-        $this->db->execute_query("
-            UPDATE guild_member_contributions 
-            SET current_project_amount = 0, food = 0, wood = 0, stone = 0, gold = 0 
-            WHERE guild_id = ?",
-            [$this->id]
-        );
+        $this->db->execute_query("DELETE FROM guild_member_contributions WHERE guild_id = ?", [$this->id]);
     }
 
-    public function notify_guild(string $title, string $main_text, string $sub_text = "", string $type = "neutral",
-                                 array  $exclude_ids = [], ?int $min_rank_id = null, ?int $target_guild_id = null): void
+    public function notify_guild(
+        string $template,
+        array  $params = [],
+        array  $exclude_ids = [],
+        ?int   $min_rank_id = null,
+        ?int   $target_guild_id = null
+    ): void
     {
-        $html = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                $title,
-                $main_text,
-                0, 0,
-                $sub_text,
-                $type
-            ) . "</div>";
+        $payload = array_merge(["template" => $template], $params);
+        $gid = $target_guild_id ?? $this->id ?? $this->user->get_user_guild_id();
+
+        if (!$gid || $gid <= 0) {
+            return;
+        }
 
         $query = "SELECT id, username FROM users WHERE guildid = ?";
-        $params = [($target_guild_id !== null ? $target_guild_id : $this->id)];
+        $sql_params = [$gid];
 
         if (!empty($exclude_ids)) {
             $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
             $query .= " AND id NOT IN ($placeholders)";
-            $params = array_merge($params, $exclude_ids);
+            $sql_params = array_merge($sql_params, $exclude_ids);
         }
 
         if ($min_rank_id !== null) {
             $query .= " AND guild_rank_id <= ?";
-            $params[] = $min_rank_id;
+            $sql_params[] = $min_rank_id;
         }
 
-        $members = $this->db->execute_query($query, $params);
+        $members = $this->db->execute_query($query, $sql_params);
 
         while ($m = $members->fetch_assoc()) {
-            send_server_message((int)$m["id"], $m["username"], $html, MessageCategories::CATEGORY_GUILD);
+            send_server_message((int)$m["id"], $m["username"], MessageCategories::CATEGORY_GUILD, $payload);
         }
     }
 

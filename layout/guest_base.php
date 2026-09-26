@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
-<?php include_once("layout/head.html"); ?>
+<?php include_once("layout/head.php"); ?>
 <body>
 <?php include_once("layout/banner.html"); ?>
 

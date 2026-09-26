@@ -29,40 +29,29 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                  data-on-click="navigate" data-url="messages.php">
                 <img src="images/icons/icon_messages.png" class="menu-icons" alt="Nachrichten"/>
                 <span>Nachrichten</span>
-                <?php
-                if ($inbox_only_unread > 0): ?>
-                    <span class="msg-badge" id="badge-priv-messages">
-                <?= $messages->show_messages_indicator($inbox_only_unread) ?>
-                    </span>
-                <?php endif; ?>
+                <span class="msg-badge js-badge-priv" style="<?= $inbox_only_unread > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($inbox_only_unread) ?>
+                </span>
             </div>
             <div class="box<?= isset($_GET["worldchat"]) ? " active" : '' ?>"
                  data-on-click="navigate" data-url="messages.php?worldchat">
                 <img src="images/icons/icon_worldchat.png" class="menu-icons" alt="Welt-Chat"/>
                 <span>Welt-Chat</span>
-                <?php if ($unread_world > 0): ?>
-                    <span class="msg-badge" id="badge-world-chat">
-                        <?= $messages->show_messages_indicator($unread_world) ?>
-                    </span>
-                <?php endif; ?>
+                <span class="msg-badge js-badge-world" style="<?= $unread_world > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($unread_world) ?>
+                </span>
             </div>
             <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="guild.php?tab=chat">
                 <img src="images/icons/icon_guild.png" class="menu-icons" alt="Gilde"/>
                 <span style="flex: 1;">Gilde</span>
-                <?php
-                $guild_status_icon = $sidebar_data["guild_status"];
-
-                if (!empty($guild_status_icon) || $unread_guild > 0): ?>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <?= $guild_status_icon ?>
-                        <?php if ($unread_guild > 0): ?>
-                            <span class="msg-badge" id="badge-guild-chat" style="margin-left: 0;">
-                                <?= $messages->show_messages_indicator($unread_guild) ?>
-                            </span>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <?= $sidebar_data["guild_status"] ?>
+                    <span class="msg-badge js-badge-guild"
+                          style="margin-left: 0; <?= $unread_guild > 0 ? '' : 'display: none;' ?>">
+                        <?= $messages->show_messages_indicator($unread_guild) ?>
+                    </span>
+                </div>
             </div>
             <div class="box<?= $current_page === 'ranking.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="ranking.php">

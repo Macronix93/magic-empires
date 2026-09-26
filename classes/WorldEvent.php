@@ -180,21 +180,15 @@ class WorldEvent
                         $diff["gold"] = $final_event_gold;
                     }
 
-                    $rewards_text = [];
-                    if ($diff["coins"] > 0) $rewards_text[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " <b>+{$diff["coins"]} Münzen</b>";
-                    if ($diff["gold"] > 0) $rewards_text[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <b>+" . fnum($diff["gold"]) . "</b>";
-
-                    $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                            "Event: Neue Stufe erreicht!",
-                            "Dein Angriff auf den Welten-Boss hat eine neue Belohnungsstufe freigeschaltet:<br><br><div style='text-align: center;'>" . implode(" und ", $rewards_text) . "</div>
-                                <br>Die Schätze wurden deiner Schatzkammer und deinem Lager gutgeschrieben (unter Berücksichtigung deiner Maximalkapazitäten).",
-                            0, 0,
-                            "Gesamtschaden: " . fnum($new_damage, true),
-                            "success"
-                        ) . "</div>";
+                    $tier_json = [
+                        "template" => "world_event_tier_unlocked",
+                        "coins" => $diff["coins"],
+                        "gold" => $diff["gold"],
+                        "total_damage" => $new_damage
+                    ];
 
                     $u_name = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column() ?: "Spieler";
-                    send_server_message($user_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
+                    send_server_message($user_id, $u_name, MessageCategories::CATEGORY_EVENT, $tier_json);
                 }
             }
 
@@ -231,23 +225,14 @@ class WorldEvent
         $pool = $this->get_monster_pool();
         $monster = $pool[$active["monster_index"] ?? 0];
 
-        $title = $monster["name"] . " gesichtet!";
+        $spawn_json = [
+            "template" => "world_event_spawned",
+            "event_type" => $event_type,
+            "monster_name" => $monster["name"],
+            "monster_icon" => $monster["icon"]
+        ];
 
-        $text = "<div style='margin: 10px; text-align: center;'><img src='images/icons/{$monster["icon"]}.png' alt='{$monster["name"]}'></div>";
-        $text .= ($event_type === "BOSS_HP")
-            ? "Ein gewaltiger Boss ist im <b>Auge des Sturms</b> erschienen! Alle sind aufgerufen, ihre Truppen zu senden, um die Bestie gemeinsam zu fällen."
-            : "Im <b>Auge des Sturms</b> hat ein neues Event begonnen! Zeige deine Stärke und sichere dir Belohnungen anhand deines persönlich angerichteten Schadens.";
-        $text .= " Jeder der mitmacht, erhält Belohnungen! Weitere Infos auf der Event-Seite.";
-        $text .= "<div style='margin: 10px; text-align: center;'><button data-on-click='redirect' data-url='events.php'>Zum Event</button></div>";
-
-        $msg = "<div class='battle-report'>";
-        $msg .= BattleReportRenderer::render_outcome_box(
-            $title,
-            $text
-        );
-        $msg .= "</div>";
-
-        $users = broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
+        $users = broadcast_server_message("", MessageCategories::CATEGORY_EVENT, $spawn_json);
 
         foreach ($users as $u) {
             send_user_push(
@@ -268,16 +253,13 @@ class WorldEvent
         $pool = $this->get_monster_pool();
         $monster = $pool[$ev["monster_index"]] ?? $pool[0];
 
-        $title = "DAS MONSTER IST GEFALLEN!";
-        $text = "<div style='margin: 10px; text-align: center;'><img src='images/icons/{$monster["icon"]}.png' alt=''></div>";
-        $text .= "Ein gewaltiges Jubeln bricht in allen Reichen aus! Die Bestie <b>" . e($monster["name"]) . "</b> wurde besiegt.<br><br>";
-        $text .= "Alle Teilnehmer werden nach Ablauf des Zeitlimits für ihren Mut belohnt.";
+        $defeat_json = [
+            "template" => "world_event_boss_defeated",
+            "monster_name" => $monster["name"],
+            "monster_icon" => $monster["icon"]
+        ];
 
-        $msg = "<div class='battle-report'>";
-        $msg .= BattleReportRenderer::render_outcome_box($title, $text, 0, 0, "", "success");
-        $msg .= "</div>";
-
-        $users = broadcast_server_message($msg, MessageCategories::CATEGORY_EVENT);
+        $users = broadcast_server_message("", MessageCategories::CATEGORY_EVENT, $defeat_json);
 
         foreach ($users as $u) {
             send_user_push(

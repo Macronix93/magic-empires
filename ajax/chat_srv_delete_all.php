@@ -2,12 +2,12 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $category = $_GET["category"] ?? "Alle";
+    $category = (int)($_GET["category"] ?? -1);
     $max_id = (int)($_GET["max_id"] ?? 0);
     $uid = $user->get_user_id();
 
     if ($max_id > 0) {
-        if ($category === "Alle") {
+        if ($category === -1) {
             $db_instance->execute_query(
                 "DELETE FROM server_messages WHERE receiverid = ? AND id <= ?",
                 [$uid, $max_id]

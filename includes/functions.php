@@ -23,7 +23,18 @@ function get_building_file(int $building_id): string
         BuildingTypes::BUILDING_WATCHTOWER => "watchtower",
         BuildingTypes::BUILDING_SHRINE => "shrine",
         BuildingTypes::BUILDING_EMBASSY => "embassy",
+        BuildingTypes::BUILDING_ALCHEMY_LAB => "alchemylab",
         default => "index",
+    };
+}
+
+function get_max_building_level(int $building_id): int
+{
+    return match ($building_id) {
+        BuildingTypes::BUILDING_EMBASSY => EMBASSY_MAX_LEVEL,
+        BuildingTypes::BUILDING_SHRINE => SHRINE_MAX_LEVEL,
+        BuildingTypes::BUILDING_ALCHEMY_LAB => ALCHEMY_MAX_LEVEL,
+        default => MAX_BUILDING_LEVEL,
     };
 }
 
@@ -208,21 +219,21 @@ function fnum($number, bool $simple_format = false, $is_barracks = false): strin
 function regex_pattern(): string
 {
     return '/\b('
-        . '(a(bstract|nd|rray|s))|'
-        . '(c(a(llable|se|tch)|l(ass|one)|on(st|tinue)))|'
-        . '(d(e(clare|fault)|ie|o))|'
-        . '(e(cho|lse(if)?|mpty|nd(declare|for(each)?|if|switch|while)|val|x(it|tends)))|'
-        . '(f(inal|or(each)?|unction))|'
-        . '(g(lobal|goto))|'
-        . '(i(f|mplements|n(clude(_once)?|st(anceof|eadof)|terface)|sset))|'
-        . '(n(amespace|new))|'
-        . '(p(r(i(nt|vate)|otected)|ublic))|'
-        . '(re(quire(_once)?|turn))|'
-        . '(s(tatic|witch))|'
-        . '(t(hrow|r(ait|y)))|'
-        . '(u(nset|se))|'
-        . '(__halt_compiler|break|list|(x)?or|var|while)'
-        . ')\b/';
+            . '(a(bstract|nd|rray|s))|'
+            . '(c(a(llable|se|tch)|l(ass|one)|on(st|tinue)))|'
+            . '(d(e(clare|fault)|ie|o))|'
+            . '(e(cho|lse(if)?|mpty|nd(declare|for(each)?|if|switch|while)|val|x(it|tends)))|'
+            . '(f(inal|or(each)?|unction))|'
+            . '(g(lobal|goto))|'
+            . '(i(f|mplements|n(clude(_once)?|st(anceof|eadof)|terface)|sset))|'
+            . '(n(amespace|new))|'
+            . '(p(r(i(nt|vate)|otected)|ublic))|'
+            . '(re(quire(_once)?|turn))|'
+            . '(s(tatic|witch))|'
+            . '(t(hrow|r(ait|y)))|'
+            . '(u(nset|se))|'
+            . '(__halt_compiler|break|list|(x)?or|var|while)'
+            . ')\b/';
 }
 
 function get_bad_names(): array
@@ -260,11 +271,11 @@ function send_mail(string $to, string $subject, string $body): bool
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = getenv("MAIL_PORT");
         $mail->SMTPOptions = [
-            "ssl" => [
-                "verify_peer" => false,
-                "verify_peer_name" => false,
-                "allow_self_signed" => true
-            ]
+                "ssl" => [
+                        "verify_peer" => false,
+                        "verify_peer_name" => false,
+                        "allow_self_signed" => true
+                ]
         ];
 
         $mail_name = trim(getenv("MAIL_NAME"), '"\'');
@@ -315,10 +326,10 @@ function send_mail(string $to, string $subject, string $body): bool
 function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand_value): int
 {
     $multipliers = [
-        ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
-        ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,
-        ResourceTypes::RESOURCE_TYPE_STONE => MARKET_FEE_MULTIPLIER_STONE,
-        ResourceTypes::RESOURCE_TYPE_GOLD => MARKET_FEE_MULTIPLIER_GOLD
+            ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
+            ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,
+            ResourceTypes::RESOURCE_TYPE_STONE => MARKET_FEE_MULTIPLIER_STONE,
+            ResourceTypes::RESOURCE_TYPE_GOLD => MARKET_FEE_MULTIPLIER_GOLD
     ];
 
     $factor_s = $multipliers[$supply_type] ?? 0.001;
@@ -349,10 +360,10 @@ function check_image_content($temp_file_path): string
     $cfile = new CURLFile($temp_file_path);
 
     $params = [
-        "media" => $cfile,
-        "models" => "nudity-2.0,wad,gore",
-        "api_user" => $api_user,
-        "api_secret" => $api_secret
+            "media" => $cfile,
+            "models" => "nudity-2.0,wad,gore",
+            "api_user" => $api_user,
+            "api_secret" => $api_secret
     ];
 
     $ch = curl_init("https://api.sightengine.com/1.0/check.json");
@@ -380,8 +391,8 @@ function check_image_content($temp_file_path): string
     }
 
     $nudity_score = (float)($data["nudity"]["sexual_activity"] ?? 0)
-        + (float)($data["nudity"]["sexual_display"] ?? 0)
-        + (float)($data["nudity"]["erotica"] ?? 0);
+            + (float)($data["nudity"]["sexual_display"] ?? 0)
+            + (float)($data["nudity"]["erotica"] ?? 0);
     if ($nudity_score > 0.50) {
         return "blocked";
     }
@@ -404,14 +415,14 @@ function wrap_emojis($text): array|string|null
 function get_chat_emojis(): array
 {
     return [
-        '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
-        '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
-        '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
-        '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
-        '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
-        '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
-        '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
-        '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
+            '😀', '😃', '😄', '😁', '😅', '😂', '🥲', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
+            '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
+            '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
+            '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
+            '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
+            '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
+            '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
+            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
     ];
 }
 
@@ -455,7 +466,7 @@ function apply_villager_cap(int $kingdom_id): void
     if ($villager_count > $max_villager) {
         $villager_difference = $villager_count - $max_villager;
         $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villager_difference WHERE id = ?",
-            [$kingdom_id]);
+                [$kingdom_id]);
     }
 }
 
@@ -488,22 +499,110 @@ function get_error(string $text, string $receiver_id): string
  * Global exception handlers
  */
 #[NoReturn]
+function render_error_page(string $title, string $message): void
+{
+    if (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest") {
+        http_response_code(500);
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(["error" => $title . ": " . $message]);
+        exit;
+    }
+
+    http_response_code(500);
+    ?>
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Magic Empires - <?= $title ?></title>
+        <style>
+            body {
+                background: #1a120b url("images/background.jpg") no-repeat center center fixed;
+                background-size: cover;
+                color: #e6dcce;
+                font-family: 'Georgia', 'Times New Roman', serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                margin: 0;
+                padding: 15px;
+                box-sizing: border-box;
+                text-align: center;
+            }
+
+            .error-box {
+                background: rgba(45, 42, 38, 0.96);
+                border: 3px double rgb(165, 124, 0);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.9);
+                border-radius: 8px;
+                padding: 0 30px;
+                max-width: 520px;
+                width: 100%;
+            }
+
+            h2 {
+                color: rgb(212, 175, 55);
+                margin-top: 0;
+                font-variant: small-caps;
+                letter-spacing: 1px;
+                font-size: 26px;
+            }
+
+            .info-wrapper {
+                background: rgba(236, 16, 16, 0.2);
+                border: 1px solid rgba(225, 53, 53, 0.4);
+                border-radius: 6px;
+                padding: 12px;
+                margin: 20px 0;
+                color: #ff9999;
+                font-size: 15px;
+                line-height: 1.4;
+            }
+
+            p {
+                font-size: 15px;
+                line-height: 1.6;
+                opacity: 0.9;
+            }
+
+            button {
+                cursor: pointer;
+                background: linear-gradient(0deg, #4b140a 0%, #781e14 39%);
+                border: 2px solid rgb(165, 124, 0);
+                border-radius: 4px;
+                padding: 10px 25px;
+                color: #dedede;
+                font-weight: bold;
+                font-size: 15px;
+                margin: 10px;
+                transition: 0.2s;
+            }
+        </style>
+    </head>
+    <body>
+    <div class="error-box">
+        <div class="info-wrapper">
+            <b><?= htmlspecialchars($message, ENT_QUOTES, "UTF-8") . "<br>Bitte versuche es in ein paar Minuten erneut." ?></b>
+        </div>
+        <a href="index.php">
+            <button type="button">Zur Startseite</button>
+        </a>
+    </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
+#[NoReturn]
 function global_exception_handler($e): void
 {
     error_log("[" . date(ERROR_DATE_FORMAT) . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_LOG_FILE);
     Logger::get_instance()->error($e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
 
-    echo "<body style='
-                        display: flex;
-                        justify-content: center;
-                        background: rgb(0, 0, 0) url(" . BACKGROUND_IMAGE . ");     
-                        color: rgb(240, 240, 240);
-                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
-                        font-family: Arial, Helvetica, sans-serif;
-                        font-size: 24px;'>
-                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>Ein unerwarteter Fehler ist aufgetreten!</p>
-          </body>";
-    exit;
+    render_error_page("Ausnahmefehler", "Ein unerwarteter Fehler ist aufgetreten!");
 }
 
 /**
@@ -522,16 +621,7 @@ function fatal_error_shutdown_handler(): void
         error_log("[" . date(ERROR_DATE_FORMAT) . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_LOG_FILE);
         Logger::get_instance()->error("FATAL: " . $error['message'] . " in " . $error['file']);
 
-        echo "<body style='
-                        display: flex;
-                        justify-content: center;
-                        background: rgb(0, 0, 0) url(" . BACKGROUND_IMAGE . ");     
-                        color: rgb(240, 240, 240);
-                        text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
-                        font-family: Arial, Helvetica, sans-serif;
-                        font-size: 24px;'>
-                        <p style='background-color: rgba(0,0,0,0.7); padding: 20px; text-align: center'>Ein fataler Fehler ist aufgetreten!</p>
-          </body>";
+        render_error_page("Kritischer Fehler", "Ein fataler Fehler ist aufgetreten!");
     }
 }
 
@@ -548,6 +638,7 @@ function check_user_login($user): void
 function contains_bad_words($name, ?array $list = null): bool
 {
     $bad_words = $list ?? get_bad_names();
+    $split_name = preg_replace('/([a-zäöüß])([A-ZÄÖÜ])/u', '$1 $2', $name);
 
     foreach ($bad_words as $bad) {
         $bad = trim($bad);
@@ -555,7 +646,7 @@ function contains_bad_words($name, ?array $list = null): bool
 
         $pattern = get_bad_word_pattern($bad);
 
-        if (preg_match($pattern, $name)) {
+        if (preg_match($pattern, $name) || preg_match($pattern, $split_name)) {
             return true;
         }
     }
@@ -565,14 +656,14 @@ function contains_bad_words($name, ?array $list = null): bool
 function get_bad_word_pattern($bad_word): string
 {
     $leet_map = [
-        'a' => '[a4@ä]',
-        'e' => '[e3]',
-        'i' => '[i1!|]',
-        'o' => '[o0ö]',
-        's' => '[s5$]',
-        't' => '[t7+]',
-        'b' => '[b8]',
-        'u' => '[uü]'
+            'a' => '[a4@ä]',
+            'e' => '[e3]',
+            'i' => '[i1!|]',
+            'o' => '[o0ö]',
+            's' => '[s5$]',
+            't' => '[t7+]',
+            'b' => '[b8]',
+            'u' => '[uü]'
     ];
 
     $bad_word = mb_strtolower($bad_word, 'UTF-8');
@@ -662,19 +753,19 @@ function check_user_login_and_kingdom($user, $building_type): array
     }
 
     return [
-        "current_kingdom" => $current_kingdom,
-        "building" => $building,
-        "building_name" => $building->get_building_name(),
-        "kingdom" => $kingdom,
-        "k_wood" => $kingdom->get_kingdom_wood(),
-        "k_food" => $kingdom->get_kingdom_food(),
-        "k_stone" => $kingdom->get_kingdom_stone(),
-        "k_gold" => $kingdom->get_kingdom_gold(),
-        "k_villager" => $kingdom->get_kingdom_villager()
+            "current_kingdom" => $current_kingdom,
+            "building" => $building,
+            "building_name" => $building->get_building_name(),
+            "kingdom" => $kingdom,
+            "k_wood" => $kingdom->get_kingdom_wood(),
+            "k_food" => $kingdom->get_kingdom_food(),
+            "k_stone" => $kingdom->get_kingdom_stone(),
+            "k_gold" => $kingdom->get_kingdom_gold(),
+            "k_villager" => $kingdom->get_kingdom_villager()
     ];
 }
 
-function broadcast_server_message(string $message, string $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
+function broadcast_server_message(string $message, int $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
 {
     $db = Database::get_instance()->get_connection();
     $now = time();
@@ -691,7 +782,7 @@ function broadcast_server_message(string $message, string $category = MessageCat
     while ($u = $res->fetch_assoc()) {
         $users[] = $u;
         $rows[] = "(?, ?, ?, ?, ?, ?)";
-        $types .= "isisss";
+        $types .= "isiiss";
         $params[] = (int)$u["id"];
         $params[] = $u["username"];
         $params[] = $now;
@@ -709,18 +800,23 @@ function broadcast_server_message(string $message, string $category = MessageCat
     return $users;
 }
 
-function send_server_message(int $user_id, string $user_name, string $message, string $category = MessageCategories::CATEGORY_DEFAULT,
-                                 $data = null): void
+function send_server_message(int               $user_id, string $user_name, int $category = MessageCategories::CATEGORY_DEFAULT,
+                             array|string|null $data = null): void
 {
-    $db = Database::get_instance();
+    $db = Database::get_instance()->get_connection();
+    $message = "";
     $json = null;
 
     if (is_array($data)) {
-        $json = json_encode($data);
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+    } else if (is_string($data)) {
+        $message = $data;
     }
 
-    $db->get_connection()->execute_query("INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
-        [$user_id, $user_name, time(), $message, $category, $json]);
+    $db->execute_query(
+            "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
+            [$user_id, $user_name, time(), $message, $category, $json]
+    );
 }
 
 function send_user_push(int $user_id, string $title, string $message, string $category = "combat", string $target_url = "/overview.php"): bool
@@ -742,8 +838,8 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
 
     try {
         $res_pref = $db_instance->execute_query(
-            "SELECT `$category` FROM user_push_settings WHERE user_id = ?",
-            [$user_id]
+                "SELECT `$category` FROM user_push_settings WHERE user_id = ?",
+                [$user_id]
         );
         $is_allowed = !($res_pref->num_rows > 0) || $res_pref->fetch_column();
 
@@ -752,8 +848,8 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
         }
 
         $subscriptions = $db_instance->execute_query(
-            "SELECT id, endpoint, public_key, auth_token FROM user_push_subscriptions WHERE user_id = ?",
-            [$user_id]
+                "SELECT id, endpoint, public_key, auth_token FROM user_push_subscriptions WHERE user_id = ?",
+                [$user_id]
         )->fetch_all(MYSQLI_ASSOC);
 
         if (empty($subscriptions)) {
@@ -761,45 +857,47 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
         }
 
         $auth = [
-            "VAPID" => [
-                "subject" => $vapid_subject,
-                "publicKey" => $vapid_public,
-                "privateKey" => $vapid_private,
-            ],
+                "VAPID" => [
+                        "subject" => $vapid_subject,
+                        "publicKey" => $vapid_public,
+                        "privateKey" => $vapid_private,
+                ],
         ];
 
         $http_client = new Client([
-            "timeout" => 5,
-            "verify" => !((defined("IS_DEV") && IS_DEV)),
+                "timeout" => 5,
+                "verify" => !((defined("IS_DEV") && IS_DEV)),
         ]);
 
         $default_options = [
-            "timeout" => 5,
+                "timeout" => 5,
         ];
 
         $web_push = new Minishlink\WebPush\WebPush($auth, $default_options, $http_client);
 
         $payload = json_encode([
-            "title" => $title,
-            "body" => $message,
-            "icon" => 'images/icons/icon_castle.png',
-            "url" => $target_url
+                "title" => $title,
+                "body" => $message,
+                "icon" => 'images/icons/icon_castle.png',
+                "url" => $target_url
         ], JSON_UNESCAPED_UNICODE);
 
         foreach ($subscriptions as $sub) {
             $push_sub = Minishlink\WebPush\Subscription::create([
-                "endpoint" => $sub["endpoint"],
-                "publicKey" => $sub["public_key"],
-                "authToken" => $sub["auth_token"],
+                    "endpoint" => $sub["endpoint"],
+                    "publicKey" => $sub["public_key"],
+                    "authToken" => $sub["auth_token"],
             ]);
             $web_push->queueNotification($push_sub, $payload);
         }
 
         foreach ($web_push->flush() as $report) {
             if (!$report->isSuccess() && $report->isSubscriptionExpired()) {
+                Logger::get_instance()->error("WebPush Fehler für User $user_id: " . $report->getReason());
+
                 $db_instance->execute_query(
-                    "DELETE FROM user_push_subscriptions WHERE endpoint = ?",
-                    [$report->getEndpoint()]
+                        "DELETE FROM user_push_subscriptions WHERE endpoint = ?",
+                        [$report->getEndpoint()]
                 );
             }
         }
@@ -885,9 +983,9 @@ function check_ip_proxy($ip): array|null
         $ip_info = $details->$ip;
 
         return [
-            "proxy" => $ip_info->proxy ?? "no",
-            "type" => $ip_info->type ?? "none",
-            "isp" => $ip_info->is ?? $ip_info->asn ?? "Unbekannt"
+                "proxy" => $ip_info->proxy ?? "no",
+                "type" => $ip_info->type ?? "none",
+                "isp" => $ip_info->is ?? $ip_info->asn ?? "Unbekannt"
         ];
     }
     return null;
@@ -1137,10 +1235,10 @@ function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
     $now = time();
 
     $res_k = $db->execute_query(
-        "SELECT id, kingdomname, mapx, mapy, food, wood, stone, gold, 
+            "SELECT id, kingdomname, mapx, mapy, food, wood, stone, gold, 
                 foodperhour, woodperhour, stoneperhour, goldperhour 
          FROM kingdoms WHERE userid = ?",
-        [$user_id]
+            [$user_id]
     );
 
     $monster_pool = [];
@@ -1155,8 +1253,8 @@ function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
         $y = (int)$k["mapy"];
 
         $res_b = $db->execute_query(
-            "SELECT buildingid, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid IN (?, ?)",
-            [$kid, BuildingTypes::BUILDING_TOWNCENTER, BuildingTypes::BUILDING_STORAGE]
+                "SELECT buildingid, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid IN (?, ?)",
+                [$kid, BuildingTypes::BUILDING_TOWNCENTER, BuildingTypes::BUILDING_STORAGE]
         );
 
         $tc_lvl = 0;
@@ -1175,10 +1273,10 @@ function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
             $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
 
             $db->execute_query(
-                "INSERT INTO abandoned_kingdoms (mapx, mapy, kingdom_name, tc_level, food, wood, stone, gold, expires_at)
+                    "INSERT INTO abandoned_kingdoms (mapx, mapy, kingdom_name, tc_level, food, wood, stone, gold, expires_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE food = VALUES(food), wood = VALUES(wood), stone = VALUES(stone), gold = VALUES(gold), expires_at = VALUES(expires_at)",
-                [$x, $y, $k["kingdomname"], $tc_lvl, $food, $wood, $stone, $gold, $expires]
+                    [$x, $y, $k["kingdomname"], $tc_lvl, $food, $wood, $stone, $gold, $expires]
             );
 
             $res_sol = $db->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?", [$kid]);
@@ -1208,9 +1306,9 @@ function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
 
                     if ($count_share > 0) {
                         $db->execute_query(
-                            "INSERT INTO abandoned_kingdom_units (mapx, mapy, monster_id, count) VALUES (?, ?, ?, ?)
+                                "INSERT INTO abandoned_kingdom_units (mapx, mapy, monster_id, count) VALUES (?, ?, ?, ?)
                              ON DUPLICATE KEY UPDATE count = count + VALUES(count)",
-                            [$x, $y, $m_id, $count_share]
+                                [$x, $y, $m_id, $count_share]
                         );
                     }
                 }
@@ -1229,8 +1327,8 @@ function check_vacation_eligibility(int $uid, mysqli $db): array
 
     // Troops on the way?
     $res_events = $db->execute_query(
-        "SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
-        [$uid, ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS, ActionTypes::ACTION_STATION_TROOPS, ActionTypes::ACTION_SUPPORT_RETURN]
+            "SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
+            [$uid, ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS, ActionTypes::ACTION_STATION_TROOPS, ActionTypes::ACTION_SUPPORT_RETURN]
     );
     if ((int)$res_events->fetch_column() > 0) {
         $errors[] = "Es befinden sich noch eigene Truppen auf dem Marsch.";

@@ -337,8 +337,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $pagesize));
             }
 
-            $list_view = isset($_POST['use_list_view']) ? "1" : "0";
-            $map_popup = isset($_POST['use_map_popup']) ? "1" : "0";
+            $list_view = isset($_POST["use_list_view"]) ? "1" : "0";
+            $map_popup = isset($_POST["use_map_popup"]) ? "1" : "0";
+            $filter_val = isset($_POST["chat_filter"]) ? 1 : 0;
+
+            $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
+            $_SESSION["chat_filter"] = $filter_val;
 
             setcookie("me_overview_pagesize", (string)$pagesize, time() + 31536000, "/", "", false, false);
             setcookie("me_list_view", $list_view, time() + 31536000, "/", "", false, false);
@@ -594,7 +598,7 @@ $view .= '
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Neue E-Mail:</td><td><input type="email" name="new_email" required></td></tr>
-                <tr><td>Bestätigung (Passwort):</td><td><input type="password" name="confirm_pw_email" required></td></tr>
+                <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_email" required></td></tr>
             </table><br>
             <input type="submit" name="change_email" value="E-Mail speichern">
         </form>
@@ -607,8 +611,9 @@ $view .= "<div id='tab_game' class='settings-tab' style='display: " . ($active_t
 
 $cur_pagesize = (int)($_COOKIE["me_overview_pagesize"] ?? OVERVIEW_PAGESIZE_DEFAULT);
 $cur_pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $cur_pagesize));
-$cur_list_view = (($_COOKIE["me_list_view"] ?? $_COOKIE["me_barracks_all_units"] ?? "0") === "1");
-$cur_map_popup = (($_COOKIE["me_map_popup"] ?? "1") === "1");
+$cur_list_view = ((int)($_COOKIE["me_list_view"] ?? 0) === 1);
+$cur_map_popup = ((int)($_COOKIE["me_map_popup"] ?? 1) === 1);
+$current_filter = (int)($_SESSION["chat_filter"] ?? 1);
 
 $view .= '
 <div class="box-container">
@@ -646,6 +651,10 @@ $view .= '
                         <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" name="use_map_popup" value="1" style="width: auto;" ' . ($cur_map_popup ? "checked" : "") . '>
                             <span>Schwebendes Info-Popup auf der Karte anzeigen<br><small style="opacity: 0.7;">(Wenn deaktiviert, wird die Info als feste Tabelle unter der Karte gerendert)</small></span>
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                            <input type="checkbox" name="chat_filter" value="1" style="width: auto;" ' . ($current_filter ? "checked" : "") . '>
+                            <span>Schimpfwort-Filter in privaten Nachrichten und Chats aktivieren</span>
                         </label>
                     </td>
                 </tr>
@@ -690,23 +699,7 @@ $view .= '
             <input type="text" name="partner_name" value="' . e($user_data['linked_user'] ?? '') . '" placeholder="Name des Mitspielers..." style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="update_sharing" value="Partner speichern">
         </form>
-        <p style="font-size: 11px; margin-top: 10px;">Hinweis: Um den Eintrag zu löschen, das Feld leeren und speichern.</p>
-    </div>
-</div>';
-
-$current_filter = ($_SESSION["chat_filter"] ?? 1);
-$view .= '
-<div class="box-container">
-    <div class="box-header">Privatsphäre & Chat</div>
-    <div class="box-content box-content-bg" style="padding: 10px;">
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
-            <label style="cursor:pointer;">
-                <input type="checkbox" name="chat_filter" value="1" ' . ($current_filter ? "checked" : "") . '> 
-                Schimpfwort-Filter in privaten Nachrichten aktivieren
-            </label><br><br>
-            <input type="submit" name="update_privacy" value="Speichern">
-        </form>
+        <p style="font-size: 11px; margin-top: 10px; opacity: 0.6;">Hinweis: Um den Eintrag zu löschen, das Feld leeren und speichern.</p>
     </div>
 </div>';
 

@@ -33,7 +33,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             IFNULL(mc.level, IFNULL(mn.level, 0)) AS monsterlevel,
             COALESCE(r.expires_at, mc.expires_at, ak.expires_at, mn.expires_at, 0) AS expires_at,
             COALESCE(k.userid, mn.claimed_user_id, 0) AS owner_id,
-            COALESCE(u.guildid, mn.claimed_guild_id, -1) AS guildid,
+            COALESCE(u.guildid, u_mn.guildid, mn.claimed_guild_id, -1) AS guildid,
             e_mov.my_troop_icon,
             CASE 
                 WHEN k.userid = ? THEN 0

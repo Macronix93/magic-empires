@@ -656,36 +656,26 @@ class Kingdom
     {
         $buildings = [];
 
-        // Query to fetch buildings and dependencies
         $query = "
-            SELECT b.*, GROUP_CONCAT(d.dependencyid) AS dependency_ids, GROUP_CONCAT(d.dependencylevel) AS dependency_levels, bl.buildinglevel 
+            SELECT b.*, bl.buildinglevel 
             FROM building_list b 
-            LEFT JOIN building_deps d ON b.id = d.buildingid 
             LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
-            GROUP BY b.id
+            ORDER BY b.id
         ";
         $result = $this->mysqli->execute_query($query, [$this->kingdom_id]);
 
-        // Process each building and its dependencies
         foreach ($result as $row) {
-            $building_id = $row["id"];
+            $building_id = (int)$row["id"];
+            $building = new Building();
+            $buildings = $building->create_building($building, $row, $buildings, $building_id);
+            $buildings[$building_id]->set_building_kingdom_id($this->kingdom_id);
+        }
 
-            // Check if building object already exists
-            if (!isset($buildings[$building_id])) {
-                $building = new Building();
-                $buildings = $building->create_building($building, $row, $buildings, $building_id);
-
-                $buildings[$building_id]->set_building_kingdom_id($this->kingdom_id);
-            }
-
-            // Process dependencies if any exist
-            if ($row["dependency_ids"] !== null && $row["dependency_ids"] !== "") {
-                $dependency_ids = explode(',', $row["dependency_ids"]);
-                $dependency_levels = explode(',', $row["dependency_levels"]);
-
-                foreach ($dependency_ids as $index => $dependency_id) {
-                    $buildings[$building_id]->add_building_dependency($dependency_id, $dependency_levels[$index]);
-                }
+        $res_deps = $this->mysqli->execute_query("SELECT buildingid, dependencyid, dependencylevel FROM building_deps");
+        while ($d = $res_deps->fetch_assoc()) {
+            $bid = (int)$d["buildingid"];
+            if (isset($buildings[$bid])) {
+                $buildings[$bid]->add_building_dependency((int)$d["dependencyid"], (int)$d["dependencylevel"]);
             }
         }
 
@@ -1011,5 +1001,32 @@ class Kingdom
 
         $this->mysqli->commit();
         return true;
+    }
+
+    public function get_command_stats(): array
+    {
+        $tc_level = $this->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+        $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
+
+        $res = $this->mysqli->execute_query("
+            SELECT 
+                (SELECT COUNT(*) FROM events 
+                 WHERE kingdomid = ? AND actionid IN (?, ?)) AS active_events,
+                (SELECT COUNT(DISTINCT mine_id) FROM mine_stationed_troops 
+                 WHERE kingdom_id = ?) AS active_mines
+        ", [
+            $this->kingdom_id,
+            ActionTypes::ACTION_SEND_TROOPS,
+            ActionTypes::ACTION_RETURN_TROOPS,
+            $this->kingdom_id
+        ]);
+        $row = $res->fetch_assoc();
+        $occupied = (int)($row["active_events"] ?? 0) + (int)($row["active_mines"] ?? 0);
+
+        return [
+            "occupied" => $occupied,
+            "max" => $max_commands,
+            "is_full" => ($occupied >= $max_commands)
+        ];
     }
 }

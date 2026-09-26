@@ -92,6 +92,16 @@ function startMasterTimer() {
                     if (hideEl) hideEl.style.display = "none";
                 }
 
+                const cell = timer.element.closest('td, .td-timer-cell');
+
+                if (cell) {
+                    const deleteBtn = cell.querySelector('.delete-btn');
+
+                    if (deleteBtn) {
+                        deleteBtn.remove();
+                    }
+                }
+
                 if (!timer.noReload) {
                     const timerCat = timer.element.dataset.timerCat;
 

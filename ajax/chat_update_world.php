@@ -1,8 +1,21 @@
 <?php
 require_once("../includes/core.php");
 
+session_write_close();
+
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $last_id = (int)($_GET["last_id"] ?? 0);
+
+    if ($last_id <= 0) {
+        echo json_encode([
+            "html" => "",
+            "lastId" => 0,
+            "messagesToDelete" => [],
+            "reactionUpdates" => []
+        ]);
+        exit;
+    }
+
     $u_id = $user->get_user_id();
     $is_admin = $user->is_admin();
     $html = "";

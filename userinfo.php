@@ -8,7 +8,7 @@ check_user_login($user);
 <?php
 $script_files = ["userinfo", "guild"];
 
-include_once("layout/head.html");
+include_once("layout/head.php");
 ?>
 <body>
 <?php
@@ -129,8 +129,8 @@ if ($user_id) {
     ?>
     <table class="table" style="width: fit-content;">
         <tr>
-            <td style="width: 200px;"><b>Spieler</b></td>
-            <td style="width: 300px;">
+            <td><b>Spieler</b></td>
+            <td>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <?php
                     if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {

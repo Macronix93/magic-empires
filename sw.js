@@ -21,13 +21,16 @@ self.addEventListener("push", function (event) {
                 icon: payload.icon || "images/icons/icon_town.png",
                 badge: "images/icons/icon_castle.png",
                 vibrate: [200, 100, 200],
-                tag: payload.tag || undefined,
                 renotify: true,
                 timestamp: Date.now(),
                 data: {
                     url: payload.url || "overview.php"
                 }
             };
+
+            if (payload.tag) {
+                options.tag = String(payload.tag);
+            }
 
             return self.registration.showNotification(payload.title || "Magic Empires", options);
         })

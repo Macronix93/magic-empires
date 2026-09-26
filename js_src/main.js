@@ -5,6 +5,7 @@ const TITLE_INTERVAL = 2000;
 let isKingdomSwitching = false;
 let flashTimeout = null;
 let activeHoverPopup = null;
+const UPDATE_MSG_BADGES_INTERVAL = 60000;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -43,7 +44,7 @@ registerAction("selectMobileKingdom", (el) => {
     switchKingdomById(kingdomId);
 });
 registerAction("switchKingdom", (el) => {
-    if (window.innerWidth <= 600) {
+    if (window.innerWidth <= 600 && el.closest('.overview-table')) {
         return;
     }
 
@@ -820,8 +821,13 @@ window.addEventListener("DOMContentLoaded", function () {
         if (rightMenu) rightMenu.classList.remove("open");
         if (rightTrigger) rightTrigger.classList.remove("open");
 
+        const kingdomDropdown = document.getElementById("mobile-kingdom-dropdown");
+        if (kingdomDropdown) kingdomDropdown.classList.remove("open");
+
         toggleMobileElements(false);
     }
+
+    window.closeMobileMenus = closeMenus;
 
     window.addEventListener("resize", function () {
         if (window.innerWidth > 1392) {
@@ -832,6 +838,9 @@ window.addEventListener("DOMContentLoaded", function () {
     if (leftTrigger) {
         leftTrigger.addEventListener("click", function (e) {
             e.stopPropagation();
+
+            const kingdomDropdown = document.getElementById("mobile-kingdom-dropdown");
+            if (kingdomDropdown) kingdomDropdown.classList.remove("open");
 
             rightMenu.classList.remove("open");
             rightTrigger.classList.remove("open");
@@ -848,6 +857,9 @@ window.addEventListener("DOMContentLoaded", function () {
     if (rightTrigger) {
         rightTrigger.addEventListener("click", function (e) {
             e.stopPropagation();
+
+            const kingdomDropdown = document.getElementById("mobile-kingdom-dropdown");
+            if (kingdomDropdown) kingdomDropdown.classList.remove("open");
 
             leftMenu.classList.remove("open");
             leftTrigger.classList.remove("open");
@@ -905,8 +917,9 @@ window.addEventListener("DOMContentLoaded", function () {
             rightTrigger.classList.add("open");
             rightMenu.classList.add("open");
 
-            void document.body.offsetHeight;
+            toggleMobileElements(true);
 
+            void document.body.offsetHeight;
             document.body.classList.remove("no-transition");
         }
         sessionStorage.removeItem("keepRightMenuOpen");
@@ -955,13 +968,11 @@ window.addEventListener("DOMContentLoaded", function () {
 });
 
 function toggleMobileElements(hide) {
-    const arrows = document.querySelectorAll(".mobile-nav-arrow");
-    const kingdom = document.querySelector(".mobile-kingdom-display");
-
-    arrows.forEach(arrow => {
-        arrow.style.opacity = hide ? "0.2" : "";
-    });
-    if (kingdom) kingdom.style.opacity = hide ? "0.2" : "";
+    if (hide) {
+        document.body.classList.add("mobile-menu-open");
+    } else {
+        document.body.classList.remove("mobile-menu-open");
+    }
 }
 
 function selectUser(id) {
@@ -1041,4 +1052,39 @@ function stopTitleFlash() {
     flashTimeout = null;
 
     document.title = originalTitle;
+}
+
+function updateSidebarBadges(counts) {
+    const update = (selector, count) => {
+        document.querySelectorAll(selector).forEach(el => {
+            if (count > 0) {
+                el.innerText = count > 9 ? "9+" : count;
+                el.style.display = "flex";
+            } else {
+                el.style.display = "none";
+            }
+        });
+    };
+
+    if (counts.priv !== undefined) update(".js-badge-priv", counts.priv);
+    if (counts.world !== undefined) update(".js-badge-world", counts.world);
+    if (counts.guild !== undefined) update(".js-badge-guild", counts.guild);
+
+    const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0);
+    const mobileDot = document.getElementById("mobile-nav-dot");
+    if (mobileDot) {
+        mobileDot.style.display = (total > 0) ? "block" : "none";
+    }
+}
+
+if (document.body.classList.contains("logged-in")) {
+    setInterval(() => {
+        fetch("ajax/badge_counts.php", {
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+        })
+            .then(r => r.json())
+            .then(counts => updateSidebarBadges(counts))
+            .catch(() => {
+            });
+    }, UPDATE_MSG_BADGES_INTERVAL);
 }

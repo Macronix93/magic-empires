@@ -212,9 +212,10 @@
 
                 $is_market = ($building["buildingid"] == BuildingTypes::BUILDING_MARKETPLACE);
                 $is_wall = ($building["buildingid"] == BuildingTypes::BUILDING_WALL);
+                $is_alchemy = ($building["buildingid"] == BuildingTypes::BUILDING_ALCHEMY_LAB);
                 $active_class = ($current_page === $building_file ? ' active' : '');
 
-                echo "<div class='menu-icons-small box$active_class' 
+                echo "<div class='box$active_class' 
                            data-on-click='navigate' 
                            data-url='" . e($building_file) . "'>
                         <div class='split-content' style='width: 100%; align-items: center;'>
@@ -224,11 +225,19 @@
                             </div>";
 
                 if ($is_market && $total_market_offers > 0) {
-                    echo "<span class='msg-badge' style='background: linear-gradient(180deg, #E6C15A, #A67C00); border: 1px solid #4A3600;'>$total_market_offers</span>";
+                    echo "<span class='msg-badge golden-badge'>$total_market_offers</span>";
                 }
 
                 if ($is_wall && $kingdom->get_wall_hp() < $kingdom->get_wall_max_hp()) {
                     echo "<span class='msg-badge'>!</span>";
+                }
+
+                if ($is_alchemy) {
+                    if ($sidebar_data["alchemy_status"] === "ready") {
+                        echo "<span class='msg-badge'>!</span>";
+                    } elseif ($sidebar_data["alchemy_status"] === "running") {
+                        echo "<span class='msg-badge golden-badge'>...</span>";
+                    }
                 }
 
                 echo "</div></div>";

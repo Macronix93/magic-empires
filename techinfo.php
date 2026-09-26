@@ -4,7 +4,7 @@ check_user_login($user);
 ?>
 <!DOCTYPE html>
 <html lang="de">
-<?php include_once("layout/head.html"); ?>
+<?php include_once("layout/head.php"); ?>
 <body>
 <?php
 $building_id = isset($_GET["bid"]) ? (int)$_GET["bid"] : null;
@@ -27,7 +27,7 @@ if ($building_id !== null) {
     if ($row) {
         $building = new Kingdom()->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
         $current_level_value = $building ? $building->get_building_level() : 0;
-        $max_lvl_to_show = ($building_id == BuildingTypes::BUILDING_EMBASSY) ? 1 : MAX_BUILDING_LEVEL;
+        $max_lvl_to_show = get_max_building_level($building_id);
         $time_key = "timetobuild";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_TIME;
     }
@@ -169,7 +169,11 @@ if ($row) {
         if ($is_hero) {
             $view .= "Helden können nicht ausgebildet werden. Sie werden alle 24 Stunden zufällig an einen Herrscher verteilt.";
         } else {
-            $view .= "Punkte pro Einheit: <b class='passed'>" . $row["scoregain"] . "</b>";
+            $score_gain = $row["scoregain"];
+
+            if ($score_gain > 0) {
+                $view .= "Punktzuwachs pro Einheit: <b class='passed'>" . $score_gain . "</b>";
+            }
         }
 
         $view .= "      </p>
@@ -497,7 +501,7 @@ if ($row) {
 
         $score_val = ($building_id !== null) ? $row["buildingscore"] : $row["techscore"];
         $view .= "<p style='font-size: 18px; margin-top: 15px;'>
-                    Punkte pro Stufe: <b class='passed'>$score_val</b>
+                    Punktzuwachs pro Stufe: <b class='passed'>$score_val</b>
                   </p>";
 
         $view .= "</div></div>";

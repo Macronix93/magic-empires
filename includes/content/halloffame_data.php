@@ -57,7 +57,7 @@ $categories = [
     ],
     "mines" => [
         "label" => "Minen",
-        "title" => "Minen vollständig abgebaut",
+        "title" => "Minen abgebaut",
         "limit" => 20,
         "type" => "player",
         "query" => "SELECT u.username, u.id as uid, s.mines_depleted as val 
@@ -114,7 +114,7 @@ $categories = [
     ],
     "builder_sum" => [
         "label" => "Bau-Magnat",
-        "title" => "Summe Gebäude-Stufen",
+        "title" => "Gebäude-Stufen",
         "limit" => 20,
         "type" => "player",
         "query" => "SELECT u.username, u.id as uid, SUM(b.buildinglevel) as val 
@@ -126,7 +126,7 @@ $categories = [
     ],
     "research_sum" => [
         "label" => "Forschungs-Magnat",
-        "title" => "Summe Universitäts-Forschungen",
+        "title" => "Universitäts-Forschungen",
         "limit" => 20,
         "type" => "player",
         "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val 
@@ -139,7 +139,7 @@ $categories = [
     ],
     "smithy_sum" => [
         "label" => "Schmiede-Magnat",
-        "title" => "Summe Schmiede-Verbesserungen",
+        "title" => "Schmiede-Verbesserungen",
         "limit" => 20,
         "type" => "player",
         "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val 
@@ -152,7 +152,7 @@ $categories = [
     ],
     "guild_research" => [
         "label" => "Gilden-Forschung",
-        "title" => "Erforschte Gilden-Technologien",
+        "title" => "Gilden-Forschungen",
         "limit" => 20,
         "type" => "guild",
         "query" => "SELECT g.name as gname, g.tag, g.id as gid, SUM(gt.level) as val 
@@ -164,7 +164,7 @@ $categories = [
     ],
     "guild_ores" => [
         "label" => "Gilden-Erze",
-        "title" => "Eingelagerte Spezial-Erze",
+        "title" => "Eingelagerte Erze",
         "limit" => 20,
         "type" => "guild",
         "query" => "SELECT g.name as gname, g.tag, g.id as gid, g.total_special_mined as val 

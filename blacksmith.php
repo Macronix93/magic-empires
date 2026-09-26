@@ -50,7 +50,7 @@ if (isset($_GET["action"])) {
 
                     foreach ($tech_dependencies as $dependency) {
                         // Check BUILDING Dependency
-                        if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
+                        if (isset($dependency["dependencyid"]) && (int)$dependency["dependencyid"] >= 0) {
                             $building_level_needed = $dependency["dependencylevel"];
                             $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
 
@@ -61,7 +61,7 @@ if (isset($_GET["action"])) {
                         }
 
                         // Check TECH Dependency
-                        if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
+                        if (isset($dependency["techdepid"]) && (int)$dependency["techdepid"] >= 0) {
                             $tech_level_needed = $dependency["techdeplevel"];
                             $tech_level_current = $all_techs_for_check[$dependency["techdepid"]]->get_tech_level();
 
@@ -252,9 +252,9 @@ foreach ($techs as $i => $tech) {
 
                 $difference_time = $row_ev["buildingtime"] - time();
 
-                $text_build = "Forschungszeit:<br><b><span class='js-countdown' 
+                $text_build = "Forschungszeit:<br><span class='js-countdown' 
                                        data-seconds='$difference_time' 
-                                       data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span></b><br>
+                                       data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span><br>
                               <form id='cancel-form' action='blacksmith.php' method='GET'>
                                 <input type='hidden' name='action' value='cancel'>
                                 <input type='hidden' name='tid' value='" . $i . "'>

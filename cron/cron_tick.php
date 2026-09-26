@@ -1,5 +1,5 @@
 <?php
-// Simulation für CLI
+// Simulation for CLI
 $_SERVER["HTTP_HOST"] = "localhost";
 $_SERVER["REMOTE_ADDR"] = "127.0.0.1";
 $_SERVER["REQUEST_METHOD"] = "GET";
@@ -16,6 +16,7 @@ $global_em = new EventManager($system_user);
 $global_em->process_mines();
 $global_em->cleanup_marketplace();
 $global_em->check_watchtower_notifications();
+Alchemy::process_all();
 
 $action_building_list = implode(',', [
     ActionTypes::ACTION_BUILD_BUILDING,
@@ -115,7 +116,7 @@ while ($ev = $finished_events->fetch_assoc()) {
                     }
 
                     // Soldiers & Score
-                    $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
+                    $units_data = [];
                     $total_score_gain = 0;
 
                     foreach ($loot["soldiers"] as $s) {
@@ -125,27 +126,27 @@ while ($ev = $finished_events->fetch_assoc()) {
                             ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)
                         ", [$actual_target_kid, $s["count"], $s["id"]]);
 
-                        $unit_data = $db_instance->execute_query("SELECT soldiername, icon, scoregain FROM soldier_list WHERE id = ?", [$s["id"]])->fetch_assoc();
+                        $unit_data = $db_instance->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$s["id"]])->fetch_assoc();
                         $total_score_gain += ($s["count"] * (int)$unit_data["scoregain"]);
 
-                        $units_html .= BattleReportRenderer::render_unit_card($unit_data["soldiername"], $s["count"], 0, $unit_data["icon"], true);
+                        $units_data[] = [
+                            "id" => (int)$s["id"],
+                            "count" => (int)$s["count"]
+                        ];
                     }
-                    $units_html .= "</div>";
 
                     if ($total_score_gain > 0) {
                         $db_instance->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_score_gain, $u_id]);
                     }
 
-                    $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                            "Event-Abschluss",
-                            "Deine Truppen aus <b>" . e($target_k_obj->get_kingdom_name()) . "</b> waren am Sieg beteiligt! Du erhältst folgende Belohnungen:" . $units_html,
-                            0, 0,
-                            "",
-                            "success",
-                            $loot["resources"]
-                        ) . "</div>";
+                    $hp_reward_json = [
+                        "template" => "world_event_hp_reward",
+                        "kingdom_name" => $target_k_obj->get_kingdom_name(),
+                        "units" => $units_data,
+                        "resources" => $loot["resources"]
+                    ];
 
-                    send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
+                    send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $hp_reward_json);
                 }
             } else {
                 $is_boss_fail = true;
@@ -171,34 +172,22 @@ while ($ev = $finished_events->fetch_assoc()) {
                 $loot_display[ResourceTypes::RESOURCE_TYPE_GOLD] = $total_gold;
             }
 
-            $sub_text = ($user_damage >= WORLD_EVENT_REWARD_MIN_TRESHOLD)
-                ? "Alle Belohnungen wurden deinen Lagern und deiner Schatzkammer bereits während deiner Angriffe gutgeschrieben."
-                : "Du hast die Mindest-Schadensschwelle für Belohnungen leider nicht erreicht.";
+            $dmg_reward_json = [
+                "template" => "world_event_dmg_reward",
+                "total_damage" => $user_damage,
+                "loot" => $loot_display
+            ];
 
-            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Event-Abschluss",
-                    "Das Schadens-Event im <b>Auge des Sturms</b> ist beendet!<br>Für deinen Gesamtschaden von <b>" . fnum($user_damage, true) . "
-                             </b> hast du folgende Gesamt-Prämien erzielt:",
-                    0, 0,
-                    $sub_text,
-                    "neutral",
-                    $loot_display
-                ) . "</div>";
-
-            send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
+            send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $dmg_reward_json);
         }
 
         if ($is_boss_fail) {
-            $fail_text = "Das Zeitlimit ist abgelaufen und das Monster <b>" . e($monster["name"]) . "</b> konnte in die Schatten entkommen!";
-            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Event beendet",
-                    $fail_text,
-                    0, 0,
-                    "Ohne den finalen Schlag konnten keine Schätze geborgen werden. Bereitet euch besser auf das nächste Mal vor!",
-                    "error"
-                ) . "</div>";
+            $boss_fail_json = [
+                "template" => "world_event_boss_escaped",
+                "monster_name" => $monster["name"]
+            ];
 
-            send_server_message($u_id, $u_name, $msg, MessageCategories::CATEGORY_EVENT);
+            send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $boss_fail_json);
         }
     }
 

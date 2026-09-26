@@ -111,6 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
         town: 'images/icons/icon_town.png',
         tower2: 'images/icons/icon_tower2.png',
         castle: 'images/icons/icon_castle.png',
+        bigCastle: 'images/icons/icon_big_castle.png',
         gems: 'images/icons/icon_gems.png',
         fire: 'images/icons/icon_fire.png',
         monster1: 'images/icons/icon_goblin.png',  // Level 1-3
@@ -684,14 +685,35 @@ function draw() {
                 }
 
                 let img = images.house;
-                if (level >= 8) img = images.castle;
+                if (level === 10) img = images.bigCastle;
+                else if (level >= 8) img = images.castle;
                 else if (level >= 6) img = images.tower2;
                 else if (level >= 3) img = images.town;
 
                 ctx.drawImage(img, posX, posY, scaledTile, scaledTile);
 
                 if (isBurning === 1) {
-                    ctx.drawImage(images.fire, posX + scaledTile * 0.4, posY - scaledTile * 0.1, scaledTile * 0.7, scaledTile * 0.7);
+                    ctx.drawImage(
+                        images.fire,
+                        posX + scaledTile * 0.32,
+                        posY - scaledTile * 0.08,
+                        scaledTile * 0.58,
+                        scaledTile * 0.58
+                    );
+                    ctx.drawImage(
+                        images.fire,
+                        posX + scaledTile * 0.02,
+                        posY + scaledTile * 0.4,
+                        scaledTile * 0.45,
+                        scaledTile * 0.45
+                    );
+                    ctx.drawImage(
+                        images.fire,
+                        posX + scaledTile * 0.66,
+                        posY + scaledTile * 0.6,
+                        scaledTile * 0.3,
+                        scaledTile * 0.3
+                    );
                 }
             }
 
@@ -909,7 +931,15 @@ function selectField(x, y, shouldCenter = false) {
     let baseTravelTime = pathResult.totalTime * gameConfig.currentKingdom.marchMultiplier;
     const now = Math.floor(Date.now() / 1000);
 
-    let btnDisabled = hasOutgoing ? "disabled title='Truppen bereits unterwegs'" : "";
+    let isCommandLimitReached = gameConfig.currentKingdom.commandsFull;
+    let cmdLimitMsg = `Befehlslimit erreicht (${gameConfig.currentKingdom.occupiedCommands}/${gameConfig.currentKingdom.maxCommands})`;
+
+    let btnDisabled = "";
+    if (hasOutgoing) {
+        btnDisabled = "disabled title='Truppen bereits unterwegs'";
+    } else if (isCommandLimitReached) {
+        btnDisabled = `disabled title='${cmdLimitMsg}'`;
+    }
 
     let html = "";
 
@@ -921,7 +951,9 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
-        if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
+        if (isCommandLimitReached) {
+            html += `<small class="error">${cmdLimitMsg}</small>`;
+        } else if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
             html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&cat=3" ${btnDisabled}>Gründen</button>`;
         } else {
             html += `<small class="error">Gründungskarren benötigt!</small>`;
@@ -947,7 +979,9 @@ function selectField(x, y, shouldCenter = false) {
         const canPlunder = gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_RAIDER] > 0;
         const canSpy = gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SCOUT] > 0;
 
-        if (canPlunder || canSpy) {
+        if (isCommandLimitReached) {
+            html += `<small class="error">${cmdLimitMsg}</small>`;
+        } else if (canPlunder || canSpy) {
             const mode = canPlunder ? "plunder" : "spy";
             const label = canPlunder ? "Plündern" : "Spionieren";
 
@@ -972,7 +1006,13 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(Spionage: ${formatTimeJS(Math.round(arrivalScout))})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
-        html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
+
+        if (isCommandLimitReached) {
+            html += `<small class="error">${cmdLimitMsg}</small>`;
+        } else {
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
+        }
+
         html += `</td></tr></table>`;
     } else if (kid === -4) {
         // --- ABANDONED KINGDOM ---
@@ -987,7 +1027,13 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(travelTime)}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Verfällt in</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
-        html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Ruine stürmen</button>`;
+
+        if (isCommandLimitReached) {
+            html += `<small class="error">${cmdLimitMsg}</small>`;
+        } else {
+            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Ruine stürmen</button>`;
+        }
+
         html += `</td></tr></table>`;
     } else if (kid === -5) {
         // --- MINE ---
@@ -1025,7 +1071,7 @@ function selectField(x, y, shouldCenter = false) {
 
         if (curTroops > 0) {
             if (isMyGuild && myTroops === 0) {
-                html += `<tr><td class="td-mapinfo"><b>Status</b></td><td><span style="color: #3498db;">Abbau durch Gilde</span> (${owner})</td></tr>`;
+                html += `<tr><td class="td-mapinfo"><b>Status</b></td><td><span style="color: #3498db;">Gilden-Abbau</span> <small>(${owner})</small></td></tr>`;
             }
 
             if (isFriendly) {
@@ -1063,8 +1109,10 @@ function selectField(x, y, shouldCenter = false) {
 
         let btnHtml;
 
-        if (scoutCount === 0 && otherTroopsCount === 0) {
-            btnHtml = `<span class="error" style="font-size: 13px; font-weight: bold;">Truppen zum Abbauen benötigt</span>`;
+        if (!hasOutgoing && isCommandLimitReached) {
+            btnHtml = `<small class="error">${cmdLimitMsg}</small>`;
+        } else if (scoutCount === 0 && otherTroopsCount === 0) {
+            btnHtml = `<small class="error">Truppen zum Abbauen benötigt</small>`;
         } else {
             const isFull = (curTroops >= maxTroops && isFriendly);
 
@@ -1089,18 +1137,20 @@ function selectField(x, y, shouldCenter = false) {
             }
 
             btnHtml = `<button data-on-click="redirect" data-url="${actionUrl}" ${mineBtnDisabled} ${mineBtnTitle}>${isFull ? "Mine ist voll" : actionBtnText}</button>`;
+        }
 
-            if (myTroops > 0) {
-                btnHtml += `
-                <form method="POST" action="map.php" style="margin-top: 8px;">
-                    <input type="hidden" name="recall_mine_troops" value="1">
-                    <input type="hidden" name="mine_x" value="${tx}">
-                    <input type="hidden" name="mine_y" value="${ty}">
-                    <button type="submit">
-                        Truppen heimschicken (${myTroops} vor Ort)
-                    </button>
-                </form>`;
-            }
+        const isGuildOrOwnMine = (isMyGuild || myTroops > 0);
+
+        if (isGuildOrOwnMine && curTroops > 0) {
+            btnHtml += `
+            <div style="margin-top: 8px;">
+                <button type="button" 
+                        data-on-click="openOverlay" 
+                        data-url="ajax/mine_details.php?x=${tx}&y=${ty}" 
+                        data-title="Minen-Besatzung">
+                    Minen-Besatzung ansehen
+                </button>
+            </div>`;
         }
 
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">${btnHtml}</td></tr>`;
@@ -1157,7 +1207,13 @@ function selectField(x, y, shouldCenter = false) {
 
             html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>30 Sek.</td></tr>`;
             html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
-            html += `<button data-on-click="redirect" data-url="${target_url}" ${disabled}>In die Schlacht!</button>`;
+
+            if (isCommandLimitReached) {
+                html += `<small class="error">${cmdLimitMsg}</small>`;
+            } else {
+                html += `<button data-on-click="redirect" data-url="${target_url}" ${disabled}>In die Schlacht!</button>`;
+            }
+
             html += `<p style='font-size: 13px; margin-top: 10px;'><i>Hinweis: Truppen kehren von Welt-Events immer ohne Verluste heim.</i></p></td></tr></table>`;
         } else {
             html += `<div class="title-border">Das Auge des Sturms</div>`;
@@ -1210,7 +1266,13 @@ function selectField(x, y, shouldCenter = false) {
             }
 
             html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>${btnText}</button>`;
+
+            if (isCommandLimitReached) {
+                html += `<small class="error">${cmdLimitMsg}</small>`;
+            } else {
+                html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>${btnText}</button>`;
+
+            }
             html += `</td></tr>`;
         }
 

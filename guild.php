@@ -9,13 +9,13 @@ $guild_logic = new Guild($user, $my_guild_id);
 $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 $k = new Kingdom($user->get_current_kingdom());
 
-$allowed_tabs = ["chat", "general", "settings", "storage", "research"];
+$allowed_tabs = ["chat", "general", "settings", "mines", "research"];
 $active_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
 $referer = $_SERVER['HTTP_REFERER'] ?? '';
 $is_external_nav = empty($referer) || !str_contains($referer, 'guild.php');
 
 if (isset($_GET["minepage"])) {
-    $active_tab = "storage";
+    $active_tab = "mines";
 }
 
 if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
@@ -167,9 +167,7 @@ if (isset($_GET["mark_project"]) && $my_guild_id !== -1) {
                 $guild_logic->set_active_project($tid);
                 $db_instance->commit();
 
-                $guild_logic->notify_guild("Neues Gilden-Projekt",
-                    "Ein neues Ziel wurde ausgerufen: <b>" . e($tech_raw["name"]) . "</b>.<br>Alle Mitglieder sind nun aufgerufen, Rohstoffe beizusteuern!",
-                    "Veranlasst durch: " . $user->get_user_name());
+                $guild_logic->notify_guild("guild_project_started", ["tech" => $tech_raw["name"], "by" => $user->get_user_name()]);
 
                 $_SESSION["guild_success"] = "Neues Gilden-Projekt wurde markiert!";
             } catch (Exception $e) {
@@ -260,9 +258,15 @@ if (isset($_POST["contribute_project"]) && $my_guild_id !== -1) {
 
                     $target_level = $cur_lvl + 1;
 
-                    $guild_logic->notify_guild("Gildenforschung gestartet",
-                        "Die Ressourcen für <b>" . e($project["name"]) . " (Stufe $target_level)</b> wurden vollständig gesammelt. Die Forschung hat begonnen!",
-                        "Finaler Beitrag durch: " . $user->get_user_name(), "success", [$user->get_user_id()]);
+                    $guild_logic->notify_guild(
+                        "guild_research_started",
+                        [
+                            "tech" => $project["name"],
+                            "level" => $target_level,
+                            "by" => $user->get_user_name()
+                        ],
+                        [$user->get_user_id()]
+                    );
 
                     $_SESSION["guild_success"] = "Projekt abgeschlossen! Die Forschung wurde gestartet.";
                 } else {
@@ -315,10 +319,9 @@ if (isset($_GET["cancel_project"]) && $my_guild_id !== -1) {
 
                 $_SESSION["guild_success"] = "Das Gilden-Projekt wurde erfolgreich abgebrochen." . ($total_donated > 0 ? " Es erfolgte kein Refund der Spenden." : "");
 
-                $guild_logic->notify_guild("Projekt abgebrochen",
-                    "Das aktuelle Projekt wurde von <b>" . $user->get_user_name() . "</b> abgebrochen.",
-                    "", "error");
-
+                $guild_logic->notify_guild("guild_project_cancelled", [
+                    "by" => $user->get_user_name()
+                ]);
             } catch (Exception $e) {
                 $db_instance->rollback();
 
@@ -495,7 +498,7 @@ if ($my_guild_id === -1) {
         <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>Chat <span class='msg-badge' id='badge-guild-tab' style='$unread_badge_style margin-left: 0;'>$unread_badge_text</span></div>
         <div class='tablinks " . ($active_tab == "general" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='general'>Allgemein</div>
         <div class='tablinks " . ($active_tab == "settings" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='settings'>Einstellungen</div>
-        <div class='tablinks " . ($active_tab == "storage" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='storage'>Lager</div>
+        <div class='tablinks " . ($active_tab == "mines" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='mines'>Minen</div>
         <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research'>Forschung</div>
     </div>";
     $view .= "<div id='guild_tab_chat' class='js-guild-tab' style='display: " . ($active_tab == "chat" ? "block" : "none") . ";'>";
@@ -739,30 +742,11 @@ if ($my_guild_id === -1) {
     }
     $view .= "</div></div></div>";
 
-    // Guild Storage
-    $res_map = [
-        "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
-        "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
-        "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
-        "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
-    ];
 
-    $view .= "<div id='guild_tab_storage' class='js-guild-tab' style='display: " . ($active_tab == "storage" ? "block" : "none") . ";'>";
-    $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Schatzkammer</div>";
-    $view .= "<div style='display: flex; flex-wrap: wrap; justify-content: center; gap: 15px;'>";
-    $view .= "<div class='storage-listing'>";
-
-    foreach ($res_map as $key => $type) {
-        $cur = $guild_logic->get_storage_amount($key);
-        $max = $guild_logic->get_storage_limit($key);
-        $view .= "<div class='split-content' style='gap: 15px;'>
-                    <div>" . get_resource_icon($type) . " " . fnum($cur) . "</div>von " . fnum($max) . "
-                  </div>";
-    }
-    $view .= "</div></div>";
+    $view .= "<div id='guild_tab_mines' class='js-guild-tab' style='display: " . ($active_tab == "mines" ? "block" : "none") . ";'>";
 
     // Active Guild Miners Listing
-    $view .= "<div class='title-border' style='margin-top: 30px;'>Aktive Minen-Schürfer</div>";
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Aktive Minen-Schürfer</div>";
 
     $mines_per_page = NUM_MINES_PER_PAGE;
     $current_mine_page = max(1, (int)($_GET["minepage"] ?? 1));
@@ -871,17 +855,17 @@ if ($my_guild_id === -1) {
             $view .= '<div class="pagination-container"><div class="pagination-bar">';
             if ($current_mine_page > 1) {
                 $prev = $current_mine_page - 1;
-                $view .= "<a href='guild.php?tab=storage&minepage=1' class='page-link'>&laquo;</a>";
-                $view .= "<a href='guild.php?tab=storage&minepage=$prev' class='page-link'>&lsaquo;</a>";
+                $view .= "<a href='guild.php?tab=mines&minepage=1' class='page-link'>&laquo;</a>";
+                $view .= "<a href='guild.php?tab=mines&minepage=$prev' class='page-link'>&lsaquo;</a>";
             }
             for ($i = max(1, $current_mine_page - 2); $i <= min($total_mine_pages, $current_mine_page + 2); $i++) {
                 $active = ($i == $current_mine_page) ? "active" : "";
-                $view .= ($i == $current_mine_page) ? "<span class='page-link active'>$i</span>" : "<a href='guild.php?tab=storage&minepage=$i' class='page-link'>$i</a>";
+                $view .= ($i == $current_mine_page) ? "<span class='page-link active'>$i</span>" : "<a href='guild.php?tab=mines&minepage=$i' class='page-link'>$i</a>";
             }
             if ($current_mine_page < $total_mine_pages) {
                 $next = $current_mine_page + 1;
-                $view .= "<a href='guild.php?tab=storage&minepage=$next' class='page-link'>&rsaquo;</a>";
-                $view .= "<a href='guild.php?tab=storage&minepage=$total_mine_pages' class='page-link'>&raquo;</a>";
+                $view .= "<a href='guild.php?tab=mines&minepage=$next' class='page-link'>&rsaquo;</a>";
+                $view .= "<a href='guild.php?tab=mines&minepage=$total_mine_pages' class='page-link'>&raquo;</a>";
             }
             $view .= '</div></div>';
         }
@@ -977,10 +961,10 @@ if ($my_guild_id === -1) {
         $rem_gold = max(0, $costs["gold"] - $project["current_gold"]);
 
         $k_stock = [
-            0 => $k->get_kingdom_food(),
-            1 => $k->get_kingdom_wood(),
-            2 => $k->get_kingdom_stone(),
-            3 => $k->get_kingdom_gold()
+            ResourceTypes::RESOURCE_TYPE_FOOD => $k->get_kingdom_food(),
+            ResourceTypes::RESOURCE_TYPE_WOOD => $k->get_kingdom_wood(),
+            ResourceTypes::RESOURCE_TYPE_STONE => $k->get_kingdom_stone(),
+            ResourceTypes::RESOURCE_TYPE_GOLD => $k->get_kingdom_gold()
         ];
         $needed_map = [
             0 => [ResourceTypes::RESOURCE_TYPE_FOOD, $rem_food, "Nahrung"],
@@ -1020,7 +1004,6 @@ if ($my_guild_id === -1) {
             </div>";
         }
 
-
         $view .= "      </div>
                 </div>
                 <hr>
@@ -1037,31 +1020,29 @@ if ($my_guild_id === -1) {
         $view .= show_warning_box("Aktuell gibt es kein aktives Projekt.");
     }
 
-    $top = $guild_logic->get_project_contributors();
+    if ($is_researching || $project) {
+        $top = $guild_logic->get_project_contributors();
 
-    $view .= "<div class='title-border' style='margin-top: 25px;'>Projekt-Unterstützer</div>";
-    if ($top->num_rows > 0) {
-        $view .= "<table class='table' style='max-width: 450px; margin-bottom: 20px;'>
-                    <tr>
-                        <td class='td-gradient'><b>Name</b></td>
-                        <td class='td-gradient td-center'><b>Ressourcen</b></td>
-                    </tr>";
+        $view .= "<div class='title-border' style='margin-top: 25px;'>Projekt-Unterstützer</div>";
+        if ($top->num_rows > 0) {
+            $view .= "<table class='table' style='max-width: 450px; margin-bottom: 20px;'>
+                        <tr>
+                            <td class='td-gradient'><b>Name</b></td>
+                            <td class='td-gradient td-center'><b>Ressourcen</b></td>
+                        </tr>";
 
-        while ($r = $top->fetch_assoc()) {
-            $contributor_user = new User($r["id"], $r["username"]);
+            while ($r = $top->fetch_assoc()) {
+                $contributor_user = new User($r["id"], $r["username"]);
 
-            $view .= "<tr>
-                            <td>" . $contributor_user->render_user() . "</td>
-                            <td class='td-center'>" . fnum($r["val"]) . "</td>
-                          </tr>";
-        }
+                $view .= "<tr>
+                                <td>" . $contributor_user->render_user() . "</td>
+                                <td class='td-center'>" . fnum($r["val"]) . "</td>
+                              </tr>";
+            }
 
-        $view .= "</table>";
-    } else {
-        if ($project) {
-            $view .= "<p style='text-align: center; opacity: 0.6;'>Bisher hat noch niemand zu diesem Projekt beigetragen.</p>";
+            $view .= "</table>";
         } else {
-            $view .= "<p style='text-align: center; opacity: 0.6;'>Es gibt derzeit kein aktives Projekt.</p>";
+            $view .= "<p style='text-align: center; opacity: 0.6;'>Bisher hat noch niemand zu diesem Projekt beigetragen.</p>";
         }
     }
 
@@ -1082,7 +1063,7 @@ if ($my_guild_id === -1) {
     $trade_speed_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED);
     if ($trade_speed_lvl > 0) {
         $val = fdec($trade_speed_lvl * GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL * 100);
-        $guild_boni_view .= "<tr><td>Allianz-Handel:</td><td class='passed'>-$val% Marschzeit zu Verbündeten</td></tr>";
+        $guild_boni_view .= "<tr><td>Allianz-Handel:</td><td class='passed'>-$val% Karawanenzeit zu Verbündeten</td></tr>";
     }
 
     $support_cap_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
@@ -1101,13 +1082,35 @@ if ($my_guild_id === -1) {
     if ($member_limit_lvl > 0) {
         $val = fnum($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
         $total_max = GUILD_BASE_MEMBER_LIMIT + ($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
-        $guild_boni_view .= "<tr><td>Große Ratsversammlung:</td><td class='passed'>+$val Mitgliederplätze (Gesamt: $total_max)</td></tr>";
+        $guild_boni_view .= "<tr><td>Ratsversammlung:</td><td class='passed'>+$val Mitglieder (Gesamt: $total_max)</td></tr>";
     }
 
     if (!empty($guild_boni_view)) {
         $view .= "<div class='title-border'>Aktive Gilden-Boni</div>";
         $view .= "<table class='table' style='max-width: 550px; margin-bottom: 25px;'>$guild_boni_view</table>";
     }
+
+    // Guild Storage
+    $res_map = [
+        "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
+        "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
+        "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+        "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
+    ];
+
+    $view .= "<div style='margin-bottom: 20px;'>";
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Schatzkammer</div>";
+    $view .= "<div style='display: flex; flex-wrap: wrap; justify-content: center; gap: 15px;'>";
+    $view .= "<div class='storage-listing'>";
+
+    foreach ($res_map as $key => $type) {
+        $cur = $guild_logic->get_storage_amount($key);
+        $max = $guild_logic->get_storage_limit($key);
+        $view .= "<div class='split-content' style='gap: 15px;'>
+                    <div>" . get_resource_icon($type) . " " . fnum($cur) . "</div>von " . fnum($max) . "
+                  </div>";
+    }
+    $view .= "</div></div></div>";
 
     // Tech List
     $view .= "<div class='title-border'>Verfügbare Forschungen</div>";

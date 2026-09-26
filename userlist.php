@@ -9,7 +9,7 @@ $result = $db_instance->execute_query("SELECT username FROM users WHERE status =
 <!DOCTYPE html>
 <html lang="de">
 <?php
-include_once("layout/head.html");
+include_once("layout/head.php");
 ?>
 <body>
 <table class="table" style="margin-top: 20px; min-width: 300px;">

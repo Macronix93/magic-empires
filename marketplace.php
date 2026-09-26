@@ -133,18 +133,15 @@ if (isset($_GET["accept"])) {
                     $seller_arrival_str = convert_sec_to_str($seller_seconds);
                     $cost = [$demand => $demand_value];
 
-                    $seller_message = "<div class='battle-report'>";
-                    $seller_message .= BattleReportRenderer::render_outcome_box(
-                        "Handelsangebot angenommen",
-                        "Der Spieler <b>" . $user->get_user_name() . "</b> hat deine Warenlieferung aus " . $kingdom->get_kingdom_name() . " akzeptiert.",
-                        0, 0,
-                        "Deine Karawane bringt den Erlös in <b>$seller_arrival_str</b> zurück.",
-                        "neutral",
-                        $cost
-                    );
-                    $seller_message .= "</div>";
+                    $seller_json = [
+                        "template" => "trade_accepted",
+                        "buyer_name" => $user->get_user_name(),
+                        "buyer_kname" => $kingdom->get_kingdom_name(),
+                        "arrival_time" => $seller_seconds,
+                        "cost" => $cost
+                    ];
 
-                    send_server_message($creator_id, $creator_name, $seller_message, MessageCategories::CATEGORY_TRADE);
+                    send_server_message($creator_id, $creator_name, MessageCategories::CATEGORY_TRADE, $seller_json);
 
                     $logger->log_game("TRADE", "OFFER_ACCEPT", [
                         "offer_id" => $accept_id,
@@ -662,24 +659,24 @@ if ($other_kingdoms_res->num_rows > 0) {
                             <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;"></small></label><br>';
 
     if ($is_disabled) {
-        $view .= '<select name="target_k" id="target_k" style="width: 100%; max-width: 300px;" disabled>
+        $view .= '<select name="target_k" id="target_k" class="target-kingdom" disabled>
                     <option value="">-</option>
                   </select>
                   <br><small class="error">Keine Marktplätze verfügbar!</small>';
     } else {
-        $view .= '<select name="target_k" id="target_k" style="width: 100%; max-width: 300px;">' . $options_html . '</select>';
+        $view .= '<select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>';
     }
 
     $view .= '</td>
                 <td style="width: 50%;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div>' . get_resource_icon(0) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
+                    <div class="internal-res-grid">
+                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
                             placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                        <div>' . get_resource_icon(1) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" 
+                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" 
                             placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                        <div>' . get_resource_icon(2) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" 
+                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" 
                             placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                        <div>' . get_resource_icon(3) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
+                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
                             placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
                     </div>
                 </td>

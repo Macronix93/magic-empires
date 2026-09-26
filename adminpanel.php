@@ -160,8 +160,10 @@ if (!$user->is_admin()) {
                 $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $u["id"]]);
 
                 // Send server message to every user
-                $msg = "📢 <b>Runden-Reset erfolgt!</b><br>Ein Administrator hat die Welt neugestartet. Alle Gebäude, Truppen und Ressourcen wurden zurückgesetzt. Viel Erfolg in der neuen Runde!";
-                send_server_message($u["id"], $u["username"], $msg);
+                $reset_json = [
+                    "template" => "round_reset"
+                ];
+                send_server_message((int)$u["id"], $u["username"], MessageCategories::CATEGORY_DEFAULT, $reset_json);
             }
         }
 
@@ -232,6 +234,10 @@ if (!$user->is_admin()) {
 
         // --- RESSOURCES ---
         if ($spawn_type === "all" || $spawn_type === "resources") {
+            // Cleanup first
+            $db_instance->execute_query("DELETE FROM resource_tiles_data WHERE expires_at < ?", [$now]);
+            $db_instance->query("UPDATE map m LEFT JOIN resource_tiles_data r ON m.mapx = r.mapx AND m.mapy = r.mapy SET m.kingdomid = -1 WHERE m.kingdomid = -2 AND r.mapx IS NULL");
+
             $res_count = $db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_column();
             if ($res_count < MAX_RESOURCE_TILES) {
                 $limit = min(RESOURCE_TILES_SPAWN_RATE, MAX_RESOURCE_TILES - $res_count);

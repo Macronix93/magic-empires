@@ -69,6 +69,12 @@ while ($ft = $res_ft_meta->fetch_assoc()) {
 
 $use_map_popup = (($_COOKIE["me_map_popup"] ?? "1") === "1");
 
+// Check for troop marching limit
+$cmd_stats = $kingdom->get_command_stats();
+$occupied_commands = $cmd_stats["occupied"];
+$max_commands = $cmd_stats["max"];
+$commands_full = $cmd_stats["is_full"];
+
 $js_config = [
     "useAutoTiling" => MAP_USE_AUTOTILING,
     "autoTilingRadius" => MAP_AUTOTILING_RADIUS,
@@ -82,7 +88,10 @@ $js_config = [
         "marchMultiplier" => $kingdom->get_march_speed_multiplier(),
         "troops" => $user_troops,
         "guildId" => $user->get_user_guild_id(),
-        "guildSupportSpeedLvl" => Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED)
+        "guildSupportSpeedLvl" => Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED),
+        "occupiedCommands" => $occupied_commands,
+        "maxCommands" => $max_commands,
+        "commandsFull" => $commands_full
     ],
     "fieldMeta" => $field_meta,
     "constants" => [
@@ -103,8 +112,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])
     $x = (int)($_POST["mine_x"] ?? 0);
     $y = (int)($_POST["mine_y"] ?? 0);
 
-    if ($kingdom->recall_mine_troops($x, $y)) {
-        $_SESSION["game_success"] = "Deine Schürfer haben die Mine verlassen und befinden sich mit der Beute auf dem Heimweg!";
+    $target_kid = isset($_POST["kingdom_id"]) ? (int)$_POST["kingdom_id"] : $current_k_id;
+    $recall_kingdom = new Kingdom($target_kid);
+
+    if ($recall_kingdom->get_kingdom_owner_id() === $user->get_user_id()) {
+        if ($recall_kingdom->recall_mine_troops($x, $y)) {
+            $_SESSION["game_success"] = "Deine Schürfer haben die Mine verlassen und befinden sich mit der Beute auf dem Heimweg!";
+        }
     }
 
     change_location("map.php?startx=$x&starty=$y");
@@ -202,7 +216,6 @@ echo '<div class="map-viewport" id="map-viewport">
           </div>';
 echo '<div id="field-popup-box" class="map-floating-popup"></div>';
 echo '</div>';
-
 
 // Info Box
 echo '<div id="field-info" style="' . ($use_map_popup ? "display: none;" : "margin-top: 20px;") . '">';

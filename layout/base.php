@@ -13,7 +13,8 @@ $all_user_kingdoms = [];
 $sidebar_data = [
         "has_world_event" => false,
         "market_offers" => 0,
-        "guild_status" => ''
+        "guild_status" => '',
+        "alchemy_status" => ''
 ];
 
 if ($user->is_logged_in()) {
@@ -34,11 +35,17 @@ if ($user->is_logged_in()) {
             (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
             (SELECT COUNT(*) FROM marketplace) AS market_count,
             (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
-            (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name
-    ", [$gid, $gid])->fetch_assoc();
+            (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
+            (SELECT CASE 
+                WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
+                WHEN input_amount > 0 THEN 'running'
+                ELSE ''
+             END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
+    ", [$gid, $gid, $user->get_current_kingdom()])->fetch_assoc();
 
     $sidebar_data["has_world_event"] = !empty($res_sidebar["has_event"]);
     $sidebar_data["market_offers"] = (int)($res_sidebar["market_count"] ?? 0);
+    $sidebar_data["alchemy_status"] = $res_sidebar["alchemy_status"] ?? '';
 
     if ($gid > 0) {
         if (!empty($res_sidebar["guild_research_active"])) {
@@ -68,8 +75,6 @@ if ($user->is_logged_in()) {
             }
         }
     }
-
-    $kingdom_count = $user->count_user_kingdoms();
 }
 ?>
 <!DOCTYPE html>
@@ -110,7 +115,7 @@ if ($user->is_logged_in()) {
     echo $head_extra ?? '';
     ?>
 </head>
-<body class="preload"
+<body class="preload logged-in"
         <?php
         if (!isset($_COOKIE["me_remember"])) {
             echo 'data-timeout="' . TIMEOUT_MAX_SECONDS . '"';
@@ -168,10 +173,11 @@ if ($user->is_logged_in()) {
 </div>
 <div id="nav-left-trigger" class="mobile-trigger">
     <p>&#9776;</p>
-    <?php
-    $total_unread = ($user->is_logged_in()) ? $user->get_unread_messages() : 0;
-    if ($total_unread > 0): ?>
-        <span class="nav-notification-dot" id="mobile-nav-dot"></span>
+    <?php if ($user->is_logged_in()): ?>
+        <span class="nav-notification-dot"
+              id="mobile-nav-dot"
+              style="<?= ($user->get_unread_messages() > 0) ? '' : 'display: none;' ?>">
+        </span>
     <?php endif; ?>
 </div>
 <div id="nav-left-menu" class="mobile-side-nav">
@@ -217,7 +223,7 @@ if ($user->is_logged_in()) {
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">
-    <p>&#127984;</p>
+    <p><?= wrap_emojis("🏰") ?></p>
 </div>
 <div id="nav-right-menu" class="mobile-side-nav">
     <?php include("layout/right.php"); ?>

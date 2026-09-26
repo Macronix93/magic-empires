@@ -39,11 +39,7 @@ if (isset($_GET["action"])) {
 
         // The action that was set is "building"
         if ($_GET["action"] == "build") {
-            $max_allowed_for_this_building = match ($build_id) {
-                BuildingTypes::BUILDING_SHRINE => 5,
-                BuildingTypes::BUILDING_EMBASSY => 1,
-                default => MAX_BUILDING_LEVEL
-            };
+            $max_allowed_for_this_building = get_max_building_level($build_id);
 
             if ($building_level >= $max_allowed_for_this_building) {
                 $error = "Das Gebäude ist schon maximal ausgebaut!";
@@ -174,27 +170,24 @@ for ($i = 0; $i < $building_count; $i++) {
     }
 
     $level = (int)$buildings[$i]->get_building_level();
-    $max_allowed_for_this_building = match ($building_id) {
-        BuildingTypes::BUILDING_SHRINE => 5,
-        BuildingTypes::BUILDING_EMBASSY => 1,
-        default => MAX_BUILDING_LEVEL
-    };
+    $max_allowed_for_this_building = get_max_building_level($building_id);
     $is_maxed = ($level >= $max_allowed_for_this_building);
 
-    if (!$is_maxed && $level == 0) {
-        $show_building = true;
-        $building_dependencies = $buildings[$i]->get_building_dependencies();
+    $show_building = true;
+    $building_dependencies = $buildings[$i]->get_building_dependencies();
 
-        foreach ($building_dependencies as $dependency) {
-            if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                $show_building = false;
-                break;
-            }
-        }
+    foreach ($building_dependencies as $dependency) {
+        $dep_id = (int)$dependency["dependencyid"];
+        $dep_lvl = (int)$dependency["dependencylevel"];
 
-        if (!$show_building) {
-            continue;
+        if (isset($buildings[$dep_id]) && $dep_lvl > $buildings[$dep_id]->get_building_level()) {
+            $show_building = false;
+            break;
         }
+    }
+
+    if (!$show_building) {
+        continue;
     }
 
     $text_build = "";
@@ -223,12 +216,12 @@ for ($i = 0; $i < $building_count; $i++) {
 
                 $difference_time = $row["buildingtime"] - time();
 
-                $text_build = "Bauzeit:<br><b>
+                $text_build = "Bauzeit:<br>
                                 <span class='js-countdown' 
                                                data-seconds='$difference_time' 
                                                data-hide-id='cancel-form'>
                                                " . format_time_for_js($difference_time) . "
-                                </span></b><br>
+                                </span><br>
                               <form id='cancel-form' action='towncenter.php' method='GET'>
                                 <input type='hidden' name='action' value='cancel'>
                                 <input type='hidden' name='bid' value='" . $i . "'>

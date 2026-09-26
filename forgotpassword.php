@@ -66,7 +66,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 ?>
 <!DOCTYPE html>
 <html lang="de">
-<?php include_once("layout/head.html"); ?>
+<?php include_once("layout/head.php"); ?>
 <body>
 <?php include_once("layout/banner.html"); ?>
 

@@ -42,13 +42,14 @@ if ($user->is_logged_in()) {
     $user->check_session_id();
 
     if (MAINTENANCE_MODE && !$user->is_admin()) {
-        if (basename($_SERVER["PHP_SELF"]) !== "index.php") {
-            $token = bin2hex(random_bytes(16));
-
-            setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
-            change_location("index.php?logout=maintenance&v=" . $token);
+        if (basename($_SERVER["PHP_SELF"]) === "index.php" && isset($_GET["logout"])) {
+            return;
+        }
+        if (basename($_SERVER["PHP_SELF"]) !== "maintenance.php") {
+            change_location("maintenance.php");
             exit;
         }
+        return;
     }
 
     $current_k_id = $user->get_current_kingdom();

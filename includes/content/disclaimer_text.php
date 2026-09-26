@@ -1,10 +1,14 @@
 <div style="margin: 10px;">
-    Banner & Background Image © by <a href="https://chatgpt.com/">ChatGPT</a><br>
     Besonderen Dank gilt: <a href="https://github.com/Naseband">Naseband</a> (Hilfe, Balancing, Testing)<br><br>
-    Flaticon:
+    Icons &copy; Flaticon Artists:
 </div>
 <div class="credits-scroll-box">
     <ul class="credits-list">
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                Upnow Graphic - Flaticon</a>
+        </li>
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/adjust" target="_blank" title="adjust icons">Adjust icons
                 created by Aficons studio - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/archer" target="_blank" title="archer icons">Archer icons

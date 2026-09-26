@@ -44,13 +44,20 @@ function applyOverlayStyles() {
 }
 
 function openOverlay(url, title = "Info", width = null) {
+    if (typeof window.closeMobileMenus === "function") {
+        window.closeMobileMenus();
+    } else {
+        document.querySelectorAll('.mobile-side-nav').forEach(m => m.classList.remove('open'));
+        document.querySelectorAll('.mobile-trigger').forEach(t => t.classList.remove('open'));
+        if (typeof toggleMobileElements === "function") toggleMobileElements(false);
+    }
+
     document.body.classList.add("modal-open");
     document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
 
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
-
     const isAlreadyOpen = (overlay.style.display === "grid");
 
     if (width) {

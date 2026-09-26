@@ -3,7 +3,8 @@
     <meta content="IE-edge" http-equiv="X-UA-Compatible">
     <meta content="width=device-width, initial-scale:1.0" name="viewport">
     <link href="images/favicon.ico" id="icon" rel="icon" type="image/x-icon">
-    <link href="styles.css" rel="stylesheet" type="text/css">
+    <link href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>" rel="stylesheet"
+          type="text/css">
     <title>Magic Empires</title>
     <noscript>
         <meta http-equiv="refresh" content="0;url=nojs.php">

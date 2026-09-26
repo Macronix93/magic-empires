@@ -76,7 +76,7 @@ if (isset($_GET["action"])) {
 
                         foreach ($tech_dependencies as $dependency) {
                             // Check BUILDING Dependency
-                            if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
+                            if (isset($dependency["dependencyid"]) && (int)$dependency["dependencyid"] >= 0) {
                                 $building_level_needed = $dependency["dependencylevel"];
                                 $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
 
@@ -87,7 +87,7 @@ if (isset($_GET["action"])) {
                             }
 
                             // Check TECH Dependency
-                            if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
+                            if (isset($dependency["techdepid"]) && (int)$dependency["techdepid"] >= 0) {
                                 $tech_level_needed = $dependency["techdeplevel"];
                                 $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
 
@@ -325,9 +325,9 @@ for ($i = 0; $i < $tech_count; $i++) {
 
                 $difference_time = $row["buildingtime"] - time();
 
-                $text_build = "Forschungszeit:<br><b><span class='js-countdown' 
+                $text_build = "Forschungszeit:<br><span class='js-countdown' 
                                        data-seconds='$difference_time' 
-                                       data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span></b><br>
+                                       data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span><br>
                               <form id='cancel-form' action='university.php' method='GET'>
                                 <input type='hidden' name='action' value='cancel'>
                                 <input type='hidden' name='tid' value='" . $i . "'>

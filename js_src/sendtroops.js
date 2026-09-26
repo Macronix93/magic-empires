@@ -118,9 +118,25 @@ registerAction("selectAllTroops", () => {
     const form = document.getElementById("send-troops-form");
     const hasMineLimit = form && form.dataset.mineLimit !== undefined;
     let remainingQuota = hasMineLimit ? parseInt(form.dataset.mineLimit) : Infinity;
+    const isMine = form && form.dataset.isMine === "true";
+    const scoutId = form ? (form.dataset.scoutId || "12") : "12";
+
+    let hasNormalUnitsAvailable = false;
+    if (isMine) {
+        document.querySelectorAll(".js-unit-input:not([disabled])").forEach(inp => {
+            if (inp.id !== "sol_" + scoutId && (parseInt(inp.dataset.max) || 0) > 0) {
+                hasNormalUnitsAvailable = true;
+            }
+        });
+    }
 
     const inputs = document.querySelectorAll(".js-unit-input:not([disabled])");
     inputs.forEach(input => {
+        if (isMine && hasNormalUnitsAvailable && input.id === "sol_" + scoutId) {
+            input.value = "";
+            return;
+        }
+
         const max = parseInt(input.dataset.max) || 0;
         if (max > 0 && remainingQuota > 0) {
             const take = Math.min(max, remainingQuota);
@@ -265,14 +281,26 @@ function updateTroopSummary() {
         if (isFriendly) {
             const totalWithTroops = mineCurrent + totalMiningUnits;
             const isFull = totalWithTroops >= mineMax;
-            const addedHtml = totalMiningUnits > 0 ? ` <span class="${isFull ? 'warning' : 'passed'}">(+${totalMiningUnits})</span>` : "";
+            const addedHtml = totalMiningUnits > 0 ? ` <span class="${isFull ? "warning" : "passed"}">(+${totalMiningUnits})</span>` : "";
 
             mineCapDisplay.innerHTML = `<b>${totalWithTroops}</b> / ${mineMax} Einheiten${addedHtml}`;
         } else {
             const isFull = totalMiningUnits >= mineMax;
 
-            mineCapDisplay.innerHTML = `<b class="${isFull ? 'warning' : ''}">${totalMiningUnits}</b> / ${mineMax} Einheiten`;
+            mineCapDisplay.innerHTML = `<b class="${isFull ? "warning" : ''}">${totalMiningUnits}</b> / ${mineMax} Einheiten`;
         }
+    }
+
+    const supportCapDisplay = document.getElementById("support-capacity-display");
+    if (supportCapDisplay && form && form.dataset.isSupport === "true") {
+        const supportCurrent = parseInt(form.dataset.supportCurrent) || 0;
+        const supportMax = parseInt(form.dataset.supportMax) || 0;
+        const totalWithTroops = supportCurrent + totalUnits;
+        const isFull = totalWithTroops > supportMax;
+        const addedHtml = totalUnits > 0 ? ` <span class="${isFull ? "error" : "passed"}">(+${totalUnits})</span>` : "";
+
+        supportCapDisplay.className = isFull ? "error" : (totalWithTroops === supportMax ? "warning" : "passed");
+        supportCapDisplay.innerHTML = `<b>${totalWithTroops}</b>${addedHtml}`;
     }
 
     if (form && form.dataset.mineRemWork !== undefined) {
@@ -334,9 +362,20 @@ function updateTroopSummary() {
         const submitBtn = actionButtons.querySelector('input[type="submit"]');
         if (submitBtn) {
             let disabled = (totalUnits <= 0);
+
             if (hasMineLimit && totalUnits > mineLimit) {
                 disabled = true;
             }
+
+            if (form && form.dataset.isSupport === "true") {
+                const supportCurrent = parseInt(form.dataset.supportCurrent) || 0;
+                const supportMax = parseInt(form.dataset.supportMax) || 0;
+
+                if ((supportCurrent + totalUnits) > supportMax) {
+                    disabled = true;
+                }
+            }
+
             submitBtn.disabled = disabled;
         }
     }

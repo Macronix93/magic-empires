@@ -122,8 +122,9 @@ registerAction("loadOlderWorldChat", () => {
 });
 registerAction("confirmDeleteAllServer", (el) => {
     const activeTab = document.querySelector(".tablinks.active");
-    const category = activeTab ? activeTab.textContent.trim() : "Alle";
-    const catText = category === "Alle" ? "ALLE Nachrichten" : `alle Nachrichten der Kategorie "${category}"`;
+    const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+    const catName = activeTab ? activeTab.textContent.trim() : "Alle";
+    const catText = category === "-1" ? "ALLE Nachrichten" : `alle Nachrichten der Kategorie "${catName}"`;
 
     const maxId = el.dataset.maxId || 0;
 
@@ -321,7 +322,15 @@ function updateChat(chatPartner) {
     }
 
     let endpoint;
-    let queryParams = `?last_id=${lastSeenId}`;
+    let highestDomId = 0;
+    if (messageSection) {
+        messageSection.querySelectorAll("[id^='world-msg-']").forEach(el => {
+            const num = parseInt(el.id.replace('world-msg-', ''), 10);
+            if (!isNaN(num) && num > highestDomId) highestDomId = num;
+        });
+    }
+    const safeLastId = Math.max(lastSeenId, highestDomId);
+    let queryParams = `?last_id=${safeLastId}`;
 
     if (chatType === "world") {
         endpoint = 'ajax/chat_update_world.php';
@@ -379,20 +388,18 @@ function updateChat(chatPartner) {
             } else {
                 removeEmptyPlaceholder();
 
+                const messagesSection = document.getElementById("messages-section");
+                const wasAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
+
                 let temp = document.createElement("div");
                 temp.innerHTML = response.html;
                 let newBubbles = temp.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
 
                 newBubbles.forEach(bubble => {
-                    if (!document.getElementById(bubble.id)) {
-                        messageSection.appendChild(bubble);
-                    }
+                    insertChatBubbleSorted(messageSection, bubble);
                 });
 
                 lastSeenId = data.lastId;
-
-                const messagesSection = document.getElementById("messages-section");
-                const wasAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 100;
 
                 if (wasAtBottom) {
                     scrollDown(true);
@@ -480,6 +487,47 @@ function removeChatBubble(bubbleID) {
     }
 }
 
+function checkServerMessagesEmpty() {
+    const messageSection = document.getElementById("messages-section");
+    if (!messageSection) return;
+
+    const activeTab = document.querySelector(".tablinks.active");
+    const category = activeTab ? activeTab.textContent.trim() : "Alle";
+    const categoryId = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+
+    const allBubbles = messageSection.querySelectorAll(".server-bubble");
+    let visibleCount = 0;
+    allBubbles.forEach(msg => {
+        if (categoryId === "-1" || category === "Alle" || msg.dataset.category === category || msg.dataset.category === categoryId) {
+            visibleCount++;
+        }
+    });
+
+    const btn = document.getElementById("load-more-server-btn");
+
+    if (visibleCount === 0 && !btn) {
+        let placeholder = document.getElementById("server-empty-category");
+        if (!placeholder) {
+            placeholder = document.createElement("div");
+            placeholder.id = "server-empty-category";
+            placeholder.className = "no-event";
+            placeholder.style.marginTop = "30px";
+            placeholder.style.textAlign = "center";
+            placeholder.style.opacity = "0.6";
+            messageSection.appendChild(placeholder);
+        }
+        placeholder.textContent = (category === "Alle" || categoryId === "-1")
+            ? "Keine Servernachrichten vorhanden."
+            : `Keine Servernachrichten in "${category}" vorhanden.`;
+        placeholder.style.display = "block";
+    } else if (visibleCount > 0) {
+        let placeholder = document.getElementById("server-empty-category");
+        if (placeholder) {
+            placeholder.style.display = "none";
+        }
+    }
+}
+
 function deleteChatMessage(messageID) {
     fetch(`ajax/chat_delete.php?m_id=${messageID}`, {
         method: "GET",
@@ -534,15 +582,14 @@ function deleteServerMessage(messageID) {
                 const remainingBubbles = messageSection.querySelectorAll(".server-bubble").length;
                 const btn = document.getElementById("load-more-server-btn");
 
-                if (remainingBubbles === 0) {
-                    if (btn) {
-                        loadOlderServerMessages();
-                    } else {
-                        messageSection.innerHTML = `<div id="chat-empty-placeholder">Du hast keine Servernachrichten!</div>`;
-                        messageSection.style.display = "flex";
-                        messageSection.style.alignItems = "center";
-                    }
-                } else {
+                if (remainingBubbles === 0 && btn) {
+                    btn.remove();
+                    canLoadMore = false;
+                }
+
+                checkServerMessagesEmpty();
+
+                if (remainingBubbles > 0) {
                     checkScrollPosition();
                 }
             }
@@ -557,6 +604,29 @@ function removeEmptyPlaceholder() {
 
     if (placeholder) {
         placeholder.remove();
+    }
+}
+
+function insertChatBubbleSorted(container, newBubble) {
+    if (!container || !newBubble) return;
+    if (document.getElementById(newBubble.id)) return;
+
+    const newId = parseInt(newBubble.id.replace(/\D/g, ''), 10) || 0;
+    const existingBubbles = container.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
+
+    let inserted = false;
+    for (let i = 0; i < existingBubbles.length; i++) {
+        const curId = parseInt(existingBubbles[i].id.replace(/\D/g, ''), 10) || 0;
+
+        if (curId > newId) {
+            container.insertBefore(newBubble, existingBubbles[i]);
+            inserted = true;
+            break;
+        }
+    }
+
+    if (!inserted) {
+        container.appendChild(newBubble);
     }
 }
 
@@ -773,10 +843,12 @@ function filterServerMessages(element) {
     let category = element.textContent.trim();
     let messages = document.querySelectorAll('.server-bubble');
     let newLine = document.getElementById('new-message-line');
+    let visibleCount = 0;
 
     messages.forEach(msg => {
-        if (category === "Alle" || msg.dataset.category === category) {
+        if (category === "-1" || msg.dataset.category === category) {
             msg.style.display = "block";
+            visibleCount++;
         } else {
             msg.style.display = "none";
         }
@@ -784,6 +856,30 @@ function filterServerMessages(element) {
 
     if (newLine) {
         newLine.style.display = (category === "Alle") ? "flex" : "none";
+    }
+
+    const section = document.getElementById("messages-section");
+    let placeholder = document.getElementById("server-empty-category");
+
+    if (visibleCount === 0) {
+        if (!placeholder && section) {
+            placeholder = document.createElement("div");
+            placeholder.id = "server-empty-category";
+            placeholder.className = "no-event";
+            placeholder.style.marginTop = "30px";
+            placeholder.style.textAlign = "center";
+            section.appendChild(placeholder);
+        }
+        if (placeholder) {
+            placeholder.textContent = (category === "Alle")
+                ? "Keine Servernachrichten vorhanden."
+                : `Keine Servernachrichten in "${category}" vorhanden.`;
+            placeholder.style.display = "block";
+        }
+    } else {
+        if (placeholder) {
+            placeholder.style.display = "none";
+        }
     }
 
     canLoadMore = true;
@@ -915,13 +1011,13 @@ function loadOlderServerMessages() {
 
     const oldestId = lastMsg.id.replace("msg-", "");
     const activeTab = document.querySelector(".tablinks.active");
-    const category = activeTab ? activeTab.textContent.trim() : "Alle";
+    const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
 
     isFetchingOlder = true;
 
     if (btn) btn.innerText = "Lade...";
 
-    fetch(`ajax/server_load_more.php?oldest_id=${oldestId}&category=${category}`, {
+    fetch(`ajax/server_load_more.php?oldest_id=${oldestId}&category=${encodeURIComponent(category)}`, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.json())
@@ -947,6 +1043,7 @@ function loadOlderServerMessages() {
             }
 
             isFetchingOlder = false;
+            checkServerMessagesEmpty();
         })
         .catch(() => {
             isFetchingOlder = false;
@@ -1077,10 +1174,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (classicNewForm) {
         classicNewForm.addEventListener("submit", function () {
             const btn = this.querySelector('input[type="submit"]');
-
             if (btn) {
-                btn.disabled = true;
-                btn.value = "Wird gesendet...";
+                setTimeout(() => {
+                    btn.disabled = true;
+                    btn.value = "Wird gesendet...";
+                }, 1);
             }
         });
     }

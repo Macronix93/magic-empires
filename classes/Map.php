@@ -55,7 +55,7 @@ class Map
 
         $num_cols = ($max_x - $min_x) + 1;
 
-        $html = "<div class='minimap-container' style='grid-template-columns: 25px repeat($num_cols, 1fr);'>";
+        $html = "<div class='minimap-container' style='grid-template-columns: 25px repeat($num_cols, 22px);'>";
 
         for ($y = $min_y; $y <= $max_y; $y++) {
             $html .= "<div class='minimap-label minimap-label-y'>$y</div>";
@@ -166,7 +166,8 @@ class Map
             }
         }
 
-        return (int)round($modified_time);
+        //return (int)round($modified_time);
+        return 15;
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array

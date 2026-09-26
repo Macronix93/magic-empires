@@ -75,6 +75,7 @@ if (isset($_GET["action"])) {
             $view .= "<form id='newmessage'
                               action='messages.php?action=new'
                               method='POST'>
+                            <input type='hidden' name='sendpm' value='1'>
                             <table class='table'>
                                 <tr>
                                     <td style='width: 28%;'>
@@ -242,14 +243,11 @@ if (isset($_GET["action"])) {
                 file_put_contents($log_dir . $filename, $log_text);
 
                 if ($partner_data) {
-                    $notice = "<div class='battle-report'>";
-                    $notice .= BattleReportRenderer::render_outcome_box(
-                        "Konversation beendet",
-                        "Der Spieler <b>$my_name</b> hat die Konversation mit dir gelöscht und den Chat beendet."
-                    );
-                    $notice .= "</div>";
-
-                    send_server_message($chat_partner_id, $partner_name, $notice);
+                    $notice_json = [
+                        "template" => "chat_conversation_ended",
+                        "user_name" => $my_name
+                    ];
+                    send_server_message($chat_partner_id, $partner_name, MessageCategories::CATEGORY_DEFAULT, $notice_json);
                 }
 
                 $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
@@ -284,13 +282,16 @@ if (isset($_GET["worldchat"])) {
     ";
 
     // Category Tabs
-    $view .= "<div class='tab'>
-                    <div class='tablinks active' data-on-click='filterServer'>Alle</div>
-                    <div class='tablinks' data-on-click='filterServer'>Militärisch</div>
-                    <div class='tablinks' data-on-click='filterServer'>Handel</div>
-                    <div class='tablinks' data-on-click='filterServer'>Event</div>
-                    <div class='tablinks' data-on-click='filterServer'>Gilde</div>
-                </div>";
+    $view .= "<div class='tab'>";
+    $view .= "<div class='tablinks active' data-on-click='filterServer' data-category='-1'>Alle</div>";
+
+    foreach (MessageCategories::get_labels() as $cat_id => $cat_name) {
+        if ($cat_id === MessageCategories::CATEGORY_DEFAULT) continue;
+
+        $view .= "<div class='tablinks' data-on-click='filterServer' data-category='$cat_id'>$cat_name</div>";
+    }
+
+    $view .= "</div>";
 
     $view .= "<div id='messages-section' class='large-height'>";
     $view .= $messages->show_server_inbox();

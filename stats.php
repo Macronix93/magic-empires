@@ -49,7 +49,7 @@ $uid = $user->get_user_id();
 $my_stats = $db_instance->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$uid])->fetch_assoc();
 
 if (!$my_stats) {
-    $cols = ["units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve", "monster_kills", "buildings_upgraded", "trades_count",
+    $cols = ["units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve", "units_defeated_pvp", "monster_kills", "buildings_upgraded", "trades_count",
         "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen", "resources_looted", "mines_depleted", "special_resources_mined"];
     $my_stats = array_fill_keys($cols, 0);
 
@@ -127,7 +127,9 @@ $view = "
                 <div class='split-content'><span>Lager geplündert:</span> <b>" . fnum($my_stats["res_tiles_cleared"]) . "</b></div>
                 <div class='split-content'><span>Minen abgebaut:</span> <b>" . fnum($my_stats["mines_depleted"]) . "</b></div>
                 <div class='split-content'><span>Spionagen:</span> <b>" . fnum($my_stats["spy_count"]) . "</b></div>
-                <div class='split-content'><span>Verluste (PvP/PvE):</span> <b><span>" . fnum($my_stats["units_fallen_pvp"]) . "</span> / <span>" . fnum($my_stats["units_fallen_pve"]) . "</span></b></div>
+                <div class='split-content'><span>Truppen besiegt (PvP):</span> <b>" . fnum($my_stats["units_defeated_pvp"] ?? 0) . "</b></div>
+                <div class='split-content'><span>Truppen verloren (PvP):</span> <b>" . fnum($my_stats["units_fallen_pvp"]) . "</b></div>
+                <div class='split-content'><span>Truppen verloren (PvE):</span> <b>" . fnum($my_stats["units_fallen_pve"]) . "</b></div>
                 <hr>
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Wirtschaft & Expansion</b>

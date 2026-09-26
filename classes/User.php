@@ -8,6 +8,7 @@ class User
     private string $user_name;
     private int $current_kingdom;
     private ?array $cached_unread_counts = null;
+    private ?array $user_row = null;
 
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
@@ -15,6 +16,15 @@ class User
         $this->user_id = $user_id;
         $this->user_name = $user_name;
         $this->current_kingdom = $current_kingdom;
+    }
+
+    private function load_user_row(): array
+    {
+        if ($this->user_row === null && $this->user_id > 0) {
+            $res = $this->mysqli->execute_query("SELECT * FROM users WHERE id = ?", [$this->user_id]);
+            $this->user_row = $res->fetch_assoc() ?: [];
+        }
+        return $this->user_row ?? [];
     }
 
     /**
@@ -193,8 +203,8 @@ class User
 
     public function get_user_admin_level(): int
     {
-        $result = $this->mysqli->execute_query("SELECT adminlevel FROM users WHERE id = ?", [$this->user_id]);
-        return $result->fetch_assoc()["adminlevel"] ?? 0;
+        $row = $this->load_user_row();
+        return (int)($row["adminlevel"] ?? 0);
     }
 
     public function clear_last_built_building(int $kingdom_id): void
@@ -363,8 +373,8 @@ class User
 
     public function get_user_score(): int
     {
-        $result = $this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$this->user_id]);
-        return $result->fetch_assoc()["score"];
+        $row = $this->load_user_row();
+        return (int)($row["score"] ?? 0);
     }
 
     public function get_current_kingdom(): int
@@ -384,8 +394,8 @@ class User
 
     public function get_main_kingdom(): int
     {
-        $result = $this->mysqli->execute_query("SELECT mainkingdom FROM users WHERE id = ?", [$this->user_id]);
-        return $result->fetch_assoc()["mainkingdom"];
+        $row = $this->load_user_row();
+        return (int)($row["mainkingdom"] ?? 0);
     }
 
     public function give_user_coins(int $amount): void
@@ -408,8 +418,8 @@ class User
 
     public function get_user_coins(): int
     {
-        $result = $this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->user_id]);
-        return $result->fetch_assoc()["coins"];
+        $row = $this->load_user_row();
+        return (int)($row["coins"] ?? 0);
     }
 
     public function get_user_guild_id(): int
@@ -418,8 +428,7 @@ class User
             return -1;
         }
 
-        $result = $this->mysqli->execute_query("SELECT guildid FROM users WHERE id = ?", [$this->user_id]);
-        $row = $result->fetch_assoc();
+        $row = $this->load_user_row();
         return (int)($row["guildid"] ?? -1);
     }
 
@@ -437,11 +446,6 @@ class User
     public function is_admin(): bool
     {
         return $this->get_user_admin_level() >= ADMIN_LEVEL_LIGHT_ADMIN;
-    }
-
-    public function is_supporter(): bool
-    {
-        return $this->get_user_admin_level() == ADMIN_LEVEL_SUPPORTER;
     }
 
     public function get_coin_limit(): int

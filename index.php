@@ -5,7 +5,7 @@ require_once("includes/core.php");
 $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
 
 if (!empty(MAINTENANCE_REASON)) {
-    $maintenance_text .= "<br>Grund: " . e(MAINTENANCE_REASON);
+    $maintenance_text .= "<br><b>Grund:</b> " . e(MAINTENANCE_REASON);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
@@ -323,13 +323,13 @@ $count_online = $res_online->fetch_row()[0];
 ?>
 <!DOCTYPE html>
 <html lang="de">
-<?php include_once("layout/head.html"); ?>
+<?php include_once("layout/head.php"); ?>
 <body>
 <div class="header img">
     <img src="images/header.png" alt="Header"/>
 </div>
 
-<div class="middle-container" style="margin: auto; width: 1100px; max-width: 98%;">
+<div class="middle-container" style="margin: auto; width: 1100px; max-width: 90%;">
     <div class="big-box-container">
         <?php if (!empty($success) || !empty($error) || !empty($warning)): ?>
             <div class="landing-messages">
@@ -356,7 +356,7 @@ $count_online = $res_online->fetch_row()[0];
         <div class="landing-main">
             <div class="landing-hero">
                 <div class="hero-header">
-                    <h1 style="text-align: center;">Willkommen bei<br>Magic Empires!</h1>
+                    <h1>Willkommen bei<br>Magic Empires!</h1>
                     <p style="margin-top: 0;">
                         Schreibe deine eigene Geschichte in einer Welt voller Magie und Strategie.
                         Errichte prachtvolle Königreiche, erforsche vergessene Technologien und führe deine
@@ -366,7 +366,14 @@ $count_online = $res_online->fetch_row()[0];
                         Ob als friedlicher Händler auf dem Marktplatz oder als furchtloser Eroberer –
                         dein Schicksal liegt in deinen Händen.
                     </p>
-                    <div class="ready-msg"><b class="passed">Bereit für den Kampf?</b></div>
+                    <div class="ready-msg">
+                        <b class="passed">Bereit für den Kampf?</b>
+                        <div class="mobile-auth-trigger">
+                            <button type="button" class="btn-mobile-auth js-open-auth" style="color: inherit;">
+                                <?= ($mode === "login") ? wrap_emojis("⚔️ Jetzt Einloggen") : wrap_emojis("📜 Jetzt Registrieren") ?>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="hero-footer">
@@ -384,74 +391,36 @@ $count_online = $res_online->fetch_row()[0];
             </div>
 
             <div class="landing-login-box">
-                <div class="form" style="padding: 0;">
-                    <?php if ($mode === "login"): ?>
-                        <form class="login-register" method="POST" action="index.php"
-                              style="max-width: 100%;">
-                            <fieldset class="box-content-bg">
-                                <legend><b>Login</b></legend>
-                                <table class="table" style="width: 100%;">
-                                    <tr>
-                                        <td><label>
-                                                <input type="text" name="username" placeholder="Benutzername"
-                                                       style="width: 100%;">
-                                            </label></td>
-                                    </tr>
-                                    <tr>
-                                        <td><label>
-                                                <input type="password" name="password" placeholder="Passwort"
-                                                       style="width: 100%;">
-                                            </label></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 5px 10px; text-align: left;">
-                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                                <input type="checkbox" name="remember_me">
-                                                Angemeldet bleiben
-                                            </label>
-                                        </td>
-                                    </tr>
-                                </table>
-                                <input type="submit" name="login" value="Einloggen"
-                                       style="width: 150px; margin: 10px 0;"/>
-                                <a href="forgotpassword.php" style="display: block; font-size: 13px; opacity: 0.7;">Passwort
-                                    vergessen?</a><br>
-                                <a href="index.php?action=register"
-                                   style="display: block; font-size: 13px; opacity: 0.7;">Hier
-                                    registrieren!</a>
-                            </fieldset>
-                        </form>
-                    <?php else: ?>
-                        <?php
-                        $res_ui_count = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE status = 1");
-                        $ui_count = (int)$res_ui_count->fetch_row()[0];
-                        ?>
-
-                        <?php if ($ui_count >= MAX_PLAYER_LIMIT): ?>
-                            <div class="info-box event-warning" style="margin-top: 20px;">
-                                <span>
-                                    <b>Server voll:</b><br>Wir haben aktuell die maximale Kapazität von <b><?= MAX_PLAYER_LIMIT ?></b> Spielern erreicht.
-                                    Bitte versuche es später erneut oder schau in die <a href="news.php"
-                                                                                         style="text-decoration: underline;">News</a>.
-                                </span>
+                <div class="form auth-modal-container" id="auth-modal" style="padding: 0;">
+                    <div class="auth-modal-backdrop js-close-auth"></div>
+                    <div class="auth-modal-content">
+                        <?php if (!empty($error) || (!empty($warning) && $_SERVER["REQUEST_METHOD"] === "POST")): ?>
+                            <div class="modal-auth-errors">
+                                <?php
+                                if (!empty($error)) {
+                                    $errors = explode("<br>", $error);
+                                    foreach ($errors as $e) {
+                                        if (trim($e) !== "") echo show_error_box($e);
+                                    }
+                                }
+                                if (!empty($warning) && $_SERVER["REQUEST_METHOD"] === "POST") {
+                                    echo show_warning_box($warning);
+                                }
+                                ?>
                             </div>
-                        <?php else: ?>
-                            <form class="login-register" method="POST" action="index.php?action=register"
+                        <?php endif; ?>
+
+                        <?php if ($mode === "login"): ?>
+                            <form class="login-register" method="POST" action="index.php"
                                   style="max-width: 100%;">
                                 <fieldset class="box-content-bg">
-                                    <legend><b>Registrieren</b></legend>
+                                    <button type="button" class="auth-modal-close js-close-auth">&times;</button>
+                                    <legend><b>Login</b></legend>
                                     <table class="table" style="width: 100%;">
                                         <tr>
                                             <td><label>
                                                     <input type="text" name="username" placeholder="Benutzername"
-                                                           style="width: 100%;"
-                                                           value="<?= e($_POST["username"] ?? "") ?>">
-                                                </label></td>
-                                        </tr>
-                                        <tr>
-                                            <td><label>
-                                                    <input type="text" name="email" placeholder="E-Mail Adresse"
-                                                           style="width: 100%;" value="<?= e($_POST["email"] ?? "") ?>">
+                                                           style="width: 100%;">
                                                 </label></td>
                                         </tr>
                                         <tr>
@@ -461,45 +430,110 @@ $count_online = $res_online->fetch_row()[0];
                                                 </label></td>
                                         </tr>
                                         <tr>
-                                            <td><label>
-                                                    <input type="password" name="password_repeat"
-                                                           placeholder="Passwort wiederholen"
-                                                           style="width: 100%;">
-                                                </label></td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 10px; text-align: left; font-size: 14px;">
-                                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                                                    <input type="checkbox" name="accept_rules"
-                                                           value="1" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
-                                                    <span>Ich akzeptiere die <a href="rules.php" target="_blank"
-                                                                                style="text-decoration: underline; color: var(--link-color);">Regeln</a>.</span>
+                                            <td style="padding: 5px 10px; text-align: left;">
+                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                                    <input type="checkbox" name="remember_me">
+                                                    Angemeldet bleiben
                                                 </label>
                                             </td>
                                         </tr>
-                                        <tr>
-                                            <td style="display: flex; justify-content: center; padding: 10px;">
-                                                <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
-                                                    <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
-                                                        <span class="passed">✔</span> <b>Botschutz verifiziert</b>
-                                                    </div>
-                                                    <input type="hidden" name="captcha_already_passed" value="1">
-                                                <?php else: ?>
-                                                    <div class="g-recaptcha"
-                                                         data-sitekey="<?= getenv("CLIENT_KEY") ?>"></div>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
                                     </table>
-                                    <input type="submit" name="register" value="Registrieren"
+                                    <input type="submit" name="login" value="Einloggen"
                                            style="width: 150px; margin: 10px 0;"/>
-                                    <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück
-                                        zum
-                                        Login</a>
+                                    <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 4px;">
+                                        <a href="forgotpassword.php" style="font-size: 13px; opacity: 0.7;">Passwort
+                                            vergessen?</a>
+                                        <a href="index.php?action=register" style="font-size: 13px; opacity: 0.7;">Hier
+                                            registrieren!</a>
+                                    </div>
                                 </fieldset>
                             </form>
+                        <?php else: ?>
+                            <?php
+                            $res_ui_count = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE status = 1");
+                            $ui_count = (int)$res_ui_count->fetch_row()[0];
+                            ?>
+
+                            <?php if ($ui_count >= MAX_PLAYER_LIMIT): ?>
+                                <div class="info-box event-warning" style="margin-top: 20px;">
+                                    <span>
+                                        <b>Server voll:</b><br>Wir haben aktuell die maximale Kapazität von <b><?= MAX_PLAYER_LIMIT ?></b> Spielern erreicht.
+                                        Bitte versuche es später erneut oder schau in die <a href="news.php"
+                                                                                             style="text-decoration: underline;">News</a>.
+                                    </span>
+                                </div>
+                            <?php else: ?>
+                                <form class="login-register" method="POST" action="index.php?action=register"
+                                      style="max-width: 100%;">
+                                    <fieldset class="box-content-bg">
+                                        <button type="button" class="auth-modal-close js-close-auth">&times;
+                                        </button>
+                                        <legend><b>Registrieren</b></legend>
+                                        <table class="table" style="width: 100%;">
+                                            <tr>
+                                                <td><label>
+                                                        <input type="text" name="username"
+                                                               placeholder="Benutzername"
+                                                               style="width: 100%;"
+                                                               value="<?= e($_POST["username"] ?? "") ?>">
+                                                    </label></td>
+                                            </tr>
+                                            <tr>
+                                                <td><label>
+                                                        <input type="text" name="email" placeholder="E-Mail Adresse"
+                                                               style="width: 100%;"
+                                                               value="<?= e($_POST["email"] ?? "") ?>">
+                                                    </label></td>
+                                            </tr>
+                                            <tr>
+                                                <td><label>
+                                                        <input type="password" name="password"
+                                                               placeholder="Passwort"
+                                                               style="width: 100%;">
+                                                    </label></td>
+                                            </tr>
+                                            <tr>
+                                                <td><label>
+                                                        <input type="password" name="password_repeat"
+                                                               placeholder="Passwort wiederholen"
+                                                               style="width: 100%;">
+                                                    </label></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 10px; text-align: left; font-size: 14px;">
+                                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                                        <input type="checkbox" name="accept_rules"
+                                                               value="1" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
+                                                        <span>Ich akzeptiere die <a href="rules.php" target="_blank"
+                                                                                    style="text-decoration: underline; color: var(--link-color);">Regeln</a>.</span>
+                                                    </label>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="display: flex; justify-content: center; padding: 10px;">
+                                                    <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
+                                                        <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
+                                                            <span class="passed">✔</span> <b>Botschutz
+                                                                verifiziert</b>
+                                                        </div>
+                                                        <input type="hidden" name="captcha_already_passed"
+                                                               value="1">
+                                                    <?php else: ?>
+                                                        <div class="g-recaptcha"
+                                                             data-sitekey="<?= getenv("CLIENT_KEY") ?>"></div>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <input type="submit" name="register" value="Registrieren"
+                                               style="width: 150px; margin: 10px 0;"/>
+                                        <a href="index.php" style="display: block; font-size: 13px; opacity: 0.7;">Zurück
+                                            zum Login</a>
+                                    </fieldset>
+                                </form>
+                            <?php endif; ?>
                         <?php endif; ?>
-                    <?php endif; ?>
+                    </div>
                 </div>
 
                 <div class="landing-sidebar">
@@ -516,7 +550,8 @@ $count_online = $res_online->fetch_row()[0];
                         <div class="box-header">Info</div>
                         <div class="box-content">
                             <a href="news.php" class="box">
-                                <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/> Neuigkeiten
+                                <img src="images/icons/icon_news.png" class="menu-icons" alt="Neuigkeiten"/>
+                                Neuigkeiten
                             </a>
                             <a href="rules.php" class="box">
                                 <img src="images/icons/icon_rules.png" class="menu-icons" alt="Spielregeln"/>
@@ -526,7 +561,8 @@ $count_online = $res_online->fetch_row()[0];
                                 <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
                             </a>
                             <a href="imprint.php" class="box">
-                                <img src="images/icons/icon_imprint.png" class="menu-icons" alt="Impressum"/> Impressum
+                                <img src="images/icons/icon_imprint.png" class="menu-icons" alt="Impressum"/>
+                                Impressum
                             </a>
                             <a href="privacy.php" class="box">
                                 <img src="images/icons/icon_privacy.png" class="menu-icons" alt="Datenschutz"/>
@@ -543,5 +579,32 @@ $count_online = $res_online->fetch_row()[0];
 <footer>
     <?php include_once("layout/copyright.php"); ?>
 </footer>
+
+<script nonce="<?= $nonce ?>">
+    document.addEventListener("DOMContentLoaded", function () {
+        const openBtns = document.querySelectorAll(".js-open-auth");
+        const closeBtns = document.querySelectorAll(".js-close-auth");
+        const modal = document.getElementById("auth-modal");
+
+        openBtns.forEach(btn => btn.addEventListener("click", () => {
+            if (modal) modal.classList.add("open");
+        }));
+
+        closeBtns.forEach(btn => btn.addEventListener("click", () => {
+            if (modal) {
+                modal.classList.remove("open");
+
+                const errBox = modal.querySelector(".modal-auth-errors");
+                if (errBox) errBox.style.display = "none";
+            }
+        }));
+
+        <?php if ($_SERVER["REQUEST_METHOD"] === "POST" && (!empty($error) || !empty($warning))): ?>
+        if (window.innerWidth <= 600 && modal) {
+            modal.classList.add("open");
+        }
+        <?php endif; ?>
+    });
+</script>
 </body>
 </html>

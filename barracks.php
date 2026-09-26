@@ -12,8 +12,6 @@ $troop_limit = $kingdom->get_troop_limit();
 $total_occupied_space = $kingdom->get_current_troop_count(true, true);
 $space_left = max(0, $troop_limit - $total_occupied_space);
 $actual_units_total = $kingdom->get_current_troop_count(false, true);
-$res_available = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?", [$current_kingdom]);
-$available_troops = (int)$res_available->fetch_row()[0];
 
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();
@@ -197,36 +195,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
             ", [$new_event_id, $t["soldier_id"], $t["soldiercount"], $t["soldiercount"], $t["source_kingdom_id"]]);
         }
 
+        $units_data = [];
+        foreach ($all_troops as $t) {
+            $units_data[] = [
+                "id" => (int)$t["soldier_id"],
+                "count" => (int)$t["soldiercount"]
+            ];
+        }
+
         $triggered_by_owner = ($all_troops[0]["owner_id"] == $user->get_user_id());
 
-        $units_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:15px;'>";
-        foreach ($all_troops as $t) {
-            $s_info = $db_instance->execute_query("SELECT soldiername, icon FROM soldier_list WHERE id = ?", [$t["soldier_id"]])->fetch_assoc();
-            $units_html .= BattleReportRenderer::render_unit_card($s_info["soldiername"], $t["soldiercount"], 0, $s_info["icon"], true);
-        }
-        $units_html .= "</div>";
-
         if ($triggered_by_owner) {
-            $recipient_id = $all_troops[0]["host_id"];
+            $recipient_id = (int)$all_troops[0]["host_id"];
             $recipient_name = $all_troops[0]["host_name"];
-
-            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Unterstützung beendet",
-                    "Der Spieler <b>" . e($all_troops[0]["owner_name"]) . "</b> hat seine Truppen aus deinem Königreich <b>" . e($all_troops[0]["tgt_name"]) . "</b> abgezogen.$units_html",
-                    0, 0, "Die Einheiten haben den Rückmarsch angetreten.", "support"
-                ) . "</div>";
+            $action_type = "withdrawn";
         } else {
-            $recipient_id = $all_troops[0]["owner_id"];
+            $recipient_id = (int)$all_troops[0]["owner_id"];
             $recipient_name = $all_troops[0]["owner_name"];
-
-            $msg = "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
-                    "Unterstützung entlassen",
-                    "Der Spieler <b>" . e($all_troops[0]["host_name"]) . "</b> hat deine Truppen aus seinem Königreich <b>" . e($all_troops[0]["tgt_name"]) . "</b> entlassen.$units_html",
-                    0, 0, "Deine Einheiten befinden sich nun auf dem Heimweg.", "support"
-                ) . "</div>";
+            $action_type = "dismissed";
         }
 
-        send_server_message($recipient_id, $recipient_name, $msg, MessageCategories::CATEGORY_WAR);
+        $support_json = [
+            "template" => "support_recalled",
+            "action_type" => $action_type,
+            "owner_name" => $all_troops[0]["owner_name"],
+            "host_name" => $all_troops[0]["host_name"],
+            "target_name" => $all_troops[0]["tgt_name"],
+            "units" => $units_data
+        ];
+
+        send_server_message($recipient_id, $recipient_name, MessageCategories::CATEGORY_WAR, $support_json);
 
         $db_instance->execute_query("DELETE FROM stationed_troops WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?", [$owner_id, $source_id, $target_id]);
         $db_instance->commit();
@@ -642,7 +640,7 @@ $view .= "
                 <b>Truppen (verfügbar):</b>
             </td>
             <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
-                " . fnum($available_troops) . "
+                " . fnum(array_sum($kingdom_soldiers)) . "
             </td>
         </tr>
         " . ($show_support_feature ? "
@@ -672,7 +670,7 @@ $view .= '<div id="kingdom-resources"
     data-smithy-multiplier="' . $smithy_multiplier . '"
     data-space-left="' . $space_left . '"></div>';
 
-$show_all_checked = (($_COOKIE["me_list_view"] ?? $_COOKIE["me_barracks_all_units"] ?? "0") === "1");
+$show_all_checked = (($_COOKIE["me_list_view"] ?? "0") === "1");
 $is_support_tab = ($active_cat === SoldierTypes::SOLDIER_TYPE_SUPPORT);
 
 $view .= "<div class='tab' id='barracks-tabs-standard' style='" . ($show_all_checked ? "display: none;" : "") . "'>";
@@ -847,8 +845,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
 
             $text_build = "In Ausbildung: " . $soldier_goal . "<br>
-                            <b><span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form' data-timer-cat='$unit_cat'>
-                            " . format_time_for_js($remaining_for_this_unit) . "</span></b><br> 
+                            <span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form' data-timer-cat='$unit_cat'>
+                            " . format_time_for_js($remaining_for_this_unit) . "</span><br> 
                               <form id='cancel-form' action='barracks.php' method='GET'>
                                 <input type='hidden' name='recruit' value='$i'>
                                 <input type='hidden' name='count' value='cancel'>
@@ -872,8 +870,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $rem = max(0, $total_diff % $upg_unit_time);
             if ($rem == 0) $rem = $upg_unit_time;
 
-            $text_build = "Aufwertung zu $target_name: " . $upgrade_event["soldiergoal"] . "<br>
-            <b><span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg' data-timer-cat='$unit_cat'>" . format_time_for_js($rem) . "</span></b><br>
+            $text_build = "<b>Aufwertung zu $target_name:</b> " . $upgrade_event["soldiergoal"] . "<br>
+            <span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg' data-timer-cat='$unit_cat'>" . format_time_for_js($rem) . "</span><br>
             <form id='cancel-form-upg' action='barracks.php' method='GET'>
                 <input type='hidden' name='recruit' value='$i'>
                 <input type='hidden' name='count' value='cancel'>
@@ -952,7 +950,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
 
             if (!empty($possible_targets)) {
-                $text_build .= "<select name='upgrade_to' class='js-upgrade-select' data-id='$soldier_id' style='width: 110px; font-size: 11px;'>
+                $text_build .= "<select name='upgrade_to' class='js-upgrade-select' data-id='$soldier_id'>
                                 <option value=''>Ausbildung</option>";
 
                 foreach ($possible_targets as $pt) {
@@ -984,8 +982,8 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
     $stock_info = "";
     if ($owned_total > 0) {
-        $stock_info = "<hr style='margin: 8px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>"
-            . "<span style='font-size: 0.9em;'><b>Gesamt im Königreich:</b> " . fnum($owned_total) . "</span>";
+        $stock_info = "<hr style='margin: 8px 0;'>"
+            . "<b>Gesamt im Königreich:</b> " . fnum($owned_total);
     }
 
     $view .= "<tr class='$row_class' data-unit-category='$unit_cat' style='$row_style'>
@@ -1075,7 +1073,11 @@ foreach ($res_in as $row) {
 
 if (!empty($grouped_in)) {
     $view .= "<table class='table' style='margin-bottom: 30px;'>
-                <colgroup><col style='width: 40%;'><col style='width: 35%;'><col style='width: 25%;'></colgroup>
+                <colgroup>
+                    <col style='width: 40%;'>
+                    <col style='width: 35%;'>
+                    <col style='width: 25%;'>
+                </colgroup>
                 <tr>
                     <td class='td-gradient td-center'><b>Soldaten</b></td>
                     <td class='td-gradient td-center'><b>Unterstützer</b></td>

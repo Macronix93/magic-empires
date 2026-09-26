@@ -46,25 +46,11 @@ if ($active_event && isset($_POST["attack_all_kingdoms"])) {
     }
 
     // Check, if troop marching limit was reached
-    $current_tc_lvl = $current_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
-    $max_commands = BASE_SEND_TROOPS_LIMIT + $current_tc_lvl;
+    $cmd_stats = $current_k_obj->get_command_stats();
+    $max_commands = $cmd_stats["max"];
+    $total_occupied_commands = $cmd_stats["occupied"];
 
-    $res_commands = $db_instance->execute_query("
-        SELECT 
-            (SELECT COUNT(*) FROM events 
-             WHERE kingdomid = ? AND actionid IN (?, ?)) AS active_events,
-            (SELECT COUNT(DISTINCT mine_id) FROM mine_stationed_troops 
-             WHERE kingdom_id = ?) AS active_mines
-    ", [
-        $current_kid,
-        ActionTypes::ACTION_SEND_TROOPS,
-        ActionTypes::ACTION_RETURN_TROOPS,
-        $current_kid
-    ]);
-    $cmd_data = $res_commands->fetch_assoc();
-    $total_occupied_commands = (int)($cmd_data["active_events"] ?? 0) + (int)($cmd_data["active_mines"] ?? 0);
-
-    if ($total_occupied_commands >= $max_commands) {
+    if ($cmd_stats["is_full"]) {
         $_SESSION["game_error"] = "Befehlslimit erreicht: Deine Offiziere in <b>" . e($current_k_obj->get_kingdom_name()) . "</b> sind bereits voll ausgelastet ($total_occupied_commands/$max_commands Befehle)!";
     }
 
@@ -376,7 +362,7 @@ if (!$active_event) {
                     <b class='passed'>Stufe $max_tc</b>
                 </div>
                 <hr>
-                <p style='margin-bottom: 5px;'>Wird der Boss besiegt, erhältst du mindestens:</p>
+                <p style='margin-bottom: 5px;'>Wird der Boss besiegt, erhältst du:</p>
                 <ul style='margin-top: 0;'>
                     <li>ca. <b class='passed'>" . fnum((int)(WORLD_EVENT_HP_RES_BASE * $avg_lvl)) . "</b> Einheiten pro Ressource</li>
                     <li><b class='passed'>$num_slots Truppen-Paket(e)</b></li>

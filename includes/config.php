@@ -11,7 +11,6 @@ const AFK_SECONDS = 300;                                // 5 Minutes
 const USER_UPDATE_TICK = 30;                            // 30 Seconds
 const INACTIVITY_DELAY = 864000;
 const REMEMBER_ME_COOKIE_DAYS = 14;
-const BACKGROUND_IMAGE = "images/background.png";
 const ERROR_LOG_FILE = __DIR__ . "/../logs/error.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MAX_SQL_BACKUPS = 7;
@@ -43,6 +42,9 @@ const MIN_VACATION_DAYS = 2;
 const MAX_VACATION_DAYS = 14;
 
 // --- Worldmap ---
+const MAP_USE_AUTOTILING = true;
+const MAP_AUTOTILING_RADIUS = 0.1;
+const MAP_AUTOTILING_PADDING = 0.13;
 const MAX_X = 100;
 const MAX_Y = 100;
 const MAX_RESOURCE_TILES = 500;
@@ -87,6 +89,9 @@ const CARAVAN_SPEED_FACTOR = 0.5;
 
 // --- Building & Kingdom Development ---
 const MAX_BUILDING_LEVEL = 10;
+const EMBASSY_MAX_LEVEL = 1;
+const SHRINE_MAX_LEVEL = 5;
+const ALCHEMY_MAX_LEVEL = 5;
 const MIN_KINGDOM_NAME_LENGTH = 3;
 const MAX_KINGDOM_NAME_LENGTH = 32;
 const KINGDOM_NAME_CHANGE_COOLDOWN_DAYS = 7;
@@ -111,12 +116,13 @@ const MIN_WALL_DEFENSE = 1500;
 const MAX_WALL_DEFENSE = 25000;
 const WALL_DEFENSE_FACTOR = 0.7;
 const BASE_WALL_REPAIR_COST = 15;
-const NOOB_PROTECTION_MULT = 0.5;
+const NOOB_PROTECTION_MULT = 0;
 const RAM_WALL_DAMAGE_FACTOR = 0.05;                // 5% per battering ram
 const RAM_WALL_DAMAGE_LIMIT = 2.0;                  // Max 200%
 const RAM_FLAT_DAMAGE = 150;
 const LETHALITY_PVP = 2.0;
 const LETHALITY_PVE = 3.5;
+const SCOUT_COMBAT_LETHALITY = 1.7;
 const WALL_COUNTER_DAMAGE_FACTOR = 0.5;
 const WALL_ABSORPTION_MULTIPLIER = 5;
 const WALL_NORMAL_TROOP_DAMAGE_FACTOR = 0.15;
@@ -136,8 +142,9 @@ const RAIDER_BASE_CAPACITY = 300;
 const RAIDER_LOSS_CHANCE = 10;
 const RAIDER_LOSS_MIN_PERC = 5;
 const RAIDER_LOSS_MAX_PERC = 8;
-const MIN_PLUNDER_PERC = 90;
-const MAX_PLUNDER_PERC = 120;
+const RAIDER_MIN_RESOURCE_VARIANCE = 40;
+const RAIDER_MAX_RESOURCE_VARIANCE = 200;
+const RAIDER_RESOURCE_IGNORE_CHANCE = 35;
 const BASE_CONQUEST_CHANCE = 0.2;
 const MIN_CONQUEST_CHANCE = 0.05;
 const MAX_CONQUEST_CHANCE = 0.9;
@@ -279,7 +286,7 @@ const GUILD_MOTTO_MAX = 100;
 const GUILD_INVITE_DURATION = 172800;           // 48 hours
 const GUILD_BASE_MEMBER_LIMIT = 5;
 const GUILD_MAX_MINIMUM_SCORE = 9999999;
-const GUILD_JOIN_COOLDOWN = 86400;              // 24 hours
+const GUILD_JOIN_COOLDOWN = 0;              // 24 hours
 const MAX_GUILD_CHAT_MESSAGES_SHOWN = 30;
 const SUPPORT_LIMIT_BASE = 50;
 const SUPPORT_LIMIT_PER_BARRACKS = 100;
@@ -312,11 +319,8 @@ const OVERVIEW_PAGESIZE_MAX = 30;
 const OVERVIEW_PAGESIZE_DEFAULT = 7;
 
 // --- Worldmap Mines ---
-const MAP_USE_AUTOTILING = true;
-const MAP_AUTOTILING_RADIUS = 0.1;
-const MAP_AUTOTILING_PADDING = 0.13;
 const MAX_MINES = 125;
-const MINE_SPAWN_RATE = 50;
+const MINE_SPAWN_RATE = 85;
 const MINE_LIFETIME_MIN = 4;
 const MINE_LIFETIME_MAX = 7;
 const MINE_RESOURCE_MIN_RANGE = 85;
@@ -360,6 +364,19 @@ const MINE_GUILD_RESOURCES_BY_LEVEL = [
 
 // Mining Speed: 1 ATK Point = X Work Points per second
 const MINE_WORK_RATE_FACTOR = 0.0075;
+
+// --- Alchemy Lab ---
+const ALCHEMY_OUTPUT_BUFFER_MULTIPLIER = 2;
+const ALCHEMY_BASE_CAPACITY = 50000;
+const ALCHEMY_CAPACITY_PER_LEVEL = 50000;
+const ALCHEMY_BASE_SPEED = 8000;
+const ALCHEMY_SPEED_PER_LEVEL = 500;
+const ALCHEMY_RESOURCE_WEIGHTS = [
+    ResourceTypes::RESOURCE_TYPE_FOOD => 1.0,
+    ResourceTypes::RESOURCE_TYPE_WOOD => 1.0,
+    ResourceTypes::RESOURCE_TYPE_STONE => 0.5,
+    ResourceTypes::RESOURCE_TYPE_GOLD => 0.2
+];
 
 /*
  * Interfaces
@@ -409,13 +426,24 @@ interface AlignmentTypes
     const int ALIGN_NATURE = 3;
 }
 
-interface MessageCategories
+class MessageCategories
 {
-    const string CATEGORY_DEFAULT = "Default";
-    const string CATEGORY_WAR = "Militärisch";
-    const string CATEGORY_TRADE = "Handel";
-    const string CATEGORY_EVENT = "Event";
-    const string CATEGORY_GUILD = "Gilde";
+    const int CATEGORY_DEFAULT = 0;
+    const int CATEGORY_WAR = 1;
+    const int CATEGORY_TRADE = 2;
+    const int CATEGORY_EVENT = 3;
+    const int CATEGORY_GUILD = 4;
+
+    public static function get_labels(): array
+    {
+        return [
+            self::CATEGORY_DEFAULT => "Allgemein",
+            self::CATEGORY_WAR => "Militärisch",
+            self::CATEGORY_TRADE => "Handel",
+            self::CATEGORY_EVENT => "Event",
+            self::CATEGORY_GUILD => "Gilde"
+        ];
+    }
 }
 
 interface BuildingTypes
@@ -435,6 +463,7 @@ interface BuildingTypes
     const int BUILDING_WATCHTOWER = 12;
     const int BUILDING_SHRINE = 13;
     const int BUILDING_EMBASSY = 14;
+    const int BUILDING_ALCHEMY_LAB = 15;
 }
 
 interface ResourceTypes

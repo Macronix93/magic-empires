@@ -102,9 +102,7 @@ foreach ($players_res as $row) {
         $sword_icon = "
             <span class='popup ranking-attack-sword' id='atk_range_{$row["id"]}'>
                 <img src='images/icons/icon_sword.png' alt='Angreifbar'>
-                <div id='atk_range_{$row["id"]}_box' class='popupbox' style='text-align: left;'>
-                    <b>Angreifbar</b>
-                </div>
+                <div id='atk_range_{$row["id"]}_box' class='popupbox' style='text-align: left;'>Angreifbar</div>
             </span>";
     }
 

@@ -292,7 +292,19 @@ class Conquest
         $total_attacker_units = array_sum(array_column($this->initial_soldiers, "initial_my_soldiers"));
         $total_defender_units = array_sum(array_column($this->initial_soldiers, "initial_enemy_soldiers"));
 
-        if ($total_attacker_units <= 0 || $total_defender_units <= 0) return;
+        if ($total_attacker_units <= 0) return;
+
+        if ($total_defender_units <= 0) {
+            foreach ($this->soldier_types as $id => $unit) {
+                $count_own = $this->initial_soldiers[$id]["initial_my_soldiers"];
+                if ($count_own > 0) {
+                    $attacker_atk_pool += ($count_own * $this->soldier_type_atk[$id]);
+                }
+            }
+            $this->accumulated_damage = (int)round($attacker_atk_pool);
+            $this->enemy_def_without_wall = 0;
+            return;
+        }
 
         foreach ($this->soldier_types as $id => $unit) {
             $count_own = $this->initial_soldiers[$id]["initial_my_soldiers"];
@@ -609,17 +621,70 @@ class Conquest
         return $details;
     }
 
-    public function calculate_loot_capacity(int $base_capacity, Kingdom $attacker_kingdom): int
-    {
-        $plunder_lvl = $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
-        return (int)($base_capacity * (1 + ($plunder_lvl * PLUNDER_CAPACITY_BONUS)));
-    }
-
     public function get_surviving_count(int $soldier_id): int
     {
         return (int)($this->soldiers[$soldier_id]["count"] ?? 0);
     }
 
+//    public function get_battle_result_data(bool $for_attacker, bool $is_stationing = false): array
+//    {
+//        $data = [];
+//
+//        foreach ($this->initial_soldiers as $id => $stats) {
+//            $initial = $for_attacker
+//                ? ($stats["initial_my_soldiers"] ?? 0)
+//                : ($stats["initial_enemy_soldiers"] ?? 0);
+//
+//            $losses = $for_attacker
+//                ? ($stats["my_losses"] ?? 0)
+//                : ($stats["enemy_losses"] ?? 0);
+//
+//            if ($initial === 0 && $for_attacker && isset($this->soldiers[$id]["count"])) {
+//                $initial = $this->soldiers[$id]["count"];
+//            }
+//
+//            if ($initial > 0) {
+//                if (is_string($id) && str_starts_with($id, 'm')) {
+//                    // Monster Logic
+//                    $m_id = (int)substr($id, 1);
+//                    $m_info = $this->enemy_soldiers[$m_id];
+//
+//                    $data[] = [
+//                        "id" => $id,
+//                        "name" => $m_info["name"],
+//                        "initial" => (int)$initial,
+//                        "losses" => (int)$losses,
+//                        "icon" => $m_info["icon"],
+//                        "atk" => $m_info["atk"], // Monster ATK
+//                        "def" => $m_info["def"]  // Monster DEF
+//                    ];
+//                } else if (isset($this->soldier_types[$id])) {
+//                    // Soldier Logic
+//                    $soldier = $this->soldier_types[$id];
+//                    $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
+//                    $icon = $res->fetch_column() ?: "icon_error";
+//
+//                    $display_atk = 0;
+//                    $display_def = 0;
+//                    if (!$is_stationing) {
+//                        $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
+//                        $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
+//                    }
+//
+//                    $data[] = [
+//                        "id" => $id,
+//                        "name" => $soldier["soldiername"],
+//                        "initial" => (int)$initial,
+//                        "losses" => (int)$losses,
+//                        "icon" => $icon,
+//                        "atk" => $display_atk,
+//                        "def" => $display_def
+//                    ];
+//                }
+//            }
+//        }
+//        return $data;
+//    }
     public function get_battle_result_data(bool $for_attacker, bool $is_stationing = false): array
     {
         $data = [];
@@ -638,43 +703,20 @@ class Conquest
             }
 
             if ($initial > 0) {
-                if (is_string($id) && str_starts_with($id, 'm')) {
-                    // Monster Logic
-                    $m_id = (int)substr($id, 1);
-                    $m_info = $this->enemy_soldiers[$m_id];
-
-                    $data[] = [
-                        "id" => $id,
-                        "name" => $m_info["name"],
-                        "initial" => (int)$initial,
-                        "losses" => (int)$losses,
-                        "icon" => $m_info["icon"],
-                        "atk" => $m_info["atk"], // Monster ATK
-                        "def" => $m_info["def"]  // Monster DEF
-                    ];
-                } else if (isset($this->soldier_types[$id])) {
-                    // Soldier Logic
-                    $soldier = $this->soldier_types[$id];
-                    $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
-                    $icon = $res->fetch_column() ?: "icon_error";
-
-                    $display_atk = 0;
-                    $display_def = 0;
-                    if (!$is_stationing) {
-                        $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
-                        $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
-                    }
-
-                    $data[] = [
-                        "id" => $id,
-                        "name" => $soldier["soldiername"],
-                        "initial" => (int)$initial,
-                        "losses" => (int)$losses,
-                        "icon" => $icon,
-                        "atk" => $display_atk,
-                        "def" => $display_def
-                    ];
+                $display_atk = 0;
+                $display_def = 0;
+                if (!$is_stationing && !is_string($id)) {
+                    $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
+                    $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
                 }
+
+                $data[] = [
+                    "id" => $id,
+                    "initial" => (int)$initial,
+                    "losses" => (int)$losses,
+                    "atk" => $display_atk,
+                    "def" => $display_def
+                ];
             }
         }
         return $data;
@@ -801,38 +843,39 @@ class Conquest
         $target_k = new Kingdom($this->target_id);
         $tx = $target_k->get_kingdom_map_x();
         $ty = $target_k->get_kingdom_map_y();
-        $target_c_link = "<a href='#' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
 
         $res_atk_k = $this->mysqli->execute_query("
             SELECT kingdomname, mapx, mapy FROM kingdoms 
             WHERE id = (SELECT kingdomid FROM events WHERE eventid = ?)
         ", [$this->event_id]);
         $atk_k_data = $res_atk_k->fetch_assoc();
-        $atk_k_name = $atk_k_data['kingdomname'] ?? 'Unbekannt';
-        $ax = $atk_k_data['mapx'] ?? 0;
-        $ay = $atk_k_data['mapy'] ?? 0;
-        $atk_c_link = "<a href='#' data-on-click='mapJump' data-x='$ax' data-y='$ay'>$ax:$ay</a>";
 
-        $units_html = "<div style='display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:15px;'>";
+        $units_data = [];
         $total_loss = 0;
 
         foreach ($troop_results as $res) {
-            $s_data = $this->mysqli->execute_query("SELECT soldiername, icon FROM soldier_list WHERE id = ?", [$res["sid"]])->fetch_assoc();
-            $units_html .= BattleReportRenderer::render_unit_card($s_data["soldiername"], $res["initial"], $res["loss"], $s_data["icon"]);
-            $total_loss += $res["loss"];
+            $units_data[] = [
+                "id" => (int)$res["sid"],
+                "initial" => (int)$res["initial"],
+                "losses" => (int)$res["loss"]
+            ];
+            $total_loss += (int)$res["loss"];
         }
-        $units_html .= "</div>";
 
-        $outcome_text = ($total_loss > 0) ? " Sie haben Verluste erlitten." : " Sie haben den Angriff unbeschadet überstanden.";
-        $type = ($total_loss > 0) ? "error" : "success";
-
-        $main_text = "Deine Truppen in <b>" . e($target_k->get_kingdom_name()) . "</b> ($target_c_link) wurden von <b>" . e($attacker_name) . "</b> " .
-            "aus <b>" . e($atk_k_name) . "</b> ($atk_c_link) angegriffen.";
-        $main_text .= $outcome_text;
-        $main_text .= $units_html;
+        $support_combat_json = [
+            "template" => "support_combat",
+            "target_name" => $target_k->get_kingdom_name(),
+            "target_x" => $tx,
+            "target_y" => $ty,
+            "attacker_name" => $attacker_name,
+            "atk_kname" => $atk_k_data['kingdomname'] ?? 'Unbekannt',
+            "atk_x" => (int)($atk_k_data['mapx'] ?? 0),
+            "atk_y" => (int)($atk_k_data['mapy'] ?? 0),
+            "total_loss" => $total_loss,
+            "units" => $units_data
+        ];
 
         $res_u = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$uid]);
-        send_server_message($uid, $res_u->fetch_column(), "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box("Unterstützungskampf: Bericht",
-                $main_text, 0, 0, "", $type) . "</div>", MessageCategories::CATEGORY_WAR);
+        send_server_message($uid, $res_u->fetch_column(), MessageCategories::CATEGORY_WAR, $support_combat_json);
     }
 }
