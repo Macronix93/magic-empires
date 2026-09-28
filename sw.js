@@ -12,27 +12,25 @@ self.addEventListener("push", function (event) {
         clients.matchAll({type: "window", includeUncontrolled: true}).then(function (clientList) {
             const isUserActive = clientList.some(client => client.focused);
 
-            if (isUserActive) {
-                return;
-            }
-
             const options = {
                 body: payload.body || "Wichtige Meldung!",
                 icon: payload.icon || "images/icons/icon_town.png",
                 badge: "images/icons/icon_castle.png",
-                vibrate: [200, 100, 200],
-                renotify: true,
-                timestamp: Date.now(),
+                vibrate: isUserActive ? [] : [200, 100, 200],
+                silent: isUserActive,
+                tag: isUserActive ? "active-muted" : (payload.tag || "me-notification"),
                 data: {
                     url: payload.url || "overview.php"
                 }
             };
 
-            if (payload.tag) {
-                options.tag = String(payload.tag);
-            }
-
-            return self.registration.showNotification(payload.title || "Magic Empires", options);
+            return self.registration.showNotification(payload.title || "Magic Empires", options).then(() => {
+                if (isUserActive) {
+                    return self.registration.getNotifications({tag: "active-muted"}).then(notifications => {
+                        notifications.forEach(n => n.close());
+                    });
+                }
+            });
         })
     );
 });

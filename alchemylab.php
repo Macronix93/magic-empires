@@ -175,7 +175,7 @@ if ($has_active_process) {
                 </form>
             </div>";
 
-    if ($in_res !== -1 && $in_amt > 0) {
+    if ($in_res !== -1) {
         $is_top_up_disabled = ($free_space <= 0 || $stock <= 0) ? "disabled" : "";
         $view .= "
             <hr style='margin-top: 20px;'>

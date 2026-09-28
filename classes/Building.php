@@ -96,8 +96,9 @@ class Building
     public function get_building_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_building$this->building_id.png";
+        $disk_path = __DIR__ . "/../" . $icon_path;
 
-        if (isset($this->building_id) && file_exists($icon_path)) {
+        if (isset($this->building_id) && file_exists($disk_path)) {
             return "<img src='$icon_path' class='$class' alt='$this->b_name' title='$this->b_name'/>";
         } else {
             return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";

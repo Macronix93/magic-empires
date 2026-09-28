@@ -117,6 +117,10 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                  data-on-click="navigate" data-url="donations.php">
                 <img src="images/icons/icon_guildtech1.png" class="menu-icons" alt="Spenden"/> Spenden
             </div>
+            <div class="box<?= $current_page === 'suggestions.php' ? ' active' : '' ?>" data-on-click="navigate"
+                 data-url="suggestions.php">
+                <img src="images/icons/icon_feedback.png" class="menu-icons" alt="Vorschläge"/> Vorschläge
+            </div>
         </div>
     </div>
     <div class="box-container left-right-container" style="margin-bottom: 0;">

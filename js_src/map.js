@@ -10,6 +10,7 @@ let zoom = 1.0;
 let mapCache = null;
 let panAnimationID = null;
 let costGrid = {};
+let isAutoPanning = false;
 
 let velocityX = 0;
 let velocityY = 0;
@@ -286,6 +287,8 @@ document.addEventListener("DOMContentLoaded", () => {
             dragMove(e.touches[0]);
         } else if (e.touches.length === 2) {
             if (e.cancelable) e.preventDefault();
+            if (isAutoPanning) return;
+
             const currentDist = Math.hypot(
                 e.touches[0].pageX - e.touches[1].pageX,
                 e.touches[0].pageY - e.touches[1].pageY
@@ -821,6 +824,8 @@ function applyMomentum() {
 }
 
 function dragStart(e) {
+    if (isAutoPanning) return;
+
     cancelAnimationFrame(momentumID);
     cancelAnimationFrame(panAnimationID);
 
@@ -890,6 +895,7 @@ function dragEnd(e) {
 
 function handleWheel(e) {
     e.preventDefault();
+    if (isAutoPanning) return;
 
     const delta = e.deltaY > 0 ? -0.1 : 0.1; // old: 0.15
     const oldZoom = zoom;
@@ -915,6 +921,11 @@ function selectField(x, y, shouldCenter = false) {
 
     selectedX = x;
     selectedY = y;
+
+    const url = new URL(window.location);
+    url.searchParams.set("startx", x);
+    url.searchParams.set("starty", y);
+    window.history.replaceState({}, '', url);
 
     draw();
 
@@ -1386,9 +1397,14 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
 
         clampMapPosition();
         draw();
+
+        isAutoPanning = false;
+
         if (onComplete) onComplete();
         return;
     }
+
+    isAutoPanning = true;
 
     const animate = () => {
         const dx = targetTX - currentTranslateX;
@@ -1400,6 +1416,9 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
 
             clampMapPosition();
             draw();
+
+            isAutoPanning = false;
+
             if (onComplete) onComplete();
             return;
         }
@@ -1409,10 +1428,12 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
 
         clampMapPosition();
         draw();
+
         panAnimationID = requestAnimationFrame(animate);
     };
 
     cancelAnimationFrame(panAnimationID);
+
     panAnimationID = requestAnimationFrame(animate);
 }
 
@@ -1544,5 +1565,108 @@ function jumpTo(x, y) {
         });
     }
 }
+
+function refreshMapDataSilently() {
+    fetch("ajax/map_full_load.php", {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.json())
+        .then(data => {
+            mapData = data.map_data;
+            window.activeEventInfo = data.event_info;
+
+            draw();
+
+            if (selectedX && selectedY) {
+                selectField(selectedX, selectedY, false);
+            }
+        })
+        .catch(err => console.error("Stiller Map-Sync fehlgeschlagen:", err));
+}
+
+window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
+    if (!newKingdom) return;
+
+    if (newKingdom.kingdom) {
+        sidebarHtml = newKingdom.sidebar_html;
+        newKingdom = newKingdom.kingdom;
+    }
+
+    if (gameConfig && gameConfig.currentKingdom) {
+        Object.assign(gameConfig.currentKingdom, newKingdom);
+    }
+
+    if (sidebarHtml) {
+        document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
+            container.innerHTML = sidebarHtml;
+            container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
+        });
+
+        if (typeof setup === "function") {
+            setup();
+        }
+    }
+
+    const select = document.getElementById("choosekingdom");
+    if (select) select.value = newKingdom.id;
+
+    const mobTitle = document.querySelector(".mobile-kingdom-title");
+    if (mobTitle) {
+        const items = document.querySelectorAll(".mobile-kingdom-dropdown-item");
+        let pos = 1;
+        items.forEach((it, idx) => {
+            if (parseInt(it.dataset.id) === parseInt(newKingdom.id)) {
+                pos = idx + 1;
+                it.classList.add("active");
+            } else {
+                it.classList.remove("active");
+            }
+        });
+        mobTitle.innerHTML = `${pos} - ${newKingdom.name} <span style="font-size: 10px; opacity: 0.7;">▾</span>`;
+    }
+
+    let keepTarget = false;
+    const prevTargetX = selectedX;
+    const prevTargetY = selectedY;
+
+    if (prevTargetX !== null && prevTargetY !== null && mapData.length > 0) {
+        const currentSelectedTile = mapData.find(t => t[0] === prevTargetX && t[1] === prevTargetY);
+        if (currentSelectedTile) {
+            const kid = currentSelectedTile[3];
+            const ownerId = currentSelectedTile[10];
+
+            const isOwnKingdom = (kid > 0 && ownerId === gameConfig.currentKingdom.ownerId);
+            if (!isOwnKingdom) {
+                keepTarget = true;
+            }
+        }
+    }
+
+    if (keepTarget) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set("startx", prevTargetX);
+        newUrl.searchParams.set("starty", prevTargetY);
+        window.history.replaceState({}, '', newUrl);
+
+        selectedX = null;
+        selectedY = null;
+        selectField(prevTargetX, prevTargetY, false);
+        
+        draw();
+    } else {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set("startx", newKingdom.x);
+        newUrl.searchParams.set("starty", newKingdom.y);
+        window.history.replaceState({}, '', newUrl);
+
+        currentPath = [];
+        selectedX = null;
+        selectedY = null;
+
+        jumpTo(newKingdom.x, newKingdom.y);
+    }
+
+    refreshMapDataSilently();
+};
 
 window.jumpToCoordinates = jumpTo;

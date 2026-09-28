@@ -511,7 +511,6 @@ function checkServerMessagesEmpty() {
             placeholder = document.createElement("div");
             placeholder.id = "server-empty-category";
             placeholder.className = "no-event";
-            placeholder.style.marginTop = "30px";
             placeholder.style.textAlign = "center";
             placeholder.style.opacity = "0.6";
             messageSection.appendChild(placeholder);
@@ -840,13 +839,14 @@ function initializeChat() {
 
 // Filter server log messages
 function filterServerMessages(element) {
-    let category = element.textContent.trim();
+    const categoryId = element.dataset.category !== undefined ? element.dataset.category : "-1";
+    const categoryName = element.textContent.trim();
     let messages = document.querySelectorAll('.server-bubble');
     let newLine = document.getElementById('new-message-line');
     let visibleCount = 0;
 
     messages.forEach(msg => {
-        if (category === "-1" || msg.dataset.category === category) {
+        if (categoryId === "-1" || msg.dataset.category === categoryId) {
             msg.style.display = "block";
             visibleCount++;
         } else {
@@ -855,7 +855,7 @@ function filterServerMessages(element) {
     });
 
     if (newLine) {
-        newLine.style.display = (category === "Alle") ? "flex" : "none";
+        newLine.style.display = (categoryId === "-1") ? "flex" : "none";
     }
 
     const section = document.getElementById("messages-section");
@@ -866,14 +866,13 @@ function filterServerMessages(element) {
             placeholder = document.createElement("div");
             placeholder.id = "server-empty-category";
             placeholder.className = "no-event";
-            placeholder.style.marginTop = "30px";
             placeholder.style.textAlign = "center";
             section.appendChild(placeholder);
         }
         if (placeholder) {
-            placeholder.textContent = (category === "Alle")
+            placeholder.textContent = (categoryId === "-1")
                 ? "Keine Servernachrichten vorhanden."
-                : `Keine Servernachrichten in "${category}" vorhanden.`;
+                : `Keine Servernachrichten in "${categoryName}" vorhanden.`;
             placeholder.style.display = "block";
         }
     } else {

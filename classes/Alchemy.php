@@ -90,12 +90,17 @@ class Alchemy
             $res = $this->db->execute_query("SELECT * FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE", [$kingdom_id]);
             $row = $res->fetch_assoc();
 
+            $now = time();
+
             if (!$row || (int)$row["input_resource"] === -1 || (int)$row["input_amount"] <= 0) {
+                if ($row && (int)$row["input_amount"] <= 0) {
+                    $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
+                }
+
                 $this->db->commit();
                 return;
             }
 
-            $now = time();
             $elapsed = max(0, $now - (int)$row["last_update"]);
             if ($elapsed <= 0) {
                 $this->db->commit();
@@ -254,7 +259,7 @@ class Alchemy
         try {
             $k->modify_resource($state["input_resource"], -$amount);
 
-            $this->db->execute_query("UPDATE kingdom_alchemy SET input_amount = input_amount + ? WHERE kingdom_id = ?", [$amount, $kingdom_id]);
+            $this->db->execute_query("UPDATE kingdom_alchemy SET input_amount = input_amount + ?, last_update = ? WHERE kingdom_id = ?", [$amount, time(), $kingdom_id]);
             $this->db->commit();
             return null;
         } catch (Exception $e) {

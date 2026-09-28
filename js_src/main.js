@@ -6,6 +6,7 @@ let isKingdomSwitching = false;
 let flashTimeout = null;
 let activeHoverPopup = null;
 const UPDATE_MSG_BADGES_INTERVAL = 60000;
+let tickUpdated = false;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -252,6 +253,9 @@ observer.observe(document.body, {
 });
 
 function switchKingdomById(kingdomId) {
+    if (isKingdomSwitching) return;
+    isKingdomSwitching = true;
+
     let formData = new FormData();
     formData.append("choosekingdom", kingdomId);
 
@@ -259,37 +263,33 @@ function switchKingdomById(kingdomId) {
         method: "POST",
         headers: {"X-Requested-With": "XMLHttpRequest"},
         body: formData
-    }).then(response => {
-        if (response.ok) {
-            let currentUrl = new URL(window.location.href);
-            let pathname = currentUrl.pathname;
-            let filename = pathname.split('/').pop();
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let currentUrl = new URL(window.location.href);
+                let filename = currentUrl.pathname.split('/').pop();
 
-            const keepParamsPages = [
-                "messages.php",
-                "ranking.php",
-                "support.php",
-                "sendtroops.php",
-                "map.php",
-            ];
+                if (filename === "map.php" && typeof window.handleMapKingdomSwitch === "function") {
+                    window.handleMapKingdomSwitch(data.kingdom, data.sidebar_html);
+                    return;
+                }
 
-            let targetUrl;
-            if (filename === "barracks.php") {
-                const cat = currentUrl.searchParams.get("cat");
-                targetUrl = cat !== null ? `${pathname}?cat=${cat}` : pathname;
-            } else if (keepParamsPages.includes(filename)) {
-                targetUrl = pathname + currentUrl.search;
-            } else {
-                targetUrl = pathname;
+                const keepParamsPages = ["messages.php", "ranking.php", "support.php", "sendtroops.php"];
+                if (filename === "barracks.php") {
+                    const cat = currentUrl.searchParams.get("cat");
+                    window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;
+                } else if (keepParamsPages.includes(filename)) {
+                    window.location.href = currentUrl.pathname + currentUrl.search;
+                } else {
+                    window.location.href = currentUrl.pathname;
+                }
             }
-
-            if (window.location.pathname === pathname && !window.location.search) {
-                window.location.reload();
-            } else {
-                window.location.href = targetUrl;
-            }
-        }
-    }).catch(err => console.error("Kingdom-Switch Fehler:", err));
+        })
+        .catch(err => console.error("Kingdom-Switch Fehler:", err))
+        .finally(() => {
+            isKingdomSwitching = false;
+        });
 }
 
 function cleanupPopups() {
@@ -598,7 +598,38 @@ function updateServerTime(initialServerTimestamp) {
 
         if (tickReached) {
             displayTime = "Jetzt";
+
+            if (!tickUpdated) {
+                tickUpdated = true;
+
+                const select = document.getElementById("choosekingdom");
+                const currentKid = select ? select.value : null;
+
+                if (currentKid) {
+                    let formData = new FormData();
+                    formData.append("choosekingdom", currentKid);
+
+                    fetch("ajax/change_kingdom.php", {
+                        method: "POST",
+                        headers: {"X-Requested-With": "XMLHttpRequest"},
+                        body: formData
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success && data.sidebar_html) {
+                                document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
+                                    container.innerHTML = data.sidebar_html;
+                                    container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
+                                });
+                                if (typeof setup === "function") setup();
+                            }
+                        })
+                        .catch(err => console.error("Ertrags-Update fehlgeschlagen:", err));
+                }
+            }
         } else {
+            tickUpdated = false;
+
             const displayMin = Math.floor(secondsUntilFull / 60);
             const displaySec = secondsUntilFull % 60;
             displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
@@ -643,75 +674,17 @@ function switchKingdom(direction) {
 
     select.selectedIndex = newIndex;
 
-    updateKingdom(select, false);
+    document.querySelectorAll("select[name='choosekingdom']").forEach(s => {
+        s.selectedIndex = newIndex;
+    });
+
+    const newKingdomId = select.options[newIndex].value;
+    switchKingdomById(newKingdomId);
 }
 
-function updateKingdom(selectElement, keepMenu = true) {
-    if (isKingdomSwitching) return;
-
-    isKingdomSwitching = true;
-
-    // Get the selected kingdom ID from the dropdown
-    const chosenKingdom = selectElement;
-
-    if (chosenKingdom) {
-        const kingdomID = chosenKingdom.value;
-
-        let formData = new FormData();
-        formData.append("choosekingdom", kingdomID);
-
-        // Make an AJAX request to update the kingdom info
-        fetch("ajax/change_kingdom.php", {
-            method: "POST",
-            headers: {
-                "X-Requested-With": "XMLHttpRequest"
-            },
-            body: formData
-        })
-            .then(response => {
-                if (response.ok) {
-                    if (keepMenu && window.innerWidth <= 1392) {
-                        sessionStorage.setItem("keepRightMenuOpen", "true");
-                    } else {
-                        sessionStorage.removeItem("keepRightMenuOpen");
-                    }
-
-                    let currentUrl = new URL(window.location.href);
-                    let pathname = currentUrl.pathname;
-                    let search = currentUrl.search;
-                    let filename = pathname.split('/').pop();
-
-                    const keepParamsPages = [
-                        "messages.php",
-                        "ranking.php",
-                        "support.php",
-                        "sendtroops.php",
-                        "map.php",
-                    ];
-
-                    if (filename === "barracks.php") {
-                        const cat = currentUrl.searchParams.get("cat");
-
-                        if (cat !== null) {
-                            window.location.href = `${pathname}?cat=${cat}`;
-                        } else {
-                            window.location.href = pathname;
-                        }
-                    } else if (keepParamsPages.includes(filename)) {
-                        window.location.href = pathname + search;
-                    } else {
-                        window.location.href = pathname;
-                    }
-                } else {
-                    isKingdomSwitching = false;
-                }
-            })
-            .catch(err => {
-                console.error("Kingdom-Switch Fehler:", err);
-
-                isKingdomSwitching = false;
-            });
-    }
+function updateKingdom(selectElement) {
+    if (!selectElement) return;
+    switchKingdomById(selectElement.value);
 }
 
 function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonYesAction) {

@@ -651,6 +651,17 @@ if ($other_kingdoms_res->num_rows > 0) {
     $disabled_attr = $is_disabled ? "disabled" : "";
 
     $view .= "<br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
+    $view .= '<div class="mobile-internal-stock-box">
+                <div class="mobile-stock-header">
+                    Vorrat in <b>' . e($kingdom->get_kingdom_name()) . '</b>:
+                </div>
+                <div class="mobile-internal-stock-grid">
+                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span>' . fnum($kingdom->get_kingdom_food()) . '</span></div>
+                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span>' . fnum($kingdom->get_kingdom_wood()) . '</span></div>
+                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span>' . fnum($kingdom->get_kingdom_stone()) . '</span></div>
+                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span>' . fnum($kingdom->get_kingdom_gold()) . '</span></div>
+                </div>
+            </div>';
     $view .= '<table class="table internal-transport-table">
                 <form action="marketplace.php" method="GET">
                     <input type="hidden" name="send_own" value="1">

@@ -2656,6 +2656,10 @@ img[data-on-click] {
     flex-shrink: 0;
 }
 
+.mobile-internal-stock-box {
+    display: none;
+}
+
 .marketplace-table .trade-item-stack {
     display: flex;
     flex-direction: row;
@@ -3113,6 +3117,33 @@ img[data-on-click] {
     max-width: 300px;
 }
 
+.btn-vote-up, .btn-vote-down {
+    background: rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid rgba(212, 175, 55, 0.3) !important;
+    color: #e6dcce !important;
+    transition: all 0.2s ease;
+}
+
+.btn-vote-up:hover {
+    border-color: #2ecc71 !important;
+}
+
+.btn-vote-down:hover {
+    border-color: #e74c3c !important;
+}
+
+.btn-vote-up.active-vote {
+    background: rgba(46, 204, 113, 0.25) !important;
+    border-color: #2ecc71 !important;
+    color: #2ecc71 !important;
+}
+
+.btn-vote-down.active-vote {
+    background: rgba(231, 76, 60, 0.25) !important;
+    border-color: #e74c3c !important;
+    color: #e74c3c !important;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3144,6 +3175,45 @@ img[data-on-click] {
 
     #target_k {
         max-width: 230px;
+    }
+
+    .mobile-internal-stock-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 260px;
+        margin: 10px auto;
+        padding: 6px 12px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    .mobile-stock-header {
+        font-size: 13px;
+        opacity: 0.85;
+        margin-bottom: 12px;
+        color: var(--link-color);
+        white-space: nowrap;
+        overflow: hidden;
+        max-width: 100%;
+    }
+
+    .mobile-internal-stock-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px 15px;
+        width: 220px;
+        font-size: 13px;
+    }
+
+    .mobile-stock-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: flex-start;
+        white-space: nowrap;
     }
 
     .internal-res-grid {
@@ -3951,6 +4021,8 @@ img[data-on-click] {
     }
 
     .map-coords-overlay {
+        top: 2px;
+        left: 2px;
         font-size: 10px;
     }
 

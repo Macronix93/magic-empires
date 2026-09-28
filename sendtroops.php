@@ -48,17 +48,6 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
     }
 }
 
-if ($barracks_level <= 0) {
-    $_SESSION["game_error"] = "Dein Königreich benötigt eine Kaserne, um Truppenbewegungen zu koordinieren!";
-
-    if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
-        change_location("events.php");
-    } else {
-        change_location("map.php?startx=$target_x&starty=$target_y");
-    }
-    exit;
-}
-
 // Get users kingdom and score + noob check
 $enemy_score = 0;
 $enemy_user_id = -1;
@@ -896,7 +885,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
 
             $categories = SoldierTypes::get_labels();
 
-            $view .= "<div class='tab' id='sendtroops-tabs' style='margin-top: 10px; " . ($show_all_checked ? "display: none;" : "") . "'>";
+            $view .= "<div class='tab' id='sendtroops-tabs' style='margin: 0 auto 10px auto; max-width: 500px; " . ($show_all_checked ? "display: none;" : "") . "'>";
 
             foreach ($categories as $id => $name) {
                 if ($name === "Unterstützung") {
@@ -1058,7 +1047,7 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
         }
     } else {
         $view .= "<div style='margin-top: 20px;'>" .
-            show_warning_box("Du kannst keine Truppen versenden, da du in diesem Königreich noch keine Kaserne errichtet hast.") .
+            show_warning_box("Du kannst keine Truppen versenden, da du in diesem Königreich keine Kaserne errichtet hast.") .
             "</div>";
     }
 }
