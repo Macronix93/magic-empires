@@ -56,22 +56,30 @@ function updateTopUpButtonState() {
     const btn = document.getElementById("btn_top_up");
     if (!activeData || !input || !btn) return;
 
-    const step = parseInt(activeData.dataset.step) || 1;
     const capacity = parseFloat(activeData.dataset.capacity) || 0;
     const currentIn = (alchemyLiveInAmt !== null) ? alchemyLiveInAmt : (parseFloat(activeData.dataset.inAmt) || 0);
     const freeSpace = Math.max(0, capacity - currentIn);
-    const usableFree = freeSpace - (freeSpace % step);
+    const step = parseInt(activeData.dataset.step) || 1;
 
     const val = parseInt(input.value, 10) || 0;
-
-    btn.disabled = (val < step || val > usableFree || usableFree < step);
+    const effectiveVal = val - (val % step);
+    btn.disabled = (val <= 0 || val > freeSpace || effectiveVal <= 0);
 }
 
 function gcd(a, b) {
     return b === 0 ? a : gcd(b, a % b);
 }
 
-function getAlchemyStepSize(from, to, weights) {
+function getAlchemyStepSize(from, to, weights = null) {
+    if (!weights) {
+        const configEl = document.getElementById("alchemy-config");
+        if (configEl && configEl.dataset.weights) {
+            try {
+                weights = JSON.parse(configEl.dataset.weights);
+            } catch (e) {
+            }
+        }
+    }
     if (!weights || weights[from] === undefined || weights[to] === undefined) return 1;
 
     const wFrom = Math.round(weights[from] * 1000);
@@ -229,18 +237,46 @@ function initAlchemyLiveTicker() {
 
     updateUI();
 
-    if (inAmt > 0 && inRate > 0) {
-        setInterval(() => {
-            if (outAmt >= maxOutput) return;
+    const targetMinIn = inAmt % step;
+    const convertibleInput = inAmt - targetMinIn;
 
+    if (convertibleInput > 0 && inRate > 0) {
+        const tickerInterval = setInterval(() => {
+            if (outAmt >= maxOutput || inAmt <= targetMinIn) {
+                clearInterval(tickerInterval);
+                return;
+            }
+
+            const remainingConvertible = inAmt - targetMinIn;
             const room = maxOutput - outAmt;
-            const maxStepIn = room / (outRate / inRate);
-            const stepIn = Math.min(inAmt, inRate, maxStepIn);
+            const maxStepIn = (outRate > 0) ? (room / (outRate / inRate)) : remainingConvertible;
+            const stepIn = Math.min(remainingConvertible, inRate, maxStepIn);
 
             inAmt -= stepIn;
             outAmt += (stepIn * (outRate / inRate));
-            alchemyLiveInAmt = inAmt;
 
+            if (inAmt <= targetMinIn + 0.05) {
+                inAmt = targetMinIn;
+                outAmt = Math.round(outAmt);
+
+                const cdEl = document.getElementById("alchemy-countdown");
+                if (cdEl) {
+                    if (inAmt === 0) {
+                        cdEl.innerHTML = "<span class='passed'>Kessel leer</span>";
+                    } else {
+                        cdEl.innerHTML = `<span class='warning'>Zu wenig im Kessel</span>`;
+                    }
+                }
+
+                if (inAmt === 0) {
+                    const cancelForm = document.getElementById("form-cancel-alchemy");
+                    if (cancelForm) cancelForm.style.display = "none";
+                }
+
+                clearInterval(tickerInterval);
+            }
+
+            alchemyLiveInAmt = inAmt;
             updateUI();
         }, 1000);
     }
@@ -267,6 +303,26 @@ document.addEventListener("DOMContentLoaded", () => {
             updateAlchemyPreview();
         });
 
+        amtInput.addEventListener("blur", function () {
+            let rawVal = parseInt(this.value.replace(/[^0-9]/g, '')) || 0;
+            if (rawVal > 0) {
+                const step = getAlchemyStepSize(parseInt(fromSel.value), parseInt(toSel.value));
+                const rounded = rawVal - (rawVal % step);
+                this.value = rounded > 0 ? rounded : "";
+                updateAlchemyPreview();
+            }
+        });
+
+        const startForm = amtInput.closest("form");
+        if (startForm) {
+            startForm.addEventListener("submit", function () {
+                const step = getAlchemyStepSize(parseInt(fromSel.value), parseInt(toSel.value));
+                let rawVal = parseInt(amtInput.value.replace(/[^0-9]/g, '')) || 0;
+                const rounded = rawVal - (rawVal % step);
+                amtInput.value = rounded > 0 ? rounded : 0;
+            });
+        }
+
         updateAlchemyDropdowns();
         updateAlchemyPreview();
     }
@@ -291,6 +347,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
             updateTopUpButtonState();
         });
+
+        topUpInput.addEventListener("blur", function () {
+            let rawVal = parseInt(this.value.replace(/[^0-9]/g, '')) || 0;
+            if (rawVal > 0) {
+                const activeData = document.getElementById("alchemy-active-data");
+                const step = parseInt(activeData?.dataset.step) || 1;
+                const rounded = rawVal - (rawVal % step);
+                this.value = rounded > 0 ? rounded : "";
+
+                updateTopUpButtonState();
+            }
+        });
+
+        const topUpForm = topUpInput.closest("form");
+        if (topUpForm) {
+            topUpForm.addEventListener("submit", function () {
+                const activeData = document.getElementById("alchemy-active-data");
+                const step = parseInt(activeData?.dataset.step) || 1;
+                let rawVal = parseInt(topUpInput.value.replace(/[^0-9]/g, '')) || 0;
+                const rounded = rawVal - (rawVal % step);
+                topUpInput.value = rounded > 0 ? rounded : 0;
+            });
+        }
     }
 
     initAlchemyLiveTicker();

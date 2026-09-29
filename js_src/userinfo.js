@@ -109,6 +109,8 @@ function openOverlay(url, title = "Info", width = null) {
                     content.style.transition = "opacity 0.15s ease";
                     content.style.opacity = "1";
 
+                    content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+
                     if (typeof setup === "function") {
                         setup();
                     }

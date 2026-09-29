@@ -3,7 +3,7 @@
 class Database
 {
     private static ?Database $_instance = null;
-    private ?mysqli $_connection; // The single instance
+    private ?mysqli $_connection;
 
     /**
      * Database constructor.
@@ -85,7 +85,11 @@ class Database
         }
     }
 
-    // Constructor
+    public function __destruct()
+    {
+        $this->_connection?->close();
+    }
+
     public static function get_instance(): Database
     {
         // If no instance then make one
@@ -95,13 +99,10 @@ class Database
         return self::$_instance;
     }
 
-    // Magic method clone is empty to prevent duplication of connection
     public function get_connection(): mysqli
     {
         return $this->_connection;
     }
-
-    // Get mysqli connection
 
     /**
      * @throws Exception

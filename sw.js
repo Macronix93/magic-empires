@@ -12,13 +12,17 @@ self.addEventListener("push", function (event) {
         clients.matchAll({type: "window", includeUncontrolled: true}).then(function (clientList) {
             const isUserActive = clientList.some(client => client.focused);
 
+            const uniqueTag = isUserActive
+                ? "active-muted"
+                : "notif-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
+
             const options = {
                 body: payload.body || "Wichtige Meldung!",
                 icon: payload.icon || "images/icons/icon_town.png",
                 badge: "images/icons/icon_castle.png",
                 vibrate: isUserActive ? [] : [200, 100, 200],
                 silent: isUserActive,
-                tag: isUserActive ? "active-muted" : (payload.tag || "me-notification"),
+                tag: uniqueTag,
                 data: {
                     url: payload.url || "overview.php"
                 }

@@ -58,23 +58,16 @@ if ($user->is_logged_in()) {
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
     $ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
 
-    if (!empty($_SESSION["active_attacks"])) {
-        foreach ($_SESSION["active_attacks"] as $atk) {
-            if ($atk["is_new"] && !in_array($atk["eventid"], $ack_ids)) {
-                $show_attack_alert = true;
-                break;
-            }
-        }
-    }
+    $unacknowledged_attacks = !empty($_SESSION["active_attacks"])
+            ? count(array_filter($_SESSION["active_attacks"], fn($atk) => $atk["is_new"] && !in_array($atk["eventid"], $ack_ids)))
+            : 0;
 
-    if (!empty($_SESSION["active_supports"])) {
-        foreach ($_SESSION["active_supports"] as $sup) {
-            if (!in_array($sup["eventid"], $ack_sup_ids)) {
-                $show_support_alert = true;
-                break;
-            }
-        }
-    }
+    $unacknowledged_supports = !empty($_SESSION["active_supports"])
+            ? count(array_filter($_SESSION["active_supports"], fn($sup) => !in_array($sup["eventid"], $ack_sup_ids)))
+            : 0;
+
+    $show_attack_alert = ($unacknowledged_attacks > 0);
+    $show_support_alert = ($unacknowledged_supports > 0);
 }
 ?>
 <!DOCTYPE html>
@@ -163,7 +156,7 @@ if ($user->is_logged_in()) {
                     unset($_SESSION["game_error"], $_SESSION["guild_error"]);
                 }
                 ?>
-                <?= $view ?? 'Default Content'; ?>
+                <?= $view ?? "Default Content"; ?>
             </div>
         </div>
     </div>
@@ -173,10 +166,12 @@ if ($user->is_logged_in()) {
 </div>
 <div id="nav-left-trigger" class="mobile-trigger">
     <p>&#9776;</p>
-    <?php if ($user->is_logged_in()): ?>
+    <?php if ($user->is_logged_in()):
+        $has_mobile_alert = (!empty($show_attack_alert) || !empty($show_support_alert)); ?>
         <span class="nav-notification-dot"
               id="mobile-nav-dot"
-              style="<?= ($user->get_unread_messages() > 0) ? '' : 'display: none;' ?>">
+              data-has-alert="<?= $has_mobile_alert ? "true" : "false" ?>"
+              style="<?= ($user->get_unread_messages() > 0 || $has_mobile_alert) ? '' : "display: none;" ?>">
         </span>
     <?php endif; ?>
 </div>
@@ -214,7 +209,7 @@ if ($user->is_logged_in()) {
                  data-on-click="selectMobileKingdom"
                  data-id="<?= $m_k["id"] ?>">
                 <span class="mobile-dropdown-kname"><?= $pos ?> - <?= e($m_k["kingdomname"]) ?></span>
-                <span class="mobile-dropdown-coords">(<?= $m_k["mapx"] ?>:<?= $m_k["mapy"] ?>)</span>
+                <span class="mobile-dropdown-coords"><?= $m_k["mapx"] ?>:<?= $m_k["mapy"] ?></span>
             </div>
         <?php endforeach; ?>
     </div>

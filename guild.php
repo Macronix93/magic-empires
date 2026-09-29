@@ -718,7 +718,7 @@ if ($my_guild_id === -1) {
                         <td>Gilden-Motto:</td>
                         <td $td_styling>" . ($can_edit ? "
                             <input type='text' name='g_motto' value='" . e($guild_logic->get_motto()) . "' 
-                                   maxlength='" . GUILD_MOTTO_MAX . "'>
+                                   maxlength='" . GUILD_MOTTO_MAX . "' style='width: 100%;'>
                         " : (!empty($guild_logic->get_motto())
             ? '<i>&bdquo;' . e($guild_logic->get_motto()) . '&ldquo;</i>'
             : 'Keins')) . "</td>

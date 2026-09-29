@@ -14,8 +14,11 @@ class EventManager
 
     public function process_all(): void
     {
+        $uid = $this->user->get_user_id();
+        if ($uid <= 0) return;
+
         $this->process_mines();
-        $this->check_watchtower_notifications($this->user->get_user_id());
+        $this->check_watchtower_notifications($uid);
 
         $current_kid = $this->user->get_current_kingdom();
         if ($current_kid > 0) {
@@ -25,9 +28,6 @@ class EventManager
                 new Alchemy()->process_kingdom($current_kid, $lab_lvl);
             }
         }
-
-        $uid = $this->user->get_user_id();
-        if ($uid <= 0) return;
 
         $now = time();
 
@@ -4029,6 +4029,74 @@ class EventManager
                     if ($is_completed) {
                         update_player_stat((int)$p["user_id"], "mines_depleted");
                     }
+                }
+
+                $res_incoming = $this->mysqli->execute_query("
+                    SELECT e.*, u.username, k.kingdomname 
+                    FROM events e
+                    JOIN users u ON e.userid = u.id
+                    JOIN kingdoms k ON e.kingdomid = k.id
+                    WHERE e.targetid = ? 
+                      AND e.targetx = ? 
+                      AND e.targety = ? 
+                      AND e.actionid = ?
+                ", [
+                    MapFieldTypes::MAP_FIELD_MINE,
+                    (int)$m["mapx"],
+                    (int)$m["mapy"],
+                    ActionTypes::ACTION_SEND_TROOPS
+                ]);
+
+                while ($inc = $res_incoming->fetch_assoc()) {
+                    $event_id = (int)$inc["eventid"];
+                    $user_id = (int)$inc["userid"];
+
+                    $already_marched = max(5, $now - (int)$inc["buildingtime"]);
+                    $new_arrival = $now + $already_marched;
+
+                    $this->mysqli->execute_query("
+                        UPDATE events 
+                        SET actionid = ?, 
+                            arrivaltime = ?, 
+                            buildingtime = ?, 
+                            buildingname = 'Mine erschöpft', 
+                            is_processing = 0 
+                        WHERE eventid = ?
+                    ", [
+                        ActionTypes::ACTION_RETURN_TROOPS,
+                        $new_arrival,
+                        $now,
+                        $event_id
+                    ]);
+
+                    $units_res = $this->mysqli->execute_query("
+                        SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?
+                    ", [$event_id]);
+
+                    $units_data = [];
+                    while ($u = $units_res->fetch_assoc()) {
+                        $units_data[] = [
+                            "id" => (int)$u["soldierid"],
+                            "count" => (int)$u["soldiercount"]
+                        ];
+                    }
+
+                    $mine_turnback_json = [
+                        "template" => "mine_depleted_early_return",
+                        "target_x" => (int)$m["mapx"],
+                        "target_y" => (int)$m["mapy"],
+                        "home_name" => $inc["kingdomname"],
+                        "units" => $units_data
+                    ];
+                    send_server_message($user_id, $inc["username"], MessageCategories::CATEGORY_WAR, $mine_turnback_json);
+
+                    send_user_push(
+                        $user_id,
+                        "⛏️ Mine erschöpft: Truppen kehren um",
+                        "Die Erzmine bei ({$m['mapx']}:{$m['mapy']}) ist weg. Deine Truppen kehren um.",
+                        "troops",
+                        "overview.php"
+                    );
                 }
 
                 $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$m["id"]]);

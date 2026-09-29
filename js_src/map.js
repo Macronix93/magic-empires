@@ -55,6 +55,11 @@ registerAction("closeMapPopup", () => {
         draw();
     }
 });
+registerAction("openShareCoordsModal", (el) => {
+    const x = el.dataset.x;
+    const y = el.dataset.y;
+    openOverlay(`ajax/share_coords_modal.php?x=${x}&y=${y}`, "Koordinaten teilen", "460px");
+});
 
 function buildBiomeMapCache() {
     const grid = {};
@@ -953,12 +958,28 @@ function selectField(x, y, shouldCenter = false) {
     }
 
     let html = "";
+    const coordsRowHtml = `
+    <tr>
+        <td class="td-mapinfo"><b>Koordinaten</b></td>
+        <td>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span>${tx}:${ty}</span>
+                <img src="images/icons/icon_share.png"
+                        data-on-click="openShareCoordsModal" 
+                        data-x="${tx}" 
+                        data-y="${ty}" 
+                        alt="Teilen"
+                        style="cursor: pointer;"
+                        class="ressource-icons">
+            </div>
+        </td>
+    </tr>`;
 
     if (kid === -1) {
         // --- EMPTY FIELD
         html += `<div class="title-border">${fieldName}</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}</td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
@@ -982,7 +1003,7 @@ function selectField(x, y, shouldCenter = false) {
 
         html += `<div class="title-border">Verlassenes Vorratslager</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(baseTravelTime))}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
@@ -1013,7 +1034,7 @@ function selectField(x, y, shouldCenter = false) {
 
         html += `<div class="title-border">Monstercamp (Stufe ${m_lvl})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(Math.round(travelMonster))}<br><small>(Spionage: ${formatTimeJS(Math.round(arrivalScout))})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
@@ -1033,7 +1054,7 @@ function selectField(x, y, shouldCenter = false) {
 
         html += `<div class="title-border">Ruinen von ${kname}</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Ehemalige Stufe</b></td><td>Dorfzentrum Stufe ${level}</td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(travelTime)}<br><small>(Spionage: ${formatTimeJS(arrivalScout)})</small></td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Verfällt in</b></td><td>${formatTimeJS(lifetime, false)}</td></tr>`;
@@ -1078,7 +1099,7 @@ function selectField(x, y, shouldCenter = false) {
 
         html += `<div class="title-border">Erzmine (Stufe ${mineLvl})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `${coordsRowHtml}`;
 
         if (curTroops > 0) {
             if (isMyGuild && myTroops === 0) {
@@ -1179,7 +1200,7 @@ function selectField(x, y, shouldCenter = false) {
 
             html += `<div class="title-border">${type_label}</div>`;
             html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-            html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+            html += `${coordsRowHtml}`;
             html += `<tr><td class="td-mapinfo"><b>Endet in</b></td><td><span class="js-countdown" data-seconds="${time_left}">-</span></td></tr>`;
 
             if (event_data.type === "BOSS_HP") {
@@ -1241,7 +1262,7 @@ function selectField(x, y, shouldCenter = false) {
 
         html += `<div class="title-border">Königreich-Info</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
-        html += `<tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>${tx}:${ty}</td></tr>`;
+        html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Königreich</b></td><td>${kname}</td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString()}</td></tr>`;
 
@@ -1651,7 +1672,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
         selectedX = null;
         selectedY = null;
         selectField(prevTargetX, prevTargetY, false);
-        
+
         draw();
     } else {
         const newUrl = new URL(window.location.href);

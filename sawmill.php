@@ -74,7 +74,7 @@ $view .= "<div class='res-building-content'>
 ";
 
 if ($ticks_left > 0) {
-    $view .= "<p>Ertragsboost aktiv!<br>Verbleibende Erträge: <span>$ticks_left</span></p>";
+    $view .= "<p style='margin-bottom: 0;'>Ertragsboost aktiv!<br>Verbleibende Erträge: <span style='font-weight: bold;'>$ticks_left</span></p>";
 } else {
     $view .= "<p>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
     $view .= "<form method='POST'>

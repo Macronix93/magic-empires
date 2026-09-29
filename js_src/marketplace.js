@@ -203,6 +203,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (targetSelect && arrivalDataEl && displayEl) {
         const times = JSON.parse(arrivalDataEl.dataset.times);
+        const targetStocks = JSON.parse(arrivalDataEl.dataset.stocks || "{}");
 
         const updateTimeDisplay = () => {
             const selectedId = targetSelect.value;
@@ -211,6 +212,23 @@ document.addEventListener("DOMContentLoaded", function () {
                 displayEl.innerText = "(Dauer: " + times[selectedId] + ")";
             } else {
                 displayEl.innerText = "";
+            }
+
+            const tData = targetStocks[selectedId];
+            const headerEl = document.getElementById("target-k-stock-header");
+            const foodEl = document.getElementById("target-stock-food");
+            const woodEl = document.getElementById("target-stock-wood");
+            const stoneEl = document.getElementById("target-stock-stone");
+            const goldEl = document.getElementById("target-stock-gold");
+
+            if (tData) {
+                if (headerEl) {
+                    headerEl.innerHTML = `Vorräte in <b>${tData.name}</b>:`;
+                }
+                if (foodEl) foodEl.innerText = `${formatNumJS(tData.food)} / ${formatNumJS(tData.maxfood)}`;
+                if (woodEl) woodEl.innerText = `${formatNumJS(tData.wood)} / ${formatNumJS(tData.maxwood)}`;
+                if (stoneEl) stoneEl.innerText = `${formatNumJS(tData.stone)} / ${formatNumJS(tData.maxstone)}`;
+                if (goldEl) goldEl.innerText = `${formatNumJS(tData.gold)} / ${formatNumJS(tData.maxgold)}`;
             }
         };
 

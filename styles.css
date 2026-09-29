@@ -20,6 +20,8 @@ html {
     color: rgb(230, 220, 200);
     text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
     font-family: 'Georgia', 'Times New Roman', serif;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-feature-settings: "lnum" 1, "tnum" 1;
     width: 100%;
     margin: 0;
     padding: 0;
@@ -558,6 +560,8 @@ button,
 select,
 option {
     font-family: inherit;
+    font-variant-numeric: lining-nums tabular-nums;
+    font-feature-settings: "lnum" 1, "tnum" 1;
 }
 
 .title-border {
@@ -1201,6 +1205,11 @@ select:-webkit-autofill:focus {
 .golden-badge {
     background: linear-gradient(180deg, #E6C15A, #A67C00);
     border: 1px solid #4A3600;
+}
+
+.badge-blue {
+    background: linear-gradient(180deg, #1e90ff, #0056b3) !important;
+    border: 1px solid #002d62 !important;
 }
 
 .msg-button-container {
@@ -2657,7 +2666,41 @@ img[data-on-click] {
 }
 
 .mobile-internal-stock-box {
-    display: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 280px;
+    margin: 8px auto 2px auto;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 4px;
+    text-align: left;
+}
+
+.mobile-stock-header {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-bottom: 12px;
+    color: var(--link-color);
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.mobile-internal-stock-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 18px;
+    font-size: 13px;
+}
+
+.mobile-stock-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-start;
+    white-space: nowrap;
 }
 
 .marketplace-table .trade-item-stack {
@@ -2758,6 +2801,17 @@ img[data-on-click] {
 .chat-reaction-footer:has(.reaction-badge) {
     margin-top: 8px;
     padding-top: 4px;
+}
+
+.chat-coord-link {
+    color: var(--link-color) !important;
+    text-decoration: underline !important;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.chat-coord-link:hover {
+    color: #ffffff !important;
 }
 
 .reaction-badge {
@@ -3175,45 +3229,6 @@ img[data-on-click] {
 
     #target_k {
         max-width: 230px;
-    }
-
-    .mobile-internal-stock-box {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        max-width: 260px;
-        margin: 10px auto;
-        padding: 6px 12px;
-        background: rgba(0, 0, 0, 0.35);
-        border: 1px solid rgba(212, 175, 55, 0.3);
-        border-radius: 4px;
-        text-align: center;
-    }
-
-    .mobile-stock-header {
-        font-size: 13px;
-        opacity: 0.85;
-        margin-bottom: 12px;
-        color: var(--link-color);
-        white-space: nowrap;
-        overflow: hidden;
-        max-width: 100%;
-    }
-
-    .mobile-internal-stock-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 5px 15px;
-        width: 220px;
-        font-size: 13px;
-    }
-
-    .mobile-stock-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        justify-content: flex-start;
-        white-space: nowrap;
     }
 
     .internal-res-grid {

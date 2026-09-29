@@ -6,34 +6,80 @@ check_user_login($user);
 $uid = $user->get_user_id();
 $is_admin = $user->is_admin();
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["submit_suggestion"])) {
-    $title = sanitize_input($_POST["title"] ?? "");
-    $content = sanitize_input($_POST["content"] ?? "");
+$latest_sug_id = (int)($db_instance->execute_query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
+if ($latest_sug_id > 0) {
+    $db_instance->execute_query("UPDATE users SET last_suggestion_read = ? WHERE id = ?", [$latest_sug_id, $uid]);
+}
 
-    if (mb_strlen($title) < 5 || mb_strlen($title) > 100) {
-        $error = "Der Titel muss zwischen 5 und 100 Zeichen lang sein.";
-    } elseif (mb_strlen($content) < 15 || mb_strlen($content) > 2000) {
-        $error = "Die Beschreibung muss zwischen 15 und 2000 Zeichen lang sein.";
-    } else {
-        $res_last = $db_instance->execute_query(
-            "SELECT created_at FROM suggestions WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-            [$uid]
-        );
-        $last_created = (int)($res_last->fetch_column() ?? 0);
-        $wait = ($last_created + 600) - time();
+$post_title = e($_POST["title"] ?? "");
+$post_content = e($_POST["content"] ?? "");
 
-        if ($wait > 0 && !$is_admin) {
-            $error = "Bitte warte noch " . convert_sec_to_str($wait) . ", bevor du einen neuen Vorschlag einreichst.";
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST["submit_suggestion"])) {
+        $title = sanitize_input($_POST["title"] ?? "");
+        $content = sanitize_input($_POST["content"] ?? "");
+
+        if (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
+            $error = "Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.";
+        } else if (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
+            $error = "Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.";
+        } else {
+            $res_last = $db_instance->execute_query(
+                "SELECT created_at FROM suggestions WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                [$uid]
+            );
+            $last_created = (int)($res_last->fetch_column() ?? 0);
+            $wait = ($last_created + SUGGESTION_COOLDOWN_SECONDS) - time();
+
+            if ($wait > 0 && !$is_admin) {
+                $error = "Bitte warte noch " . convert_sec_to_str($wait) . ", bevor du einen neuen Vorschlag einreichst.";
+            } else {
+                $clean_content = filter_chat_message(nl2br(e($content)));
+                $clean_title = e($title);
+
+                $db_instance->execute_query(
+                    "INSERT INTO suggestions (user_id, username, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    [$uid, $user->get_user_name(), $clean_title, $clean_content, time()]
+                );
+
+                $post_title = "";
+                $post_content = "";
+
+                $_SESSION["game_success"] = "Vorschlag erfolgreich eingereicht! Andere Herrscher können nun dafür abstimmen.";
+                change_location("suggestions.php");
+                exit;
+            }
+        }
+    }
+
+    if (isset($_POST["edit_suggestion"])) {
+        $sug_id = (int)$_POST["suggestion_id"];
+        $title = sanitize_input($_POST["title"] ?? "");
+        $content = sanitize_input($_POST["content"] ?? "");
+
+        $res_check = $db_instance->execute_query(
+            "SELECT user_id, status FROM suggestions WHERE id = ?",
+            [$sug_id]
+        )->fetch_assoc();
+
+        if (!$res_check) {
+            $error = "Dieser Vorschlag existiert nicht mehr.";
+        } elseif (!$is_admin && ((int)$res_check["user_id"] !== $uid || (int)$res_check["status"] !== 0)) {
+            $error = "Dieser Vorschlag kann nicht mehr bearbeitet werden, da die Abstimmungs-/Prüfungsphase bereits abgeschlossen ist.";
+        } elseif (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
+            $error = "Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.";
+        } elseif (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
+            $error = "Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.";
         } else {
             $clean_content = filter_chat_message(nl2br(e($content)));
             $clean_title = e($title);
 
             $db_instance->execute_query(
-                "INSERT INTO suggestions (user_id, username, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                [$uid, $user->get_user_name(), $clean_title, $clean_content, time()]
+                "UPDATE suggestions SET title = ?, content = ? WHERE id = ?",
+                [$clean_title, $clean_content, $sug_id]
             );
 
-            $_SESSION["game_success"] = "Vorschlag erfolgreich eingereicht! Andere Herrscher können nun dafür abstimmen.";
+            $_SESSION["game_success"] = "Dein Vorschlag wurde erfolgreich aktualisiert.";
             change_location("suggestions.php");
             exit;
         }
@@ -79,10 +125,30 @@ $where_sql = match ($filter) {
 };
 
 $status_meta = [
-    0 => ["label" => "In Prüfung", "color" => "var(--link-color)", "border" => "rgba(212, 175, 55, 0.4)"],
-    1 => ["label" => "Angenommen / Geplant", "color" => "#3498db", "border" => "rgba(52, 152, 219, 0.4)"],
-    2 => ["label" => "Umgesetzt", "color" => "#2ecc71", "border" => "rgba(46, 204, 113, 0.4)"],
-    3 => ["label" => "Abgelehnt", "color" => "#e74c3c", "border" => "rgba(231, 76, 60, 0.4)"]
+    0 => [
+        "label" => "In Prüfung",
+        "color" => "var(--link-color)",
+        "border" => "rgba(212, 175, 55, 0.4)",
+        "bg" => "rgba(212, 175, 55, 0.2)"
+    ],
+    1 => [
+        "label" => "Geplant",
+        "color" => "#3498db",
+        "border" => "rgba(52, 152, 219, 0.4)",
+        "bg" => "rgba(52, 152, 219, 0.25)"
+    ],
+    2 => [
+        "label" => "Umgesetzt",
+        "color" => "#2ecc71",
+        "border" => "rgba(46, 204, 113, 0.4)",
+        "bg" => "rgba(46, 204, 113, 0.25)"
+    ],
+    3 => [
+        "label" => "Abgelehnt",
+        "color" => "#e74c3c",
+        "border" => "rgba(231, 76, 60, 0.4)",
+        "bg" => "rgba(231, 76, 60, 0.25)"
+    ]
 ];
 
 /*
@@ -90,14 +156,34 @@ $status_meta = [
  */
 $view .= "<p style='margin-top: 0;'>Hier kannst du deine Ideen für <b>Magic Empires</b> einreichen und über Vorschläge anderer Herrscher abstimmen.</p>";
 
+$res_last_cd = $db_instance->execute_query(
+    "SELECT created_at FROM suggestions WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+    [$uid]
+);
+$last_created_cd = (int)($res_last_cd->fetch_column() ?? 0);
+$cooldown_wait = max(0, ($last_created_cd + SUGGESTION_COOLDOWN_SECONDS) - time());
+$is_on_cooldown = ($cooldown_wait > 0 && !$is_admin);
+
+$cooldown_notice = "";
+if ($is_on_cooldown) {
+    $cooldown_notice = "<p class='error' id='sug-cooldown-notice' style='font-size: 13px; margin: 10px 0 0 0;'>
+        Wartezeit: Neuer Vorschlag möglich in <b><span class='js-countdown' id='sug-cooldown-timer' data-seconds='$cooldown_wait' data-no-reload='true'>-</span></b>
+    </p>";
+}
+
+$disabled_attr = ($is_on_cooldown || mb_strlen($post_title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($post_content) < SUGGESTION_DESC_MIN_LENGTH) ? "disabled" : "";
+
 $view .= "
 <div class='box-container' style='max-width: 650px; margin: 0 auto 25px auto;'>
     <div class='box-header'>Neuen Vorschlag einreichen</div>
-    <form method='POST' class='box-content box-content-bg' style='padding: 15px;'>
-        <input type='text' name='title' placeholder='Kurzer, aussagekräftiger Titel...' maxlength='100' style='width: 100%; margin-bottom: 10px;' required>
-        <textarea name='content' rows='5' placeholder='Beschreibe deine Idee möglichst genau...' maxlength='2000' style='width: 100%; margin-bottom: 10px;' required></textarea>
+    <form method='POST' id='new-suggestion-form' data-cooldown='" . ($is_on_cooldown ? "true" : "false") . "' class='box-content box-content-bg' style='padding: 15px;'>
+        <input type='text' name='title' id='new-sug-title' placeholder='Kurzer, aussagekräftiger Titel...' value='$post_title' 
+                minlength='" . SUGGESTION_TITLE_MIN_LENGTH . "' maxlength='" . SUGGESTION_TITLE_MAX_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>
+        <textarea name='content' id='new-sug-content' rows='5' placeholder='Beschreibe deine Idee möglichst genau...' 
+                minlength='" . SUGGESTION_DESC_MIN_LENGTH . "' maxlength='" . SUGGESTION_DESC_MAX_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>$post_content</textarea>
         <div style='text-align: center;'>
-            <input type='submit' name='submit_suggestion' value='Idee veröffentlichen' style='padding: 6px 25px;'>
+            <input type='submit' name='submit_suggestion' id='btn-submit-suggestion' value='Einreichen' style='padding: 6px 25px;' $disabled_attr>
+            $cooldown_notice
         </div>
     </form>
 </div>";
@@ -123,7 +209,7 @@ $query = "
         COALESCE(SUM(IF(v.vote = 1, 1, 0)), 0) AS upvotes,
         COALESCE(SUM(IF(v.vote = -1, 1, 0)), 0) AS downvotes,
         COALESCE(SUM(v.vote), 0) AS score,
-        MAX(IF(v.user_id = ?, v.vote, 0)) AS my_vote
+        COALESCE(MAX(CASE WHEN v.user_id = ? THEN v.vote END), 0) AS my_vote
     FROM suggestions s
     LEFT JOIN suggestion_votes v ON s.id = v.suggestion_id
     GROUP BY s.id, s.created_at
@@ -175,13 +261,32 @@ while ($row = $suggestions->fetch_assoc()) {
             </div>";
     }
 
+    $can_edit = ($is_admin || ((int)$row["user_id"] === $uid && (int)$row["status"] === 0));
+
+    $raw_content = str_replace(['<br>', '<br />'], '', $row["content"]);
+
+    $edit_btn = "";
+    if ($can_edit) {
+        $edit_btn = "<img src='images/icons/icon_edit.png' 
+                             class='ressource-icons' 
+                             style='cursor: pointer; width: 18px; height: 18px;' 
+                             data-on-click='editSuggestionInline' 
+                             data-id='$sug_id' 
+                             data-title='" . e($row["title"]) . "' 
+                             data-content='" . e($raw_content) . "' 
+                             title='Vorschlag bearbeiten' alt='Bearbeiten'>";
+    }
+
     $view .= "
-        <div class='box-container js-suggestion-card' data-status='{$row["status"]}' data-score='$score' style='margin-bottom: 0;'>
+        <div class='box-container' data-id='$sug_id' data-status='{$row["status"]}' data-score='$score' style='margin-bottom: 0;'>
             <div class='box-header' style='justify-content: space-between; padding: 0 15px; height: auto; min-height: 40px;'>
                 <span style='font-weight: bold; font-size: 17px; word-break: break-word; text-align: left; padding: 8px 0;'>" . e($row["title"]) . "</span>
-                <span style='color: {$status_data["color"]}; font-size: 12px; font-weight: bold; border: 1px solid {$status_data["border"]}; padding: 3px 8px; border-radius: 4px; white-space: nowrap;'>
-                    {$status_data["label"]}
-                </span>
+                <div style='display: flex; align-items: center; gap: 10px;'>
+                    $edit_btn
+                    <span style='background: {$status_data["bg"]}; color: {$status_data["color"]}; font-size: 12px; font-weight: bold; border: 1px solid {$status_data["border"]}; padding: 3px 8px; border-radius: 4px; white-space: nowrap;'>
+                        {$status_data["label"]}
+                    </span>
+                </div>
             </div>
             <div class='box-content box-content-bg' style='padding: 15px;'>
                 <p style='margin-top: 0; text-align: left; font-size: 15px; line-height: 1.5; word-break: break-word;'>

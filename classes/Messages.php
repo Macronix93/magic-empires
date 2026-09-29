@@ -1205,7 +1205,7 @@ class Messages
                 if ($def_scouts > 0) {
                     $badges_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 15px;'>";
                     $badges_html .= BattleReportRenderer::render_unit_card("Deine Späher", $def_scouts, $def_losses, "icon_scout");
-                    
+
                     if ($atk_scouts > 0) {
                         $badges_html .= BattleReportRenderer::render_unit_card("Gegnerische Späher", $atk_scouts, $atk_losses, "icon_scout");
                     }
@@ -1416,6 +1416,31 @@ class Messages
                         0, 0,
                         "Deine Einheiten haben unverrichteter Dinge den Rückmarsch angetreten."
                     ) . "</div>";
+
+            case "mine_depleted_early_return":
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $home_name = e($data["home_name"] ?? "Königreich");
+                $units = $data["units"] ?? [];
+
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
+                foreach ($units as $u) {
+                    $units_html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
+                }
+                $units_html .= "</div>";
+
+                $main_text = "Die <b>Erzmine</b> bei $c_link wurde vollständig erschöpft und existiert nicht mehr.
+                             Deine Truppen aus <b>$home_name</b> haben sofort auf freiem Feld umgedreht und befinden sich auf dem Rückmarsch.$units_html";
+
+                return "<div class='battle-report'>" .
+                    BattleReportRenderer::render_outcome_box(
+                        "Mine erschöpft – Vorzeitige Rückkehr",
+                        $main_text,
+                        0, 0,
+                        "Deine Einheiten kehren ohne Verzögerung in ihre Garnison zurück."
+                    ) .
+                    "</div>";
 
             case "spy_mine_detected":
                 $tx = (int)($data["target_x"] ?? 0);
@@ -2242,5 +2267,56 @@ class Messages
             default:
                 return $data["text"] ?? $data["message"] ?? "Keine Nachricht.";
         }
+    }
+
+    function parse_chat_coordinates(string $text): string
+    {
+        $coord_num = '(?:[1-9][0-9]?|100)';
+        $pattern = '/(<[^>]+>)|(?:\b|\()(' . $coord_num . ')\s*[:|]\s*(' . $coord_num . ')(?:\b|\))(?!\s*(?:uhr|sek|min))/iu';
+
+        return preg_replace_callback($pattern, function ($matches) {
+            if (!empty($matches[1])) {
+                return $matches[1];
+            }
+
+            $x = (int)$matches[2];
+            $y = (int)$matches[3];
+
+            if ($x >= 1 && $x <= MAX_X && $y >= 1 && $y <= MAX_Y) {
+                $link = "<a href='map.php?startx=$x&starty=$y' data-on-click='mapJump' data-x='$x' data-y='$y' class='chat-coord-link'>$x:$y</a>";
+
+                $matched_str = $matches[0];
+                $has_open = str_starts_with($matched_str, '(');
+                $has_close = str_ends_with($matched_str, ')');
+
+                if ($has_open && $has_close) {
+                    return "($link)";
+                } else if ($has_open) {
+                    return "($link";
+                } else if ($has_close) {
+                    return "$link)";
+                }
+                return $link;
+            }
+
+            return $matches[0];
+        }, $text);
+    }
+
+    function format_chat_message(string $raw_text, ?bool $use_filter = null): string
+    {
+        $filter = ($use_filter !== null) ? $use_filter : (!empty($_SESSION["chat_filter"]));
+
+        $text = e($raw_text);
+        $text = parse_chat_quotes($text);
+        $text = nl2br($text);
+
+        if ($filter) {
+            $text = filter_chat_message($text);
+        }
+
+        $text = $this->parse_chat_coordinates($text);
+
+        return wrap_emojis($text);
     }
 }

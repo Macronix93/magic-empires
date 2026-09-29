@@ -25,7 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($err) {
                 $error = $err;
             } else {
-                $_SESSION["game_success"] = "Die Transmutation wurde erfolgreich gestartet!";
+                $_SESSION["game_success"] = "Die Umwandlung wurde erfolgreich gestartet!";
 
                 change_location("alchemylab.php");
                 exit;
@@ -110,21 +110,26 @@ if ($has_active_process) {
     $in_res = $state["input_resource"];
     $out_res = $state["target_resource"];
     $in_amt = $state["input_amount"];
-    $ready_to_claim = (int)floor(round((float)$state["output_amount"], 2));
-
-    $max_output_buffer = ($in_res !== -1 && $out_res !== -1) ? Alchemy::get_max_output_buffer($in_res, $out_res, $lab_level) : 0;
-    $is_buffer_full = ($ready_to_claim >= $max_output_buffer);
-
-    $speed = Alchemy::get_speed_per_hour($lab_level, $in_res);
-    $rem_time_sec = ($speed > 0 && $in_amt > 0 && !$is_buffer_full) ? (int)ceil(($in_amt / $speed) * 3600) : 0;
-    $stock = ($in_res !== -1) ? ($stocks[$in_res] ?? 0) : 0;
+    $ready_to_claim = (int)round((float)$state["output_amount"]);
 
     $step = ($in_res !== -1 && $out_res !== -1) ? Alchemy::get_step_size($in_res, $out_res) : 1;
+    $conversion_rate = ($in_res !== -1 && $out_res !== -1) ? Alchemy::get_conversion_rate($in_res, $out_res) : 0;
+    $output_per_step = max(1, (int)round($step * $conversion_rate));
+
+    $max_output_buffer = ($in_res !== -1 && $out_res !== -1) ? Alchemy::get_max_output_buffer($in_res, $out_res, $lab_level) : 0;
+    $is_buffer_full = ($max_output_buffer > 0 && ($max_output_buffer - $ready_to_claim) < $output_per_step);
+    $is_insufficient_input = ($in_amt > 0 && $in_amt < $step);
+    $is_paused = ($is_buffer_full || $is_insufficient_input);
+
+    $speed = Alchemy::get_speed_per_hour($lab_level, $in_res);
+    $usable_input = $in_amt - ($in_amt % $step);
+    $rem_time_sec = ($speed > 0 && $usable_input > 0 && !$is_paused) ? (int)ceil(($usable_input / $speed) * 3600) : 0;
+
+    $stock = ($in_res !== -1) ? ($stocks[$in_res] ?? 0) : 0;
     $free_space = max(0, $capacity - $in_amt);
     $raw_max_top_up = min($stock, $free_space);
     $max_top_up = $raw_max_top_up - ($raw_max_top_up % $step);
 
-    $conversion_rate = ($in_res !== -1 && $out_res !== -1) ? Alchemy::get_conversion_rate($in_res, $out_res) : 0;
     $input_per_sec = $speed / 3600;
     $output_per_sec = $input_per_sec * $conversion_rate;
 
@@ -150,11 +155,25 @@ if ($has_active_process) {
             
             <div class='tick-progress-bg' style='height: 8px; margin-bottom: 12px;'>
                 <div class='tick-progress-fill' id='alchemy-live-bar' style='width: 0;'></div>
-            </div>
+            </div>";
 
+        $has_remainder = ($usable_input > 0 && ($in_amt % $step) > 0);
+        $zero_text = $has_remainder ? "Zu wenig im Kessel" : "Kessel leer";
+
+        $view .= "
             <div class='split-content' style='margin-bottom: 10px;'>
                 <span>Restdauer:</span>
-                <b>" . ($is_buffer_full ? "<span class='error'>Puffer voll (Pausiert)</span>" : ($in_amt > 0 ? "<span class='js-countdown' id='alchemy-countdown' data-seconds='$rem_time_sec'>-</span>" : "<span class='passed'>Kessel leer</span>")) . "</b>
+                <b id='alchemy-countdown-wrap'>" . (
+            $is_buffer_full
+                ? "<span class='error'>Puffer voll (Pausiert)</span>"
+                : ($is_insufficient_input
+                ? "Zu wenig im Kessel"
+                : ($usable_input > 0
+                    ? "<span class='js-countdown' id='alchemy-countdown' data-seconds='$rem_time_sec' data-no-reload='true' data-zero-text='$zero_text'>-</span>"
+                    : "<span class='passed'>Kessel leer</span>"
+                )
+            )
+            ) . "</b>
             </div>";
     }
 

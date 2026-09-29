@@ -6,7 +6,6 @@ let isKingdomSwitching = false;
 let flashTimeout = null;
 let activeHoverPopup = null;
 const UPDATE_MSG_BADGES_INTERVAL = 60000;
-let tickUpdated = false;
 
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
@@ -41,6 +40,10 @@ registerAction("selectMobileKingdom", (el) => {
     const kingdomId = el.dataset.id;
     const dropdown = document.getElementById("mobile-kingdom-dropdown");
     if (dropdown) dropdown.classList.remove("open");
+
+    if (el.classList.contains("active")) {
+        return;
+    }
 
     switchKingdomById(kingdomId);
 });
@@ -177,6 +180,64 @@ registerAction("openReactorList", (el) => {
 registerAction("toggleMassExcludeSpecials", (el) => {
     document.cookie = "me_mass_exclude_specials=" + (el.checked ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
 });
+registerAction("toggleShareTarget", (el) => {
+    const recipientWrap = document.getElementById("share-recipient-wrap");
+    const recipientInput = document.getElementById("share-recipient-input");
+    if (!recipientWrap) return;
+
+    if (el.value === "private") {
+        recipientWrap.style.display = "block";
+        if (recipientInput) {
+            recipientInput.required = true;
+            recipientInput.focus();
+        }
+    } else {
+        recipientWrap.style.display = "none";
+        if (recipientInput) {
+            recipientInput.required = false;
+        }
+    }
+});
+registerAction("submitShareCoords", (form, e) => {
+    if (e) e.preventDefault();
+
+    const submitBtn = document.getElementById("btn-share-submit");
+    const errorBox = document.getElementById("share-coords-error");
+    if (submitBtn) submitBtn.disabled = true;
+
+    const formData = new FormData(form);
+
+    fetch("ajax/share_coords_send.php", {
+        method: "POST",
+        headers: {"X-Requested-With": "XMLHttpRequest"},
+        body: formData
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                form.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div class="passed" style="font-size: 18px; margin-bottom: 10px;">✔ ${data.message}</div>
+                </div>`;
+                setTimeout(() => {
+                    closeOverlay();
+                }, 1000);
+            } else {
+                if (errorBox) {
+                    errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>${data.error || "Fehler beim Senden"}</span></div>`;
+                    errorBox.style.display = "block";
+                }
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        })
+        .catch(() => {
+            if (errorBox) {
+                errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>Netzwerkfehler.</span></div>`;
+                errorBox.style.display = "block";
+            }
+            if (submitBtn) submitBtn.disabled = false;
+        });
+});
 
 function registerAction(name, callback) {
     ClickActions.set(name, callback);
@@ -233,9 +294,11 @@ const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
-                if (node.dataset.onClick || node.dataset.onSubmit) bindActions(node);
+                if (node.dataset.onClick || node.dataset.onSubmit || node.dataset.onChange || node.dataset.onInput) {
+                    bindActions(node);
+                }
 
-                node.querySelectorAll('[data-on-click]').forEach(bindActions);
+                node.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
 
                 if (node.classList.contains("popup") || node.querySelector('.popup')) {
                     setup();
@@ -279,6 +342,8 @@ function switchKingdomById(kingdomId) {
                 if (filename === "barracks.php") {
                     const cat = currentUrl.searchParams.get("cat");
                     window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;
+                } else if (filename === "warsim.php") {
+                    window.location.href = "warsim.php?keep_sim=1";
                 } else if (keepParamsPages.includes(filename)) {
                     window.location.href = currentUrl.pathname + currentUrl.search;
                 } else {
@@ -422,6 +487,16 @@ function sendReaction(type, id, emoji, sourceContainer) {
 function formatNumJS(number) {
     if (!number || isNaN(number)) return "0";
     let n = Math.floor(Number(number));
+
+    if (n >= 1000000000) {
+        let main = Math.floor(n / 1000000000);
+        let sub = Math.floor((n % 1000000000) / 10000000);
+
+        if (sub === 0) return main + 'B';
+
+        let subStr = sub.toString().padStart(2, '0').replace(/0$/, '');
+        return main + ',' + subStr + 'B';
+    }
 
     if (n >= 1000000) {
         let main = Math.floor(n / 1000000);
@@ -598,38 +673,7 @@ function updateServerTime(initialServerTimestamp) {
 
         if (tickReached) {
             displayTime = "Jetzt";
-
-            if (!tickUpdated) {
-                tickUpdated = true;
-
-                const select = document.getElementById("choosekingdom");
-                const currentKid = select ? select.value : null;
-
-                if (currentKid) {
-                    let formData = new FormData();
-                    formData.append("choosekingdom", currentKid);
-
-                    fetch("ajax/change_kingdom.php", {
-                        method: "POST",
-                        headers: {"X-Requested-With": "XMLHttpRequest"},
-                        body: formData
-                    })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (data.success && data.sidebar_html) {
-                                document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
-                                    container.innerHTML = data.sidebar_html;
-                                    container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
-                                });
-                                if (typeof setup === "function") setup();
-                            }
-                        })
-                        .catch(err => console.error("Ertrags-Update fehlgeschlagen:", err));
-                }
-            }
         } else {
-            tickUpdated = false;
-
             const displayMin = Math.floor(secondsUntilFull / 60);
             const displaySec = secondsUntilFull % 60;
             displayTime = String(displayMin).padStart(2, '0') + ":" + String(displaySec).padStart(2, '0');
@@ -761,7 +805,7 @@ window.addEventListener("DOMContentLoaded", function () {
     const rightMenu = document.getElementById("nav-right-menu");
     const timeoutSeconds = parseInt(document.body.dataset.timeout);
     const serverTime = document.body.dataset.serverTime;
-    document.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
+    document.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
 
     if (!isNaN(timeoutSeconds) && timeoutSeconds > 0) {
         let lastActivityTimestamp = Date.now();
@@ -1046,7 +1090,8 @@ function updateSidebarBadges(counts) {
     const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0);
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
-        mobileDot.style.display = (total > 0) ? "block" : "none";
+        const hasAlert = mobileDot.dataset.hasAlert === "true";
+        mobileDot.style.display = (total > 0 || hasAlert) ? "block" : "none";
     }
 }
 

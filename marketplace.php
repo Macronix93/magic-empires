@@ -382,7 +382,7 @@ if (isset($_GET["send_own"])) {
                         "gold" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
                     ], $current_kingdom);
 
-                    $view .= show_passed_box("Transport nach " . $target_row["kingdomname"] . " gestartet!<br>Ankunft in " . convert_sec_to_str($seconds));
+                    $view .= show_passed_box("Transport nach <b>" . $target_row["kingdomname"] . "</b> gestartet!<br>Ankunft in " . convert_sec_to_str($seconds));
                 }
             }
         } else {
@@ -617,7 +617,7 @@ if ($result->num_rows > 0) {
 }
 
 $other_kingdoms_res = $db_instance->execute_query("
-    SELECT k.id, k.kingdomname, k.mapx, k.mapy, 
+    SELECT k.id, k.kingdomname, k.mapx, k.mapy, k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,
            (SELECT buildinglevel FROM buildings WHERE kingdomid = k.id AND buildingid = ?) as mkt_lvl
     FROM kingdoms k 
     WHERE k.userid = ? AND k.id != ?",
@@ -625,7 +625,7 @@ $other_kingdoms_res = $db_instance->execute_query("
 );
 
 $last_selected_target = isset($_GET["target_k"]) ? (int)$_GET["target_k"] : -1;
-
+$target_kingdoms_data = [];
 $arrival_times_cache = [];
 
 if ($other_kingdoms_res->num_rows > 0) {
@@ -642,6 +642,19 @@ if ($other_kingdoms_res->num_rows > 0) {
         if ($has_market) {
             $available_markets_count++;
             $options_html .= "<option value='{$ok["id"]}' $selected>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
+
+            $target_kingdoms_data[$ok["id"]] = [
+                "name" => $ok["kingdomname"],
+                "coords" => $ok["mapx"] . ":" . $ok["mapy"],
+                "food" => (int)$ok["food"],
+                "maxfood" => (int)$ok["maxfood"],
+                "wood" => (int)$ok["wood"],
+                "maxwood" => (int)$ok["maxwood"],
+                "stone" => (int)$ok["stone"],
+                "maxstone" => (int)$ok["maxstone"],
+                "gold" => (int)$ok["gold"],
+                "maxgold" => (int)$ok["maxgold"]
+            ];
         } else {
             $options_html .= "<option value='{$ok["id"]}' disabled style='color: #888;'>{$ok["kingdomname"]} (Kein Marktplatz!)</option>";
         }
@@ -651,17 +664,20 @@ if ($other_kingdoms_res->num_rows > 0) {
     $disabled_attr = $is_disabled ? "disabled" : "";
 
     $view .= "<br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
-    $view .= '<div class="mobile-internal-stock-box">
-                <div class="mobile-stock-header">
-                    Vorrat in <b>' . e($kingdom->get_kingdom_name()) . '</b>:
-                </div>
-                <div class="mobile-internal-stock-grid">
-                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span>' . fnum($kingdom->get_kingdom_food()) . '</span></div>
-                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span>' . fnum($kingdom->get_kingdom_wood()) . '</span></div>
-                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span>' . fnum($kingdom->get_kingdom_stone()) . '</span></div>
-                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span>' . fnum($kingdom->get_kingdom_gold()) . '</span></div>
-                </div>
-            </div>';
+    if (!$is_disabled) {
+        $view .= '
+                <div class="mobile-internal-stock-box" id="target-k-stock-box">
+                    <div class="mobile-stock-header" id="target-k-stock-header">
+                        Vorräte in <b>' . e($kingdom->get_kingdom_name()) . '</b>:
+                    </div>
+                    <div class="mobile-internal-stock-grid">
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">-</span></div>
+                    </div>
+                </div>';
+    }
     $view .= '<table class="table internal-transport-table">
                 <form action="marketplace.php" method="GET">
                     <input type="hidden" name="send_own" value="1">
@@ -699,7 +715,7 @@ if ($other_kingdoms_res->num_rows > 0) {
         </form>
       </table>';
 
-    $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "'></div>";
+    $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "' data-stocks='" . e(json_encode($target_kingdoms_data)) . "'></div>";
 }
 
 $storage_info = [

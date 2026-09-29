@@ -338,7 +338,8 @@ class User
             (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) AS world,
             $guild_subquery AS guild,
             $support_subquery AS support,
-            (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news
+            (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news,
+            (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) AS suggestions
         FROM users u 
         WHERE u.id = ?";
 
@@ -350,6 +351,7 @@ class User
         $guild = (int)($res["guild"] ?? 0);
         $support = (int)($res["support"] ?? 0);
         $news = (int)($res["news"] ?? 0);
+        $suggestions = (int)($res["suggestions"] ?? 0);
 
         $total = $pms + $server + $world + $guild + $support;
 
@@ -360,6 +362,7 @@ class User
             "guild" => $guild,
             "support" => $support,
             "news" => $news,
+            "suggestions" => $suggestions,
             "total" => $total
         ];
 
@@ -503,11 +506,5 @@ class User
 
         $cookie_value = $this->user_id . ':' . $random_token;
         setcookie("me_remember", $cookie_value, $expires, '/', '', true, true);
-    }
-
-    public function count_user_kingdoms(): int
-    {
-        $res_count = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$this->get_user_id()]);
-        return (int)$res_count->fetch_row()[0];
     }
 }

@@ -96,7 +96,27 @@ class Alchemy
                 if ($row && (int)$row["input_amount"] <= 0) {
                     $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
                 }
+                $this->db->commit();
+                return;
+            }
 
+            $in_res = (int)$row["input_resource"];
+            $out_res = (int)$row["target_resource"];
+            $step = self::get_step_size($in_res, $out_res);
+            $rate = self::get_conversion_rate($in_res, $out_res);
+
+            $output_per_step = (int)round($step * $rate);
+            if ($output_per_step <= 0) {
+                $this->db->commit();
+                return;
+            }
+
+            $max_output = self::get_max_output_buffer($in_res, $out_res, $lab_level);
+            $current_output = (int)round((float)$row["output_amount"]);
+            $output_room = max(0, $max_output - $current_output);
+
+            if ($output_room < $output_per_step) {
+                $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
                 $this->db->commit();
                 return;
             }
@@ -107,44 +127,41 @@ class Alchemy
                 return;
             }
 
-            $in_res = (int)$row["input_resource"];
-            $out_res = (int)$row["target_resource"];
-            $rate = self::get_conversion_rate($in_res, $out_res);
-
-            $max_output = self::get_max_output_buffer($in_res, $out_res, $lab_level);
-            $current_output = (float)$row["output_amount"];
-            $output_room = max(0.0, $max_output - $current_output);
-
-            if ($output_room <= 0.0) {
-                $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
+            $speed_per_hour = self::get_speed_per_hour($lab_level, $in_res);
+            if ($speed_per_hour <= 0) {
                 $this->db->commit();
                 return;
             }
 
-            $speed_sec = self::get_speed_per_hour($lab_level, $in_res) / 3600;
-            $max_input_by_room = $output_room / $rate;
+            $seconds_per_step = ($step * 3600.0) / $speed_per_hour;
+            $possible_steps_by_time = (int)floor($elapsed / $seconds_per_step);
 
-            $step = self::get_step_size($in_res, $out_res);
-            if ((int)$row["input_amount"] < $step) {
+            if ($possible_steps_by_time <= 0) {
                 $this->db->commit();
                 return;
             }
 
-            $convertible_input = min((float)$row["input_amount"], $speed_sec * $elapsed, $max_input_by_room);
+            $possible_steps_by_input = (int)floor((int)$row["input_amount"] / $step);
+            $possible_steps_by_room = (int)floor($output_room / $output_per_step);
 
-            if ($convertible_input > 0) {
-                $generated_output = $convertible_input * $rate;
+            $steps_to_run = min($possible_steps_by_time, $possible_steps_by_input, $possible_steps_by_room);
 
-                $new_input = max(0, (int)round($row["input_amount"] - $convertible_input));
-                $new_output = round($current_output + $generated_output, 4);
+            if ($steps_to_run > 0) {
+                $input_consumed = $steps_to_run * $step;
+                $output_generated = $steps_to_run * $output_per_step;
+                $time_consumed = (int)round($steps_to_run * $seconds_per_step);
+
+                $new_input = max(0, (int)$row["input_amount"] - $input_consumed);
+                $new_output = $current_output + $output_generated;
+
+                $can_run_more = ($new_input >= $step && ($output_room - $output_generated) >= $output_per_step);
+                $new_last_update = $can_run_more ? ((int)$row["last_update"] + $time_consumed) : $now;
 
                 $this->db->execute_query("
                     UPDATE kingdom_alchemy 
                     SET input_amount = ?, output_amount = ?, last_update = ?
                     WHERE kingdom_id = ?
-                ", [$new_input, $new_output, $now, $kingdom_id]);
-            } else {
-                $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
+                ", [$new_input, $new_output, $new_last_update, $kingdom_id]);
             }
 
             $this->db->commit();
@@ -173,7 +190,7 @@ class Alchemy
         $step = self::get_step_size($from_res, $to_res);
         $amount = $amount - ($amount % $step);
 
-        if ($amount <= 0) {
+        if ($amount < $step) {
             return "Die Menge muss mindestens $step Einheiten betragen.";
         }
 
@@ -218,7 +235,7 @@ class Alchemy
             return null;
         } catch (Exception $e) {
             $this->db->rollback();
-            return "Fehler beim Starten der Transmutation: " . $e->getMessage();
+            return "Fehler beim Starten der Umwandlung: " . $e->getMessage();
         }
     }
 
@@ -229,11 +246,15 @@ class Alchemy
             return "Keine Umwandlung aktiv.";
         }
 
+        if ($amount <= 0) {
+            return "Bitte gib eine Menge größer als 0 an.";
+        }
+
         $step = self::get_step_size($state["input_resource"], $state["target_resource"]);
         $amount = $amount - ($amount % $step);
 
         if ($amount <= 0) {
-            return "Die Nachfüllmenge muss mindestens $step Einheiten betragen.";
+            return "Bitte gib mindestens $step Einheiten zum Nachfüllen an.";
         }
 
         $max_cap = self::get_capacity($lab_level);
@@ -271,7 +292,7 @@ class Alchemy
     public function claim(int $kingdom_id, int $lab_level, Kingdom $k): ?string
     {
         $state = $this->get_state($kingdom_id, $lab_level);
-        $claimable = (int)floor(round($state["output_amount"], 2));
+        $claimable = (int)round((float)$state["output_amount"]);
 
         if ($claimable <= 0) {
             return "Keine fertigen Ressourcen zum Einsammeln bereit.";
@@ -283,16 +304,14 @@ class Alchemy
         try {
             $k->modify_resource($target_res, $claimable);
 
-            $remaining_float = max(0.0, (float)$state["output_amount"] - $claimable);
-
             if ($state["input_amount"] <= 0) {
                 $this->db->execute_query("DELETE FROM kingdom_alchemy WHERE kingdom_id = ?", [$kingdom_id]);
             } else {
                 $this->db->execute_query("
                     UPDATE kingdom_alchemy 
-                    SET output_amount = ?, last_update = ?
+                    SET output_amount = 0, last_update = ?
                     WHERE kingdom_id = ?
-                ", [$remaining_float, time(), $kingdom_id]);
+                ", [time(), $kingdom_id]);
             }
 
             $this->db->commit();
@@ -317,7 +336,7 @@ class Alchemy
                 $k->modify_resource($state["input_resource"], $unconverted);
             }
 
-            $has_claimable = ((int)floor($state["output_amount"]) > 0);
+            $has_claimable = ((int)round((float)$state["output_amount"]) > 0);
             if ($has_claimable) {
                 $this->db->execute_query("
                     UPDATE kingdom_alchemy 

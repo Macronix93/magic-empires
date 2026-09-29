@@ -63,6 +63,9 @@ registerAction("undoWarSim", () => {
 });
 registerAction("switchSimTab", (el) => {
     const target = el.dataset.tab;
+
+    document.cookie = "me_sim_tab=" + target + "; path=/; max-age=31536000; SameSite=Lax";
+
     document.querySelectorAll(".sim-tab-content").forEach(c => c.style.display = "none");
     document.querySelectorAll(".tablinks").forEach(t => t.classList.remove("active"));
 
@@ -622,7 +625,7 @@ function checkMonsterImport() {
         });
 
         for (const [id, count] of Object.entries(monsterData)) {
-            const input = document.getElementById(`m_${id}_count`);
+            const input = document.getElementById(`${id}_count`);
             if (input) {
                 input.value = count;
             }
@@ -734,7 +737,10 @@ function loadWarsimState() {
 
     if (state.activeTab) {
         const tabBtn = document.querySelector(`.tablinks[data-tab="${state.activeTab}"]`);
-        if (tabBtn) tabBtn.click();
+
+        if (tabBtn && !tabBtn.classList.contains("active")) {
+            tabBtn.click();
+        }
     }
 
     if (state.checkboxes) {
@@ -763,11 +769,13 @@ function loadWarsimState() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    const isInternalNavigation = document.referrer.includes("warsim.php");
-    const hasImportData = new URLSearchParams(window.location.search).has("import_monsters");
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasImportData = urlParams.has("import_monsters");
+    const isKeepSim = urlParams.has("keep_sim");
 
-    if (!isInternalNavigation && !hasImportData) {
+    if (!isKeepSim && !hasImportData) {
         localStorage.removeItem(STORAGE_KEY);
+        document.cookie = "me_sim_tab=; path=/; max-age=0;";
     }
 
     const filterToggle = document.getElementById("toggle-relevant-units");
@@ -781,7 +789,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resetWallToMax();
     updateLivePowerSummary();
 
-    setTimeout(checkMonsterImport, 50);
+    checkMonsterImport();
 
     document.addEventListener("input", (e) => {
         if (e.target.closest('.warsim-table') || e.target.classList.contains("js-tech-input") || e.target.id === "en_wall_lvl") {

@@ -745,7 +745,8 @@ function updateNavigationBadges(totalCount, worldCount, guildCount) {
 
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
-        mobileDot.style.display = (totalCount > 0) ? "block" : "none";
+        const hasAlert = mobileDot.dataset.hasAlert === "true";
+        mobileDot.style.display = (totalCount > 0 || hasAlert) ? "block" : "none";
     }
 }
 

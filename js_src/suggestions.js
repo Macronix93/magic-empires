@@ -91,3 +91,87 @@ registerAction("confirmDeleteSuggestion", (el) => {
         }
     );
 });
+registerAction("editSuggestionInline", (el, event) => {
+    if (event) event.stopPropagation();
+
+    const sugId = el.dataset.id;
+    const oldTitle = el.dataset.title;
+    const oldContent = el.dataset.content;
+
+    const card = el.closest(".box-container");
+    const contentDiv = card.querySelector(".box-content");
+    const headerTitle = card.querySelector(".box-header span:first-child");
+
+    if (contentDiv.querySelector("form.js-edit-suggestion-form")) return;
+
+    const formHtml = `
+        <form method="POST" class="js-edit-suggestion-form" style="width: 100%; text-align: left; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px;">
+            <input type="hidden" name="suggestion_id" value="${sugId}">
+            <input type="hidden" name="edit_suggestion" value="1">
+            
+            <label style="font-size: 13px; color: var(--link-color);">Titel:</label><br>
+            <input type="text" name="title" value="${oldTitle}" maxlength="100" style="width: 100%; margin-bottom: 10px;" required>
+            
+            <label style="font-size: 13px; color: var(--link-color);">Beschreibung:</label><br>
+            <textarea name="content" rows="6" maxlength="2000" style="width: 100%; margin-bottom: 10px; resize: vertical;" required>${oldContent}</textarea>
+            
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <input type="submit" value="Speichern" style="font-size: 12px; padding: 4px 12px;">
+                <input type="button" value="Abbrechen" data-on-click="cancelSuggestionEdit" style="font-size: 12px; padding: 4px 12px;">
+            </div>
+        </form>
+    `;
+
+    headerTitle.innerText = "Vorschlag bearbeiten";
+    contentDiv.innerHTML = formHtml;
+    el.style.display = "none";
+});
+registerAction("cancelSuggestionEdit", () => {
+    window.location.reload();
+});
+
+function initSuggestionFormValidation() {
+    const form = document.getElementById("new-suggestion-form");
+    if (!form) return;
+
+    const titleInput = document.getElementById("new-sug-title");
+    const contentInput = document.getElementById("new-sug-content");
+    const submitBtn = document.getElementById("btn-submit-suggestion");
+    const cooldownNotice = document.getElementById("sug-cooldown-notice");
+
+    function checkValidity() {
+        if (form.dataset.cooldown === "true") {
+            submitBtn.disabled = true;
+            return;
+        }
+
+        const tLen = titleInput ? titleInput.value.trim().length : 0;
+        const cLen = contentInput ? contentInput.value.trim().length : 0;
+
+        submitBtn.disabled = (tLen < 5 || cLen < 5);
+    }
+
+    if (titleInput && contentInput && submitBtn) {
+        titleInput.addEventListener("input", checkValidity);
+        contentInput.addEventListener("input", checkValidity);
+
+        checkValidity();
+    }
+
+    const timerEl = document.getElementById("sug-cooldown-timer");
+    if (timerEl) {
+        const seconds = parseInt(timerEl.dataset.seconds) || 0;
+        if (seconds > 0) {
+            setTimeout(() => {
+                form.dataset.cooldown = "false";
+                if (cooldownNotice) cooldownNotice.style.display = "none";
+
+                checkValidity();
+            }, seconds * 1000);
+        }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    initSuggestionFormValidation();
+});

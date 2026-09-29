@@ -3,6 +3,17 @@ require_once("includes/core.php");
 
 check_user_login($user);
 
+$has_import = isset($_GET["import_monsters"]);
+$keep_sim = isset($_GET["keep_sim"]);
+
+if (!$has_import && !$keep_sim) {
+    setcookie("me_sim_tab", "", time() - 3600, "/");
+    $active_sim_tab = "players";
+} else {
+    $active_sim_tab = $has_import ? "monsters" : ($_COOKIE["me_sim_tab"] ?? "players");
+}
+$is_monster_mode = ($active_sim_tab === "monsters");
+
 $kingdom = new Kingdom($user->get_current_kingdom());
 
 $mil_tech_ids_attacker = [
@@ -129,7 +140,8 @@ $view .= '<div class="box-container" style="max-width: 250px; margin: 0;">
     </div>
 </div>';
 
-$view .= '<div class="box-container" id="enemy-tech-box" style="max-width: 250px; margin: 0;">
+$enemy_tech_style = $is_monster_mode ? "style='max-width: 250px; margin: 0; opacity: 0.3; pointer-events: none;'" : "style='max-width: 250px; margin: 0;'";
+$view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style . '>
     <div class="box-header">Gegnerische Boni</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         ' . $render_tech_side("en", $tech_meta, $mil_tech_ids_defender) . '
@@ -156,7 +168,7 @@ $view .= '<div class="box-container" id="enemy-tech-box" style="max-width: 250px
 $view .= '</div>';
 
 $view .= '<div id="live-power-container" style="display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
-                <div class="box-container" style="max-width: 230px; margin: 0;">
+                <div class="box-container" style="max-width: 250px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Spieler</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
                         <div class="popup" id="pop_live_atk_own" style="text-align: center;">
@@ -175,8 +187,8 @@ $view .= '<div id="live-power-container" style="display: flex; justify-content: 
                         </div>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; font-weight: bold; color: var(--link-color); font-size: 24px;">VS</div>
-                <div class="box-container" style="max-width: 230px; margin: 0;">
+
+                <div class="box-container" style="max-width: 250px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Gegner</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
                         <div class="popup" id="pop_live_atk_enemy">
@@ -259,12 +271,12 @@ foreach ($soldiers as $s) {
 $view .= '</table></div>';
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">
                 <div class="tab" style="margin-bottom: 0; border-bottom: none; padding: 0;">
-                    <div class=' . "'tablinks active' data-on-click='switchSimTab' data-tab='players' style='padding: 7px;'>Spieler</div>
-                    <div class='tablinks' data-on-click='switchSimTab' data-tab='monsters' style='padding: 7px;'>Monster</div>
-                </div>";
+                    <div class="tablinks ' . (!$is_monster_mode ? 'active' : '') . '" data-on-click="switchSimTab" data-tab="players" style="padding: 7px;">Spieler</div>
+                    <div class="tablinks ' . ($is_monster_mode ? 'active' : '') . '" data-on-click="switchSimTab" data-tab="monsters" style="padding: 7px;">Monster</div>
+                </div>';
 
 // TAB 1: Normal Enemy
-$view .= "<div id='sim-players' class='sim-tab-content' style='background: var(--box-content-color);'>";
+$view .= "<div id='sim-players' class='sim-tab-content' style='background: var(--box-content-color); display: " . (!$is_monster_mode ? 'block' : 'none') . ";'>";
 $view .= '<table class="table warsim-table" style="width: 100%;">
                     <tr><td class="td-center td-gradient">Einheit</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
 foreach ($soldiers as $s) {
@@ -298,7 +310,7 @@ foreach ($soldiers as $s) {
 $view .= '</table></div>';
 
 // TAB 2: Monster
-$view .= "<div id='sim-monsters' class='sim-tab-content' style='display:none; background: var(--box-content-color);'>";
+$view .= "<div id='sim-monsters' class='sim-tab-content' style='background: var(--box-content-color); display: " . ($is_monster_mode ? 'block' : 'none') . ";'>";
 $view .= '<table class="table warsim-table" style="width: 100%;">
                     <tr><td class="td-center td-gradient">Monster</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
 foreach ($monsters as $m) {
@@ -327,7 +339,7 @@ foreach ($monsters as $m) {
                     </div>
                 </td>
                 <td class='td-center' style='width: 80px;'>
-                    <input type='text' id='m_{$m["id"]}_count' class='js-mon-input' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' 
+                    <input type='text' id='m{$m["id"]}_count' data-monster-id='{$m["id"]}' class='js-mon-input' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' 
                            data-atk='{$m["attack"]}' data-def='{$m["defense"]}' data-on-input='updateLivePower' style='width: 100%;'>
                 </td>
               </tr>";

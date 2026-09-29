@@ -8,8 +8,20 @@ $unread_total = $unreads["total"];
 $unread_news = $unreads["news"];
 $unread_world = $unreads["world"];
 $unread_guild = $unreads["guild"];
+$unread_suggestions = $unreads["suggestions"] ?? 0;
 
 $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
+
+$ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
+$ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
+
+$atk_count = !empty($_SESSION["active_attacks"])
+        ? count(array_filter($_SESSION["active_attacks"], fn($atk) => !empty($atk["is_new"]) && !in_array($atk["eventid"], $ack_ids)))
+        : 0;
+
+$sup_count = !empty($_SESSION["active_supports"])
+        ? count(array_filter($_SESSION["active_supports"], fn($sup) => !in_array($sup["eventid"], $ack_sup_ids)))
+        : 0;
 ?>
     <div class="box-container left-right-container">
         <div class="box-header">
@@ -24,6 +36,12 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
             <div class="box<?= $current_page === 'overview.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="index.php">
                 <img src="images/icons/icon_buildings.png" class="menu-icons" alt="Übersicht"/> Übersicht
+                <span class="msg-badge" style="<?= $atk_count > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($atk_count) ?>
+                </span>
+                <span class="msg-badge badge-blue" style="<?= $sup_count > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($sup_count) ?>
+                </span>
             </div>
             <div class="box<?= ($current_page === 'messages.php' && !isset($_GET["worldchat"])) ? " active" : '' ?>"
                  data-on-click="navigate" data-url="messages.php">
@@ -120,6 +138,9 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
             <div class="box<?= $current_page === 'suggestions.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="suggestions.php">
                 <img src="images/icons/icon_feedback.png" class="menu-icons" alt="Vorschläge"/> Vorschläge
+                <span class="msg-badge" style="<?= $unread_suggestions > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($unread_suggestions) ?>
+                </span>
             </div>
         </div>
     </div>

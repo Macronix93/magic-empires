@@ -166,6 +166,18 @@ function format_num($number): string
     if (!is_numeric($number)) return "0";
     $n = (int)$number;
 
+    if ($n >= 1000000000) {
+        $main = intdiv($n, 1000000000);
+        $sub = intdiv($n % 1000000000, 10000000);
+
+        if ($sub === 0) return $main . 'B';
+
+        $subStr = str_pad((string)$sub, 2, '0', STR_PAD_LEFT);
+        $subStr = rtrim($subStr, '0');
+
+        return $main . ',' . $subStr . 'B';
+    }
+
     if ($n >= 1000000) {
         $main = intdiv($n, 1000000);
         $sub = intdiv($n % 1000000, 10000);
