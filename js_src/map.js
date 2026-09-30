@@ -257,6 +257,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!popupBox || popupBox.style.display === "none") return;
 
+        const isKingdomNav = e.target.closest(
+            ".mobile-kingdom-display, .mobile-kingdom-dropdown, .mobile-nav-arrow, .kingdom-switch-container, select[name='choosekingdom'], #nav-right-menu, .right-container"
+        );
+        if (isKingdomNav) {
+            return;
+        }
+
         if (mapContainer && !mapContainer.contains(e.target) && !e.target.closest("#onpage-overlay, #info-box-overlay")) {
             popupBox.style.display = "none";
 
@@ -1646,6 +1653,9 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
         mobTitle.innerHTML = `${pos} - ${newKingdom.name} <span style="font-size: 10px; opacity: 0.7;">▾</span>`;
     }
 
+    const popupBox = document.getElementById("field-popup-box");
+    const wasPopupOpen = popupBox && (popupBox.style.display === "block");
+
     let keepTarget = false;
     const prevTargetX = selectedX;
     const prevTargetY = selectedY;
@@ -1671,7 +1681,12 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
 
         selectedX = null;
         selectedY = null;
+
         selectField(prevTargetX, prevTargetY, false);
+
+        if (!wasPopupOpen && popupBox) {
+            popupBox.style.display = "none";
+        }
 
         draw();
     } else {
@@ -1684,6 +1699,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
         selectedX = null;
         selectedY = null;
 
+        if (popupBox) popupBox.style.display = "none";
         jumpTo(newKingdom.x, newKingdom.y);
     }
 

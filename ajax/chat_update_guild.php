@@ -20,7 +20,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $result = $db_instance->execute_query($query, [$guild_id, $last_id, MAX_GUILD_CHAT_MESSAGES_SHOWN]);
 
     $new_last_id = $last_id;
-    $use_filter = ($_SESSION["chat_filter"] ?? 1);
 
     while ($row = $result->fetch_assoc()) {
         $new_last_id = $row["id"];
@@ -37,14 +36,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                         data-on-click='deleteGuildChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt=''>" : "";
         $class = "sender-bubble";
 
-        $text = $row["message"];
-        $text = e($text);
-        $text = parse_chat_quotes($text);
-        $text = nl2br($text);
-        if ($use_filter == 1) {
-            $text = filter_chat_message($text);
-        }
-        $display_message = wrap_emojis($text);
+        $display_message = Messages::format_chat_message($row["message"]);
 
         $sender = new User($row["userid"], $row["username"]);
         $avatar = $sender->get_avatar();
@@ -52,7 +44,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
 
         $html .= "
-            <div class='$class' id='world-msg-{$row["id"]}'>
+            <div class='$class' id='guild-msg-{$row["id"]}'>
                 <div class='message-border'>
                     <span class='msg-header-left'>
                         <img class='user-image' src='$avatar' alt=''> 
@@ -84,9 +76,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $reaction_updates[$r["id"]] = render_reactions_bar("guild_chat", $r["id"], $user, "badges_only");
     }
 
-    $is_active = (int)($_GET["active"] ?? 0);
-
-    if ($is_active && $new_last_id > $last_id) {
+    if ($new_last_id > $last_id) {
         $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$new_last_id, $u_id]);
     }
 

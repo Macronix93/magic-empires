@@ -1,41 +1,37 @@
 registerAction("switchSuggestionTab", (el) => {
     const filter = el.dataset.tab;
+    const targetUrl = `suggestions.php?tab=${filter}&page=1`;
 
     document.querySelectorAll(".tab .tablinks").forEach(tab => tab.classList.remove("active"));
     el.classList.add("active");
 
-    const container = document.getElementById("suggestions-list-container");
-    const cards = Array.from(container.querySelectorAll(".box-container"));
-    let visibleCount = 0;
+    fetch(targetUrl, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+        .then(r => r.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
 
-    if (filter === "popular") {
-        cards.sort((a, b) => (parseInt(b.dataset.score) || 0) - (parseInt(a.dataset.score) || 0));
-        cards.forEach(card => {
-            container.appendChild(card);
-            card.style.display = "";
-            visibleCount++;
-        });
-    } else {
-        cards.sort((a, b) => (parseInt(b.dataset.id) || 0) - (parseInt(a.dataset.id) || 0));
-        cards.forEach(card => {
-            container.appendChild(card);
-            const status = card.dataset.status;
+            const newList = doc.getElementById("suggestions-list-container");
+            const currentList = document.getElementById("suggestions-list-container");
+            if (newList && currentList) {
+                currentList.innerHTML = newList.innerHTML;
+            }
 
-            let show = false;
-            if (filter === "all") show = true;
-            else if (filter === "open" && status === "0") show = true;
-            else if (filter === "approved" && status === "1") show = true;
-            else if (filter === "done" && status === "2") show = true;
+            const newPagination = doc.querySelector(".pagination-container");
+            const currentPagination = document.querySelector(".pagination-container");
+            if (currentPagination) currentPagination.remove();
 
-            card.style.display = show ? "" : "none";
-            if (show) visibleCount++;
-        });
-    }
+            if (newPagination && currentList) {
+                currentList.parentNode.insertBefore(newPagination, currentList.nextSibling);
+            }
 
-    const emptyBox = document.getElementById("suggestions-empty-box");
-    if (emptyBox) {
-        emptyBox.style.display = (visibleCount === 0) ? "flex" : "none";
-    }
+            window.history.pushState({}, '', targetUrl);
+
+            if (typeof setup === "function") {
+                setup();
+            }
+        })
+        .catch(err => console.error("Fehler beim Tab-Wechsel:", err));
 });
 registerAction("voteSuggestion", (el) => {
     const sugId = el.dataset.id;
@@ -59,7 +55,6 @@ registerAction("voteSuggestion", (el) => {
             if (data.success && voteBar) {
                 const upBtn = voteBar.querySelector(".btn-vote-up");
                 const downBtn = voteBar.querySelector(".btn-vote-down");
-
                 if (upBtn) {
                     upBtn.querySelector(".count-up").innerText = data.upvotes;
                     upBtn.classList.toggle("active-vote", data.my_vote === 1);
@@ -69,13 +64,21 @@ registerAction("voteSuggestion", (el) => {
                     downBtn.classList.toggle("active-vote", data.my_vote === -1);
                 }
 
+                const upBox = document.getElementById(`pop_v_up_${sugId}_box`);
+                const downBox = document.getElementById(`pop_v_down_${sugId}_box`);
+                if (upBox) {
+                    const list = upBox.querySelector('.voters-list');
+                    if (list) list.innerHTML = data.upvoters;
+                }
+                if (downBox) {
+                    const list = downBox.querySelector('.voters-list');
+                    if (list) list.innerHTML = data.downvoters;
+                }
+
                 const card = voteBar.closest(".box-container");
                 if (card) {
                     card.dataset.score = (data.upvotes - data.downvotes).toString();
                 }
-            } else if (data.error) {
-                showConfirmationDialog(data.error, "Ok", "", () => {
-                });
             }
         })
         .catch(err => console.error("Vote-Fehler:", err));
@@ -129,6 +132,80 @@ registerAction("editSuggestionInline", (el, event) => {
 registerAction("cancelSuggestionEdit", () => {
     window.location.reload();
 });
+registerAction("openSuggestionComments", (el) => {
+    const sugId = el.dataset.id;
+
+    openOverlay(`ajax/suggestion_comments.php?id=${sugId}`, "Kommentare");
+});
+registerAction("deleteSuggestionComment", (el) => {
+    const sugId = el.dataset.sugid;
+    const commentId = el.dataset.id;
+
+    showConfirmationDialog("Möchtest du diesen Kommentar wirklich löschen?", "Ja", "Nein", () => {
+        fetch(`ajax/suggestion_comments.php?id=${sugId}&delete_comment=${commentId}`, {
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+        })
+            .then(r => r.text())
+            .then(html => {
+                const content = document.getElementById("overlay-content-body");
+                if (content) content.innerHTML = html;
+            });
+    });
+});
+registerAction("submitSuggestionComment", (form, e) => {
+    if (e) e.preventDefault();
+    const textarea = form.querySelector("#comment-input");
+    const text = textarea ? textarea.value.trim() : "";
+    if (text === "") return;
+
+    const sugId = form.querySelector('input[name="suggestion_id"]').value;
+    const formData = new FormData(form);
+    formData.append("add_comment", "1");
+
+    fetch(`ajax/suggestion_comments.php?id=${sugId}`, {
+        method: "POST",
+        headers: {"X-Requested-With": "XMLHttpRequest"},
+        body: formData
+    })
+        .then(r => r.text())
+        .then(html => {
+            const content = document.getElementById("overlay-content-body");
+            if (content) {
+                content.innerHTML = html;
+
+                const container = content.querySelector("[data-total-comments]");
+                if (container) {
+                    const realCount = container.dataset.totalComments;
+                    const countBadge = document.getElementById(`comm_count_${sugId}`);
+                    if (countBadge) {
+                        countBadge.innerText = `${realCount}`;
+                    }
+                }
+
+                scrollCommentsToBottom();
+            }
+        });
+});
+registerAction("paginateSuggestionComments", (el, e) => {
+    if (e) e.preventDefault();
+
+    const sugId = el.dataset.sugid;
+    const page = el.dataset.page;
+
+    loadSuggestionCommentsModal(sugId, page);
+});
+
+function loadSuggestionCommentsModal(sugId, page = 1, extraParams = "") {
+    let url = `ajax/suggestion_comments.php?id=${sugId}&cpage=${page}`;
+    if (extraParams) url += `&${extraParams}`;
+
+    fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+        .then(r => r.text())
+        .then(html => {
+            const content = document.getElementById("overlay-content-body");
+            if (content) content.innerHTML = html;
+        });
+}
 
 function initSuggestionFormValidation() {
     const form = document.getElementById("new-suggestion-form");
@@ -172,6 +249,36 @@ function initSuggestionFormValidation() {
     }
 }
 
+function scrollCommentsToBottom() {
+    const list = document.getElementById("comments-list");
+    if (list) {
+        list.scrollTop = list.scrollHeight;
+
+        setTimeout(() => {
+            list.scrollTop = list.scrollHeight;
+        }, 50);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     initSuggestionFormValidation();
+
+    const overlayBody = document.getElementById("overlay-content-body");
+    if (overlayBody) {
+        const observer = new MutationObserver(() => {
+            scrollCommentsToBottom();
+        });
+        observer.observe(overlayBody, {childList: true});
+    }
+});
+
+document.addEventListener("keydown", (e) => {
+    if (e.target && e.target.id === "comment-input" && e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+
+        const form = e.target.closest("form");
+        if (form) {
+            form.requestSubmit();
+        }
+    }
 });

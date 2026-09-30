@@ -25,7 +25,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $result = $db_instance->execute_query($query, [$last_id, MAX_WORLD_CHAT_MESSAGES_SHOWN]);
 
     $new_last_id = $last_id;
-    $use_filter = ($_SESSION["chat_filter"] ?? 1);
 
     while ($row = $result->fetch_assoc()) {
         $new_last_id = $row["id"];
@@ -42,14 +41,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                         data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt=''>" : "";
         $class = "sender-bubble";
 
-        $text = $row["message"];
-        $text = e($text);
-        $text = parse_chat_quotes($text);
-        $text = nl2br($text);
-        if ($use_filter == 1) {
-            $text = filter_chat_message($text);
-        }
-        $display_message = wrap_emojis($text);
+        $display_message = Messages::format_chat_message($row["message"]);
 
         $sender = new User($row["userid"], $row["username"]);
         $avatar = $sender->get_avatar();
@@ -99,6 +91,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "html" => $html,
         "lastId" => $new_last_id,
         "messagesToDelete" => $deleted_ids,
-        "reactionUpdates" => $reaction_updates
+        "reactionUpdates" => $reaction_updates,
+        "worldUnread" => new Messages($user)->get_unread_world_count()
     ]);
 }

@@ -175,6 +175,8 @@ registerAction("switchGuildTab", (el) => {
             const guildTabBadge = document.getElementById("badge-guild-tab");
             if (guildTabBadge) guildTabBadge.style.display = "none";
 
+            document.querySelectorAll(".js-badge-guild").forEach(b => b.style.display = "none");
+
             setTimeout(() => {
                 if (typeof scrollDown === "function") {
                     scrollDown(true);

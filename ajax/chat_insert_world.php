@@ -51,13 +51,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
         $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
 
-        $text = e($cleaned_text);
-        $text = parse_chat_quotes($text);
-        $text = nl2br($text);
-        if ($_SESSION["chat_filter"]) {
-            $text = filter_chat_message($text);
-        }
-        $display_text = wrap_emojis($text);
+        $display_text = Messages::format_chat_message($cleaned_text);
 
         $delete_icon = "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' 
                             data-on-click='deleteWorldChatMsg' data-id='$message_id' style='cursor: pointer;'>";

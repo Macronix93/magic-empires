@@ -63,11 +63,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $message_id = $res->fetch_assoc()["id"];
             $response["lastId"] = $message_id;
 
-            $text = e($cleaned_text);
-            $text = parse_chat_quotes($text);
-            $text = nl2br($text);
-            if ($_SESSION["chat_filter"]) $text = filter_chat_message($text);
-            $display_text = wrap_emojis($text);
+            $display_text = Messages::format_chat_message($cleaned_text);
 
             $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
                          style='cursor: pointer; margin-left: 5px;' 

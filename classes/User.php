@@ -339,7 +339,10 @@ class User
             $guild_subquery AS guild,
             $support_subquery AS support,
             (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news,
-            (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) AS suggestions
+            (
+                (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) +
+                (SELECT COUNT(*) FROM suggestion_comments WHERE id > IFNULL(u.last_suggestion_comment_read, 0) AND user_id != u.id)
+            ) AS suggestions
         FROM users u 
         WHERE u.id = ?";
 

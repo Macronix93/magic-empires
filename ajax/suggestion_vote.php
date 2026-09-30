@@ -43,19 +43,31 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         );
         $my_vote = $vote_val;
     }
-    
+
     $res_counts = $db_instance->execute_query("
         SELECT 
-            COALESCE(SUM(CASE WHEN vote = 1 THEN 1 ELSE 0 END), 0) AS upvotes,
-            COALESCE(SUM(CASE WHEN vote = -1 THEN 1 ELSE 0 END), 0) AS downvotes
+            COALESCE(SUM(IF(vote = 1, 1, 0)), 0) AS upvotes,
+            COALESCE(SUM(IF(vote = -1, 1, 0)), 0) AS downvotes
         FROM suggestion_votes WHERE suggestion_id = ?
     ", [$sug_id])->fetch_assoc();
+
+    $res_voters = $db_instance->execute_query("
+        SELECT 
+            (SELECT GROUP_CONCAT(u1.username ORDER BY v1.id ASC SEPARATOR ', ') 
+             FROM suggestion_votes v1 JOIN users u1 ON v1.user_id = u1.id 
+             WHERE v1.suggestion_id = ? AND v1.vote = 1) AS upvoters,
+            (SELECT GROUP_CONCAT(u2.username ORDER BY v2.id ASC SEPARATOR ', ') 
+             FROM suggestion_votes v2 JOIN users u2 ON v2.user_id = u2.id 
+             WHERE v2.suggestion_id = ? AND v2.vote = -1) AS downvoters
+    ", [$sug_id, $sug_id])->fetch_assoc();
 
     echo json_encode([
         "success" => true,
         "upvotes" => (int)$res_counts["upvotes"],
         "downvotes" => (int)$res_counts["downvotes"],
-        "my_vote" => $my_vote
+        "my_vote" => $my_vote,
+        "upvoters" => !empty($res_voters["upvoters"]) ? e($res_voters["upvoters"]) : "<i>Noch keine Stimmen</i>",
+        "downvoters" => !empty($res_voters["downvoters"]) ? e($res_voters["downvoters"]) : "<i>Noch keine Stimmen</i>"
     ]);
     exit;
 }

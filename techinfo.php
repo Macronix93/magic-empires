@@ -331,6 +331,28 @@ if ($row) {
         }
 
         switch ($building_id) {
+            case BuildingTypes::BUILDING_ALCHEMY_LAB:
+                $cap_inc = fnum(ALCHEMY_CAPACITY_PER_LEVEL);
+                $spd_inc = fnum(ALCHEMY_SPEED_PER_LEVEL);
+
+                $w = ALCHEMY_RESOURCE_WEIGHTS;
+                $w_food = fdec($w[ResourceTypes::RESOURCE_TYPE_FOOD]);
+                $w_wood = fdec($w[ResourceTypes::RESOURCE_TYPE_WOOD]);
+                $w_stone = fdec($w[ResourceTypes::RESOURCE_TYPE_STONE]);
+                $w_gold = fdec($w[ResourceTypes::RESOURCE_TYPE_GOLD]);
+
+                $biome_info = "<div class='tech-info-box'>";
+                $biome_info .= "<b>Kessel-Effekt:</b><br>";
+                $biome_info .= "Jede Stufe erhöht die Kessel-Kapazität um <span class='passed'>+$cap_inc</span> und das Umwandlungstempo um <span class='passed'>+$spd_inc / Std.</span><br><br>";
+                $biome_info .= "<b>Ressourcen-Wertigkeiten:</b><br>";
+                $biome_info .= "<div style='display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 4px;'>";
+                $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " <b>$w_food</b></span>";
+                $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " <b>$w_wood</b></span>";
+                $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <b>$w_stone</b></span>";
+                $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <b>$w_gold</b></span>";
+                $biome_info .= "</div>";
+                $biome_info .= "</div>";
+                break;
             case BuildingTypes::BUILDING_WATCHTOWER:
                 $time_bonus = convert_sec_to_str(WATCHTOWER_DETECTION_PER_LEVEL);
 

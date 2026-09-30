@@ -36,4 +36,32 @@ $view = "<div style='max-width: 600px; margin: 0 auto; line-height: 1.6;'>
             </p>
         </div>";
 
+$view .= "
+<div class='box-container' style='margin: 25px auto 0 auto; max-width: 500px;'>
+    <div class='box-header'>Spendenliste</div>
+    <div class='box-content box-content-bg' style='padding: 15px;'>
+        <p style='margin-top: 0; font-size: 14px; opacity: 0.85;'>
+            Ein königlicher Dank an alle, die die Erhaltung des Reiches mit einer freiwilligen Gabe unterstützt haben:
+        </p>
+        <table class='table' style='width: 100%;'>
+            <colgroup>
+                <col style='width: 65%;'>
+                <col style='width: 35%;'>
+            </colgroup>
+            <tr>
+                <td class='td-gradient td-center'><b>Herrscher</b></td>
+                <td class='td-gradient td-center'><b>Spende</b></td>
+            </tr>
+            <tr>
+                <td><b>Kopfnuss</b></td>
+                <td class='td-center'>1 €</td>
+            </tr>
+            <tr>
+                <td><b>Hörnchen</b></td>
+                <td class='td-center'>20 €</td>
+            </tr>
+        </table>
+    </div>
+</div>";
+
 include("layout/base.php");

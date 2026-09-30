@@ -7,9 +7,11 @@ $uid = $user->get_user_id();
 $is_admin = $user->is_admin();
 
 $latest_sug_id = (int)($db_instance->execute_query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
-if ($latest_sug_id > 0) {
-    $db_instance->execute_query("UPDATE users SET last_suggestion_read = ? WHERE id = ?", [$latest_sug_id, $uid]);
-}
+$latest_comm_id = (int)($db_instance->execute_query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
+$db_instance->execute_query(
+    "UPDATE users SET last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
+    [$latest_sug_id, $latest_comm_id, $uid]
+);
 
 $post_title = e($_POST["title"] ?? "");
 $post_content = e($_POST["content"] ?? "");
@@ -17,7 +19,7 @@ $post_content = e($_POST["content"] ?? "");
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST["submit_suggestion"])) {
         $title = sanitize_input($_POST["title"] ?? "");
-        $content = sanitize_input($_POST["content"] ?? "");
+        $content = trim($_POST["content"] ?? "");
 
         if (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
             $error = "Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.";
@@ -55,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST["edit_suggestion"])) {
         $sug_id = (int)$_POST["suggestion_id"];
         $title = sanitize_input($_POST["title"] ?? "");
-        $content = sanitize_input($_POST["content"] ?? "");
+        $content = trim($_POST["content"] ?? "");
 
         $res_check = $db_instance->execute_query(
             "SELECT user_id, status FROM suggestions WHERE id = ?",
@@ -75,8 +77,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $clean_title = e($title);
 
             $db_instance->execute_query(
-                "UPDATE suggestions SET title = ?, content = ? WHERE id = ?",
-                [$clean_title, $clean_content, $sug_id]
+                "UPDATE suggestions SET title = ?, content = ?, updated_at = ? WHERE id = ?",
+                [$clean_title, $clean_content, time(), $sug_id]
             );
 
             $_SESSION["game_success"] = "Dein Vorschlag wurde erfolgreich aktualisiert.";
@@ -121,6 +123,7 @@ $where_sql = match ($filter) {
     "open" => "WHERE s.status = 0",
     "approved" => "WHERE s.status = 1",
     "done" => "WHERE s.status = 2",
+    "declined" => "WHERE s.status = 3",
     default => ""
 };
 
@@ -150,6 +153,10 @@ $status_meta = [
         "bg" => "rgba(231, 76, 60, 0.25)"
     ]
 ];
+
+$rows_per_page = MAX_SUGGESTIONS_PER_PAGE;
+$current_page = max(1, (int)($_GET["page"] ?? 1));
+$offset = ($current_page - 1) * $rows_per_page;
 
 /*
  * HTML Content Part
@@ -188,20 +195,46 @@ $view .= "
     </form>
 </div>";
 
+$status_counts = $db_instance->query("
+    SELECT 
+        SUM(IF(status = 0, 1, 0)) AS cnt_open,
+        SUM(IF(status = 1, 1, 0)) AS cnt_approved,
+        SUM(IF(status = 2, 1, 0)) AS cnt_done
+    FROM suggestions
+")->fetch_assoc();
+
+$cnt_open = (int)($status_counts["cnt_open"] ?? 0);
+$cnt_approved = (int)($status_counts["cnt_approved"] ?? 0);
+$cnt_done = (int)($status_counts["cnt_done"] ?? 0);
+
+$cnt_open_display = ($cnt_open > 0 ? " <small style='opacity: 0.75;'>($cnt_open)</small>" : "");
+$cnt_approved_display = ($cnt_approved > 0 ? " <small style='opacity: 0.75;'>($cnt_approved)</small>" : "");
+$cnt_done_display = ($cnt_done > 0 ? " <small style='opacity: 0.75;'>($cnt_done)</small>" : "");
+
 $tabs = [
     "all" => "Alle",
     "popular" => "Beliebteste",
-    "open" => "In Prüfung",
-    "approved" => "Geplant",
-    "done" => "Umgesetzt"
+    "open" => "In Prüfung$cnt_open_display",
+    "approved" => "Geplant$cnt_approved_display",
+    "done" => "Umgesetzt$cnt_done_display</small>"
 ];
+
+if (!isset($tabs[$filter])) {
+    $filter = "all";
+}
 
 $view .= "<div class='tab' style='max-width: 650px; margin: 0 auto 20px auto;'>";
 foreach ($tabs as $k => $label) {
-    $active = ($k === "all") ? "active" : "";
+    $active = ($k === $filter) ? "active" : "";
+
     $view .= "<div class='tablinks $active' data-on-click='switchSuggestionTab' data-tab='$k'>$label</div>";
 }
 $view .= "</div>";
+
+$count_query = "SELECT COUNT(*) FROM suggestions s $where_sql";
+$total_suggestions = (int)$db_instance->execute_query($count_query)->fetch_column();
+$total_pages = max(1, (int)ceil($total_suggestions / $rows_per_page));
+if ($current_page > $total_pages) $current_page = $total_pages;
 
 $query = "
     SELECT 
@@ -209,13 +242,22 @@ $query = "
         COALESCE(SUM(IF(v.vote = 1, 1, 0)), 0) AS upvotes,
         COALESCE(SUM(IF(v.vote = -1, 1, 0)), 0) AS downvotes,
         COALESCE(SUM(v.vote), 0) AS score,
-        COALESCE(MAX(CASE WHEN v.user_id = ? THEN v.vote END), 0) AS my_vote
+        COALESCE(MAX(CASE WHEN v.user_id = ? THEN v.vote END), 0) AS my_vote,
+        (SELECT COUNT(*) FROM suggestion_comments sc WHERE sc.suggestion_id = s.id) AS comment_count,
+        (SELECT GROUP_CONCAT(u1.username ORDER BY v1.id ASC SEPARATOR ', ') 
+         FROM suggestion_votes v1 JOIN users u1 ON v1.user_id = u1.id 
+         WHERE v1.suggestion_id = s.id AND v1.vote = 1) AS upvoters,
+        (SELECT GROUP_CONCAT(u2.username ORDER BY v2.id ASC SEPARATOR ', ') 
+         FROM suggestion_votes v2 JOIN users u2 ON v2.user_id = u2.id 
+         WHERE v2.suggestion_id = s.id AND v2.vote = -1) AS downvoters
     FROM suggestions s
     LEFT JOIN suggestion_votes v ON s.id = v.suggestion_id
+    $where_sql
     GROUP BY s.id, s.created_at
-    ORDER BY s.created_at DESC
+    ORDER BY $order_sql
+    LIMIT ?, ?
 ";
-$suggestions = $db_instance->execute_query($query, [$uid]);
+$suggestions = $db_instance->execute_query($query, [$uid, $offset, $rows_per_page]);
 
 $view .= "<div id='suggestions-list-container' style='display: flex; flex-direction: column; gap: 15px; max-width: 650px; margin: 0 auto;'>";
 
@@ -231,12 +273,19 @@ while ($row = $suggestions->fetch_assoc()) {
     $btn_up_active = ($my_vote === 1) ? " active-vote" : "";
     $btn_down_active = ($my_vote === -1) ? " active-vote" : "";
 
+    $edited_tag = "";
+    if (!empty($row["updated_at"])) {
+        $edit_date_str = date("d.m.Y \u\m H:i:s", $row["updated_at"]);
+        $pop_id = "pop_sug_edit_" . $sug_id;
+        $edited_tag = " <span class='popup' id='$pop_id' style='cursor: help; opacity: 0.65; font-size: 11px;'><i>(bearbeitet)</i><div id='{$pop_id}_box' class='popupbox'>Zuletzt bearbeitet am $edit_date_str Uhr</div></span>";
+    }
+
     $admin_controls = "";
     if ($is_admin) {
         $admin_controls = "
             <hr style='margin: 12px 0 8px 0; border: 0; border-top: 1px dashed rgba(255,255,255,0.1);'>
-            <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;'>
-                <form method='POST' style='display: flex; gap: 6px; align-items: center; margin: 0; flex: 1;'>
+            <div style='width: 100%;'>
+                <form method='POST' style='display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; width: 100%;'>
                     <input type='hidden' name='suggestion_id' value='$sug_id'>
                     <input type='hidden' name='admin_update_status' value='1'>
                     <select name='status' style='font-size: 12px; padding: 2px 20px 2px 4px;'>
@@ -247,8 +296,8 @@ while ($row = $suggestions->fetch_assoc()) {
                     </select>
                     <input type='text' name='admin_comment' placeholder='Admin-Notiz...' value='" . e($row["admin_comment"] ?? '') . "' style='font-size: 12px; padding: 3px; flex: 1; max-width: 250px;'>
                     <input type='submit' value='Speichern' style='font-size: 11px; padding: 3px 8px;'>
+                    <button type='button' class='btn-delete' data-on-click='confirmDeleteSuggestion' data-id='$sug_id' title='Vorschlag löschen' style='font-size: 11px; padding: 3px 8px;'>Löschen</button>
                 </form>
-                <button type='button' class='btn-delete' data-on-click='confirmDeleteSuggestion' data-id='$sug_id' title='Vorschlag löschen' style='font-size: 11px; padding: 3px 8px;'>Löschen</button>
             </div>";
     }
 
@@ -277,6 +326,32 @@ while ($row = $suggestions->fetch_assoc()) {
                              title='Vorschlag bearbeiten' alt='Bearbeiten'>";
     }
 
+    $comment_count = (int)($row["comment_count"] ?? 0);
+    $comments_btn = "
+    <button type='button' data-on-click='openSuggestionComments' data-id='$sug_id' style='font-size: 13px; padding: 3px 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(212, 175, 55, 0.3); color: #e6dcce;'>
+        " . wrap_emojis("💬 <b class='count-comments' id='comm_count_$sug_id'>$comment_count</b>") . " 
+    </button>";
+
+    $upvoters = !empty($row["upvoters"]) ? e($row["upvoters"]) : "<i>Noch keine Stimmen</i>";
+    $downvoters = !empty($row["downvoters"]) ? e($row["downvoters"]) : "<i>Noch keine Stimmen</i>";
+
+    $vote_buttons = "
+    <div class='suggestion-vote-bar' data-id='$sug_id' style='display: flex; gap: 8px; align-items: center;'>
+        <button type='button' class='btn-vote-up$btn_up_active popup' id='pop_v_up_$sug_id' data-on-click='voteSuggestion' data-id='$sug_id' data-type='up' style='font-size: 13px; padding: 3px 10px; cursor: pointer;'>
+            " . wrap_emojis("👍") . " <b class='count-up'>{$row["upvotes"]}</b>
+            <div id='pop_v_up_{$sug_id}_box' class='popupbox' style='text-align: left;'>
+                <span class='voters-list'>$upvoters</span>
+            </div>
+        </button>
+        
+        <button type='button' class='btn-vote-down$btn_down_active popup' id='pop_v_down_$sug_id' data-on-click='voteSuggestion' data-id='$sug_id' data-type='down' style='font-size: 13px; padding: 3px 10px; cursor: pointer;'>
+            " . wrap_emojis("👎") . " <b class='count-down'>{$row["downvotes"]}</b>
+            <div id='pop_v_down_{$sug_id}_box' class='popupbox' style='text-align: left;'>
+                <span class='voters-list'>$downvoters</span>
+            </div>
+        </button>
+    </div>";
+
     $view .= "
         <div class='box-container' data-id='$sug_id' data-status='{$row["status"]}' data-score='$score' style='margin-bottom: 0;'>
             <div class='box-header' style='justify-content: space-between; padding: 0 15px; height: auto; min-height: 40px;'>
@@ -293,16 +368,11 @@ while ($row = $suggestions->fetch_assoc()) {
                     " . wrap_emojis($row["content"]) . "
                 </p>
                 $comment_box
-                <div style='display: flex; justify-content: space-between; align-items: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;'>
-                    <small style='opacity: 0.7;'>Von $author_link am $date_str</small>
-
+                <div style='display: flex; justify-content: space-between; text-align: left; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;'>
+                    <small style='opacity: 0.7;'>Von $author_link am $date_str$edited_tag</small>
                     <div class='suggestion-vote-bar' data-id='$sug_id' style='display: flex; gap: 8px; align-items: center;'>
-                        <button type='button' class='btn-vote-up$btn_up_active' data-on-click='voteSuggestion' data-id='$sug_id' data-type='up' title='Dafür stimmen' style='font-size: 13px; padding: 3px 10px;'>
-                            " . wrap_emojis("👍") . " <b class='count-up'>{$row["upvotes"]}</b>
-                        </button>
-                        <button type='button' class='btn-vote-down$btn_down_active' data-on-click='voteSuggestion' data-id='$sug_id' data-type='down' title='Dagegen stimmen' style='font-size: 13px; padding: 3px 10px;'>
-                            " . wrap_emojis("👎") . " <b class='count-down'>{$row["downvotes"]}</b>
-                        </button>
+                        $comments_btn
+                        $vote_buttons
                     </div>
                 </div>
                 $admin_controls
@@ -311,6 +381,27 @@ while ($row = $suggestions->fetch_assoc()) {
 }
 
 $view .= "</div>";
+
+if ($total_pages > 1) {
+    $view .= '<div class="pagination-container"><div class="pagination-bar">';
+    if ($current_page > 1) {
+        $view .= "<a href='suggestions.php?tab=$filter&page=1' class='page-link' title='Erste Seite'>&laquo;</a>";
+        $prev = $current_page - 1;
+        $view .= "<a href='suggestions.php?tab=$filter&page=$prev' class='page-link' title='Zurück'>&lsaquo;</a>";
+    }
+    $range = 2;
+    for ($i = max(1, $current_page - $range); $i <= min($total_pages, $current_page + $range); $i++) {
+        $active = ($i == $current_page) ? "active" : "";
+        $view .= "<a href='suggestions.php?tab=$filter&page=$i' class='page-link $active'>$i</a>";
+    }
+    if ($current_page < $total_pages) {
+        $next = $current_page + 1;
+        $view .= "<a href='suggestions.php?tab=$filter&page=$next' class='page-link' title='Weiter'>&rsaquo;</a>";
+        $view .= "<a href='suggestions.php?tab=$filter&page=$total_pages' class='page-link' title='Letzte Seite'>&raquo;</a>";
+    }
+    $view .= '</div></div>';
+}
+
 $view .= "<div id='suggestions-empty-box' class='info-box' style='display: none; justify-content: center; max-width: 500px;'><span>Keine Vorschläge in dieser Kategorie vorhanden.</span></div>";
 
 /*

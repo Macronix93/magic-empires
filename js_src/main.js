@@ -82,8 +82,9 @@ registerAction("changeKingdomSelect", (el) => {
         updateKingdom(el);
     }
 });
-registerAction("toggleEmojis", () => {
-    const menu = document.getElementById("emoji-menu");
+registerAction("toggleEmojis", (el) => {
+    const container = el.closest(".emoji-picker-container") || document;
+    const menu = container.querySelector(".emoji-menu") || document.getElementById("emoji-menu");
     if (menu) menu.classList.toggle("open");
 });
 registerAction("pickEmoji", (el) => {
@@ -206,6 +207,7 @@ registerAction("submitShareCoords", (form, e) => {
     if (submitBtn) submitBtn.disabled = true;
 
     const formData = new FormData(form);
+    const messageText = form.querySelector('input[name="message"]')?.value || "";
 
     fetch("ajax/share_coords_send.php", {
         method: "POST",
@@ -215,13 +217,15 @@ registerAction("submitShareCoords", (form, e) => {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                form.innerHTML = `
-                <div style="text-align: center; padding: 20px;">
-                    <div class="passed" style="font-size: 18px; margin-bottom: 10px;">✔ ${data.message}</div>
-                </div>`;
-                setTimeout(() => {
-                    closeOverlay();
-                }, 1000);
+                if (messageText) {
+                    sessionStorage.setItem("me_chat_prefill", messageText);
+                }
+
+                closeOverlay();
+
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                }
             } else {
                 if (errorBox) {
                     errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>${data.error || "Fehler beim Senden"}</span></div>`;
@@ -237,6 +241,19 @@ registerAction("submitShareCoords", (form, e) => {
             }
             if (submitBtn) submitBtn.disabled = false;
         });
+});
+registerAction("openSecondaryOverlay", (el) => {
+    const url = el.dataset.url;
+    const title = el.dataset.title || "Spielerliste";
+    const width = el.dataset.width || "400px";
+    if (typeof openSecondaryOverlay === "function") {
+        openSecondaryOverlay(url, title, width);
+    }
+});
+registerAction("closeSecondaryOverlay", () => {
+    if (typeof closeSecondaryOverlay === "function") {
+        closeSecondaryOverlay();
+    }
 });
 
 function registerAction(name, callback) {
@@ -547,6 +564,13 @@ function setup() {
             const positionBox = function (e) {
                 if (box.dataset.enabled === "false") return;
 
+                const isReaction = trigger.classList.contains("reaction-badge") || trigger.closest(".reaction-badge");
+                const isTouchDevice = window.matchMedia("(hover: none)").matches || window.innerWidth <= 600 || ('ontouchstart' in window);
+
+                if (isReaction && isTouchDevice) {
+                    return;
+                }
+                
                 let mousePos = getMouseLocation(e);
 
                 box.style.position = "absolute";
@@ -992,14 +1016,25 @@ function toggleMobileElements(hide) {
     }
 }
 
-function selectUser(id) {
-    const form = document.forms["newmessage"];
+function selectUser(username) {
+    const shareInput = document.getElementById("share-recipient-input");
+    const newMsgForm = document.forms["newmessage"];
 
-    if (form) {
-        form.receiver.value = id;
-
-        closeOverlay();
+    if (shareInput) {
+        shareInput.value = username;
+        if (typeof closeSecondaryOverlay === "function") {
+            closeSecondaryOverlay();
+        }
+        return;
     }
+
+    if (newMsgForm) {
+        newMsgForm.receiver.value = username;
+        closeOverlay();
+        return;
+    }
+
+    closeOverlay();
 }
 
 function initAutomaticCountdowns() {
@@ -1015,7 +1050,8 @@ function initAutomaticCountdowns() {
 }
 
 function insertEmoji(emoji) {
-    const input = document.getElementById("message-input") ||
+    const input = document.getElementById("comment-input") ||
+        document.getElementById("message-input") ||
         document.getElementById("new-news-content") ||
         (document.activeElement.tagName === 'TEXTAREA' ? document.activeElement : null) ||
         document.querySelector('textarea[id^="edit-news-text-"]');
@@ -1072,6 +1108,20 @@ function stopTitleFlash() {
 }
 
 function updateSidebarBadges(counts) {
+    const messageSection = document.getElementById("messages-section");
+    const activeChatType = messageSection?.dataset.chatType;
+
+    const isWorldChatActive = (activeChatType === "world") || window.location.search.includes("worldchat");
+    if (isWorldChatActive) {
+        counts.world = 0;
+    }
+
+    const isGuildChatActive = (activeChatType === "guild") ||
+        (window.location.pathname.includes("guild.php") && document.getElementById("guild_tab_chat")?.style.display !== "none");
+    if (isGuildChatActive) {
+        counts.guild = 0;
+    }
+
     const update = (selector, count) => {
         document.querySelectorAll(selector).forEach(el => {
             if (count > 0) {

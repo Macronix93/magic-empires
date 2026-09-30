@@ -664,20 +664,6 @@ if ($other_kingdoms_res->num_rows > 0) {
     $disabled_attr = $is_disabled ? "disabled" : "";
 
     $view .= "<br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
-    if (!$is_disabled) {
-        $view .= '
-                <div class="mobile-internal-stock-box" id="target-k-stock-box">
-                    <div class="mobile-stock-header" id="target-k-stock-header">
-                        Vorräte in <b>' . e($kingdom->get_kingdom_name()) . '</b>:
-                    </div>
-                    <div class="mobile-internal-stock-grid">
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">-</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">-</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">-</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">-</span></div>
-                    </div>
-                </div>';
-    }
     $view .= '<table class="table internal-transport-table">
                 <form action="marketplace.php" method="GET">
                     <input type="hidden" name="send_own" value="1">
@@ -692,10 +678,23 @@ if ($other_kingdoms_res->num_rows > 0) {
                   <br><small class="error">Keine Marktplätze verfügbar!</small>';
     } else {
         $view .= '<select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>';
+
+        $view .= '
+                <div class="mobile-internal-stock-box" id="target-k-stock-box">
+                    <div class="mobile-stock-header" id="target-k-stock-header">
+                        Vorräte in <b>' . e($kingdom->get_kingdom_name()) . '</b>:
+                    </div>
+                    <div class="mobile-internal-stock-grid">
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">-</span></div>
+                    </div>
+                </div>';
     }
 
     $view .= '</td>
-                <td style="width: 50%;">
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
                     <div class="internal-res-grid">
                         <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
                             placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
@@ -706,10 +705,10 @@ if ($other_kingdoms_res->num_rows > 0) {
                         <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
                             placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
                     </div>
-                </td>
-                <td style="text-align: center; width: 20%;">
-                    <div id="internal-sum-display" style="font-size: 12px; margin-bottom: 5px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
-                    <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
+                        <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
+                        <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
+                    </div>
                 </td>
             </tr>
         </form>

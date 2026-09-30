@@ -119,11 +119,72 @@ function openOverlay(url, title = "Info", width = null) {
     }, isAlreadyOpen ? 100 : 0);
 }
 
-function closeOverlay() {
-    document.body.classList.remove("modal-open");
-    /** @type {HTMLElement} */
-    const overlay = document.getElementById("onpage-overlay");
+function getSecondaryOverlay() {
+    let secOverlay = document.getElementById("secondary-overlay");
+    if (!secOverlay) {
+        secOverlay = document.createElement("div");
+        secOverlay.id = "secondary-overlay";
+        secOverlay.className = "overlay-modal";
+        secOverlay.style.display = "none";
+        secOverlay.style.zIndex = "1000010";
+        secOverlay.style.top = "60px";
+        secOverlay.innerHTML = `
+            <div id="secondary-overlay-handle" class="overlay-header">
+                <span id="secondary-overlay-title">Spielerliste</span>
+                <button type="button" class="overlay-close-btn" data-on-click="closeSecondaryOverlay">&times;</button>
+            </div>
+            <div id="secondary-overlay-content-body" class="overlay-body">
+                <div class="spinner">Lade...</div>
+            </div>
+        `;
+        document.body.appendChild(secOverlay);
+        secOverlay.querySelectorAll('[data-on-click]').forEach(bindActions);
+    }
+    return secOverlay;
+}
 
+function openSecondaryOverlay(url, title = "Spielerliste", width = "400px") {
+    const overlay = getSecondaryOverlay();
+    const content = document.getElementById("secondary-overlay-content-body");
+    const overlayTitle = document.getElementById("secondary-overlay-title");
+
+    overlay.style.width = width || "400px";
+    overlay.style.display = "grid";
+    overlayTitle.innerText = title;
+    content.innerHTML = '<div class="spinner">Lade...</div>';
+
+    fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            content.innerHTML = doc.body.innerHTML;
+
+            content.querySelectorAll('[data-on-click="closeOverlay"]').forEach(btn => {
+                btn.dataset.onClick = "closeSecondaryOverlay";
+            });
+
+            content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+        });
+}
+
+function closeSecondaryOverlay() {
+    const overlay = document.getElementById("secondary-overlay");
+    if (overlay) {
+        overlay.style.display = "none";
+    }
+}
+
+function closeOverlay() {
+    const secOverlay = document.getElementById("secondary-overlay");
+    if (secOverlay && secOverlay.style.display !== "none") {
+        closeSecondaryOverlay();
+        return;
+    }
+
+    document.body.classList.remove("modal-open");
+    const overlay = document.getElementById("onpage-overlay");
     if (overlay) {
         overlay.style.display = "none";
         currentOverlayUrl = "";

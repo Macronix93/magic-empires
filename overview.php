@@ -209,9 +209,21 @@ if (!empty($_SESSION["active_attacks"])) {
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
 $count_kp_res = $db_instance->execute_query("SELECT COUNT(*) as total FROM kingdoms WHERE userid = ?", [$uid]);
 $count_kp = (int)$count_kp_res->fetch_assoc()["total"];
-
 $pages_kp = max(1, (int)ceil($count_kp / $limit));
-$curr_kp = isset($_GET["kp"]) ? max(1, min($pages_kp, (int)$_GET["kp"])) : 1;
+
+$all_user_k_ids = $db_instance->execute_query(
+    "SELECT id FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
+    [$uid]
+)->fetch_all();
+$flat_k_ids = array_column($all_user_k_ids, 0);
+$active_k_index = array_search((int)$active_k_id, $flat_k_ids, true);
+$active_kingdom_page = ($active_k_index !== false) ? (int)floor($active_k_index / $limit) + 1 : 1;
+
+if (isset($_GET["kp"])) {
+    $curr_kp = max(1, min($pages_kp, (int)$_GET["kp"]));
+} else {
+    $curr_kp = $active_kingdom_page;
+}
 $offset_kp = ($curr_kp - 1) * $limit;
 
 $user_kingdoms = $db_instance->execute_query(
@@ -431,10 +443,11 @@ foreach ($user_kingdoms as $k) {
         </div>
     ";
 
+    $cur_kingdom_styling = $kid == $user->get_current_kingdom() ? " style='font-weight: bold; color: var(--link-color);'" : '';
     $col_kingdom = "
         <div class='kingdom-cell-wrapper'>
             <div class='popup' id='$k_pop_id' style='display: flex; align-items: center; min-width: 0; flex: 1;'>
-                <a href='#' class='kingdom-link kingdom-name-break' data-on-click='switchKingdom' data-id='$kid'>
+                <a href='#' class='kingdom-link kingdom-name-break' data-on-click='switchKingdom' data-id='$kid'$cur_kingdom_styling>
                     $k_name
                 </a>
                 $k_res_popup

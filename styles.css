@@ -369,7 +369,7 @@ input[type="checkbox"] {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     background: rgba(0, 0, 0, 0.2);
     padding: 4px 6px;
     border-radius: 4px;
@@ -2283,27 +2283,28 @@ body.modal-open footer {
     max-height: 90vh;
     display: none;
     grid-template-rows: min-content 1fr;
-    background-color: var(--box-content-color, #1a1a1a);
-    border: 2px solid #555;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+    background-color: rgba(45, 42, 38, 1);
     border-radius: 5px;
+    border: 4px double var(--box-selected);
     overflow: hidden;
 }
 
 .overlay-header {
     padding: 5px;
     cursor: move;
-    background: linear-gradient(to bottom, #444, #222);
+    background: linear-gradient(180deg, #4a3728 0%, #2b1d12 100%);
+    border-bottom: 2px solid var(--border-gold);
     font-weight: bold;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #555;
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
     touch-action: none;
+    color: var(--link-color);
 }
 
 .overlay-body {
@@ -2649,9 +2650,11 @@ img[data-on-click] {
 }
 
 .internal-res-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    display: inline-grid;
+    grid-template-columns: repeat(2, max-content);
+    gap: 8px 20px;
+    justify-content: center;
+    margin: 0 auto;
 }
 
 .internal-res-item {
@@ -2805,13 +2808,23 @@ img[data-on-click] {
 
 .chat-coord-link {
     color: var(--link-color) !important;
-    text-decoration: underline !important;
-    font-weight: bold;
     cursor: pointer;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--border-gold);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin: 0 2px;
+    text-decoration: none !important;
+    display: inline-block;
+    line-height: 1.2;
+    transition: all 0.15s ease-in-out;
 }
 
 .chat-coord-link:hover {
+    background: rgba(212, 175, 55, 0.25);
+    border-color: #ffffff;
     color: #ffffff !important;
+    box-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
 }
 
 .reaction-badge {
@@ -3225,6 +3238,18 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    #chat-loading-wrapper {
+        border: 1px ridge var(--border-gold);
+    }
+
+    #chat-loading-wrapper .sender-bubble {
+        margin-left: 10px;
+    }
+
+    #chat-loading-wrapper .receiver-bubble {
+        margin-right: 7px;
     }
 
     #target_k {

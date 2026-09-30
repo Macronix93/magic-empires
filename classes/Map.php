@@ -166,8 +166,7 @@ class Map
             }
         }
 
-        //return (int)round($modified_time);
-        return 15;
+        return (int)round($modified_time);
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array

@@ -347,13 +347,7 @@ class Messages
         foreach ($result as $row) {
             $message_id = $row["id"];
 
-            $display_message = e($row["message"]);
-            $display_message = parse_chat_quotes($display_message);
-            $display_message = nl2br($display_message);
-            if ($_SESSION["chat_filter"]) {
-                $display_message = filter_chat_message($display_message);
-            }
-            $display_message = wrap_emojis($display_message);
+            $display_message = self::format_chat_message($row["message"]);
 
             $has_read = $row["hasread"];
             $date = $row["date"];
@@ -508,13 +502,7 @@ class Messages
                      data-text='" . e($row["message"]) . "'
                      title='Nachricht zitieren' alt=''>";
 
-                $msg = e($row["message"]);
-                $msg = parse_chat_quotes($msg);
-                $msg = nl2br($msg);
-                if ($_SESSION["chat_filter"]) {
-                    $msg = filter_chat_message($msg);
-                }
-                $msg = wrap_emojis($msg);
+                $msg = self::format_chat_message($row["message"]);
 
                 $u = new User($row["userid"], $row["username"]);
                 $avatar = $u->get_avatar();
@@ -621,11 +609,7 @@ class Messages
 
             $class = $is_me ? "receiver-bubble" : "sender-bubble";
 
-            $msg = e($row["message"]);
-            $msg = parse_chat_quotes($msg);
-            $msg = nl2br($msg);
-            if ($_SESSION["chat_filter"]) $msg = filter_chat_message($msg);
-            $display_msg = wrap_emojis($msg);
+            $display_msg = self::format_chat_message($row["message"]);
 
             $sender_user = new User($row["userid"], $row["username"]);
             $avatar = $sender_user->get_avatar();
@@ -2269,10 +2253,10 @@ class Messages
         }
     }
 
-    function parse_chat_coordinates(string $text): string
+    public static function parse_chat_coordinates(string $text): string
     {
-        $coord_num = '(?:[1-9][0-9]?|100)';
-        $pattern = '/(<[^>]+>)|(?:\b|\()(' . $coord_num . ')\s*[:|]\s*(' . $coord_num . ')(?:\b|\))(?!\s*(?:uhr|sek|min))/iu';
+        $coord_num = '(?:100|[1-9][0-9]|0?[1-9])';
+        $pattern = '/(<[^>]+>)|\b(' . $coord_num . ')\s*[:|]\s*(' . $coord_num . ')\b(?!\s*(?:uhr|sek|min))/iu';
 
         return preg_replace_callback($pattern, function ($matches) {
             if (!empty($matches[1])) {
@@ -2283,27 +2267,15 @@ class Messages
             $y = (int)$matches[3];
 
             if ($x >= 1 && $x <= MAX_X && $y >= 1 && $y <= MAX_Y) {
-                $link = "<a href='map.php?startx=$x&starty=$y' data-on-click='mapJump' data-x='$x' data-y='$y' class='chat-coord-link'>$x:$y</a>";
-
-                $matched_str = $matches[0];
-                $has_open = str_starts_with($matched_str, '(');
-                $has_close = str_ends_with($matched_str, ')');
-
-                if ($has_open && $has_close) {
-                    return "($link)";
-                } else if ($has_open) {
-                    return "($link";
-                } else if ($has_close) {
-                    return "$link)";
-                }
-                return $link;
+                $display_text = $matches[2] . ':' . $matches[3];
+                return "<a href='map.php?startx=$x&starty=$y' data-on-click='mapJump' data-x='$x' data-y='$y' class='chat-coord-link'>$display_text</a>";
             }
 
             return $matches[0];
         }, $text);
     }
 
-    function format_chat_message(string $raw_text, ?bool $use_filter = null): string
+    public static function format_chat_message(string $raw_text, ?bool $use_filter = null): string
     {
         $filter = ($use_filter !== null) ? $use_filter : (!empty($_SESSION["chat_filter"]));
 
@@ -2315,7 +2287,7 @@ class Messages
             $text = filter_chat_message($text);
         }
 
-        $text = $this->parse_chat_coordinates($text);
+        $text = self::parse_chat_coordinates($text);
 
         return wrap_emojis($text);
     }

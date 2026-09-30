@@ -19,17 +19,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
         $html = "";
         $reaction_updates = [];
-        $use_filter = ($_SESSION["chat_filter"] ?? 1);
 
         foreach ($rows as $row) {
             $is_me = ($row["userid"] == $u_id);
             $class = $is_me ? "receiver-bubble" : "sender-bubble";
 
-            $msg = e($row["message"]);
-            $msg = parse_chat_quotes($msg);
-            $msg = nl2br($msg);
-            if ($use_filter == 1) $msg = filter_chat_message($msg);
-            $msg = wrap_emojis($msg);
+            $msg = Messages::format_chat_message($row["message"]);
 
             $sender_user = new User($row["userid"], $row["username"]);
             $avatar = $sender_user->get_avatar();

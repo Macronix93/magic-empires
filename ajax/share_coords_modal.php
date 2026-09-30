@@ -48,7 +48,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     $my_gid = $user->get_user_guild_id();
-    $preset_msg = "Schau mal hier: ($x:$y) - $location_desc";
+    $preset_msg = "$x:$y - $location_desc";
     ?>
     <div style="padding: 10px; text-align: left; max-width: 440px; margin: 0 auto;">
         <div style="text-align: center; margin-bottom: 15px;">
@@ -61,6 +61,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
               data-on-submit="submitShareCoords">
             <input type="hidden" name="x" value="<?= $x ?>">
             <input type="hidden" name="y" value="<?= $y ?>">
+            <input type="hidden" name="message" value="<?= e($preset_msg) ?>">
 
             <label style="display: block; margin-bottom: 6px;"><b>Wo teilen?</b></label>
             <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; font-size: 14px;">
@@ -68,33 +69,39 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     <input type="radio" name="share_target" value="world" checked data-on-change="toggleShareTarget">
                     <span>Welt-Chat</span>
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px; <?= $my_gid <= 0 ? 'opacity: 0.5;' : '' ?>">
-                    <input type="radio" name="share_target" value="guild" <?= $my_gid <= 0 ? 'disabled' : '' ?>
-                           data-on-change="toggleShareTarget">
-                    <span>Gilden-Chat<?= $my_gid <= 0 ? ' <small>(Keine Gilde)</small>' : '' ?></span>
-                </label>
+                <?php if ($my_gid > 0): ?>
+                    <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <input type="radio" name="share_target" value="guild"
+                               data-on-change="toggleShareTarget">
+                        <span>Gilden-Chat</span>
+                    </label>
+                <?php endif ?>
                 <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
                     <input type="radio" name="share_target" value="private" data-on-change="toggleShareTarget">
                     <span>Privatnachricht</span>
                 </label>
             </div>
 
-            <div id="share-recipient-wrap" style="display: none; margin-bottom: 12px;">
-                <label style="display: block; margin-bottom: 3px; font-size: 14px;">Empfänger (Spielername):</label>
-                <label for="share-recipient-input"></label><input type="text" name="recipient"
-                                                                  id="share-recipient-input"
-                                                                  placeholder="Name eingeben..."
-                                                                  maxlength="24" style="width: 100%;">
+            <div id="share-recipient-wrap" style="display: none; margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 4px; font-size: 14px;"><b>Empfänger
+                        (Spielername):</b></label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <label for="share-recipient-input"></label><input type="text" name="recipient"
+                                                                      id="share-recipient-input"
+                                                                      placeholder="Name eingeben..."
+                                                                      maxlength="24" style="flex: 1;">
+                    <button type="button"
+                            data-on-click="openSecondaryOverlay"
+                            data-url="userlist.php"
+                            data-title="Spielerliste"
+                            style="white-space: nowrap; padding: 5px 10px;">
+                        Spielerliste
+                    </button>
+                </div>
             </div>
 
-            <label style="display: block; margin-bottom: 3px; font-size: 14px;">Nachricht / Kommentar:</label>
-            <label for="share-message-input"></label><textarea name="message" id="share-message-input" rows="3"
-                                                               maxlength="1000"
-                                                               style="width: 100%; margin-bottom: 15px; resize: vertical;"
-                                                               required><?= $preset_msg ?></textarea>
-
             <div style="display: flex; justify-content: center; gap: 10px;">
-                <input type="submit" id="btn-share-submit" value="Absenden" style="padding: 6px 25px;">
+                <input type="submit" id="btn-share-submit" value="In Chat einfügen" style="padding: 6px 25px;">
                 <button type="button" data-on-click="closeOverlay">Abbrechen</button>
             </div>
         </form>

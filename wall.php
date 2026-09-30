@@ -69,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
  * HTML Content Part
  */
 $view .= "<div style='margin: 0 auto 15px; width: 350px;'>
-            <div class='split-content'><b>Verteidigungswert:</b> $bonus_defense_text</div>
+            <div class='split-content'><b>Verteidigung (aktuell):</b> $bonus_defense_text</div>
             $next_level_text
           </div>
 ";

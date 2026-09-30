@@ -9,23 +9,17 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $recipient_name = trim($_POST["recipient"] ?? "");
 
     if (empty($raw_msg)) {
-        echo json_encode(["success" => false, "error" => "Bitte gib eine Nachricht ein."]);
+        echo json_encode(["success" => false, "error" => "Keine Koordinaten übergeben."]);
         exit;
     }
 
     $uid = $user->get_user_id();
-    $uname = $user->get_user_name();
-    $now = time();
 
     if ($target === "world") {
-        $db_instance->execute_query(
-            "INSERT INTO world_chat (userid, username, message, date) VALUES (?, ?, ?, ?)",
-            [$uid, $uname, $raw_msg, $now]
-        );
-        $msg_id = $db_instance->insert_id;
-        $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$msg_id, $uid]);
-
-        echo json_encode(["success" => true, "message" => "Erfolgreich im Welt-Chat geteilt!"]);
+        echo json_encode([
+            "success" => true,
+            "redirect_url" => "messages.php?worldchat"
+        ]);
         exit;
     }
 
@@ -36,14 +30,10 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             exit;
         }
 
-        $db_instance->execute_query(
-            "INSERT INTO guild_chat (guild_id, userid, username, message, date) VALUES (?, ?, ?, ?, ?)",
-            [$gid, $uid, $uname, $raw_msg, $now]
-        );
-        $msg_id = $db_instance->insert_id;
-        $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$msg_id, $uid]);
-
-        echo json_encode(["success" => true, "message" => "Erfolgreich im Gilden-Chat geteilt!"]);
+        echo json_encode([
+            "success" => true,
+            "redirect_url" => "guild.php?tab=chat"
+        ]);
         exit;
     }
 
@@ -66,10 +56,24 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             exit;
         }
 
-        $messages = new Messages($user);
-        $messages->send_message($uid, $uname, (int)$rec["id"], $rec["username"], $now, $raw_msg);
+        $target_uid = (int)$rec["id"];
 
-        echo json_encode(["success" => true, "message" => "Nachricht an {$rec["username"]} gesendet!"]);
+        $res_conv = $db_instance->execute_query("
+            SELECT 1 FROM messages 
+            WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+              AND deleted = 0 
+            LIMIT 1",
+            [$uid, $target_uid, $target_uid, $uid]
+        );
+
+        $redirect_url = ($res_conv->num_rows > 0)
+            ? "messages.php?action=read&s=" . $target_uid
+            : "messages.php?action=new&receiver=" . urlencode($rec["username"]);
+
+        echo json_encode([
+            "success" => true,
+            "redirect_url" => $redirect_url
+        ]);
         exit;
     }
 

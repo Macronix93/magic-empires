@@ -38,13 +38,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $new_last_id = $last_id;
 
     while ($row = $result->fetch_assoc()) {
-        $text = e($row["message"]);
-        $text = parse_chat_quotes($text);
-        $text = nl2br($text);
-        if (!empty($_SESSION["chat_filter"])) {
-            $text = filter_chat_message($text);
-        }
-        $display_message = wrap_emojis($text);
+        $display_message = Messages::format_chat_message($row["message"]);
 
         $new_last_id = $row["id"];
         $is_me = ((int)$row["senderid"] === $u_id);
