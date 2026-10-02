@@ -7,9 +7,27 @@ if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
 }
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $last_id = (int)($_GET["last_id"] ?? 0);
     $u_id = $user->get_user_id();
     $guild_id = $user->get_user_guild_id();
+
+    if (isset($_GET["mark_all_read"])) {
+        if ($guild_id > 0) {
+            $max_msg = (int)($db_instance->execute_query(
+                "SELECT MAX(id) FROM guild_chat WHERE guild_id = ?", [$guild_id]
+            )->fetch_row()[0] ?? 0);
+
+            if ($max_msg > 0) {
+                $db_instance->execute_query(
+                    "UPDATE users SET last_guild_chat_id = ? WHERE id = ?",
+                    [$max_msg, $u_id]
+                );
+            }
+        }
+        echo json_encode(["success" => true]);
+        exit;
+    }
+
+    $last_id = (int)($_GET["last_id"] ?? 0);
     $is_admin = $user->is_admin();
     $my_rank = $user->get_guild_rank_id();
     $is_privileged = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);

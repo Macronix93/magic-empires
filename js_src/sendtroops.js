@@ -151,6 +151,97 @@ registerAction("selectAllTroops", () => {
         updateTroopSummary();
     }
 });
+registerAction("submitSendTroopsForm", (form, e) => {
+    if (e) e.preventDefault();
+
+    const submitBtn = form.querySelector('input[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalVal = submitBtn.value;
+        submitBtn.value = "Wird entsendet...";
+    }
+
+    const errorContainer = document.getElementById("sendtroops-ajax-error");
+    if (errorContainer) {
+        errorContainer.style.display = "none";
+        errorContainer.innerHTML = "";
+    }
+
+    const formData = new FormData(form);
+    const targetUrl = form.getAttribute("action") || window.location.href;
+
+    fetch(targetUrl, {
+        method: "POST",
+        headers: {"X-Requested-With": "XMLHttpRequest"},
+        body: formData
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeOverlay();
+                showMapFlashMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
+
+                if (typeof gameConfig !== "undefined" && gameConfig.currentKingdom) {
+                    gameConfig.currentKingdom.occupiedCommands++;
+                    if (gameConfig.currentKingdom.occupiedCommands >= gameConfig.currentKingdom.maxCommands) {
+                        gameConfig.currentKingdom.commandsFull = true;
+                    }
+                }
+
+                if (typeof refreshMapDataSilently === "function") {
+                    refreshMapDataSilently(true);
+                }
+            } else {
+                if (errorContainer) {
+                    errorContainer.innerHTML = `<div class="info-box event-error" style="margin-bottom: 15px;"><img src="images/icons/icon_error.png" alt="Fehler"><span>${data.error || "Fehler beim Absenden."}</span></div>`;
+                    errorContainer.style.display = "block";
+                    const modalBody = document.getElementById("overlay-content-body");
+                    if (modalBody) {
+                        modalBody.scrollTo({top: 0, behavior: "smooth"});
+                    }
+                } else {
+                    alert(data.error || "Fehler beim Absenden.");
+                }
+
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.value = submitBtn.dataset.originalVal || "Truppen schicken";
+                }
+            }
+        })
+        .catch(err => {
+            console.error("Fehler beim Truppenversand:", err);
+            if (errorContainer) {
+                errorContainer.innerHTML = `<div class="info-box event-error" style="margin-bottom: 15px;"><img src="images/icons/icon_error.png" alt="Fehler"><span>Netzwerkfehler beim Senden der Truppen.</span></div>`;
+                errorContainer.style.display = "block";
+            }
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.value = submitBtn.dataset.originalVal || "Truppen schicken";
+            }
+        });
+});
+
+function showMapFlashMessage(message, type = "passed") {
+    const container = document.querySelector(".big-box-content");
+    if (!container) return;
+
+    container.querySelectorAll(".info-box.event-passed, .info-box.event-error").forEach(el => el.remove());
+
+    const icon = (type === "passed") ? "icon_checked.png" : "icon_error.png";
+    const cssClass = (type === "passed") ? "event-passed" : "event-error";
+
+    const box = document.createElement("div");
+    box.className = `info-box ${cssClass}`;
+    box.style.marginBottom = "15px";
+    box.innerHTML = `<img src="images/icons/${icon}" alt="Status"><span>${message}</span>`;
+
+    container.insertBefore(box, container.firstChild);
+
+    if (window.innerWidth <= 600) {
+        box.scrollIntoView({behavior: "smooth", block: "nearest"});
+    }
+}
 
 function updateTroopSummary() {
     const inputs = document.querySelectorAll(".js-unit-input");
@@ -398,34 +489,26 @@ function formatMineDuration(totalSeconds) {
     return parts.length > 0 ? parts.join(" ") : "wenigen Sekunden";
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    const form = document.getElementById("send-troops-form");
+document.addEventListener("input", (e) => {
+    if (e.target.classList.contains("js-unit-input")) {
+        const form = e.target.closest("#send-troops-form");
+        if (form && form.dataset.mineLimit !== undefined) {
+            const mineLimit = parseInt(form.dataset.mineLimit);
+            const otherUnits = getSelectedTroopCountExcept(e.target);
+            const allowedForThis = Math.max(0, mineLimit - otherUnits);
+            const maxOwn = parseInt(e.target.dataset.max) || 0;
 
-    if (form) {
-        form.addEventListener("input", (e) => {
-            if (e.target.classList.contains("js-unit-input")) {
-                const hasMineLimit = form.dataset.mineLimit !== undefined;
-                if (hasMineLimit) {
-                    const mineLimit = parseInt(form.dataset.mineLimit);
-                    const otherUnits = getSelectedTroopCountExcept(e.target);
-                    const allowedForThis = Math.max(0, mineLimit - otherUnits);
-                    const maxOwn = parseInt(e.target.dataset.max) || 0;
+            let rawVal = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+            const cap = Math.min(maxOwn, allowedForThis);
 
-                    let rawVal = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
-                    const cap = Math.min(maxOwn, allowedForThis);
-
-                    if (rawVal > cap) {
-                        e.target.value = cap > 0 ? cap : "";
-                    }
-                }
-                updateTroopSummary();
+            if (rawVal > cap) {
+                e.target.value = cap > 0 ? cap : "";
             }
-        });
-
-        form.addEventListener("submit", () => {
-            sessionStorage.setItem("restore_map_filters_after_send", "true");
-        });
-
+        }
         updateTroopSummary();
     }
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+    updateTroopSummary();
 });

@@ -43,7 +43,7 @@ function applyOverlayStyles() {
     }
 }
 
-function openOverlay(url, title = "Info", width = null) {
+function openOverlay(url, title = "", width = null) {
     if (typeof window.closeMobileMenus === "function") {
         window.closeMobileMenus();
     } else {
@@ -61,12 +61,14 @@ function openOverlay(url, title = "Info", width = null) {
     const isAlreadyOpen = (overlay.style.display === "grid");
 
     if (width) {
-        overlay.style.width = width;
-    } else {
-        overlay.style.width = "";
+        overlay.style.maxWidth = width;
+    } else if (!isAlreadyOpen) {
+        overlay.style.maxWidth = "";
     }
 
     if (url === currentOverlayUrl && isAlreadyOpen) return;
+
+    const hasCustomTitle = Boolean(title && title.trim() !== "" && title !== "Info");
 
     if (!isAlreadyOpen) {
         xOffset = 0;
@@ -78,11 +80,17 @@ function openOverlay(url, title = "Info", width = null) {
         content.style.transition = "none";
         content.style.opacity = "1";
         content.innerHTML = '<div class="spinner">Lade...</div>';
+
+        overlayTitle.innerText = hasCustomTitle ? title : "";
     } else {
         if (url !== currentOverlayUrl) {
             content.style.minHeight = content.offsetHeight + "px";
             content.style.transition = "opacity 0.15s ease";
             content.style.opacity = "0";
+        }
+
+        if (hasCustomTitle) {
+            overlayTitle.innerText = title;
         }
     }
 
@@ -94,7 +102,10 @@ function openOverlay(url, title = "Info", width = null) {
     setTimeout(() => {
         if (isAlreadyOpen) content.innerHTML = '<div class="spinner">Lade...</div>';
         currentOverlayUrl = url;
-        overlayTitle.innerText = title;
+
+        if (hasCustomTitle) {
+            overlayTitle.innerText = title;
+        }
 
         fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(response => response.text())
@@ -104,11 +115,21 @@ function openOverlay(url, title = "Info", width = null) {
                 content.style.opacity = "0";
 
                 setTimeout(() => {
+                    const titleData = doc.getElementById("modal-title-data");
+                    if (titleData) {
+                        if (titleData.dataset.title) {
+                            overlayTitle.innerText = titleData.dataset.title;
+                        }
+
+                        if (titleData.dataset.width) {
+                            overlay.style.maxWidth = titleData.dataset.width;
+                        }
+                    }
+
                     content.innerHTML = doc.body.innerHTML;
                     content.style.minHeight = "";
                     content.style.transition = "opacity 0.15s ease";
                     content.style.opacity = "1";
-
                     content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
 
                     if (typeof setup === "function") {
@@ -187,7 +208,19 @@ function closeOverlay() {
     const overlay = document.getElementById("onpage-overlay");
     if (overlay) {
         overlay.style.display = "none";
+        overlay.style.maxWidth = "";
         currentOverlayUrl = "";
+    }
+}
+
+function reloadOverlay() {
+    const overlay = document.getElementById("onpage-overlay");
+    if (overlay && overlay.style.display !== "none" && currentOverlayUrl) {
+        const url = currentOverlayUrl;
+        const title = document.getElementById("overlay-title")?.innerText || "Info";
+        currentOverlayUrl = "";
+
+        openOverlay(url, title);
     }
 }
 
@@ -321,3 +354,5 @@ function redirectToMap(x, y) {
         window.location.href = "map.php?startx=" + x + "&starty=" + y;
     }
 }
+
+window.reloadOverlay = reloadOverlay;

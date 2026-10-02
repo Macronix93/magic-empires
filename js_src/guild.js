@@ -174,8 +174,12 @@ registerAction("switchGuildTab", (el) => {
         if (tabName === "chat") {
             const guildTabBadge = document.getElementById("badge-guild-tab");
             if (guildTabBadge) guildTabBadge.style.display = "none";
-
             document.querySelectorAll(".js-badge-guild").forEach(b => b.style.display = "none");
+
+            fetch("ajax/chat_update_guild.php?mark_all_read=1", {
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
+            }).then(r => r.json())
+                .catch(err => console.error("Fehler beim Aktualisieren des Gilden-Chats:", err));
 
             setTimeout(() => {
                 if (typeof scrollDown === "function") {

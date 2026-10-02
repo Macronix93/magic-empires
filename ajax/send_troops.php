@@ -1,8 +1,14 @@
 <?php
-require_once("includes/core.php");
+require_once("../includes/core.php");
 
-// Barracks required for sending troops
 check_user_login($user);
+
+if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
+    $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
+    $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
+    change_location("map.php?startx=$x&starty=$y");
+    exit;
+}
 
 $kingdom = new Kingdom($user->get_current_kingdom());
 $barracks_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
@@ -14,10 +20,11 @@ $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) 
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
 $send_title = "Erobern";
 
-if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
-    $_SESSION["game_error"] = "Diese Koordinaten gibt es nicht!";
+$warning_box = "";
 
-    change_location("map.php?startx=$target_x&starty=$target_y");
+if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
+    echo show_error_box("Diese Koordinaten gibt es nicht!");
+    echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
     exit;
 }
 
@@ -26,9 +33,8 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
     $active_event = $world_event_manager->get_active_event();
 
     if (!$active_event) {
-        $_SESSION["game_error"] = "Dieses Gebiet ist durch einen magischen Bann versiegelt!";
-
-        change_location("map.php?startx=$target_x&starty=$target_y");
+        echo show_error_box("Dieses Gebiet ist durch einen magischen Bann versiegelt!");
+        echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
         exit;
     }
 
@@ -40,9 +46,8 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
         $attempts = $res_check->fetch_assoc()["attempts_used"] ?? 0;
 
         if ($attempts >= WORLD_EVENT_MAX_ATTEMPTS) {
-            $_SESSION["game_error"] = "Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!";
-
-            change_location("map.php?startx=$target_x&starty=$target_y");
+            echo show_error_box("Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!");
+            echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
             exit;
         }
     }
@@ -90,10 +95,10 @@ if ($is_ally) {
 } else {
     if ($enemy_user_id > 0 && $enemy_user_id != $user->get_user_id()) {
         $res_vac = $db_instance->execute_query("SELECT is_vacation, vacation_until FROM users WHERE id = ?", [$enemy_user_id])->fetch_assoc();
-        if (!empty($res_vac["is_vacation"]) && (int)$res_vac["vacation_until"] > time()) {
-            $_SESSION["game_error"] = "Dieser Spieler befindet sich im Urlaubsmodus und kann weder angegriffen noch ausspioniert werden!";
 
-            change_location("map.php?startx=$target_x&starty=$target_y");
+        if (!empty($res_vac["is_vacation"]) && (int)$res_vac["vacation_until"] > time()) {
+            echo show_error_box("Dieser Spieler befindet sich im Urlaubsmodus und kann weder angegriffen noch ausspioniert werden!");
+            echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
             exit;
         }
 
@@ -113,9 +118,8 @@ if ($kingdom_id != MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
 }
 
 if ($already_sent > 0) {
-    $_SESSION["game_error"] = "Du hast bereits Truppen zu diesen Koordinaten geschickt!";
-
-    change_location("map.php?startx=$target_x&starty=$target_y");
+    echo show_error_box("Du hast bereits Truppen zu diesen Koordinaten geschickt!");
+    echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
     exit;
 }
 
@@ -170,12 +174,11 @@ if ($expires_at > 0) {
     $remaining_time = $expires_at - time();
 
     if ($arrival_time > $remaining_time) {
-        $view .= show_warning_box("<b>Warnung:</b> Deine Truppen werden nicht rechtzeitig ankommen<br>(Restzeit: " . convert_sec_to_str($remaining_time) . ").");
+        $warning_box = show_warning_box("<b>Warnung:</b> Deine Truppen werden nicht rechtzeitig ankommen<br>(Restzeit: " . convert_sec_to_str($remaining_time) . ").");
     }
 }
 
-// Check if sent troop was clicked
-if (!empty($_POST["soldiers"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($barracks_level <= 0) {
         $error = "Befehl verweigert: Du besitzt keine Kaserne!";
     } else {
@@ -361,7 +364,7 @@ if (!empty($_POST["soldiers"])) {
             $check_data = $res_exists->fetch_assoc();
 
             if ($check_data["already_there"]) {
-                $view .= show_warning_box("Hinweis: Du hast bereits Truppen dort stationiert. Diese Welle wird sich ihnen anschließen.");
+                $warning_box .= show_warning_box("Hinweis: Du hast bereits Truppen dort stationiert. Diese Welle wird sich ihnen anschließen.");
             }
 
             $target_k_obj = new Kingdom($kingdom_id);
@@ -384,27 +387,36 @@ if (!empty($_POST["soldiers"])) {
             }
         }
 
-        if (empty($error)) {
-            $now = time();
+        if (!empty($error)) {
+            header("Content-Type: application/json; charset=utf-8");
+            echo json_encode(["success" => false, "error" => $error]);
+            exit;
+        }
 
-            $is_pure_scouting = ($has_soldiers && !$has_non_scout_units);
-            $arrival_time = $map->get_arrival_time(
-                $kingdom->get_kingdom_map_x(),
-                $kingdom->get_kingdom_map_y(),
-                $target_x,
-                $target_y,
-                $user->get_current_kingdom(),
-                $kingdom_id,
-                $is_pure_scouting,
-                false,
-                $is_ally
-            );
+        $now = time();
 
+        $is_pure_scouting = ($has_soldiers && !$has_non_scout_units);
+        $arrival_time = $map->get_arrival_time(
+            $kingdom->get_kingdom_map_x(),
+            $kingdom->get_kingdom_map_y(),
+            $target_x,
+            $target_y,
+            $user->get_current_kingdom(),
+            $kingdom_id,
+            $is_pure_scouting,
+            false,
+            $is_ally
+        );
+
+        $db_instance->begin_transaction();
+        try {
             $result = $db_instance->execute_query(
                 "INSERT INTO events (actionid, userid, kingdomid, buildingtime, targetid, targetx, targety, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING eventid",
                 [$action_id, $user->get_user_id(), $user->get_current_kingdom(), $now, $kingdom_id, $target_x, $target_y, $now + $arrival_time]
             );
             $event_id = $result->fetch_assoc()["eventid"];
+
+            $log_troops = [];
 
             foreach ($_POST["soldiers"] as $soldier_id => $count) {
                 $soldier_id = intval($soldier_id);
@@ -423,121 +435,120 @@ if (!empty($_POST["soldiers"])) {
 
                     // Update local count
                     $kingdom_soldiers[$soldier_id] -= $soldier_count;
+                    $log_troops[$soldiers[$soldier_id]->get_soldier_name()] = $soldier_count;
                 }
             }
 
-            if ($event_id !== null) {
-                $log_troops = [];
+            $logger->log_game("COMBAT", "ATTACK_SEND", [
+                "target_x" => $target_x,
+                "target_y" => $target_y,
+                "target_kingdom_id" => $kingdom_id,
+                "arrival_in" => $arrival_time,
+                "troops" => $log_troops
+            ], $user->get_current_kingdom());
 
-                foreach ($_POST["soldiers"] as $s_id => $count) {
-                    $count = (int)$count;
+            $db_instance->commit();
 
-                    if ($count > 0) {
-                        $name = $soldiers[$s_id]->get_soldier_name();
-                        $log_troops[$name] = $count;
-                    }
-                }
+            header("Content-Type: application/json; charset=utf-8");
+            echo json_encode([
+                "success" => true,
+                "message" => "Truppen erfolgreich losgeschickt!"
+            ]);
+            exit;
 
-                $logger->log_game("COMBAT", "ATTACK_SEND", [
-                    "target_x" => $target_x,
-                    "target_y" => $target_y,
-                    "target_kingdom_id" => $kingdom_id,
-                    "arrival_in" => $arrival_time,
-                    "troops" => $log_troops
-                ], $user->get_current_kingdom());
-
-                $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
-
-                if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
-                    change_location("events.php");
-                } else {
-                    change_location("map.php?startx=$target_x&starty=$target_y");
-                }
-                exit;
-            }
+        } catch (Exception $e) {
+            $db_instance->rollback();
+            header("Content-Type: application/json; charset=utf-8");
+            echo json_encode(["success" => false, "error" => "Datenbankfehler beim Absenden: " . $e->getMessage()]);
+            exit;
         }
     }
 }
 
 if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
-    $_SESSION["game_error"] = "Das ist dein aktuelles Königreich!";
-
-    change_location("map.php?startx=$target_x&starty=$target_y");
+    echo show_error_box("Das ist dein aktuelles Königreich!");
+    echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
     exit;
-} else {
-    if ($cmd_stats["is_full"]) {
-        $view .= show_warning_box("<b>Befehlslimit erreicht:</b> Truppen aus <b>" . e($kingdom->get_kingdom_name()) . "</b> können nicht entsendet werden.");
-    }
+}
 
-    // Noob protection check
-    $only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
-    $scout_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0);
+$view = "<div id='sendtroops-ajax-error' style='display: none;'></div>";
+if (!empty($warning_box)) {
+    $view .= $warning_box;
+}
 
-    if ($only_scouts_allowed) {
-        $my_score = $user->get_user_score();
-        $min_allowed = floor($my_score * NOOB_PROTECTION_MULT);
-        $max_allowed = floor($my_score / NOOB_PROTECTION_MULT);
+if ($cmd_stats["is_full"]) {
+    $view .= show_warning_box("<b>Befehlslimit erreicht:</b> Truppen aus <b>" . e($kingdom->get_kingdom_name()) . "</b> können nicht entsendet werden.");
+}
 
-        $view .= show_warning_box("
+// Noob protection check
+$only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
+$scout_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0);
+
+if ($only_scouts_allowed) {
+    $my_score = $user->get_user_score();
+    $min_allowed = floor($my_score * NOOB_PROTECTION_MULT);
+    $max_allowed = floor($my_score / NOOB_PROTECTION_MULT);
+
+    $view .= show_warning_box("
                     <b>Punktestand zu unterschiedlich:</b><br>
                     Ein Angriff ist nicht möglich.<br>
                     Du kannst nur Spieler angreifen, die einen Score von <b>" . fnum($min_allowed) . "</b> bis <b>" . fnum($max_allowed) . "</b> haben <b>(" . (NOOB_PROTECTION_MULT * 100) . "%)</b>.<br>
                     Reine Spionage (nur Späher) ist allerdings möglich.
                 ");
-    }
+}
 
-    $mining_units_count = 0;
-    for ($i = 0; $i <= 8; $i++) {
-        $mining_units_count += (int)($kingdom_soldiers[$i] ?? 0);
-    }
+$mining_units_count = 0;
+for ($i = 0; $i <= 8; $i++) {
+    $mining_units_count += (int)($kingdom_soldiers[$i] ?? 0);
+}
 
-    $has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
+$has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
 
-    if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
-        $is_spying = $only_scouts_allowed || ($mining_units_count === 0 && $scout_count > 0);
-    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
-        $is_spying = !$has_raiders && $scout_count > 0;
-    } else {
-        $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
-    }
+if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
+    $is_spying = $only_scouts_allowed || ($mining_units_count === 0 && $scout_count > 0);
+} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
+    $is_spying = !$has_raiders && $scout_count > 0;
+} else {
+    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
+}
 
-    if (!empty($_POST["soldiers"])) {
-        $is_spying = true;
+if (!empty($_POST["soldiers"])) {
+    $is_spying = true;
 
-        foreach ($_POST["soldiers"] as $s_id => $count) {
-            if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && (int)$count > 0) {
-                $is_spying = false;
-                break;
-            }
+    foreach ($_POST["soldiers"] as $s_id => $count) {
+        if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && (int)$count > 0) {
+            $is_spying = false;
+            break;
         }
     }
+}
 
-    if ($only_scouts_allowed) {
-        $is_spying = true;
-    }
+if ($only_scouts_allowed) {
+    $is_spying = true;
+}
 
-    if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
-        $res_mine = $db_instance->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ?", [$target_x, $target_y])->fetch_assoc();
-        $mine_lvl = (int)($res_mine["level"] ?? 1);
-        $max_capacity = (int)($res_mine["max_troops"] ?? 50);
+if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
+    $res_mine = $db_instance->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ?", [$target_x, $target_y])->fetch_assoc();
+    $mine_lvl = (int)($res_mine["level"] ?? 1);
+    $max_capacity = (int)($res_mine["max_troops"] ?? 50);
 
-        $res_curr = $db_instance->execute_query("
+    $res_curr = $db_instance->execute_query("
             SELECT IFNULL(SUM(soldiercount), 0)
             FROM mine_stationed_troops
             WHERE mine_id = ?", [(int)($res_mine["id"] ?? 0)]);
-        $current_mine_troops = (int)$res_curr->fetch_column();
+    $current_mine_troops = (int)$res_curr->fetch_column();
 
-        $my_gid = $user->get_user_guild_id();
-        $claimed_gid = (int)($res_mine["claimed_guild_id"] ?? 0);
-        $claimed_uid = (int)($res_mine["claimed_user_id"] ?? 0);
+    $my_gid = $user->get_user_guild_id();
+    $claimed_gid = (int)($res_mine["claimed_guild_id"] ?? 0);
+    $claimed_uid = (int)($res_mine["claimed_user_id"] ?? 0);
 
-        $incoming_guild_troops = 0;
-        $incoming_marchers_info = [];
-        $other_guild_members_warning = [];
-        $now = time();
+    $incoming_guild_troops = 0;
+    $incoming_marchers_info = [];
+    $other_guild_members_warning = [];
+    $now = time();
 
-        if ($my_gid > 0) {
-            $res_inc = $db_instance->execute_query("
+    if ($my_gid > 0) {
+        $res_inc = $db_instance->execute_query("
                 SELECT u.id, u.username, SUM(st.soldiercount) as count, MIN(e.arrivaltime) as earliest_arrival
                 FROM events e
                 JOIN sent_troops st ON e.eventid = st.eventid
@@ -548,19 +559,19 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                 ORDER BY earliest_arrival
             ", [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, $my_gid, $user->get_user_id()]);
 
-            while ($inc = $res_inc->fetch_assoc()) {
-                $incoming_guild_troops += (int)$inc["count"];
-                $time_left = max(0, (int)$inc["earliest_arrival"] - $now);
-                $info_text = "<b>" . e($inc["username"]) . "</b> (" . fnum($inc["count"]) . " Truppen, Ankunft in " . convert_sec_to_str($time_left) . ")";
+        while ($inc = $res_inc->fetch_assoc()) {
+            $incoming_guild_troops += (int)$inc["count"];
+            $time_left = max(0, (int)$inc["earliest_arrival"] - $now);
+            $info_text = "<b>" . e($inc["username"]) . "</b> (" . fnum($inc["count"]) . " Truppen, Ankunft in " . convert_sec_to_str($time_left) . ")";
 
-                $incoming_marchers_info[] = $info_text;
+            $incoming_marchers_info[] = $info_text;
 
-                if ((int)$inc["id"] !== $user->get_user_id()) {
-                    $other_guild_members_warning[] = $info_text;
-                }
+            if ((int)$inc["id"] !== $user->get_user_id()) {
+                $other_guild_members_warning[] = $info_text;
             }
-        } else {
-            $res_inc = $db_instance->execute_query("
+        }
+    } else {
+        $res_inc = $db_instance->execute_query("
                 SELECT SUM(st.soldiercount) as count, MIN(e.arrivaltime) as earliest_arrival
                 FROM events e
                 JOIN sent_troops st ON e.eventid = st.eventid
@@ -568,79 +579,79 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                   AND e.actionid = ? AND e.userid = ?
             ", [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id()]);
 
-            $row_inc = $res_inc->fetch_assoc();
-            $incoming_guild_troops = (int)($row_inc["count"] ?? 0);
-            if ($incoming_guild_troops > 0) {
-                $time_left = max(0, (int)$row_inc["earliest_arrival"] - $now);
-                $incoming_marchers_info[] = "Eigene Truppen (" . fnum($incoming_guild_troops) . " Truppen, Ankunft in " . convert_sec_to_str($time_left) . ")";
-            }
+        $row_inc = $res_inc->fetch_assoc();
+        $incoming_guild_troops = (int)($row_inc["count"] ?? 0);
+        if ($incoming_guild_troops > 0) {
+            $time_left = max(0, (int)$row_inc["earliest_arrival"] - $now);
+            $incoming_marchers_info[] = "Eigene Truppen (" . fnum($incoming_guild_troops) . " Truppen, Ankunft in " . convert_sec_to_str($time_left) . ")";
         }
+    }
 
-        if (!empty($other_guild_members_warning)) {
-            $view .= show_warning_box("<b>Achtung:</b> Gildenmitglieder sind bereits auf dem Weg zu dieser Mine:<br>• " . implode("<br>• ", $other_guild_members_warning));
-        }
+    if (!empty($other_guild_members_warning)) {
+        $view .= show_warning_box("<b>Achtung:</b> Gildenmitglieder sind bereits auf dem Weg zu dieser Mine:<br>• " . implode("<br>• ", $other_guild_members_warning));
+    }
 
-        $total_occupied_or_incoming = $current_mine_troops + $incoming_guild_troops;
-        $free_space = max(0, $max_capacity - $current_mine_troops);
+    $total_occupied_or_incoming = $current_mine_troops + $incoming_guild_troops;
+    $free_space = max(0, $max_capacity - $current_mine_troops);
 
-        $is_mine_empty = ($current_mine_troops === 0);
-        $is_friendly = ($my_gid > 0 && $claimed_gid === $my_gid) || ($claimed_uid === $user->get_user_id());
-        $mine_limit = ($is_friendly && !$is_mine_empty) ? $free_space : $max_capacity;
+    $is_mine_empty = ($current_mine_troops === 0);
+    $is_friendly = ($my_gid > 0 && $claimed_gid === $my_gid) || ($claimed_uid === $user->get_user_id());
+    $mine_limit = ($is_friendly && !$is_mine_empty) ? $free_space : $max_capacity;
 
-        $current_mine_atk = 0;
-        if ($is_friendly && !$is_mine_empty) {
-            $res_atk = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [(int)$res_mine["id"]]);
-            $current_mine_atk = (int)$res_atk->fetch_column();
-        }
+    $current_mine_atk = 0;
+    if ($is_friendly && !$is_mine_empty) {
+        $res_atk = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [(int)$res_mine["id"]]);
+        $current_mine_atk = (int)$res_atk->fetch_column();
+    }
 
-        $work_rem = max(0, (int)$res_mine["work_total"] - (int)$res_mine["work_done"]);
+    $work_rem = max(0, (int)$res_mine["work_total"] - (int)$res_mine["work_done"]);
 
-        $max_rate = (int)$res_mine["work_total"] / MINE_MIN_DURATION_SECONDS;
-        $initial_rate = min($current_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+    $max_rate = (int)$res_mine["work_total"] / MINE_MIN_DURATION_SECONDS;
+    $initial_rate = min($current_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate);
 
-        if ($initial_rate > 0) {
-            $initial_rate_text = fdec($initial_rate) . " Pkt./s";
-            $initial_dur_sec = max(MINE_MIN_DURATION_SECONDS, (int)ceil($work_rem / $initial_rate));
-            $initial_dur_text = "ca. " . convert_sec_to_str($initial_dur_sec);
-        } else {
-            $initial_rate_text = "<i>Keine Truppen gewählt</i>";
-            $initial_dur_text = "<i>Keine Truppen gewählt</i>";
-        }
+    if ($initial_rate > 0) {
+        $initial_rate_text = fdec($initial_rate) . " Pkt./s";
+        $initial_dur_sec = max(MINE_MIN_DURATION_SECONDS, (int)ceil($work_rem / $initial_rate));
+        $initial_dur_text = "ca. " . convert_sec_to_str($initial_dur_sec);
+    } else {
+        $initial_rate_text = "<i>Keine Truppen gewählt</i>";
+        $initial_dur_text = "<i>Keine Truppen gewählt</i>";
+    }
 
-        $send_title = $is_spying ? "Mine auskundschaften" : "Mine abbauen";
+    $send_title = $is_spying ? "Mine auskundschaften" : "Mine abbauen";
 
-        $view .= '<div class="title-border">Erzmine (Stufe ' . $mine_lvl . ')</div>
+    $view .= '<div class="title-border">Erzmine (Stufe ' . $mine_lvl . ')</div>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                       <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $target_x . ':' . $target_y . '</td></tr>';
-        if (!$is_spying) {
-            $cap_display = ($is_friendly && !$is_mine_empty)
-                ? $current_mine_troops . ' / ' . $max_capacity . ' Einheiten'
-                : ($is_mine_empty ? '<b>0</b> / ' . $max_capacity . ' Einheiten' : 'Max. ' . $max_capacity . ' Einheiten');
+    if (!$is_spying) {
+        $cap_display = ($is_friendly && !$is_mine_empty)
+            ? $current_mine_troops . ' / ' . $max_capacity . ' Einheiten'
+            : ($is_mine_empty ? '<b>0</b> / ' . $max_capacity . ' Einheiten' : 'Max. ' . $max_capacity . ' Einheiten');
 
-            $view .= '<tr><td class="td-mapinfo"><b>Kapazität</b></td><td><span id="mine-capacity-display">' . $cap_display . '</span></td></tr>';
+        $view .= '<tr><td class="td-mapinfo"><b>Kapazität</b></td><td><span id="mine-capacity-display">' . $cap_display . '</span></td></tr>';
 
-            $view .= '<tr><td class="td-mapinfo"><b>Abbau-Tempo</b></td><td><span id="mine-rate-display">' . $initial_rate_text . '</span></td></tr>
+        $view .= '<tr><td class="td-mapinfo"><b>Abbau-Tempo</b></td><td><span id="mine-rate-display">' . $initial_rate_text . '</span></td></tr>
                       <tr><td class="td-mapinfo"><b>Abbauzeit</b></td><td><span id="mine-duration-display">' . $initial_dur_text . '</span></td></tr>';
-        }
+    }
 
-        $view .= '    <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time) . '</td></tr>
+    $view .= '    <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time) . '</td></tr>
                       <tr><td colspan="2" style="font-size: 13px; opacity: 0.8; text-align: center; padding: 10px;">
                           <i>' . ($is_spying ? "Späher erkunden die verbleibenden Erzvorkommen und feindliche Truppen."
-                : "Tipp: Truppen mit hohem Angriffswert bauen die Mine deutlich schneller ab!") . '</i>
+            : "Tipp: Truppen mit hohem Angriffswert bauen die Mine deutlich schneller ab!") . '</i>
                       </td></tr>
                   </table>';
-    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
-        $res_ruin = $db_instance->execute_query(
-            "SELECT kingdom_name, tc_level FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?",
-            [$target_x, $target_y]
-        )->fetch_assoc();
+} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
+    $res_ruin = $db_instance->execute_query(
+        "SELECT kingdom_name, tc_level FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?",
+        [$target_x, $target_y]
+    )->fetch_assoc();
 
-        $ruin_name = $res_ruin["kingdom_name"] ?? "Vergessenes Reich";
-        $tc_lvl = (int)($res_ruin["tc_level"] ?? 1);
+    $ruin_name = $res_ruin["kingdom_name"] ?? "Vergessenes Reich";
+    $tc_lvl = (int)($res_ruin["tc_level"] ?? 1);
 
-        $send_title = $is_spying ? "Ruine auskundschaften" : "Ruine stürmen";
+    $send_title = $is_spying ? "Ruine auskundschaften" : "Ruine stürmen";
 
-        $view .= '<div class="title-border">Ruinen von ' . e($ruin_name) . '</div>
+    $view .= '<div class="title-border">Ruinen von ' . e($ruin_name) . '</div>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                       <tr>
                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -660,13 +671,13 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                         </td>
                       </tr>
                   </table>';
-    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
-        $send_title = $is_spying ? "Monstercamp spionieren" : "Monstercamp angreifen";
+} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
+    $send_title = $is_spying ? "Monstercamp spionieren" : "Monstercamp angreifen";
 
-        $res_m = $db_instance->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
-        $m_lvl = $res_m->fetch_column() ?: 1;
+    $res_m = $db_instance->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+    $m_lvl = $res_m->fetch_column() ?: 1;
 
-        $view .= '<div class="title-border">Monstercamp (Stufe ' . $m_lvl . ')</div>
+    $view .= '<div class="title-border">Monstercamp (Stufe ' . $m_lvl . ')</div>
                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                       <tr>
                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -682,25 +693,25 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                         </td>
                       </tr>
                   </table>';
-    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
-        $we_manager = new WorldEvent();
-        $active_ev = $we_manager->get_active_event();
+} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
+    $we_manager = new WorldEvent();
+    $active_ev = $we_manager->get_active_event();
 
-        $send_title = "Event-Boss";
-        $display_name = "Großer Angriff";
+    $send_title = "Event-Boss";
+    $display_name = "Großer Angriff";
 
-        if ($active_ev) {
-            $pool = $we_manager->get_monster_pool();
-            $monster = $pool[$active_ev["monster_index"]] ?? $pool[0];
+    if ($active_ev) {
+        $pool = $we_manager->get_monster_pool();
+        $monster = $pool[$active_ev["monster_index"]] ?? $pool[0];
 
-            if ($active_ev["event_type"] === "BOSS_HP") {
-                $display_name = $monster["name"];
-            } else {
-                $display_name = "Großer Angriff (" . $monster["name"] . ")";
-            }
+        if ($active_ev["event_type"] === "BOSS_HP") {
+            $display_name = $monster["name"];
+        } else {
+            $display_name = "Großer Angriff (" . $monster["name"] . ")";
         }
+    }
 
-        $view .= '<div class="title-border">' . $display_name . '</div>
+    $view .= '<div class="title-border">' . $display_name . '</div>
                           <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                               <tr>
                                   <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -716,30 +727,30 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                 </td>
                               </tr>
                           </table>';
-    } else if ($row) {
-        if ($enemy_user_id == $user->get_user_id()) {
-            $send_title = "Truppen stationieren";
-        } else if ($is_ally) {
-            $send_title = "Königreich unterstützen";
-        } else {
-            $send_title = $is_spying ? "Königreich spionieren" : "Königreich angreifen";
-        }
+} else if ($row) {
+    if ($enemy_user_id == $user->get_user_id()) {
+        $send_title = "Truppen stationieren";
+    } else if ($is_ally) {
+        $send_title = "Königreich unterstützen";
+    } else {
+        $send_title = $is_spying ? "Königreich spionieren" : "Königreich angreifen";
+    }
 
-        $view .= '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
+    $view .= '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
                       <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                           <tr>
                               <td class="td-mapinfo"><b>Koordinaten</b></td>
                               <td>' . $target_x . ':' . $target_y . '</td>
                           </tr>';
-        if ($is_ally) {
-            $load_class = ($current_support_load >= $total_support_limit) ? "class='error'" : "class='passed'";
+    if ($is_ally) {
+        $load_class = ($current_support_load >= $total_support_limit) ? "class='error'" : "class='passed'";
 
-            $view .= '<tr>
+        $view .= '<tr>
                 <td class="td-mapinfo"><b>Kapazität Hilfe</b></td>
                 <td><span id="support-capacity-display" ' . $load_class . '>' . fnum($current_support_load) . '</span> / ' . fnum($total_support_limit) . '</td>
               </tr>';
-        }
-        $view .= '<tr>
+    }
+    $view .= '<tr>
                       <td class="td-mapinfo"><b>Königreich</b></td>
                       <td>' . $row["kingdomname"] . '</td>
                   </tr>
@@ -756,16 +767,16 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                   </tr>
               ';
 
+} else {
+    if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
+        $send_title = $is_spying ? "Vorratslager spionieren" : "Vorratslager plündern";
+        $display_name = "Verlassenes Vorratslager";
     } else {
-        if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
-            $send_title = $is_spying ? "Vorratslager spionieren" : "Vorratslager plündern";
-            $display_name = "Verlassenes Vorratslager";
-        } else {
-            $send_title = "Erobern";
-            $display_name = $field_name;
-        }
+        $send_title = "Erobern";
+        $display_name = $field_name;
+    }
 
-        $view .= '<div class="title-border">' . $display_name . '</div>
+    $view .= '<div class="title-border">' . $display_name . '</div>
                                   <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                                       <tr>
                                           <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -776,73 +787,73 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                           <td>' . convert_sec_to_str($arrival_time) . '</td>
                                       </tr>
                                 ';
+}
+$view .= "</table>";
+
+$category_counts = [
+    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
+    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
+    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
+    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
+];
+
+$total_units_available = 0;
+
+foreach ($soldiers as $soldier_id => $s_obj) {
+    $count = $kingdom_soldiers[$soldier_id] ?? 0;
+
+    if ($count > 0) {
+        if (($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
+                && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
+                && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) ||
+            $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
+            && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_RAIDER
+            && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) {
+            continue;
+        }
+
+        $category_counts[$s_obj->get_soldier_category()] += $count;
+        $total_units_available += $count;
     }
-    $view .= "</table>";
+}
 
-    $category_counts = [
-        SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-        SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-        SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-        SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-    ];
+$only_scouts_allowed = (!$is_ally && $is_noob_protected);
+$scout_count = $kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0;
+$first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
-    $total_units_available = 0;
+if (($only_scouts_allowed && $scout_count > 0) || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
+    $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
+} else if ($first_active_cat === -1 && ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY
+        || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"]))) {
+    $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
+}
 
-    foreach ($soldiers as $soldier_id => $s_obj) {
-        $count = $kingdom_soldiers[$soldier_id] ?? 0;
-
+if ($first_active_cat === -1 || ($category_counts[$first_active_cat] ?? 0) <= 0) {
+    foreach ($category_counts as $cat_id => $count) {
         if ($count > 0) {
-            if (($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
-                    && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
-                    && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) ||
-                $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
-                && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_RAIDER
-                && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) {
-                continue;
-            }
-
-            $category_counts[$s_obj->get_soldier_category()] += $count;
-            $total_units_available += $count;
+            $first_active_cat = $cat_id;
+            break;
         }
     }
+}
 
-    $only_scouts_allowed = (!$is_ally && $is_noob_protected);
-    $scout_count = $kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0;
-    $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
+$show_all_checked = (($_COOKIE["me_list_view"] ?? "0") === "1");
 
-    if (($only_scouts_allowed && $scout_count > 0) || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
-        $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
-    } else if ($first_active_cat === -1 && ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY
-            || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"]))) {
-        $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
-    }
+if ($barracks_level > 0) {
+    if ($total_units_available > 0) {
+        $button_label = "Truppen schicken";
 
-    if ($first_active_cat === -1 || ($category_counts[$first_active_cat] ?? 0) <= 0) {
-        foreach ($category_counts as $cat_id => $count) {
-            if ($count > 0) {
-                $first_active_cat = $cat_id;
-                break;
-            }
+        if ($is_ally) {
+            $button_label = "Unterstützung senden";
+        } else if ($enemy_user_id == $user->get_user_id()) {
+            $button_label = "Einheiten stationieren";
+        } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
+            $button_label = $is_spying ? "Späher entsenden" : "Ruine stürmen";
         }
-    }
 
-    $show_all_checked = (($_COOKIE["me_list_view"] ?? "0") === "1");
-
-    if ($barracks_level > 0) {
-        if ($total_units_available > 0) {
-            $button_label = "Truppen schicken";
-
-            if ($is_ally) {
-                $button_label = "Unterstützung senden";
-            } else if ($enemy_user_id == $user->get_user_id()) {
-                $button_label = "Einheiten stationieren";
-            } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
-                $button_label = $is_spying ? "Späher entsenden" : "Ruine stürmen";
-            }
-
-            $mine_attrs = "";
-            if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && !$is_spying) {
-                $mine_attrs = ' data-scout-id="' . Soldiers::SOLDIER_SCOUT . '"
+        $mine_attrs = "";
+        if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && !$is_spying) {
+            $mine_attrs = ' data-scout-id="' . Soldiers::SOLDIER_SCOUT . '"
                                 data-is-mine="true"
                                 data-mine-limit="' . $mine_limit . '" 
                                 data-mine-current="' . ($is_friendly ? $total_occupied_or_incoming : 0) . '" 
@@ -853,16 +864,16 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                 data-mine-current-atk="' . ($is_friendly ? $current_mine_atk : 0) . '" 
                                 data-mine-work-factor="' . MINE_WORK_RATE_FACTOR . '"
                                 data-mine-min-duration="' . MINE_MIN_DURATION_SECONDS . '"';
-            }
+        }
 
-            $support_attrs = "";
-            if ($is_ally) {
-                $support_attrs = ' data-is-support="true" 
+        $support_attrs = "";
+        if ($is_ally) {
+            $support_attrs = ' data-is-support="true" 
                                    data-support-current="' . $current_support_load . '" 
                                    data-support-max="' . $total_support_limit . '"';
-            }
+        }
 
-            $view .= '<form action="sendtroops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form"' . $mine_attrs . $support_attrs . '>
+        $view .= '<form action="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . '>
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
                             <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen</div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>
@@ -878,35 +889,35 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                    style="width: 32px;">
                         </div>';
 
-            $categories = SoldierTypes::get_labels();
+        $categories = SoldierTypes::get_labels();
 
-            $view .= "<div class='tab' id='sendtroops-tabs' style='margin: 0 auto 10px auto; max-width: 500px; " . ($show_all_checked ? "display: none;" : "") . "'>";
+        $view .= "<div class='tab' id='sendtroops-tabs' style='margin: 0 auto 10px auto; max-width: 500px; text-align: center; " . ($show_all_checked ? "display: none;" : "") . "'>";
 
-            foreach ($categories as $id => $name) {
-                if ($name === "Unterstützung") {
+        foreach ($categories as $id => $name) {
+            if ($name === "Unterstützung") {
+                continue;
+            }
+
+            if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && $id == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
+                if (($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0) <= 0) {
+                    $view .= "<div class='tablinks tab-disabled' title='Keine Späher verfügbar'>$name</div>";
                     continue;
-                }
-
-                if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && $id == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
-                    if (($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0) <= 0) {
-                        $view .= "<div class='tablinks tab-disabled' title='Keine Späher verfügbar'>$name</div>";
-                        continue;
-                    }
-                }
-
-                if ($category_counts[$id] > 0) {
-                    $active_class = ($id === $first_active_cat) ? "active" : "";
-
-                    $view .= "<div class='tablinks $active_class' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
-                } else {
-                    $view .= "<div class='tablinks tab-disabled'>$name</div>";
                 }
             }
 
-            $view .= "</div>";
+            if ($category_counts[$id] > 0) {
+                $active_class = ($id === $first_active_cat) ? "active" : "";
 
-            // Show users soldiers
-            $view .= '<table class="table send-selection-table" style="max-width: 500px;">
+                $view .= "<div class='tablinks $active_class' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
+            } else {
+                $view .= "<div class='tablinks tab-disabled'>$name</div>";
+            }
+        }
+
+        $view .= "</div>";
+
+        // Show users soldiers
+        $view .= '<table class="table send-selection-table" style="max-width: 500px;">
                             <colgroup>
                                 <col style="width: auto;">
                                 <col style="width: 130px;">
@@ -916,37 +927,37 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                 <td class="td-center td-gradient">Anzahl</td>
                             </tr>';
 
-            $prev_cat = -1;
-            $category_names = [
-                SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
-                SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
-                SoldierTypes::SOLDIER_TYPE_ARCHERS => "Fernkampf",
-                SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezialeinheiten"
-            ];
+        $prev_cat = -1;
+        $category_names = [
+            SoldierTypes::SOLDIER_TYPE_INFANTRY => "Infanterie",
+            SoldierTypes::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+            SoldierTypes::SOLDIER_TYPE_ARCHERS => "Fernkampf",
+            SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezialeinheiten"
+        ];
 
-            foreach ($soldiers as $soldier_id => $s_obj) {
-                $soldier_id = $s_obj->get_soldier_id();
-                $soldier_name = $s_obj->get_soldier_name();
-                $unit_cat = $s_obj->get_soldier_category();
-                $icon_name = $s_obj->get_soldier_icon_name();
-                $cat = $s_obj->get_soldier_category();
-                $atk_bonus = 0;
-                $def_bonus = 0;
-                $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
+        foreach ($soldiers as $soldier_id => $s_obj) {
+            $soldier_id = $s_obj->get_soldier_id();
+            $soldier_name = $s_obj->get_soldier_name();
+            $unit_cat = $s_obj->get_soldier_category();
+            $icon_name = $s_obj->get_soldier_icon_name();
+            $cat = $s_obj->get_soldier_category();
+            $atk_bonus = 0;
+            $def_bonus = 0;
+            $owned_count = $kingdom_soldiers[$soldier_id] ?? 0;
 
-                if (($owned_count <= 0) || ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
-                        && $unit_cat == SoldierTypes::SOLDIER_TYPE_SPECIAL
-                        && $soldier_id !== Soldiers::SOLDIER_SCOUT) || ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
-                        && $soldier_id !== Soldiers::SOLDIER_RAIDER
-                        && $soldier_id !== Soldiers::SOLDIER_SCOUT)) {
-                    continue;
-                }
+            if (($owned_count <= 0) || ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
+                    && $unit_cat == SoldierTypes::SOLDIER_TYPE_SPECIAL
+                    && $soldier_id !== Soldiers::SOLDIER_SCOUT) || ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
+                    && $soldier_id !== Soldiers::SOLDIER_RAIDER
+                    && $soldier_id !== Soldiers::SOLDIER_SCOUT)) {
+                continue;
+            }
 
-                if ($prev_cat !== $unit_cat) {
-                    $cat_label = $category_names[$unit_cat] ?? "";
-                    $divider_style = $show_all_checked ? "" : "display: none;";
+            if ($prev_cat !== $unit_cat) {
+                $cat_label = $category_names[$unit_cat] ?? "";
+                $divider_style = $show_all_checked ? "" : "display: none;";
 
-                    $view .= "<tr class='unit-category-divider' style='$divider_style'>
+                $view .= "<tr class='unit-category-divider' style='$divider_style'>
                                 <td class='td-center td-gradient' style='border-top: 1px solid var(--box-header); border-bottom: 2px solid var(--box-header);'>
                                     <b>$cat_label</b>
                                 </td>
@@ -954,33 +965,33 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                     <b>Anzahl</b>
                                 </td>
                               </tr>";
-                }
-                $prev_cat = $unit_cat;
+            }
+            $prev_cat = $unit_cat;
 
-                if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
-                    $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
-                    $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
-                } elseif ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
-                    $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
-                    $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
-                } elseif ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
-                    $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
-                    $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
-                }
+            if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
+                $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
+                $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
+            } elseif ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+                $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
+                $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
+            } elseif ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+                $atk_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
+                $def_bonus = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
+            }
 
-                $shrine_mult = 1.0;
-                if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-                    $shrine_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
-                }
+            $shrine_mult = 1.0;
+            if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+                $shrine_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
+            }
 
-                $real_atk = (int)round(($s_obj->get_soldier_attack() + $atk_bonus) * $shrine_mult);
-                $real_def = (int)($s_obj->get_soldier_defense() + $def_bonus);
+            $real_atk = (int)round(($s_obj->get_soldier_attack() + $atk_bonus) * $shrine_mult);
+            $real_def = (int)($s_obj->get_soldier_defense() + $def_bonus);
 
-                $row_style = ($show_all_checked || $unit_cat === $first_active_cat) ? "" : "display: none;";
+            $row_style = ($show_all_checked || $unit_cat === $first_active_cat) ? "" : "display: none;";
 
-                $is_input_disabled = ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) ? "disabled" : "";
+            $is_input_disabled = ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) ? "disabled" : "";
 
-                $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
+            $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
                                 <td>
                                     <div class='image-and-user' style='margin-bottom: 5px;'>" . $s_obj->get_soldier_icon() . " <b>" . $soldier_name . " (" . $owned_count . ")</b></div>
                                     <div class='map-legend' style='justify-content: left;'>
@@ -1028,34 +1039,25 @@ if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kin
                                     </div>
                                 </td>
                               </tr>";
-            }
-
-            $view .= '</table></form>';
-        } else {
-            $no_units_msg = ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE)
-                ? "In diesem Königreich befinden sich aktuell weder Räuber noch Späher für das Vorratslager."
-                : "In diesem Königreich befinden sich aktuell keine Truppen.";
-
-            $view .= "<div style='margin-top: 20px;'>" .
-                show_warning_box($no_units_msg) .
-                "</div>";
         }
+
+        $view .= '</table></form>';
     } else {
-        $view .= "<div style='margin-top: 20px;'>" .
-            show_warning_box("Du kannst keine Truppen versenden, da du in diesem Königreich keine Kaserne errichtet hast.") .
-            "</div>";
+        $no_units_msg = ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE)
+            ? "In diesem Königreich befinden sich aktuell weder Räuber noch Späher für das Vorratslager."
+            : "In diesem Königreich befinden sich aktuell keine Truppen.";
+
+        $view .= "<div style='margin-top: 20px;'>" . show_warning_box($no_units_msg) . "</div>";
     }
+} else {
+    $view .= "<div style='margin-top: 20px;'>" .
+        show_warning_box("Du kannst keine Truppen versenden, da du in diesem Königreich keine Kaserne errichtet hast.") .
+        "</div>";
 }
 
 /*
  * HTML Section
  */
-$title = $send_title;
-$header = $send_title;
-$script_files = ["userinfo", "sendtroops"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
-
-include("layout/base.php");
+echo "<div id='modal-title-data' data-title='" . e($send_title) . "' data-width='700px' style='display: none;'></div>";
+echo "<div style='padding: 10px; max-width: 650px; margin: 0 auto; box-sizing: border-box; text-align: left;'>" . $view . "</div>";
+echo "<br><div style='text-align: center;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";

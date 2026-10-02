@@ -4,9 +4,10 @@
 </div>
 <div class="credits-scroll-box">
     <ul class="credits-list">
+        <li><a href="https://www.flaticon.com/free-icons/fruits-and-vegetables" title="fruits and vegetables icons">Fruits
+                and vegetables icons created by Nhor Phai - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
-                Upnow Graphic - Flaticon</a>
-        </li>
+                Upnow Graphic - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
                 Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/adjust" target="_blank" title="adjust icons">Adjust icons

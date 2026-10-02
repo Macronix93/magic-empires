@@ -51,14 +51,15 @@ class Soldier
     public function get_soldier_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/" . ($this->s_soldier_icon ?? "icon_error") . ".png";
+        $disk_path = __DIR__ . "/../" . $icon_path;
 
-        if (isset($this->soldier_id) && file_exists($icon_path)) {
+        if (isset($this->soldier_id) && file_exists($disk_path)) {
             return "<img src='$icon_path' class='$class' alt='$this->s_name' title='$this->s_name'/>";
         } else {
             return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
         }
     }
-    
+
     public function get_soldier_icon_name(): string
     {
         return $this->s_soldier_icon ?? "icon_error";

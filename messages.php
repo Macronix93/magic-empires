@@ -6,30 +6,53 @@ $messages = new Messages($user);
 
 // Starting a new conversation (or insert message in existing conversation)
 if (isset($_POST["sendpm"])) {
-    $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $_POST["receiver"]);
-    $_SESSION["msgreceiver"] = $receiver_name;
-    $text = nl2br(e($_POST["text"]));
-    $error = get_error($text, $receiver_name);
+    $raw_receiver = trim($_POST["receiver"] ?? "");
+    $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_receiver);
 
-    if ($error == null) {
-        // Prevent HTML Injection
+    $raw_text = $_POST["text"] ?? "";
+    $cleaned_text = preg_replace([
+        '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
+        '/[ \t]+/u',
+        '/^[ \t]+/m',
+        '/[ \t]+$/m'
+    ], ['', ' ', '', ''], $raw_text);
+    $cleaned_text = trim($cleaned_text);
+
+    $text_only = preg_replace('/\[\/?quote.*?]/i', '', $cleaned_text);
+    $line_breaks_count = substr_count($cleaned_text, "\n");
+    $length = mb_strlen($cleaned_text, "UTF-8");
+
+    if (empty($receiver_name)) {
+        $error = "Bitte einen Empfänger angeben!";
+    } else if (empty($cleaned_text) || empty(trim($text_only))) {
+        $error = "Bitte eine Nachricht eingeben!";
+    } else if ($length > MAX_MESSAGE_LENGTH) {
+        $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
+    } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
+        $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
+    } else {
         $sender_id = $user->get_user_id();
         $sender_name = $user->get_user_name();
-        $receiver_name = e($receiver_name);
-        $message = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $text);
-        $current_time = time();
 
-        // Query to check if the user exists
-        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ?", [$receiver_name]);
+        if (is_numeric($receiver_name)) {
+            $result = $db_instance->execute_query("SELECT id, username FROM users WHERE id = ?", [(int)$receiver_name]);
+        } else {
+            $result = $db_instance->execute_query("SELECT id, username FROM users WHERE username = ?", [$receiver_name]);
+        }
 
         if ($result->num_rows == 0) {
             $error = "Dieser Spieler existiert nicht!";
         } else {
-            $receiver_id = $result->fetch_assoc()["id"];
+            $receiver_data = $result->fetch_assoc();
+            $receiver_id = (int)$receiver_data["id"];
+            $receiver_username = $receiver_data["username"];
 
-            if ($receiver_id == $sender_id) {
+            $_SESSION["msgreceiver"] = $receiver_id;
+
+            if ($receiver_id === $sender_id) {
                 $error = "Du kannst dir selbst keine Nachricht schicken!";
             } else {
+                $current_time = time();
                 $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
                 $message_count = $_SESSION["message_count"] ?? 0;
 
@@ -39,20 +62,17 @@ if (isset($_POST["sendpm"])) {
                     $message_count = 0;
                 }
 
-                // Check if we can send a new message
+                // Rate-Limit Check
                 if ($message_count >= MAX_MESSAGES_RATELIMIT) {
-                    // Calculate remaining time to wait
                     $remaining_time_in_seconds = $message_timeframe_end - $current_time;
-
-                    $response["counter"] = $remaining_time_in_seconds;
-                    $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte: ";
+                    $error = "Du schickst zu viele Nachrichten! Warte bitte: " . $remaining_time_in_seconds . " Sek.";
                 } else {
                     $_SESSION["message_count"] = ++$message_count;
 
-                    // Send message to the receiver
-                    $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_name, $current_time, $message);
+                    $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_username, $current_time, $cleaned_text);
 
                     change_location("messages.php?action=read&s=$receiver_id");
+                    exit;
                 }
             }
         }

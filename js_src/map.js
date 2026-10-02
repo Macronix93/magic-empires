@@ -836,7 +836,10 @@ function applyMomentum() {
 }
 
 function dragStart(e) {
-    if (isAutoPanning) return;
+    if (isAutoPanning) {
+        cancelAnimationFrame(panAnimationID);
+        isAutoPanning = false;
+    }
 
     cancelAnimationFrame(momentumID);
     cancelAnimationFrame(panAnimationID);
@@ -907,7 +910,10 @@ function dragEnd(e) {
 
 function handleWheel(e) {
     e.preventDefault();
-    if (isAutoPanning) return;
+    if (isAutoPanning) {
+        cancelAnimationFrame(panAnimationID);
+        isAutoPanning = false;
+    }
 
     const delta = e.deltaY > 0 ? -0.1 : 0.1; // old: 0.15
     const oldZoom = zoom;
@@ -993,7 +999,7 @@ function selectField(x, y, shouldCenter = false) {
         if (isCommandLimitReached) {
             html += `<small class="error">${cmdLimitMsg}</small>`;
         } else if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&cat=3" ${btnDisabled}>Gründen</button>`;
+            html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}&cat=3" ${btnDisabled}>Gründen</button>`;
         } else {
             html += `<small class="error">Gründungskarren benötigt!</small>`;
         }
@@ -1024,7 +1030,7 @@ function selectField(x, y, shouldCenter = false) {
             const mode = canPlunder ? "plunder" : "spy";
             const label = canPlunder ? "Plündern" : "Spionieren";
 
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}&mode=${mode}" ${btnDisabled}>${label}</button>`;
+            html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}&mode=${mode}" ${btnDisabled}>${label}</button>`;
         } else {
             html += `<small class="error">Räuber oder Späher benötigt!</small>`;
         }
@@ -1049,7 +1055,7 @@ function selectField(x, y, shouldCenter = false) {
         if (isCommandLimitReached) {
             html += `<small class="error">${cmdLimitMsg}</small>`;
         } else {
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
+            html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
         }
 
         html += `</td></tr></table>`;
@@ -1070,7 +1076,7 @@ function selectField(x, y, shouldCenter = false) {
         if (isCommandLimitReached) {
             html += `<small class="error">${cmdLimitMsg}</small>`;
         } else {
-            html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>Ruine stürmen</button>`;
+            html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}" ${btnDisabled}>Ruine stürmen</button>`;
         }
 
         html += `</td></tr></table>`;
@@ -1156,7 +1162,7 @@ function selectField(x, y, shouldCenter = false) {
             const isFull = (curTroops >= maxTroops && isFriendly);
 
             let actionBtnText;
-            let actionUrl = `sendtroops.php?x=${tx}&y=${ty}`;
+            let actionUrl = `ajax/send_troops.php?x=${tx}&y=${ty}`;
 
             if (scoutCount > 0 && otherTroopsCount === 0) {
                 actionBtnText = "Spionieren";
@@ -1175,7 +1181,7 @@ function selectField(x, y, shouldCenter = false) {
                 mineBtnTitle = "title='Die Mine ist vollständig besetzt'";
             }
 
-            btnHtml = `<button data-on-click="redirect" data-url="${actionUrl}" ${mineBtnDisabled} ${mineBtnTitle}>${isFull ? "Mine ist voll" : actionBtnText}</button>`;
+            btnHtml = `<button data-on-click="openOverlay" data-url="${actionUrl}" ${mineBtnDisabled} ${mineBtnTitle}>${isFull ? "Mine ist voll" : actionBtnText}</button>`;
         }
 
         const isGuildOrOwnMine = (isMyGuild || myTroops > 0);
@@ -1201,7 +1207,6 @@ function selectField(x, y, shouldCenter = false) {
         if (isEventActive) {
             const event_data = window.activeEventInfo;
             const type_label = (window.activeEventInfo.type === "BOSS_HP") ? "Weltenboss" : "Großer Angriff";
-            const target_url = `sendtroops.php?x=${tx}&y=${ty}`;
             const time_left = event_data.end_time - Math.floor(Date.now() / 1000);
             const disabled = event_data.current_hp <= 0 && (window.activeEventInfo.type === "BOSS_HP") ? "disabled" : "";
 
@@ -1250,7 +1255,7 @@ function selectField(x, y, shouldCenter = false) {
             if (isCommandLimitReached) {
                 html += `<small class="error">${cmdLimitMsg}</small>`;
             } else {
-                html += `<button data-on-click="redirect" data-url="${target_url}" ${disabled}>In die Schlacht!</button>`;
+                html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}" ${disabled}>In die Schlacht!</button>`;
             }
 
             html += `<p style='font-size: 13px; margin-top: 10px;'><i>Hinweis: Truppen kehren von Welt-Events immer ohne Verluste heim.</i></p></td></tr></table>`;
@@ -1309,7 +1314,7 @@ function selectField(x, y, shouldCenter = false) {
             if (isCommandLimitReached) {
                 html += `<small class="error">${cmdLimitMsg}</small>`;
             } else {
-                html += `<button data-on-click="redirect" data-url="sendtroops.php?x=${tx}&y=${ty}" ${btnDisabled}>${btnText}</button>`;
+                html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}" ${btnDisabled}>${btnText}</button>`;
 
             }
             html += `</td></tr>`;
@@ -1438,7 +1443,7 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
         const dx = targetTX - currentTranslateX;
         const dy = targetTY - currentTranslateY;
 
-        if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+        if (Math.abs(dx) < 3.0 && Math.abs(dy) < 3.0) {
             currentTranslateX = targetTX;
             currentTranslateY = targetTY;
 
@@ -1594,7 +1599,7 @@ function jumpTo(x, y) {
     }
 }
 
-function refreshMapDataSilently() {
+function refreshMapDataSilently(closePopup = false) {
     fetch("ajax/map_full_load.php", {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
@@ -1606,7 +1611,17 @@ function refreshMapDataSilently() {
             draw();
 
             if (selectedX && selectedY) {
-                selectField(selectedX, selectedY, false);
+                const x = selectedX, y = selectedY;
+
+                selectedX = null;
+                selectedY = null;
+
+                selectField(x, y, false);
+
+                if (closePopup) {
+                    const popupBox = document.getElementById("field-popup-box");
+                    if (popupBox) popupBox.style.display = "none";
+                }
             }
         })
         .catch(err => console.error("Stiller Map-Sync fehlgeschlagen:", err));
@@ -1653,6 +1668,8 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
         mobTitle.innerHTML = `${pos} - ${newKingdom.name} <span style="font-size: 10px; opacity: 0.7;">▾</span>`;
     }
 
+    const overlay = document.getElementById("onpage-overlay");
+    const isOverlayOpen = overlay && overlay.style.display !== "none";
     const popupBox = document.getElementById("field-popup-box");
     const wasPopupOpen = popupBox && (popupBox.style.display === "block");
 
@@ -1701,6 +1718,10 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
 
         if (popupBox) popupBox.style.display = "none";
         jumpTo(newKingdom.x, newKingdom.y);
+    }
+
+    if (isOverlayOpen && typeof window.reloadOverlay === "function") {
+        window.reloadOverlay();
     }
 
     refreshMapDataSilently();

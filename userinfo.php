@@ -47,7 +47,7 @@ if ($user_id) {
             : "messages.php?action=new&receiver=" . urlencode($row["username"]);
 
     $res_all_k = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY id",
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
             [$user_id]
     );
 

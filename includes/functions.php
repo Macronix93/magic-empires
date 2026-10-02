@@ -647,30 +647,13 @@ function check_user_login($user): void
 }
 
 // Bad words checker
-function contains_bad_words($name, ?array $list = null): bool
-{
-    $bad_words = $list ?? get_bad_names();
-    $split_name = preg_replace('/([a-zäöüß])([A-ZÄÖÜ])/u', '$1 $2', $name);
-
-    foreach ($bad_words as $bad) {
-        $bad = trim($bad);
-        if (empty($bad) || mb_strlen($bad) < 3) continue;
-
-        $pattern = get_bad_word_pattern($bad);
-
-        if (preg_match($pattern, $name) || preg_match($pattern, $split_name)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function get_bad_word_pattern($bad_word): string
+function get_bad_word_pattern(string $bad_word, bool $bound_left = true, bool $bound_right = true): string
 {
     $leet_map = [
             'a' => '[a4@ä]',
             'e' => '[e3]',
             'i' => '[i1!|]',
+            'l' => '[l1|]',
             'o' => '[o0ö]',
             's' => '[s5$]',
             't' => '[t7+]',
@@ -687,35 +670,101 @@ function get_bad_word_pattern($bad_word): string
         $regex_parts[] = $pattern . '+';
     }
 
-    $stretchy_pattern = implode('[.\s_\-\d\p{P}\p{C}]*', $regex_parts);
+    $stretchy_pattern = implode('[.\s_\-\d]*', $regex_parts);
 
-    return "/(?<![a-zäöüß])" . $stretchy_pattern . "(?![a-zäöüß])/iu";
+    $left = $bound_left ? '(?<![a-zäöüß])' : '';
+    $right = $bound_right ? '(?![a-zäöüß])' : '';
+
+    return '/' . $left . $stretchy_pattern . $right . '/iu';
 }
 
-function filter_chat_message($text)
+function get_prepared_chat_patterns(): array
 {
-    $bad_words = get_bad_words_only();
-
-    static $sorted_bad_words = null;
-
-    if ($sorted_bad_words === null) {
-        $sorted_bad_words = $bad_words;
-        usort($sorted_bad_words, function ($a, $b) {
-            return mb_strlen($b) - mb_strlen($a);
-        });
+    static $cached_patterns = null;
+    if ($cached_patterns !== null) {
+        return $cached_patterns;
     }
 
-    $filtered_text = $text;
+    $bad_words = get_bad_words_only();
+    usort($bad_words, function ($a, $b) {
+        return mb_strlen($b, 'UTF-8') - mb_strlen($a, 'UTF-8');
+    });
+
+    $cached_patterns = [];
 
     foreach ($bad_words as $bad) {
         $bad = trim($bad);
-        if (empty($bad) || mb_strlen($bad) < 3) continue;
+        $len = mb_strlen($bad, 'UTF-8');
+        if (empty($bad) || $len < 3) continue;
 
-        $pattern = get_bad_word_pattern($bad);
+        $bad_lower = mb_strtolower($bad, 'UTF-8');
+        if (in_array($bad_lower, ['arsch', 'anal'])) continue;
 
-        $filtered_text = preg_replace_callback($pattern, function ($matches) {
-            return str_repeat('*', mb_strlen($matches[0]));
-        }, $filtered_text);
+        $is_strict = ($len < 4 || in_array($bad_lower, ['bad', 'dick', 'ass']));
+
+        $cached_patterns[] = get_bad_word_pattern($bad, $is_strict, $is_strict);
+    }
+
+    return $cached_patterns;
+}
+
+/**
+ * Namensprüfung für Königreiche & Registrierung (Early Exit bei Fund)
+ */
+function contains_bad_words($name, ?array $list = null): bool
+{
+    if (empty($name)) return false;
+
+    if (preg_match('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $name)
+            || preg_match('/(?<!k)anal/iu', $name)) {
+        return true;
+    }
+
+    $bad_words = $list ?? get_bad_names();
+    $split_name = preg_replace('/([a-zäöüß])([A-ZÄÖÜ])/u', '$1 $2', $name);
+
+    foreach ($bad_words as $bad) {
+        $bad = trim($bad);
+        $len = mb_strlen($bad, 'UTF-8');
+        if (empty($bad) || $len < 3) continue;
+
+        $bad_lower = mb_strtolower($bad, 'UTF-8');
+        if (in_array($bad_lower, ['arsch', 'anal'])) continue;
+
+        $is_strict = ($len < 4 || in_array($bad_lower, ['bad', 'dick', 'ass']));
+        $pattern = get_bad_word_pattern($bad, $is_strict, $is_strict);
+
+        if (preg_match($pattern, $name)) {
+            return true;
+        }
+        if ($name !== $split_name && preg_match($pattern, $split_name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function filter_chat_message($text): string
+{
+    if (empty($text)) return '';
+
+    $filtered_text = (string)$text;
+
+    $censor_fn = function ($matches) {
+        return str_repeat('*', mb_strlen($matches[0], 'UTF-8'));
+    };
+
+    $filtered_text = preg_replace_callback('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $censor_fn, $filtered_text);
+    $filtered_text = preg_replace_callback('/(?<!k)anal/iu', $censor_fn, $filtered_text);
+
+    $patterns = get_prepared_chat_patterns();
+
+    foreach ($patterns as $pattern) {
+        $res = preg_replace_callback($pattern, $censor_fn, $filtered_text);
+        if ($res !== null) {
+            $filtered_text = $res;
+        }
     }
 
     return $filtered_text;

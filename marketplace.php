@@ -620,7 +620,8 @@ $other_kingdoms_res = $db_instance->execute_query("
     SELECT k.id, k.kingdomname, k.mapx, k.mapy, k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,
            (SELECT buildinglevel FROM buildings WHERE kingdomid = k.id AND buildingid = ?) as mkt_lvl
     FROM kingdoms k 
-    WHERE k.userid = ? AND k.id != ?",
+    WHERE k.userid = ? AND k.id != ?
+    ORDER BY created_at, id",
     [BuildingTypes::BUILDING_MARKETPLACE, $user->get_user_id(), $current_kingdom]
 );
 
@@ -631,19 +632,31 @@ $arrival_times_cache = [];
 if ($other_kingdoms_res->num_rows > 0) {
     $available_markets_count = 0;
     $options_html = "";
+    $first_available_target_id = null;
 
-    foreach ($other_kingdoms_res as $ok) {
+    $rows_other = $other_kingdoms_res->fetch_all(MYSQLI_ASSOC);
+
+    foreach ($rows_other as $ok) {
+        if (((int)$ok["mkt_lvl"] > 0) && $first_available_target_id === null) {
+            $first_available_target_id = (int)$ok["id"];
+        }
+    }
+
+    $active_target_id = ($last_selected_target > 0) ? $last_selected_target : $first_available_target_id;
+
+    foreach ($rows_other as $ok) {
+        $ok_id = (int)$ok["id"];
         $seconds = $map->get_arrival_time($my_x, $my_y, $ok["mapx"], $ok["mapy"], $current_kingdom, null, false, true);
-        $arrival_times_cache[$ok["id"]] = convert_sec_to_str($seconds, true);
+        $arrival_times_cache[$ok_id] = convert_sec_to_str($seconds, true);
 
         $has_market = ((int)$ok["mkt_lvl"] > 0);
-        $selected = ($ok["id"] == $last_selected_target) ? "selected" : "";
+        $selected = ($ok_id == $last_selected_target) ? "selected" : "";
 
         if ($has_market) {
             $available_markets_count++;
-            $options_html .= "<option value='{$ok["id"]}' $selected>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
+            $options_html .= "<option value='$ok_id' $selected>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
 
-            $target_kingdoms_data[$ok["id"]] = [
+            $target_kingdoms_data[$ok_id] = [
                 "name" => $ok["kingdomname"],
                 "coords" => $ok["mapx"] . ":" . $ok["mapy"],
                 "food" => (int)$ok["food"],
@@ -656,12 +669,22 @@ if ($other_kingdoms_res->num_rows > 0) {
                 "maxgold" => (int)$ok["maxgold"]
             ];
         } else {
-            $options_html .= "<option value='{$ok["id"]}' disabled style='color: #888;'>{$ok["kingdomname"]} (Kein Marktplatz!)</option>";
+            $options_html .= "<option value='$ok_id' disabled style='color: #888;'>{$ok["kingdomname"]} (Kein Marktplatz!)</option>";
         }
     }
 
     $is_disabled = ($available_markets_count === 0);
     $disabled_attr = $is_disabled ? "disabled" : "";
+
+    $init_target = $target_kingdoms_data[$active_target_id] ?? null;
+    $init_time_str = $arrival_times_cache[$active_target_id] ?? "";
+    $init_time_display = !empty($init_time_str) ? "(Dauer: $init_time_str)" : "";
+
+    $init_header_name = $init_target ? e($init_target["name"]) : "-";
+    $init_food = $init_target ? format_num($init_target["food"]) . " / " . format_num($init_target["maxfood"]) : "-";
+    $init_wood = $init_target ? format_num($init_target["wood"]) . " / " . format_num($init_target["maxwood"]) : "-";
+    $init_stone = $init_target ? format_num($init_target["stone"]) . " / " . format_num($init_target["maxstone"]) : "-";
+    $init_gold = $init_target ? format_num($init_target["gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
 
     $view .= "<br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
     $view .= '<table class="table internal-transport-table">
@@ -669,7 +692,7 @@ if ($other_kingdoms_res->num_rows > 0) {
                     <input type="hidden" name="send_own" value="1">
                     <tr>
                         <td style="width: 30%;">
-                            <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;"></small></label><br>';
+                            <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;">' . $init_time_display . '</small></label><br>';
 
     if ($is_disabled) {
         $view .= '<select name="target_k" id="target_k" class="target-kingdom" disabled>
@@ -678,17 +701,16 @@ if ($other_kingdoms_res->num_rows > 0) {
                   <br><small class="error">Keine Marktplätze verfügbar!</small>';
     } else {
         $view .= '<select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>';
-
         $view .= '
                 <div class="mobile-internal-stock-box" id="target-k-stock-box">
                     <div class="mobile-stock-header" id="target-k-stock-header">
-                        Vorräte in <b>' . e($kingdom->get_kingdom_name()) . '</b>:
+                        Vorräte in <b>' . $init_header_name . '</b>:
                     </div>
                     <div class="mobile-internal-stock-grid">
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">-</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">-</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">-</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">-</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">' . $init_food . '</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">' . $init_wood . '</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">' . $init_stone . '</span></div>
+                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">' . $init_gold . '</span></div>
                     </div>
                 </div>';
     }
