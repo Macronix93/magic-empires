@@ -232,7 +232,7 @@ if (!$active_event) {
     $num_slots = ($max_tc >= WORLD_EVENT_HP_SLOT_HIGH_TC) ? 3 : ($max_tc >= WORLD_EVENT_HP_SLOT_MID_TC ? 2 : WORLD_EVENT_HP_SLOT_LOW);
     $special_chance = WORLD_EVENT_HP_SPECIAL_CHANCE_BASE + ($max_tc * WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT);
 
-    $target_url = "sendtroops.php?x=50&y=50";
+    $target_url = "ajax/send_troops.php?x=50&y=50";
     $pool = $world_event_manager->get_monster_pool();
     $monster = $pool[$active_event["monster_index"]];
 
@@ -282,7 +282,7 @@ if (!$active_event) {
                     Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
                 </div>
                 <div style='display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 320px;'>
-                    <button data-on-click='redirect' data-url='" . $target_url . "' $single_disabled $single_title style='width: 230px;'>
+                    <button data-on-click='openOverlay' data-url='" . $target_url . "' $single_disabled $single_title style='width: 230px;'>
                         Aus Königreich auswählen
                     </button>
                     <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
@@ -608,6 +608,6 @@ if (!$active_event) {
  */
 $title = "Welt-Event";
 $header = "Auge des Sturms";
-$script_files = ["timer", "userinfo"];
+$script_files = ["timer", "userinfo", "sendtroops"];
 
 include("layout/base.php");

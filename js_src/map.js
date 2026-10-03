@@ -34,6 +34,13 @@ let initialPinchDistance = null;
 
 let isMobileView = window.innerWidth < 600;
 
+let lastMapInteraction = Date.now();
+let mapPollTimeout = null;
+
+const MAP_POLL_ACTIVE_INTERVAL = 60000;   // 1 minute with activity
+const MAP_POLL_IDLE_INTERVAL = 300000;  // 5 minutes with inactivity (30+ Min)
+const MAP_IDLE_THRESHOLD = 1800000; // 30 minutes inactivity boundary
+
 let gameConfig = {};
 
 const COLORS = {
@@ -60,6 +67,38 @@ registerAction("openShareCoordsModal", (el) => {
     const y = el.dataset.y;
     openOverlay(`ajax/share_coords_modal.php?x=${x}&y=${y}`, "Koordinaten teilen", "460px");
 });
+
+function registerMapActivity() {
+    lastMapInteraction = Date.now();
+}
+
+["mousemove", "mousedown", "keydown", "touchstart", "wheel"].forEach(evt => {
+    window.addEventListener(evt, registerMapActivity, {passive: true});
+});
+
+function scheduleNextMapPoll() {
+    clearTimeout(mapPollTimeout);
+    const isIdle = (Date.now() - lastMapInteraction) >= MAP_IDLE_THRESHOLD;
+    const interval = isIdle ? MAP_POLL_IDLE_INTERVAL : MAP_POLL_ACTIVE_INTERVAL;
+
+    mapPollTimeout = setTimeout(() => {
+        if (!document.hidden) {
+            refreshMapDataSilently(false, () => {
+                scheduleNextMapPoll();
+            });
+        } else {
+            scheduleNextMapPoll();
+        }
+    }, interval);
+}
+
+function showMapSyncSpinner(show) {
+    const spinner = document.getElementById("map-sync-indicator");
+    if (spinner) {
+        spinner.style.display = show ? "block" : "none";
+    }
+}
+
 
 function buildBiomeMapCache() {
     const grid = {};
@@ -394,6 +433,8 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
     });
+
+    scheduleNextMapPoll();
 });
 
 function applyZoomAt(newZoom, mouseX, mouseY) {
@@ -864,7 +905,7 @@ function dragMove(e) {
     const moveX = Math.abs(e.pageX - initialMouseX);
     const moveY = Math.abs(e.pageY - initialMouseY);
 
-    if (!wasDragged && (moveX > 2 || moveY > 2)) {
+    if (!wasDragged && (moveX > 10 || moveY > 10)) {
         wasDragged = true;
 
         const popupBox = document.getElementById("field-popup-box");
@@ -1599,7 +1640,9 @@ function jumpTo(x, y) {
     }
 }
 
-function refreshMapDataSilently(closePopup = false) {
+function refreshMapDataSilently(closePopup = false, callback = null) {
+    showMapSyncSpinner(true);
+
     fetch("ajax/map_full_load.php", {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
@@ -1611,20 +1654,26 @@ function refreshMapDataSilently(closePopup = false) {
             draw();
 
             if (selectedX && selectedY) {
+                const popupBox = document.getElementById("field-popup-box");
+                const wasPopupOpen = !closePopup && popupBox && (popupBox.style.display === "block");
                 const x = selectedX, y = selectedY;
-
+                
                 selectedX = null;
                 selectedY = null;
 
                 selectField(x, y, false);
 
-                if (closePopup) {
-                    const popupBox = document.getElementById("field-popup-box");
-                    if (popupBox) popupBox.style.display = "none";
+                if (!wasPopupOpen && popupBox) {
+                    popupBox.style.display = "none";
                 }
             }
         })
-        .catch(err => console.error("Stiller Map-Sync fehlgeschlagen:", err));
+        .catch(err => console.error("Stiller Map-Sync fehlgeschlagen:", err))
+        .finally(() => {
+            showMapSyncSpinner(false);
+
+            if (callback) callback();
+        });
 }
 
 window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
@@ -1724,7 +1773,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
         window.reloadOverlay();
     }
 
-    refreshMapDataSilently();
+    refreshMapDataSilently(!wasPopupOpen);
 };
 
 window.jumpToCoordinates = jumpTo;

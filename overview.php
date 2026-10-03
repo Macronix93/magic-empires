@@ -1158,48 +1158,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
 
 // Tutorial Check
 if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
-    $k_info = $db_instance->execute_query("
-        SELECT ft.fieldname, ft.foodrate, ft.woodrate, ft.stonerate, ft.goldrate 
-        FROM map m 
-        JOIN field_types ft ON m.fieldtype = ft.fieldid 
-        WHERE m.kingdomid = ?", [$user->get_current_kingdom()])->fetch_assoc();
-
-    $good_res = "";
-    if ($k_info["foodrate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " Nahrung ";
-    if ($k_info["woodrate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " Holz ";
-    if ($k_info["stonerate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " Stein ";
-    if ($k_info["goldrate"] > 1) $good_res .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " Gold ";
-
-    if (empty($good_res)) {
-        $good_res = "<i>Dieses Land ist ein Allrounder (ausgeglichene Erträge).</i>";
-    }
-
-    $view .= "
-    <div id='tutorial-overlay' class='info-box-bg' style='display:flex;'>
-        <div class='big-box-container' style='max-width: 500px; margin: auto; z-index: 1001; padding: 15px 15px 0;'>
-            <div class='big-box-header'>Willkommen, Eure Hoheit!</div>
-            <div class='big-box-content' style='text-align: left;'>
-                <p style='margin-top: 0;'>Eure Siedlung im <b class='passed'>{$k_info["fieldname"]}</b> ist bereit. Beachtet diese 3 Grundregeln:</p>
-                <div style='margin-bottom: 15px;'>
-                    <b style='color: var(--link-color);'>1. Ressourcen sichern</b><br>
-                    <p>Baut zuerst <b>Mühle, Sägewerk</b> oder <b>Steinmine</b>. Euer Land liefert extra viel:</p>
-                    <p>$good_res</p>
-                </div>
-                <div style='margin-bottom: 15px;'>
-                    <b style='color: var(--link-color);'>2. Das Dorfzentrum</b><br>
-                    <p>Das Herz eures Reiches. Seine Stufe begrenzt das Level <b>aller</b> anderen Gebäude 
-                    (außer <b>Lager</b>. Dieses kann eine Stufe höher als das aktuelle Dorfzentrum gebaut werden).</p>
-                </div>
-                <div style='margin-bottom: 15px;'>
-                    <b style='color: var(--link-color);'>3. Schutz & Reparatur</b><br>
-                    <p>Eure <b>Mauer</b> gibt einen Verteidigungsbonus, um Angreifer abzuschrecken. Haltet sie stets repariert!</p>
-                </div>
-                <div style='text-align: center; margin-top: 20px;'>
-                    <button id='close-tutorial' data-on-click='finishTutorial' style='padding: 10px 40px;'>Alles klar!</button>
-                </div>
-            </div>
-        </div>
-    </div>";
+    $view .= render_tutorial_modal($user);
 }
 
 /*

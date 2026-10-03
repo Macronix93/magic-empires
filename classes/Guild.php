@@ -571,7 +571,7 @@ class Guild
     public function get_members_detailed(int $guild_id): mysqli_result
     {
         return $this->db->execute_query("
-            SELECT u.id, u.username, u.ranking_points, rl.rank_name, rl.rank_color, rl.is_founder, u.guild_rank_id as rank_id
+            SELECT u.id, u.username, u.lastactivity, u.ranking_points, rl.rank_name, rl.rank_color, rl.is_founder, u.guild_rank_id as rank_id
             FROM users u
             JOIN guild_rank_list rl ON u.guild_rank_id = rl.id
             WHERE u.guildid = ?

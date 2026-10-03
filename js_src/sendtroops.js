@@ -179,6 +179,12 @@ registerAction("submitSendTroopsForm", (form, e) => {
         .then(data => {
             if (data.success) {
                 closeOverlay();
+
+                if (!window.location.pathname.includes("map.php")) {
+                    window.location.reload();
+                    return;
+                }
+
                 showMapFlashMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
 
                 if (typeof gameConfig !== "undefined" && gameConfig.currentKingdom) {
@@ -200,7 +206,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
                         modalBody.scrollTo({top: 0, behavior: "smooth"});
                     }
                 } else {
-                    alert(data.error || "Fehler beim Absenden.");
+                    console.log(data.error || "Fehler beim Absenden.");
                 }
 
                 if (submitBtn) {
@@ -223,24 +229,36 @@ registerAction("submitSendTroopsForm", (form, e) => {
 });
 
 function showMapFlashMessage(message, type = "passed") {
-    const container = document.querySelector(".big-box-content");
-    if (!container) return;
+    const mapContainer = document.getElementById("map-container") || document.body;
 
-    container.querySelectorAll(".info-box.event-passed, .info-box.event-error").forEach(el => el.remove());
+    const existing = document.getElementById("map-flash-message");
+    if (existing) existing.remove();
 
-    const icon = (type === "passed") ? "icon_checked.png" : "icon_error.png";
-    const cssClass = (type === "passed") ? "event-passed" : "event-error";
-
+    const isPassed = (type === "passed");
+    const icon = isPassed ? "icon_checked.png" : "icon_error.png";
     const box = document.createElement("div");
-    box.className = `info-box ${cssClass}`;
-    box.style.marginBottom = "15px";
+    box.id = "map-flash-message";
+
+    box.className = `info-box event-${type}`;
     box.innerHTML = `<img src="images/icons/${icon}" alt="Status"><span>${message}</span>`;
 
-    container.insertBefore(box, container.firstChild);
+    const bgColor = isPassed ? "rgba(22, 82, 38, 0.92)" : "rgba(90, 22, 22, 0.92)";
+    const borderColor = isPassed ? "rgba(42, 120, 60, 0.65)" : "rgba(140, 35, 35, 0.65)";
 
-    if (window.innerWidth <= 600) {
-        box.scrollIntoView({behavior: "smooth", block: "nearest"});
-    }
+    box.style.backgroundColor = bgColor;
+    box.style.borderColor = borderColor;
+    box.style.whiteSpace = isPassed ? "nowrap" : "normal";
+
+    mapContainer.appendChild(box);
+
+    const displayTime = isPassed ? 3000 : 4000;
+
+    setTimeout(() => {
+        box.style.opacity = "0";
+        setTimeout(() => {
+            if (box.parentNode) box.remove();
+        }, 500);
+    }, displayTime);
 }
 
 function updateTroopSummary() {

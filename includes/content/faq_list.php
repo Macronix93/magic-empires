@@ -1,3 +1,10 @@
+<?php if (!empty($is_logged_in)): ?>
+    <div style="text-align: center; margin-bottom: 25px;">
+        <button type="button" data-on-click="showTutorialModal" style="padding: 10px 10px; font-weight: bold;">📜
+            Einführung & Tutorial erneut anzeigen
+        </button>
+    </div>
+<?php endif; ?>
 <div class="box-container" style="margin-bottom: 20px;">
     <div class="box-header">Allgemeine Fragen</div>
     <div class="box-content box-content-bg">
@@ -157,13 +164,22 @@
                             prozentualen Bonus.
                         </li>
                     </ul>
-                    <b>2. Das Schere-Stein-Papier-Prinzip (<?= (RPS_BONUS * 100) ?>% Bonus):</b>
+                    <?php
+                    $rps_target_focus = RPS_TARGET_FOCUS * 100;
+                    $rps_target_focus_remainder = (100 - $rps_target_focus);
+                    ?>
+                    <b>2. Schere-Stein-Papier & Zielpriorisierung (<?= $rps_target_focus ?>
+                        /<?= $rps_target_focus_remainder ?>-Regel):</b>
                     <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
-                        <li><b>Infanterie</b> schlägt <b>Kavallerie</b></li>
-                        <li><b>Kavallerie</b> schlägt <b>Fernkampf</b></li>
-                        <li><b>Fernkampf</b> schlägt <b>Infanterie</b></li>
-                        <li><i>Wichtig:</i> Der Bonus wird dynamisch anhand des prozentualen Anteils der jeweiligen
-                            Einheit in der gegnerischen Armee verrechnet. Eine gemischte Armee schützt vor Kontern!
+                        <li><b>Infanterie</b> fokussiert <b>Kavallerie</b></li>
+                        <li><b>Kavallerie</b> fokussiert <b>Fernkampf</b></li>
+                        <li><b>Fernkampf</b> fokussiert <b>Infanterie</b></li>
+                        <li><i>Fokus-Schaden:</i> Jede Gattung richtet <b><?= $rps_target_focus ?>%</b> ihres Schadens
+                            gezielt auf ihr
+                            Konter-Ziel an (mit <b>+<?= (RPS_BONUS * 100) ?>% Bonus</b>). Die restlichen
+                            <b><?= $rps_target_focus_remainder ?>%</b>
+                            treffen als Streuschaden die gesamte feindliche Armee. Ist die Zielgruppe restlos
+                            vernichtet, fließt der Überschussschaden automatisch in den Streuschaden über.
                         </li>
                     </ul>
                     <b>3. Stadtmauer, Gegenwehr & Rammböcke:</b>
@@ -182,17 +198,20 @@
                             Für echte Zerstörung werden <b>Rammböcke</b> benötigt.
                         </li>
                     </ul>
-                    <b>4. Verlustberechnung:</b>
+                    <b>4. Verlustberechnung & Rüstungseffekt:</b>
                     <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
                         <li>Beide Seiten schlagen simultan zu. Die Verluste berechnen sich aus dem Verhältnis des
-                            gegnerischen Angriffspools zum eigenen Verteidigungspool.
+                            gegnerischen Angriffspools zum Verteidigungspool der jeweiligen Gattung.
+                        </li>
+                        <li><b>Rüstungs-Dämpfung:</b> Einheiten mit hoher Rüstung (z. B. Paladine oder Kürassiere)
+                            erleiden prozentual deutlich geringere Verluste als leicht gerüstete Einheiten (z. B.
+                            Milizen), welche als natürliches Schutzschild dienen.
                         </li>
                         <li>Im <b>PvP</b> beträgt der Tödlichkeitsfaktor <?= LETHALITY_PVP ?> (Truppen halten mehr
                             Schaden aus als ihren reinen DEF-Wert).
                         </li>
-                        <li>Im <b>PvE</b> beträgt der Faktor <?= LETHALITY_PVE ?>. Zusätzlich greift eine
-                            Dämpfungskurve, damit bei großer Übermacht gegen Monster die eigenen Verluste minimal
-                            bleiben.
+                        <li>Im <b>PvE</b> beträgt der Faktor <?= LETHALITY_PVE ?> mit zusätzlicher Dämpfung bei großer
+                            Übermacht gegen Monster.
                         </li>
                     </ul>
                     <b>5. Gilden-Verstärkung:</b>

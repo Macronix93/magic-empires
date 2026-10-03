@@ -4,6 +4,7 @@ let initialY;
 let xOffset = 0;
 let yOffset = 0;
 let currentOverlayUrl = "";
+let activeOverlayController = null;
 
 registerAction("openOverlay", (el) => {
     const url = el.dataset.url;
@@ -52,92 +53,112 @@ function openOverlay(url, title = "", width = null) {
         if (typeof toggleMobileElements === "function") toggleMobileElements(false);
     }
 
-    document.body.classList.add("modal-open");
-    document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+    if (activeOverlayController) {
+        activeOverlayController.abort();
+    }
+    activeOverlayController = new AbortController();
+    const signal = activeOverlayController.signal;
 
     const overlay = document.getElementById("onpage-overlay");
     const content = document.getElementById("overlay-content-body");
     const overlayTitle = document.getElementById("overlay-title");
     const isAlreadyOpen = (overlay.style.display === "grid");
 
-    if (width) {
-        overlay.style.maxWidth = width;
-    } else if (!isAlreadyOpen) {
-        overlay.style.maxWidth = "";
-    }
-
     if (url === currentOverlayUrl && isAlreadyOpen) return;
 
-    const hasCustomTitle = Boolean(title && title.trim() !== "" && title !== "Info");
-
-    if (!isAlreadyOpen) {
-        xOffset = 0;
-        yOffset = 0;
-        setTranslate(0, 0, overlay);
-        overlay.style.display = "grid";
-        applyOverlayStyles();
-
-        content.style.transition = "none";
-        content.style.opacity = "1";
-        content.innerHTML = '<div class="spinner">Lade...</div>';
-
-        overlayTitle.innerText = hasCustomTitle ? title : "";
-    } else {
-        if (url !== currentOverlayUrl) {
-            content.style.minHeight = content.offsetHeight + "px";
-            content.style.transition = "opacity 0.15s ease";
-            content.style.opacity = "0";
-        }
-
-        if (hasCustomTitle) {
-            overlayTitle.innerText = title;
-        }
+    if (isAlreadyOpen) {
+        content.style.minHeight = content.offsetHeight + "px";
+        content.style.transition = "opacity 0.15s ease";
+        content.style.opacity = "0";
     }
 
-    if (url === currentOverlayUrl) {
-        overlayTitle.innerText = title;
-        return;
-    }
+    currentOverlayUrl = url;
+
+    const delay = isAlreadyOpen ? 150 : 0;
 
     setTimeout(() => {
-        if (isAlreadyOpen) content.innerHTML = '<div class="spinner">Lade...</div>';
-        currentOverlayUrl = url;
-
-        if (hasCustomTitle) {
-            overlayTitle.innerText = title;
+        if (isAlreadyOpen) {
+            content.innerHTML = '<div class="spinner">Lade...</div>';
         }
 
-        fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
-            .then(response => response.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, "text/html");
-                content.style.opacity = "0";
+        fetch(url,
+            {
+                headers: {"X-Requested-With": "XMLHttpRequest"},
+                signal: signal
+            })
+            .then(response => {
+                const isJson = response.headers.get("content-type")?.includes("application/json");
 
-                setTimeout(() => {
+                if (isJson) {
+                    return response.json().then(data => {
+                        if (isAlreadyOpen) closeOverlay();
+
+                        if (data.error && typeof showMapFlashMessage === "function") {
+                            showMapFlashMessage(data.error, "error");
+                        }
+                    });
+                }
+
+                return response.text().then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, "text/html");
+
+                    let customWidth = width;
+                    let customTitle = title;
                     const titleData = doc.getElementById("modal-title-data");
                     if (titleData) {
-                        if (titleData.dataset.title) {
-                            overlayTitle.innerText = titleData.dataset.title;
-                        }
-
-                        if (titleData.dataset.width) {
-                            overlay.style.maxWidth = titleData.dataset.width;
-                        }
+                        if (titleData.dataset.title) customTitle = titleData.dataset.title;
+                        if (titleData.dataset.width) customWidth = titleData.dataset.width;
                     }
 
+                    const hasCustomTitle = Boolean(customTitle && customTitle.trim() !== "" && customTitle !== "Info");
+                    if (hasCustomTitle) overlayTitle.innerText = customTitle;
+
+                    if (customWidth) {
+                        overlay.style.maxWidth = customWidth;
+                    } else if (!isAlreadyOpen) {
+                        overlay.style.maxWidth = "";
+                    }
+
+                    if (!isAlreadyOpen) {
+                        document.body.classList.add("modal-open");
+                        document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+
+                        xOffset = 0;
+                        yOffset = 0;
+
+                        setTranslate(0, 0, overlay);
+                        overlay.style.display = "grid";
+
+                        applyOverlayStyles();
+                    }
+
+                    content.style.transition = "none";
+                    content.style.opacity = isAlreadyOpen ? "0" : "1";
                     content.innerHTML = doc.body.innerHTML;
                     content.style.minHeight = "";
-                    content.style.transition = "opacity 0.15s ease";
-                    content.style.opacity = "1";
-                    content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
 
+                    content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
                     if (typeof setup === "function") {
                         setup();
                     }
-                }, 25);
+
+                    if (isAlreadyOpen) {
+                        setTimeout(() => {
+                            content.style.transition = "opacity 0.15s ease";
+                            content.style.opacity = "1";
+                        }, 20);
+                    } else {
+                        content.style.opacity = "1";
+                    }
+                });
+            })
+            .catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.error("Overlay Fehler:", err);
+                }
             });
-    }, isAlreadyOpen ? 100 : 0);
+    }, delay);
 }
 
 function getSecondaryOverlay() {
@@ -198,6 +219,11 @@ function closeSecondaryOverlay() {
 }
 
 function closeOverlay() {
+    if (activeOverlayController) {
+        activeOverlayController.abort();
+        activeOverlayController = null;
+    }
+
     const secOverlay = document.getElementById("secondary-overlay");
     if (secOverlay && secOverlay.style.display !== "none") {
         closeSecondaryOverlay();

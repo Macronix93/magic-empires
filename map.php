@@ -206,6 +206,7 @@ echo '<div id="map-container"
             data-start-y="' . $y . '" 
             data-config=\'' . json_encode($js_config) . '\'
             style="height: var(--map-viewport-height); overflow: hidden;">';
+echo '<div id="map-sync-indicator" class="map-sync-spinner" style="display: none;" title="Karte wird aktualisiert"></div>';
 echo '<div id="map-loader">
             <div class="loading-spinner"></div>
             <div class="loader-text">Kartograph zeichnet Karte...</div>

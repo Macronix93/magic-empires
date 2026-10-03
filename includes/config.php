@@ -130,6 +130,8 @@ const WALL_MAX_NORMAL_DAMAGE_PERCENT = 0.2;
 const PVP_DAMPING_THRESHOLD = 1.0;                  // At which Superiority Factor does damp begin
 const PVP_DAMPING_MAX_RATIO = 3.0;                  // At which Superiority Factor is damage = 0 (Chip Damage Immunity)
 const PVP_DAMPING_EXPONENT = 1.15;                  // Exponent for curve progress (like PvE)
+const RPS_TARGET_FOCUS = 0.7;                       // 70% damage on preferred counter target group
+const ARMOR_WEIGHT_EXPONENT = 0.5;                  // Exponent for Armor Weighting (0.5 = square root)
 
 // --- Troops, Recruiting ---
 const MIN_SOLDIERS_RECRUIT_INPUT = 10;

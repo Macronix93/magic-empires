@@ -171,14 +171,42 @@ class User
         return DEFAULT_AVATAR;
     }
 
-    public function render_user(string $content = "", ?string $status_color = null, ?string $popup_id = null): string
+    public function render_user(
+        string  $content = "",
+        ?string $status_color = null,
+        ?string $popup_id = null,
+        bool    $show_last_activity = false,
+        ?int    $last_activity_timestamp = null,
+        bool    $exact_time = false
+    ): string
     {
         $avatar = $this->get_avatar();
         $pop_id = $popup_id ?? "av_pop_" . $this->user_id;
+
+        if ($show_last_activity && $status_color === null) {
+            $act = $last_activity_timestamp ?? (int)($this->load_user_row()["lastactivity"] ?? 0);
+            $diff = time() - $act;
+            $status_color = ($diff > ONLINE_MAX_SECONDS) ? "#F55353" : ($diff > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
+        }
+
         $status_dot = $status_color ? "<span class='status-indicator' style='background-color: " . e($status_color) . ";'></span>" : "";
 
         if ($content === "") {
-            $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$this->user_id' data-title='Spieler-Info' >" . e($this->user_name) . "</a>";
+            if ($show_last_activity) {
+                $act = $last_activity_timestamp ?? (int)($this->load_user_row()["lastactivity"] ?? 0);
+                $act_str = $exact_time
+                    ? ($act === 0 ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $act) . " Uhr")
+                    : format_relative_activity($act);
+
+                $link_pop_id = "act_link_" . $this->user_id . "_" . mt_rand(100, 999);
+                $content = "<a href='#' data-on-click='openOverlay' 
+                                        data-url='userinfo.php?userid=$this->user_id' 
+                                        data-title='Spieler-Info' 
+                                        class='popup' id='$link_pop_id'
+                                        style='cursor: pointer;'>" . e($this->user_name) . "<div id='{$link_pop_id}_box' class='popupbox'>Zuletzt aktiv: $act_str</div></a>";
+            } else {
+                $content = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$this->user_id' data-title='Spieler-Info' style='cursor: pointer;'>" . e($this->user_name) . "</a>";
+            }
         }
 
         return "

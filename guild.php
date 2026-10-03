@@ -591,7 +591,7 @@ if ($my_guild_id === -1) {
         $guild_user = new User($m["id"], $m["username"]);
 
         $view .= "<tr $row_style>
-                    <td>" . $guild_user->render_user() . "</td>
+                    <td>" . $guild_user->render_user("", null, null, true, (int)$m["lastactivity"], true) . "</td>
                     <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>
                     <td class='td-center'>$rank_display</td>";
 

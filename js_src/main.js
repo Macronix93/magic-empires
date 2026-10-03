@@ -90,15 +90,51 @@ registerAction("toggleEmojis", (el) => {
 registerAction("pickEmoji", (el) => {
     insertEmoji(el.innerText);
 });
-registerAction("finishTutorial", () => {
+registerAction("showTutorialModal", () => {
+    const existing = document.getElementById("tutorial-overlay");
+    if (existing) existing.remove();
+
+    fetch("ajax/tutorial_modal.php", {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.text())
+        .then(html => {
+            document.body.insertAdjacentHTML("beforeend", html);
+
+            const overlay = document.getElementById("tutorial-overlay");
+
+            if (overlay) {
+                overlay.querySelectorAll('[data-on-click]').forEach(bindActions);
+            }
+        })
+        .catch(err => console.error("Fehler beim Laden des Tutorials:", err));
+});
+registerAction("closeTutorial", (el) => {
+    const overlay = document.getElementById("tutorial-overlay");
+    if (overlay) overlay.remove();
+
+    const targetUrl = el.getAttribute("href") && el.getAttribute("href") !== "#" ? el.getAttribute("href") : null;
+    if (targetUrl) {
+        window.location.href = targetUrl;
+    }
+});
+registerAction("finishTutorial", (el) => {
     fetch("ajax/tutorial_done.php", {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                const overlay = document.getElementById("tutorial-overlay");
-                if (overlay) overlay.remove();
+                const targetUrl = el.dataset.url
+                    || (el.getAttribute("href")
+                    && el.getAttribute("href") !== "#" ? el.getAttribute("href") : null);
+
+                if (targetUrl) {
+                    window.location.href = targetUrl;
+                } else {
+                    const overlay = document.getElementById("tutorial-overlay");
+                    if (overlay) overlay.remove();
+                }
             }
         });
 });
@@ -355,7 +391,7 @@ function switchKingdomById(kingdomId) {
                     return;
                 }
 
-                const keepParamsPages = ["messages.php", "ranking.php", "support.php", "sendtroops.php"];
+                const keepParamsPages = ["messages.php", "ranking.php", "support.php"];
                 if (filename === "barracks.php") {
                     const cat = currentUrl.searchParams.get("cat");
                     window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;
@@ -570,7 +606,7 @@ function setup() {
                 if (isReaction && isTouchDevice) {
                     return;
                 }
-                
+
                 let mousePos = getMouseLocation(e);
 
                 box.style.position = "absolute";

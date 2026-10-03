@@ -35,10 +35,12 @@ if (!empty($_GET["key"])) {
         if (!$user_data["status"]) {
             $max_news_id = $db_instance->query("SELECT MAX(id) FROM news")->fetch_row()[0] ?? 0;
             $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
+            $max_sug_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
+            $max_comm_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
 
             $db_instance->execute_query(
-                    "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ? WHERE id = ?",
-                    [$max_news_id, $max_chat_id, $user_id]
+                    "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ?, last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
+                    [$max_news_id, $max_chat_id, $max_sug_id, $max_comm_id, $user_id]
             );
 
             $kingdom = new Kingdom();

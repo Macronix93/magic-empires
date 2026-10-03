@@ -1,4 +1,7 @@
 <?php
+
+use JetBrains\PhpStorm\NoReturn;
+
 require_once("../includes/core.php");
 
 check_user_login($user);
@@ -7,6 +10,14 @@ if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQ
     $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
     $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
     change_location("map.php?startx=$x&starty=$y");
+    exit;
+}
+
+#[NoReturn]
+function exit_send_troops_error(string $message): void
+{
+    header("Content-Type: application/json; charset=utf-8");
+    echo json_encode(["success" => false, "error" => $message]);
     exit;
 }
 
@@ -23,9 +34,7 @@ $send_title = "Erobern";
 $warning_box = "";
 
 if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
-    echo show_error_box("Diese Koordinaten gibt es nicht!");
-    echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
-    exit;
+    exit_send_troops_error("Diese Koordinaten gibt es nicht!");
 }
 
 if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
@@ -33,9 +42,13 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
     $active_event = $world_event_manager->get_active_event();
 
     if (!$active_event) {
-        echo show_error_box("Dieses Gebiet ist durch einen magischen Bann versiegelt!");
-        echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
-        exit;
+        exit_send_troops_error("Dieses Gebiet ist durch einen magischen Bann versiegelt!");
+    }
+
+    $arrival_delay = $world_event_manager->get_current_duration();
+    $time_left = $active_event["end_time"] - time();
+    if ($time_left < $arrival_delay) {
+        exit_send_troops_error("Befehl verweigert: Der Anmarsch dauert " . convert_sec_to_str($arrival_delay) . ", aber das Event endet bereits in " . convert_sec_to_str($time_left) . "!");
     }
 
     if ($active_event["event_type"] === "DAMAGE") {
@@ -46,10 +59,12 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
         $attempts = $res_check->fetch_assoc()["attempts_used"] ?? 0;
 
         if ($attempts >= WORLD_EVENT_MAX_ATTEMPTS) {
-            echo show_error_box("Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!");
-            echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
-            exit;
+            exit_send_troops_error("Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!");
         }
+    }
+
+    if ($active_event["event_type"] === "BOSS_HP" && (int)$active_event["current_hp"] <= 0) {
+        exit_send_troops_error("Der Boss wurde bereits besiegt!");
     }
 }
 
@@ -97,9 +112,7 @@ if ($is_ally) {
         $res_vac = $db_instance->execute_query("SELECT is_vacation, vacation_until FROM users WHERE id = ?", [$enemy_user_id])->fetch_assoc();
 
         if (!empty($res_vac["is_vacation"]) && (int)$res_vac["vacation_until"] > time()) {
-            echo show_error_box("Dieser Spieler befindet sich im Urlaubsmodus und kann weder angegriffen noch ausspioniert werden!");
-            echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
-            exit;
+            exit_send_troops_error("Dieser Spieler befindet sich im Urlaubsmodus und kann weder angegriffen noch ausspioniert werden!");
         }
 
         $is_noob_protected = new Conquest()->has_noob_protection($user->get_user_score(), $enemy_score);
@@ -118,9 +131,7 @@ if ($kingdom_id != MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
 }
 
 if ($already_sent > 0) {
-    echo show_error_box("Du hast bereits Truppen zu diesen Koordinaten geschickt!");
-    echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
-    exit;
+    exit_send_troops_error("Du hast bereits Truppen zu diesen Koordinaten geschickt!");
 }
 
 // Get soldier data
@@ -449,6 +460,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $db_instance->commit();
 
+            $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
+            
             header("Content-Type: application/json; charset=utf-8");
             echo json_encode([
                 "success" => true,
@@ -466,9 +479,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 }
 
 if ($target_x == $kingdom->get_kingdom_map_x() && $target_y == $kingdom->get_kingdom_map_y()) {
-    echo show_error_box("Das ist dein aktuelles Königreich!");
-    echo "<div style='text-align:center; margin-top:15px;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";
-    exit;
+    exit_send_troops_error("Das ist dein aktuelles Königreich!");
 }
 
 $view = "<div id='sendtroops-ajax-error' style='display: none;'></div>";
@@ -1058,6 +1069,6 @@ if ($barracks_level > 0) {
 /*
  * HTML Section
  */
-echo "<div id='modal-title-data' data-title='" . e($send_title) . "' data-width='700px' style='display: none;'></div>";
-echo "<div style='padding: 10px; max-width: 650px; margin: 0 auto; box-sizing: border-box; text-align: left;'>" . $view . "</div>";
+echo "<div id='modal-title-data' data-title='" . e($send_title) . "' data-width='850px' style='display: none;'></div>";
+echo "<div style='padding: 10px; max-width: 850px; margin: 0 auto; box-sizing: border-box; text-align: left;'>" . $view . "</div>";
 echo "<br><div style='text-align: center;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";

@@ -122,8 +122,12 @@ if ($row) {
         if ($row["stone"] > 0) $active_res["stone"] = ResourceTypes::RESOURCE_TYPE_STONE;
         if ($row["gold"] > 0) $active_res["gold"] = ResourceTypes::RESOURCE_TYPE_GOLD;
 
+        $soldier_icon = "images/icons/" . e($row["icon"] ?? "icon_error") . ".png";
+
         $view .= "<div class='big-box-container tech-info-page'>
-                    <div class='big-box-header tech-info-header'>{$row["soldiername"]}</div>
+                    <div class='big-box-header tech-info-header'>
+                        <img src='$soldier_icon' class='header-icon' alt=''> {$row["soldiername"]}
+                    </div> 
                     <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) .
                 ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
@@ -232,8 +236,12 @@ if ($row) {
             $guild_tech_bonus_info .= "</div>";
         }
 
+        $gt_icon = "images/icons/" . e($row["icon"] ?? "icon_error") . ".png";
+
         $view .= "<div class='big-box-container tech-info-page'>
-                    <div class='big-box-header tech-info-header'>" . e($row["name"]) . "</div>
+                    <div class='big-box-header tech-info-header'>
+                        <img src='$gt_icon' class='header-icon' alt=''> " . e($row["name"]) . "
+                    </div> 
                     <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>
                             " . e($row["description"]) . "
@@ -440,7 +448,7 @@ if ($row) {
                 TechTypes::TECH_TYPE_MAINTENANCE => [fdec(MAINTENANCE_REPAIR_REDUCTION * 100) . "%", "Reduktion der Reparaturkosten"],
                 TechTypes::TECH_TYPE_PLUNDER => [fdec(PLUNDER_CAPACITY_BONUS * 100) . "%", "mehr Beute-Kapazität"],
                 TechTypes::TECH_TYPE_ANCESTRAL_RITES => [fdec(SHRINE_TECH_STEP * 100) . "%", "stärkerer Schrein-Effekt"],
-                TechTypes::TECH_TYPE_WALL_HP_INC => [RESEARCH_WALL_HP_INC, "zusätzliche HP pro Mauerstufe"],
+                TechTypes::TECH_TYPE_WALL_HP_INC => [RESEARCH_WALL_HP_INC, "zusätzliche HP"],
                 TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
                 TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung"],
                 TechTypes::TECH_TYPE_ARCANE_INTEL => ["", "Erweitert die Informationen herannahender Truppen im Wachturm:<br>" .
@@ -479,8 +487,13 @@ if ($row) {
             }
         }
 
+        $name = $row["buildingname"] ?? $row["techname"];
+        $icon_filename = ($building_id !== null) ? "icon_building$building_id.png" : "icon_tech$tech_id.png";
+
         $view .= "<div class='big-box-container tech-info-page'>
-                    <div class='big-box-header tech-info-header'>$name</div>
+                    <div class='big-box-header tech-info-header'>
+                        <img src='images/icons/$icon_filename' class='header-icon' alt=''> $name
+                    </div> 
                     <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; color: #ccc; margin-top: 0;'>
                             " . e($row["description"]) . " $dynamic_effect_sentence

@@ -17,7 +17,44 @@ $sidebar_data = [
         "alchemy_status" => ''
 ];
 
+if (empty($header_icon)) {
+    if (isset($building) && is_object($building) && method_exists($building, 'get_building_id')) {
+        $header_icon = "images/icons/icon_building" . $building->get_building_id() . ".png";
+    } else {
+        $current_file = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+        $header_icon = match ($current_file) {
+            'overview.php' => 'images/icons/icon_buildings.png',
+            'map.php' => 'images/icons/icon_tech6.png',
+            'messages.php' => isset($_GET["worldchat"]) ? 'images/icons/icon_worldchat.png' : 'images/icons/icon_messages.png',
+            'guild.php' => 'images/icons/icon_guild.png',
+            'ranking.php' => 'images/icons/icon_ranking.png',
+            'techtree.php' => 'images/icons/icon_techtree.png',
+            'warsim.php' => 'images/icons/icon_warsim.png',
+            'halloffame.php' => 'images/icons/icon_score.png',
+            'events.php' => 'images/icons/icon_lich.png',
+            'stats.php' => 'images/icons/icon_statistics.png',
+            'adminpanel.php' => 'images/icons/icon_adminpanel.png',
+            'news.php' => 'images/icons/icon_news.png',
+            'settings.php' => 'images/icons/icon_settings.png',
+            'rules.php' => 'images/icons/icon_rules.png',
+            'faq.php' => 'images/icons/icon_faq.png',
+            'donations.php' => 'images/icons/icon_guildtech1.png',
+            'suggestions.php' => 'images/icons/icon_feedback.png',
+            'support.php' => 'images/icons/icon_question.png',
+            'disclaimer.php' => 'images/icons/icon_disclaimer.png',
+            'imprint.php' => 'images/icons/icon_imprint.png',
+            'privacy.php' => 'images/icons/icon_privacy.png',
+            default => null,
+        };
+    }
+}
+
 if ($user->is_logged_in()) {
+    if (in_array("userinfo", $script_files ?? [])
+            && !in_array("sendtroops", $script_files ?? [])) {
+        $script_files[] = "sendtroops";
+    }
+
     $show_attack_alert = false;
     $show_support_alert = false;
     $uid = $user->get_user_id();
@@ -140,6 +177,9 @@ if ($user->is_logged_in()) {
     <div class="middle-container">
         <div class="big-box-container">
             <div class="big-box-header">
+                <?php if (!empty($header_icon) && file_exists($header_icon)): ?>
+                    <img src="<?= e($header_icon) ?>" class="header-icon" alt="">
+                <?php endif; ?>
                 <?= $header ?? 'Default Header'; ?>
             </div>
             <div class="big-box-content">

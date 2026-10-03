@@ -58,6 +58,17 @@ $ranking_colgroup = '
 
 // --- CONTAINER PLAYERS ---
 $view .= "<div id='ranking_players' class='js-ranking-tab' style='display: " . ($active_tab === "players" ? "block" : "none") . ";'>";
+$view .= "<div class='map-toolbar' style='margin-bottom: 12px;'>
+    <div class='legend-group'>
+        <div class='map-legend-item'>
+            <img src='images/icons/icon_sword.png' class='map-legend-entity-item' alt=''> Angreifbar
+        </div>
+        <div class='legend-divider'></div>
+        <div class='map-legend-item'>
+            <i style='opacity: 0.8;'>Spielername</i> = Inaktiv
+        </div>
+    </div>
+</div>";
 $view .= '<table class="table ranking-table">
             ' . $ranking_colgroup . '
             <tr>
@@ -82,9 +93,16 @@ foreach ($players_res as $row) {
     $is_attackable = !$conquest_helper->has_noob_protection($my_score, $user_score) && $my_uid != $user_id && $my_guild_id != $user_guild_id;
 
     $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
-    $last_activity_text = ($last_active == 0) ? "Nicht verfügbar" : (date("d.m.Y", $last_active) . " um " . date("H:i:s", $last_active) . " Uhr " . ($inactive ? "(Inaktiv)" : ""));
-    $display_name = $inactive ? "<i>$user_name</i>" : $user_name;
+    $is_same_guild = ($my_guild_id > 0 && $my_guild_id === (int)$user_guild_id);
+    $is_me = ($my_uid === (int)$user_id);
 
+    if ($is_same_guild || $is_me) {
+        $last_activity_text = ($last_active == 0) ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $last_active) . " Uhr";
+    } else {
+        $last_activity_text = format_relative_activity($last_active);
+    }
+
+    $display_name = $inactive ? "<i style='opacity: 0.8;'>$user_name</i>" : $user_name;
     $color = ($now - $last_active > ONLINE_MAX_SECONDS) ? "#F55353" : ($now - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
 
     $guild_display = $row["guild_tag"] ? " <b style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$user_guild_id}'>[" . e($row["guild_tag"]) . "]</b>" : "";
@@ -99,11 +117,9 @@ foreach ($players_res as $row) {
 
     $sword_icon = "";
     if ($is_attackable) {
-        $sword_icon = "
-            <span class='popup ranking-attack-sword' id='atk_range_{$row["id"]}'>
-                <img src='images/icons/icon_sword.png' alt='Angreifbar'>
-                <div id='atk_range_{$row["id"]}_box' class='popupbox' style='text-align: left;'>Angreifbar</div>
-            </span>";
+        $sword_icon = " <span class='ranking-attack-sword' title='Angreifbar'>
+                            <img src='images/icons/icon_sword.png' alt='Angreifbar'>
+                        </span>";
     }
 
     $player = new User($user_id, $user_name);
@@ -114,13 +130,13 @@ foreach ($players_res as $row) {
                     data-title='Spieler-Info'
                     class='popup' 
                     id='activity_$pos' 
-                    style='cursor: pointer; $name_style'>$display_name
-                    <div id='activity_{$pos}_box' class='popupbox'>Letzte Aktivität: $last_activity_text</div>
+                    style='$name_style'>$display_name
+                    <div id='activity_{$pos}_box' class='popupbox'>Zuletzt aktiv: $last_activity_text</div>
                   </a>";
 
     $view .= "<tr>
                 <td class='td-shrink' style='text-align: right;'>$pos</td>
-                <td class='td-expand'>" . $player->render_user("$user_link $guild_display $vacation_badge", $color, $pos) . "</td>
+                <td class='td-expand'>" . $player->render_user("$user_link $guild_display $vacation_badge", $color, "rank_av_$pos") . "</td>
                 <td class='td-score'>" . fnum($row["score"], true) . " $sword_icon</td>
             </tr>";
     $pos++;

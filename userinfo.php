@@ -6,7 +6,7 @@ check_user_login($user);
 <!DOCTYPE html>
 <html lang="de">
 <?php
-$script_files = ["userinfo", "guild"];
+$script_files = ["userinfo", "guild", "sendtroops"];
 
 include_once("layout/head.php");
 ?>
@@ -78,8 +78,8 @@ if ($user_id) {
                 if ($current >= $limit) {
                     $support_ui = "<button disabled style='padding: 2px 5px; font-size: 10px; opacity: 0.6;'>Voll</button>";
                 } else {
-                    $url = "sendtroops.php?x={$k['mapx']}&y={$k['mapy']}";
-                    $support_ui = "<button data-on-click='redirect' data-url='$url' style='padding: 2px 5px; font-size: 10px;'>Helfen</button>";
+                    $url = "ajax/send_troops.php?x={$k['mapx']}&y={$k['mapy']}";
+                    $support_ui = "<button data-on-click='openSecondaryOverlay' data-url='$url' style='padding: 2px 5px; font-size: 10px;'>Helfen</button>";
                 }
 
                 $all_kingdoms_html .= "
@@ -158,9 +158,16 @@ if ($user_id) {
             </tr>
         <?php endif; ?>
         <tr>
-            <td><b>Letzte Aktivität</b></td>
-            <td><?= $last_activity == 0 ? "Nicht verfügbar" : date("d.m.Y \u\m  H:i:s", $last_activity) ?>
-                Uhr
+            <td><b>Zuletzt aktiv</b></td>
+            <td>
+                <?php
+                $is_me = ($user->get_user_id() === $user_id);
+                if ($is_ally || $is_me) {
+                    echo ($last_activity == 0) ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $last_activity) . " Uhr";
+                } else {
+                    echo ($last_activity == 0) ? "Nicht verfügbar" : format_relative_activity($last_activity);
+                }
+                ?>
             </td>
         </tr>
         <tr>
