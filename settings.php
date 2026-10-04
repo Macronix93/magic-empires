@@ -644,15 +644,15 @@ $view .= '
                 </tr>
                 <tr>
                     <td colspan="2" style="text-align: left; padding: 10px;">
-                        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" name="use_list_view" value="1" style="width: auto;" ' . ($cur_list_view ? "checked" : "") . '>
                             <span>Listenansicht standardmäßig aktivieren<br><small style="opacity: 0.7;">(Kaserne, Truppenentsendung)</small></span>
                         </label>
-                        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" name="use_map_popup" value="1" style="width: auto;" ' . ($cur_map_popup ? "checked" : "") . '>
                             <span>Schwebendes Info-Popup auf der Karte anzeigen<br><small style="opacity: 0.7;">(Wenn deaktiviert, wird die Info als feste Tabelle unter der Karte gerendert)</small></span>
                         </label>
-                        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                             <input type="checkbox" name="chat_filter" value="1" style="width: auto;" ' . ($current_filter ? "checked" : "") . '>
                             <span>Schimpfwort-Filter in privaten Nachrichten und Chats aktivieren</span>
                         </label>
@@ -775,27 +775,27 @@ $view .= '
         <form method="POST">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_combat" value="1" ' . ($val_combat ? "checked" : "") . '>
                     ' . wrap_emojis('<span>⚔️ <b>Kampf & Wachturm:</b> Feindliche Angriffe und Gefechtsberichte</span>') . '
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_troops" value="1" ' . ($val_troops ? "checked" : "") . '>
                     ' . wrap_emojis('<span>🛡️ <b>Truppenrückkehr:</b> Wenn Einheiten von Missionen heimkehren</span>') . '
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_building" value="1" ' . ($val_building ? "checked" : "") . '>
                     ' . wrap_emojis('<span>🏰 <b>Bau & Forschung:</b> Fertigstellung von Gebäuden, Forschungen oder Rekrutierungen</span>') . '
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_storage" value="1" ' . ($val_storage ? "checked" : "") . '>
                     ' . wrap_emojis('<span>🌾 <b>Lager-Warnung:</b> Wenn deine Speicher drohen vollzulaufen</span>') . '
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_messages" value="1" ' . ($val_messages ? "checked" : "") . '>
                     ' . wrap_emojis('<span>📩 <b>Private Nachrichten:</b> Neue Chat-Mitteilung</span>') . '
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_events" value="1" ' . ($val_events ? "checked" : "") . '>
                     ' . wrap_emojis('<span>👹 <b>Welt-Events:</b> Falls Events stattfinden</span>') . '
                 </label>

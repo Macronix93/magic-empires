@@ -10,51 +10,60 @@ $db = Database::get_instance()->get_connection();
 $now = time();
 $activity_threshold = $now - INACTIVITY_DELAY;
 
-$query_active_user = "SELECT id, username FROM users 
-                      WHERE status = 1 
-                        AND is_banned = 0 
-                        AND lastactivity > ? 
-                      ORDER BY RAND() LIMIT 1";
+$res = $db->execute_query(
+    "SELECT id, username FROM users WHERE status = 1 AND is_banned = 0 AND lastactivity > ?",
+    [$activity_threshold]
+);
+$eligible_players = $res->fetch_all(MYSQLI_ASSOC);
 
-$res = $db->execute_query($query_active_user, [$activity_threshold]);
-$winner = $res->fetch_assoc();
-
-if (!$winner) {
-    $query_fallback = "SELECT id, username FROM users 
-                       WHERE status = 1 AND is_banned = 0 
-                       ORDER BY RAND() LIMIT 1";
-
-    $res = $db->execute_query($query_fallback);
-    $winner = $res->fetch_assoc();
+if (empty($eligible_players)) {
+    $res_fallback = $db->query("SELECT id, username FROM users WHERE status = 1 AND is_banned = 0");
+    $eligible_players = $res_fallback->fetch_all(MYSQLI_ASSOC);
 }
 
-if ($winner) {
-    $uid = $winner["id"];
-    $uname = $winner["username"];
+$player_count = count($eligible_players);
 
-    $res_k = $db->execute_query("SELECT id, kingdomname FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [$uid]);
-    $k_data = $res_k->fetch_assoc();
+if ($player_count > 0) {
+    $step = defined("HERO_DISTRIBUTION_PLAYER_STEP") ? HERO_DISTRIBUTION_PLAYER_STEP : 6;
+    $heroes_to_give = min($player_count, max(1, (int)floor($player_count / $step)));
 
-    if ($k_data) {
-        $kid = $k_data["id"];
-        $kname = $k_data["kingdomname"];
+    // Every player can only get one hero
+    shuffle($eligible_players);
+    $winners = array_slice($eligible_players, 0, $heroes_to_give);
 
-        $res_hero_name = $db->execute_query("SELECT soldiername FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_HERO]);
-        $hero_db_name = $res_hero_name->fetch_column() ?: "Held";
+    $res_hero_name = $db->execute_query("SELECT soldiername FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_HERO]);
+    $hero_db_name = $res_hero_name->fetch_column() ?: "Held";
 
-        $db->execute_query("INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
-                            VALUES (?, ?, ?, 1) 
-                            ON DUPLICATE KEY UPDATE soldiercount = soldiercount + 1",
-            [$kid, Soldiers::SOLDIER_HERO, $hero_db_name]);
+    $given_count = 0;
+    foreach ($winners as $winner) {
+        $uid = (int)$winner["id"];
+        $uname = $winner["username"];
 
-        $hero_json = [
-            "template" => "daily_hero_received",
-            "kingdom_name" => $kname
-        ];
-        send_server_message($uid, $uname, MessageCategories::CATEGORY_DEFAULT, $hero_json);
+        // Choose random kingdom of the user
+        $res_k = $db->execute_query("SELECT id, kingdomname FROM kingdoms WHERE userid = ? ORDER BY RAND() LIMIT 1", [$uid]);
+        $k_data = $res_k->fetch_assoc();
+        if ($k_data) {
+            $kid = (int)$k_data["id"];
+            $kname = $k_data["kingdomname"];
 
-        echo "[" . date("H:i:s") . "] Held vergeben an $uname im Königreich $kname (ID: $kid)\n";
+            $db->execute_query(
+                "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
+                 VALUES (?, ?, ?, 1) 
+                 ON DUPLICATE KEY UPDATE soldiercount = soldiercount + 1",
+                [$kid, Soldiers::SOLDIER_HERO, $hero_db_name]
+            );
+
+            $hero_json = [
+                "template" => "daily_hero_received",
+                "kingdom_name" => $kname
+            ];
+            send_server_message($uid, $uname, MessageCategories::CATEGORY_DEFAULT, $hero_json);
+
+            echo "[" . date("H:i:s") . "] Held vergeben an $uname im Königreich $kname (ID: $kid)\n";
+            $given_count++;
+        }
     }
+    echo "[" . date("H:i:s") . "] Insgesamt $given_count Helden an $player_count berechtigte Spieler verteilt.\n";
 } else {
     echo "[" . date("H:i:s") . "] Abbruch: Kein einziger berechtigter Spieler mit Königreich in der DB.\n";
 }
@@ -198,16 +207,19 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
 
                 for ($i = 0; $i < $num_extra_types; $i++) {
                     $rand_lvl = $possible_levels[array_rand($possible_levels)];
+
                     if (!empty($monster_pool[$rand_lvl])) {
                         $extra_m_id = $monster_pool[$rand_lvl][array_rand($monster_pool[$rand_lvl])];
                         $count_roll = mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4);
+
                         if (!isset($this_camp_types[$extra_m_id])) $this_camp_types[$extra_m_id] = 0;
+
                         $this_camp_types[$extra_m_id] += $count_roll;
                     }
                 }
 
                 foreach ($this_camp_types as $m_id => $m_count) {
-                    $insert_units[] = "($x, $y, $m_id, $m_count)";
+                    $insert_units[] = "($x, $y, $m_id, $m_count, $m_count)";
                 }
             }
         }
@@ -220,8 +232,8 @@ if ($total_on_map < MAX_MONSTER_CAMPS) {
             $db->query("UPDATE map SET kingdomid = -3 WHERE kingdomid = -1 AND (mapx, mapy) IN ($coords_string)");
 
             if (!empty($insert_units)) {
-                $db->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " 
-                    ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
+                $db->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count, initial_count) VALUES " . implode(',', $insert_units) . " 
+                    ON DUPLICATE KEY UPDATE count = count + VALUES(count), initial_count = initial_count + VALUES(initial_count)");
             }
         }
         echo "[" . date("H:i:s") . "] " . count($insert_camps) . " Monstercamps balance-optimiert generiert.\n";

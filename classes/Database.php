@@ -33,7 +33,7 @@ class Database
                     continue;
                 }
 
-                if (class_exists('Logger')) {
+                if (class_exists("Logger")) {
                     Logger::get_instance()->error("Datenbank-Verbindung fehlgeschlagen: " . $e->getMessage());
                 }
 
@@ -43,12 +43,15 @@ class Database
                     exit(1);
                 }
 
+                $favicon_url = (defined("BASE_URL") ? BASE_URL : '') . "images/favicon.ico";
+
                 http_response_code(503);
                 die("
                 <!DOCTYPE html>
                 <html lang='de'>
                 <head>
                     <meta charset='UTF-8'>
+                    <link rel='icon' type='image/x-icon' href='$favicon_url' id='icon'>
                     <title>Magic Empires - Wartung</title>
                     <style>
                         body {

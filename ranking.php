@@ -99,7 +99,7 @@ foreach ($players_res as $row) {
     if ($is_same_guild || $is_me) {
         $last_activity_text = ($last_active == 0) ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $last_active) . " Uhr";
     } else {
-        $last_activity_text = format_relative_activity($last_active);
+        $last_activity_text = format_relative_activity($last_active, $now);
     }
 
     $display_name = $inactive ? "<i style='opacity: 0.8;'>$user_name</i>" : $user_name;

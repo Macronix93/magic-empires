@@ -229,7 +229,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const urlParams = new URLSearchParams(window.location.search);
         const hasCoordsParam = urlParams.has("startx") && urlParams.has("starty");
-        const fromSendTroops = document.referrer.includes("sendtroops.php");
 
         fetch("ajax/map_full_load.php", {headers: {"X-Requested-With": "XMLHttpRequest"}})
             .then(r => r.json())
@@ -249,14 +248,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (!usePopup || hasCoordsParam) {
                     selectField(selectedX, selectedY, true);
-
-                    if (fromSendTroops && usePopup) {
-                        const popupBox = document.getElementById("field-popup-box");
-
-                        if (popupBox) {
-                            popupBox.style.display = "none";
-                        }
-                    }
 
                     if (window.innerWidth <= 1392 && !usePopup) {
                         const statusMsg = document.querySelector(".big-box-content > .info-box");
@@ -282,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Events
     document.addEventListener("click", (e) => {
-        const btn = e.target.closest('[data-url*="sendtroops.php"]');
+        const btn = e.target.closest('[data-url*="send_troops.php"]');
 
         if (btn) {
             sessionStorage.setItem("last_map_zoom", zoom.toString());
@@ -303,7 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (mapContainer && !mapContainer.contains(e.target) && !e.target.closest("#onpage-overlay, #info-box-overlay")) {
+        if (mapContainer && !mapContainer.contains(e.target) && !e.target.closest(".overlay-modal, #info-box-overlay")) {
             popupBox.style.display = "none";
 
             selectedX = null;
@@ -1657,7 +1648,7 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
                 const popupBox = document.getElementById("field-popup-box");
                 const wasPopupOpen = !closePopup && popupBox && (popupBox.style.display === "block");
                 const x = selectedX, y = selectedY;
-                
+
                 selectedX = null;
                 selectedY = null;
 

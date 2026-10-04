@@ -303,7 +303,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($max_allowed_slots >= GLOBAL_SETTLEMENT_MAX) {
                 $error = "Das absolute Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Dörfern ist erreicht!";
             } else {
-                $error = "Keine weiteren Siedlungs-Slots frei! Du hast bereits $current_settled_count Königreiche gegründet und $ongoing_foundations Gründungen laufen (Limit: $max_allowed_slots).";
+                $error = "Du hast bereits $current_settled_count Königreiche gegründet und $ongoing_foundations Gründungen laufen (Limit: $max_allowed_slots). Erforsche 'Imperium' im Haupt-Königreich, falls möglich.";
             }
         } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
             $res_mine = $db_instance->execute_query("SELECT id, level, max_troops, claimed_guild_id, claimed_user_id, work_total FROM mines WHERE mapx = ? AND mapy = ?",
@@ -460,15 +460,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $db_instance->commit();
 
-            $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
-            
+            $is_world_event = ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT);
+            $from_page = $_POST["from_page"] ?? ($_SERVER["HTTP_REFERER"] ?? '');
+
+            if (str_contains($from_page, "events.php") || str_contains($from_page, "barracks.php") || $is_world_event) {
+                $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
+            }
+
             header("Content-Type: application/json; charset=utf-8");
             echo json_encode([
                 "success" => true,
-                "message" => "Truppen erfolgreich losgeschickt!"
+                "message" => "Truppen erfolgreich gesendet!"
             ]);
             exit;
-
         } catch (Exception $e) {
             $db_instance->rollback();
             header("Content-Type: application/json; charset=utf-8");

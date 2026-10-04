@@ -343,7 +343,8 @@ if (!$user->is_admin()) {
 
                         if (!empty($monster_pool[$camp_level])) {
                             $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
-                            $insert_units[] = "($x, $y, $main_m_id, " . mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE) . ")";
+                            $main_cnt = mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE);
+                            $insert_units[] = "($x, $y, $main_m_id, $main_cnt, $main_cnt)";
 
                             if ($camp_level >= 10) {
                                 $num_extra = 4; // 5 groups
@@ -362,14 +363,16 @@ if (!$user->is_admin()) {
 
                                 if (!empty($monster_pool[$rand_lvl])) {
                                     $ex_id = $monster_pool[$rand_lvl][array_rand($monster_pool[$rand_lvl])];
-                                    $insert_units[] = "($x, $y, $ex_id, " . mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4) . ")";
+                                    $ex_cnt = mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4);
+                                    $insert_units[] = "($x, $y, $ex_id, $ex_cnt, $ex_cnt)";
                                 }
                             }
                         }
                     }
                     $db_instance->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
                     $db_instance->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
-                    $db_instance->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count) VALUES " . implode(',', $insert_units) . " ON DUPLICATE KEY UPDATE count = count + VALUES(count)");
+                    $db_instance->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count, initial_count) VALUES " . implode(',', $insert_units) . " 
+                                                ON DUPLICATE KEY UPDATE count = count + VALUES(count), initial_count = initial_count + VALUES(initial_count)");
 
                     $report[] = count($insert_camps) . " Monstercamps balance-optimiert generiert.";
                 }

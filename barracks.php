@@ -652,8 +652,102 @@ $view .= "
                 " . fnum($total_support_units) . " / " . fnum($support_limit) . "
             </td>
         </tr>" : "") . "
+        <tr>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: left;'>
+                <b>Warteschlangenlimit:</b>
+            </td>
+            <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
+                $dynamic_limit Einheiten
+            </td>
+        </tr>
     </table>
 </div>";
+
+$res_other_k = $db_instance->execute_query(
+    "SELECT k.id, k.kingdomname, k.mapx, k.mapy,
+                (SELECT COUNT(*) FROM events e 
+                 WHERE e.actionid = ? AND e.userid = ? AND e.kingdomid = ? AND e.targetid = k.id
+                ) AS already_sent
+         FROM kingdoms k 
+         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ? AND b.buildinglevel > 0
+         WHERE k.userid = ? AND k.id != ? 
+         ORDER BY k.created_at, k.id",
+    [
+        ActionTypes::ACTION_SEND_TROOPS,
+        $user->get_user_id(),
+        $current_kingdom,
+        BuildingTypes::BUILDING_BARRACKS,
+        $user->get_user_id(),
+        $current_kingdom
+    ]
+);
+$other_kingdoms = $res_other_k->fetch_all(MYSQLI_ASSOC);
+
+if (!empty($other_kingdoms)) {
+    $map = new Map($user);
+    $my_x = $kingdom->get_kingdom_map_x();
+    $my_y = $kingdom->get_kingdom_map_y();
+
+    $available_count = 0;
+    $options_html = "";
+    $first_available_id = null;
+
+    foreach ($other_kingdoms as $ok) {
+        if ((int)$ok["already_sent"] === 0 && $first_available_id === null) {
+            $first_available_id = (int)$ok["id"];
+        }
+    }
+
+    foreach ($other_kingdoms as $ok) {
+        $ok_id = (int)$ok["id"];
+        $is_sent = ((int)$ok["already_sent"] > 0);
+
+        $seconds = $map->get_arrival_time($my_x, $my_y, (int)$ok["mapx"], (int)$ok["mapy"], $current_kingdom, $ok_id);
+        $time_str = convert_sec_to_str($seconds, true);
+
+        if (!$is_sent) {
+            $available_count++;
+            $selected = ($ok_id === $first_available_id) ? "selected" : "";
+
+            if ($ok_id === $first_available_id) {
+                $first_time_str = $time_str;
+            }
+
+            $options_html .= "<option value='$ok_id' data-x='{$ok["mapx"]}' data-y='{$ok["mapy"]}' data-time='$time_str' $selected>" . e($ok["kingdomname"]) . " ({$ok["mapx"]}:{$ok["mapy"]})</option>";
+        } else {
+            $options_html .= "<option value='$ok_id' disabled style='color: #888;' data-time='$time_str'>" . e($ok["kingdomname"]) . " (Truppen unterwegs)</option>";
+        }
+    }
+
+    $is_disabled = ($available_count === 0);
+    $init_time_display = !empty($first_time_str) ? "(Dauer: $first_time_str)" : "";
+
+    $view .= "<div style='display: flex; flex-direction: column; align-items: flex-start; margin: 0 auto 15px auto; width: fit-content;'>";
+
+    if (!$is_disabled) {
+        $view .= "<label for='station-arrival-display'>Ziel: <small id='station-arrival-display' style='opacity: 0.75;'>$init_time_display</small></label>";
+    }
+
+    $view .= "<div style='display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap;'>";
+    if ($is_disabled) {
+        $view .= "
+            <select id='station_target_kingdom' class='js-barracks-send-select' disabled>
+                <option value=''>-</option>
+            </select>
+            <button type='button' disabled title='Zu allen anderen Königreichen sind bereits Truppen unterwegs'>
+                Truppen stationieren
+            </button>";
+    } else {
+        $view .= "
+            <select id='station_target_kingdom' class='js-barracks-send-select' data-on-change='changeStationTarget'>
+                $options_html
+            </select>
+            <button type='button' data-on-click='openStationOverlay'>
+                Truppen stationieren
+            </button>";
+    }
+    $view .= "</div></div>";
+}
 
 $categories = SoldierTypes::get_labels();
 

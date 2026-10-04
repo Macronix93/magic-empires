@@ -104,13 +104,23 @@ $categories = [
         "title" => "Höchstes Dorfzentrum",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, MAX(b.buildinglevel) as val 
+        "query" => "SELECT 
+                        u.username, 
+                        u.id AS uid, 
+                        m.max_level AS val, 
+                        COUNT(k.id) AS extra_count 
                     FROM users u 
                     JOIN kingdoms k ON u.id = k.userid 
-                    JOIN buildings b ON k.id = b.kingdomid 
-                    WHERE b.buildingid = " . BuildingTypes::BUILDING_TOWNCENTER . " 
-                    GROUP BY u.id 
-                    ORDER BY val DESC, uid"
+                    JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_TOWNCENTER . " 
+                    JOIN (
+                        SELECT k2.userid, MAX(b2.buildinglevel) AS max_level 
+                        FROM kingdoms k2 
+                        JOIN buildings b2 ON k2.id = b2.kingdomid AND b2.buildingid = " . BuildingTypes::BUILDING_TOWNCENTER . " 
+                        GROUP BY k2.userid
+                    ) m ON k.userid = m.userid AND b.buildinglevel = m.max_level 
+                    WHERE u.status = 1 
+                    GROUP BY u.id, u.username, m.max_level 
+                    ORDER BY val DESC, extra_count DESC, uid"
     ],
     "builder_sum" => [
         "label" => "Bau-Magnat",
@@ -257,12 +267,17 @@ function render_hof_tab_content(array $data, mysqli $db, User $current_user): st
                 $cell_content = $player->render_user();
             }
 
+            $val_display = "";
+            if (isset($row["extra_count"])) {
+                $val_display = " <small style='font-size: 14px; font-weight: normal; color: rgb(230, 220, 200); opacity: 0.6;'>(" . (int)$row["extra_count"] . ")</small>";
+            }
+
             $html .= "<tr>
                         <td class='td-center $rank_class' style='$style'>$rank</td>
                         <td style='overflow: hidden; text-overflow: ellipsis; white-space: nowrap; $style'>
                             $cell_content
                         </td>
-                        <td class='td-center $rank_class' style='$style'>" . fnum($row["val"]) . "</td>
+                        <td class='td-center $rank_class' style='$style'>" . fnum($row["val"]) . " $val_display</td>
                       </tr>";
             $rank++;
         }

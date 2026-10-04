@@ -13,6 +13,9 @@ $trade_check = $db_instance->execute_query("SELECT daily_trades_count, last_trad
 $daily_trades_count = (int)$trade_check["daily_trades_count"];
 $today_start = strtotime("today midnight");
 
+$my_guild_id = $user->get_user_guild_id();
+$in_guild = ($my_guild_id > 0);
+
 // Daily reset
 if ((int)$trade_check["last_trade_reset"] < $today_start) {
     $daily_trades_count = 0;
@@ -75,7 +78,10 @@ if (isset($_GET["accept"])) {
                 ]);
             }
 
-            if ($is_same_device) {
+            if ($target_guild > 0 && ($my_guild_id <= 0 || $my_guild_id !== $target_guild)) {
+                $db_instance->rollback();
+                $error = "Dieses Angebot ist ausschließlich für Mitglieder der entsprechenden Gilde reserviert!";
+            } else if ($is_same_device) {
                 $db_instance->rollback();
                 $error = "Handel zwischen Accounts am selben Gerät ist nicht gestattet!";
             } else {
@@ -251,15 +257,20 @@ if (isset($_GET["accept"])) {
                                 if ($daily_trades_count >= $max_trades) {
                                     $error = "Du hast heute bereits $max_trades Angebote erstellt oder angenommen!";
                                 } else {
+                                    $is_guild_only = !empty($_GET["guild_only"]) && $in_guild;
+                                    $offer_guild_id = $is_guild_only ? $my_guild_id : 0;
+
                                     $user->give_user_coins(-$listing_fee);
 
                                     // No offer found for the kingdom - insert to database
                                     $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
                                     $expires_at = time() + MARKET_OFFER_DURATION;
 
-                                    $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);";
+                                    $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at, guild_id) 
+                                                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
                                     $result = $db_instance->execute_query($query, [
-                                        $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value, $demand, $demand_value, $calculated_fee, $expires_at]);
+                                        $user->get_user_id(), $user->get_user_name(), $current_kingdom, $supply, $supply_value,
+                                        $demand, $demand_value, $calculated_fee, $expires_at, $offer_guild_id]);
 
                                     // Increase daily trades count
                                     $db_instance->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$u_id]);
@@ -392,13 +403,16 @@ if (isset($_GET["send_own"])) {
 }
 
 // PAGINATION
-$rows_per_page = 10;
+$rows_per_page = MAX_MARKETPLACE_OFFERS_PER_PAGE;
 $current_page = max(1, (int)($_GET["currentpage"] ?? 1));
 
-$num_rows = $db_instance->execute_query("SELECT COUNT(*) FROM marketplace")->fetch_row()[0];
+$num_rows = $db_instance->execute_query(
+    "SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?))",
+    [$my_guild_id]
+)->fetch_row()[0];
+
 $total_pages = ceil($num_rows / $rows_per_page);
 if ($current_page > $total_pages && $total_pages > 0) $current_page = $total_pages;
-
 $offset = ($current_page - 1) * $rows_per_page;
 
 /*
@@ -474,23 +488,29 @@ $view .= '<form action="marketplace.php" method="GET"
                 </div>
             </div>
         </td>
-        <td style="text-align: center">
-            <input type="submit" value="Abschicken"/>
+        <td style="width: 18%; text-align: center">
+            <div class="market-submit-wrap">
+                <input type="submit" value="Abschicken"/>
+                ' . ($in_guild ? "
+                <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none;'>
+                    <input type='checkbox' name='guild_only' id='guild_only' value='1'/>
+                    <span>Nur Gilde</span>
+                </label>" : '') . '
+            </div>
         </td>
     </tr>
 </form>
 </table><br>';
 
 $query = "
-            SELECT m.*, k.mapx, k.mapy 
-            FROM marketplace m 
-            LEFT JOIN kingdoms k 
-            ON m.kingdomid = k.id
-            ORDER BY m.offerid DESC
-            LIMIT ?, ?
+    SELECT m.*, k.mapx, k.mapy 
+    FROM marketplace m 
+    LEFT JOIN kingdoms k ON m.kingdomid = k.id 
+    WHERE (m.guild_id = 0 OR (m.guild_id > 0 AND m.guild_id = ?))
+    ORDER BY m.offerid DESC LIMIT ?, ?
 ";
 /** @var mysqli_result $result */
-$result = $db_instance->execute_query($query, [$offset, $rows_per_page]);
+$result = $db_instance->execute_query($query, [$my_guild_id, $offset, $rows_per_page]);
 
 if ($result->num_rows > 0) {
     $view .= "<div class='title-border'>Aktuelle Handelsangebote</div>";
@@ -613,7 +633,7 @@ if ($result->num_rows > 0) {
         $view .= '</div></div>';
     }
 } else {
-    $view .= "Es gibt derzeit keine Handelsangebote.";
+    $view .= "<span style='opacity: 0.7;'>Es gibt derzeit keine Handelsangebote.</span>";
 }
 
 $other_kingdoms_res = $db_instance->execute_query("
@@ -686,7 +706,7 @@ if ($other_kingdoms_res->num_rows > 0) {
     $init_stone = $init_target ? format_num($init_target["stone"]) . " / " . format_num($init_target["maxstone"]) : "-";
     $init_gold = $init_target ? format_num($init_target["gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
 
-    $view .= "<br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
+    $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
     $view .= '<table class="table internal-transport-table">
                 <form action="marketplace.php" method="GET">
                     <input type="hidden" name="send_own" value="1">

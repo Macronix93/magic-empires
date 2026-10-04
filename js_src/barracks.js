@@ -182,6 +182,27 @@ registerAction("fillMaxAndCalc", (el) => {
     input.value = Math.max(0, maxCanAfford);
     updateRecruitCosts(input);
 });
+registerAction("openStationOverlay", () => {
+    const select = document.getElementById("station_target_kingdom");
+    if (!select) return;
+
+    const opt = select.selectedOptions[0];
+    if (!opt) return;
+
+    const x = opt.dataset.x;
+    const y = opt.dataset.y;
+
+    openOverlay(`ajax/send_troops.php?x=${x}&y=${y}`, "Truppen stationieren");
+});
+registerAction("changeStationTarget", (el) => {
+    const display = document.getElementById("station-arrival-display");
+    if (!display) return;
+
+    const opt = el.selectedOptions[0];
+    const time = opt?.dataset.time;
+
+    display.innerText = time ? "(Dauer: " + time + ")" : "";
+});
 
 function getLatestKingdomResources() {
     const resEl = document.getElementById("kingdom-resources");

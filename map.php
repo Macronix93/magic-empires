@@ -181,8 +181,8 @@ $show_path_checked = (isset($_COOKIE["me_map_show_path"]) && $_COOKIE["me_map_sh
 
 echo '<div class="map-options">
         <form id="update-map" style="display: inline-flex; align-items: center; gap: 6px; margin: 0;">
-            <b>X:</b><input type="text" inputmode="numeric" id="startx" name="startx" size="2" maxlength="3" value="' . $x . '" style="width: 45px; text-align: center;">
-            <b>Y:</b><input type="text" inputmode="numeric" id="starty" name="starty" size="2" maxlength="3" value="' . $y . '" style="width: 45px; text-align: center;">
+            <b>X:</b><input type="text" inputmode="numeric" id="startx" name="startx" size="2" maxlength="3" value="' . $x . '" style="width: 37px; text-align: center;">
+            <b>Y:</b><input type="text" inputmode="numeric" id="starty" name="starty" size="2" maxlength="3" value="' . $y . '" style="width: 37px; text-align: center;">
             <input type="submit" id="send-map-request" value="Los" style="padding: 2px 8px;">
             
             <label for="show-path-toggle" style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer; margin-left: 8px;">
@@ -192,11 +192,11 @@ echo '<div class="map-options">
         </form>
         <span class="search-divider" style="opacity: 0.3;">|</span>
         <div id="map-filters" style="display: inline-flex; gap: 12px; align-items: center;">
-            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-players" checked> Spieler</label>
-            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-resources" checked> Lager</label>
-            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-monsters" checked> Monster</label>
-            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-ruins" checked> Ruinen</label>
-            <label style="cursor:pointer; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-mines" checked> Minen</label>
+            <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-players" checked> Spieler</label>
+            <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-resources" checked> Lager</label>
+            <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-monsters" checked> Monster</label>
+            <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-ruins" checked> Ruinen</label>
+            <label style="display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="filter-mines" checked> Minen</label>
         </div>
     </div>';
 

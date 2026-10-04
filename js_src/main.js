@@ -183,27 +183,86 @@ registerAction("toggleReactionPicker", (el) => {
     const picker = container.querySelector('.reaction-picker');
     const isVisible = window.getComputedStyle(picker).display === "grid";
 
-    document.querySelectorAll('.reaction-picker').forEach(p => p.style.display = "none");
+    document.querySelectorAll('.reaction-picker').forEach(p => {
+        p.style.display = "none";
+        p.style.maxHeight = "";
+        p.style.maxWidth = "";
+    });
 
     if (!isVisible) {
-        const rect = el.getBoundingClientRect();
-
         picker.style.display = "grid";
-        const pickerHeight = picker.offsetHeight;
-        const pickerWidth = picker.offsetWidth;
+        picker.style.maxHeight = "";
+        picker.style.maxWidth = "";
 
-        if (window.innerHeight - rect.bottom < 250) {
-            picker.style.top = (rect.top - pickerHeight - 5) + "px";
+        const rect = el.getBoundingClientRect();
+        let pickerHeight = picker.offsetHeight;
+        let pickerWidth = picker.offsetWidth;
+
+        const isMobile = window.innerWidth <= 600;
+        const chatSection = el.closest('#messages-section') || el.closest('.box-content');
+        const cRect = chatSection ? chatSection.getBoundingClientRect() : null;
+
+        const boundLeft = (!isMobile && cRect) ? (cRect.left + 5) : 10;
+        const boundRight = (!isMobile && cRect) ? (cRect.right - 5) : (window.innerWidth - 10);
+
+        const maxAvailWidth = boundRight - boundLeft;
+        if (pickerWidth > maxAvailWidth) {
+            picker.style.maxWidth = maxAvailWidth + "px";
+            pickerWidth = picker.offsetWidth;
+        }
+
+        const spaceBelowInChat = cRect ? (cRect.bottom - rect.bottom - 5) : (window.innerHeight - rect.bottom - 10);
+        const spaceAboveInChat = cRect ? (rect.top - cRect.top - 5) : (rect.top - 10);
+
+        let openAbove;
+
+        if (spaceBelowInChat < pickerHeight && spaceAboveInChat >= pickerHeight) {
+            openAbove = true;
+        } else if (spaceBelowInChat < pickerHeight && spaceAboveInChat < pickerHeight) {
+            openAbove = (spaceAboveInChat > spaceBelowInChat);
         } else {
-            picker.style.top = (rect.bottom + 5) + "px";
+            openAbove = false;
+        }
+
+        let topPos;
+        const minTop = (!isMobile && cRect) ? (cRect.top + 5) : 10;
+        const maxBottom = (!isMobile && cRect) ? (cRect.bottom - 5) : (window.innerHeight - 10);
+
+        if (openAbove) {
+            topPos = rect.top - pickerHeight - 5;
+            if (topPos < minTop) {
+                const availH = rect.top - minTop - 5;
+                if (availH > 100) {
+                    picker.style.maxHeight = availH + "px";
+                    topPos = rect.top - picker.offsetHeight - 5;
+                } else {
+                    topPos = minTop;
+                }
+            }
+        } else {
+            topPos = rect.bottom + 5;
+            if (topPos + pickerHeight > maxBottom) {
+                const availH = maxBottom - topPos;
+                if (availH > 100) {
+                    picker.style.maxHeight = availH + "px";
+                }
+            }
         }
 
         let leftPos = rect.right - pickerWidth;
-        if (leftPos < 10) leftPos = 10;
+        if (leftPos < boundLeft) {
+            leftPos = boundLeft;
+        }
+        if (leftPos + pickerWidth > boundRight) {
+            leftPos = boundRight - pickerWidth;
+        }
 
+        picker.style.top = topPos + "px";
         picker.style.left = leftPos + "px";
     } else {
         picker.style.display = "none";
+        picker.style.maxHeight = "";
+        picker.style.maxWidth = "";
     }
 });
 registerAction("openReactorList", (el) => {
@@ -277,19 +336,6 @@ registerAction("submitShareCoords", (form, e) => {
             }
             if (submitBtn) submitBtn.disabled = false;
         });
-});
-registerAction("openSecondaryOverlay", (el) => {
-    const url = el.dataset.url;
-    const title = el.dataset.title || "Spielerliste";
-    const width = el.dataset.width || "400px";
-    if (typeof openSecondaryOverlay === "function") {
-        openSecondaryOverlay(url, title, width);
-    }
-});
-registerAction("closeSecondaryOverlay", () => {
-    if (typeof closeSecondaryOverlay === "function") {
-        closeSecondaryOverlay();
-    }
 });
 
 function registerAction(name, callback) {
@@ -581,12 +627,7 @@ function setup() {
 
         if (box) {
             if (box.parentNode !== document.body) {
-                const existingInBody = document.getElementById(box.id);
-
-                if (existingInBody && existingInBody !== box) {
-                    existingInBody.remove();
-                }
-
+                document.querySelectorAll(`body > #${CSS.escape(box.id)}`).forEach(el => el.remove());
                 document.body.appendChild(box);
             }
 
@@ -600,9 +641,16 @@ function setup() {
             const positionBox = function (e) {
                 if (box.dataset.enabled === "false") return;
 
-                const isReaction = trigger.classList.contains("reaction-badge") || trigger.closest(".reaction-badge");
                 const isTouchDevice = window.matchMedia("(hover: none)").matches || window.innerWidth <= 600 || ('ontouchstart' in window);
+                const isActionTrigger = trigger.dataset.onClick === "openOverlay"
+                    || trigger.classList.contains("user-name-link")
+                    || (trigger.id && (trigger.id.startsWith("activity") || trigger.id.startsWith("act_link")));
 
+                if (isTouchDevice && isActionTrigger) {
+                    return;
+                }
+
+                const isReaction = trigger.classList.contains("reaction-badge") || trigger.closest(".reaction-badge");
                 if (isReaction && isTouchDevice) {
                     return;
                 }
@@ -1024,10 +1072,18 @@ window.addEventListener("DOMContentLoaded", function () {
     }, true);
 
     document.addEventListener("mousemove", (e) => {
-        if (activeHoverPopup) {
-            if (!activeHoverPopup.trigger.contains(e.target)) {
-                activeHoverPopup.box.style.display = "none";
-                activeHoverPopup = null;
+        if (activeHoverPopup && (!document.body.contains(activeHoverPopup.trigger) || !activeHoverPopup.trigger.contains(e.target))) {
+            activeHoverPopup.box.style.display = "none";
+            activeHoverPopup = null;
+        }
+
+        const visibleBox = document.querySelector('body > .popupbox[style*="display: block"]');
+        if (visibleBox) {
+            const triggerId = visibleBox.id.replace('_box', '');
+            const trigger = document.getElementById(triggerId);
+
+            if (!trigger || (!trigger.contains(e.target) && !visibleBox.contains(e.target))) {
+                visibleBox.style.display = "none";
             }
         }
     }, {passive: true});
@@ -1058,16 +1114,9 @@ function selectUser(username) {
 
     if (shareInput) {
         shareInput.value = username;
-        if (typeof closeSecondaryOverlay === "function") {
-            closeSecondaryOverlay();
-        }
-        return;
     }
-
     if (newMsgForm) {
         newMsgForm.receiver.value = username;
-        closeOverlay();
-        return;
     }
 
     closeOverlay();

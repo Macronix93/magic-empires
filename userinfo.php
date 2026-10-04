@@ -15,6 +15,8 @@ include_once("layout/head.php");
 $user_id = (int)($_GET["userid"] ?? 0);
 
 if ($user_id) {
+    $now = time();
+
     $query = "
         SELECT users.id, users.username, users.lastactivity, users.guildid, users.registerdate,
                users.ranking_points AS score, users.is_vacation, users.vacation_until,
@@ -57,7 +59,7 @@ if ($user_id) {
 
     $all_kingdoms_html = "";
     if ($res_all_k->num_rows > 0) {
-        $all_kingdoms_html .= "<div style='display: flex; flex-direction: column; gap: 4px;'>";
+        $all_kingdoms_html .= "<div class='userinfo-kingdoms-scroll'>";
 
         while ($k = $res_all_k->fetch_assoc()) {
             $coords_display = e($k["mapx"]) . ":" . e($k["mapy"]);
@@ -79,7 +81,7 @@ if ($user_id) {
                     $support_ui = "<button disabled style='padding: 2px 5px; font-size: 10px; opacity: 0.6;'>Voll</button>";
                 } else {
                     $url = "ajax/send_troops.php?x={$k['mapx']}&y={$k['mapy']}";
-                    $support_ui = "<button data-on-click='openSecondaryOverlay' data-url='$url' style='padding: 2px 5px; font-size: 10px;'>Helfen</button>";
+                    $support_ui = "<button data-on-click='openOverlay' data-url='$url' style='padding: 2px 5px; font-size: 10px;'>Helfen</button>";
                 }
 
                 $all_kingdoms_html .= "
@@ -133,7 +135,7 @@ if ($user_id) {
             <td>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <?php
-                    if (time() - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
+                    if ($now - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
                         echo "<div><i>" . e($user_name) . "</i> (Inaktiv)</div>";
                     } else {
                         echo e($user_name);
@@ -147,7 +149,7 @@ if ($user_id) {
             </td>
         </tr>
         <?php
-        $is_vacation = (!empty($row["is_vacation"]) && (int)$row["vacation_until"] > time());
+        $is_vacation = (!empty($row["is_vacation"]) && (int)$row["vacation_until"] > $now);
         if ($is_vacation):
             ?>
             <tr>
@@ -162,10 +164,11 @@ if ($user_id) {
             <td>
                 <?php
                 $is_me = ($user->get_user_id() === $user_id);
+
                 if ($is_ally || $is_me) {
                     echo ($last_activity == 0) ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $last_activity) . " Uhr";
                 } else {
-                    echo ($last_activity == 0) ? "Nicht verfügbar" : format_relative_activity($last_activity);
+                    echo ($last_activity == 0) ? "Nicht verfügbar" : format_relative_activity($last_activity, $now);
                 }
                 ?>
             </td>

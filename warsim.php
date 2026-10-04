@@ -63,14 +63,18 @@ $render_tech_side = function ($side_prefix, $tech_meta, $ids_to_render, $kingdom
         $val = ($kingdom_obj) ? $kingdom_obj->get_kingdom_tech_level($id) : 0;
 
         $html .= "
-        <div class='split-content' style='margin-bottom: 5px; gap: 10px;'>
-            <div style='display: flex; align-items: center; gap: 8px;'>
-                <img src='$icon' class='ressource-icons' title='$name' alt=''>
+        <div class='split-content' style='margin-bottom: 5px; gap: 10px; align-items: center;'>
+            <div style='display: flex; align-items: center; gap: 8px; text-align: left;'>
+                <img src='$icon' class='ressource-icons' title='$name' alt='' style='margin: 0;'>
                 <span style='font-size: 13px;'>$name</span>
             </div>
-            <input type='number' id='{$side_prefix}_tech_$id' 
-                   class='js-tech-input' value='$val' min='0' max='$max' inputmode='numeric' pattern='[0-9]*' 
-                   style='width: 45px;'>
+            <div style='display: inline-flex; align-items: center; gap: 3px;'>
+                <button type='button' class='btn-stepper' data-on-click='stepWarsimTech' data-target='{$side_prefix}_tech_$id' data-step='-1'>-</button>
+                <input type='text' id='{$side_prefix}_tech_$id' 
+                       class='js-tech-input' value='$val' data-min='0' data-max='$max' inputmode='numeric' pattern='[0-9]*' 
+                       style='width: 20px; height: 20px; text-align: center; padding: 0; font-size: 16px; box-sizing: border-box;'>
+                <button type='button' class='btn-stepper' data-on-click='stepWarsimTech' data-target='{$side_prefix}_tech_$id' data-step='1'>+</button>
+            </div>
         </div>";
     }
     return $html;
@@ -129,7 +133,7 @@ $initial_wall_def = MIN_WALL_DEFENSE;
 $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
 $view .= '<div style="display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">';
-$view .= '<div class="box-container" style="max-width: 250px; margin: 0;">
+$view .= '<div class="box-container" style="max-width: 270px; margin: 0;">
     <div class="box-header">Deine Forschungen</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         ' . $render_tech_side("my", $tech_meta, $mil_tech_ids_attacker, $kingdom) . '
@@ -140,7 +144,7 @@ $view .= '<div class="box-container" style="max-width: 250px; margin: 0;">
     </div>
 </div>';
 
-$enemy_tech_style = $is_monster_mode ? "style='max-width: 250px; margin: 0; opacity: 0.3; pointer-events: none;'" : "style='max-width: 250px; margin: 0;'";
+$enemy_tech_style = $is_monster_mode ? "style='max-width: 250px; margin: 0; opacity: 0.3; pointer-events: none;'" : "style='max-width: 270px; margin: 0;'";
 $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style . '>
     <div class="box-header">Gegnerische Boni</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
@@ -151,10 +155,14 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
         </div>
         <div style="margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--border-gold);">
             <b>Mauer-Zustand</b>
-            <div class="split-content" style="margin-top: 5px;">
-                <span>Stufe:</span>
-                <input type="number" id="en_wall_lvl" value="1" min="1" max="' . MAX_BUILDING_LEVEL . '" inputmode="numeric" pattern="[0-9]*" 
-                style="width: 60px;">
+            <div class="split-content" style="margin-top: 5px; align-items: center;">
+                Stufe:
+                <div style="display: inline-flex; align-items: center; gap: 3px;">
+                    <button type="button" class="btn-stepper" data-on-click="stepWarsimTech" data-target="en_wall_lvl" data-step="-1">-</button>
+                    <input type="text" id="en_wall_lvl" value="1" data-min="1" data-max="' . MAX_BUILDING_LEVEL . '" inputmode="numeric" pattern="[0-9]*" 
+                           style="width: 24px; height: 24px; text-align: center; padding: 0; font-size: 13px; box-sizing: border-box;">
+                    <button type="button" class="btn-stepper" data-on-click="stepWarsimTech" data-target="en_wall_lvl" data-step="1">+</button>
+                </div>
             </div>
             <div style="text-align: left; font-size: 12px; opacity: 0.8; margin-top: 5px;">
                 HP: <span id="wall_hp_display">' . fnum($initial_wall_hp) . '</span> / <span id="wall_hp_display_max">' . fnum($initial_wall_hp) . '</span>
@@ -167,8 +175,8 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
 </div>';
 $view .= '</div>';
 
-$view .= '<div id="live-power-container" style="display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
-                <div class="box-container" style="max-width: 250px; margin: 0;">
+$view .= '<div id="live-power-container" style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px; flex-wrap: wrap;">
+                <div class="box-container" style="max-width: 270px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Spieler</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
                         <div class="popup" id="pop_live_atk_own" style="text-align: center;">
@@ -188,7 +196,7 @@ $view .= '<div id="live-power-container" style="display: flex; justify-content: 
                     </div>
                 </div>
 
-                <div class="box-container" style="max-width: 250px; margin: 0;">
+                <div class="box-container" style="max-width: 270px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Gegner</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
                         <div class="popup" id="pop_live_atk_enemy">
@@ -215,7 +223,7 @@ $view .= '<div style="display: flex; justify-content: center; gap: 5px; margin-b
               <button type="button" data-on-click="resetFields">Reset</button>
           </div>';
 $view .= '<div style="text-align: center; margin-bottom: 15px;">
-            <label style="font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; user-select: none;">
+            <label style="font-size: 14px; display: inline-flex; align-items: center; gap: 8px; user-select: none;">
                 <input type="checkbox" id="toggle-relevant-units" data-on-change="filterRelevantRows">
                 <span>Nur relevante Einheiten anzeigen</span>
             </label>

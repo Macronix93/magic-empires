@@ -433,7 +433,7 @@ $count_online = $res_online->fetch_row()[0];
                                         </tr>
                                         <tr>
                                             <td style="padding: 5px 10px; text-align: left;">
-                                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                                <label style="display: flex; align-items: center; gap: 8px;">
                                                     <input type="checkbox" name="remember_me">
                                                     Angemeldet bleiben
                                                 </label>
@@ -503,7 +503,7 @@ $count_online = $res_online->fetch_row()[0];
                                             </tr>
                                             <tr>
                                                 <td style="padding: 10px; text-align: left; font-size: 14px;">
-                                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                                    <label style="display: flex; align-items: center; gap: 10px;">
                                                         <input type="checkbox" name="accept_rules"
                                                                value="1" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
                                                         <span>Ich akzeptiere die <a href="rules.php" target="_blank"

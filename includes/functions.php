@@ -482,31 +482,6 @@ function apply_villager_cap(int $kingdom_id): void
     }
 }
 
-
-// Check for an error in a conversation
-function get_error(string $text, string $receiver_id): string
-{
-    $error = "";
-    $line_breaks_count = substr_count($text, '<br />');
-    $text_without_line_breaks = preg_replace('/<br\s*\/?>/i', '', $text);
-    $text_length = mb_strlen(strip_tags($text_without_line_breaks), 'UTF-8');
-
-    // Check different errors
-    if ($receiver_id == $_SESSION["userid"]) {
-        $error = "Du kannst keine Nachrichten an dich selbst senden!";
-    } else if ($_SESSION["msgreceiver"] != $receiver_id) {
-        $error = "Bitte nutze nur einen Tab für Konversationen!";
-    } else if (strlen(trim(strip_tags($text))) === 0) {
-        $error = "Bitte alle Felder ausfüllen!";
-    } else if ($text_length > MAX_MESSAGE_LENGTH) {
-        $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
-    } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
-        $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
-    }
-    return $error;
-}
-
-
 /*
  * Global exception handlers
  */
@@ -527,6 +502,8 @@ function render_error_page(string $title, string $message): void
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" type="image/x-icon" href="<?= defined("BASE_URL") ? BASE_URL : '' ?>images/favicon.ico"
+              id="icon">
         <title>Magic Empires - <?= $title ?></title>
         <style>
             body {
@@ -708,9 +685,6 @@ function get_prepared_chat_patterns(): array
     return $cached_patterns;
 }
 
-/**
- * Namensprüfung für Königreiche & Registrierung (Early Exit bei Fund)
- */
 function contains_bad_words($name, ?array $list = null): bool
 {
     if (empty($name)) return false;
@@ -1192,7 +1166,7 @@ function parse_chat_quotes(string $text): string
                     $depth--;
                 }
             }
-        } elseif ($part === '[/quote]') {
+        } else if ($part === '[/quote]') {
             if ($depth > 0) {
                 if ($depth <= $max_depth && $open_divs > 0) {
                     $output .= '</div>';
@@ -1367,9 +1341,9 @@ function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
 
                     if ($count_share > 0) {
                         $db->execute_query(
-                                "INSERT INTO abandoned_kingdom_units (mapx, mapy, monster_id, count) VALUES (?, ?, ?, ?)
-                             ON DUPLICATE KEY UPDATE count = count + VALUES(count)",
-                                [$x, $y, $m_id, $count_share]
+                                "INSERT INTO abandoned_kingdom_units (mapx, mapy, monster_id, count, initial_count) VALUES (?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE count = count + VALUES(count), initial_count = initial_count + VALUES(initial_count)",
+                                [$x, $y, $m_id, $count_share, $count_share]
                         );
                     }
                 }
@@ -1420,37 +1394,41 @@ function check_vacation_eligibility(int $uid, mysqli $db): array
     return $errors;
 }
 
-function format_relative_activity(int $timestamp): string
+function format_relative_activity(int $timestamp, int $current_time): string
 {
-    if ($timestamp <= 0) return "Nicht verfügbar";
-    $diff = max(0, time() - $timestamp);
+    if ($timestamp <= 0) {
+        return 'Nicht verfügbar';
+    }
+
+    $diff = max(0, $current_time - $timestamp);
 
     if ($diff < 3600) {
-        return "in der letzten Stunde";
+        return 'in der letzten Stunde';
     }
 
     if ($diff < 86400) {
-        $hours = (int)floor($diff / 3600);
-        return $hours === 1 ? "vor 1 Stunde" : "vor $hours Stunden";
+        $hours = intdiv($diff, 3600);
+        return "vor $hours " . ($hours === 1 ? 'Stunde' : 'Stunden');
     }
 
-    $days = (int)floor($diff / 86400);
+    $days = intdiv($diff, 86400);
+
     if ($days < 7) {
-        return $days === 1 ? "vor 1 Tag" : "vor $days Tagen";
+        return "vor $days " . ($days === 1 ? 'Tag' : 'Tagen');
     }
 
-    $weeks = (int)floor($days / 7);
-    if ($weeks < 4) {
-        return $weeks === 1 ? "vor 1 Woche" : "vor $weeks Wochen";
+    if ($days < 28) {
+        $weeks = intdiv($days, 7);
+        return "vor $weeks " . ($weeks === 1 ? 'Woche' : 'Wochen');
     }
 
-    $months = (int)floor($days / 30);
-    if ($months < 12) {
-        return $months === 1 ? "vor 1 Monat" : "vor $months Monaten";
+    if ($days < 365) {
+        $months = max(1, intdiv($days, 30));
+        return "vor $months " . ($months === 1 ? 'Monat' : 'Monaten');
     }
 
-    $years = (int)floor($days / 365);
-    return $years === 1 ? "vor 1 Jahr" : "vor $years Jahren";
+    $years = intdiv($days, 365);
+    return "vor $years " . ($years === 1 ? 'Jahr' : 'Jahren');
 }
 
 function render_tutorial_modal(?User $user = null, bool $is_replay = false): string
@@ -1490,9 +1468,9 @@ function render_tutorial_modal(?User $user = null, bool $is_replay = false): str
     $header_title = "Willkommen, Eure Hoheit!";
 
     return "<div id='tutorial-overlay' class='info-box-bg' style='display:flex;' data-good-res='" . e($good_res) . "'> 
-        <div class='big-box-container' style='max-width: 500px; margin: auto; z-index: 1001; padding: 15px 15px 0;'> 
+        <div class='big-box-container tutorial-box'> 
             <div class='big-box-header'>$header_title</div> 
-            <div class='big-box-content' style='text-align: left;'> 
+            <div class='big-box-content' style='text-align: justify;'> 
                 <p style='margin-top: 0;'>$intro_text Die Welt besteht aus 5 Geländetypen 
                 (<b>Hochland, Wald, Wüste, Küste und Gebirge</b>) mit jeweils eigenen Erträgen und Marschgeschwindigkeiten. 
                 Erkundet euer Umland auf der <a href='map.php' style='color: var(--link-color); text-decoration: underline;' data-on-click='$action_close'><b>Karte</b></a>!</p> 
@@ -1509,6 +1487,9 @@ function render_tutorial_modal(?User $user = null, bool $is_replay = false): str
                     <b style='color: var(--link-color);'>3. Schutz & Reparatur</b><br> 
                     <p>Eure <b>Mauer</b> gibt einen Verteidigungsbonus, um Angreifer abzuschrecken. Haltet sie stets repariert!</p> 
                 </div> 
+                <div class='tutorial-tip'>
+                    💡 <b>Tipp:</b> Viele Überschriften, Texte, Symbole und Zahlen verbergen Detailwissen. Fahrt mit der Maus darüber oder <b>tippt sie an</b>, um nützliche Infos zu öffnen!
+                </div>
                 <div style='text-align: center; margin-top: 20px;'> 
                     <button id='close-tutorial' type='button' data-on-click='$action_close' style='padding: 10px 40px;'>$btn_label</button> 
                 </div> 

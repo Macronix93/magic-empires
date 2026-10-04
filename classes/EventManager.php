@@ -604,14 +604,15 @@ class EventManager
                     $report_units[$s_name]["count"] += $t["soldiercount"];
                 }
 
-                $top_contributing_kid = (int)$row["kingdomid"];
-                if (!empty($damage_per_kingdom)) {
-                    arsort($damage_per_kingdom);
+                $event_type = $active_event["event_type"] ?? "BOSS_HP";
+                $target_kid = (int)$row["kingdomid"];
 
-                    $top_contributing_kid = array_key_first($damage_per_kingdom);
+                if ($event_type === "BOSS_HP" && !empty($damage_per_kingdom)) {
+                    arsort($damage_per_kingdom);
+                    $target_kid = array_key_first($damage_per_kingdom);
                 }
 
-                $result_dmg = $world_event_manager->record_damage($active_event["id"], $attacker_id, $raw_damage, $active_event["event_type"], $top_contributing_kid);
+                $result_dmg = $world_event_manager->record_damage($active_event["id"], $attacker_id, $raw_damage, $active_event["event_type"], $target_kid);
 
                 $pool = $world_event_manager->get_monster_pool();
                 $monster = $pool[$active_event["monster_index"]];
@@ -1076,6 +1077,21 @@ class EventManager
             }
 
             $attacker_wins = ($atk_power > $def_power);
+
+            $atk_loss_ratio = ($atk_power > 0) ? min(1.0, $def_power / ($atk_power * LETHALITY_PVP)) : 1.0;
+            $def_loss_ratio = ($def_power > 0) ? min(1.0, $atk_power / ($def_power * LETHALITY_PVP)) : 1.0;
+
+            foreach ($atk_cards as &$ac) {
+                $ac["losses"] = (int)round($ac["initial"] * $atk_loss_ratio);
+                $ac["is_fictional"] = true;
+            }
+            unset($ac);
+
+            foreach ($def_cards as &$dc) {
+                $dc["losses"] = (int)round($dc["initial"] * $def_loss_ratio);
+                $dc["is_fictional"] = true;
+            }
+            unset($dc);
 
             $def_players = [];
             foreach ($defenders as $d) {
@@ -3177,6 +3193,7 @@ class EventManager
 
             $report_monster_units[] = [
                 "id" => "m" . $m_id,
+                "monster_id" => (int)$m_id,
                 "initial" => $initial,
                 "losses" => $loss,
                 "atk" => $m["atk"],
@@ -3255,7 +3272,7 @@ class EventManager
 
         if (!$victory) {
             foreach ($combat["report_monster_units"] as $rep_m) {
-                $current_m_id = $rep_m["id"];
+                $current_m_id = $rep_m["monster_id"];
                 $rem_count = $rep_m["initial"] - $rep_m["losses"];
 
                 if ($rep_m["losses"] > 0) {
@@ -3405,7 +3422,7 @@ class EventManager
         $ty = (int)$row["targety"];
 
         $res_camp = $this->mysqli->execute_query("
-            SELECT mcu.monster_id, mc.level, mc.expires_at, mcu.count
+            SELECT mcu.monster_id, mc.level, mc.expires_at, mcu.count, mcu.initial_count 
             FROM monster_camps mc
             JOIN monster_camp_units mcu ON mc.mapx = mcu.mapx AND mc.mapy = mcu.mapy
             WHERE mc.mapx = ? AND mc.mapy = ?", [$tx, $ty]);
@@ -3428,17 +3445,28 @@ class EventManager
         }
 
         $camp_lvl = $units[0]["level"] ?? 1;
-
         $detection_chance = BASE_DANGER_RATE_SCOUTING + ($camp_lvl - 1);
+
+        $current_monsters = 0;
+        $initial_monsters = 0;
+        foreach ($units as $u) {
+            $current_monsters += (int)$u["count"];
+            $initial_monsters += (int)($u["initial_count"] > 0 ? $u["initial_count"] : $u["count"]);
+        }
 
         $losses = 0;
         if (mt_rand(1, 100) <= $detection_chance) {
-            $min_pct = RAIDER_LOSS_MIN_PERC;
-            $max_pct = RAIDER_LOSS_MAX_PERC + (int)floor($camp_lvl / 2);
-            $loss_pct = mt_rand($min_pct, $max_pct) / 100;
+            $min_roll = $camp_lvl;
+            $max_roll = (int)round($camp_lvl * SCOUT_CAMP_LOSS_FACTOR_MAX);
+            $base_losses_roll = mt_rand($min_roll, $max_roll);
 
-            $losses = max(1, (int)ceil($atk_scouts * $loss_pct));
-            $losses = min($losses, $atk_scouts);
+            $remaining_ratio = ($initial_monsters > 0) ? min(1.0, max(0.05, $current_monsters / $initial_monsters)) : 1.0;
+
+            $losses = max(1, (int)round($base_losses_roll * $remaining_ratio));
+
+            if ($losses >= $atk_scouts) {
+                $losses = $atk_scouts;
+            }
         }
 
         $survivors = $atk_scouts - $losses;
@@ -3533,7 +3561,7 @@ class EventManager
         $is_still_ally = ($data["sender_gid"] > 0 && $data["sender_gid"] === $data["recipient_gid"]);
 
         if (!$is_still_ally) {
-            $this->turn_back_support($row, "no_alliance", "Da ihr nicht mehr in derselben Gilde seid, wurde deinen Truppen der Einlass verwehrt.");
+            $this->turn_back_support($row, "no_alliance", $data["target_name"]);
             return;
         }
 
@@ -3776,7 +3804,7 @@ class EventManager
             $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
         } else {
             foreach ($combat["report_monster_units"] as $rm) {
-                $mid = $rm["id"];
+                $mid = $rm["monster_id"];
                 $rem = $rm["initial"] - $rm["losses"];
 
                 if ($rem <= 0) {
@@ -3839,20 +3867,51 @@ class EventManager
         $event_id = (int)$row["eventid"];
 
         $res_ruin = $this->mysqli->execute_query("SELECT * FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
-
         if (!$res_ruin) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
-                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
 
-        $units = $this->mysqli->execute_query("
-            SELECT monster_id, count 
-            FROM abandoned_kingdom_units 
-            WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_all(MYSQLI_ASSOC);
+        $ruin_lvl = max(1, (int)($res_ruin["tc_level"] ?? 1));
+        $detection_chance = BASE_DANGER_RATE_SCOUTING + ($ruin_lvl - 1);
 
-        $monster_units = [];
+        $units = $this->mysqli->execute_query("SELECT count, initial_count FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_all(MYSQLI_ASSOC);
+
+        $current_monsters = 0;
+        $initial_monsters = 0;
         foreach ($units as $u) {
+            $current_monsters += (int)$u["count"];
+            $initial_monsters += (int)($u["initial_count"] > 0 ? $u["initial_count"] : $u["count"]);
+        }
+
+        $losses = 0;
+        if (mt_rand(1, 100) <= $detection_chance) {
+            $min_roll = $ruin_lvl;
+            $max_roll = (int)round($ruin_lvl * SCOUT_CAMP_LOSS_FACTOR_MAX);
+            $base_losses_roll = mt_rand($min_roll, $max_roll);
+
+            $remaining_ratio = ($initial_monsters > 0) ? min(1.0, max(0.05, $current_monsters / $initial_monsters)) : 1.0;
+            $losses = max(1, (int)round($base_losses_roll * $remaining_ratio));
+
+            if ($losses >= $atk_scouts) {
+                $losses = $atk_scouts;
+            }
+        }
+
+        $survivors = $atk_scouts - $losses;
+        if ($losses > 0) {
+            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
+            $total_score_loss = $losses * $scout_score_val;
+            $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_SCOUT]);
+            update_global_stat("total_fallen_soldiers", $losses);
+            update_player_stat($attacker_id, "units_fallen_pve", $losses);
+            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+        }
+
+        $units_data = $this->mysqli->execute_query("SELECT monster_id, count FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_all(MYSQLI_ASSOC);
+        $monster_units = [];
+        foreach ($units_data as $u) {
             $monster_units[] = [
                 "id" => "m" . (int)$u["monster_id"],
                 "count" => (int)$u["count"]
@@ -3865,6 +3924,7 @@ class EventManager
             "target_y" => $ty,
             "ruin_name" => $res_ruin["kingdom_name"],
             "atk_scouts" => $atk_scouts,
+            "losses" => $losses,
             "resources" => [
                 "food" => (int)$res_ruin["food"],
                 "wood" => (int)$res_ruin["wood"],
@@ -3876,8 +3936,12 @@ class EventManager
 
         send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $spy_json);
 
-        $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
-            [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+        if ($survivors > 0) {
+            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+        } else {
+            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+        }
 
         update_player_stat($attacker_id, "spy_count");
     }
@@ -4187,16 +4251,20 @@ class EventManager
         // Calculate scout losses
         $losses = 0;
         if (!empty($defenders)) {
-            $def_count = array_sum(array_column($defenders, "soldiercount"));
-            $detection_chance = BASE_DANGER_RATE_SCOUTING + ((int)$mine["level"] * 3) + min(30, (int)($def_count / 10));
+            $def_count = (int)array_sum(array_column($defenders, "soldiercount"));
 
-            if (mt_rand(1, 100) <= $detection_chance) {
-                $min_pct = RAIDER_LOSS_MIN_PERC;
-                $max_pct = RAIDER_LOSS_MAX_PERC + (int)$mine["level"];
-                $loss_pct = mt_rand($min_pct, $max_pct) / 100;
+            if ($def_count > 0) {
+                $mine_lvl = (int)($mine["level"] ?? 1);
 
-                $losses = max(1, (int)ceil($atk_scouts * $loss_pct));
-                $losses = min($losses, $atk_scouts);
+                $detection_chance = min(85, BASE_DANGER_RATE_SCOUTING + ($mine_lvl * 2) + (int)floor($def_count / 4));
+
+                if (mt_rand(1, 100) <= $detection_chance) {
+                    $min_roll = max(1, (int)floor($def_count / 10));
+                    $max_roll = max(2, (int)ceil($def_count / 4));
+                    $base_losses_roll = mt_rand($min_roll, $max_roll);
+
+                    $losses = min($atk_scouts, $base_losses_roll);
+                }
             }
         }
 

@@ -499,6 +499,11 @@ input[type="checkbox"] {
     color: #ff4d4d;
 }
 
+.loss-gray {
+    color: #8f9296;
+    font-style: italic;
+}
+
 .report-section-title {
     border-bottom: 1px solid var(--border-gold);
     color: var(--link-color);
@@ -1202,6 +1207,18 @@ select:-webkit-autofill:focus {
     margin-left: auto;
 }
 
+.msg-badge.badge-cell-right {
+    position: absolute;
+    top: 25%;
+    right: 1px;
+    transform: translateY(-50%);
+    margin: 0;
+    font-size: 10px;
+    pointer-events: none;
+    width: 15px;
+    height: 15px;
+}
+
 .golden-badge {
     background: linear-gradient(180deg, #E6C15A, #A67C00);
     border: 1px solid #4A3600;
@@ -1503,7 +1520,7 @@ tr:first-child td.td-gradient {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.9);
     z-index: 2000000;
 }
 
@@ -1925,7 +1942,7 @@ tr:first-child td.td-gradient {
     border: 4px double var(--box-selected);
     border-radius: 5px;
     padding: 12px 16px;
-    z-index: 1000;
+    z-index: 1101;
     width: max-content;
     min-width: 450px;
     max-width: 620px;
@@ -2362,6 +2379,11 @@ body.modal-open footer {
     min-height: 0;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+.overlay-body::-webkit-scrollbar {
+    width: 6px;
 }
 
 .overlay-close-btn {
@@ -2612,9 +2634,21 @@ body.modal-open footer {
     padding: 20px 10px;
 }
 
-#tutorial-overlay .big-box-container {
-    max-height: none;
-    margin-bottom: 40px;
+#tutorial-overlay .tutorial-box {
+    width: 100%;
+    max-width: 600px;
+    margin: auto;
+    z-index: 1001;
+    padding: 15px 15px 0;
+}
+
+.tutorial-tip {
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 3px solid var(--link-color);
+    padding: 8px 12px;
+    border-radius: 3px;
+    font-size: 13px;
+    margin-bottom: 15px;
 }
 
 .trade-header-text {
@@ -2635,7 +2669,8 @@ body.modal-open footer {
     box-shadow: 0 0 5px rgba(255, 77, 77, 0.5);
 }
 
-[data-on-click], [data-on-submit] {
+.user-name-container a,
+.user-name-link {
     cursor: pointer;
 }
 
@@ -2758,6 +2793,15 @@ img[data-on-click] {
     white-space: nowrap;
 }
 
+.market-submit-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+
 .marketplace-table .trade-item-stack {
     display: flex;
     flex-direction: row;
@@ -2869,13 +2913,10 @@ img[data-on-click] {
     text-decoration: none !important;
     display: inline-block;
     line-height: 1.2;
-    transition: all 0.15s ease-in-out;
 }
 
 .chat-coord-link:hover {
     background: rgba(212, 175, 55, 0.25);
-    border-color: #ffffff;
-    color: #ffffff !important;
     box-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
 }
 
@@ -3231,6 +3272,10 @@ img[data-on-click] {
     width: 140px;
 }
 
+.js-barracks-send-select {
+    width: 240px;
+}
+
 .target-kingdom {
     width: 100%;
     max-width: 300px;
@@ -3263,6 +3308,34 @@ img[data-on-click] {
     color: #e74c3c !important;
 }
 
+.btn-stepper {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    background: none;
+    border: 1px solid black;
+}
+
+.userinfo-kingdoms-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 175px;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+}
+
+.userinfo-kingdoms-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3290,6 +3363,17 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    #tutorial-overlay .big-box-container {
+        font-size: 13px;
+    }
+
+    .tutorial-tip {
+        font-size: 11px;
+        padding: 4px 8px;
+        margin-bottom: 10px;
+        line-height: 1.25;
     }
 
     #map-flash-message {
@@ -3330,6 +3414,13 @@ img[data-on-click] {
 
     .info-box {
         font-size: 14px;
+        min-height: 0;
+    }
+
+    .msg-badge.badge-cell-right {
+        font-size: 7px;
+        width: 10px;
+        height: 10px;
     }
 
     .msg-badge {
@@ -3989,6 +4080,12 @@ img[data-on-click] {
         margin: 0 auto 10px auto;
     }
 
+    .market-submit-wrap {
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 5px;
+    }
+
     .marketplace-table {
         width: 100% !important;
         margin: 0 !important;
@@ -4271,12 +4368,20 @@ img[data-on-click] {
         font-size: 12px !important;
     }
 
-    .js-upgrade-select {
-        width: 95px;
+    .js-upgrade-select,
+    .js-barracks-send-select {
         height: 25px;
         font-size: 11px;
         padding: 3px 22px 3px 6px;
         background-position: right 6px center, center;
+    }
+
+    .js-upgrade-select {
+        width: 95px;
+    }
+
+    .js-barracks-send-select {
+        width: 180px;
     }
 
     .col-description {
@@ -4487,12 +4592,12 @@ img[data-on-click] {
         height: 20px;
     }
 
-    input,
     textarea {
         font-size: 13px !important;
     }
 
-    button {
+    button,
+    input {
         font-size: 11px !important;
     }
 

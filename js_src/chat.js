@@ -339,11 +339,14 @@ function updateChat(chatPartner) {
     let highestDomId = 0;
     if (messageSection) {
         messageSection.querySelectorAll("[id^='world-msg-'], [id^='guild-msg-'], [id^='msg-']").forEach(el => {
-            const num = parseInt(el.id.replace('world-msg-', ''), 10);
+            const num = parseInt(el.id.replace(/^(?:world-msg-|guild-msg-|msg-)/, ''), 10);
+
             if (!isNaN(num) && num > highestDomId) highestDomId = num;
         });
     }
     const safeLastId = Math.max(lastSeenId, highestDomId);
+    if (safeLastId <= 0) return;
+
     let queryParams = `?last_id=${safeLastId}`;
 
     if (chatType === "world") {
@@ -392,6 +395,10 @@ function updateChat(chatPartner) {
                 return;
             }
 
+            if (data.lastId && data.lastId > lastSeenId) {
+                lastSeenId = data.lastId;
+            }
+
             if (response.html === "") {
                 if (newMessageLine) {
                     messageSection.removeChild(newMessageLine);
@@ -409,8 +416,6 @@ function updateChat(chatPartner) {
                 newBubbles.forEach(bubble => {
                     insertChatBubbleSorted(messageSection, bubble);
                 });
-
-                lastSeenId = data.lastId;
 
                 if (wasAtBottom) {
                     scrollDown(true);
@@ -431,17 +436,24 @@ function updateChat(chatPartner) {
                 }
 
                 Object.keys(data.reactionUpdates).forEach(msgId => {
-                    const msgElement = document.getElementById("msg-" + msgId)
-                        || document.getElementById("world-msg-" + msgId)
-                        || document.getElementById("guild-msg-" + msgId);
-
+                    const msgElement = document.getElementById("msg-" + msgId) || document.getElementById("world-msg-" + msgId) || document.getElementById("guild-msg-" + msgId);
                     if (msgElement) {
                         const footer = msgElement.querySelector('.chat-reaction-footer');
 
                         if (footer) {
-                            const newContent = data.reactionUpdates[msgId];
+                            if (footer.matches(':hover') || footer.querySelector(':hover')) {
+                                return;
+                            }
 
-                            if (footer.innerHTML !== newContent) {
+                            const newContent = data.reactionUpdates[msgId];
+                            const tempDiv = document.createElement("div");
+                            tempDiv.innerHTML = newContent;
+                            tempDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
+
+                            const currentDiv = footer.cloneNode(true);
+                            currentDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
+
+                            if (currentDiv.innerHTML.trim() !== tempDiv.innerHTML.trim()) {
                                 footer.innerHTML = newContent;
                             }
                         }

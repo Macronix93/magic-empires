@@ -1,22 +1,14 @@
-let isDraggingInfoWindow = false;
-let initialX;
-let initialY;
-let xOffset = 0;
-let yOffset = 0;
 let currentOverlayUrl = "";
-let activeOverlayController = null;
 
 registerAction("openOverlay", (el) => {
     const url = el.dataset.url;
-    const title = el.dataset.title;
+    const title = el.dataset.title || "";
     const width = el.dataset.width || null;
 
-    openOverlay(url, title, width);
+    openOverlay(url, title, width, false, el);
 });
 registerAction("closeOverlay", () => {
-    if (typeof closeOverlay === "function") {
-        closeOverlay();
-    }
+    closeOverlay();
 });
 registerAction("mapJump", (el) => {
     const x = el.dataset.x;
@@ -27,24 +19,106 @@ registerAction("mapJump", (el) => {
     }
 });
 
-function setTranslate(xPos, yPos, el) {
-    el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0) translateX(-50%)`;
-}
+function getScriptPath(urlStr) {
+    if (!urlStr) return "";
 
-function applyOverlayStyles() {
-    /** @type {HTMLElement} */
-    const overlay = document.getElementById("onpage-overlay");
+    try {
+        const u = new URL(urlStr, window.location.origin);
 
-    if (!overlay || overlay.style.display === "none") return;
-
-    if (window.innerWidth <= 600 || window.innerHeight < 600) {
-        overlay.style.top = "10px";
-    } else {
-        overlay.style.top = "50px";
+        return u.pathname;
+    } catch (e) {
+        return urlStr.split("?")[0];
     }
 }
 
-function openOverlay(url, title = "", width = null) {
+function normalizeUrl(urlStr) {
+    if (!urlStr) return "";
+
+    try {
+        const u = new URL(urlStr, window.location.href);
+
+        return u.pathname + u.search;
+    } catch (e) {
+        return urlStr;
+    }
+}
+
+function applyOverlayStyles(modal = null) {
+    const modals = modal ? [modal] : Array.from(document.querySelectorAll('.overlay-modal'));
+
+    modals.forEach(m => {
+        if (!m || m.style.display === "none") return;
+
+        if (window.innerWidth <= 600 || window.innerHeight < 600) {
+            m.style.top = "10px";
+        } else {
+            m.style.top = "50px";
+        }
+    });
+}
+
+function initOverlayDrag(modal) {
+    const dragItem = modal.querySelector(".overlay-header");
+    if (!dragItem || dragItem.dataset.dragInit === "true") return;
+    dragItem.dataset.dragInit = "true";
+
+    let xOffset = 0;
+    let yOffset = 0;
+    let initialX, initialY;
+    let isDragging = false;
+
+    function setTranslate(x, y) {
+        modal.style.transform = `translate3d(${x}px, ${y}px, 0) translateX(-50%)`;
+    }
+
+    function dragStart(e) {
+        if (e.target.closest(".overlay-close-btn")) return;
+        if (e.target !== dragItem && !dragItem.contains(e.target)) return;
+        if (window.getSelection) window.getSelection().removeAllRanges();
+        if (e.cancelable) e.preventDefault();
+        isDragging = true;
+
+        const clientX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
+        initialX = clientX - xOffset;
+        initialY = clientY - yOffset;
+    }
+
+    function drag(e) {
+        if (!isDragging) return;
+        if (e.cancelable) e.preventDefault();
+        const clientX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+        const x = clientX - initialX;
+        const y = clientY - initialY;
+
+        const rect = modal.getBoundingClientRect();
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const halfWidth = rect.width / 2;
+        const minX = -(winW / 2) + halfWidth;
+        const maxX = (winW / 2) - halfWidth;
+        const minY = -parseInt(window.getComputedStyle(modal).top || "50", 10);
+        const maxY = winH - rect.height - 20;
+
+        xOffset = Math.min(Math.max(x, minX), maxX);
+        yOffset = Math.min(Math.max(y, minY), maxY);
+        setTranslate(xOffset, yOffset);
+    }
+
+    function dragEnd() {
+        isDragging = false;
+    }
+
+    dragItem.addEventListener("mousedown", dragStart);
+    document.addEventListener("mouseup", dragEnd);
+    document.addEventListener("mousemove", drag);
+    dragItem.addEventListener("touchstart", dragStart, {passive: false});
+    document.addEventListener("touchmove", drag, {passive: false});
+    document.addEventListener("touchend", dragEnd);
+}
+
+function openOverlay(url, title = "", width = null, forceNew = false, sourceElement = null, isReload = false) {
     if (typeof window.closeMobileMenus === "function") {
         window.closeMobileMenus();
     } else {
@@ -53,92 +127,132 @@ function openOverlay(url, title = "", width = null) {
         if (typeof toggleMobileElements === "function") toggleMobileElements(false);
     }
 
-    if (activeOverlayController) {
-        activeOverlayController.abort();
+    const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
+
+    const targetUrlNorm = normalizeUrl(url);
+    const isAlreadyOpenAnywhere = openModals.some(m => normalizeUrl(m.dataset.currentUrl) === targetUrlNorm);
+
+    if (isAlreadyOpenAnywhere && !forceNew && !isReload) {
+        return;
     }
-    activeOverlayController = new AbortController();
-    const signal = activeOverlayController.signal;
 
-    const overlay = document.getElementById("onpage-overlay");
-    const content = document.getElementById("overlay-content-body");
-    const overlayTitle = document.getElementById("overlay-title");
-    const isAlreadyOpen = (overlay.style.display === "grid");
+    const sourceModal = sourceElement ? sourceElement.closest('.overlay-modal') : null;
 
-    if (url === currentOverlayUrl && isAlreadyOpen) return;
+    let targetModal = null;
+    let isStacking = false;
+    let isAlreadyOpen = false;
 
-    if (isAlreadyOpen) {
+    if (openModals.length === 0 || !sourceModal) {
+        document.querySelectorAll('.stacked-overlay').forEach(m => m.remove());
+        targetModal = document.getElementById("onpage-overlay");
+        isAlreadyOpen = (targetModal && targetModal.style.display === "grid");
+    } else {
+        const currentUrl = sourceModal.dataset.currentUrl || "";
+        const isSameScript = (getScriptPath(currentUrl) === getScriptPath(url));
+
+        if (isSameScript && !forceNew) {
+            targetModal = sourceModal;
+            isAlreadyOpen = true;
+        } else {
+            isStacking = true;
+            isAlreadyOpen = false;
+            const depth = openModals.length;
+            targetModal = document.createElement("div");
+            targetModal.className = "overlay-modal stacked-overlay";
+            targetModal.id = `overlay-modal-stack-${depth}`;
+            targetModal.style.display = "none";
+            targetModal.style.zIndex = (1000001 + (depth * 10)).toString();
+            targetModal.innerHTML = `
+                <div class="overlay-header">
+                    <span class="overlay-title" id="overlay-title-stack-${depth}"></span>
+                    <button type="button" class="overlay-close-btn" data-on-click="closeOverlay">&times;</button>
+                </div>
+                <div class="overlay-body" id="overlay-content-body-stack-${depth}"></div>
+            `;
+            document.body.appendChild(targetModal);
+            targetModal.querySelectorAll('[data-on-click]').forEach(bindActions);
+
+            initOverlayDrag(targetModal);
+        }
+    }
+
+    if (!targetModal) return;
+
+    if (targetModal._abortController) {
+        targetModal._abortController.abort();
+    }
+    targetModal._abortController = new AbortController();
+    const signal = targetModal._abortController.signal;
+
+    const content = targetModal.querySelector(".overlay-body, #overlay-content-body");
+    const overlayTitle = targetModal.querySelector(".overlay-title, #overlay-title");
+
+    if (isAlreadyOpen && content) {
         content.style.minHeight = content.offsetHeight + "px";
         content.style.transition = "opacity 0.15s ease";
         content.style.opacity = "0";
     }
 
+    targetModal.dataset.currentUrl = url;
     currentOverlayUrl = url;
 
     const delay = isAlreadyOpen ? 150 : 0;
-
     setTimeout(() => {
-        if (isAlreadyOpen) {
+        if (isAlreadyOpen && content) {
             content.innerHTML = '<div class="spinner">Lade...</div>';
+            content.style.opacity = "1";
         }
 
-        fetch(url,
-            {
-                headers: {"X-Requested-With": "XMLHttpRequest"},
-                signal: signal
-            })
+        fetch(url, {
+            headers: {"X-Requested-With": "XMLHttpRequest"},
+            cache: "no-store",
+            signal: signal
+        })
             .then(response => {
                 const isJson = response.headers.get("content-type")?.includes("application/json");
-
                 if (isJson) {
                     return response.json().then(data => {
-                        if (isAlreadyOpen) closeOverlay();
-
+                        closeOverlay(targetModal);
                         if (data.error && typeof showMapFlashMessage === "function") {
                             showMapFlashMessage(data.error, "error");
                         }
                     });
                 }
-
                 return response.text().then(html => {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, "text/html");
-
                     let customWidth = width;
                     let customTitle = title;
                     const titleData = doc.getElementById("modal-title-data");
+
                     if (titleData) {
                         if (titleData.dataset.title) customTitle = titleData.dataset.title;
                         if (titleData.dataset.width) customWidth = titleData.dataset.width;
                     }
 
-                    const hasCustomTitle = Boolean(customTitle && customTitle.trim() !== "" && customTitle !== "Info");
-                    if (hasCustomTitle) overlayTitle.innerText = customTitle;
-
+                    if (customTitle && customTitle.trim() !== "" && overlayTitle) {
+                        overlayTitle.innerText = customTitle;
+                    }
                     if (customWidth) {
-                        overlay.style.maxWidth = customWidth;
-                    } else if (!isAlreadyOpen) {
-                        overlay.style.maxWidth = "";
+                        targetModal.style.maxWidth = customWidth;
+                    } else if (!isAlreadyOpen && !isStacking) {
+                        targetModal.style.maxWidth = "";
                     }
 
                     if (!isAlreadyOpen) {
                         document.body.classList.add("modal-open");
                         document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+                        targetModal.style.display = "grid";
 
-                        xOffset = 0;
-                        yOffset = 0;
-
-                        setTranslate(0, 0, overlay);
-                        overlay.style.display = "grid";
-
-                        applyOverlayStyles();
+                        applyOverlayStyles(targetModal);
                     }
 
                     content.style.transition = "none";
                     content.style.opacity = isAlreadyOpen ? "0" : "1";
                     content.innerHTML = doc.body.innerHTML;
                     content.style.minHeight = "";
-
                     content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+
                     if (typeof setup === "function") {
                         setup();
                     }
@@ -156,215 +270,95 @@ function openOverlay(url, title = "", width = null) {
             .catch(err => {
                 if (err.name !== 'AbortError') {
                     console.error("Overlay Fehler:", err);
+                    if (content) {
+                        content.innerHTML = '<div class="info-box event-error" style="margin: 10px;"><span>Fehler beim Laden.</span></div>';
+                        content.style.opacity = "1";
+                    }
                 }
             });
     }, delay);
 }
 
-function getSecondaryOverlay() {
-    let secOverlay = document.getElementById("secondary-overlay");
-    if (!secOverlay) {
-        secOverlay = document.createElement("div");
-        secOverlay.id = "secondary-overlay";
-        secOverlay.className = "overlay-modal";
-        secOverlay.style.display = "none";
-        secOverlay.style.zIndex = "1000010";
-        secOverlay.style.top = "60px";
-        secOverlay.innerHTML = `
-            <div id="secondary-overlay-handle" class="overlay-header">
-                <span id="secondary-overlay-title">Spielerliste</span>
-                <button type="button" class="overlay-close-btn" data-on-click="closeSecondaryOverlay">&times;</button>
-            </div>
-            <div id="secondary-overlay-content-body" class="overlay-body">
-                <div class="spinner">Lade...</div>
-            </div>
-        `;
-        document.body.appendChild(secOverlay);
-        secOverlay.querySelectorAll('[data-on-click]').forEach(bindActions);
+function closeOverlay(targetEl = null) {
+    let modalToClose = null;
+    if (targetEl && targetEl.nodeType) {
+        modalToClose = targetEl.closest(".overlay-modal");
     }
-    return secOverlay;
-}
-
-function openSecondaryOverlay(url, title = "Spielerliste", width = "400px") {
-    const overlay = getSecondaryOverlay();
-    const content = document.getElementById("secondary-overlay-content-body");
-    const overlayTitle = document.getElementById("secondary-overlay-title");
-
-    overlay.style.width = width || "400px";
-    overlay.style.display = "grid";
-    overlayTitle.innerText = title;
-    content.innerHTML = '<div class="spinner">Lade...</div>';
-
-    fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
-        .then(response => response.text())
-        .then(html => {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-
-            content.innerHTML = doc.body.innerHTML;
-
-            content.querySelectorAll('[data-on-click="closeOverlay"]').forEach(btn => {
-                btn.dataset.onClick = "closeSecondaryOverlay";
-            });
-
-            content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
-        });
-}
-
-function closeSecondaryOverlay() {
-    const overlay = document.getElementById("secondary-overlay");
-    if (overlay) {
-        overlay.style.display = "none";
-    }
-}
-
-function closeOverlay() {
-    if (activeOverlayController) {
-        activeOverlayController.abort();
-        activeOverlayController = null;
+    if (!modalToClose) {
+        const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
+        if (openModals.length > 0) {
+            modalToClose = openModals[openModals.length - 1];
+        }
     }
 
-    const secOverlay = document.getElementById("secondary-overlay");
-    if (secOverlay && secOverlay.style.display !== "none") {
-        closeSecondaryOverlay();
-        return;
+    if (!modalToClose) return;
+
+    if (modalToClose._abortController) {
+        modalToClose._abortController.abort();
+        modalToClose._abortController = null;
     }
 
-    document.body.classList.remove("modal-open");
-    const overlay = document.getElementById("onpage-overlay");
-    if (overlay) {
-        overlay.style.display = "none";
-        overlay.style.maxWidth = "";
+    if (modalToClose.id === "onpage-overlay") {
+        modalToClose.style.display = "none";
+        modalToClose.style.maxWidth = "";
+        modalToClose.dataset.currentUrl = "";
         currentOverlayUrl = "";
+    } else {
+        modalToClose.remove();
+    }
+
+    const remainingOpen = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
+    if (remainingOpen.length === 0) {
+        document.body.classList.remove("modal-open");
     }
 }
 
 function reloadOverlay() {
-    const overlay = document.getElementById("onpage-overlay");
-    if (overlay && overlay.style.display !== "none" && currentOverlayUrl) {
-        const url = currentOverlayUrl;
-        const title = document.getElementById("overlay-title")?.innerText || "Info";
-        currentOverlayUrl = "";
+    const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
 
-        openOverlay(url, title);
+    if (openModals.length > 0) {
+        const topModal = openModals[openModals.length - 1];
+        const url = topModal.dataset.currentUrl;
+        const titleEl = topModal.querySelector(".overlay-title, #overlay-title");
+        const title = titleEl ? titleEl.innerText : "";
+
+        if (url) {
+            openOverlay(url, title, null, false, topModal, true);
+        }
     }
 }
 
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
+
+        if (openModals.length > 0) {
+            closeOverlay(openModals[openModals.length - 1]);
+        }
+    }
+});
+
 document.addEventListener("touchstart", (e) => {
     if (e.target.closest('.overlay-close-btn')) {
+        e.preventDefault();
         e.stopPropagation();
 
         closeOverlay();
     }
 }, {passive: false});
 
-document.addEventListener("DOMContentLoaded", function () {
-    const dragItem = document.getElementById("overlay-handle");
-    /** @type {HTMLElement} */
-    const container = document.getElementById("onpage-overlay");
+document.addEventListener("DOMContentLoaded", () => {
+    const baseOverlay = document.getElementById("onpage-overlay");
 
-    window.addEventListener("resize", () => {
-        applyOverlayStyles();
-
-        if (container.style.display === "block") {
-            const rect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const halfWidth = rect.width / 2;
-            const minX = -(winW / 2 - halfWidth);
-            const maxX = (winW / 2 - halfWidth);
-
-            xOffset = Math.min(Math.max(xOffset, minX), maxX);
-            setTranslate(xOffset, yOffset, container);
-        }
-    });
-
-    if (dragItem) {
-        dragItem.addEventListener("mousedown", dragStart);
-        document.addEventListener("mouseup", dragEnd);
-        document.addEventListener("mousemove", drag);
-
-        dragItem.addEventListener("touchstart", dragStart, {passive: false});
-        document.addEventListener("touchmove", drag, {passive: false});
-        document.addEventListener("touchend", dragEnd);
+    if (baseOverlay) {
+        initOverlayDrag(baseOverlay);
     }
 
-    function dragStart(e) {
-        if (e.target === dragItem || dragItem.contains(e.target)) {
-            if (window.getSelection) {
-                window.getSelection().removeAllRanges();
-            }
+    applyOverlayStyles();
+});
 
-            if (e.cancelable) e.preventDefault();
-
-            isDraggingInfoWindow = true;
-        } else {
-            return;
-        }
-
-        let clientX, clientY;
-
-        if (e.type === "touchstart") {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
-        initialX = clientX - xOffset;
-        initialY = clientY - yOffset;
-    }
-
-    function drag(e) {
-        if (!isDraggingInfoWindow) return;
-        if (e.cancelable) e.preventDefault();
-
-        let clientX, clientY;
-
-        if (e.type === "touchmove") {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
-        let x = clientX - initialX;
-        let y = clientY - initialY;
-
-        const rect = container.getBoundingClientRect();
-        const winW = window.innerWidth;
-        const winH = window.innerHeight;
-        const halfWidth = rect.width / 2;
-
-        const minX = -(winW / 2) + halfWidth;
-        const maxX = (winW / 2) - halfWidth;
-        const minY = -parseInt(window.getComputedStyle(container).top);
-        const maxY = winH - rect.height - 20;
-
-        xOffset = Math.min(Math.max(x, minX), maxX);
-        yOffset = Math.min(Math.max(y, minY), maxY);
-
-        setTranslate(xOffset, yOffset, container);
-    }
-
-    function dragEnd() {
-        isDraggingInfoWindow = false;
-    }
-
-    window.addEventListener("resize", () => {
-        if (container.style.display === "block") {
-            const rect = container.getBoundingClientRect();
-            const winW = window.innerWidth;
-            const halfWidth = rect.width / 2;
-            const limitX = (winW / 2) - halfWidth;
-
-            if (Math.abs(xOffset) > limitX) {
-                xOffset = xOffset > 0 ? limitX : -limitX;
-                setTranslate(xOffset, yOffset, container);
-            }
-        }
-    });
+window.addEventListener("resize", () => {
+    applyOverlayStyles();
 });
 
 function redirectToMap(x, y) {
@@ -381,4 +375,6 @@ function redirectToMap(x, y) {
     }
 }
 
+window.openOverlay = openOverlay;
+window.closeOverlay = closeOverlay;
 window.reloadOverlay = reloadOverlay;

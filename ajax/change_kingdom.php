@@ -34,7 +34,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $res_sidebar = $db_instance->execute_query("
                 SELECT 
                     (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
-                    (SELECT COUNT(*) FROM marketplace) AS market_count,
+                    (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?))) AS market_count,
                     (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
                     (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
                     (SELECT CASE 
@@ -42,7 +42,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         WHEN input_amount > 0 THEN 'running'
                         ELSE ''
                     END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
-            ", [$gid, $gid, $chosen])->fetch_assoc();
+            ", [$gid, $gid, $gid, $chosen])->fetch_assoc();
 
             $sidebar_data = [
                 "has_world_event" => !empty($res_sidebar["has_event"]),

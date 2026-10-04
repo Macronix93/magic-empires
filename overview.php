@@ -177,9 +177,10 @@ if (!empty($_SESSION["active_attacks"])) {
     $incoming_html = "";
 
     foreach ($_SESSION["active_attacks"] as &$attack) {
-        if (!in_array($attack["eventid"], $_SESSION["acknowledged_attacks"])) {
-            $_SESSION["acknowledged_attacks"][] = $attack["eventid"];
+        $is_new_attack = !in_array($attack["eventid"], $_SESSION["acknowledged_attacks"]);
 
+        if ($is_new_attack) {
+            $_SESSION["acknowledged_attacks"][] = $attack["eventid"];
             $attack["is_new"] = false;
         }
 
@@ -195,8 +196,12 @@ if (!empty($_SESSION["active_attacks"])) {
             ? " (<a href='#' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>)"
             : "";
 
+        $new_badge = $is_new_attack ? "<span class='msg-badge badge-cell-right' title='Neuer Angriff!'>!</span>" : "";
+
         $incoming_html .= "<tr>
-            <td style='color: var(--link-color);'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>$coords_link</td>
+            <td style='color: var(--link-color); position: relative;'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>$coords_link
+                $new_badge
+            </td>
             <td class='td-center'><b>$time_display</b></td>
         </tr>";
     }

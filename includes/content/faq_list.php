@@ -1,7 +1,7 @@
 <?php if (!empty($is_logged_in)): ?>
     <div style="text-align: center; margin-bottom: 25px;">
-        <button type="button" data-on-click="showTutorialModal" style="padding: 10px 10px; font-weight: bold;">📜
-            Einführung & Tutorial erneut anzeigen
+        <button type="button" data-on-click="showTutorialModal" style="padding: 10px 10px; font-weight: bold;">
+            <?= wrap_emojis("📜 Einführung & Tutorial erneut anzeigen") ?>
         </button>
     </div>
 <?php endif; ?>
@@ -250,6 +250,10 @@
                 <td>Du benötigst einen <b>Siedlungskarren</b> (aus der Kaserne) und musst diesen zu einem leeren Feld
                     auf der Karte schicken. Beachte, dass die Gründung fehlschlagen kann – je mehr Siedlungskarren du
                     schickst, desto höher ist die Erfolgschance.
+                    Zu Beginn kannst du maximal <b><?= BASE_SETTLEMENT_LIMIT ?> Siedlungen</b> gründen. Um dein Reich
+                    darüber hinaus zu erweitern, benötigst du in der Universität deines Haupt-Königreichs die Forschung
+                    <b>Imperium</b>. Jede Ausbaustufe schaltet einen weiteren Gründungs-Slot frei – bis zum globalen
+                    Maximum von <b><?= GLOBAL_SETTLEMENT_MAX ?> gegründeten Siedlungen</b>.
                 </td>
             </tr>
             <tr>

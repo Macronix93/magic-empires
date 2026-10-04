@@ -290,7 +290,7 @@ if (!$active_event) {
                         <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
                             " . wrap_emojis("⚔️ Massenmobilisierung") . "
                         </button>
-                        <label style='display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;'>
+                        <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none;'>
                             <input type='checkbox' name='exclude_specials' value='1' data-on-change='toggleMassExcludeSpecials' $checkbox_checked style='margin: 0; width: auto;'>
                             <span class='mass-troop-label'>Ohne Spezial-Einheiten (außer Helden)</span>
                         </label>
@@ -430,7 +430,7 @@ if (!$active_event) {
                 </div>
                 <hr>
                 <p style='font-size: 14px; opacity: 0.8; text-align: center; margin-bottom: 0;'>
-                    <i>Hinweis: Münzen und Gold werden sofort nach Erreichen einer Stufe direkt auf dein Konto/Lager gutgeschrieben!</i>
+                    <i>Hinweis: Münzen und Gold werden direkt gutgeschrieben. Gold bekommt das absendende Königreich!</i>
                 </p>
             </div>
         </div>";

@@ -1444,6 +1444,7 @@ class Messages
             case "spy_ruin":
                 $tx = (int)($data["target_x"] ?? 0);
                 $ty = (int)($data["target_y"] ?? 0);
+                $losses = (int)($data["losses"] ?? 0);
                 $kname = e($data["ruin_name"] ?? "Vergessenes Reich");
                 $atk_scouts = (int)($data["atk_scouts"] ?? 0);
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
@@ -1472,7 +1473,7 @@ class Messages
                     </div>";
                 }
 
-                $html .= BattleReportRenderer::render_own_scout_status($atk_scouts, 0);
+                $html .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
                 $html .= "</div></div>";
                 return $html;
 
@@ -2268,7 +2269,8 @@ class Messages
 
             if ($x >= 1 && $x <= MAX_X && $y >= 1 && $y <= MAX_Y) {
                 $display_text = $matches[2] . ':' . $matches[3];
-                return "<a href='map.php?startx=$x&starty=$y' data-on-click='mapJump' data-x='$x' data-y='$y' class='chat-coord-link'>$display_text</a>";
+                $url = "ajax/share_coords_preview.php?x=$x&y=$y";
+                return "<a href='map.php?startx=$x&starty=$y' data-on-click='openOverlay' data-url='$url' data-title='Koordinaten $display_text' class='chat-coord-link'>$display_text</a>";
             }
 
             return $matches[0];

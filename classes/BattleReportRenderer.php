@@ -58,6 +58,8 @@ class BattleReportRenderer
         bool         $is_scouting = false
     ): string
     {
+        $is_fictional = false;
+
         if (is_array($name_or_unit)) {
             $u = $name_or_unit;
             self::enrich_unit_data($u);
@@ -67,18 +69,22 @@ class BattleReportRenderer
             $losses = (int)($u["losses"] ?? 0);
             $icon_name = $u["icon"] ?? "icon_error";
             if (isset($u["is_scouting"])) $is_scouting = (bool)$u["is_scouting"];
+            if (!empty($u["is_fictional"])) $is_fictional = true;
         } else {
             $name = $name_or_unit;
         }
 
-        $survivors = max(0, $initial - $losses);
-        $loss_text = ($losses > 0) ? "<span class='loss-red'>(-" . fnum($losses) . ")</span>" : "";
-        $survivor_class = ($survivors > 0) ? "survivor-green" : "loss-red";
+        $survivors = $is_fictional ? $initial : max(0, $initial - $losses);
+
+        $loss_class = $is_fictional ? "loss-gray" : "loss-red";
+        $loss_text = ($losses > 0) ? "<span class='$loss_class'>(-" . fnum($losses) . ")</span>" : "";
+
+        $survivor_color = ($survivors > 0) ? "survivor-green" : "loss-red";
         $icon_path = "images/icons/" . ($icon_name ?: "icon_error") . ".png";
         $troop_count_text = "<small style='color: #ccc;'> von $initial</small>";
 
         if ($is_scouting) {
-            $survivor_class = "";
+            $survivor_color = "";
             $troop_count_text = "";
         }
 
@@ -87,7 +93,7 @@ class BattleReportRenderer
             <img src='$icon_path' style='vertical-align: middle;' alt=''>
             <div class='battle-unit-info'>
                 <span class='battle-unit-name'>$name</span>
-                <span class='battle-unit-count $survivor_class'>$survivors $troop_count_text $loss_text</span>
+                <span class='battle-unit-count'><span class='$survivor_color'>$survivors</span>$troop_count_text $loss_text</span>
             </div>
         </div>";
     }

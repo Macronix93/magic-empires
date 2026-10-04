@@ -108,8 +108,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         echo "<tr $row_style>
                 <td class='td-center'>" . $m_user->render_user() . "</td>
                 <td class='td-center'>
-                    <b>" . e($m["kingdomname"]) . "</b><br>
-                    <small>($c_link)</small>
+                    <b>" . e($m["kingdomname"]) . "</b> <small>($c_link)</small>
                 </td>
                 <td class='td-center'>$troop_badges</td>
                 <td class='td-center'>$action_cell</td>

@@ -457,7 +457,7 @@ if ($my_guild_id === -1) {
                     <tr>
                         <td>Beitritt:</td>
                         <td>
-                            <label style='display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 5px;'>
+                            <label style='display: flex; align-items: center; gap: 8px; margin-bottom: 5px;'>
                                 <input type='checkbox' name='g_invite_only' id='g_invite_only_create' value='1' data-on-change='toggleCreateInviteOnly' style='width: auto;' $checked_create>
                                 <span>Nur per Einladung</span>
                             </label>
@@ -504,16 +504,27 @@ if ($my_guild_id === -1) {
         );
     }
 
+    $research_badge_html = "";
+    if ($guild_logic->is_researching()) {
+        $research_badge_html = " <img src='images/icons/icon_time.png' class='ressource-icons' title='Forschung läuft' alt='Forschung läuft'>";
+    } else if ($guild_logic->get_active_project()) {
+        $research_badge_html = " <img src='images/icons/icon_hammer.png' class='ressource-icons' title='Projekt aktiv' alt='Projekt aktiv'>";
+    }
+
     $view .= "<div class='msg-back-button-container'>
                 <button class='btn-delete' data-on-click='confirmLeaveGuild' data-cooldown='$cooldown_time'>Gilde verlassen</button>
             </div>";
 
     $view .= "<div class='tab'>
-        <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>Chat <span class='msg-badge' id='badge-guild-tab' style='$unread_badge_style margin-left: 0;'>$unread_badge_text</span></div>
+        <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>
+            Chat <span class='msg-badge' id='badge-guild-tab' style='$unread_badge_style margin-left: 0;'>$unread_badge_text</span>
+        </div>
         <div class='tablinks " . ($active_tab == "general" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='general'>Allgemein</div>
         <div class='tablinks " . ($active_tab == "settings" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='settings'>Einstellungen</div>
         <div class='tablinks " . ($active_tab == "mines" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='mines'>Minen</div>
-        <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research'>Forschung</div>
+        <div class='tablinks " . ($active_tab == "research" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='research' style='display: flex; align-items: center; justify-content: center; gap: 6px;'>
+            <span>Forschung</span> $research_badge_html
+        </div> 
     </div>";
     $view .= "<div id='guild_tab_chat' class='js-guild-tab' style='display: " . ($active_tab == "chat" ? "block" : "none") . ";'>";
     $view .= "<div class='title-border' style='margin-top: 20px;'>Gilden-Chat</div>";
@@ -740,7 +751,7 @@ if ($my_guild_id === -1) {
                     <tr>
                         <td>Beitritts-Modus:</td>
                         <td>" . ($can_edit ? "
-                            <label style='display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 5px;'>
+                            <label style='display: flex; align-items: center; gap: 8px; margin-bottom: 5px;'>
                                 <input type='checkbox' name='g_invite_only' id='g_invite_only_settings' value='1' $checked_settings data-on-change='toggleSettingsInviteOnly' style='width: auto;'>
                                 <span>Nur per Einladung</span>
                             </label>

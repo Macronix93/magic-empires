@@ -28,9 +28,22 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     $last_id = (int)($_GET["last_id"] ?? 0);
+
+    if ($last_id <= 0) {
+        echo json_encode([
+            "html" => "",
+            "lastId" => 0,
+            "messagesToDelete" => [],
+            "reactionUpdates" => [],
+            "guildUnread" => new Messages($user)->get_unread_guild_count()
+        ]);
+        exit;
+    }
+
     $is_admin = $user->is_admin();
     $my_rank = $user->get_guild_rank_id();
     $is_privileged = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
+
     $html = "";
     $deleted_ids = [];
 

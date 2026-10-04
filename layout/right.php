@@ -133,7 +133,8 @@
                     $prod_class .= " error";
                 }
 
-                $prod_id = "boost_info_" . $type;
+                $side_prefix = $side_prefix ?? '';
+                $prod_id = $side_prefix . "boost_info_" . $type;
 
                 echo "<div class='split-content'>
                         <div>" . get_resource_icon($data["icon"]) . "

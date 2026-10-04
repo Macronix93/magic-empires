@@ -65,18 +65,18 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
             <label style="display: block; margin-bottom: 6px;"><b>Wo teilen?</b></label>
             <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; font-size: 14px;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <label style="display: flex; align-items: center; gap: 6px;">
                     <input type="radio" name="share_target" value="world" checked data-on-change="toggleShareTarget">
                     <span>Welt-Chat</span>
                 </label>
                 <?php if ($my_gid > 0): ?>
-                    <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <label style="display: flex; align-items: center; gap: 6px;">
                         <input type="radio" name="share_target" value="guild"
                                data-on-change="toggleShareTarget">
                         <span>Gilden-Chat</span>
                     </label>
                 <?php endif ?>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <label style="display: flex; align-items: center; gap: 6px;">
                     <input type="radio" name="share_target" value="private" data-on-change="toggleShareTarget">
                     <span>Privatnachricht</span>
                 </label>
@@ -91,7 +91,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                                                       placeholder="Name eingeben..."
                                                                       maxlength="24" style="flex: 1;">
                     <button type="button"
-                            data-on-click="openSecondaryOverlay"
+                            data-on-click="openOverlay"
                             data-url="userlist.php"
                             data-title="Spielerliste"
                             style="white-space: nowrap; padding: 5px 10px;">

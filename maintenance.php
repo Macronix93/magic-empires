@@ -14,6 +14,7 @@ $reason = !empty(MAINTENANCE_REASON) ? e(MAINTENANCE_REASON) : "Wartungsarbeiten
     <meta charset="UTF-8">
     <meta http-equiv="refresh" content="30">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
     <link href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>" rel="stylesheet">
     <title>Magic Empires - Wartungsarbeiten</title>
 </head>
