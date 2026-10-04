@@ -1,6 +1,7 @@
 <?php
 require_once("includes/core.php");
-check_user_login($user);
+
+$user->check_user_login();
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -27,7 +28,7 @@ if ($building_id !== null) {
     if ($row) {
         $building = new Kingdom()->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
         $current_level_value = $building ? $building->get_building_level() : 0;
-        $max_lvl_to_show = get_max_building_level($building_id);
+        $max_lvl_to_show = Building::get_max_building_level($building_id);
         $time_key = "timetobuild";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_TIME;
     }

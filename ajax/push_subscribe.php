@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $raw = file_get_contents("php://input");
 $data = json_decode($raw, true);

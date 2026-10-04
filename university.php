@@ -10,7 +10,7 @@ require_once("includes/core.php");
     "k_food" => $kingdom_food,
     "k_stone" => $kingdom_stone,
     "k_gold" => $kingdom_gold
-] = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_UNIVERSITY);
+] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_UNIVERSITY);
 
 $kingdom_is_researching = false;
 

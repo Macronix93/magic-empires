@@ -372,7 +372,7 @@ $count_online = $res_online->fetch_row()[0];
                         <b class="passed">Bereit für den Kampf?</b>
                         <div class="mobile-auth-trigger">
                             <button type="button" class="btn-mobile-auth js-open-auth" style="color: inherit;">
-                                <?= ($mode === "login") ? wrap_emojis("⚔️ Jetzt Einloggen") : wrap_emojis("📜 Jetzt Registrieren") ?>
+                                <?= ($mode === "login") ? Messages::wrap_emojis("⚔️ Jetzt Einloggen") : Messages::wrap_emojis("📜 Jetzt Registrieren") ?>
                             </button>
                         </div>
                     </div>

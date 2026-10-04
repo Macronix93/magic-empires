@@ -31,33 +31,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                 "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at", [$uid]
             )->fetch_all(MYSQLI_ASSOC);
 
-            $res_sidebar = $db_instance->execute_query("
-                SELECT 
-                    (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
-                    (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?))) AS market_count,
-                    (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
-                    (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
-                    (SELECT CASE 
-                        WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
-                        WHEN input_amount > 0 THEN 'running'
-                        ELSE ''
-                    END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
-            ", [$gid, $gid, $gid, $chosen])->fetch_assoc();
-
-            $sidebar_data = [
-                "has_world_event" => !empty($res_sidebar["has_event"]),
-                "market_offers" => (int)($res_sidebar["market_count"] ?? 0),
-                "guild_status" => '',
-                "alchemy_status" => $res_sidebar["alchemy_status"] ?? ''
-            ];
-
-            if ($gid > 0) {
-                if (!empty($res_sidebar["guild_research_active"])) {
-                    $sidebar_data["guild_status"] = '<img src="images/icons/icon_time.png" class="ressource-icons" title="Gildenforschung läuft..." alt="Forschung">';
-                } elseif (!empty($res_sidebar["guild_project_name"])) {
-                    $sidebar_data["guild_status"] = '<img src="images/icons/icon_hammer.png" class="ressource-icons" title="Projekt aktiv: ' . e($res_sidebar["guild_project_name"]) . '" alt="Projekt">';
-                }
-            }
+            $sidebar_data = $user->get_sidebar_data($chosen);
 
             ob_start();
 

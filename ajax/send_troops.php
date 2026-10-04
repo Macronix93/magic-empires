@@ -4,7 +4,7 @@ use JetBrains\PhpStorm\NoReturn;
 
 require_once("../includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
     $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;

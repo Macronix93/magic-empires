@@ -10,6 +10,21 @@ registerAction("confirmCloseTicket", (el) => {
             window.location.href = "support.php?close=" + el.dataset.id;
         });
 });
+registerAction("switchSupportTab", (el) => {
+    const tabName = el.dataset.tab;
+    document.querySelectorAll('#support-tabs .tablinks').forEach(tab => tab.classList.remove("active"));
+    document.querySelectorAll('.js-support-tab').forEach(content => content.style.display = "none");
+
+    el.classList.add("active");
+    const target = document.getElementById("support_tab_" + tabName);
+    if (target) {
+        target.style.display = "block";
+    }
+
+    const url = new URL(window.location);
+    url.searchParams.set("tab", tabName);
+    window.history.replaceState({}, '', url);
+});
 
 function scrollSupportToBottom() {
     const messageSection = document.getElementById("messages-section");

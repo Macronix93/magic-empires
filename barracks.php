@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_BARRACKS);
+$result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_BARRACKS);
 
 $current_kingdom = $result["current_kingdom"];
 $building = $result["building"];
@@ -224,7 +224,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["return_support_stack"
             "units" => $units_data
         ];
 
-        send_server_message($recipient_id, $recipient_name, MessageCategories::CATEGORY_WAR, $support_json);
+        Messages::send_server_message($recipient_id, $recipient_name, MessageCategories::CATEGORY_WAR, $support_json);
 
         $db_instance->execute_query("DELETE FROM stationed_troops WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?", [$owner_id, $source_id, $target_id]);
         $db_instance->commit();

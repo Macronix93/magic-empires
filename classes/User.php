@@ -539,4 +539,229 @@ class User
         $cookie_value = $this->user_id . ':' . $random_token;
         setcookie("me_remember", $cookie_value, $expires, '/', '', true, true);
     }
+
+    public function check_user_login(): void
+    {
+        if (!($this->is_logged_in())) {
+            change_location("index.php");
+            exit;
+        }
+    }
+
+    public function check_user_login_and_kingdom($building_type): array
+    {
+        // Check if user is logged in
+        $this->check_user_login();
+
+        // Get the current kingdom
+        $current_kingdom = $this->get_current_kingdom();
+
+        // Get kingdom info
+        $kingdom = new Kingdom($current_kingdom);
+
+        // Get building info
+        $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
+
+        // Check if building is built
+        if ($building == null) {
+            change_location("towncenter.php");
+            exit;
+        }
+
+        return [
+            "current_kingdom" => $current_kingdom,
+            "building" => $building,
+            "building_name" => $building->get_building_name(),
+            "kingdom" => $kingdom,
+            "k_wood" => $kingdom->get_kingdom_wood(),
+            "k_food" => $kingdom->get_kingdom_food(),
+            "k_stone" => $kingdom->get_kingdom_stone(),
+            "k_gold" => $kingdom->get_kingdom_gold(),
+            "k_villager" => $kingdom->get_kingdom_villager()
+        ];
+    }
+
+    public static function delete_user_avatar_files(int $user_id): void
+    {
+        $hashed_name = substr(hash("sha256", $user_id . AVATAR_SALT), 0, 12);
+        $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
+        $files = glob($directory . $hashed_name . ".*");
+
+        if (!empty($files)) {
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+        }
+    }
+
+    public function check_vacation_eligibility(): array
+    {
+        $errors = [];
+        $uid = $this->user_id;
+
+        // Troops on the way?
+        $res_events = $this->mysqli->execute_query(
+            "SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
+            [$uid, ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS, ActionTypes::ACTION_STATION_TROOPS, ActionTypes::ACTION_SUPPORT_RETURN]
+        );
+        if ((int)$res_events->fetch_column() > 0) {
+            $errors[] = "Es befinden sich noch eigene Truppen auf dem Marsch.";
+        }
+
+        // Troops in mines?
+        $res_mines = $this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE user_id = ?", [$uid]);
+        if ((int)$res_mines->fetch_column() > 0) {
+            $errors[] = "Du hast noch Schürftruppen in Minen stationiert.";
+        }
+
+        // Supporting troops at allied kingdoms?
+        $res_support = $this->mysqli->execute_query("SELECT COUNT(*) FROM stationed_troops WHERE owner_id = ?", [$uid]);
+        if ((int)$res_support->fetch_column() > 0) {
+            $errors[] = "Du hast noch Unterstützungstruppen bei Gildenmitgliedern stehen.";
+        }
+
+        // Incoming attacks on kingdoms?
+        $res_attacks = $this->mysqli->execute_query("
+            SELECT COUNT(*) FROM events e
+            JOIN kingdoms k ON e.targetid = k.id
+            WHERE k.userid = ? AND e.userid != ? AND e.actionid = ? AND e.arrivaltime > UNIX_TIMESTAMP()
+        ", [$uid, $uid, ActionTypes::ACTION_SEND_TROOPS]);
+        if ((int)$res_attacks->fetch_column() > 0) {
+            $errors[] = "Deine Dörfer werden aktuell angegriffen!";
+        }
+
+        return $errors;
+    }
+
+    public function check_for_incoming_attacks(): array
+    {
+        $now = time();
+        $uid = $this->user_id;
+
+        // Attack on kingdoms and mines
+        $query = "
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id
+        FROM events e
+        JOIN kingdoms k ON e.targetid = k.id
+        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
+        WHERE k.userid = ? 
+          AND e.userid != k.userid
+          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+          AND e.is_processing = 0
+          AND e.arrivaltime > ?
+          AND (e.arrivaltime - ?) <= (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ")
+          AND EXISTS (
+              SELECT 1 FROM sent_troops st 
+              WHERE st.eventid = e.eventid 
+              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+          )
+
+        UNION ALL
+
+        SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id
+        FROM events e
+        JOIN mines mn ON e.targetx = mn.mapx AND e.targety = mn.mapy
+        JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
+        JOIN users u_sender ON e.userid = u_sender.id
+        JOIN users u_target ON mst.user_id = u_target.id
+        WHERE mst.user_id = ?
+          AND mst.soldiercount > 0
+          AND e.userid != ?
+          AND (u_sender.guildid <= 0 OR u_sender.guildid != u_target.guildid)
+          AND e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
+          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+          AND e.is_processing = 0
+          AND e.arrivaltime > ?
+          AND EXISTS (
+              SELECT 1 FROM sent_troops st 
+              WHERE st.eventid = e.eventid 
+              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+          )
+        GROUP BY e.eventid, e.arrivaltime, mn.level, e.targetx, e.targety
+        ORDER BY arrivaltime
+    ";
+
+        $result = $this->mysqli->execute_query($query, [$uid, $now, $now, $uid, $uid, $now]);
+        $all_attacks = $result->fetch_all(MYSQLI_ASSOC);
+
+        $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
+        foreach ($all_attacks as &$attack) {
+            if ((int)$attack["kingdom_id"] > 0) {
+                $target_k = new Kingdom((int)$attack["kingdom_id"]);
+                $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
+
+                if ($intel_level < 1) {
+                    $attack["arrivaltime"] = 0;
+                }
+            }
+            $attack["is_new"] = !in_array($attack["eventid"], $ack_ids);
+        }
+
+        return $all_attacks;
+    }
+
+    public function check_for_incoming_support(): array
+    {
+        $now = time();
+
+        $query = "
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, u.username AS sender_name
+        FROM events e
+        JOIN kingdoms k ON e.targetid = k.id
+        JOIN users u ON e.userid = u.id
+        WHERE k.userid = ? 
+          AND e.actionid = ? 
+          AND e.arrivaltime > ?
+        ORDER BY e.arrivaltime
+    ";
+        $result = $this->mysqli->execute_query($query, [$this->user_id, ActionTypes::ACTION_STATION_TROOPS, $now]);
+        $supports = $result->fetch_all(MYSQLI_ASSOC);
+
+        $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
+        foreach ($supports as &$sup) {
+            $sup["is_new"] = !in_array($sup["eventid"], $ack_ids);
+        }
+
+        return $supports;
+    }
+
+    public function get_sidebar_data(?int $specific_kid = null): array
+    {
+        $kid = $specific_kid ?? $this->current_kingdom;
+        $gid = $this->get_user_guild_id();
+        $uid = $this->user_id;
+
+        $query = "
+            SELECT 
+            (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
+            (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?)) AND userid != ?) AS market_count,
+            (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
+            (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
+            (SELECT CASE 
+                WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
+                WHEN input_amount > 0 THEN 'running'
+                ELSE ''
+             END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
+        ";
+
+        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid])->fetch_assoc();
+
+        $guild_status = '';
+        if ($gid > 0) {
+            if (!empty($res["guild_research_active"])) {
+                $guild_status = '<img src="images/icons/icon_time.png" class="ressource-icons" title="Gildenforschung läuft..." alt="Forschung">';
+            } elseif (!empty($res["guild_project_name"])) {
+                $guild_status = '<img src="images/icons/icon_hammer.png" class="ressource-icons" title="Projekt aktiv: ' . e($res["guild_project_name"]) . '" alt="Projekt">';
+            }
+        }
+
+        return [
+            "has_world_event" => !empty($res["has_event"]),
+            "market_offers" => (int)($res["market_count"] ?? 0),
+            "guild_status" => $guild_status,
+            "alchemy_status" => $res["alchemy_status"] ?? ''
+        ];
+    }
 }

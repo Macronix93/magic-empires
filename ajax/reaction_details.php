@@ -31,7 +31,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $first = false;
 
             echo "<div class='reaction-group' style='display: flex; align-items: flex-start; gap: 20px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 5px;'>";
-            echo "<div class='emoji-side' style='font-size: 26px; min-width: 40px; text-align: center; line-height: 1;'>" . wrap_emojis($current_emoji) . "</div>";
+            echo "<div class='emoji-side' style='font-size: 26px; min-width: 40px; text-align: center; line-height: 1;'>" . Messages::wrap_emojis($current_emoji) . "</div>";
             echo "<div class='user-list' style='flex: 1; display: flex; flex-direction: column; gap: 8px;'>";
         }
 

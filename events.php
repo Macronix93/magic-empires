@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $world_event_manager = new WorldEvent();
 $active_event = $world_event_manager->get_active_event();
@@ -288,7 +288,7 @@ if (!$active_event) {
                     <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
                     <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
                         <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
-                            " . wrap_emojis("⚔️ Massenmobilisierung") . "
+                            " . Messages::wrap_emojis("⚔️ Massenmobilisierung") . "
                         </button>
                         <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none;'>
                             <input type='checkbox' name='exclude_specials' value='1' data-on-change='toggleMassExcludeSpecials' $checkbox_checked style='margin: 0; width: auto;'>

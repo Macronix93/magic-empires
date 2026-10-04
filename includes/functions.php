@@ -5,39 +5,6 @@ use JetBrains\PhpStorm\NoReturn;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-function get_building_file(int $building_id): string
-{
-    return match ($building_id) {
-        BuildingTypes::BUILDING_TOWNCENTER => "towncenter",
-        BuildingTypes::BUILDING_UNIVERSITY => "university",
-        BuildingTypes::BUILDING_BARRACKS => "barracks",
-        BuildingTypes::BUILDING_WALL => "wall",
-        BuildingTypes::BUILDING_SMITHY => "blacksmith",
-        BuildingTypes::BUILDING_MILL => "mill",
-        BuildingTypes::BUILDING_SAWMILL => "sawmill",
-        BuildingTypes::BUILDING_STONEMINE => "stonemine",
-        BuildingTypes::BUILDING_GOLDMINE => "goldmine",
-        BuildingTypes::BUILDING_STORAGE => "storage",
-        BuildingTypes::BUILDING_MARKETPLACE => "marketplace",
-        BuildingTypes::BUILDING_ESTATE => "manor",
-        BuildingTypes::BUILDING_WATCHTOWER => "watchtower",
-        BuildingTypes::BUILDING_SHRINE => "shrine",
-        BuildingTypes::BUILDING_EMBASSY => "embassy",
-        BuildingTypes::BUILDING_ALCHEMY_LAB => "alchemylab",
-        default => "index",
-    };
-}
-
-function get_max_building_level(int $building_id): int
-{
-    return match ($building_id) {
-        BuildingTypes::BUILDING_EMBASSY => EMBASSY_MAX_LEVEL,
-        BuildingTypes::BUILDING_SHRINE => SHRINE_MAX_LEVEL,
-        BuildingTypes::BUILDING_ALCHEMY_LAB => ALCHEMY_MAX_LEVEL,
-        default => MAX_BUILDING_LEVEL,
-    };
-}
-
 /*
     Useful functions
 */
@@ -335,31 +302,6 @@ function send_mail(string $to, string $subject, string $body): bool
     }
 }
 
-function calculate_market_fee($supply_type, $supply_value, $demand_type, $demand_value): int
-{
-    $multipliers = [
-            ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
-            ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,
-            ResourceTypes::RESOURCE_TYPE_STONE => MARKET_FEE_MULTIPLIER_STONE,
-            ResourceTypes::RESOURCE_TYPE_GOLD => MARKET_FEE_MULTIPLIER_GOLD
-    ];
-
-    $factor_s = $multipliers[$supply_type] ?? 0.001;
-    $variable_fee_s = floor($supply_value * $factor_s);
-
-    $factor_d = $multipliers[$demand_type] ?? 0.001;
-    $variable_fee_d = floor($demand_value * $factor_d);
-
-    $max_variable = max($variable_fee_s, $variable_fee_d);
-
-    return (int)(MARKET_BASE_FEE + $max_variable);
-}
-
-function calculate_listing_fee(int $supply_value): int
-{
-    return (int)max(1, ceil($supply_value / 20000));
-}
-
 function check_image_content($temp_file_path): string
 {
     $api_user = getenv("SIGHTENGINE_API_USER");
@@ -417,27 +359,6 @@ function check_image_content($temp_file_path): string
     return "ok";
 }
 
-function wrap_emojis($text): array|string|null
-{
-    $emoji_pattern = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
-
-    return preg_replace($emoji_pattern, '<span class="emoji-fix">$0</span>', $text);
-}
-
-function get_chat_emojis(): array
-{
-    return [
-            '😀', '😃', '😄', '😁', '😅', '😂', '🥲', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
-            '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
-            '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
-            '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
-            '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
-            '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
-            '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
-            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
-    ];
-}
-
 function get_include_contents($filename, $variables = []): false|string
 {
     if (is_file($filename)) {
@@ -455,32 +376,6 @@ function generate_safe_password($length = 12): string
     return substr(str_shuffle(str_repeat($chars, 5)), 0, $length);
 }
 
-// Apply villager cap
-function apply_villager_cap(int $kingdom_id): void
-{
-    if ($kingdom_id <= 0) {
-        return;
-    }
-
-    $db = Database::get_instance();
-    $db_instance = $db->get_connection();
-    $result = $db_instance->execute_query("SELECT villager, maxvillager FROM kingdoms WHERE id = ?", [$kingdom_id]);
-
-    // Fetch the villager count from the result and apply the cap if needed
-    $row = $result->fetch_assoc();
-    if (!$row) {
-        return;
-    }
-
-    $villager_count = $row["villager"];
-    $max_villager = $row["maxvillager"];
-
-    if ($villager_count > $max_villager) {
-        $villager_difference = $villager_count - $max_villager;
-        $db_instance->execute_query("UPDATE kingdoms SET villager = villager - $villager_difference WHERE id = ?",
-                [$kingdom_id]);
-    }
-}
 
 /*
  * Global exception handlers
@@ -614,15 +509,6 @@ function fatal_error_shutdown_handler(): void
     }
 }
 
-// Login Check
-function check_user_login($user): void
-{
-    if (!($user->is_logged_in())) {
-        change_location("index.php");
-        exit;
-    }
-}
-
 // Bad words checker
 function get_bad_word_pattern(string $bad_word, bool $bound_left = true, bool $bound_right = true): string
 {
@@ -717,141 +603,6 @@ function contains_bad_words($name, ?array $list = null): bool
     }
 
     return false;
-}
-
-function filter_chat_message($text): string
-{
-    if (empty($text)) return '';
-
-    $filtered_text = (string)$text;
-
-    $censor_fn = function ($matches) {
-        return str_repeat('*', mb_strlen($matches[0], 'UTF-8'));
-    };
-
-    $filtered_text = preg_replace_callback('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $censor_fn, $filtered_text);
-    $filtered_text = preg_replace_callback('/(?<!k)anal/iu', $censor_fn, $filtered_text);
-
-    $patterns = get_prepared_chat_patterns();
-
-    foreach ($patterns as $pattern) {
-        $res = preg_replace_callback($pattern, $censor_fn, $filtered_text);
-        if ($res !== null) {
-            $filtered_text = $res;
-        }
-    }
-
-    return $filtered_text;
-}
-
-function is_message_blocked($text): bool
-{
-    $bad_words = get_bad_names();
-
-    foreach ($bad_words as $bad) {
-        $bad = trim($bad);
-        if (empty($bad) || mb_strlen($bad) < 3) continue;
-
-        $pattern = get_bad_word_pattern($bad);
-
-        if (preg_match($pattern, $text)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*
- * Check if user is logged in and get kingdom and building relevant infos
- */
-function check_user_login_and_kingdom($user, $building_type): array
-{
-    // Check if user is logged in
-    if (!($user->is_logged_in())) {
-        change_location("index.php");
-        exit;
-    }
-
-    // Get the current kingdom
-    $current_kingdom = $user->get_current_kingdom();
-
-    // Get kingdom info
-    $kingdom = new Kingdom($current_kingdom);
-
-    // Get building info
-    $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
-
-    // Check if building is built
-    if ($building == null) {
-        change_location("towncenter.php");
-        exit;
-    }
-
-    return [
-            "current_kingdom" => $current_kingdom,
-            "building" => $building,
-            "building_name" => $building->get_building_name(),
-            "kingdom" => $kingdom,
-            "k_wood" => $kingdom->get_kingdom_wood(),
-            "k_food" => $kingdom->get_kingdom_food(),
-            "k_stone" => $kingdom->get_kingdom_stone(),
-            "k_gold" => $kingdom->get_kingdom_gold(),
-            "k_villager" => $kingdom->get_kingdom_villager()
-    ];
-}
-
-function broadcast_server_message(string $message, int $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
-{
-    $db = Database::get_instance()->get_connection();
-    $now = time();
-    $json = is_array($data) ? json_encode($data) : null;
-
-    $res = $db->query("SELECT id, username FROM users WHERE status = 1");
-    if ($res->num_rows === 0) return [];
-
-    $rows = [];
-    $types = "";
-    $params = [];
-    $users = [];
-
-    while ($u = $res->fetch_assoc()) {
-        $users[] = $u;
-        $rows[] = "(?, ?, ?, ?, ?, ?)";
-        $types .= "isiiss";
-        $params[] = (int)$u["id"];
-        $params[] = $u["username"];
-        $params[] = $now;
-        $params[] = $message;
-        $params[] = $category;
-        $params[] = $json;
-    }
-
-    $sql = "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES " . implode(", ", $rows);
-
-    $stmt = $db->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-
-    return $users;
-}
-
-function send_server_message(int               $user_id, string $user_name, int $category = MessageCategories::CATEGORY_DEFAULT,
-                             array|string|null $data = null): void
-{
-    $db = Database::get_instance()->get_connection();
-    $message = "";
-    $json = null;
-
-    if (is_array($data)) {
-        $json = json_encode($data, JSON_UNESCAPED_UNICODE);
-    } else if (is_string($data)) {
-        $message = $data;
-    }
-
-    $db->execute_query(
-            "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
-            [$user_id, $user_name, time(), $message, $category, $json]
-    );
 }
 
 function send_user_push(int $user_id, string $title, string $message, string $category = "combat", string $target_url = "/overview.php"): bool
@@ -949,21 +700,6 @@ function get_resource_text(int $cost, int $current_val): string
     return ($cost > $current_val ? "<b class='error'>" . fnum($cost) . "</b>" : fnum($cost));
 }
 
-function delete_user_avatar_files(int $user_id): void
-{
-    $hashedName = substr(hash("sha256", $user_id . AVATAR_SALT), 0, 12);
-    $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
-    $files = glob($directory . $hashedName . ".*");
-
-    if (!empty($files)) {
-        foreach ($files as $file) {
-            if (is_file($file)) {
-                unlink($file);
-            }
-        }
-    }
-}
-
 function is_name_monotonous($name): bool
 {
     $name = mb_strtolower($name, "UTF-8");
@@ -982,24 +718,6 @@ function is_name_monotonous($name): bool
     }
 
     return false;
-}
-
-function update_global_stat(string $name, int $increment = 1): void
-{
-    $db_instance = Database::get_instance()->get_connection();
-
-    $query = "UPDATE system_settings SET value = value + ? WHERE name = ?";
-    $db_instance->execute_query($query, [$increment, $name]);
-}
-
-function update_player_stat(int $user_id, string $column, $increment = 1): void
-{
-    $db_instance = Database::get_instance()->get_connection();
-
-    $query = "INSERT INTO player_stats (userid, `$column`) VALUES (?, ?) 
-              ON DUPLICATE KEY UPDATE `$column` = `$column` + VALUES(`$column`)";
-
-    $db_instance->execute_query($query, [$user_id, $increment]);
 }
 
 function check_ip_proxy($ip): array|null
@@ -1026,97 +744,6 @@ function check_ip_proxy($ip): array|null
     return null;
 }
 
-function check_for_incoming_attacks(int $uid, mysqli $db): array
-{
-    $now = time();
-
-    // Attack on kingdoms and mines
-    $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id
-        FROM events e
-        JOIN kingdoms k ON e.targetid = k.id
-        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
-        WHERE k.userid = ? 
-          AND e.userid != k.userid
-          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
-          AND e.is_processing = 0
-          AND e.arrivaltime > ?
-          AND (e.arrivaltime - ?) <= (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ")
-          AND EXISTS (
-              SELECT 1 FROM sent_troops st 
-              WHERE st.eventid = e.eventid 
-              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
-          )
-
-        UNION ALL
-
-        SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id
-        FROM events e
-        JOIN mines mn ON e.targetx = mn.mapx AND e.targety = mn.mapy
-        JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
-        JOIN users u_sender ON e.userid = u_sender.id
-        JOIN users u_target ON mst.user_id = u_target.id
-        WHERE mst.user_id = ?
-          AND mst.soldiercount > 0
-          AND e.userid != ?
-          AND (u_sender.guildid <= 0 OR u_sender.guildid != u_target.guildid)
-          AND e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
-          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
-          AND e.is_processing = 0
-          AND e.arrivaltime > ?
-          AND EXISTS (
-              SELECT 1 FROM sent_troops st 
-              WHERE st.eventid = e.eventid 
-              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
-          )
-        GROUP BY e.eventid, e.arrivaltime, mn.level, e.targetx, e.targety
-        ORDER BY arrivaltime
-    ";
-
-    $result = $db->execute_query($query, [$uid, $now, $now, $uid, $uid, $now]);
-    $all_attacks = $result->fetch_all(MYSQLI_ASSOC);
-
-    $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
-    foreach ($all_attacks as &$attack) {
-        if ((int)$attack["kingdom_id"] > 0) {
-            $target_k = new Kingdom((int)$attack["kingdom_id"]);
-            $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
-
-            if ($intel_level < 1) {
-                $attack["arrivaltime"] = 0;
-            }
-        }
-        $attack["is_new"] = !in_array($attack["eventid"], $ack_ids);
-    }
-
-    return $all_attacks;
-}
-
-function check_for_incoming_support(int $uid, mysqli $db): array
-{
-    $now = time();
-
-    $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, u.username AS sender_name
-        FROM events e
-        JOIN kingdoms k ON e.targetid = k.id
-        JOIN users u ON e.userid = u.id
-        WHERE k.userid = ? 
-          AND e.actionid = ? 
-          AND e.arrivaltime > ?
-        ORDER BY e.arrivaltime
-    ";
-    $result = $db->execute_query($query, [$uid, ActionTypes::ACTION_STATION_TROOPS, $now]);
-    $supports = $result->fetch_all(MYSQLI_ASSOC);
-
-    $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
-    foreach ($supports as &$sup) {
-        $sup["is_new"] = !in_array($sup["eventid"], $ack_ids);
-    }
-
-    return $supports;
-}
-
 function format_time_for_js(int $totalSeconds): string
 {
     if ($totalSeconds <= 0) return "00:00";
@@ -1139,296 +766,41 @@ function format_time_for_js(int $totalSeconds): string
     }
 }
 
-function parse_chat_quotes(string $text): string
-{
-    $max_depth = 5;
-    $depth = 0;
-    $open_divs = 0;
-    $output = '';
-
-    $pattern = '#(\[quote=[^\[\]]+]|\[/quote])#iu';
-    $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-
-    foreach ($parts as $part) {
-        if ($part === '' || $part === null) continue;
-
-        if (preg_match('#^\[quote=([^]]+)]$#i', $part, $m)) {
-            $depth++;
-
-            if ($depth <= $max_depth) {
-                $name = trim(strip_tags(preg_replace('/\p{C}/u', '', $m[1])));
-
-                if (preg_match('/^[a-zA-Z0-9äöüÄÖÜß \-_]{1,24}$/u', $name)) {
-                    $output .= '<div class="chat-quote"><span class="chat-quote-author">' . e($name) . ' schrieb:</span>';
-                    $open_divs++;
-                } else {
-                    $output .= e($part);
-                    $depth--;
-                }
-            }
-        } else if ($part === '[/quote]') {
-            if ($depth > 0) {
-                if ($depth <= $max_depth && $open_divs > 0) {
-                    $output .= '</div>';
-                    $open_divs--;
-                }
-                $depth--;
-            }
-        } else {
-            $output .= $part;
-        }
-    }
-
-    while ($open_divs > 0) {
-        $output .= '</div>';
-        $open_divs--;
-    }
-
-    return $output;
-}
-
-function render_reactions_bar(string $type, int $id, User $user, string $mode = 'full'): string
-{
-    $my_id = $user->get_user_id();
-    $db = Database::get_instance()->get_connection();
-
-    $badges_html = '';
-    if ($mode !== "btn_only") {
-        $query = "SELECT r.emoji, COUNT(*) as total, 
-                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted,
-                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names
-                  FROM reactions r
-                  JOIN users u ON r.user_id = u.id
-                  WHERE r.entity_type = ? AND r.entity_id = ? 
-                  GROUP BY r.emoji";
-        $res = $db->execute_query($query, [$my_id, $type, $id]);
-
-        while ($row = $res->fetch_assoc()) {
-            $active_class = ($row["self_reacted"] == 1) ? " active" : '';
-
-            $user_list = e($row["names"]);
-            $popup_id = "reac_" . $type . "_" . $id . "_" . md5($row["emoji"]);
-
-            $badges_html .= '
-                <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '"
-                      data-on-click="toggleReaction" 
-                      data-type="' . $type . '" 
-                      data-id="' . $id . '" 
-                      data-emoji="' . e($row["emoji"]) . '">
-                    ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
-                    <div id="' . $popup_id . '_box" class="popupbox">
-                        <b>Reaktionen:</b><br>' . $user_list . '
-                    </div>
-                </span>';
-        }
-    }
-
-    $picker_html = '';
-    if ($mode === "full" || $mode === "btn_only") {
-        $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
-                            <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
-                            <div class="reaction-picker" style="display:none;">';
-        foreach (get_chat_emojis() as $emoji) {
-            $picker_html .= '<span class="picker-emoji" data-on-click="toggleReaction" 
-                            data-type="' . $type . '" data-id="' . $id . '" 
-                            data-emoji="' . e($emoji) . '">' . e($emoji) . '</span>';
-        }
-        $picker_html .= '</div></div>';
-    }
-
-    $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
-
-    $res_count = $db->execute_query("SELECT COUNT(*) FROM reactions WHERE entity_type = ? AND entity_id = ?", [$type, $id]);
-    $has_reactions = ($res_count->fetch_row()[0] > 0);
-
-    $info_btn = "";
-    if ($has_reactions) {
-        $info_btn = "<img src='images/icons/icon_feedback.png' 
-                      class='ressource-icons' 
-                      style='cursor: pointer; opacity: 0.7;' 
-                      data-on-click='openReactorList' 
-                      data-type='$type' 
-                      data-id='$id' 
-                      title='Wer hat reagiert?' alt=''>";
-    }
-
-    if ($mode === "full") {
-        $html .= '<div class="reaction-bar-btn-row">' . $picker_html . '</div>';
-        $html .= '<div class="reaction-bar-badges-row">' . $badges_html . '</div>';
-    } else if ($mode === "btn_only") {
-        $html .= $picker_html . $info_btn;
-    } else if ($mode === "badges_only") {
-        $html .= $badges_html;
-    }
-
-    $html .= '</div>';
-    return $html;
-}
-
-function convert_user_kingdoms_to_ruins(mysqli $db, int $user_id): void
-{
-    $now = time();
-
-    $res_k = $db->execute_query(
-            "SELECT id, kingdomname, mapx, mapy, food, wood, stone, gold, 
-                foodperhour, woodperhour, stoneperhour, goldperhour 
-         FROM kingdoms WHERE userid = ?",
-            [$user_id]
-    );
-
-    $monster_pool = [];
-    $res_m = $db->query("SELECT id, level FROM monster_list");
-    while ($m = $res_m->fetch_assoc()) {
-        $monster_pool[(int)$m["level"]][] = (int)$m["id"];
-    }
-
-    while ($k = $res_k->fetch_assoc()) {
-        $kid = (int)$k["id"];
-        $x = (int)$k["mapx"];
-        $y = (int)$k["mapy"];
-
-        $res_b = $db->execute_query(
-                "SELECT buildingid, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid IN (?, ?)",
-                [$kid, BuildingTypes::BUILDING_TOWNCENTER, BuildingTypes::BUILDING_STORAGE]
-        );
-
-        $tc_lvl = 0;
-        $storage_lvl = 0;
-        while ($b = $res_b->fetch_assoc()) {
-            if ((int)$b["buildingid"] === BuildingTypes::BUILDING_TOWNCENTER) $tc_lvl = (int)$b["buildinglevel"];
-            if ((int)$b["buildingid"] === BuildingTypes::BUILDING_STORAGE) $storage_lvl = (int)$b["buildinglevel"];
-        }
-
-        if ($tc_lvl >= ABANDONED_MIN_TC_LEVEL && $storage_lvl >= ABANDONED_MIN_STORAGE_LEVEL) {
-            $food = (int)round(($k["food"] * ABANDONED_RESOURCE_SHARE) + ($k["foodperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
-            $wood = (int)round(($k["wood"] * ABANDONED_RESOURCE_SHARE) + ($k["woodperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
-            $stone = (int)round(($k["stone"] * ABANDONED_RESOURCE_SHARE) + ($k["stoneperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
-            $gold = (int)round(($k["gold"] * ABANDONED_RESOURCE_SHARE) + ($k["goldperhour"] * ABANDONED_HOURLY_PRODUCTION_BONUS));
-
-            $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
-
-            $db->execute_query(
-                    "INSERT INTO abandoned_kingdoms (mapx, mapy, kingdom_name, tc_level, food, wood, stone, gold, expires_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE food = VALUES(food), wood = VALUES(wood), stone = VALUES(stone), gold = VALUES(gold), expires_at = VALUES(expires_at)",
-                    [$x, $y, $k["kingdomname"], $tc_lvl, $food, $wood, $stone, $gold, $expires]
-            );
-
-            $res_sol = $db->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?", [$kid]);
-            $total_soldiers = (int)$res_sol->fetch_column();
-
-            $monster_count = max(ABANDONED_MIN_MONSTER_BASE, (int)round($total_soldiers / ABANDONED_SOLDIER_TO_MONSTER_RATIO));
-
-            $min_lvl = max(1, $tc_lvl - 1);
-            $max_lvl = min(10, $tc_lvl + 1);
-
-            $available_monster_ids = [];
-            for ($lvl = $min_lvl; $lvl <= $max_lvl; $lvl++) {
-                if (!empty($monster_pool[$lvl])) {
-                    $available_monster_ids = array_merge($available_monster_ids, $monster_pool[$lvl]);
-                }
-            }
-
-            if (!empty($available_monster_ids)) {
-                $num_types = min(count($available_monster_ids), mt_rand(1, 3));
-                shuffle($available_monster_ids);
-                $chosen_types = array_slice($available_monster_ids, 0, $num_types);
-
-                $remaining = $monster_count;
-                foreach ($chosen_types as $idx => $m_id) {
-                    $count_share = ($idx === count($chosen_types) - 1) ? $remaining : (int)round($monster_count / $num_types);
-                    $remaining -= $count_share;
-
-                    if ($count_share > 0) {
-                        $db->execute_query(
-                                "INSERT INTO abandoned_kingdom_units (mapx, mapy, monster_id, count, initial_count) VALUES (?, ?, ?, ?, ?)
-                             ON DUPLICATE KEY UPDATE count = count + VALUES(count), initial_count = initial_count + VALUES(initial_count)",
-                                [$x, $y, $m_id, $count_share, $count_share]
-                        );
-                    }
-                }
-            }
-
-            $db->execute_query("UPDATE map SET kingdomid = -4 WHERE mapx = ? AND mapy = ?", [$x, $y]);
-        } else {
-            $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$x, $y]);
-        }
-    }
-}
-
-function check_vacation_eligibility(int $uid, mysqli $db): array
-{
-    $errors = [];
-
-    // Troops on the way?
-    $res_events = $db->execute_query(
-            "SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
-            [$uid, ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS, ActionTypes::ACTION_STATION_TROOPS, ActionTypes::ACTION_SUPPORT_RETURN]
-    );
-    if ((int)$res_events->fetch_column() > 0) {
-        $errors[] = "Es befinden sich noch eigene Truppen auf dem Marsch.";
-    }
-
-    // Troops in mines?
-    $res_mines = $db->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE user_id = ?", [$uid]);
-    if ((int)$res_mines->fetch_column() > 0) {
-        $errors[] = "Du hast noch Schürftruppen in Minen stationiert.";
-    }
-
-    // Supporting troops at allied kingdoms?
-    $res_support = $db->execute_query("SELECT COUNT(*) FROM stationed_troops WHERE owner_id = ?", [$uid]);
-    if ((int)$res_support->fetch_column() > 0) {
-        $errors[] = "Du hast noch Unterstützungstruppen bei Gildenmitgliedern stehen.";
-    }
-
-    // Incoming attacks on kingdoms?
-    $res_attacks = $db->execute_query("
-        SELECT COUNT(*) FROM events e
-        JOIN kingdoms k ON e.targetid = k.id
-        WHERE k.userid = ? AND e.userid != ? AND e.actionid = ? AND e.arrivaltime > UNIX_TIMESTAMP()
-    ", [$uid, $uid, ActionTypes::ACTION_SEND_TROOPS]);
-    if ((int)$res_attacks->fetch_column() > 0) {
-        $errors[] = "Deine Dörfer werden aktuell angegriffen!";
-    }
-
-    return $errors;
-}
-
 function format_relative_activity(int $timestamp, int $current_time): string
 {
     if ($timestamp <= 0) {
-        return 'Nicht verfügbar';
+        return "Nicht verfügbar";
     }
 
     $diff = max(0, $current_time - $timestamp);
 
     if ($diff < 3600) {
-        return 'in der letzten Stunde';
+        return "in der letzten Stunde";
     }
 
     if ($diff < 86400) {
         $hours = intdiv($diff, 3600);
-        return "vor $hours " . ($hours === 1 ? 'Stunde' : 'Stunden');
+        return "vor $hours " . ($hours === 1 ? "Stunde" : "Stunden");
     }
 
     $days = intdiv($diff, 86400);
 
     if ($days < 7) {
-        return "vor $days " . ($days === 1 ? 'Tag' : 'Tagen');
+        return "vor $days " . ($days === 1 ? "Tag" : "Tagen");
     }
 
     if ($days < 28) {
         $weeks = intdiv($days, 7);
-        return "vor $weeks " . ($weeks === 1 ? 'Woche' : 'Wochen');
+        return "vor $weeks " . ($weeks === 1 ? "Woche" : "Wochen");
     }
 
     if ($days < 365) {
         $months = max(1, intdiv($days, 30));
-        return "vor $months " . ($months === 1 ? 'Monat' : 'Monaten');
+        return "vor $months " . ($months === 1 ? "Monat" : "Monaten");
     }
 
     $years = intdiv($days, 365);
-    return "vor $years " . ($years === 1 ? 'Jahr' : 'Jahren');
+    return "vor $years " . ($years === 1 ? "Jahr" : "Jahren");
 }
 
 function render_tutorial_modal(?User $user = null, bool $is_replay = false): string

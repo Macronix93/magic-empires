@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $uid = $user->get_user_id();
 $is_admin = $user->is_admin();
@@ -36,7 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($wait > 0 && !$is_admin) {
                 $error = "Bitte warte noch " . convert_sec_to_str($wait) . ", bevor du einen neuen Vorschlag einreichst.";
             } else {
-                $clean_content = filter_chat_message(nl2br(e($content)));
+                $clean_content = Messages::filter_chat_message(nl2br(e($content)));
                 $clean_title = e($title);
 
                 $db_instance->execute_query(
@@ -73,7 +73,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } elseif (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
             $error = "Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.";
         } else {
-            $clean_content = filter_chat_message(nl2br(e($content)));
+            $clean_content = Messages::filter_chat_message(nl2br(e($content)));
             $clean_title = e($title);
 
             $db_instance->execute_query(
@@ -199,24 +199,28 @@ $status_counts = $db_instance->query("
     SELECT 
         SUM(IF(status = 0, 1, 0)) AS cnt_open,
         SUM(IF(status = 1, 1, 0)) AS cnt_approved,
-        SUM(IF(status = 2, 1, 0)) AS cnt_done
+        SUM(IF(status = 2, 1, 0)) AS cnt_done,
+        SUM(IF(status = 3, 1, 0)) AS cnt_declined
     FROM suggestions
 ")->fetch_assoc();
 
 $cnt_open = (int)($status_counts["cnt_open"] ?? 0);
 $cnt_approved = (int)($status_counts["cnt_approved"] ?? 0);
 $cnt_done = (int)($status_counts["cnt_done"] ?? 0);
+$cnt_declined = (int)($status_counts["cnt_declined"] ?? 0);
 
 $cnt_open_display = ($cnt_open > 0 ? " <small style='opacity: 0.75;'>($cnt_open)</small>" : "");
 $cnt_approved_display = ($cnt_approved > 0 ? " <small style='opacity: 0.75;'>($cnt_approved)</small>" : "");
 $cnt_done_display = ($cnt_done > 0 ? " <small style='opacity: 0.75;'>($cnt_done)</small>" : "");
+$cnt_declined_display = ($cnt_declined > 0 ? " <small style='opacity: 0.75;'>($cnt_declined)</small>" : "");
 
 $tabs = [
     "all" => "Alle",
     "popular" => "Beliebteste",
     "open" => "In Prüfung$cnt_open_display",
     "approved" => "Geplant$cnt_approved_display",
-    "done" => "Umgesetzt$cnt_done_display</small>"
+    "done" => "Umgesetzt$cnt_done_display</small>",
+    "declined" => "Abgelehnt$cnt_declined_display"
 ];
 
 if (!isset($tabs[$filter])) {
@@ -329,7 +333,7 @@ while ($row = $suggestions->fetch_assoc()) {
     $comment_count = (int)($row["comment_count"] ?? 0);
     $comments_btn = "
     <button type='button' data-on-click='openSuggestionComments' data-id='$sug_id' style='font-size: 13px; padding: 3px 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(212, 175, 55, 0.3); color: #e6dcce;'>
-        " . wrap_emojis("💬 <b class='count-comments' id='comm_count_$sug_id'>$comment_count</b>") . " 
+        " . Messages::wrap_emojis("💬 <b class='count-comments' id='comm_count_$sug_id'>$comment_count</b>") . " 
     </button>";
 
     $upvoters = !empty($row["upvoters"]) ? e($row["upvoters"]) : "<i>Noch keine Stimmen</i>";
@@ -338,14 +342,14 @@ while ($row = $suggestions->fetch_assoc()) {
     $vote_buttons = "
     <div class='suggestion-vote-bar' data-id='$sug_id' style='display: flex; gap: 8px; align-items: center;'>
         <button type='button' class='btn-vote-up$btn_up_active popup' id='pop_v_up_$sug_id' data-on-click='voteSuggestion' data-id='$sug_id' data-type='up' style='font-size: 13px; padding: 3px 10px; cursor: pointer;'>
-            " . wrap_emojis("👍") . " <b class='count-up'>{$row["upvotes"]}</b>
+            " . Messages::wrap_emojis("👍") . " <b class='count-up'>{$row["upvotes"]}</b>
             <div id='pop_v_up_{$sug_id}_box' class='popupbox' style='text-align: left;'>
                 <span class='voters-list'>$upvoters</span>
             </div>
         </button>
         
         <button type='button' class='btn-vote-down$btn_down_active popup' id='pop_v_down_$sug_id' data-on-click='voteSuggestion' data-id='$sug_id' data-type='down' style='font-size: 13px; padding: 3px 10px; cursor: pointer;'>
-            " . wrap_emojis("👎") . " <b class='count-down'>{$row["downvotes"]}</b>
+            " . Messages::wrap_emojis("👎") . " <b class='count-down'>{$row["downvotes"]}</b>
             <div id='pop_v_down_{$sug_id}_box' class='popupbox' style='text-align: left;'>
                 <span class='voters-list'>$downvoters</span>
             </div>
@@ -365,7 +369,7 @@ while ($row = $suggestions->fetch_assoc()) {
             </div>
             <div class='box-content box-content-bg' style='padding: 15px;'>
                 <p style='margin-top: 0; text-align: left; font-size: 15px; line-height: 1.5; word-break: break-word;'>
-                    " . wrap_emojis($row["content"]) . "
+                    " . Messages::wrap_emojis($row["content"]) . "
                 </p>
                 $comment_box
                 <div style='display: flex; justify-content: space-between; text-align: left; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px;'>

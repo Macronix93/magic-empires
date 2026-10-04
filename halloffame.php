@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 require_once("includes/content/halloffame_data.php");
 

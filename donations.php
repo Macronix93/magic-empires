@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 /*
  * HTML Section

@@ -127,7 +127,7 @@ if ($is_admin) {
                 <div style='display: flex; justify-content: center; align-items: center; gap: 10px;'>
                     <div class='emoji-picker-container'>
                         <div id='emoji-menu' class='emoji-menu bottom'>";
-    foreach (get_chat_emojis() as $emoji) {
+    foreach (Messages::get_chat_emojis() as $emoji) {
         $view .= "<span data-on-click='pickEmoji'>$emoji</span>";
     }
     $view .= "          </div>
@@ -169,17 +169,17 @@ if ($result->num_rows > 0) {
         <div class='box-container'>
             <div class='box-header news-flex-header'>
                     <div class='news-header-title' title='" . $row["title"] . "'>
-                        " . wrap_emojis($row["title"]) . "
+                        " . Messages::wrap_emojis($row["title"]) . "
                     </div>
                     $del_button
                 </div>
                 <div class='box-content news-content box-content-bg' style='padding-left: 15px; padding-right: 15px; text-align: left;'>
-                    <p style='margin-top: 0; padding-top: 15px;'>" . wrap_emojis($row["content"]) . "</p>
+                    <p style='margin-top: 0; padding-top: 15px;'>" . Messages::wrap_emojis($row["content"]) . "</p>
                     <div class='news-footer-wrap'>
                         <div class='news-author-info'>
                             Verfasst von: <b>" . e($row["username"]) . "</b> am $date
                         </div>
-                        " . render_reactions_bar("news", $row["id"], $user) . "
+                        " . Messages::render_reactions_bar("news", $row["id"], $user) . "
                     </div>
                 </div>
         </div>";

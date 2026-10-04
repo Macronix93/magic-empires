@@ -11,7 +11,7 @@ require_once("includes/core.php");
     "k_stone" => $kingdom_stone,
     "k_gold" => $kingdom_gold,
     "k_villager" => $kingdom_villager
-] = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_TOWNCENTER);
+] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_TOWNCENTER);
 
 $kingdom_is_building = false;
 $kingdom_building_id = -1;
@@ -39,7 +39,7 @@ if (isset($_GET["action"])) {
 
         // The action that was set is "building"
         if ($_GET["action"] == "build") {
-            $max_allowed_for_this_building = get_max_building_level($build_id);
+            $max_allowed_for_this_building = Building::get_max_building_level($build_id);
 
             if ($building_level >= $max_allowed_for_this_building) {
                 $error = "Das Gebäude ist schon maximal ausgebaut!";
@@ -170,7 +170,7 @@ for ($i = 0; $i < $building_count; $i++) {
     }
 
     $level = (int)$buildings[$i]->get_building_level();
-    $max_allowed_for_this_building = get_max_building_level($building_id);
+    $max_allowed_for_this_building = Building::get_max_building_level($building_id);
     $is_maxed = ($level >= $max_allowed_for_this_building);
 
     $show_building = true;

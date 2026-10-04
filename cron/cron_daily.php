@@ -57,7 +57,7 @@ if ($player_count > 0) {
                 "template" => "daily_hero_received",
                 "kingdom_name" => $kname
             ];
-            send_server_message($uid, $uname, MessageCategories::CATEGORY_DEFAULT, $hero_json);
+            Messages::send_server_message($uid, $uname, MessageCategories::CATEGORY_DEFAULT, $hero_json);
 
             echo "[" . date("H:i:s") . "] Held vergeben an $uname im Königreich $kname (ID: $kid)\n";
             $given_count++;

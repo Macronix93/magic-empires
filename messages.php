@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 $messages = new Messages($user);
 
 // Starting a new conversation (or insert message in existing conversation)
@@ -195,7 +195,7 @@ if (isset($_GET["action"])) {
                                         <div class=\"emoji-picker-container\">
                                         <div id=\"emoji-menu\" class=\"emoji-menu\">";
 
-                    foreach (get_chat_emojis() as $emoji) {
+                    foreach (Messages::get_chat_emojis() as $emoji) {
                         $view .= "<span data-on-click=\"pickEmoji\">$emoji</span>";
                     }
 
@@ -267,7 +267,7 @@ if (isset($_GET["action"])) {
                         "template" => "chat_conversation_ended",
                         "user_name" => $my_name
                     ];
-                    send_server_message($chat_partner_id, $partner_name, MessageCategories::CATEGORY_DEFAULT, $notice_json);
+                    Messages::send_server_message($chat_partner_id, $partner_name, MessageCategories::CATEGORY_DEFAULT, $notice_json);
                 }
 
                 $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";

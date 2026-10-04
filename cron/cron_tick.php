@@ -146,7 +146,7 @@ while ($ev = $finished_events->fetch_assoc()) {
                         "resources" => $loot["resources"]
                     ];
 
-                    send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $hp_reward_json);
+                    Messages::send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $hp_reward_json);
                 }
             } else {
                 $is_boss_fail = true;
@@ -178,7 +178,7 @@ while ($ev = $finished_events->fetch_assoc()) {
                 "loot" => $loot_display
             ];
 
-            send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $dmg_reward_json);
+            Messages::send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $dmg_reward_json);
         }
 
         if ($is_boss_fail) {
@@ -187,7 +187,7 @@ while ($ev = $finished_events->fetch_assoc()) {
                 "monster_name" => $monster["name"]
             ];
 
-            send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $boss_fail_json);
+            Messages::send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $boss_fail_json);
         }
     }
 

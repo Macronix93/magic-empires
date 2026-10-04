@@ -3,10 +3,10 @@ require_once("../includes/core.php");
 session_write_close();
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    check_user_login($user);
+    $user->check_user_login();
 
     $sug_id = (int)($_POST["id"] ?? 0);
-    $type = $_POST["type"] ?? ""; // "up" oder "down"
+    $type = $_POST["type"] ?? ""; // "up" or "down"
     $uid = $user->get_user_id();
 
     if ($sug_id <= 0 || !in_array($type, ["up", "down"])) {

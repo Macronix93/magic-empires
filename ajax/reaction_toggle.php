@@ -16,7 +16,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit;
     }
 
-    $allowed_emojis = get_chat_emojis();
+    $allowed_emojis = Messages::get_chat_emojis();
 
     if (!in_array($emoji, $allowed_emojis)) {
         echo json_encode(["error" => "Dieses Symbol ist als Reaktion nicht erlaubt!"]);
@@ -53,7 +53,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     echo json_encode([
         "success" => true,
-        "html" => render_reactions_bar($type, $id, $user, $mode)
+        "html" => Messages::render_reactions_bar($type, $id, $user, $mode)
     ]);
 } else {
     change_location("messages.php");

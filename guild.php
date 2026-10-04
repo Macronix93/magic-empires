@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $user_data = $db_instance->execute_query("SELECT guildid, ranking_points FROM users WHERE id = ?", [$user->get_user_id()])->fetch_assoc();
 $my_guild_id = (int)$user_data["guildid"];

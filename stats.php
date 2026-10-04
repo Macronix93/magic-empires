@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $stats_query = "
     SELECT 
@@ -144,7 +144,7 @@ $view = "
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Punkte-Aufschlüsselung</b>
                 </div>
-                " . wrap_emojis("<div class='split-content'><span>🏰 Gebäude:</span> <b>" . fnum($score_buildings) . " <small style='opacity: 0.7;'>($perc_b %)</small></b></div>
+                " . Messages::wrap_emojis("<div class='split-content'><span>🏰 Gebäude:</span> <b>" . fnum($score_buildings) . " <small style='opacity: 0.7;'>($perc_b %)</small></b></div>
                 <div class='split-content'><span>📜 Forschung:</span> <b>" . fnum($score_techs) . " <small style='opacity: 0.7;'>($perc_t %)</small></b></div>
                 <div class='split-content'><span>⚔️ Armee:</span> <b>" . fnum($score_troops) . " <small style='opacity: 0.7;'>($perc_u %)</small></b></div>
                 <div class='split-content' style='margin-top: 18px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1);'>

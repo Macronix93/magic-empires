@@ -1,6 +1,7 @@
 <?php
 require_once("includes/core.php");
-check_user_login($user);
+
+$user->check_user_login();
 
 $support = new Support($user);
 $is_staff = ($user->get_user_admin_level() > 0);
@@ -58,7 +59,7 @@ if (isset($_POST["open_ticket"]) && !$support->has_active_ticket($uid)) {
             $error = "Der Betreff ist zu lang (max. " . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . " Zeichen)!";
         } else {
             $sub = e(mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH));
-            $msg = filter_chat_message(nl2br(e($text_clean)));
+            $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
 
             $_SESSION["message_count"]++;
             $support->create_ticket($sub, $msg);
@@ -124,7 +125,7 @@ if (isset($_POST["send_msg"]) && is_numeric($_POST["tid"])) {
         if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
             $error = "Du schickst zu viele Nachrichten! Bitte warte kurz.";
         } else {
-            $msg = filter_chat_message(nl2br(e($raw_text)));
+            $msg = Messages::filter_chat_message(nl2br(e($raw_text)));
             $_SESSION["message_count"]++;
 
             $is_acting_as_staff = ($is_staff && (int)$t_check["userid"] !== $uid);
@@ -219,7 +220,7 @@ if (isset($_GET["tid"])) {
                             
                             <div class=\"emoji-picker-container\">
                                 <div id=\"emoji-menu\" class=\"emoji-menu\">";
-            foreach (get_chat_emojis() as $emoji) {
+            foreach (Messages::get_chat_emojis() as $emoji) {
                 $view .= "<span data-on-click=\"pickEmoji\">$emoji</span>";
             }
             $view .= "          </div>
@@ -235,125 +236,150 @@ if (isset($_GET["tid"])) {
     // TICKET LIST
     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button></div>";
 
-    // Staff Tab Handling
-    $staff_tab = $_GET["tab"] ?? "all";
-    if (!in_array($staff_tab, ["all", "my"])) {
-        $staff_tab = "all";
+    $active_tab = $_GET["tab"] ?? ($is_staff ? "all" : "my");
+    if (!in_array($active_tab, ["all", "my"])) {
+        $active_tab = $is_staff ? "all" : "my";
     }
 
     if ($is_staff) {
         $view .= "
-    <div class='tab' style='max-width: 600px; margin: 0 auto 20px auto;'>
-        <div class='tablinks " . ($staff_tab === "all" ? "active" : "") . "' data-on-click='redirect' data-url='support.php?tab=all'>Alle Tickets</div>
-        <div class='tablinks " . ($staff_tab === "my" ? "active" : "") . "' data-on-click='redirect' data-url='support.php?tab=my'>Meine Tickets</div>
-    </div>";
+            <div class='tab' id='support-tabs' style='max-width: 600px; margin: 0 auto 20px auto;'>
+                <div class='tablinks " . ($active_tab === "all" ? "active" : "") . "' data-on-click='switchSupportTab' data-tab='all'>Alle Tickets</div>
+                <div class='tablinks " . ($active_tab === "my" ? "active" : "") . "' data-on-click='switchSupportTab' data-tab='my'>Meine Tickets</div>
+            </div>";
     }
 
-    // Pagination variables
     $rows_per_page = SUPPORT_TICKET_ROWS_PER_PAGE;
-    $current_page = max(1, (int)($_GET["currentpage"] ?? 1));
-    $offset = ($current_page - 1) * $rows_per_page;
 
-    $show_my_tickets = (!$is_staff || $staff_tab === "my");
-
-    if ($show_my_tickets) {
-        if (!$support->has_active_ticket($uid)) {
-            $view .= "<div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
-                    <div class='box-header'>Neues Support-Ticket</div>
-                    <div class='box-content box-content-bg' style='padding: 15px;'>
-                        <form method='POST' action='support.php?tab=" . ($is_staff ? "my" : "") . "' id='newticketform'>
-                            <input type='hidden' name='open_ticket' value='1'>
-                            <input type='text' name='subject' placeholder='Betreff' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>
-                            <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' required></textarea>
-                            <br><input type='submit' value='Absenden'>
-                        </form>
-                    </div>
-                  </div>";
-        }
-
-        $total_items = $db_instance->execute_query("SELECT COUNT(*) FROM support_tickets WHERE userid = ?", [$uid])->fetch_row()[0];
-
-        $sql = "SELECT t.*, u.username FROM support_tickets t JOIN users u ON t.userid = u.id WHERE t.userid = ? ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
-        $params = [$uid, $offset, $rows_per_page];
-    } else {
-        $view .= "<div class='title-border'>Eingegangene Support-Anfragen</div>";
-        $total_items = $db_instance->execute_query("SELECT COUNT(*) FROM support_tickets")->fetch_row()[0];
-
-        $sql = "SELECT t.*, u.username, a.username AS assigned_admin 
-            FROM support_tickets t 
-            JOIN users u ON t.userid = u.id 
-            LEFT JOIN users a ON t.assigned_to = a.id 
-            ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
-        $params = [$offset, $rows_per_page];
-    }
-
-    $total_pages = ceil($total_items / $rows_per_page);
-    $tickets = $db_instance->execute_query($sql, $params);
-
-    if ($tickets->num_rows > 0) {
-        $view .= "<table class='table' style='max-width: 700px;'>
-                <tr>
-                    <td class='td-center td-gradient' style='width: 8%;'><b>Status</b></td>
-                    <td class='td-center td-gradient'><b>Betreff</b></td>
-                    " . (!$show_my_tickets ? "<td class='td-center td-gradient'><b>User</b></td>" : "") . "
-                    <td class='td-center td-gradient' colspan='2' style='width: 35%;'><b>Letztes Update</b></td>
-                </tr>";
+    // Helper Ticket Tables
+    $render_tickets_table = function (mysqli_result $tickets, bool $is_my_view) {
+        $html = "<table class='table' style='max-width: 700px;'>
+            <tr>
+                <td class='td-center td-gradient' style='width: 8%;'><b>Status</b></td>
+                <td class='td-center td-gradient'><b>Betreff</b></td>
+                " . (!$is_my_view ? "<td class='td-center td-gradient'><b>User</b></td>" : "") . "
+                <td class='td-center td-gradient' colspan='2' style='width: 35%;'><b>Letztes Update</b></td>
+            </tr>";
 
         foreach ($tickets as $t) {
             $closed_ticket = $t["status"] == 0 ? " tr-inactive" : "";
-            $status = $t["status"] == 1 ? "<img src='images/icons/icon_question.png' class='ressource-icons' alt='Offen'>" :
-                "<img src='images/icons/icon_lock.png' class='ressource-icons' alt='Geschlossen'>";
-
+            $status = $t["status"] == 1
+                ? "<img src='images/icons/icon_question.png' class='ressource-icons' alt='Offen'>"
+                : "<img src='images/icons/icon_lock.png' class='ressource-icons' alt='Geschlossen'>";
             $assigned_info = "";
-            if (!$show_my_tickets) {
-                $assigned_info = $t["assigned_admin"]
+            if (!$is_my_view) {
+                $assigned_info = !empty($t["assigned_admin"])
                     ? "<br><small style='opacity: 0.7;'>Bearbeiter: " . e($t["assigned_admin"]) . "</small>"
                     : "<br><small class='error' style='opacity: 0.7;'>[Unbearbeitet]</small>";
             }
 
-            $view .= "<tr class='tr-hover$closed_ticket'>
-                    <td class='td-cursor td-center' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>$status</td>
-                    <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["subject"]) . "$assigned_info</td>
-                    " . (!$show_my_tickets ? "<td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["username"]) . "</td>" : "") . "
-                    <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>am " . date("d.m.Y \u\m H:i:s", $t["updated_at"]) . "</td>
-                    <td class='td-center' style='width: 40px;'>
-                        <img src='images/icons/icon_delete.png' class='ressource-icons' style='cursor: pointer;' 
-                             data-on-click='confirmDeleteTicket' data-id='{$t["id"]}' title='Ticket löschen' alt=''>
-                    </td>
-                  </tr>";
+            $html .= "<tr class='tr-hover$closed_ticket'>
+                <td class='td-cursor td-center' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>$status</td>
+                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["subject"]) . "$assigned_info</td>
+                " . (!$is_my_view ? "<td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["username"]) . "</td>" : "") . "
+                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>am " . date("d.m.Y \u\m H:i:s", $t["updated_at"]) . "</td>
+                <td class='td-center' style='width: 40px;'>
+                    <img src='images/icons/icon_delete.png' class='ressource-icons' style='cursor: pointer;' 
+                         data-on-click='confirmDeleteTicket' data-id='{$t["id"]}' title='Ticket löschen' alt=''>
+                </td>
+            </tr>";
         }
-        $view .= "</table>";
 
-        // Pagination Bar
-        if ($total_pages > 1) {
-            $tab_param = $is_staff ? "&tab=$staff_tab" : "";
-            $view .= '<div class="pagination-container"><div class="pagination-bar">';
+        $html .= "</table>";
+        return $html;
+    };
 
-            if ($current_page > 1) {
-                $view .= "<a href='support.php?currentpage=1$tab_param' class='page-link'>&laquo;</a>";
-                $prev = $current_page - 1;
-                $view .= "<a href='support.php?currentpage=$prev$tab_param' class='page-link'>&lsaquo;</a>";
-            }
+    // Helper Pagination
+    $render_pagination_bar = function (int $total_pages, int $current_page, string $tab, string $page_param = "currentpage") {
+        if ($total_pages <= 1) return "";
 
-            $range = 2;
-            for ($x = ($current_page - $range); $x <= ($current_page + $range); $x++) {
-                if ($x > 0 && $x <= $total_pages) {
-                    $active = ($x == $current_page) ? "active" : "";
-                    $view .= "<a href='support.php?currentpage=$x$tab_param' class='page-link $active'>$x</a>";
-                }
-            }
-
-            if ($current_page < $total_pages) {
-                $next = $current_page + 1;
-                $view .= "<a href='support.php?currentpage=$next$tab_param' class='page-link'>&rsaquo;</a>";
-                $view .= "<a href='support.php?currentpage=$total_pages$tab_param' class='page-link'>&raquo;</a>";
-            }
-
-            $view .= '</div></div>';
+        $html = '<div class="pagination-container"><div class="pagination-bar">';
+        if ($current_page > 1) {
+            $html .= "<a href='support.php?tab=$tab&$page_param=1' class='page-link'>&laquo;</a>";
+            $prev = $current_page - 1;
+            $html .= "<a href='support.php?tab=$tab&$page_param=$prev' class='page-link'>&lsaquo;</a>";
         }
-    } else {
-        $view .= "<span class='no-event'>Keine Tickets vorhanden.</span>";
+
+        $range = 2;
+        for ($x = ($current_page - $range); $x <= ($current_page + $range); $x++) {
+            if ($x > 0 && $x <= $total_pages) {
+                $active = ($x == $current_page) ? "active" : "";
+                $html .= "<a href='support.php?tab=$tab&$page_param=$x' class='page-link $active'>$x</a>";
+            }
+        }
+        if ($current_page < $total_pages) {
+            $next = $current_page + 1;
+            $html .= "<a href='support.php?tab=$tab&$page_param=$next' class='page-link'>&rsaquo;</a>";
+            $html .= "<a href='support.php?tab=$tab&$page_param=$total_pages' class='page-link'>&raquo;</a>";
+        }
+        $html .= '</div></div>';
+        return $html;
+    };
+
+    // --- TAB: ALL TICKETS (Only for staff) ---
+    if ($is_staff) {
+        $all_page = max(1, (int)($_GET["currentpage"] ?? 1));
+        $all_offset = ($all_page - 1) * $rows_per_page;
+        $total_all = (int)$db_instance->execute_query("SELECT COUNT(*) FROM support_tickets")->fetch_row()[0];
+        $total_all_pages = (int)ceil($total_all / $rows_per_page);
+
+        $sql_all = "SELECT t.*, u.username, a.username AS assigned_admin 
+                    FROM support_tickets t 
+                    JOIN users u ON t.userid = u.id 
+                    LEFT JOIN users a ON t.assigned_to = a.id 
+                    ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
+        $res_all = $db_instance->execute_query($sql_all, [$all_offset, $rows_per_page]);
+
+        $view .= "<div id='support_tab_all' class='js-support-tab' style='display: " . ($active_tab === "all" ? "block" : "none") . ";'>";
+        $view .= "<div class='title-border'>Eingegangene Support-Anfragen</div>";
+
+        if ($res_all->num_rows > 0) {
+            $view .= $render_tickets_table($res_all, false);
+            $view .= $render_pagination_bar($total_all_pages, $all_page, "all", "currentpage");
+        } else {
+            $view .= "<span class='no-event'>Keine Tickets vorhanden.</span>";
+        }
+
+        $view .= "</div>";
     }
+
+    // --- TAB: MY TICKETS ---
+    $my_page = max(1, (int)($_GET["mypage"] ?? 1));
+    $my_offset = ($my_page - 1) * $rows_per_page;
+    $total_my = (int)$db_instance->execute_query("SELECT COUNT(*) FROM support_tickets WHERE userid = ?", [$uid])->fetch_row()[0];
+    $total_my_pages = (int)ceil($total_my / $rows_per_page);
+
+    $sql_my = "SELECT t.*, u.username 
+               FROM support_tickets t 
+               JOIN users u ON t.userid = u.id 
+               WHERE t.userid = ? 
+               ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
+    $res_my = $db_instance->execute_query($sql_my, [$uid, $my_offset, $rows_per_page]);
+
+    $view .= "<div id='support_tab_my' class='js-support-tab' style='display: " . ($active_tab === "my" ? "block" : "none") . ";'>";
+
+    if (!$support->has_active_ticket($uid)) {
+        $view .= "
+            <div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
+                <div class='box-header'>Neues Support-Ticket</div>
+                <div class='box-content box-content-bg' style='padding: 15px;'>
+                    <form method='POST' action='support.php' id='newticketform'>
+                        <input type='hidden' name='open_ticket' value='1'>
+                        <input type='text' name='subject' placeholder='Betreff' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>
+                        <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' required></textarea>
+                        <input type='submit' value='Absenden' style='margin-top: 15px;'>
+                    </form>
+                </div>
+            </div>";
+    }
+
+    if ($res_my->num_rows > 0) {
+        $view .= $render_tickets_table($res_my, true);
+        $view .= $render_pagination_bar($total_my_pages, $my_page, "my", "mypage");
+    } else {
+        $view .= "<span class='no-event'>Keine eigenen Tickets vorhanden.</span>";
+    }
+    $view .= "</div>";
 }
 
 include("layout/base.php");

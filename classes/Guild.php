@@ -141,7 +141,7 @@ class Guild
             "invite_id" => $invite_id
         ];
 
-        send_server_message($target_id, $target["username"], MessageCategories::CATEGORY_GUILD, $invite_json);
+        Messages::send_server_message($target_id, $target["username"], MessageCategories::CATEGORY_GUILD, $invite_json);
 
         return null;
     }
@@ -172,7 +172,7 @@ class Guild
             "guild_name" => $data["guild_name"]
         ];
 
-        send_server_message((int)$data["invited_by"], $data["inviter_name"], MessageCategories::CATEGORY_GUILD, $decline_json);
+        Messages::send_server_message((int)$data["invited_by"], $data["inviter_name"], MessageCategories::CATEGORY_GUILD, $decline_json);
 
         return null;
     }
@@ -263,7 +263,7 @@ class Guild
                     "member_name" => $new_member_name
                 ];
 
-                send_server_message($inviter_id, $inviter_name, MessageCategories::CATEGORY_GUILD, $recruiter_json);
+                Messages::send_server_message($inviter_id, $inviter_name, MessageCategories::CATEGORY_GUILD, $recruiter_json);
             }
 
             $exclude_ids = [$uid];
@@ -368,7 +368,7 @@ class Guild
                 "changed_by" => $this->user->get_user_name()
             ];
 
-            send_server_message($target_uid, $target["username"], MessageCategories::CATEGORY_GUILD, $rank_json);
+            Messages::send_server_message($target_uid, $target["username"], MessageCategories::CATEGORY_GUILD, $rank_json);
 
             $this->db->commit();
 
@@ -432,7 +432,7 @@ class Guild
                 "guild_name" => $guild_data["name"]
             ];
 
-            send_server_message($target_uid, $target["username"], MessageCategories::CATEGORY_GUILD, $kick_json);
+            Messages::send_server_message($target_uid, $target["username"], MessageCategories::CATEGORY_GUILD, $kick_json);
 
             $this->db->commit();
 
@@ -481,7 +481,7 @@ class Guild
                         "reason" => "leader_left"
                     ];
 
-                    send_server_message((int)$successor["id"], $successor["username"], MessageCategories::CATEGORY_GUILD, $lead_json);
+                    Messages::send_server_message((int)$successor["id"], $successor["username"], MessageCategories::CATEGORY_GUILD, $lead_json);
                 } else {
                     $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$my_guild]);
                 }
@@ -979,8 +979,8 @@ class Guild
             $owner_json = array_merge($base_alliance_json, ["role" => "owner"]);
             $host_json = array_merge($base_alliance_json, ["role" => "host"]);
 
-            send_server_message((int)$info["owner_uid"], $info["owner_name"], MessageCategories::CATEGORY_GUILD, $owner_json);
-            send_server_message((int)$info["host_uid"], $info["host_name"], MessageCategories::CATEGORY_GUILD, $host_json);
+            Messages::send_server_message((int)$info["owner_uid"], $info["owner_name"], MessageCategories::CATEGORY_GUILD, $owner_json);
+            Messages::send_server_message((int)$info["host_uid"], $info["host_name"], MessageCategories::CATEGORY_GUILD, $host_json);
         }
     }
 
@@ -1017,7 +1017,7 @@ class Guild
                     "old_leader_name" => $old_leader_name
                 ];
 
-                send_server_message($next_id, $next_name, MessageCategories::CATEGORY_GUILD, $lead_del_json);
+                Messages::send_server_message($next_id, $next_name, MessageCategories::CATEGORY_GUILD, $lead_del_json);
             } else {
                 $this->db->execute_query("DELETE FROM guilds WHERE id = ?", [$guild_id]);
             }
@@ -1228,7 +1228,7 @@ class Guild
         $members = $this->db->execute_query($query, $sql_params);
 
         while ($m = $members->fetch_assoc()) {
-            send_server_message((int)$m["id"], $m["username"], MessageCategories::CATEGORY_GUILD, $payload);
+            Messages::send_server_message((int)$m["id"], $m["username"], MessageCategories::CATEGORY_GUILD, $payload);
         }
     }
 

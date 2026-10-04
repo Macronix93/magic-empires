@@ -924,8 +924,8 @@ class Conquest
                     $this->mysqli->execute_query("UPDATE stationed_troops SET soldiercount = soldiercount - ? WHERE id = ?", [$loss, $row["id"]]);
                 }
 
-                update_player_stat($uid, "units_fallen_pvp", $loss);
-                update_global_stat("total_fallen_soldiers", $loss);
+                Stats::update_player_stat($uid, "units_fallen_pvp", $loss);
+                Stats::update_global_stat("total_fallen_soldiers", $loss);
             }
 
             if (!isset($reports_to_send[$uid])) {
@@ -982,6 +982,6 @@ class Conquest
         ];
 
         $res_u = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$uid]);
-        send_server_message($uid, $res_u->fetch_column(), MessageCategories::CATEGORY_WAR, $support_combat_json);
+        Messages::send_server_message($uid, $res_u->fetch_column(), MessageCategories::CATEGORY_WAR, $support_combat_json);
     }
 }

@@ -10,12 +10,7 @@ $js_main_file = "main.js";
 
 $kingdom_count = 0;
 $all_user_kingdoms = [];
-$sidebar_data = [
-        "has_world_event" => false,
-        "market_offers" => 0,
-        "guild_status" => '',
-        "alchemy_status" => ''
-];
+$sidebar_data = $user->get_sidebar_data();
 
 if (empty($header_icon)) {
     if (isset($building) && is_object($building) && method_exists($building, 'get_building_id')) {
@@ -66,31 +61,6 @@ if ($user->is_logged_in()) {
     )->fetch_all(MYSQLI_ASSOC);
 
     $kingdom_count = count($all_user_kingdoms);
-
-    $res_sidebar = $db_instance->execute_query("
-        SELECT 
-            (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
-            (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?))) AS market_count,
-            (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
-            (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
-            (SELECT CASE 
-                WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
-                WHEN input_amount > 0 THEN 'running'
-                ELSE ''
-             END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
-    ", [$gid, $gid, $gid, $user->get_current_kingdom()])->fetch_assoc();
-
-    $sidebar_data["has_world_event"] = !empty($res_sidebar["has_event"]);
-    $sidebar_data["market_offers"] = (int)($res_sidebar["market_count"] ?? 0);
-    $sidebar_data["alchemy_status"] = $res_sidebar["alchemy_status"] ?? '';
-
-    if ($gid > 0) {
-        if (!empty($res_sidebar["guild_research_active"])) {
-            $sidebar_data["guild_status"] = '<img src="images/icons/icon_time.png" class="ressource-icons" title="Gildenforschung läuft..." alt="Forschung">';
-        } elseif (!empty($res_sidebar["guild_project_name"])) {
-            $sidebar_data["guild_status"] = '<img src="images/icons/icon_hammer.png" class="ressource-icons" title="Projekt aktiv: ' . e($res_sidebar["guild_project_name"]) . '" alt="Projekt">';
-        }
-    }
 
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
     $ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
@@ -261,7 +231,7 @@ if ($user->is_logged_in()) {
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">
-    <p><?= wrap_emojis("🏰") ?></p>
+    <p><?= Messages::wrap_emojis("🏰") ?></p>
 </div>
 <div id="nav-right-menu" class="mobile-side-nav">
     <?php

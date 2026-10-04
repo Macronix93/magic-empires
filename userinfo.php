@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -142,7 +142,7 @@ if ($user_id) {
                     }
                     if ($user_id !== $user->get_user_id()): ?>
                         <div data-on-click="redirect" data-url="<?= $msg_url ?>"
-                             style="font-size: 18px; cursor: pointer;"><?= wrap_emojis("✉️") ?>
+                             style="font-size: 18px; cursor: pointer;"><?= Messages::wrap_emojis("✉️") ?>
                         </div>
                     <?php endif; ?>
                 </div>

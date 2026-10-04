@@ -56,14 +56,14 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                                 <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                             </span>
                             <span style='display: flex; gap: 5px; align-items: center;'>
-                                " . render_reactions_bar("chat", $row["id"], $user, "btn_only") . "
+                                " . Messages::render_reactions_bar("chat", $row["id"], $user, "btn_only") . "
                                 $quote_icon
                                 $del_btn
                             </span>
                         </div>
                         <div class='chat-text'>" . $msg . "</div>
                         <div class='chat-reaction-footer'>
-                            " . render_reactions_bar("chat", $row["id"], $user, "badges_only") . "
+                            " . Messages::render_reactions_bar("chat", $row["id"], $user, "badges_only") . "
                         </div>
                       </div>";
         }
@@ -76,7 +76,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             [$partner_id, $u_id, $u_id, $partner_id, SHOW_MESSAGES_LIMIT]
         );
         while ($r = $res_recent->fetch_assoc()) {
-            $reaction_updates[$r["id"]] = render_reactions_bar("chat", $r["id"], $user, "badges_only");
+            $reaction_updates[$r["id"]] = Messages::render_reactions_bar("chat", $r["id"], $user, "badges_only");
         }
 
         echo json_encode([

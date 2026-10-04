@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $has_import = isset($_GET["import_monsters"]);
 $keep_sim = isset($_GET["keep_sim"]);

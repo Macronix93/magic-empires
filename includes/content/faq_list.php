@@ -1,7 +1,7 @@
 <?php if (!empty($is_logged_in)): ?>
     <div style="text-align: center; margin-bottom: 25px;">
         <button type="button" data-on-click="showTutorialModal" style="padding: 10px 10px; font-weight: bold;">
-            <?= wrap_emojis("📜 Einführung & Tutorial erneut anzeigen") ?>
+            <?= Messages::wrap_emojis("📜 Einführung & Tutorial erneut anzeigen") ?>
         </button>
     </div>
 <?php endif; ?>

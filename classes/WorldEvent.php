@@ -188,11 +188,11 @@ class WorldEvent
                     ];
 
                     $u_name = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column() ?: "Spieler";
-                    send_server_message($user_id, $u_name, MessageCategories::CATEGORY_EVENT, $tier_json);
+                    Messages::send_server_message($user_id, $u_name, MessageCategories::CATEGORY_EVENT, $tier_json);
                 }
             }
 
-            update_player_stat($user_id, "event_damage_total", $actual_damage);
+            Stats::update_player_stat($user_id, "event_damage_total", $actual_damage);
 
             return $actual_damage;
         } catch (Exception $e) {
@@ -232,7 +232,7 @@ class WorldEvent
             "monster_icon" => $monster["icon"]
         ];
 
-        $users = broadcast_server_message("", MessageCategories::CATEGORY_EVENT, $spawn_json);
+        $users = Messages::broadcast_server_message(MessageCategories::CATEGORY_EVENT, $spawn_json);
 
         foreach ($users as $u) {
             send_user_push(
@@ -259,7 +259,7 @@ class WorldEvent
             "monster_icon" => $monster["icon"]
         ];
 
-        $users = broadcast_server_message("", MessageCategories::CATEGORY_EVENT, $defeat_json);
+        $users = Messages::broadcast_server_message(MessageCategories::CATEGORY_EVENT, $defeat_json);
 
         foreach ($users as $u) {
             send_user_push(

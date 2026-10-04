@@ -2,7 +2,7 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    check_user_login($user);
+    $user->check_user_login();
 
     $cat = $_GET["cat"] ?? "";
     require_once("../includes/content/halloffame_data.php");

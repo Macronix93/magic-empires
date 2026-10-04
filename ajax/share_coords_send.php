@@ -2,7 +2,7 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    check_user_login($user);
+    $user->check_user_login();
 
     $target = $_POST["share_target"] ?? "world";
     $raw_msg = trim($_POST["message"] ?? "");

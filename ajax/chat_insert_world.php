@@ -72,14 +72,14 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                         <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $current_time) . "</small></span>
                     </span>
                     <span style='display: flex; gap: 5px; align-items: center;'>
-                        " . render_reactions_bar("world_chat", $message_id, $user, "btn_only") . "
+                        " . Messages::render_reactions_bar("world_chat", $message_id, $user, "btn_only") . "
                         $quote_icon
                         $delete_icon
                     </span>
                 </div>
                 <div class='chat-text'>" . $display_text . "</div>
                 <div class='chat-reaction-footer'>
-                    " . render_reactions_bar("world_chat", $message_id, $user, "badges_only") . "
+                    " . Messages::render_reactions_bar("world_chat", $message_id, $user, "badges_only") . "
                 </div>
             </div>";
     }

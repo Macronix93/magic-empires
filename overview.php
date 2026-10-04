@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 // Get main kingdom of user
 $active_k_id = $user->get_current_kingdom();
@@ -326,7 +326,7 @@ foreach ($user_kingdoms as $k) {
     $kid = (int)$k["id"];
     $k_name = e($k["kingdomname"]);
     $k_coords = e($k["mapx"] . ":" . $k["mapy"]);
-    $is_active_k = ($kid === (int)$active_k_id);
+    $is_active_k = ($count_kp > 1 && $kid === (int)$active_k_id);
     $row_style = $is_active_k ? "style='background: rgba(212, 175, 55, 0.08);'" : "";
 
     $storage_warnings = [];
@@ -448,7 +448,9 @@ foreach ($user_kingdoms as $k) {
         </div>
     ";
 
-    $cur_kingdom_styling = $kid == $user->get_current_kingdom() ? " style='font-weight: bold; color: var(--link-color);'" : '';
+    $cur_kingdom_styling = ($count_kp > 1 && $kid == $user->get_current_kingdom())
+        ? " style='font-weight: bold; color: var(--link-color);'"
+        : "";
     $col_kingdom = "
         <div class='kingdom-cell-wrapper'>
             <div class='popup' id='$k_pop_id' style='display: flex; align-items: center; min-width: 0; flex: 1;'>

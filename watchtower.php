@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_WATCHTOWER);
+$result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_WATCHTOWER);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];

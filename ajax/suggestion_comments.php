@@ -1,6 +1,7 @@
 <?php
 require_once("../includes/core.php");
-check_user_login($user);
+
+$user->check_user_login();
 
 $uid = $user->get_user_id();
 $sug_id = (int)($_GET["id"] ?? 0);
@@ -29,10 +30,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_comment"])) {
     $raw = trim($_POST["comment"] ?? "");
 
     $clean = preg_replace([
-        '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-        '/[ \t]+/u',
-        '/^[ \t]+/m',
-        '/[ \t]+$/m'
+            '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
+            '/[ \t]+/u',
+            '/^[ \t]+/m',
+            '/[ \t]+$/m'
     ], ['', ' ', '', ''], $raw);
     $clean = trim($clean);
 
@@ -40,8 +41,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_comment"])) {
     $line_breaks = substr_count($clean, "\n");
 
     $res_last = $db_instance->execute_query(
-        "SELECT created_at FROM suggestion_comments WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-        [$uid]
+            "SELECT created_at FROM suggestion_comments WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+            [$uid]
     );
     $last_time = (int)($res_last->fetch_column() ?? 0);
     $wait = ($last_time + SUGGESTION_COMMENT_COOLDOWN_SECONDS) - time();
@@ -55,10 +56,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_comment"])) {
     } else if ($line_breaks > MAX_LINE_BREAK_COUNT) {
         $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten.";
     } else {
-        $filtered = filter_chat_message(nl2br(e($clean)));
+        $filtered = Messages::filter_chat_message(nl2br(e($clean)));
         $db_instance->execute_query(
-            "INSERT INTO suggestion_comments (suggestion_id, user_id, username, comment, created_at) VALUES (?, ?, ?, ?, ?)",
-            [$sug_id, $uid, $user->get_user_name(), $filtered, time()]
+                "INSERT INTO suggestion_comments (suggestion_id, user_id, username, comment, created_at) VALUES (?, ?, ?, ?, ?)",
+                [$sug_id, $uid, $user->get_user_name(), $filtered, time()]
         );
 
         $total_comments = (int)$db_instance->execute_query("SELECT COUNT(*) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id])->fetch_column();
@@ -76,14 +77,14 @@ $current_page = max(1, min($total_pages, (int)($_GET["cpage"] ?? 1)));
 $offset = ($current_page - 1) * $per_page;
 
 $comments = $db_instance->execute_query(
-    "SELECT c.*, u.username FROM suggestion_comments c JOIN users u ON c.user_id = u.id WHERE c.suggestion_id = ? ORDER BY c.created_at LIMIT ?, ?",
-    [$sug_id, $offset, $per_page]
+        "SELECT c.*, u.username FROM suggestion_comments c JOIN users u ON c.user_id = u.id WHERE c.suggestion_id = ? ORDER BY c.created_at LIMIT ?, ?",
+        [$sug_id, $offset, $per_page]
 );
 ?>
 <div style="text-align: left; padding: 10px; max-width: 650px; margin: 0 auto; box-sizing: border-box;"
      data-total-comments="<?= $total_comments ?>">
     <h3 style="margin-top: 0; color: var(--link-color); border-bottom: 1px solid var(--border-gold); padding-bottom: 5px; word-break: break-word;">
-        Kommentare zu: <?= e($sug["title"]) ?>
+        <?= e($sug["title"]) ?>
     </h3>
 
     <?php if (!empty($error)): ?>
@@ -117,7 +118,7 @@ $comments = $db_instance->execute_query(
                                  alt="">
                         <?php endif; ?>
                     </div>
-                    <div style="word-break: break-word; line-height: 1.4;"><?= wrap_emojis($c["comment"]) ?></div>
+                    <div style="word-break: break-word; line-height: 1.4;"><?= Messages::wrap_emojis($c["comment"]) ?></div>
                 </div>
             <?php endwhile; ?>
         <?php endif; ?>
@@ -152,7 +153,7 @@ $comments = $db_instance->execute_query(
 
             <div class="emoji-picker-container" style="position: relative; display: flex; align-items: stretch;">
                 <div id="emoji-menu" class="emoji-menu" style="bottom: calc(100% + 6px); right: 0;">
-                    <?php foreach (get_chat_emojis() as $emoji): ?>
+                    <?php foreach (Messages::get_chat_emojis() as $emoji): ?>
                         <span data-on-click="pickEmoji"><?= $emoji ?></span>
                     <?php endforeach; ?>
                 </div>

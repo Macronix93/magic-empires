@@ -1,7 +1,7 @@
 <?php /** @noinspection ALL */
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $user_list = "";
 $user_id = -1;
@@ -163,7 +163,7 @@ if (!$user->is_admin()) {
                 $reset_json = [
                     "template" => "round_reset"
                 ];
-                send_server_message((int)$u["id"], $u["username"], MessageCategories::CATEGORY_DEFAULT, $reset_json);
+                Messages::send_server_message((int)$u["id"], $u["username"], MessageCategories::CATEGORY_DEFAULT, $reset_json);
             }
         }
 
@@ -941,14 +941,14 @@ if (!$user->is_admin()) {
             $username = $row["username"];
 
             // Remove users avatar(s)
-            delete_user_avatar_files($user_id);
+            User::delete_user_avatar_files($user_id);
 
             // Check if user was in a guild and leader
             $guild_manager = new Guild($user);
             $guild_manager->handle_leader_deletion($user_id);
 
             // Convert users kingdoms to abandoned kingdoms
-            convert_user_kingdoms_to_ruins($db_instance, $user_id);
+            Kingdom::convert_user_kingdoms_to_ruins($user_id);
 
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);

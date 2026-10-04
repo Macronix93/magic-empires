@@ -379,14 +379,14 @@ class Messages
                                     <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
-                                    " . render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
+                                    " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
                                     $quote_icon
                                     $delete_icon
                                 </span>
                             </div>
                             <div class='chat-text'>" . $display_message . "</div>
                             <div class='chat-reaction-footer'>
-                                " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+                                " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
                             </div>
                         </div>";
             } else {
@@ -397,14 +397,14 @@ class Messages
                                     <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
-                                    " . render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
+                                    " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
                                     $quote_icon
                                     $delete_icon
                                 </span>
                             </div>
                             <div class='chat-text'>" . $display_message . "</div>
                             <div class='chat-reaction-footer'>
-                                " . render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+                                " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
                             </div>
                         </div>";
             }
@@ -441,7 +441,7 @@ class Messages
                 <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
                 <div class='emoji-picker-container'>
                     <div id='emoji-menu' class='emoji-menu'>";
-        foreach (get_chat_emojis() as $emoji) {
+        foreach (Messages::get_chat_emojis() as $emoji) {
             $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
         }
         $html .= "  </div>
@@ -516,14 +516,14 @@ class Messages
                             <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                         </span>
                         <span style='display: flex; gap: 5px; align-items: center;'>
-                            " . render_reactions_bar("world_chat", $row["id"], $this->user, "btn_only") . "
+                            " . Messages::render_reactions_bar("world_chat", $row["id"], $this->user, "btn_only") . "
                             $quote_icon
                             $delete_icon
                         </span>
                     </div>
                     <div class='chat-text'>" . $msg . "</div>
                     <div class='chat-reaction-footer'>
-                        " . render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
+                        " . Messages::render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
                     </div>
                   </div>";
             }
@@ -558,7 +558,7 @@ class Messages
                         <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
                         <div class='emoji-picker-container'>
                             <div id='emoji-menu' class='emoji-menu'>";
-        foreach (get_chat_emojis() as $emoji) {
+        foreach (Messages::get_chat_emojis() as $emoji) {
             $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
         }
         $html .= "</div>
@@ -625,14 +625,14 @@ class Messages
                         <span>$sender_display <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                     </span>
                     <span style='display: flex; gap: 5px; align-items: center;'>
-                        " . render_reactions_bar("guild_chat", $row["id"], $this->user, "btn_only") . "
+                        " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "btn_only") . "
                         $quote_icon
                         $del_icon
                     </span>
                 </div>
                 <div class='chat-text'>" . $display_msg . "</div>
                 <div class='chat-reaction-footer'>
-                    " . render_reactions_bar("guild_chat", $row["id"], $this->user, "badges_only") . "
+                    " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "badges_only") . "
                 </div>
             </div>";
 
@@ -947,7 +947,7 @@ class Messages
 
                 if ($raiders_lost > 0) {
                     $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
-                    $main_text .= wrap_emojis("⚠️ <b>Verluste:</b> $raiders_lost Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet.");
+                    $main_text .= Messages::wrap_emojis("⚠️ <b>Verluste:</b> $raiders_lost Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet.");
                     $main_text .= "</div>";
                 }
 
@@ -1371,7 +1371,7 @@ class Messages
 
                     if ($losses > 0) {
                         $html .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em; text-align: center;'>";
-                        $html .= wrap_emojis("⚠️ <b>Verluste:</b> $losses Späher wurden von der Minen-Besatzung entdeckt und ausgeschaltet.");
+                        $html .= Messages::wrap_emojis("⚠️ <b>Verluste:</b> $losses Späher wurden von der Minen-Besatzung entdeckt und ausgeschaltet.");
                         $html .= "</div>";
                     }
                 } else {
@@ -2282,15 +2282,241 @@ class Messages
         $filter = ($use_filter !== null) ? $use_filter : (!empty($_SESSION["chat_filter"]));
 
         $text = e($raw_text);
-        $text = parse_chat_quotes($text);
+        $text = self::parse_chat_quotes($text);
         $text = nl2br($text);
 
         if ($filter) {
-            $text = filter_chat_message($text);
+            $text = Messages::filter_chat_message($text);
         }
 
         $text = self::parse_chat_coordinates($text);
 
-        return wrap_emojis($text);
+        return Messages::wrap_emojis($text);
+    }
+
+    public static function parse_chat_quotes(string $text): string
+    {
+        $max_depth = 5;
+        $depth = 0;
+        $open_divs = 0;
+        $output = '';
+
+        $pattern = '#(\[quote=[^\[\]]+]|\[/quote])#iu';
+        $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        foreach ($parts as $part) {
+            if ($part === '' || $part === null) continue;
+
+            if (preg_match('#^\[quote=([^]]+)]$#i', $part, $m)) {
+                $depth++;
+
+                if ($depth <= $max_depth) {
+                    $name = trim(strip_tags(preg_replace('/\p{C}/u', '', $m[1])));
+
+                    if (preg_match('/^[a-zA-Z0-9äöüÄÖÜß \-_]{1,24}$/u', $name)) {
+                        $output .= '<div class="chat-quote"><span class="chat-quote-author">' . e($name) . ' schrieb:</span>';
+                        $open_divs++;
+                    } else {
+                        $output .= e($part);
+                        $depth--;
+                    }
+                }
+            } else if ($part === '[/quote]') {
+                if ($depth > 0) {
+                    if ($depth <= $max_depth && $open_divs > 0) {
+                        $output .= '</div>';
+                        $open_divs--;
+                    }
+                    $depth--;
+                }
+            } else {
+                $output .= $part;
+            }
+        }
+
+        while ($open_divs > 0) {
+            $output .= '</div>';
+            $open_divs--;
+        }
+
+        return $output;
+    }
+
+    public static function filter_chat_message($text): string
+    {
+        if (empty($text)) return '';
+
+        $filtered_text = (string)$text;
+
+        $censor_fn = function ($matches) {
+            return str_repeat('*', mb_strlen($matches[0], 'UTF-8'));
+        };
+
+        $filtered_text = preg_replace_callback('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $censor_fn, $filtered_text);
+        $filtered_text = preg_replace_callback('/(?<!k)anal/iu', $censor_fn, $filtered_text);
+
+        $patterns = get_prepared_chat_patterns();
+
+        foreach ($patterns as $pattern) {
+            $res = preg_replace_callback($pattern, $censor_fn, $filtered_text);
+            if ($res !== null) {
+                $filtered_text = $res;
+            }
+        }
+
+        return $filtered_text;
+    }
+
+    public static function render_reactions_bar(string $type, int $id, User $user, string $mode = "full"): string
+    {
+        $my_id = $user->get_user_id();
+        $db = Database::get_instance()->get_connection();
+
+        $badges_html = '';
+        if ($mode !== "btn_only") {
+            $query = "SELECT r.emoji, COUNT(*) as total, 
+                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted,
+                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names
+                  FROM reactions r
+                  JOIN users u ON r.user_id = u.id
+                  WHERE r.entity_type = ? AND r.entity_id = ? 
+                  GROUP BY r.emoji";
+            $res = $db->execute_query($query, [$my_id, $type, $id]);
+
+            while ($row = $res->fetch_assoc()) {
+                $active_class = ($row["self_reacted"] == 1) ? " active" : '';
+
+                $user_list = e($row["names"]);
+                $popup_id = "reac_" . $type . "_" . $id . "_" . md5($row["emoji"]);
+
+                $badges_html .= '
+                <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '"
+                      data-on-click="toggleReaction" 
+                      data-type="' . $type . '" 
+                      data-id="' . $id . '" 
+                      data-emoji="' . e($row["emoji"]) . '">
+                    ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
+                    <div id="' . $popup_id . '_box" class="popupbox">
+                        <b>Reaktionen:</b><br>' . $user_list . '
+                    </div>
+                </span>';
+            }
+        }
+
+        $picker_html = '';
+        if ($mode === "full" || $mode === "btn_only") {
+            $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
+                            <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
+                            <div class="reaction-picker" style="display:none;">';
+            foreach (Messages::get_chat_emojis() as $emoji) {
+                $picker_html .= '<span class="picker-emoji" data-on-click="toggleReaction" 
+                            data-type="' . $type . '" data-id="' . $id . '" 
+                            data-emoji="' . e($emoji) . '">' . e($emoji) . '</span>';
+            }
+            $picker_html .= '</div></div>';
+        }
+
+        $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
+
+        $res_count = $db->execute_query("SELECT COUNT(*) FROM reactions WHERE entity_type = ? AND entity_id = ?", [$type, $id]);
+        $has_reactions = ($res_count->fetch_row()[0] > 0);
+
+        $info_btn = "";
+        if ($has_reactions) {
+            $info_btn = "<img src='images/icons/icon_feedback.png' 
+                      class='ressource-icons' 
+                      style='cursor: pointer; opacity: 0.7;' 
+                      data-on-click='openReactorList' 
+                      data-type='$type' 
+                      data-id='$id' 
+                      title='Wer hat reagiert?' alt=''>";
+        }
+
+        if ($mode === "full") {
+            $html .= '<div class="reaction-bar-btn-row">' . $picker_html . '</div>';
+            $html .= '<div class="reaction-bar-badges-row">' . $badges_html . '</div>';
+        } else if ($mode === "btn_only") {
+            $html .= $picker_html . $info_btn;
+        } else if ($mode === "badges_only") {
+            $html .= $badges_html;
+        }
+
+        $html .= '</div>';
+        return $html;
+    }
+
+    public static function broadcast_server_message(int $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
+    {
+        $db = Database::get_instance()->get_connection();
+        $now = time();
+        $json = is_array($data) ? json_encode($data) : null;
+
+        $res = $db->query("SELECT id, username FROM users WHERE status = 1");
+        if ($res->num_rows === 0) return [];
+
+        $rows = [];
+        $types = "";
+        $params = [];
+        $users = [];
+
+        while ($u = $res->fetch_assoc()) {
+            $users[] = $u;
+            $rows[] = "(?, ?, ?, ?, ?, ?)";
+            $types .= "isiiss";
+            $params[] = (int)$u["id"];
+            $params[] = $u["username"];
+            $params[] = $now;
+            $params[] = "";
+            $params[] = $category;
+            $params[] = $json;
+        }
+
+        $sql = "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES " . implode(", ", $rows);
+
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+
+        return $users;
+    }
+
+    public static function send_server_message(int               $user_id, string $user_name, int $category = MessageCategories::CATEGORY_DEFAULT,
+                                               array|string|null $data = null): void
+    {
+        $db = Database::get_instance()->get_connection();
+        $message = "";
+        $json = null;
+
+        if (is_array($data)) {
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+        } else if (is_string($data)) {
+            $message = $data;
+        }
+
+        $db->execute_query(
+            "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
+            [$user_id, $user_name, time(), $message, $category, $json]
+        );
+    }
+
+    public static function wrap_emojis($text): array|string|null
+    {
+        $emoji_pattern = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
+
+        return preg_replace($emoji_pattern, '<span class="emoji-fix">$0</span>', $text);
+    }
+
+    public static function get_chat_emojis(): array
+    {
+        return [
+            '😀', '😃', '😄', '😁', '😅', '😂', '🥲', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
+            '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
+            '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
+            '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
+            '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
+            '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
+            '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
+            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
+        ];
     }
 }

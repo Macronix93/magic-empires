@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-$result = check_user_login_and_kingdom($user, BuildingTypes::BUILDING_MARKETPLACE);
+$result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_MARKETPLACE);
 
 $current_kingdom = $result['current_kingdom'];
 $building = $result['building'];
@@ -78,6 +78,8 @@ if (isset($_GET["accept"])) {
                 ]);
             }
 
+            $target_guild = (int)($row["guild_id"] ?? 0);
+
             if ($target_guild > 0 && ($my_guild_id <= 0 || $my_guild_id !== $target_guild)) {
                 $db_instance->rollback();
                 $error = "Dieses Angebot ist ausschließlich für Mitglieder der entsprechenden Gilde reserviert!";
@@ -147,7 +149,7 @@ if (isset($_GET["accept"])) {
                         "cost" => $cost
                     ];
 
-                    send_server_message($creator_id, $creator_name, MessageCategories::CATEGORY_TRADE, $seller_json);
+                    Messages::send_server_message($creator_id, $creator_name, MessageCategories::CATEGORY_TRADE, $seller_json);
 
                     $logger->log_game("TRADE", "OFFER_ACCEPT", [
                         "offer_id" => $accept_id,
@@ -160,16 +162,16 @@ if (isset($_GET["accept"])) {
                         "to_kingdom" => $kingdom->get_kingdom_id()
                     ], $current_kingdom);
 
-                    update_global_stat("total_trades");
+                    Stats::update_global_stat("total_trades");
 
                     $s_name = $res_map[$supply];
                     $d_name = $res_map[$demand];
-                    update_player_stat($u_id, "trades_count");
-                    update_player_stat($u_id, "trade_received_" . $s_name, $supply_value);
-                    update_player_stat($u_id, "trade_sent_" . $d_name, $demand_value);
-                    update_player_stat($creator_id, "trades_count");
-                    update_player_stat($creator_id, "trade_sent_" . $s_name, $supply_value);
-                    update_player_stat($creator_id, "trade_received_" . $d_name, $demand_value);
+                    Stats::update_player_stat($u_id, "trades_count");
+                    Stats::update_player_stat($u_id, "trade_received_" . $s_name, $supply_value);
+                    Stats::update_player_stat($u_id, "trade_sent_" . $d_name, $demand_value);
+                    Stats::update_player_stat($creator_id, "trades_count");
+                    Stats::update_player_stat($creator_id, "trade_sent_" . $s_name, $supply_value);
+                    Stats::update_player_stat($creator_id, "trade_received_" . $d_name, $demand_value);
 
                     $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $buyer_arrival_str);
                 }
@@ -222,7 +224,7 @@ if (isset($_GET["accept"])) {
         if ($supply_value <= 0 || $demand_value <= 0) {
             $error = "Die Mengen müssen größer als 0 sein!";
         } else {
-            $listing_fee = calculate_listing_fee($supply_value);
+            $listing_fee = Marketplace::calculate_listing_fee($supply_value);
 
             if ($user->get_user_coins() < $listing_fee) {
                 $error = "Du hast nicht genug Münzen für die Einstellgebühr (Benötigt: $listing_fee " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ")!";
@@ -263,7 +265,7 @@ if (isset($_GET["accept"])) {
                                     $user->give_user_coins(-$listing_fee);
 
                                     // No offer found for the kingdom - insert to database
-                                    $calculated_fee = calculate_market_fee($supply, $supply_value, $demand, $demand_value);
+                                    $calculated_fee = Marketplace::calculate_market_fee($supply, $supply_value, $demand, $demand_value);
                                     $expires_at = time() + MARKET_OFFER_DURATION;
 
                                     $query = "INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at, guild_id) 
@@ -550,7 +552,8 @@ if ($result->num_rows > 0) {
         $map_y = $row["mapy"];
         $is_my_offer = ($row["userid"] == $user->get_user_id());
         $remaining = $row["expires_at"] - time();
-        $time_str = convert_sec_to_str($remaining, true);
+        $php_timer_expires = format_time_for_js($remaining);
+        $time_str = "<span class='js-countdown' data-seconds='$remaining'>$php_timer_expires</span>";
 
         if ($is_my_offer) {
             $arrival_time_str = "-";
@@ -573,6 +576,11 @@ if ($result->num_rows > 0) {
             $title_attr = "Angebot annehmen";
         }
 
+        $is_guild_deal = ((int)($row["guild_id"] ?? 0) > 0);
+        $guild_icon = $is_guild_deal
+            ? "<img src='images/icons/icon_guild.png' class='ressource-icons' alt='Gilde' title='Gildeninternes Angebot'>"
+            : "";
+
         $text_build = "<form action='marketplace.php' method='GET' 
                             data-on-submit='checkMarket' 
                             data-res-type='" . (int)$row["supply"] . "' 
@@ -584,8 +592,8 @@ if ($result->num_rows > 0) {
         $view .= "<tr>
                     <td>
                         <div class='player-info-stack'>
-                            <span class='p-name'>{$row["username"]}</span>
-                            <span class='p-coords'>(<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'>$kingdom_coords</a>)</span>
+                            <span class='p-name'>$guild_icon {$row["username"]}</span>
+                            <span class='p-coords'>(<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'><small>$kingdom_coords</small></a>)</span>
                         </div>
                     </td>
                     <td class='td-center'>
@@ -788,7 +796,7 @@ $view .= '<div id="market-configs"
  */
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
-$script_files = ["marketplace", "userinfo"];
+$script_files = ["marketplace", "userinfo", "timer"];
 
 if (!empty($error)) {
     $view = show_error_box($error) . $view;

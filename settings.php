@@ -2,7 +2,7 @@
 
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 $uid = $user->get_user_id();
 $res_user = $db_instance->execute_query("SELECT linked_user, last_avatar_change FROM users WHERE id = ?", [$uid]);
@@ -366,7 +366,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if (!password_verify($confirm_pw, $current_hash)) {
                 $error = "Passwort-Bestätigung fehlgeschlagen.";
             } else {
-                $vac_errors = check_vacation_eligibility($uid, $db_instance);
+                $vac_errors = $user->check_vacation_eligibility();
 
                 if (!empty($vac_errors)) {
                     $error = "Urlaubsmodus kann nicht aktiviert werden:<br>• " . implode("<br>• ", $vac_errors);
@@ -482,7 +482,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $guild_manager = new Guild($user, $user->get_user_guild_id());
                 $guild_manager->handle_leader_deletion($uid);
 
-                convert_user_kingdoms_to_ruins($db_instance, $uid);
+                Kingdom::convert_user_kingdoms_to_ruins($uid);
 
                 $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
@@ -777,27 +777,27 @@ $view .= '
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_combat" value="1" ' . ($val_combat ? "checked" : "") . '>
-                    ' . wrap_emojis('<span>⚔️ <b>Kampf & Wachturm:</b> Feindliche Angriffe und Gefechtsberichte</span>') . '
+                    ' . Messages::wrap_emojis('<span>⚔️ <b>Kampf & Wachturm:</b> Feindliche Angriffe und Gefechtsberichte</span>') . '
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_troops" value="1" ' . ($val_troops ? "checked" : "") . '>
-                    ' . wrap_emojis('<span>🛡️ <b>Truppenrückkehr:</b> Wenn Einheiten von Missionen heimkehren</span>') . '
+                    ' . Messages::wrap_emojis('<span>🛡️ <b>Truppenrückkehr:</b> Wenn Einheiten von Missionen heimkehren</span>') . '
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_building" value="1" ' . ($val_building ? "checked" : "") . '>
-                    ' . wrap_emojis('<span>🏰 <b>Bau & Forschung:</b> Fertigstellung von Gebäuden, Forschungen oder Rekrutierungen</span>') . '
+                    ' . Messages::wrap_emojis('<span>🏰 <b>Bau & Forschung:</b> Fertigstellung von Gebäuden, Forschungen oder Rekrutierungen</span>') . '
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_storage" value="1" ' . ($val_storage ? "checked" : "") . '>
-                    ' . wrap_emojis('<span>🌾 <b>Lager-Warnung:</b> Wenn deine Speicher drohen vollzulaufen</span>') . '
+                    ' . Messages::wrap_emojis('<span>🌾 <b>Lager-Warnung:</b> Wenn deine Speicher drohen vollzulaufen</span>') . '
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_messages" value="1" ' . ($val_messages ? "checked" : "") . '>
-                    ' . wrap_emojis('<span>📩 <b>Private Nachrichten:</b> Neue Chat-Mitteilung</span>') . '
+                    ' . Messages::wrap_emojis('<span>📩 <b>Private Nachrichten:</b> Neue Chat-Mitteilung</span>') . '
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_events" value="1" ' . ($val_events ? "checked" : "") . '>
-                    ' . wrap_emojis('<span>👹 <b>Welt-Events:</b> Falls Events stattfinden</span>') . '
+                    ' . Messages::wrap_emojis('<span>👹 <b>Welt-Events:</b> Falls Events stattfinden</span>') . '
                 </label>
             </div>
             <div style="margin-top: 15px; text-align: center;">
@@ -824,7 +824,7 @@ $view .= '
     </div>
 </div>';
 
-$vac_checks = check_vacation_eligibility($uid, $db_instance);
+$vac_checks = $user->check_vacation_eligibility();
 $can_vac = empty($vac_checks);
 
 $view .= '<div class="box-container" style="border-color: var(--border-gold); margin-bottom: 20px;">

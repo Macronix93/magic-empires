@@ -177,4 +177,38 @@ class Building
     {
         $this->b_description = $description;
     }
+
+    public static function get_building_file(int $building_id): string
+    {
+        return match ($building_id) {
+            BuildingTypes::BUILDING_TOWNCENTER => "towncenter",
+            BuildingTypes::BUILDING_UNIVERSITY => "university",
+            BuildingTypes::BUILDING_BARRACKS => "barracks",
+            BuildingTypes::BUILDING_WALL => "wall",
+            BuildingTypes::BUILDING_SMITHY => "blacksmith",
+            BuildingTypes::BUILDING_MILL => "mill",
+            BuildingTypes::BUILDING_SAWMILL => "sawmill",
+            BuildingTypes::BUILDING_STONEMINE => "stonemine",
+            BuildingTypes::BUILDING_GOLDMINE => "goldmine",
+            BuildingTypes::BUILDING_STORAGE => "storage",
+            BuildingTypes::BUILDING_MARKETPLACE => "marketplace",
+            BuildingTypes::BUILDING_ESTATE => "manor",
+            BuildingTypes::BUILDING_WATCHTOWER => "watchtower",
+            BuildingTypes::BUILDING_SHRINE => "shrine",
+            BuildingTypes::BUILDING_EMBASSY => "embassy",
+            BuildingTypes::BUILDING_ALCHEMY_LAB => "alchemylab",
+            default => "index",
+        };
+    }
+
+    public static function get_max_building_level(int $building_id): int
+    {
+        return match ($building_id) {
+            BuildingTypes::BUILDING_EMBASSY => EMBASSY_MAX_LEVEL,
+            BuildingTypes::BUILDING_SHRINE => SHRINE_MAX_LEVEL,
+            BuildingTypes::BUILDING_ALCHEMY_LAB => ALCHEMY_MAX_LEVEL,
+            default => MAX_BUILDING_LEVEL,
+        };
+    }
+
 }

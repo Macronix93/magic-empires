@@ -1,7 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-check_user_login($user);
+$user->check_user_login();
 
 // Get the complete userlist
 $result = $db_instance->execute_query("SELECT username FROM users WHERE status = 1 AND username != ? ORDER BY username", [$user->get_user_name()]);

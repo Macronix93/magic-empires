@@ -1,6 +1,6 @@
 <?php
 require_once("includes/core.php");
-check_user_login($user);
+$user->check_user_login();
 
 $rows_per_page = MAX_ROWS_PER_RANKING_PAGE;
 $now = time();
