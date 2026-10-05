@@ -57,6 +57,7 @@ class Marketplace
 
         if ((int)($trade_check["last_trade_reset"] ?? 0) < $today_start) {
             $daily_trades_count = 0;
+            
             $this->db->execute_query(
                 "UPDATE users SET daily_trades_count = 0, last_trade_reset = ? WHERE id = ?",
                 [time(), $uid]
@@ -87,7 +88,8 @@ class Marketplace
             return "Du hast heute bereits {$daily["max"]} Angebote erstellt oder angenommen!";
         }
 
-        if ($supply < 0 || $supply > 3 || $demand < 0 || $demand > 3) {
+        if ($supply < ResourceTypes::RESOURCE_TYPE_FOOD || $supply > ResourceTypes::RESOURCE_TYPE_GOLD
+            || $demand < ResourceTypes::RESOURCE_TYPE_FOOD || $demand > ResourceTypes::RESOURCE_TYPE_GOLD) {
             return "Diese Ressource gibt es nicht!";
         }
         if ($supply === $demand) {
@@ -275,7 +277,7 @@ class Marketplace
             $this->db->execute_query("
                 INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) 
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ", [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, "Handelserlös", $seller_arrival_time]);
+            ", [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, TransportTypes::TRANSPORT_TYPE_TRADE_PROCEEDS, $seller_arrival_time]);
 
             $this->db->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$uid]);
 

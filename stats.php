@@ -3,113 +3,22 @@ require_once("includes/core.php");
 
 $user->check_user_login();
 
-$stats_query = "
-    SELECT 
-        -- Kingdom Data
-        SUM(k.food) as total_f, SUM(k.wood) as total_w, SUM(k.stone) as total_s, SUM(k.gold) as total_g,
-        SUM(k.foodperhour) as ph_f, SUM(k.woodperhour) as ph_w, SUM(k.stoneperhour) as ph_s, SUM(k.goldperhour) as ph_g,
-        SUM(k.villager) as total_pop,
-        
-        -- Resource Tiles
-        (SELECT IFNULL(SUM(food), 0) FROM resource_tiles_data) as map_food,
-        (SELECT IFNULL(SUM(wood), 0) FROM resource_tiles_data) as map_wood,
-        (SELECT IFNULL(SUM(stone), 0) FROM resource_tiles_data) as map_stone,
-        (SELECT IFNULL(SUM(gold), 0) FROM resource_tiles_data) as map_gold,
-        (SELECT IFNULL(SUM(food + wood + stone + gold), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_total,
-        
-        -- User Data
-        (SELECT COUNT(*) FROM users WHERE status = 1) as total_users,
-        (SELECT COUNT(*) FROM users WHERE lastactivity > (UNIX_TIMESTAMP() - 86400)) as active_users_24h,
-        (SELECT SUM(coins) FROM users) as total_coins,
-        
-        -- Map Data
-        (SELECT COUNT(*) FROM map WHERE kingdomid > 0) as occupied_fields,
-        (SELECT COUNT(*) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as resource_tiles,
-        (SELECT COUNT(*) FROM monster_camps WHERE expires_at > UNIX_TIMESTAMP()) as monster_camps,
-        (SELECT COUNT(*) FROM mines WHERE expires_at > UNIX_TIMESTAMP()) as active_mines,
-        
-        -- Military
-        ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers) + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)) as total_soldiers,
-        (SELECT IFNULL(AVG(buildinglevel), 0) FROM buildings) as avg_building_lvl,
-        (SELECT IFNULL(SUM(techlevel), 0) FROM techs) as total_tech_lvls,
-        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_fallen_soldiers') as total_fallen,
-        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_slain_monsters') as total_monsters_slain,
-        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_battles') as total_battles,
-        
-        -- Other
-        (SELECT COUNT(*) FROM messages) as total_msgs,
-        (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_trades') as total_trades,
-        (SELECT IFNULL(SUM(supplyvalue), 0) FROM marketplace) as market_volume
-        
-    FROM kingdoms k";
-
-$stats = $db_instance->execute_query($stats_query)->fetch_assoc();
-
+$stats_manager = new Stats();
 $uid = $user->get_user_id();
-$my_stats = $db_instance->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$uid])->fetch_assoc();
 
-if (!$my_stats) {
-    $cols = ["units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve", "units_defeated_pvp", "monster_kills", "buildings_upgraded", "trades_count",
-        "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen", "resources_looted", "mines_depleted", "special_resources_mined"];
-    $my_stats = array_fill_keys($cols, 0);
+$stats = $stats_manager->get_global_stats();
+$my_stats = $stats_manager->get_player_stats($uid);
+$breakdown = $stats_manager->calculate_user_score_breakdown($uid);
 
-    $res_keys = ["food", "wood", "stone", "gold"];
-
-    foreach ($res_keys as $rk) {
-        $my_stats["trade_sent_" . $rk] = 0;
-        $my_stats["trade_received_" . $rk] = 0;
-    }
-}
+$score_buildings = $breakdown["buildings"];
+$score_techs = $breakdown["techs"];
+$score_troops = $breakdown["troops"];
+$perc_b = $breakdown["perc_b"];
+$perc_t = $breakdown["perc_t"];
+$perc_u = $breakdown["perc_u"];
 
 $total_fields = MAX_X * MAX_Y;
 $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
-
-// --- SCORE BREAKDOWN ---
-// Building Score (all kingdoms)
-$res_score_b = $db_instance->execute_query("
-    SELECT IFNULL(SUM(
-        IF(b.buildingid IN (0, 3, 9), GREATEST(0, (b.buildinglevel * (b.buildinglevel + 1) / 2) - 1) * bl.buildingscore, (b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore)
-    ), 0)
-    FROM buildings b
-    JOIN building_list bl ON b.buildingid = bl.id
-    JOIN kingdoms k ON b.kingdomid = k.id
-    WHERE k.userid = ?", [$uid]);
-$score_buildings = (int)$res_score_b->fetch_column();
-
-// Tech Score (all kingdoms)
-$res_score_t = $db_instance->execute_query("
-    SELECT IFNULL(SUM((t.techlevel * (t.techlevel + 1) / 2) * tl.techscore), 0)
-    FROM techs t
-    JOIN tech_list tl ON t.techid = tl.id
-    JOIN kingdoms k ON t.kingdomid = k.id
-    WHERE k.userid = ?", [$uid]);
-$score_techs = (int)$res_score_t->fetch_column();
-
-// Military Score (Barracks + Troop Movement + Allied Support)
-$res_score_u = $db_instance->execute_query("
-    SELECT IFNULL(SUM(total_count * sl.scoregain), 0)
-    FROM (
-        SELECT soldierid, SUM(soldiercount) AS total_count FROM soldiers WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) GROUP BY soldierid
-        UNION ALL
-        SELECT st.soldierid, SUM(st.soldiercount) AS total_count FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.userid = ? GROUP BY st.soldierid
-        UNION ALL
-        SELECT soldier_id AS soldierid, SUM(soldiercount) AS total_count FROM stationed_troops WHERE owner_id = ? GROUP BY soldier_id
-        UNION ALL
-        SELECT mst.soldier_id AS soldierid, SUM(mst.soldiercount) AS total_count FROM mine_stationed_troops mst WHERE mst.user_id = ? GROUP BY mst.soldier_id
-        UNION ALL
-        SELECT e.buildingid AS soldierid, SUM(e.soldiergoal) AS total_count FROM events e WHERE e.userid = ? AND e.actionid = 7 GROUP BY e.buildingid
-    ) AS all_units
-    JOIN soldier_list sl ON all_units.soldierid = sl.id
-    WHERE sl.id != " . Soldiers::SOLDIER_HERO,
-    [$uid, $uid, $uid, $uid, $uid]);
-$score_troops = (int)$res_score_u->fetch_column();
-
-$sum_breakdown = $score_buildings + $score_techs + $score_troops;
-
-// Percentage
-$perc_b = $sum_breakdown > 0 ? round(($score_buildings / $sum_breakdown) * 100, 1) : 0;
-$perc_t = $sum_breakdown > 0 ? round(($score_techs / $sum_breakdown) * 100, 1) : 0;
-$perc_u = $sum_breakdown > 0 ? round(($score_troops / $sum_breakdown) * 100, 1) : 0;
 
 /* --- VIEW --- */
 

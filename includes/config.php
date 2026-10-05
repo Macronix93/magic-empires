@@ -402,6 +402,7 @@ interface TransportTypes
     const string TRANSPORT_TYPE_INTERNAL = "Intern";
     const string TRANSPORT_TYPE_TRADE_DELIVERY = "Warenlieferung";
     const string TRANSPORT_TYPE_TRADE_RETURN = "Transport-Rückkehr";
+    const string TRANSPORT_TYPE_TRADE_PROCEEDS = "Handelserlös";
 }
 
 interface MapFieldTypes
