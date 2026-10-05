@@ -135,6 +135,12 @@ registerAction("cancelSuggestionEdit", () => {
 registerAction("openSuggestionComments", (el) => {
     const sugId = el.dataset.id;
 
+    el.classList.remove("has-new-comments");
+    const dot = el.querySelector(".new-comment-dot");
+    if (dot) {
+        dot.remove();
+    }
+
     openOverlay(`ajax/suggestion_comments.php?id=${sugId}`, "Kommentare");
 });
 registerAction("deleteSuggestionComment", (el) => {
@@ -260,15 +266,71 @@ function scrollCommentsToBottom() {
     }
 }
 
+function scrollCommentsToView() {
+    const list = document.getElementById("comments-list");
+    if (!list) return;
+
+    const firstNewLine = document.getElementById("first-new-comment-line");
+
+    setTimeout(() => {
+        if (firstNewLine) {
+            const targetPos = firstNewLine.offsetTop - list.offsetTop - 10;
+            list.scrollTo({top: Math.max(0, targetPos), behavior: "smooth"});
+        } else {
+            list.scrollTo({top: list.scrollHeight, behavior: "smooth"});
+        }
+    }, 60);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     initSuggestionFormValidation();
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const openSugId = urlParams.get("open_comments");
+
+    if (openSugId) {
+        if (typeof openOverlay === "function") {
+            openOverlay(`ajax/suggestion_comments.php?id=${openSugId}`, "Kommentare");
+        }
+
+        const targetCard = document.querySelector(`.box-container[data-id="${openSugId}"]`);
+        if (targetCard) {
+            const commBtn = targetCard.querySelector('.btn-comments');
+            if (commBtn) {
+                commBtn.classList.remove("has-new-comments");
+                const dot = commBtn.querySelector(".new-comment-dot");
+                if (dot) dot.remove();
+            }
+            targetCard.scrollIntoView({behavior: "smooth", block: "center"});
+        }
+
+        const cleanUrl = new URL(window.location);
+        cleanUrl.searchParams.delete("open_comments");
+        window.history.replaceState({}, '', cleanUrl);
+    }
+
     const overlayBody = document.getElementById("overlay-content-body");
+
     if (overlayBody) {
-        const observer = new MutationObserver(() => {
-            scrollCommentsToBottom();
+        const badgeObserver = new MutationObserver(() => {
+            const dataEl = overlayBody.querySelector("[data-unread-suggestions]");
+
+            if (dataEl) {
+                const unreadCount = parseInt(dataEl.dataset.unreadSuggestions) || 0;
+
+                document.querySelectorAll(".js-badge-suggestions").forEach(badge => {
+                    if (unreadCount > 0) {
+                        badge.innerText = unreadCount > 9 ? "9+" : unreadCount;
+                        badge.style.display = "inline-flex";
+                    } else {
+                        badge.style.display = "none";
+                    }
+                });
+
+                scrollCommentsToView();
+            }
         });
-        observer.observe(overlayBody, {childList: true});
+        badgeObserver.observe(overlayBody, {childList: true});
     }
 });
 

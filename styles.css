@@ -716,15 +716,6 @@ hr {
     margin-bottom: 10px;
 }
 
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
 .server-bubble {
     display: flex;
     flex-direction: column;
@@ -954,6 +945,7 @@ textarea {
     width: 100%;
     resize: vertical;
     min-height: 30px;
+    max-height: 200px;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]) {
@@ -3336,6 +3328,11 @@ img[data-on-click] {
     width: 6px;
 }
 
+.btn-comments.has-new-comments {
+    border-color: var(--link-color) !important;
+    background-color: rgba(165, 124, 0, 0.3) !important;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -4295,6 +4292,34 @@ img[data-on-click] {
         margin: 5px auto;
     }
 
+    .internal-transport-table {
+        display: block !important;
+        width: 100% !important;
+        border-collapse: collapse;
+        margin: 0 auto;
+    }
+
+    .internal-transport-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .internal-transport-table tr {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .internal-transport-table td {
+        display: block;
+        width: 100% !important;
+        background-color: var(--table-color);
+        border: 1px solid rgba(0, 0, 0, 0.2) !important;
+        margin: 0;
+        padding: 12px 10px !important;
+        box-sizing: border-box;
+        text-align: center;
+    }
+
     .form {
         padding: 0;
     }
@@ -4386,10 +4411,6 @@ img[data-on-click] {
 
     .col-description {
         width: auto;
-    }
-
-    .col-action {
-        width: 180px;
     }
 
     .col-guild-description {
@@ -4593,16 +4614,13 @@ img[data-on-click] {
     }
 
     textarea {
+        min-height: 26px;
         font-size: 13px !important;
     }
 
     button,
     input {
         font-size: 11px !important;
-    }
-
-    textarea {
-        min-height: 26px;
     }
 
     .box-header {
@@ -4801,38 +4819,6 @@ img[data-on-click] {
     .td-timer-cell input.btn-delete {
         width: 16px !important;
         height: 14px !important;
-    }
-
-    table:has(#sv),
-    .internal-transport-table {
-        display: block !important;
-        width: 100% !important;
-        border-collapse: collapse;
-        margin: 0 auto;
-    }
-
-    table:has(#sv) tbody,
-    .internal-transport-table tbody {
-        display: block;
-        width: 100%;
-    }
-
-    table:has(#sv) tr,
-    .internal-transport-table tr {
-        display: flex;
-        flex-direction: column;
-    }
-
-    table:has(#sv) td,
-    .internal-transport-table td {
-        display: block;
-        width: 100% !important;
-        background-color: var(--table-color);
-        border: 1px solid rgba(0, 0, 0, 0.2) !important;
-        margin: 0;
-        padding: 12px 10px !important;
-        box-sizing: border-box;
-        text-align: center;
     }
 
     .internal-transport-table td:last-child {

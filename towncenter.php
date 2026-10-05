@@ -13,22 +13,16 @@ require_once("includes/core.php");
     "k_villager" => $kingdom_villager
 ] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_TOWNCENTER);
 
-$kingdom_is_building = false;
-$kingdom_building_id = -1;
-
 // Fetch all buildings and their dependencies
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $building_count = count($buildings);
 $build_id = (empty($_GET["bid"]) ? 0 : (int)$_GET["bid"]);
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
+$kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
+$kingdom_building_id = $kingdom_is_building ? $kingdom->get_kingdom_building_id() : -1;
+
 if (isset($_GET["action"])) {
-    $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
-
-    if ($kingdom_is_building) {
-        $kingdom_building_id = $kingdom->get_kingdom_building_id();
-    }
-
     if ($build_id >= BuildingTypes::BUILDING_TOWNCENTER && $build_id < $building_count) {
         $building_level = $buildings[$build_id]->get_building_level();
         $costs = $buildings[$build_id]->calculate_building_cost();
@@ -89,6 +83,9 @@ if (isset($_GET["action"])) {
 
                             $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
                                 [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
+
+                            $kingdom_is_building = true;
+                            $kingdom_building_id = $build_id;
                         }
                     }
                 }
@@ -104,6 +101,9 @@ if (isset($_GET["action"])) {
                         ActionTypes::ACTION_BUILD_BUILDING
                     ]
                 );
+
+                $kingdom_is_building = false;
+                $kingdom_building_id = -1;
 
                 // Refund the player
                 $kingdom->give_kingdom_wood($cost_wood);
@@ -144,11 +144,6 @@ $kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_stone = $kingdom->get_kingdom_stone();
 $kingdom_gold = $kingdom->get_kingdom_gold();
-$kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
-
-if ($kingdom_is_building) {
-    $kingdom_building_id = $kingdom->get_kingdom_building_id();
-}
 
 $view .= '<table class="table">
             <colgroup>

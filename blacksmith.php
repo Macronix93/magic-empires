@@ -12,9 +12,6 @@ $kingdom_food = $result["k_food"];
 $kingdom_stone = $result["k_stone"];
 $kingdom_gold = $result["k_gold"];
 
-$kingdom_is_researching = false;
-$kingdom_tech_id = -1;
-
 // Fetch all buildings and their dependencies
 $techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_SMITHY);
 $buildings = $kingdom->fetch_all_kingdom_buildings();
@@ -22,13 +19,10 @@ $all_techs_for_check = $kingdom->fetch_all_kingdom_techs();
 $tech_count = count($techs);
 $tech_id = (empty($_GET["tid"]) ? 0 : (int)$_GET["tid"]);
 
+$kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
+$kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
+
 if (isset($_GET["action"])) {
-    $kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
-
-    if ($kingdom_is_researching) {
-        $kingdom_research_id = $kingdom->get_kingdom_research_id();
-    }
-
     if (isset($techs[$tech_id])) {
         $tech_level = $techs[$tech_id]->get_tech_level();
         $tech_max_level = $techs[$tech_id]->get_tech_max_level();
@@ -46,6 +40,14 @@ if (isset($_GET["action"])) {
                 if ($kingdom_is_researching) {
                     $error = "Du forschst bereits!";
                 } else {
+                    $target_level = $tech_level + 1;
+                    $current_smithy_lvl = $building->get_building_level();
+                    $required_smithy_lvl = Tech::get_required_smithy_level($tech_id, $target_level);
+
+                    if ($current_smithy_lvl < $required_smithy_lvl) {
+                        $error = "Für Stufe $target_level benötigst du Schmiede Stufe $required_smithy_lvl!";
+                    }
+
                     $tech_dependencies = $techs[$tech_id]->get_tech_dependencies();
 
                     foreach ($tech_dependencies as $dependency) {
@@ -88,10 +90,8 @@ if (isset($_GET["action"])) {
                             $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
                                 [ActionTypes::ACTION_SMITHY_UPGRADE, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $tech_level, $techs[$tech_id]->get_tech_name()]);
 
-                            $kingdom_wood -= $cost_wood;
-                            $kingdom_food -= $cost_food;
-                            $kingdom_stone -= $cost_stone;
-                            $kingdom_gold -= $cost_gold;
+                            $kingdom_is_researching = true;
+                            $kingdom_research_id = $tech_id;
                         }
                     }
                 }
@@ -103,16 +103,14 @@ if (isset($_GET["action"])) {
                     [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_SMITHY_UPGRADE]
                 );
 
+                $kingdom_is_researching = false;
+                $kingdom_research_id = -1;
+
                 // Refund the player
                 $kingdom->give_kingdom_wood($cost_wood);
                 $kingdom->give_kingdom_food($cost_food);
                 $kingdom->give_kingdom_stone($cost_stone);
                 $kingdom->give_kingdom_gold($cost_gold);
-
-                $kingdom_wood += $cost_wood;
-                $kingdom_food += $cost_food;
-                $kingdom_stone += $cost_stone;
-                $kingdom_gold += $cost_gold;
             } else {
                 $error = "Du forschst gerade nichts!";
             }
@@ -134,6 +132,11 @@ if (!empty($last_researched_tech)) {
 /*
  * HTML Content Part
  */
+$kingdom_wood = $kingdom->get_kingdom_wood();
+$kingdom_food = $kingdom->get_kingdom_food();
+$kingdom_stone = $kingdom->get_kingdom_stone();
+$kingdom_gold = $kingdom->get_kingdom_gold();
+
 $smithy_boni_view = "";
 
 $blades_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
@@ -175,12 +178,6 @@ if ($siege_lvl > 0) {
 if (!empty($smithy_boni_view)) {
     $view .= "<div class='title-border'>Aktive Schmiede-Boni</div>";
     $view .= "<table class='table' style='max-width: 500px; margin-bottom: 20px;'>$smithy_boni_view</table>";
-}
-
-$kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
-
-if ($kingdom_is_researching) {
-    $kingdom_research_id = $kingdom->get_kingdom_research_id();
 }
 
 $view .= '<table class="table">
@@ -264,11 +261,23 @@ foreach ($techs as $i => $tech) {
                 $text_build = "-";
             }
         } else {
-            $disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold ? "disabled" : "";
+            $target_level = $level + 1;
+            $current_smithy_lvl = $building->get_building_level();
+            $required_smithy_lvl = Tech::get_required_smithy_level($i, $target_level);
+            $is_smithy_locked = ($current_smithy_lvl < $required_smithy_lvl);
+            $restriction_note = "";
+
+            if ($is_smithy_locked) {
+                $restriction_note = "<br><span class='error' style='font-size: 11px;'>Schmiede Stufe $required_smithy_lvl benötigt</span>";
+            }
+
+            $disabled = ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold || $is_smithy_locked) ? "disabled" : "";
+
             $text_build = "<form action='blacksmith.php' method='GET'>
                             <input type='hidden' name='action' value='research'>
                             <input type='hidden' name='tid' value='" . $i . "'>
                             <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Forschen") . "' $disabled>
+                            $restriction_note
                           </form>";
         }
     }

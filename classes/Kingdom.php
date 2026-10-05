@@ -1032,27 +1032,12 @@ class Kingdom
 
     public static function apply_villager_cap(int $kingdom_id): void
     {
-        if ($kingdom_id <= 0) {
-            return;
-        }
+        if ($kingdom_id <= 0) return;
 
-        $db = Database::get_instance()->get_connection();
-        $result = $db->execute_query("SELECT villager, maxvillager FROM kingdoms WHERE id = ?", [$kingdom_id]);
-
-        // Fetch the villager count from the result and apply the cap if needed
-        $row = $result->fetch_assoc();
-        if (!$row) {
-            return;
-        }
-
-        $villager_count = $row["villager"];
-        $max_villager = $row["maxvillager"];
-
-        if ($villager_count > $max_villager) {
-            $villager_difference = $villager_count - $max_villager;
-            $db->execute_query("UPDATE kingdoms SET villager = villager - $villager_difference WHERE id = ?",
-                [$kingdom_id]);
-        }
+        Database::get_instance()->get_connection()->execute_query(
+            "UPDATE kingdoms SET villager = maxvillager WHERE id = ? AND villager > maxvillager",
+            [$kingdom_id]
+        );
     }
 
     public static function convert_user_kingdoms_to_ruins(int $user_id): void

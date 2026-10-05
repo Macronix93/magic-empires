@@ -1050,11 +1050,6 @@ window.addEventListener("DOMContentLoaded", function () {
         sessionStorage.removeItem("keepRightMenuOpen");
     }
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
     setup();
     adjustUsernameDisplay();
 
@@ -1221,8 +1216,10 @@ function updateSidebarBadges(counts) {
     if (counts.priv !== undefined) update(".js-badge-priv", counts.priv);
     if (counts.world !== undefined) update(".js-badge-world", counts.world);
     if (counts.guild !== undefined) update(".js-badge-guild", counts.guild);
+    if (counts.suggestions !== undefined) update(".js-badge-suggestions", counts.suggestions);
 
-    const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0);
+    const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0) + (counts.suggestions || 0);
+
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
         const hasAlert = mobileDot.dataset.hasAlert === "true";

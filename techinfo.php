@@ -21,12 +21,14 @@ $time_icon_type = 0;
 $is_soldier = false;
 $is_guild_tech = false;
 
+$kingdom = new Kingdom($user->get_current_kingdom());
+
 // Get table data
 if ($building_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM building_list WHERE id = ?", [$building_id])->fetch_assoc();
 
     if ($row) {
-        $building = new Kingdom()->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
+        $building = $kingdom->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
         $current_level_value = $building ? $building->get_building_level() : 0;
         $max_lvl_to_show = Building::get_max_building_level($building_id);
         $time_key = "timetobuild";
@@ -36,7 +38,7 @@ if ($building_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM tech_list WHERE id = ?", [$tech_id])->fetch_assoc();
 
     if ($row) {
-        $tech = new Kingdom()->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
+        $tech = $kingdom->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
         $current_level_value = $tech ? $tech->get_tech_level() : 0;
         $max_lvl_to_show = ($tech_id === TechTypes::TECH_TYPE_IMPERIAL)
                 ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
@@ -100,7 +102,7 @@ if ($row) {
             $curr_founded = (int)$res_founded->fetch_row()[0];
 
             $res_imp = $db_instance->execute_query(
-                    "SELECT COUNT(*) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
+                    "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
                     [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
             );
             $imp_bonus = (int)$res_imp->fetch_row()[0];
@@ -130,7 +132,7 @@ if ($row) {
                         <img src='$soldier_icon' class='header-icon' alt=''> {$row["soldiername"]}
                     </div> 
                     <div class='big-box-content tech-info-page'>
-                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>" . e($row["description"]) .
+                        <p style='font-style: italic; margin-top: 0;'>" . e($row["description"]) .
                 ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
                 ($is_thief ? "<br>Der Dieb hat eine Tragekapazität von maximal " . THIEF_BASE_CAPACITY . " Ressourcen pro Einheit." : "") . " " . $chance_info . "</p>
                         $mining_info_html
@@ -244,7 +246,7 @@ if ($row) {
                         <img src='$gt_icon' class='header-icon' alt=''> " . e($row["name"]) . "
                     </div> 
                     <div class='big-box-content tech-info-page'>
-                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>
+                        <p style='font-style: italic; margin-top: 0;'>
                             " . e($row["description"]) . "
                         </p>
                         $guild_tech_bonus_info
@@ -451,7 +453,7 @@ if ($row) {
                 TechTypes::TECH_TYPE_ANCESTRAL_RITES => [fdec(SHRINE_TECH_STEP * 100) . "%", "stärkerer Schrein-Effekt"],
                 TechTypes::TECH_TYPE_WALL_HP_INC => [RESEARCH_WALL_HP_INC, "zusätzliche HP"],
                 TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
-                TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung"],
+                TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung (nur im Hauptkönigreich forschbar)."],
                 TechTypes::TECH_TYPE_ARCANE_INTEL => ["", "Erweitert die Informationen herannahender Truppen im Wachturm:<br>" .
                         "<div style='margin-top: 5px;'>" .
                         "• <span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
@@ -489,6 +491,19 @@ if ($row) {
         }
 
         $name = $row["buildingname"] ?? $row["techname"];
+        $is_uni_tech = ($tech_id !== null && $tech_id < TechTypes::TECH_TYPE_BLADES);
+        $is_smithy_tech = ($tech_id !== null && $tech_id >= TechTypes::TECH_TYPE_BLADES);
+
+        $cur_uni_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_UNIVERSITY);
+        $cur_smithy_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_SMITHY);
+        $cur_wt_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
+        $cur_wall_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+
+        $uni_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_UNIVERSITY . ".png' class='ressource-icons' alt='Universität' title='Universität'>";
+        $smithy_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_SMITHY . ".png' class='ressource-icons' alt='Schmiede' title='Schmiede'>";
+        $wt_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WATCHTOWER . ".png' class='ressource-icons' alt='Wachturm' title='Wachturm'>";
+        $wall_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WALL . ".png' class='ressource-icons' alt='Mauer' title='Mauer'>";
+
         $icon_filename = ($building_id !== null) ? "icon_building$building_id.png" : "icon_tech$tech_id.png";
 
         $view .= "<div class='big-box-container tech-info-page'>
@@ -496,7 +511,7 @@ if ($row) {
                         <img src='images/icons/$icon_filename' class='header-icon' alt=''> $name
                     </div> 
                     <div class='big-box-content tech-info-page'>
-                        <p style='font-style: italic; color: #ccc; margin-top: 0;'>
+                        <p style='font-style: italic; margin-top: 0;'>
                             " . e($row["description"]) . " $dynamic_effect_sentence
                         </p>
                         $biome_info
@@ -504,6 +519,10 @@ if ($row) {
                         <table class='table' style='width: 100%;'>
                             <tr>
                                 <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>";
+
+        if ($is_uni_tech || $is_smithy_tech) {
+            $view .= "<td class='td-center td-gradient' style='width: 15%;'>Gebäude</td>";
+        }
 
         if ($building_id === BuildingTypes::BUILDING_STORAGE) {
             $view .= "<td class='td-center td-gradient'>Kapazität</td>";
@@ -517,10 +536,64 @@ if ($row) {
                             </tr>";
 
         for ($i = 0; $i < $max_lvl_to_show; $i++) {
+            $target_lvl = $i + 1;
             $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
             $time_val = convert_sec_to_str((int)round($row[$time_key] * pow($m, $i)));
 
             $view .= "<tr><td class='td-center' $style>$i &rarr; " . ($i + 1) . "</td>";
+
+            if ($is_uni_tech) {
+                $req_uni = Tech::get_required_university_level($tech_id, $target_lvl);
+                $p_uni = "req_u_{$tech_id}_$target_lvl";
+
+                $is_current_row = ($i == $current_level_value);
+                $uni_lvl_display = $is_current_row
+                        ? "<b class='" . ($cur_uni_lvl >= $req_uni ? "passed" : "error") . "'>($req_uni)</b>"
+                        : "($req_uni)";
+
+                $req_display = "<span class='popup' id='$p_uni' style='display: flex; align-items: center; gap: 3px;'>$uni_icon $uni_lvl_display<div id='{$p_uni}_box' class='popupbox'>Universität</div></span>";
+
+                if ($tech_id === TechTypes::TECH_TYPE_ARCANE_INTEL) {
+                    $req_wt = $target_lvl + 1;
+                    $p_wt = "req_wt_{$tech_id}_$target_lvl";
+
+                    $wt_lvl_display = $is_current_row
+                            ? "<b class='" . ($cur_wt_lvl >= $req_wt ? "passed" : "error") . "'>($req_wt)</b>"
+                            : "($req_wt)";
+
+                    $req_display .= "<span class='popup' id='$p_wt' style='display: flex; align-items: center; gap: 3px;'>$wt_icon $wt_lvl_display<div id='{$p_wt}_box' class='popupbox'>Wachturm</div></span>";
+                } else if ($tech_id === TechTypes::TECH_TYPE_MAINTENANCE) {
+                    $p_wall = "req_wall_{$tech_id}_$target_lvl";
+
+                    $wall_lvl_display = $is_current_row
+                            ? "<b class='" . ($cur_wall_lvl >= 2 ? "passed" : "error") . "'>(2)</b>"
+                            : "(2)";
+
+                    $req_display .= "<span class='popup' id='$p_wall' style='display: flex; align-items: center; gap: 3px;'>$wall_icon $wall_lvl_display<div id='{$p_wall}_box' class='popupbox'>Mauer</div></span>";
+                }
+
+                $view .= "<td class='td-center' $style>
+                            <div style='display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;'>
+                                $req_display
+                            </div>
+                          </td>";
+            } else if ($is_smithy_tech) {
+                $req_sm = Tech::get_required_smithy_level($tech_id, $target_lvl);
+                $p_sm = "req_sm_{$tech_id}_$target_lvl";
+                $is_current_row = ($i == $current_level_value);
+
+                $sm_lvl_display = $is_current_row
+                        ? "<b class='" . ($cur_smithy_lvl >= $req_sm ? "passed" : "error") . "'>($req_sm)</b>"
+                        : "($req_sm)";
+
+                $req_display = "<span class='popup' id='$p_sm' style='display: flex; align-items: center; gap: 3px;'>$smithy_icon $sm_lvl_display<div id='{$p_sm}_box' class='popupbox'>Schmiede</div></span>";
+
+                $view .= "<td class='td-center' $style>
+                            <div style='display: flex; align-items: center; justify-content: center;'>
+                                $req_display
+                            </div>
+                          </td>";
+            }
 
             if ($building_id === BuildingTypes::BUILDING_STORAGE) {
                 $cap = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $i));

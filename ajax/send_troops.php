@@ -460,6 +460,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $db_instance->commit();
 
+            $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $user->get_user_id() . ".json";
+            if (file_exists($cache_file)) {
+                @unlink($cache_file);
+            }
+
             $is_world_event = ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT);
             $from_page = $_POST["from_page"] ?? ($_SERVER["HTTP_REFERER"] ?? '');
 

@@ -166,7 +166,8 @@ class Map
             }
         }
 
-        return (int)round($modified_time);
+        //return (int)round($modified_time);
+        return 30;
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
@@ -176,13 +177,9 @@ class Map
         }
 
         $cache_key = ($start_x * 1000000) + ($start_y * 10000) + ($end_x * 100) + $end_y;
-        $reverse_key = ($end_x * 1000000) + ($end_y * 10000) + ($start_x * 100) + $start_y;
 
         if (isset(self::$path_cache[$cache_key])) {
             return self::$path_cache[$cache_key];
-        }
-        if (isset(self::$path_cache[$reverse_key])) {
-            return self::$path_cache[$reverse_key];
         }
 
         $map = $this->fetch_map_data();

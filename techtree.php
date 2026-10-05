@@ -29,6 +29,8 @@ if ($current_kid === $main_kid) {
     $embassy_level = $main_buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level();
 }
 
+
+$view .= "<p style='font-style: italic; margin-top: 0;'>Klicke oder tippe auf einen Listeneintrag, um mehr zu erfahren.</p>";
 $view .= '<div class="title-border">Gebäude-Struktur</div>';
 $view .= '<table class="table">
     <tr>

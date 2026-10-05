@@ -159,7 +159,7 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
                 Stufe:
                 <div style="display: inline-flex; align-items: center; gap: 3px;">
                     <button type="button" class="btn-stepper" data-on-click="stepWarsimTech" data-target="en_wall_lvl" data-step="-1">-</button>
-                    <input type="text" id="en_wall_lvl" value="1" data-min="1" data-max="' . MAX_BUILDING_LEVEL . '" inputmode="numeric" pattern="[0-9]*" 
+                    <input type="text" id="en_wall_lvl" value="1" data-min="0" data-max="' . MAX_BUILDING_LEVEL . '" inputmode="numeric" pattern="[0-9]*" 
                            style="width: 24px; height: 24px; text-align: center; padding: 0; font-size: 13px; box-sizing: border-box;">
                     <button type="button" class="btn-stepper" data-on-click="stepWarsimTech" data-target="en_wall_lvl" data-step="1">+</button>
                 </div>

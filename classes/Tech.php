@@ -224,4 +224,70 @@ class Tech
     {
         $this->t_description = $description;
     }
+
+    public static function get_required_university_level(int $tech_id, int $target_level): int
+    {
+        if ($target_level <= 0) {
+            return 1;
+        }
+
+        return match ($tech_id) {
+            TechTypes::TECH_TYPE_FOOD_INC,
+            TechTypes::TECH_TYPE_WOOD_INC => (int)ceil($target_level / 2),
+            TechTypes::TECH_TYPE_STONE_INC => match (true) {
+                $target_level <= 2 => 2,
+                default => min(10, $target_level),
+            },
+            TechTypes::TECH_TYPE_GOLD_INC => min(10, $target_level + 1),
+            TechTypes::TECH_TYPE_CARTOGRAPHY,
+            TechTypes::TECH_TYPE_ARCHITECTURE => match (true) {
+                $target_level <= 3 => 3,
+                default => min(10, $target_level),
+            },
+            TechTypes::TECH_TYPE_MAINTENANCE => min(10, (int)ceil($target_level / 2) + 3),
+            TechTypes::TECH_TYPE_IMPERIAL => min(10, $target_level + 3),
+            TechTypes::TECH_TYPE_STORAGE_INC,
+            TechTypes::TECH_TYPE_PLUNDER => match (true) {
+                $target_level <= 3 => 5,
+                $target_level <= 5 => 6,
+                $target_level <= 7 => 7,
+                $target_level <= 8 => 8,
+                default => 10,
+            },
+            TechTypes::TECH_TYPE_ARCANE_INTEL => min(10, $target_level + 5),
+            TechTypes::TECH_TYPE_WALL_HP_INC => match (true) {
+                $target_level <= 2 => 7,
+                $target_level <= 5 => 8,
+                $target_level <= 8 => 9,
+                default => 10,
+            },
+            TechTypes::TECH_TYPE_ANCESTRAL_RITES => match ($target_level) {
+                1 => 8,
+                2 => 9,
+                default => 10,
+            },
+
+            default => min(10, $target_level),
+        };
+    }
+
+    public static function get_required_smithy_level(int $tech_id, int $target_level): int
+    {
+        if ($target_level <= 0) {
+            return 1;
+        }
+
+        return match ($tech_id) {
+            TechTypes::TECH_TYPE_ARROWHEADS => min(10, $target_level + 1),
+            TechTypes::TECH_TYPE_SHIELDWALL, TechTypes::TECH_TYPE_WEIGHT => min(10, $target_level + 2),
+            TechTypes::TECH_TYPE_LANCE_RIDING => min(10, $target_level + 3),
+            TechTypes::TECH_TYPE_CUIRASS => min(10, $target_level + 6),
+            TechTypes::TECH_TYPE_SIEGE => match ($target_level) {
+                1, 2 => 9,
+                default => 10,
+            },
+
+            default => min(10, $target_level),
+        };
+    }
 }

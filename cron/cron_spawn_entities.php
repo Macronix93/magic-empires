@@ -127,8 +127,12 @@ $expired_tiles_res = $db->execute_query("SELECT mapx, mapy FROM resource_tiles_d
 $tiles_to_delete = $expired_tiles_res->fetch_all(MYSQLI_ASSOC);
 
 if (!empty($tiles_to_delete)) {
+    $em_dummy = new EventManager(new User(-1, "System"));
+
     $coords_queries = [];
     foreach ($tiles_to_delete as $tile) {
+        $em_dummy->turn_back_incoming_resource_tile_troops((int)$tile['mapx'], (int)$tile['mapy']);
+
         $coords_queries[] = "(mapx = {$tile['mapx']} AND mapy = {$tile['mapy']})";
     }
     $where_clause = implode(' OR ', $coords_queries);

@@ -13,6 +13,30 @@ if (!$sug) {
     exit;
 }
 
+$prev_read_comm_id = (int)($db_instance->execute_query("
+    SELECT last_read_comment_id FROM suggestion_reads WHERE user_id = ? AND suggestion_id = ?
+", [$uid, $sug_id])->fetch_column() ?? 0);
+
+if ($prev_read_comm_id === 0) {
+    $prev_read_comm_id = (int)($db_instance->execute_query("
+        SELECT last_suggestion_comment_read FROM users WHERE id = ?
+    ", [$uid])->fetch_column() ?? 0);
+}
+
+$max_comm_id_this_sug = (int)($db_instance->execute_query(
+        "SELECT MAX(id) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id]
+)->fetch_column() ?? 0);
+
+if ($max_comm_id_this_sug > 0) {
+    $db_instance->execute_query("
+        INSERT INTO suggestion_reads (user_id, suggestion_id, last_read_comment_id)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE last_read_comment_id = VALUES(last_read_comment_id)
+    ", [$uid, $sug_id, $max_comm_id_this_sug]);
+}
+
+$new_suggestions_unread = $user->get_unread_counts()["suggestions"];
+
 $error = "";
 
 if (isset($_GET["delete_comment"])) {
@@ -62,6 +86,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_comment"])) {
                 [$sug_id, $uid, $user->get_user_name(), $filtered, time()]
         );
 
+        $res_author = $db_instance->execute_query("SELECT user_id, title FROM suggestions WHERE id = ?", [$sug_id]);
+        if ($author_row = $res_author->fetch_assoc()) {
+            $author_id = (int)$author_row["user_id"];
+
+            if ($author_id !== $uid) {
+                $author_name = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$author_id])->fetch_column();
+
+                $notif_json = [
+                        "template" => "outcome_box",
+                        "title" => "Neuer Kommentar zu deiner Idee",
+                        "main_text" => "<b>" . e($user->get_user_name()) . "</b> hat einen Kommentar zu deinem Vorschlag <i>„" . e($author_row["title"]) . "“</i> 
+                                        verfasst:<br><br><i>&bdquo;" . Messages::wrap_emojis($filtered) . "&ldquo;</i>",
+                        "sub_text" => "<a href='suggestions.php?open_comments=$sug_id'>Klicke hier, um zum Kommentar zu gelangen.</a>",
+                        "result_type" => "neutral"
+                ];
+                Messages::send_server_message($author_id, $author_name, MessageCategories::CATEGORY_DEFAULT, $notif_json);
+
+                send_user_push(
+                        $author_id,
+                        "💬 Neuer Kommentar zu deiner Idee",
+                        "{$user->get_user_name()} hat deinen Vorschlag „{$author_row["title"]}“ kommentiert.",
+                        "messages",
+                        "suggestions.php"
+                );
+            }
+        }
+
         $total_comments = (int)$db_instance->execute_query("SELECT COUNT(*) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id])->fetch_column();
         $target_page = max(1, (int)ceil($total_comments / 6));
         header("Location: suggestion_comments.php?id=$sug_id&cpage=$target_page");
@@ -82,7 +133,8 @@ $comments = $db_instance->execute_query(
 );
 ?>
 <div style="text-align: left; padding: 10px; max-width: 650px; margin: 0 auto; box-sizing: border-box;"
-     data-total-comments="<?= $total_comments ?>">
+     data-total-comments="<?= $total_comments ?>"
+     data-unread-suggestions="<?= $new_suggestions_unread ?>">
     <h3 style="margin-top: 0; color: var(--link-color); border-bottom: 1px solid var(--border-gold); padding-bottom: 5px; word-break: break-word;">
         <?= e($sug["title"]) ?>
     </h3>
@@ -92,16 +144,31 @@ $comments = $db_instance->execute_query(
     <?php endif; ?>
 
     <div id="comments-list"
-         style="min-height: 120px; max-height: 450px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-right: 4px;">
+         style="max-height: 450px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-right: 4px;">
         <?php if ($total_comments === 0): ?>
-            <p id="no-comments-msg" style="text-align: center; opacity: 0.6; padding: 20px 0;">Bisher keine Kommentare.
+            <p id="no-comments-msg" style="text-align: center; opacity: 0.6;">Bisher keine Kommentare.
                 Schreibe den ersten!</p>
         <?php else: ?>
-            <?php while ($c = $comments->fetch_assoc()):
+            <?php
+            $first_new_rendered = false;
+            while ($c = $comments->fetch_assoc()):
                 $is_me = ((int)$c["user_id"] === $uid);
                 $can_delete = ($is_me || $user->is_admin());
                 $sender = new User((int)$c["user_id"], $c["username"]);
-                ?>
+
+                $is_new = (!$is_me && (int)$c["id"] > $prev_read_comm_id);
+
+                if ($is_new && !$first_new_rendered):
+                    $first_new_rendered = true;
+                    ?>
+
+                    <div id="first-new-comment-line"
+                         style="display: flex; align-items: center; justify-content: center; gap: 8px; margin: 12px 0 6px 0;">
+                        <span style="flex: 1; border-bottom: 1px solid var(--link-color); opacity: 0.5;"></span>
+                        <span style="color: var(--link-color); font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Neue Kommentare</span>
+                        <span style="flex: 1; border-bottom: 1px solid var(--link-color); opacity: 0.5;"></span>
+                    </div>
+                <?php endif; ?>
                 <div class="server-bubble"
                      style="background-color: rgba(0,0,0,0.3); padding: 8px 12px; margin-bottom: 0;">
                     <div class="message-border" style="margin-bottom: 4px; padding-bottom: 3px;">

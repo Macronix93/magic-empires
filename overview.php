@@ -16,40 +16,13 @@ $tp_actions = [
     ActionTypes::ACTION_STATION_TROOPS,
     ActionTypes::ACTION_SUPPORT_RETURN
 ];
-$bp_actions = [
-    ActionTypes::ACTION_BUILD_BUILDING,
-    ActionTypes::ACTION_BUILD_TROOPS,
-    ActionTypes::ACTION_RESEARCH_TECH,
-    ActionTypes::ACTION_UPGRADE_TROOPS,
-    ActionTypes::ACTION_SMITHY_UPGRADE
-];
-$wp_actions = [
-    ActionTypes::ACTION_RECEIVE_RESOURCES,
-    ActionTypes::ACTION_RETURN_RESOURCES
-];
-
 $tp_list = implode(',', $tp_actions);
-$bp_list = implode(',', $bp_actions);
-$wp_list = implode(',', $wp_actions);
 
-$counts = $db_instance->execute_query("
-    SELECT 
-        COUNT(CASE WHEN (userid = ? AND kingdomid = ? AND actionid IN ($tp_list)) 
-                     OR (targetid = ? AND actionid = " . ActionTypes::ACTION_STATION_TROOPS . ") THEN 1 END) AS count_tp,
-        COUNT(CASE WHEN (userid = ? AND actionid IN ($bp_list)) 
-                     OR (guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . ") THEN 1 END) AS count_bp,
-        COUNT(CASE WHEN userid = ? AND actionid IN ($wp_list) THEN 1 END) AS count_wp
-    FROM events",
-    [
-        $uid, $active_k_id, $active_k_id,
-        $uid, $my_guild_id,
-        $uid
-    ]
-)->fetch_assoc();
-
-$current_k_tp_count = (int)($counts["count_tp"] ?? 0);
-$count_bp = (int)($counts["count_bp"] ?? 0);
-$count_wp = (int)($counts["count_wp"] ?? 0);
+$count_wp = (int)$db_instance->execute_query("
+    SELECT COUNT(*) 
+    FROM events 
+    WHERE userid = ? AND actionid IN (?, ?)
+", [$uid, ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])->fetch_column();
 
 if (!isset($_SESSION["acknowledged_attacks"])) {
     $_SESSION["acknowledged_attacks"] = [];
@@ -221,7 +194,7 @@ $all_user_k_ids = $db_instance->execute_query(
     [$uid]
 )->fetch_all();
 $flat_k_ids = array_column($all_user_k_ids, 0);
-$active_k_index = array_search((int)$active_k_id, $flat_k_ids, true);
+$active_k_index = array_search($active_k_id, $flat_k_ids, true);
 $active_kingdom_page = ($active_k_index !== false) ? (int)floor($active_k_index / $limit) + 1 : 1;
 
 if (isset($_GET["kp"])) {
@@ -244,14 +217,6 @@ $user_kingdoms = $db_instance->execute_query(
      WHERE k.userid = ? ORDER BY k.created_at, k.id LIMIT ?, ?",
     [$uid, $offset_kp, $limit]
 )->fetch_all(MYSQLI_ASSOC);
-
-$tp_actions = [
-    ActionTypes::ACTION_SEND_TROOPS,
-    ActionTypes::ACTION_RETURN_TROOPS,
-    ActionTypes::ACTION_STATION_TROOPS,
-    ActionTypes::ACTION_SUPPORT_RETURN
-];
-$tp_list = implode(',', $tp_actions);
 
 $all_cmds_res = $db_instance->execute_query("
     SELECT 
@@ -326,7 +291,7 @@ foreach ($user_kingdoms as $k) {
     $kid = (int)$k["id"];
     $k_name = e($k["kingdomname"]);
     $k_coords = e($k["mapx"] . ":" . $k["mapy"]);
-    $is_active_k = ($count_kp > 1 && $kid === (int)$active_k_id);
+    $is_active_k = ($count_kp > 1 && $kid === $active_k_id);
     $row_style = $is_active_k ? "style='background: rgba(212, 175, 55, 0.08);'" : "";
 
     $storage_warnings = [];
@@ -397,7 +362,7 @@ foreach ($user_kingdoms as $k) {
     $max_commands = BASE_SEND_TROOPS_LIMIT + (int)$k["tc_level"];
     $active_commands = $commands_by_kingdom[$kid] ?? 0;
 
-    if ($kid === (int)$active_k_id && isset($count_tp_active_k)) {
+    if ($kid === $active_k_id && isset($count_tp_active_k)) {
         $active_commands = $count_tp_active_k;
     }
 
@@ -579,10 +544,6 @@ if ($pages_kp > 1) {
 $cmd_stats = $kingdom->get_command_stats();
 $count_tp_active_k = $cmd_stats["occupied"];
 $max_tp = $cmd_stats["max"];
-
-//$pages_tp = ceil($count_tp_active_k / $limit);
-//$curr_tp = isset($_GET["tp"]) ? max(1, min(max(1, (int)$pages_tp), (int)$_GET["tp"])) : 1;
-//$offset_tp = ($curr_tp - 1) * $limit;
 
 $view .= '<div class="title-border" style="margin-top: 30px;">Truppenbewegungen (' . $count_tp_active_k . '/' . $max_tp . ')</div>';
 
@@ -852,7 +813,7 @@ if (!empty($all_tp_entries)) {
             $difference_time = max(0, $event_data["arrivaltime"] - $now);
             $counter_id = "counter_" . $event_id;
 
-            $my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
+            //$my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
             $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
 
             $target_name_info = "";
@@ -926,7 +887,6 @@ if (!empty($all_tp_entries)) {
 
                 $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0 || $event_data["loot_gold"] > 0 || ($event_data["loot_coal"] ?? 0) > 0
                     || ($event_data["loot_iron"] ?? 0) > 0 || ($event_data["loot_sapphire"] ?? 0) > 0 || ($event_data["loot_diamond"] ?? 0) > 0);
-                $is_carrier = ($soldier["soldierid"] == Soldiers::SOLDIER_THIEF || $soldier["soldierid"] == Soldiers::SOLDIER_RAIDER);
 
                 $popup_class = "";
                 $popup_content = "";
@@ -1041,10 +1001,10 @@ $query_trades = "
     LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     WHERE e.userid = ? AND (e.actionid = ? OR e.actionid = ?)
     ORDER BY e.arrivaltime
-    LIMIT $offset_wp, $limit
+    LIMIT ?, ?
 ";
-$result_trades = $db_instance->execute_query($query_trades, [$user->get_user_id(),
-    ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES]);
+$result_trades = $db_instance->execute_query($query_trades,
+    [$user->get_user_id(), ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES, $offset_wp, $limit]);
 
 if ($result_trades && $result_trades->num_rows > 0) {
     $view .= "<table class='table overview-info-table' style='width: 100%;'>";

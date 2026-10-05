@@ -12,13 +12,14 @@ require_once("includes/core.php");
     "k_gold" => $kingdom_gold
 ] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_UNIVERSITY);
 
-$kingdom_is_researching = false;
-
 // Fetch all buildings and their dependencies
 $techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_UNIVERSITY);
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $tech_count = count($techs);
 $tech_id = (empty($_GET["tid"]) ? 0 : (int)$_GET["tid"]);
+
+$kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
+$kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
 
 $uid = $user->get_user_id();
 $main_kid = $user->get_main_kingdom();
@@ -39,12 +40,6 @@ $curr_founded = (int)($imp_data["founded_count"] ?? 1);
 $max_settlement_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $global_imp_level);
 
 if (isset($_GET["action"])) {
-    $kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
-
-    if ($kingdom_is_researching) {
-        $kingdom_research_id = $kingdom->get_kingdom_research_id();
-    }
-
     if ($tech_id >= 0 && $tech_id < $tech_count) {
         $tech_level = $techs[$tech_id]->get_tech_level();
         $tech_max_level = $techs[$tech_id]->get_tech_max_level();
@@ -72,6 +67,23 @@ if (isset($_GET["action"])) {
                     if ($kingdom_is_researching) {
                         $error = "Du forschst bereits!";
                     } else {
+                        $target_level = $tech_level + 1;
+                        $current_uni_lvl = $buildings[BuildingTypes::BUILDING_UNIVERSITY]->get_building_level();
+                        $required_uni_lvl = Tech::get_required_university_level($tech_id, $target_level);
+
+                        if ($current_uni_lvl < $required_uni_lvl) {
+                            $error = "Für Stufe $target_level benötigst du Universität Stufe $required_uni_lvl!";
+                        }
+
+                        if ($tech_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
+                            $required_wt_lvl = $target_level + 1;
+                            $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
+
+                            if ($current_wt_lvl < $required_wt_lvl) {
+                                $error .= "Für Stufe $target_level benötigst du Wachturm Stufe $required_wt_lvl!<br>";
+                            }
+                        }
+
                         $tech_dependencies = $techs[$tech_id]->get_tech_dependencies();
 
                         foreach ($tech_dependencies as $dependency) {
@@ -113,6 +125,9 @@ if (isset($_GET["action"])) {
 
                                 $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
                                     [ActionTypes::ACTION_RESEARCH_TECH, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $techs[$tech_id]->get_tech_level(), $techs[$tech_id]->get_tech_name()]);
+
+                                $kingdom_is_researching = true;
+                                $kingdom_research_id = $tech_id;
                             }
                         }
                     }
@@ -124,6 +139,9 @@ if (isset($_GET["action"])) {
                     "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
                     [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_RESEARCH_TECH]
                 );
+
+                $kingdom_is_researching = false;
+                $kingdom_research_id = -1;
 
                 // Refund the player
                 $kingdom->give_kingdom_wood($cost_wood);
@@ -238,11 +256,6 @@ $kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_stone = $kingdom->get_kingdom_stone();
 $kingdom_gold = $kingdom->get_kingdom_gold();
-$kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
-
-if ($kingdom_is_researching) {
-    $kingdom_research_id = $kingdom->get_kingdom_research_id();
-}
 
 $view .= '<table class="table">
             <colgroup>
@@ -337,16 +350,37 @@ for ($i = 0; $i < $tech_count; $i++) {
                 $text_build = "-";
             }
         } else {
-            $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-            $disabled = $res_disabled ? "disabled" : "";
+            $target_level = $level + 1;
+            $current_uni_lvl = $buildings[BuildingTypes::BUILDING_UNIVERSITY]->get_building_level();
+            $required_uni_lvl = Tech::get_required_university_level($tech_obj_id, $target_level);
+            $is_uni_locked = ($current_uni_lvl < $required_uni_lvl);
 
+            $restriction_note = "";
+            if ($is_uni_locked) {
+                $restriction_note = "<br><span class='error' style='font-size: 11px;'>Universität Stufe $required_uni_lvl benötigt</span>";
+            }
+
+            $is_wt_locked = false;
+            if ($tech_obj_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
+                $required_wt_lvl = $target_level + 1;
+                $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
+
+                if ($current_wt_lvl < $required_wt_lvl) {
+                    $is_wt_locked = true;
+                    $restriction_note .= "<br><span class='error' style='font-size: 11px;'>Wachturm Stufe $required_wt_lvl benötigt</span>";
+                }
+            }
+
+            $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
+            $disabled = ($res_disabled || $is_uni_locked || $is_wt_locked) ? "disabled" : "";
             $btn_text = ($level > 0 ? "Upgrade" : "Forschen");
 
             $text_build = "<form action='university.php' method='GET'>
-            <input type='hidden' name='action' value='research'>
-            <input type='hidden' name='tid' value='" . $i . "'>
-            <input type='submit' value='" . $btn_text . "' $disabled>";
-            $text_build .= "</form>";
+                            <input type='hidden' name='action' value='research'>
+                            <input type='hidden' name='tid' value='" . $i . "'>
+                            <input type='submit' value='" . $btn_text . "' $disabled>
+                            $restriction_note
+                        </form>";
         }
 
         if ($cost_food > 0) {

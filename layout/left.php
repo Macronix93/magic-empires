@@ -138,7 +138,8 @@ $sup_count = !empty($_SESSION["active_supports"])
             <div class="box<?= $current_page === 'suggestions.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="suggestions.php">
                 <img src="images/icons/icon_feedback.png" class="menu-icons" alt="Vorschläge"/> Vorschläge
-                <span class="msg-badge" style="<?= $unread_suggestions > 0 ? '' : 'display: none;' ?>">
+                <span class="msg-badge js-badge-suggestions"
+                      style="<?= $unread_suggestions > 0 ? '' : 'display: none;' ?>">
                     <?= $messages->show_messages_indicator($unread_suggestions) ?>
                 </span>
             </div>

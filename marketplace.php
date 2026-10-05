@@ -664,6 +664,25 @@ if ($other_kingdoms_res->num_rows > 0) {
 
     $rows_other = $other_kingdoms_res->fetch_all(MYSQLI_ASSOC);
 
+    $other_ids = array_column($rows_other, "id");
+    $placeholders = implode(',', array_fill(0, count($other_ids), '?'));
+    $incoming_res_query = "
+        SELECT kingdomid,
+               SUM(loot_food + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 0, buildinglevel, 0)) AS inc_food,
+               SUM(loot_wood + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 1, buildinglevel, 0)) AS inc_wood,
+               SUM(loot_stone + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 2, buildinglevel, 0)) AS inc_stone,
+               SUM(loot_gold + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 3, buildinglevel, 0)) AS inc_gold
+        FROM events
+        WHERE actionid = ? AND kingdomid IN ($placeholders)
+        GROUP BY kingdomid
+    ";
+    $inc_params = array_merge([ActionTypes::ACTION_RECEIVE_RESOURCES], $other_ids);
+    $res_incoming = $db_instance->execute_query($incoming_res_query, $inc_params);
+    $incoming_by_kingdom = [];
+    while ($inc = $res_incoming->fetch_assoc()) {
+        $incoming_by_kingdom[(int)$inc["kingdomid"]] = $inc;
+    }
+
     foreach ($rows_other as $ok) {
         if (((int)$ok["mkt_lvl"] > 0) && $first_available_target_id === null) {
             $first_available_target_id = (int)$ok["id"];
@@ -684,17 +703,22 @@ if ($other_kingdoms_res->num_rows > 0) {
             $available_markets_count++;
             $options_html .= "<option value='$ok_id' $selected>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
 
+            $inc = $incoming_by_kingdom[$ok_id] ?? [];
             $target_kingdoms_data[$ok_id] = [
                 "name" => $ok["kingdomname"],
                 "coords" => $ok["mapx"] . ":" . $ok["mapy"],
                 "food" => (int)$ok["food"],
                 "maxfood" => (int)$ok["maxfood"],
+                "inc_food" => (int)($inc["inc_food"] ?? 0),
                 "wood" => (int)$ok["wood"],
                 "maxwood" => (int)$ok["maxwood"],
+                "inc_wood" => (int)($inc["inc_wood"] ?? 0),
                 "stone" => (int)$ok["stone"],
                 "maxstone" => (int)$ok["maxstone"],
+                "inc_stone" => (int)($inc["inc_stone"] ?? 0),
                 "gold" => (int)$ok["gold"],
-                "maxgold" => (int)$ok["maxgold"]
+                "maxgold" => (int)$ok["maxgold"],
+                "inc_gold" => (int)($inc["inc_gold"] ?? 0),
             ];
         } else {
             $options_html .= "<option value='$ok_id' disabled style='color: #888;'>{$ok["kingdomname"]} (Kein Marktplatz!)</option>";
@@ -709,10 +733,10 @@ if ($other_kingdoms_res->num_rows > 0) {
     $init_time_display = !empty($init_time_str) ? "(Dauer: $init_time_str)" : "";
 
     $init_header_name = $init_target ? e($init_target["name"]) : "-";
-    $init_food = $init_target ? format_num($init_target["food"]) . " / " . format_num($init_target["maxfood"]) : "-";
-    $init_wood = $init_target ? format_num($init_target["wood"]) . " / " . format_num($init_target["maxwood"]) : "-";
-    $init_stone = $init_target ? format_num($init_target["stone"]) . " / " . format_num($init_target["maxstone"]) : "-";
-    $init_gold = $init_target ? format_num($init_target["gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
+    $init_food = $init_target ? format_num($init_target["food"] + $init_target["inc_food"]) . " / " . format_num($init_target["maxfood"]) : "-";
+    $init_wood = $init_target ? format_num($init_target["wood"] + $init_target["inc_wood"]) . " / " . format_num($init_target["maxwood"]) : "-";
+    $init_stone = $init_target ? format_num($init_target["stone"] + $init_target["inc_stone"]) . " / " . format_num($init_target["maxstone"]) : "-";
+    $init_gold = $init_target ? format_num($init_target["gold"] + $init_target["inc_gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
 
     $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
     $view .= '<table class="table internal-transport-table">

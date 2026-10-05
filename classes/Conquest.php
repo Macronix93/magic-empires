@@ -23,8 +23,6 @@ class Conquest
     private int $conquerer_count = 0;
     private int $accumulated_damage = 0;
     private Kingdom $enemy_kingdom;
-    private string $my_message = "";
-    private string $enemy_message = "";
 
     public function __construct()
     {
@@ -523,20 +521,6 @@ class Conquest
 
             $enemy_count = $this->initial_soldiers[$id]["initial_enemy_soldiers"] == 0 ? "?" : $this->initial_soldiers[$id]["initial_enemy_soldiers"];
             $enemy_loss = $this->initial_soldiers[$id]["initial_enemy_soldiers"] == 0 ? "?" : $this->initial_soldiers[$id]["enemy_losses"];
-            $this->my_message .= "<tr>
-                                                <td class='td-center'>{$soldier["soldiername"]}</td>
-                                                <td class='td-center'>{$this->initial_soldiers[$id]["initial_my_soldiers"]}</td>
-                                                <td class='td-center'>{$this->initial_soldiers[$id]["my_losses"]}</td>
-                                                <td class='td-center'>$enemy_count</td>
-                                                <td class='td-center'>$enemy_loss</td>
-                                              </tr>";
-            $this->enemy_message .= "<tr>
-                                                <td class='td-center'>{$soldier["soldiername"]}</td>
-                                                <td class='td-center'>{$this->initial_soldiers[$id]["initial_enemy_soldiers"]}</td>
-                                                <td class='td-center'>{$this->initial_soldiers[$id]["enemy_losses"]}</td>
-                                                <td class='td-center'>{$this->initial_soldiers[$id]["initial_my_soldiers"]}</td>
-                                                <td class='td-center'>{$this->initial_soldiers[$id]["my_losses"]}</td>
-                                              </tr>";
 
             if ($this->initial_soldiers[$id]["initial_my_soldiers"] > 0) {
                 if ($this->initial_soldiers[$id]["my_losses"] >= $this->initial_soldiers[$id]["initial_my_soldiers"]) {
@@ -732,65 +716,6 @@ class Conquest
         return (int)($this->soldiers[$soldier_id]["count"] ?? 0);
     }
 
-//    public function get_battle_result_data(bool $for_attacker, bool $is_stationing = false): array
-//    {
-//        $data = [];
-//
-//        foreach ($this->initial_soldiers as $id => $stats) {
-//            $initial = $for_attacker
-//                ? ($stats["initial_my_soldiers"] ?? 0)
-//                : ($stats["initial_enemy_soldiers"] ?? 0);
-//
-//            $losses = $for_attacker
-//                ? ($stats["my_losses"] ?? 0)
-//                : ($stats["enemy_losses"] ?? 0);
-//
-//            if ($initial === 0 && $for_attacker && isset($this->soldiers[$id]["count"])) {
-//                $initial = $this->soldiers[$id]["count"];
-//            }
-//
-//            if ($initial > 0) {
-//                if (is_string($id) && str_starts_with($id, 'm')) {
-//                    // Monster Logic
-//                    $m_id = (int)substr($id, 1);
-//                    $m_info = $this->enemy_soldiers[$m_id];
-//
-//                    $data[] = [
-//                        "id" => $id,
-//                        "name" => $m_info["name"],
-//                        "initial" => (int)$initial,
-//                        "losses" => (int)$losses,
-//                        "icon" => $m_info["icon"],
-//                        "atk" => $m_info["atk"], // Monster ATK
-//                        "def" => $m_info["def"]  // Monster DEF
-//                    ];
-//                } else if (isset($this->soldier_types[$id])) {
-//                    // Soldier Logic
-//                    $soldier = $this->soldier_types[$id];
-//                    $res = $this->mysqli->execute_query("SELECT icon FROM soldier_list WHERE id = ?", [$id]);
-//                    $icon = $res->fetch_column() ?: "icon_error";
-//
-//                    $display_atk = 0;
-//                    $display_def = 0;
-//                    if (!$is_stationing) {
-//                        $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
-//                        $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
-//                    }
-//
-//                    $data[] = [
-//                        "id" => $id,
-//                        "name" => $soldier["soldiername"],
-//                        "initial" => (int)$initial,
-//                        "losses" => (int)$losses,
-//                        "icon" => $icon,
-//                        "atk" => $display_atk,
-//                        "def" => $display_def
-//                    ];
-//                }
-//            }
-//        }
-//        return $data;
-//    }
     public function get_battle_result_data(bool $for_attacker, bool $is_stationing = false): array
     {
         $data = [];

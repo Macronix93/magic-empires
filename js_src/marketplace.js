@@ -99,15 +99,54 @@ document.addEventListener("DOMContentLoaded", function () {
     const displayEl = document.getElementById("target-arrival-display");
     const supplySelect = document.querySelector("select[name='s']");
     const demandSelect = document.querySelector("select[name='d']");
+    const internalInputs = document.querySelectorAll(".js-internal-res-input");
+    const sumDisplay = document.getElementById("internal-sum-display");
+    const internalSubmit = document.getElementById("internal-submit");
 
     const inputs = [
         document.getElementById("sv"),
         document.getElementById("dv")
     ];
 
-    const internalInputs = document.querySelectorAll(".js-internal-res-input");
-    const sumDisplay = document.getElementById("internal-sum-display");
-    const internalSubmit = document.getElementById("internal-submit");
+    const resKeys = [
+        {key: "food", index: 0, elId: "target-stock-food"},
+        {key: "wood", index: 1, elId: "target-stock-wood"},
+        {key: "stone", index: 2, elId: "target-stock-stone"},
+        {key: "gold", index: 3, elId: "target-stock-gold"}
+    ];
+
+    const updateTargetStockDisplay = () => {
+        if (!arrivalDataEl || !targetSelect) return;
+        const targetStocks = JSON.parse(arrivalDataEl.dataset.stocks || "{}");
+        const selectedId = targetSelect.value;
+        const tData = targetStocks[selectedId];
+        if (!tData) return;
+
+        const headerEl = document.getElementById("target-k-stock-header");
+        if (headerEl) {
+            headerEl.innerHTML = `Vorräte in <b>${tData.name}</b>:`;
+        }
+
+        resKeys.forEach(item => {
+            const stockEl = document.getElementById(item.elId);
+            if (!stockEl) return;
+
+            const input = document.querySelector(`input[name="am[${item.index}]"]`);
+            const entered = parseInt(input?.value) || 0;
+            const curStock = tData[item.key] || 0;
+            const inFlight = tData["inc_" + item.key] || 0;
+            const maxStock = tData["max" + item.key] || 0;
+
+            const totalProjected = curStock + inFlight + entered;
+            const isOverflown = totalProjected > maxStock;
+
+            stockEl.innerHTML = `
+            <span class="${isOverflown ? 'error' : ''}"">
+                ${formatNumJS(totalProjected)} / ${formatNumJS(maxStock)}
+            </span>
+        `;
+        });
+    };
 
     const updateInternalSum = () => {
         let total = 0;
@@ -140,7 +179,7 @@ document.addEventListener("DOMContentLoaded", function () {
             internalSubmit.disabled = (total <= 0 || total > maxCap);
         }
 
-        console.log("update field")
+        updateTargetStockDisplay();
     };
 
     internalInputs.forEach(input => {
@@ -202,8 +241,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (targetSelect && arrivalDataEl && displayEl) {
-        const times = JSON.parse(arrivalDataEl.dataset.times);
-        const targetStocks = JSON.parse(arrivalDataEl.dataset.stocks || "{}");
+        const times = JSON.parse(arrivalDataEl.dataset.times || "{}");
 
         const updateTimeDisplay = () => {
             const selectedId = targetSelect.value;
@@ -214,22 +252,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 displayEl.innerText = "";
             }
 
-            const tData = targetStocks[selectedId];
-            const headerEl = document.getElementById("target-k-stock-header");
-            const foodEl = document.getElementById("target-stock-food");
-            const woodEl = document.getElementById("target-stock-wood");
-            const stoneEl = document.getElementById("target-stock-stone");
-            const goldEl = document.getElementById("target-stock-gold");
-
-            if (tData) {
-                if (headerEl) {
-                    headerEl.innerHTML = `Vorräte in <b>${tData.name}</b>:`;
-                }
-                if (foodEl) foodEl.innerText = `${formatNumJS(tData.food)} / ${formatNumJS(tData.maxfood)}`;
-                if (woodEl) woodEl.innerText = `${formatNumJS(tData.wood)} / ${formatNumJS(tData.maxwood)}`;
-                if (stoneEl) stoneEl.innerText = `${formatNumJS(tData.stone)} / ${formatNumJS(tData.maxstone)}`;
-                if (goldEl) goldEl.innerText = `${formatNumJS(tData.gold)} / ${formatNumJS(tData.maxgold)}`;
-            }
+            updateTargetStockDisplay();
         };
 
         targetSelect.addEventListener("change", updateTimeDisplay);

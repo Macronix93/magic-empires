@@ -46,10 +46,6 @@ if (!$user->is_admin()) {
             $db_instance->query("ALTER TABLE $t AUTO_INCREMENT = 1");
         }
 
-        // Reset map
-        $db_instance->query("DELETE FROM map");
-        $db_instance->query("ALTER TABLE map AUTO_INCREMENT = 1");
-
         // Reset global counters
         $db_instance->execute_query("
             UPDATE system_settings 
@@ -663,10 +659,11 @@ if (!$user->is_admin()) {
             foreach ($result as $row) {
                 $kingdom_id = $row["kingdom_id"];
                 $event_id = $row["event_id"];
-                $adm_user = new User($row["id"], $row["username"]);
 
                 // Process user information only once (for display purposes)
                 if (empty($user_info)) {
+                    $adm_user = new User($row["id"], $row["username"]);
+
                     $user_info = [
                         'Name' => ['field' => 'username', 'value' => $row['username']],
                         'Bann-Status' => ['field' => 'is_banned', 'value' => $row['is_banned']],

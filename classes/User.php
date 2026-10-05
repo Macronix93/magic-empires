@@ -369,8 +369,10 @@ class User
             $support_subquery AS support,
             (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news,
             (
-                (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) +
-                (SELECT COUNT(*) FROM suggestion_comments WHERE id > IFNULL(u.last_suggestion_comment_read, 0) AND user_id != u.id)
+              (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) +
+              (SELECT COUNT(*) FROM suggestion_comments sc
+               LEFT JOIN suggestion_reads sr ON sr.user_id = u.id AND sr.suggestion_id = sc.suggestion_id
+               WHERE sc.id > IFNULL(sr.last_read_comment_id, 0) AND sc.user_id != u.id)
             ) AS suggestions
         FROM users u 
         WHERE u.id = ?";
@@ -385,7 +387,7 @@ class User
         $news = (int)($res["news"] ?? 0);
         $suggestions = (int)($res["suggestions"] ?? 0);
 
-        $total = $pms + $server + $world + $guild + $support;
+        $total = $pms + $server + $world + $guild + $support + $suggestions;
 
         $this->cached_unread_counts = [
             "pms" => $pms,
@@ -449,6 +451,7 @@ class User
         }
 
         $this->mysqli->execute_query("UPDATE users SET coins = ? WHERE id = ?", [$new_coins, $this->user_id]);
+        $this->user_row["coins"] = $new_coins;
     }
 
     public function get_user_coins(): int

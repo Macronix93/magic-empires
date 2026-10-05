@@ -6,11 +6,11 @@ $user->check_user_login();
 $uid = $user->get_user_id();
 $is_admin = $user->is_admin();
 
+$user_last_comm_read = (int)($db_instance->execute_query("SELECT last_suggestion_comment_read FROM users WHERE id = ?", [$uid])->fetch_column() ?? 0);
 $latest_sug_id = (int)($db_instance->execute_query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
-$latest_comm_id = (int)($db_instance->execute_query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
 $db_instance->execute_query(
-    "UPDATE users SET last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
-    [$latest_sug_id, $latest_comm_id, $uid]
+    "UPDATE users SET last_suggestion_read = ? WHERE id = ?",
+    [$latest_sug_id, $uid]
 );
 
 $post_title = e($_POST["title"] ?? "");
@@ -94,10 +94,51 @@ if ($is_admin) {
         $status = (int)$_POST["status"];
         $comment = trim($_POST["admin_comment"] ?? "");
 
+        $sug_info = $db_instance->execute_query("SELECT user_id, title, status FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
+
         $db_instance->execute_query(
             "UPDATE suggestions SET status = ?, admin_comment = ? WHERE id = ?",
             [$status, e($comment), $sug_id]
         );
+
+        if ($sug_info && (int)$sug_info["status"] !== $status) {
+            $author_id = (int)$sug_info["user_id"];
+            $author_name = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$author_id])->fetch_column();
+
+            $status_labels = [
+                0 => "In Prüfung",
+                1 => "Geplant",
+                2 => "Umgesetzt",
+                3 => "Abgelehnt"
+            ];
+            $status_label = $status_labels[$status] ?? "Aktualisiert";
+            $res_type = match ($status) {
+                1 => "neutral",
+                2 => "success",
+                3 => "error",
+                default => "neutral"
+            };
+
+            $note = !empty($comment) ? "<br><br><b>Notiz der Spielleitung:</b> <i>" . e($comment) . "</i>" : "";
+
+            $status_json = [
+                "template" => "outcome_box",
+                "title" => "Vorschlag: Status aktualisiert",
+                "main_text" => "Dein Vorschlag <b>„" . e($sug_info["title"]) . "“</b> wurde auf den Status <b class='passed'>$status_label</b> gesetzt!$note",
+                "sub_text" => "Vielen Dank für dein Feedback zur Weiterentwicklung von Magic Empires.",
+                "result_type" => $res_type
+            ];
+            Messages::send_server_message($author_id, $author_name, MessageCategories::CATEGORY_DEFAULT, $status_json);
+
+            send_user_push(
+                $author_id,
+                "📜 Vorschlags-Update: $status_label",
+                "Dein Vorschlag „{$sug_info["title"]}“ wurde auf „{$status_label}“ gesetzt!",
+                "events",
+                "suggestions.php"
+            );
+        }
+
         $_SESSION["game_success"] = "Status des Vorschlags aktualisiert.";
         change_location("suggestions.php");
         exit;
@@ -219,7 +260,7 @@ $tabs = [
     "popular" => "Beliebteste",
     "open" => "In Prüfung$cnt_open_display",
     "approved" => "Geplant$cnt_approved_display",
-    "done" => "Umgesetzt$cnt_done_display</small>",
+    "done" => "Umgesetzt$cnt_done_display",
     "declined" => "Abgelehnt$cnt_declined_display"
 ];
 
@@ -248,6 +289,11 @@ $query = "
         COALESCE(SUM(v.vote), 0) AS score,
         COALESCE(MAX(CASE WHEN v.user_id = ? THEN v.vote END), 0) AS my_vote,
         (SELECT COUNT(*) FROM suggestion_comments sc WHERE sc.suggestion_id = s.id) AS comment_count,
+        (SELECT COUNT(*) FROM suggestion_comments sc 
+         LEFT JOIN suggestion_reads sr ON sr.user_id = ? AND sr.suggestion_id = sc.suggestion_id
+         WHERE sc.suggestion_id = s.id 
+           AND sc.id > IFNULL(sr.last_read_comment_id, 0)
+           AND sc.user_id != ?) AS new_comments_count,
         (SELECT GROUP_CONCAT(u1.username ORDER BY v1.id ASC SEPARATOR ', ') 
          FROM suggestion_votes v1 JOIN users u1 ON v1.user_id = u1.id 
          WHERE v1.suggestion_id = s.id AND v1.vote = 1) AS upvoters,
@@ -261,7 +307,13 @@ $query = "
     ORDER BY $order_sql
     LIMIT ?, ?
 ";
-$suggestions = $db_instance->execute_query($query, [$uid, $offset, $rows_per_page]);
+$suggestions = $db_instance->execute_query($query, [
+    $uid,
+    $uid,
+    $uid,
+    $offset,
+    $rows_per_page
+]);
 
 $view .= "<div id='suggestions-list-container' style='display: flex; flex-direction: column; gap: 15px; max-width: 650px; margin: 0 auto;'>";
 
@@ -331,9 +383,16 @@ while ($row = $suggestions->fetch_assoc()) {
     }
 
     $comment_count = (int)($row["comment_count"] ?? 0);
+    $has_new = ((int)($row["new_comments_count"] ?? 0) > 0);
+    $has_new_class = $has_new ? " has-new-comments" : "";
+
     $comments_btn = "
-    <button type='button' data-on-click='openSuggestionComments' data-id='$sug_id' style='font-size: 13px; padding: 3px 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(212, 175, 55, 0.3); color: #e6dcce;'>
-        " . Messages::wrap_emojis("💬 <b class='count-comments' id='comm_count_$sug_id'>$comment_count</b>") . " 
+    <button type='button' 
+            class='btn-comments$has_new_class' 
+            data-on-click='openSuggestionComments' 
+            data-id='$sug_id' 
+            style='font-size: 13px; padding: 3px 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(212, 175, 55, 0.3); color: #e6dcce;'>
+        " . Messages::wrap_emojis("💬 <b class='count-comments' id='comm_count_$sug_id'>$comment_count</b>") . "
     </button>";
 
     $upvoters = !empty($row["upvoters"]) ? e($row["upvoters"]) : "<i>Noch keine Stimmen</i>";

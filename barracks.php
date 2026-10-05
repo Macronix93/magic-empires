@@ -18,6 +18,8 @@ $kingdom_gold = $kingdom->get_kingdom_gold();
 $kingdom_stone = $kingdom->get_kingdom_stone();
 $kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_villager = $kingdom->get_kingdom_villager();
+$weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
+$smithy_multiplier = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
 $s_id = (isset($_GET["recruit"]) && is_numeric($_GET["recruit"])) ? (int)$_GET["recruit"] : -1;
 $kingdom_recruiting_id = -1;
 $kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
@@ -410,8 +412,6 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                         }
                     }
                 } else {
-                    $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
-
                     $count = (int)$_GET["count"];
 
                     $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost());
@@ -437,7 +437,6 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                         $error = "Nicht genug Dorfbewohner!";
                     } else {
                         $current_time = time();
-                        $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
                         $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
                         $single_unit_time = (int)round($soldiers[$s_id]->get_soldier_time() * $discount);
 
@@ -751,9 +750,6 @@ if (!empty($other_kingdoms)) {
 
 $categories = SoldierTypes::get_labels();
 
-$weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
-$smithy_multiplier = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
-
 $view .= '<div id="kingdom-resources" 
     data-food="' . $kingdom_food . '" 
     data-wood="' . $kingdom_wood . '" 
@@ -803,12 +799,6 @@ $view .= '<table class="table" id="recruitment-table" style="' . ($recruitment_v
                             <td class="td-center td-gradient">
                                 <b>Aktion</b></td>
                         </tr>';
-
-$kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
-
-if ($kingdom_is_recruiting) {
-    $kingdom_recruiting_id = $kingdom->get_kingdom_recruiting_id();
-}
 
 $prev_cat = -1;
 $category_names = [

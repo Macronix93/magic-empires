@@ -1215,6 +1215,27 @@ class Messages
                     ) .
                     "</div>";
 
+            case "resource_tile_depleted_early_return":
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $home_name = e($data["home_name"] ?? "Königreich");
+
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
+                foreach (($data["units"] ?? []) as $u) {
+                    $units_html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
+                }
+                $units_html .= "</div>";
+
+                $main_text = "Das <b>Vorratslager</b> bei $c_link wurde bereits vollständig geplündert oder ist verfallen. 
+                                Deine Truppen aus <b>$home_name</b> haben sofort umgedreht und befinden sich auf dem Rückmarsch.$units_html";
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "Vorratslager erschöpft – Vorzeitige Rückkehr",
+                        $main_text,
+                        0, 0,
+                        "Deine Einheiten kehren ohne Verzögerung in ihr Königreich zurück."
+                    ) . "</div>";
+
             case "spy_resource_tile":
                 $tx = (int)($data["target_x"] ?? 0);
                 $ty = (int)($data["target_y"] ?? 0);

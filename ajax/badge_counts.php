@@ -15,6 +15,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     echo json_encode([
         "priv" => $inbox_only,
         "world" => (int)$unreads["world"],
-        "guild" => (int)$unreads["guild"]
+        "guild" => (int)$unreads["guild"],
+        "suggestions" => (int)$unreads["suggestions"]
     ]);
 }

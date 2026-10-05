@@ -49,7 +49,7 @@ registerAction("stepWarsimTech", (el) => {
     if (!input) return;
 
     const min = parseInt(input.dataset.min ?? input.min ?? 0);
-    const max = parseInt(input.dataset.max ?? input.max ?? 20);
+    const max = parseInt(input.dataset.max ?? input.max ?? 10);
     let val = parseInt(input.value) || 0;
 
     val = Math.max(min, Math.min(max, val + step));
@@ -220,11 +220,15 @@ function applyRelevantFilter(active) {
 
 function resetWallToMax() {
     const lvlInput = document.getElementById("en_wall_lvl");
-    const lvl = Math.max(1, Math.min(parseInt(lvlInput.value) || 1, W_CONF.maxLvl));
+    if (!lvlInput) return;
+
+    const rawVal = parseInt(lvlInput.value, 10);
+    const lvl = isNaN(rawVal) ? 0 : Math.max(0, Math.min(rawVal, W_CONF.maxLvl));
     lvlInput.value = lvl;
 
     const techLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
-    currentSimWallHp = (lvl * W_CONF.wallDefaultHp) + (techLvl * W_CONF.wallHpInc);
+
+    currentSimWallHp = (lvl > 0) ? (lvl * W_CONF.wallDefaultHp) + (techLvl * W_CONF.wallHpInc) : 0;
 }
 
 function calculateWallDefenseBonus(hp, lvl) {
@@ -363,11 +367,14 @@ function calculateWarOutcome(soldierTypes) {
     let totalOwnDef = 0;
     let totalEnemyDef = 0;
 
-    const lvl = parseInt(document.getElementById("en_wall_lvl").value) || 1;
+    const rawLvl = parseInt(document.getElementById("en_wall_lvl").value, 10);
+    const lvl = isNaN(rawLvl) ? 0 : Math.max(0, rawLvl);
+
     const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
-    const maxHp = (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc);
+    const maxHp = (lvl > 0) ? (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc) : 0;
+
     if (currentSimWallHp === null) currentSimWallHp = maxHp;
-    const wallBonus = calculateWallDefenseBonus(currentSimWallHp, lvl);
+    const wallBonus = (lvl > 0) ? calculateWallDefenseBonus(currentSimWallHp, lvl) : 0;
 
     // Load Own Troops
     soldierTypes.forEach(type => {
@@ -606,23 +613,27 @@ function calculateWarOutcome(soldierTypes) {
     });
 
     // Wall Damage (PVP)
-    const wallAbsorption = lvl * (W_CONF.wallAbsorptionPerLevel * W_CONF.wallAbsorptionMult);
-    const damageDiff = ownOffense.totalRawAtk - totalEnemyDef;
-    let effectiveDamage = Math.max(0, damageDiff - wallAbsorption);
+    if (lvl > 0) {
+        const wallAbsorption = lvl * (W_CONF.wallAbsorptionPerLevel * W_CONF.wallAbsorptionMult);
+        const damageDiff = ownOffense.totalRawAtk - totalEnemyDef;
+        let effectiveDamage = Math.max(0, damageDiff - wallAbsorption);
 
-    let normalTroopWallDmg = effectiveDamage * (W_CONF.wallEffDmgFactor * W_CONF.wallNormalDmgFactor);
-    const maxNormalDmgCap = maxHp * W_CONF.wallMaxNormalDmgPerc;
-    normalTroopWallDmg = Math.min(normalTroopWallDmg, maxNormalDmgCap);
+        let normalTroopWallDmg = effectiveDamage * (W_CONF.wallEffDmgFactor * W_CONF.wallNormalDmgFactor);
+        const maxNormalDmgCap = maxHp * W_CONF.wallMaxNormalDmgPerc;
+        normalTroopWallDmg = Math.min(normalTroopWallDmg, maxNormalDmgCap);
 
-    const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
-    const ramCount = parseInt(document.getElementById("Rammbock_own")?.value) || 0;
+        const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
+        const ramCount = parseInt(document.getElementById("Rammbock_own")?.value) || 0;
 
-    let ramDamage = (ramCount * W_CONF.ramFlat);
-    const ramBonus = Math.min(W_CONF.ramLimit, ramCount * W_CONF.ramFactor);
-    const multiplier = 1 + (siegeLvl * W_CONF.siegeBonus) + ramBonus;
-    let totalWallDmg = (normalTroopWallDmg + ramDamage) * multiplier;
+        let ramDamage = (ramCount * W_CONF.ramFlat);
+        const ramBonus = Math.min(W_CONF.ramLimit, ramCount * W_CONF.ramFactor);
+        const multiplier = 1 + (siegeLvl * W_CONF.siegeBonus) + ramBonus;
+        let totalWallDmg = (normalTroopWallDmg + ramDamage) * multiplier;
 
-    currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(totalWallDmg));
+        currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(totalWallDmg));
+    } else {
+        currentSimWallHp = 0;
+    }
 
     updateLivePowerSummary();
 }
@@ -633,15 +644,17 @@ function updateLivePowerSummary() {
 
     const isMonsterMode = document.querySelector(".tablinks[data-tab='monsters']").classList.contains("active");
 
-    const lvl = parseInt(document.getElementById("en_wall_lvl").value) || 1;
+    const rawLvl = parseInt(document.getElementById("en_wall_lvl").value, 10);
+    const lvl = isNaN(rawLvl) ? 0 : Math.max(0, rawLvl);
+
     const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
-    const maxHp = (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc);
+    const maxHp = (lvl > 0) ? (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc) : 0;
+
+    if (currentSimWallHp === null) currentSimWallHp = maxHp;
+    const wallBonus = (lvl > 0) ? calculateWallDefenseBonus(currentSimWallHp, lvl) : 0;
 
     const myShrineBonus = getDynamicShrineMult("my");
     const enShrineBonus = getDynamicShrineMult("en");
-
-    if (currentSimWallHp === null) currentSimWallHp = maxHp;
-    const wallBonus = calculateWallDefenseBonus(currentSimWallHp, lvl);
 
     document.getElementById("wall_hp_display").innerText = formatNumJS(currentSimWallHp);
     document.getElementById("wall_hp_display_max").innerText = formatNumJS(maxHp);
