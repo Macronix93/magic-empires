@@ -323,7 +323,7 @@ class Messages
                 <div id='chat-tab-token' data-token='$token' style='display: none;'></div>";
     }
 
-    public function get_private_history_html(int $sender_id, string $chat_partner): string
+    public function get_private_history_html(int $sender_id, string $chat_partner): array
     {
         $limit = SHOW_MESSAGES_LIMIT;
         $result = $this->get_chat_history_paged($sender_id, null, $limit + 1);
@@ -335,7 +335,10 @@ class Messages
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? 'true' : 'false') . "'></div>";
 
         if (empty($result)) {
-            return $html . "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+            return [
+                "html" => $html . "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>",
+                "last_id" => 0
+            ];
         }
 
         $chat_partner_image = "";
@@ -346,8 +349,10 @@ class Messages
 
         $is_admin = $this->user->is_admin();
 
+        $last_id = 0;
         foreach ($result as $row) {
             $message_id = $row["id"];
+            if ($message_id > $last_id) $last_id = $message_id;
 
             $display_message = self::format_chat_message($row["message"]);
 
@@ -421,7 +426,10 @@ class Messages
             $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
         }
 
-        return $html;
+        return [
+            "html" => $html,
+            "last_id" => $last_id
+        ];
     }
 
     public function show_world_chat(): string
@@ -456,7 +464,7 @@ class Messages
         return $html;
     }
 
-    public function get_world_history_html(): string
+    public function get_world_history_html(): array
     {
         $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
         $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
@@ -472,13 +480,14 @@ class Messages
         $html = "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
 
+        $last_id = 0;
+
         if (empty($rows)) {
             $html .= "
             <div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>
                 Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
             </div>";
         } else {
-            $last_id = 0;
             $last_read_id = $this->mysqli->execute_query("SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()])->fetch_row()[0] ?? 0;
             $unread_line_shown = false;
 
@@ -535,7 +544,10 @@ class Messages
             }
         }
 
-        return $html;
+        return [
+            "html" => $html,
+            "last_id" => $last_id
+        ];
     }
 
     public function show_guild_chat(): string
@@ -573,7 +585,7 @@ class Messages
         return $html;
     }
 
-    public function get_guild_history_html(): string
+    public function get_guild_history_html(): array
     {
         $guild_id = $this->user->get_user_guild_id();
         $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
@@ -593,15 +605,21 @@ class Messages
         $html = "<button id='load-older-btn' data-on-click='loadOlderGuildChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
 
+        $last_id = 0;
+
         if (empty($rows)) {
             $html .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
-            return $html;
+            return [
+                "html" => $html,
+                "last_id" => 0
+            ];
         }
 
         $last_read_id = $this->mysqli->execute_query("SELECT last_guild_chat_id FROM users WHERE id = ?", [$u_id])->fetch_row()[0] ?? 0;
         $unread_line_shown = false;
 
         foreach ($rows as $row) {
+            $last_id = $row["id"];
             $is_me = ($row["userid"] == $u_id);
 
             if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
@@ -637,15 +655,16 @@ class Messages
                     " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "badges_only") . "
                 </div>
             </div>";
-
-            $last_id = $row["id"];
         }
 
         if (isset($last_id)) {
             $this->mysqli->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$last_id, $u_id]);
         }
 
-        return $html;
+        return [
+            "html" => $html,
+            "last_id" => $last_id
+        ];
     }
 
     private function resolve_pvp_outcome(mixed $out, string $role): array
@@ -2327,8 +2346,7 @@ class Messages
 
     public static function parse_chat_coordinates(string $text): string
     {
-        $coord_num = '(?:100|[1-9][0-9]|0?[1-9])';
-        $pattern = '/(<[^>]+>)|\b(' . $coord_num . ')\s*[:|]\s*(' . $coord_num . ')\b(?!\s*(?:uhr|sek|min))/iu';
+        $pattern = '/(<[^>]+>)|(?<![\d:])(100|[1-9][0-9]|0?[1-9])\s*[:|]\s*(100|[1-9][0-9]|0?[1-9])(?![:\d])(?!\s*(?:uhr|std\.?|stunden?|h|min\.?|minuten?|sek\.?|sekunden?)\b)/iu';
 
         return preg_replace_callback($pattern, function ($matches) {
             if (!empty($matches[1])) {

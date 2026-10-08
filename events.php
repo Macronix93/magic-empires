@@ -7,6 +7,8 @@ $world_event_manager = new WorldEvent();
 $active_event = $world_event_manager->get_active_event();
 
 $user_id = $user->get_user_id();
+$current_kid = $user->get_current_kingdom();
+$current_k_obj = new Kingdom($current_kid);
 
 if ($active_event && isset($_POST["attack_all_kingdoms"])) {
     $current_kid = $user->get_current_kingdom();
@@ -90,7 +92,6 @@ if ($active_event && isset($_POST["attack_all_kingdoms"])) {
             try {
                 $now = time();
                 $arrival_delay = $world_event_manager->get_current_duration();
-                $current_kid = $user->get_current_kingdom();
 
                 $db_instance->execute_query(
                     "INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime) 
@@ -231,8 +232,6 @@ if (!$active_event) {
     $pool = $world_event_manager->get_monster_pool();
     $monster = $pool[$active_event["monster_index"]];
 
-    $current_kid = $user->get_current_kingdom();
-    $current_k_obj = new Kingdom($current_kid);
     $has_current_barracks = ($current_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) > 0);
 
     $res_any_barracks = $db_instance->execute_query(
@@ -588,8 +587,6 @@ if (!$active_event) {
             $is_me = ($r["id"] === $user->get_user_id());
             $style = $is_me ? "style='background: rgba(212, 175, 55, 0.2);'" : "";
             $player = new User($r["id"], $r["username"]);
-
-            $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $r["id"] . "' data-title='Spieler-Info'>" . e($r["username"]) . "</a>";
 
             $view .= "<tr $style>
                         <td class='td-center'>$rank_count</td>

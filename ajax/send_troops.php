@@ -95,10 +95,7 @@ $current_support_load = 0;
 $total_support_limit = 0;
 
 if ($is_ally) {
-    $target_k_obj = new Kingdom($kingdom_id);
-    $t_barracks_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
-    $g_cap_lvl = Guild::get_user_guild_tech_level($enemy_user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
-    $total_support_limit = SUPPORT_LIMIT_BASE + ($t_barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+    $total_support_limit = new Kingdom($kingdom_id)->get_support_limit();
 
     $res_load = $db_instance->execute_query("
         SELECT (
@@ -476,7 +473,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             header("Content-Type: application/json; charset=utf-8");
             echo json_encode([
                 "success" => true,
-                "message" => "Truppen erfolgreich gesendet!"
+                "message" => "Truppen erfolgreich gesendet!",
+                "troops" => $kingdom_soldiers
             ]);
             exit;
         } catch (Exception $e) {
@@ -519,7 +517,7 @@ if ($only_scouts_allowed) {
 }
 
 $mining_units_count = 0;
-for ($i = 0; $i <= 8; $i++) {
+for ($i = Soldiers::SOLDIER_MILITIA; $i <= Soldiers::SOLDIER_ELVENARCHER; $i++) {
     $mining_units_count += (int)($kingdom_soldiers[$i] ?? 0);
 }
 

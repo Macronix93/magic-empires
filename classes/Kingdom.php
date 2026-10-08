@@ -827,10 +827,11 @@ class Kingdom
         $query_own = "SELECT (
                 (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?) +
                 (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops WHERE source_kingdom_id = ?) + 
-                (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?)
+                (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?) +
+                (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE kingdom_id = ?)
             ) AS total";
 
-        $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid, $kid]);
+        $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid, $kid, $kid]);
         $total = (int)$res_own->fetch_row()[0];
 
         // Troops currently recruiting
@@ -1132,5 +1133,19 @@ class Kingdom
                 $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$x, $y]);
             }
         }
+    }
+
+    public function get_support_limit(): int
+    {
+        $barracks_lvl = $this->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
+
+        $g_cap_lvl = Guild::get_user_guild_tech_level(
+            $this->kingdom_owner_id,
+            GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY
+        );
+
+        return SUPPORT_LIMIT_BASE
+            + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS)
+            + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
     }
 }

@@ -342,7 +342,7 @@ $count_online = $res_online->fetch_row()[0];
         <?php endif; ?>
 
         <?php if (!empty($error)): ?>
-            <div class="desktop-only-errors" style="width: 100%;">
+            <div id="desktop-only-errors" style="width: 100%;">
                 <?php
                 $errors = explode("<br>", $error);
                 foreach ($errors as $e) {
@@ -566,6 +566,9 @@ $count_online = $res_online->fetch_row()[0];
                             </a>
                             <a href="faq.php" class="box">
                                 <img src="images/icons/icon_faq.png" class="menu-icons" alt="FAQ"/> FAQ
+                            </a>
+                            <a href="https://board.magic-empires.de" class="box">
+                                <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
                             </a>
                             <a href="imprint.php" class="box">
                                 <img src="images/icons/icon_imprint.png" class="menu-icons" alt="Impressum"/>

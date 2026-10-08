@@ -810,11 +810,22 @@ function render_tutorial_modal(?User $user = null, bool $is_replay = false): str
     $k_info = null;
 
     if ($kid > 0) {
-        $res = $db_instance->execute_query("
+        $uid = $user->get_user_id();
+        $main_kid = $user->get_main_kingdom();
+
+        $query = "
             SELECT ft.fieldname, ft.foodrate, ft.woodrate, ft.stonerate, ft.goldrate
-            FROM map m
+            FROM kingdoms k
+            JOIN map m ON k.id = m.kingdomid
             JOIN field_types ft ON m.fieldtype = ft.fieldid
-            WHERE m.kingdomid = ?", [$kid]);
+            WHERE k.userid = ?
+            ORDER BY 
+                (k.creation_method = " . KingdomCreationTypes::KINGDOM_CREATION_INITIAL . ") DESC,
+                (k.id = ?) DESC,
+                k.created_at
+            LIMIT 1
+        ";
+        $res = $db_instance->execute_query($query, [$uid, $main_kid]);
         $k_info = $res->fetch_assoc();
     }
 

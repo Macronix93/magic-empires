@@ -211,6 +211,10 @@ registerAction("submitSendTroopsForm", (form, e) => {
                 }
 
                 if (typeof gameConfig !== "undefined" && gameConfig.currentKingdom) {
+                    if (data.troops) {
+                        gameConfig.currentKingdom.troops = data.troops;
+                    }
+
                     gameConfig.currentKingdom.occupiedCommands++;
                     if (gameConfig.currentKingdom.occupiedCommands >= gameConfig.currentKingdom.maxCommands) {
                         gameConfig.currentKingdom.commandsFull = true;

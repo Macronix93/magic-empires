@@ -65,10 +65,7 @@ if ($user_id) {
             $coords_display = e($k["mapx"]) . ":" . e($k["mapy"]);
 
             if ($is_ally) {
-                $target_k_obj = new Kingdom($k["id"]);
-                $b_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
-                $g_cap_lvl = Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
-                $limit = SUPPORT_LIMIT_BASE + ($b_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+                $limit = new Kingdom($k["id"])->get_support_limit();
 
                 $res_count = $db_instance->execute_query("
                     SELECT (
@@ -121,12 +118,7 @@ if ($user_id) {
     $title_html = !empty($user_title) ? "<div class='user-title' style='display: inline-block; margin-left: 5px;'>&bdquo;" . e($user_title) . "&ldquo;</div>" : "";
 
     // Get sorted list of players and calculate the rank
-    $rank_query = "
-        SELECT COUNT(*) + 1 AS rank 
-        FROM users 
-        WHERE (score > ?) 
-           OR (score = ? AND id < ?)
-    ";
+    $rank_query = "SELECT COUNT(*) + 1 AS rank FROM users WHERE (score > ?) OR (score = ? AND id < ?)";
     $result = $db_instance->execute_query($rank_query, [$score, $score, $user_id]);
     $user_rank = $result->fetch_column();
 
@@ -139,7 +131,7 @@ if ($user_id) {
             <td>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <?php if ($now - $last_activity > INACTIVITY_DELAY && $last_activity != 0): ?>
-                        <div><i><?= e($user_name) ?><?= $title_html ?></i> (Inaktiv)</div>
+                        <div><i><?= e($user_name) ?><?= $title_html ?></i></div>
                     <?php else: ?>
                         <div><?= e($user_name) ?><?= $title_html ?></div>
                     <?php endif; ?>

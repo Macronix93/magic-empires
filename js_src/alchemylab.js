@@ -241,42 +241,67 @@ function initAlchemyLiveTicker() {
     const convertibleInput = inAmt - targetMinIn;
 
     if (convertibleInput > 0 && inRate > 0) {
-        // Wie viele Sekunden dauert 1 Schritt?
-        const secondsPerStep = (step * 3600) / (inRate * 3600); // entspricht: step / inRate
-        // Wie viel Ertrag entsteht pro Schritt?
+        const secondsPerStep = (step * 3600) / (inRate * 3600);
         const conversionRate = outRate / inRate;
         const outputPerStep = Math.max(1, Math.round(step * conversionRate));
 
-        let stepTimer = 0; // Zählt die Sekunden für den aktuellen Schritt
+        let stepTimer = 0;
+
+        const countdownWrap = document.getElementById("alchemy-countdown-wrap");
+
+        const setBufferFull = () => {
+            if (typeof stopCountdown === "function") {
+                stopCountdown("alchemy-countdown");
+            }
+            if (countdownWrap) {
+                countdownWrap.innerHTML = "<span class='error'>Puffer voll (Pausiert)</span>";
+            }
+        };
 
         const tickerInterval = setInterval(() => {
             const room = maxOutput - outAmt;
-            // Stop wenn kein Platz im Puffer oder Kessel zu leer für nächsten Schritt
+
             if (room < outputPerStep || inAmt < step) {
                 clearInterval(tickerInterval);
+
+                if (room < outputPerStep && inAmt >= step) {
+                    setBufferFull();
+                }
                 return;
             }
 
             stepTimer += 1.0;
 
-            // Prüfen, ob ein oder mehrere Schritte vollendet wurden
             while (stepTimer >= secondsPerStep && inAmt >= step && (maxOutput - outAmt) >= outputPerStep) {
                 stepTimer -= secondsPerStep;
                 inAmt -= step;
                 outAmt += outputPerStep;
             }
 
-            // Wenn Kesselinhalt auf oder unter Minimalgrenze fällt
+            const newRoom = maxOutput - outAmt;
+            if (newRoom < outputPerStep && inAmt >= step) {
+                clearInterval(tickerInterval);
+                setBufferFull();
+
+                alchemyLiveInAmt = inAmt;
+
+                updateUI();
+                return;
+            }
+
             if (inAmt <= targetMinIn) {
                 inAmt = targetMinIn;
                 outAmt = Math.round(outAmt);
 
-                const cdEl = document.getElementById("alchemy-countdown");
-                if (cdEl) {
+                if (typeof stopCountdown === "function") {
+                    stopCountdown("alchemy-countdown");
+                }
+
+                if (countdownWrap) {
                     if (inAmt === 0) {
-                        cdEl.innerHTML = "<span class='passed'>Kessel leer</span>";
+                        countdownWrap.innerHTML = "<span class='passed'>Kessel leer</span>";
                     } else {
-                        cdEl.innerHTML = `<span class='warning'>Zu wenig im Kessel</span>`;
+                        countdownWrap.innerHTML = "<span class='warning'>Zu wenig im Kessel</span>";
                     }
                 }
 

@@ -643,7 +643,7 @@ interface Soldiers
     const int SOLDIER_CUIRASSIER = 5;
     const int SOLDIER_ARCHER = 6;
     const int SOLDIER_LONGBOWMAN = 7;
-    const int SOLDIER_CROSSBOWMAN = 8;
+    const int SOLDIER_ELVENARCHER = 8;
     const int SOLDIER_CONQUEROR = 9;
     const int SOLDIER_SETTLER_WAGON = 10;
     const int SOLDIER_THIEF = 11;

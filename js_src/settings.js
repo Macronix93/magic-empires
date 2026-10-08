@@ -221,4 +221,26 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    const genderRadios = document.querySelectorAll('input[name="gender"]');
+    const titleSelect = document.querySelector('select[name="active_title_id"]');
+
+    if (genderRadios.length > 0 && titleSelect) {
+        const updateTitleOptions = (gender) => {
+            titleSelect.querySelectorAll('option').forEach(opt => {
+                const newText = (gender === 'f') ? opt.dataset.titleF : opt.dataset.titleM;
+                if (newText) {
+                    opt.textContent = newText;
+                }
+            });
+        };
+
+        genderRadios.forEach(radio => {
+            radio.addEventListener("change", () => {
+                if (radio.checked) {
+                    updateTitleOptions(radio.value);
+                }
+            });
+        });
+    }
 });

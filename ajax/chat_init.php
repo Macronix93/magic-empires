@@ -4,7 +4,7 @@ require_once("../includes/core.php");
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $type = $_GET["type"] ?? "private";
     $messages = new Messages($user);
-    $html = "";
+    $chat_data = ["html" => "", "last_id" => 0];
 
     if ($type === "private") {
         $sender_id = (int)$_GET["s"];
@@ -16,25 +16,19 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             exit;
         }
 
-        $html = $messages->get_private_history_html($sender_id, $chat_partner);
+        $chat_data = $messages->get_private_history_html($sender_id, $chat_partner);
     } else if ($type === "world") {
-        $html = $messages->get_world_history_html();
+        $chat_data = $messages->get_world_history_html();
     } else if ($type === "guild") {
-        $html = $messages->get_guild_history_html();
-    } else {
-        return;
+        $chat_data = $messages->get_guild_history_html();
     }
-
-    // Get last msg id
-    preg_match_all('/id=["\'](?:guild-msg-|world-msg-|msg-)(\d+)["\']/', $html, $matches);
-    $last_id = !empty($matches[1]) ? max(array_map('intval', $matches[1])) : 0;
 
     $unreads = $user->get_unread_counts();
     $inbox_only = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 
     echo json_encode([
-        "html" => $html,
-        "lastId" => $last_id,
+        "html" => $chat_data["html"],
+        "lastId" => (int)$chat_data["last_id"],
         "privUnread" => $inbox_only,
         "worldUnread" => (int)$unreads["world"],
         "guildUnread" => (int)$unreads["guild"],

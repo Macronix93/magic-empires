@@ -48,7 +48,7 @@
         $php_tick_timer_text = sprintf("%02d:%02d", $display_min, $display_sec);
         $php_tick_percent = ($seconds_into_hour / 3600) * 100;
         ?>
-        <div class="desktop-only-switch">
+        <div id="desktop-only-switch">
             <form method="POST">
                 <div class="kingdom-switch-container">
                     <?php

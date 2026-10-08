@@ -74,13 +74,9 @@ foreach ($grouped as $catKey => $items) {
         $title_tag = $is_secret
             ? "<small style='opacity: 0.6;'>Titel: ???</small>"
             : "<small " . ($is_unlocked ? "class='passed'" : "") . " style='font-weight: bold;'>Titel: &bdquo;" . e($ach_title) . "&ldquo;</small>";
-
-        $reward = (int)$ach["reward_coins"];
         $reward_display = ($reward > 0)
             ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " <b>+$reward</b>"
             : "<span style='opacity: 0.5;'>-</span>";
-
-
         $reward_text_and_coin =
             "<span style='display: flex; justify-content: center; align-items: center; gap: 5px;'>" .
             get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) .

@@ -267,7 +267,7 @@ if (!isset($tabs[$filter])) {
     $filter = "all";
 }
 
-$view .= "<div class='tab' style='max-width: 650px; margin: 0 auto 20px auto;'>";
+$view .= "<div class='tab' style='margin: 0 auto 20px auto;'>";
 foreach ($tabs as $k => $label) {
     $active = ($k === $filter) ? "active" : "";
 

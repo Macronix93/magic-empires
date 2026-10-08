@@ -569,14 +569,16 @@ $view .= '<div style="display: flex; align-items: center;  justify-content: cent
 $view .= "<div id='tab_profile' class='settings-tab' style='display: " . ($active_tab === 'profile' ? 'block' : 'none') . "; width: 100%;'>";
 
 $unlocked_titles = Achievement::get_unlocked_titles($uid);
-$current_title_id = $user->get_active_title_id();
+$current_title_id = (int)($db_instance->execute_query("SELECT active_title_id FROM users WHERE id = ?", [$uid])->fetch_column() ?? 0);
 
-$title_options = "<option value='0'" . ($current_title_id === 0 ? " selected" : "") . ">-- Kein Titel (Ausblenden) --</option>";
+$title_options = "<option value='0'" . ($current_title_id === 0 ? " selected" : "") . " 
+                            data-title-m='-- Kein Titel (Ausblenden) --' 
+                            data-title-f='-- Kein Titel (Ausblenden) --'>-- Kein Titel (Ausblenden) --</option>";
 foreach ($unlocked_titles as $t) {
     $is_selected = ($t['id'] === $current_title_id) || (!empty($t['alias_id']) && $t['alias_id'] === $current_title_id);
     $selected = $is_selected ? "selected" : "";
 
-    $title_options .= "<option value='{$t['id']}' $selected>" . e($t['title']) . "</option>";
+    $title_options .= "<option value='{$t['id']}' $selected data-title-m='" . e($t['title_m']) . "' data-title-f='" . e($t['title_f']) . "'>" . e($t['title']) . "</option>";
 }
 
 $user_gender = $db_instance->execute_query("SELECT gender FROM users WHERE id = ?", [$uid])->fetch_column() ?: 'm';

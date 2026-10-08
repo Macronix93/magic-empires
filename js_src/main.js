@@ -1126,6 +1126,19 @@ window.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    const faqPing = document.getElementById("faq-ping-meta");
+    if (faqPing) {
+        const delayMs = (parseInt(faqPing.dataset.delay) + 1) * 1000;
+
+        setTimeout(() => {
+            fetch("ajax/faq_ping.php", {
+                method: "POST",
+                headers: {"X-Requested-With": "XMLHttpRequest"}
+            }).catch(() => {
+            });
+        }, delayMs);
+    }
+
     setTimeout(() => {
         document.body.classList.remove("preload");
     }, 100);

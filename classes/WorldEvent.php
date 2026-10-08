@@ -30,12 +30,18 @@ class WorldEvent
         $total_hp = 0;
 
         if ($event_type === "BOSS_HP") {
+            $res_shrine_bonus = $this->mysqli->execute_query(
+                "SELECT base_bonus FROM shrine_alignments WHERE id = ?",
+                [AlignmentTypes::ALIGN_WAR]
+            );
+            $war_shrine_base = (float)($res_shrine_bonus->fetch_column() ?: SHRINE_WAR_DEFAULT_BONUS);
+
             $query = "
                 SELECT SUM(
                     combined.count * (
                         (sl.attack * (CASE 
                             WHEN k.alignment = " . AlignmentTypes::ALIGN_WAR . " 
-                            THEN (1.0 + (SELECT base_bonus FROM shrine_alignments WHERE id = 1) + (IFNULL(t_shrine.techlevel, 0) * " . SHRINE_TECH_STEP . ")) 
+                            THEN (1.0 + $war_shrine_base + (IFNULL(t_shrine.techlevel, 0) * " . SHRINE_TECH_STEP . ")) 
                             ELSE 1.0 
                           END))
                         +
@@ -386,7 +392,7 @@ class WorldEvent
                 }
             } else {
                 // --- STANDARD POOL ---
-                $sid = mt_rand(0, 8); // Militia to Elf Archer
+                $sid = mt_rand(Soldiers::SOLDIER_MILITIA, Soldiers::SOLDIER_ELVENARCHER); // Militia to Elven Archer
 
                 $min_scaled = (int)(WORLD_EVENT_HP_UNIT_STD_MIN * $avg_lvl);
                 $max_scaled = (int)(WORLD_EVENT_HP_UNIT_STD_MAX * $avg_lvl);
@@ -408,9 +414,9 @@ class WorldEvent
             JOIN users u ON k.userid = u.id
             WHERE k.userid = ?
             ORDER BY 
-                (k.id = ?) DESC,             -- Prio 1: Top Kingdom
+                (k.id = ?) DESC,              -- Prio 1: Top Kingdom
                 (k.id = u.mainkingdom) DESC,  -- Prio 2: Main Kingdom
-                k.id                     -- Prio 3: Some other kingdom
+                k.id                          -- Prio 3: Some other kingdom
             LIMIT 1
         ";
 

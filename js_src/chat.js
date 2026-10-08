@@ -828,7 +828,7 @@ function initializeChat() {
 
             messageSection.innerHTML = data.html;
 
-            updateNavigationBadges(data.unreadCount, data.worldUnread, data.guildUnread, data.achievementsUnread);
+            updateNavigationBadges(data.privUnread, data.worldUnread, data.guildUnread, data.achievementsUnread);
 
             const messageInput = document.getElementById("message-input");
             const messageForm = document.getElementById("newmessage")

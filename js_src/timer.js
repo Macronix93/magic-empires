@@ -66,6 +66,16 @@ function startCountdown(target, initialSeconds, timerType = 0, hideID = null, ke
     }
 }
 
+function stopCountdown(target) {
+    let el = (typeof target === "string") ? document.getElementById(target) : target;
+    const key = el ? el.id : target;
+    if (key && countdownRegistry.has(key)) {
+        countdownRegistry.delete(key);
+    }
+}
+
+window.stopCountdown = stopCountdown;
+
 function startMasterTimer() {
     masterTimerInterval = setInterval(() => {
         const now = Date.now();
@@ -74,6 +84,11 @@ function startMasterTimer() {
         let anyTimerActive = false;
 
         countdownRegistry.forEach((timer, key) => {
+            if (!document.contains(timer.element)) {
+                countdownRegistry.delete(key);
+                return;
+            }
+
             const msLeft = timer.endTime - now;
             const secLeft = Math.ceil(msLeft / 1000);
 

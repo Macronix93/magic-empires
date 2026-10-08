@@ -771,7 +771,7 @@ if (!$user->is_admin()) {
     $settings_list .= "<div class='box-container' style='margin-top: 20px;'>
                     <div class='box-header'>Karten-Wartung</div>
                     <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
-                        <p style='font-size: 14px;'>Manuelle Generierung von Objekten auf freien Feldern.</p>
+                        <p style='margin-top: 0;'>Manuelle Generierung von Objekten auf freien Feldern.</p>
                         <form method='POST' style='display: flex; gap: 10px; justify-content: center;'>
                             <select name='spawn_type' style='width: 200px;'>
                                 <option value='all'>Alles füllen</option>

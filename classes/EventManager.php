@@ -31,26 +31,6 @@ class EventManager
 
         $now = time();
 
-//        $query = "
-//            SELECT e.*
-//            FROM events e
-//            LEFT JOIN kingdoms k ON e.targetid = k.id
-//            WHERE (
-//                e.userid = ?
-//                OR k.userid = ?
-//                OR (e.guild_id > 0 AND e.guild_id = (SELECT guildid FROM users WHERE id = ? LIMIT 1))
-//                OR (
-//                    e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
-//                    AND EXISTS (
-//                        SELECT 1 FROM mines mn
-//                        JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
-//                        WHERE mn.mapx = e.targetx AND mn.mapy = e.targety AND mst.user_id = ?
-//                    )
-//                )
-//            )
-//        ";
-//        $result = $this->mysqli->execute_query($query, [$uid, $uid, $uid, $uid]);
-
         $time_actions_buildings = implode(',', [
             ActionTypes::ACTION_BUILD_BUILDING,
             ActionTypes::ACTION_RESEARCH_TECH,
@@ -1736,11 +1716,9 @@ class EventManager
             $new_target_id = $u_data["mainkingdom"] ?? -1;
 
             if ($new_target_id != -1 && $new_target_id != $target_kingdom_id) {
-                $delay = 1800;
-
                 $this->mysqli->execute_query(
                     "UPDATE events SET kingdomid = ?, arrivaltime = arrivaltime + ?, is_processing = 0, buildingname = 'Umgeleiteter Transport' WHERE eventid = ?",
-                    [$new_target_id, $delay, $row["eventid"]]
+                    [$new_target_id, TRADE_REROUTE_DELAY, $row["eventid"]]
                 );
 
                 $reroute_json = [
@@ -3476,6 +3454,17 @@ class EventManager
             return;
         }
 
+        $res_pristine = $this->mysqli->execute_query("
+            SELECT 
+                SUM(count) AS cur_monsters, 
+                SUM(initial_count) AS init_monsters
+            FROM monster_camp_units 
+            WHERE mapx = ? AND mapy = ?
+        ", [$tx, $ty])->fetch_assoc();
+
+        $is_pristine_camp = $res_pristine && (int)$res_pristine["cur_monsters"] > 0
+            && (int)$res_pristine["cur_monsters"] === (int)$res_pristine["init_monsters"];
+
         $conquest = new Conquest();
         $conquest->set_event_id($event_id);
         $conquest->fetch_sent_troops();
@@ -3562,7 +3551,7 @@ class EventManager
             $this->mysqli->execute_query("DELETE FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
             $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
 
-            if ($camp_lvl === 10 && $combat["total_atk_loss"] === 0) {
+            if ($camp_lvl === 10 && $combat["total_atk_loss"] === 0 && $is_pristine_camp) {
                 Achievement::unlock($attacker_id, AchievementTypes::ACHIEVEMENT_PERFECT_CAMP_KILL);
             }
         }
@@ -3806,9 +3795,7 @@ class EventManager
             return;
         }
 
-        $target_k = new Kingdom($target_kid);
-        $g_cap_lvl = Guild::get_user_guild_tech_level((int)$data["recipient_id"], GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
-        $support_limit = SUPPORT_LIMIT_BASE + ($target_k->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+        $support_limit = new Kingdom($target_kid)->get_support_limit();
         $current_support = (int)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$target_kid])->fetch_column();
 
         $res_incoming = $this->mysqli->execute_query("SELECT soldierid, soldiercount, initial_count FROM sent_troops WHERE eventid = ?", [$event_id]);

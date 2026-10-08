@@ -10,8 +10,8 @@ $kingdom = $result["kingdom"];
 
 $troop_limit = $kingdom->get_troop_limit();
 $total_occupied_space = $kingdom->get_current_troop_count(true, true);
-$space_left = max(0, $troop_limit - $total_occupied_space);
 $actual_units_total = $kingdom->get_current_troop_count(false, true);
+$space_left = max(0, $troop_limit - $total_occupied_space);
 
 $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_gold = $kingdom->get_kingdom_gold();
@@ -589,8 +589,7 @@ $limit_class = ($total_occupied_space > $troop_limit) ? "error" : "";
 
 $res_support_sum = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$current_kingdom]);
 $total_support_units = (int)$res_support_sum->fetch_row()[0];
-$g_cap_lvl = Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
-$support_limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+$support_limit = $kingdom->get_support_limit();
 
 $view .= "
 <div class='garnison-box'>

@@ -189,14 +189,9 @@ class Achievement
             [$user_id]
         )->fetch_column() ?: 'm';
 
-        $default_title = ($gender === 'f') ? "Freifrau" : "Freiherr";
-
         $query = "
             SELECT a.id, 
-                   CASE WHEN ? = 'f' AND a.title_f IS NOT NULL AND a.title_f != '' 
-                        THEN a.title_f 
-                        ELSE a.title 
-                   END AS title_name
+                   IF(? = 'f' AND a.title_f IS NOT NULL AND a.title_f != '', a.title_f, a.title) AS title_name
             FROM achievements a
             JOIN user_achievements ua ON a.id = ua.achievement_id
             WHERE ua.user_id = ?
@@ -208,20 +203,24 @@ class Achievement
         $default_alias_id = null;
 
         while ($row = $res->fetch_assoc()) {
-            if ($row["title_name"] === $default_title) {
+            if ($row["title_m"] === "Freiherr" || $row["title_f"] === "Freifrau") {
                 $default_alias_id = (int)$row["id"];
                 continue;
             }
 
             $titles[] = [
                 "id" => (int)$row["id"],
-                "title" => $row["title_name"]
+                "title" => ($gender === 'f') ? $row["title_f"] : $row["title_m"],
+                "title_m" => $row["title_m"],
+                "title_f" => $row["title_f"]
             ];
         }
 
         array_unshift($titles, [
             "id" => -1,
-            "title" => $default_title,
+            "title" => ($gender === 'f') ? "Freifrau" : "Freiherr",
+            "title_m" => "Freiherr",
+            "title_f" => "Freifrau",
             "alias_id" => $default_alias_id
         ]);
 
