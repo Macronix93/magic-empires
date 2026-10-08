@@ -5,35 +5,20 @@ require_once("includes/core.php");
 $user->check_user_login();
 
 $uid = $user->get_user_id();
-$res_user = $db_instance->execute_query("SELECT linked_user, last_avatar_change FROM users WHERE id = ?", [$uid]);
+$res_user = $db_instance->execute_query("
+    SELECT u.linked_user_id, u.last_avatar_change, partner.username AS partner_name
+    FROM users u
+    LEFT JOIN users partner ON u.linked_user_id = partner.id
+    WHERE u.id = ?
+", [$uid]);
 $user_data = $res_user->fetch_assoc();
 
+$now = time();
+
 $allowed_tabs = ["profile", "game", "account"];
-$referer = $_SERVER['HTTP_REFERER'] ?? '';
-$is_external_nav = empty($referer) || !str_contains($referer, 'settings.php');
-
-if (isset($_GET['tab']) && in_array($_GET['tab'], $allowed_tabs)) {
-    $active_tab = $_GET['tab'];
-
-    setcookie("me_settings_tab", $active_tab, time() + 31536000, "/", "", false, false);
-} else if ($is_external_nav) {
-    $active_tab = "profile";
-} else {
-    $active_tab = $_COOKIE['me_settings_tab'] ?? 'profile';
-
-    if (!in_array($active_tab, $allowed_tabs)) {
-        $active_tab = "profile";
-    }
-}
-
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (isset($_POST['submit_avatar']) || isset($_POST['change_username']) || isset($_POST['change_password']) || isset($_POST['change_email'])) {
-        $active_tab = "profile";
-    } else if (isset($_POST['update_display_settings']) || isset($_POST['rename_kingdom']) || isset($_POST['update_sharing']) || isset($_POST['update_privacy'])) {
-        $active_tab = "game";
-    } else if (isset($_POST['delete_account']) || isset($_POST['save_push_settings']) || isset($_POST['activate_vacation']) || isset($_POST['delete_all_push_devices'])) {
-        $active_tab = "account";
-    }
+$active_tab = $_POST['tab'] ?? $_GET['tab'] ?? 'profile';
+if (!in_array($active_tab, $allowed_tabs)) {
+    $active_tab = 'profile';
 }
 
 // Generate a random token
@@ -52,7 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } else {
         if (isset($_POST['submit_avatar'])) {
             if (isset($_FILES['image'])) {
-                $days_since_avatar = (time() - $user_data['last_avatar_change']) / 86400;
+                $days_since_avatar = ($now - $user_data['last_avatar_change']) / 86400;
 
                 if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS && !$user->is_admin()) {
                     $wait = ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
@@ -101,9 +86,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                     array_map("unlink", glob(UPLOADS_FILE_PATH . $hashed_name . ".*"));
 
                                     if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                                        $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [time(), $uid]);
+                                        $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [$now, $uid]);
 
-                                        $view = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
+                                        $flash_box = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
 
                                         $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
                                             "filename" => $file_name,
@@ -132,7 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $res = $db_instance->execute_query("SELECT password, last_username_change FROM users WHERE id = ?", [$uid]);
             $u_data = $res->fetch_assoc();
 
-            $days_since_change = (time() - $u_data['last_username_change']) / 86400;
+            $days_since_change = ($now - $u_data['last_username_change']) / 86400;
 
             if (!password_verify($confirm_pw, $u_data['password'])) {
                 $error = "Passwort-Bestätigung fehlgeschlagen.";
@@ -169,9 +154,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         if ($check->num_rows > 0) {
                             $error = "Dieser Name ist bereits vergeben.";
                         } else {
-                            $db_instance->execute_query("UPDATE users SET username = ?, last_username_change = ? WHERE id = ?", [$new_name, time(), $uid]);
-                            $_SESSION["username"] = $new_name;
-                            $view .= show_passed_box("Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.");
+                            $db_instance->execute_query("UPDATE users SET username = ?, last_username_change = ? WHERE id = ?", [$new_name, $now, $uid]);
+
+                            $old_name = $user->get_user_name();
+                            PhpBBBridge::update_username($old_name, $new_name);
+
+                            $flash_box = show_passed_box("Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.");
 
                             $logger->log_game("ACCOUNT", "USERNAME_CHANGE", ["new_name" => $new_name]);
                         }
@@ -198,7 +186,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else {
                 $new_hash = password_hash($new_pw, PASSWORD_BCRYPT);
                 $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_hash, $uid]);
-                $view .= show_passed_box("Passwort erfolgreich geändert!");
+
+                PhpBBBridge::update_password($user->get_user_name(), $new_hash);
+
+                $flash_box = show_passed_box("Passwort erfolgreich geändert!");
 
                 $logger->log_game("ACCOUNT", "PASSWORD_CHANGE");
             }
@@ -208,7 +199,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (isset($_POST['change_email'])) {
             $new_email = trim($_POST['new_email'] ?? "");
             $confirm_pw = $_POST['confirm_pw_email'] ?? "";
-            $now = time();
 
             $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
             $current_hash = $res->fetch_column();
@@ -246,7 +236,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             } else {
                                 $db_instance->execute_query("UPDATE users SET email = ? WHERE id = ?", [$new_email, $uid]);
 
-                                $view .= show_passed_box("Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.");
+                                PhpBBBridge::update_email($user->get_user_name(), $new_email);
+
+                                $flash_box = show_passed_box("Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.");
                                 $logger->log_game("ACCOUNT", "EMAIL_CHANGE", ["new_email" => $new_email]);
                             }
                         }
@@ -268,7 +260,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $res_k = $db_instance->execute_query("SELECT last_name_change, kingdomname FROM kingdoms WHERE id = ?", [$current_k_id]);
             $k_data = $res_k->fetch_assoc();
 
-            $days_since_k_change = (time() - $k_data['last_name_change']) / 86400;
+            $days_since_k_change = ($now - $k_data['last_name_change']) / 86400;
 
             if ($days_since_k_change < KINGDOM_NAME_CHANGE_COOLDOWN_DAYS) {
                 $wait_k = ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
@@ -284,35 +276,49 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $error = "Der Name enthält ungültige Sonderzeichen. Erlaubt sind: [ ] - _ .";
             } else {
                 $db_instance->execute_query("UPDATE kingdoms SET kingdomname = ?, last_name_change = ? WHERE id = ?",
-                    [$new_k_name, time(), $current_k_id]);
+                    [$new_k_name, $now, $current_k_id]);
                 $logger->log_game("ECONOMY", "KINGDOM_RENAME", ["new_name" => $new_k_name], $current_k_id);
 
-                $view .= show_passed_box("Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!");
+                Achievement::unlock($uid, AchievementTypes::ACHIEVEMENT_SECRET_RENAME);
+
+                $flash_box = show_passed_box("Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!");
             }
         }
 
         // IP Sharing Partner
         if (isset($_POST['update_sharing'])) {
-            $partner = trim($_POST['partner_name'] ?? '');
+            $partner_input = trim($_POST['partner_name'] ?? '');
 
-            if (empty($partner)) {
-                $db_instance->execute_query("UPDATE users SET linked_user = NULL WHERE id = ?", [$uid]);
+            if (empty($partner_input)) {
+                $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$uid]);
 
-                $view .= show_passed_box("IP-Sharing Partner wurde entfernt.");
-                $user_data['linked_user'] = NULL;
+                $flash_box = show_passed_box("IP-Sharing Partner wurde entfernt.");
+
+                $user_data['linked_user_id'] = null;
+                $user_data['partner_name'] = null;
             } else {
-                $res = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$partner]);
-                $partner_data = $res->fetch_assoc();
+                $partner_res = $db_instance->execute_query(
+                    "SELECT id, username FROM users WHERE username = ? LIMIT 1",
+                    [$partner_input]
+                );
+                $partner_data = $partner_res->fetch_assoc();
 
                 if (!$partner_data) {
-                    $error = "Ein Spieler mit dem Namen '" . e($partner) . "' existiert nicht!";
-                } elseif ($partner === $user->get_user_name()) {
+                    $error = "Ein Spieler mit dem Namen '" . e($partner_input) . "' existiert nicht!";
+                } elseif ((int)$partner_data['id'] === $uid) {
                     $error = "Du kannst dich nicht selbst als Partner eintragen!";
                 } else {
-                    $db_instance->execute_query("UPDATE users SET linked_user = ? WHERE id = ?", [$partner, $uid]);
+                    $partner_id = (int)$partner_data['id'];
 
-                    $view .= show_passed_box("Partner '" . e($partner) . "' wurde erfolgreich hinterlegt.");
-                    $user_data['linked_user'] = $partner;
+                    $db_instance->execute_query(
+                        "UPDATE users SET linked_user_id = ? WHERE id = ?",
+                        [$partner_id, $uid]
+                    );
+
+                    $flash_box = show_passed_box("Partner '" . e($partner_data['username']) . "' wurde erfolgreich hinterlegt.");
+
+                    $user_data['linked_user_id'] = $partner_id;
+                    $user_data['partner_name'] = $partner_data['username'];
                 }
             }
         }
@@ -323,7 +329,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
             $_SESSION['chat_filter'] = $filter_val;
 
-            $view .= show_passed_box("Privatsphäre-Einstellungen gespeichert.");
+            $flash_box = show_passed_box("Privatsphäre-Einstellungen gespeichert.");
         }
 
         // Update display settings
@@ -344,15 +350,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
             $_SESSION["chat_filter"] = $filter_val;
 
-            setcookie("me_overview_pagesize", (string)$pagesize, time() + 31536000, "/", "", false, false);
-            setcookie("me_list_view", $list_view, time() + 31536000, "/", "", false, false);
-            setcookie("me_map_popup", $map_popup, time() + 31536000, "/", "", false, false);
+            setcookie("me_overview_pagesize", (string)$pagesize, $now + 31536000, "/", "", false, false);
+            setcookie("me_list_view", $list_view, $now + 31536000, "/", "", false, false);
+            setcookie("me_map_popup", $map_popup, $now + 31536000, "/", "", false, false);
 
             $_COOKIE["me_overview_pagesize"] = (string)$pagesize;
             $_COOKIE["me_list_view"] = $list_view;
             $_COOKIE["me_map_popup"] = $map_popup;
 
-            $view .= show_passed_box("Anzeige-Einstellungen erfolgreich gespeichert.");
+            $flash_box = show_passed_box("Anzeige-Einstellungen erfolgreich gespeichert.");
         }
 
         // Activate Vacation Mode
@@ -371,7 +377,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 if (!empty($vac_errors)) {
                     $error = "Urlaubsmodus kann nicht aktiviert werden:<br>• " . implode("<br>• ", $vac_errors);
                 } else {
-                    $vac_until = time() + ($days * 86400);
+                    $vac_until = $now + ($days * 86400);
 
                     $res_offers = $db_instance->execute_query("SELECT offerid, kingdomid, supply, supplyvalue FROM marketplace WHERE userid = ?", [$uid]);
                     while ($off = $res_offers->fetch_assoc()) {
@@ -384,7 +390,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     $logger->log_game("ACCOUNT", "VACATION_START", ["until" => $vac_until, "days" => $days]);
 
-                    setcookie("me_remember", '', time() - 3600, '/');
+                    setcookie("me_remember", '', $now - 3600, '/');
                     session_destroy();
 
                     change_location("index.php?vacation_locked=1");
@@ -443,7 +449,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else {
                 $deleted_username = $u_data['username'];
 
-                $block_until = time() + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
+                $block_until = $now + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
                 $db_instance->execute_query("
                         INSERT INTO blocked_emails (email, blocked_until) 
                          VALUES (?, ?) 
@@ -483,6 +489,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $guild_manager->handle_leader_deletion($uid);
 
                 Kingdom::convert_user_kingdoms_to_ruins($uid);
+                User::delete_user_avatar_files($uid);
+                PhpBBBridge::delete_forum_user($deleted_username);
 
                 $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
@@ -491,10 +499,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 $token = bin2hex(random_bytes(16));
 
-                setcookie("logout_verify", $token, time() + 30, "/", "", false, true);
+                setcookie("logout_verify", $token, $now + 30, "/", "", false, true);
                 session_destroy();
                 change_location("index.php?logout=deleted&v=" . $token);
                 exit;
+            }
+        }
+
+        // Change User Title and Salutation
+        if (isset($_POST['save_salutation_and_title'])) {
+            $new_gender = ($_POST['gender'] === 'f') ? 'f' : 'm';
+            $raw_title_id = (int)($_POST['active_title_id'] ?? 0);
+
+            $valid_title_id = 0;
+            if ($raw_title_id === -1) {
+                $valid_title_id = -1;
+            } else if ($raw_title_id > 0) {
+                $check = $db_instance->execute_query(
+                    "SELECT 1 FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
+                    [$uid, $raw_title_id]
+                );
+
+                if ($check->num_rows > 0) {
+                    $valid_title_id = $raw_title_id;
+                }
+            }
+
+            $db_instance->execute_query(
+                "UPDATE users SET gender = ?, active_title_id = ? WHERE id = ?",
+                [$new_gender, $valid_title_id, $uid]
+            );
+
+            if ($valid_title_id === 0) {
+                $flash_box = show_passed_box("Einstellungen gespeichert: Es wird kein Titel angezeigt.");
+            } else {
+                $flash_box = show_passed_box("Anrede und Titel erfolgreich aktualisiert!");
             }
         }
     }
@@ -516,10 +555,6 @@ $title = "Einstellungen";
 $header = "Einstellungen";
 $script_files = ["settings", "timer"];
 
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
-
 $tab_menu = "
 <div class='tab' id='settings-tabs' style='margin: 0 auto 15px auto; max-width: 550px;'>
     <div class='tablinks " . ($active_tab === 'profile' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='profile'>Profil</div>
@@ -532,6 +567,44 @@ $view = $tab_menu . $view;
 $view .= '<div style="display: flex; align-items: center;  justify-content: center; flex-direction: column; max-width: 550px; width: 100%; margin: 0 auto;">';
 
 $view .= "<div id='tab_profile' class='settings-tab' style='display: " . ($active_tab === 'profile' ? 'block' : 'none') . "; width: 100%;'>";
+
+$unlocked_titles = Achievement::get_unlocked_titles($uid);
+$current_title_id = $user->get_active_title_id();
+
+$title_options = "<option value='0'" . ($current_title_id === 0 ? " selected" : "") . ">-- Kein Titel (Ausblenden) --</option>";
+foreach ($unlocked_titles as $t) {
+    $is_selected = ($t['id'] === $current_title_id) || (!empty($t['alias_id']) && $t['alias_id'] === $current_title_id);
+    $selected = $is_selected ? "selected" : "";
+
+    $title_options .= "<option value='{$t['id']}' $selected>" . e($t['title']) . "</option>";
+}
+
+$user_gender = $db_instance->execute_query("SELECT gender FROM users WHERE id = ?", [$uid])->fetch_column() ?: 'm';
+
+$view .= '
+<div class="box-container">
+    <div class="box-header">Anrede & Titel</div>
+    <div class="box-content box-content-bg" style="padding: 15px;">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <input type="hidden" name="save_salutation_and_title" value="1">
+            <div style="display: flex; gap: 20px; justify-content: center; align-items: center; margin-bottom: 15px;">
+                <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="gender" value="m" ' . ($user_gender === 'm' ? "checked" : '') . '> Herrscher
+                </label>
+                <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="gender" value="f" ' . ($user_gender === 'f' ? "checked" : '') . '> Herrscherin
+                </label>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;">
+                <select name="active_title_id" style="min-width: 220px;">
+                    ' . $title_options . '
+                </select>
+                <input type="submit" value="Speichern">
+            </div>
+        </form>
+    </div>
+</div>';
 
 $view .= '
 <div class="box-container">
@@ -556,55 +629,6 @@ $view .= '
     </div>
 </div>';
 
-$view .= '
-<div class="box-container">
-    <div class="box-header">Benutzernamen ändern</div>
-    <div class="box-content box-content-bg" style="padding: 10px;">
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
-            <table class="table" style="width: 100%;">
-                <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="16" required></td></tr>
-                <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_name" required></td></tr>
-            </table><br>
-            <input type="submit" name="change_username" value="Namen ändern">
-        </form>
-        <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
-            Hinweis: Namensänderungen sind nur alle ' . USERNAME_CHANGE_COOLDOWN_DAYS . ' Tage möglich.
-        </p>
-    </div>
-</div>';
-
-$view .= '
-<div class="box-container">
-    <div class="box-header">Passwort ändern</div>
-    <div class="box-content box-content-bg" style="padding: 10px;">
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
-            <table class="table" style="width: 100%;">
-                <tr><td>Aktuelles Passwort:</td><td><input type="password" name="old_pw" required></td></tr>
-                <tr><td>Neues Passwort:</td><td><input type="password" name="new_pw" required></td></tr>
-                <tr><td>Wiederholung:</td><td><input type="password" name="new_pw_confirm" required></td></tr>
-            </table><br>
-            <input type="submit" name="change_password" value="Passwort aktualisieren">
-        </form>
-    </div>
-</div>';
-
-$view .= '
-<div class="box-container">
-    <div class="box-header">E-Mail Adresse ändern</div>
-    <div class="box-content box-content-bg" style="padding: 10px;">
-        <form method="POST">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
-            <table class="table" style="width: 100%;">
-                <tr><td>Neue E-Mail:</td><td><input type="email" name="new_email" required></td></tr>
-                <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_email" required></td></tr>
-            </table><br>
-            <input type="submit" name="change_email" value="E-Mail speichern">
-        </form>
-    </div>
-</div>';
-
 $view .= "</div>";
 
 $view .= "<div id='tab_game' class='settings-tab' style='display: " . ($active_tab === 'game' ? 'block' : 'none') . "; width: 100%;'>";
@@ -613,13 +637,14 @@ $cur_pagesize = (int)($_COOKIE["me_overview_pagesize"] ?? OVERVIEW_PAGESIZE_DEFA
 $cur_pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $cur_pagesize));
 $cur_list_view = ((int)($_COOKIE["me_list_view"] ?? 0) === 1);
 $cur_map_popup = ((int)($_COOKIE["me_map_popup"] ?? 1) === 1);
-$current_filter = (int)($_SESSION["chat_filter"] ?? 1);
+$current_filter = ($_SESSION["chat_filter"] ?? 1);
 
 $view .= '
 <div class="box-container">
     <div class="box-header">Ansicht & Anzeige</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            <input type="hidden" name="tab" value="game">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr>
@@ -669,9 +694,10 @@ $current_k_name = $current_k_res->fetch_column();
 
 $view .= '
 <div class="box-container">
-    <div class="box-header">Königreich umbenennen</div>
+    <div class="box-header">Aktuelles Königreich umbenennen</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            <input type="hidden" name="tab" value="game">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <p>Aktueller Name: <b>' . e($current_k_name) . '</b></p>
             <input type="text" name="new_kingdom_name" maxlength="25" placeholder="Neuer Name..." required style="width: 100%; margin-bottom: 10px;">
@@ -684,8 +710,9 @@ $view .= '
     </div>
 </div>';
 
-$current_partner_text = ($user_data['linked_user'])
-    ? "Aktuell eingetragen: <b class='passed'>" . e($user_data['linked_user']) . "</b>"
+$current_partner_name = $user_data['partner_name'] ?? '';
+$current_partner_text = !empty($current_partner_name)
+    ? "Aktuell eingetragen: <b>" . e($current_partner_name) . "</b>"
     : "Aktuell <b>kein</b> Partner eingetragen.";
 
 $view .= '
@@ -693,10 +720,11 @@ $view .= '
     <div class="box-header">IP-Sharing (Max. 2 Spieler)</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <p style="margin-top:0;">' . $current_partner_text . '</p>
-        <p style="">Spielst du mit jemandem aus dem gleichen Haushalt? Gib hier den Namen an, um Sperren zu vermeiden:</p>
+        <p>Spielst du mit jemandem aus dem gleichen Haushalt? Gib hier den Namen an, um Sperren zu vermeiden:</p>
         <form method="POST">
+            <input type="hidden" name="tab" value="game">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
-            <input type="text" name="partner_name" value="' . e($user_data['linked_user'] ?? '') . '" placeholder="Name des Mitspielers..." style="width: 100%; margin-bottom: 10px;">
+            <input type="text" name="partner_name" value="' . e($current_partner_name) . '" placeholder="Name des Mitspielers..." style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="update_sharing" value="Partner speichern">
         </form>
         <p style="font-size: 11px; margin-top: 10px; opacity: 0.6;">Hinweis: Um den Eintrag zu löschen, das Feld leeren und speichern.</p>
@@ -708,7 +736,6 @@ $view .= "</div>";
 $view .= "<div id='tab_account' class='settings-tab' style='display: " . ($active_tab === 'account' ? 'block' : 'none') . "; width: 100%;'>";
 
 // Get user data
-$uid = $user->get_user_id();
 $query = "SELECT u.username, u.email, u.registerdate, u.lastlogin, u.adminlevel, u.score,
                 k.kingdomname, k.mapx, k.mapy 
           FROM users u 
@@ -717,7 +744,7 @@ $query = "SELECT u.username, u.email, u.registerdate, u.lastlogin, u.adminlevel,
 $res = $db_instance->execute_query($query, [$uid]);
 $data = $res->fetch_assoc();
 
-$time_diff = time() - $_SESSION["currlogin"];
+$time_diff = $now - $_SESSION["currlogin"];
 
 $role = match ($data["adminlevel"]) {
     ADMIN_LEVEL_SUPPORTER => "Supporter",
@@ -735,6 +762,58 @@ $view .= "<div class='title-border'>Account-Informationen</div>
             <tr><td><b>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
             <tr><td><b>Account-Level:</b></td><td>{$data["adminlevel"]} ($role)</td></tr>
         </table>";
+
+$view .= '
+<div class="box-container">
+    <div class="box-header">Benutzernamen ändern</div>
+    <div class="box-content box-content-bg" style="padding: 10px;">
+        <form method="POST">
+            <input type="hidden" name="tab" value="account">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <table class="table" style="width: 100%;">
+                <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="16" required></td></tr>
+                <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_name" required></td></tr>
+            </table><br>
+            <input type="submit" name="change_username" value="Namen ändern">
+        </form>
+        <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
+            Hinweis: Namensänderungen sind nur alle ' . USERNAME_CHANGE_COOLDOWN_DAYS . ' Tage möglich.
+        </p>
+    </div>
+</div>';
+
+$view .= '
+<div class="box-container">
+    <div class="box-header">Passwort ändern</div>
+    <div class="box-content box-content-bg" style="padding: 10px;">
+        <form method="POST">
+            <input type="hidden" name="tab" value="account">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <table class="table" style="width: 100%;">
+                <tr><td>Aktuelles Passwort:</td><td><input type="password" name="old_pw" required></td></tr>
+                <tr><td>Neues Passwort:</td><td><input type="password" name="new_pw" required></td></tr>
+                <tr><td>Wiederholung:</td><td><input type="password" name="new_pw_confirm" required></td></tr>
+            </table><br>
+            <input type="submit" name="change_password" value="Passwort aktualisieren">
+        </form>
+    </div>
+</div>';
+
+$view .= '
+<div class="box-container">
+    <div class="box-header">E-Mail Adresse ändern</div>
+    <div class="box-content box-content-bg" style="padding: 10px;">
+        <form method="POST">
+            <input type="hidden" name="tab" value="account">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            <table class="table" style="width: 100%;">
+                <tr><td>Neue E-Mail:</td><td><input type="email" name="new_email" required></td></tr>
+                <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_email" required></td></tr>
+            </table><br>
+            <input type="submit" name="change_email" value="E-Mail speichern">
+        </form>
+    </div>
+</div>';
 
 $push_settings = $db_instance->execute_query(
     "SELECT combat, troops, building, storage, messages, events FROM user_push_settings WHERE user_id = ?",
@@ -773,6 +852,7 @@ $view .= '
 
         <h4 style="margin: 0 0 10px 0;">Benachrichtigungs-Arten anpassen:</h4>
         <form method="POST">
+            <input type="hidden" name="tab" value="account">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
                 <label style="display: flex; align-items: center; gap: 8px;">
@@ -811,6 +891,7 @@ $view .= '
 if ($push_devices_count > 0) {
     $view .= '
             <form method="POST" style="margin-top: 8px;">
+                <input type="hidden" name="tab" value="account">
                 <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
                 <input type="submit" 
                        name="delete_all_push_devices" 
@@ -846,7 +927,8 @@ $view .= '<div class="box-container" style="border-color: var(--border-gold); ma
                 <span style="font-size: 13px;"><b>Nicht möglich:</b><br>' . implode("<br>", $vac_checks) . '</span>
             </div>' : '') . '
         <form method="POST">
-            <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
+            <input type="hidden" name="tab" value="account">
+            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr>
                     <td style="width: 45%;">Dauer:</td>
@@ -878,6 +960,7 @@ $view .= '
     <div class="box-content box-content-bg-danger" style="padding: 10px;">
         <p class="error"><b>Vorsicht:</b> Das Löschen deines Accounts kann nicht rückgängig gemacht werden!</p>
         <form method="POST">
+            <input type="hidden" name="tab" value="account">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Passwort zur Bestätigung:</td><td><input type="password" name="confirm_pw_delete" required></td></tr>

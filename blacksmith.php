@@ -16,7 +16,6 @@ $kingdom_gold = $result["k_gold"];
 $techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_SMITHY);
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $all_techs_for_check = $kingdom->fetch_all_kingdom_techs();
-$tech_count = count($techs);
 $tech_id = (empty($_GET["tid"]) ? 0 : (int)$_GET["tid"]);
 
 $kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
@@ -124,7 +123,7 @@ if (!empty($last_researched_tech)) {
     $researched_tech_name = $last_researched_tech["techname"];
     $researched_tech_level = $last_researched_tech["techlevel"];
 
-    $view .= show_weighted_box("$researched_tech_name (" . $researched_tech_level . " → " . ($researched_tech_level + 1) . ")", "Forschung abgeschlossen:");
+    $flash_box = show_weighted_box("$researched_tech_name (" . $researched_tech_level . " → " . ($researched_tech_level + 1) . ")", "Forschung abgeschlossen:");
 
     $user->clear_last_researched_tech($current_kingdom);
 }
@@ -315,9 +314,5 @@ $view .= "</table>";
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["timer"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

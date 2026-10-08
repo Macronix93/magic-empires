@@ -744,7 +744,7 @@ function deleteConversation(url) {
     window.location.href = url;
 }
 
-function updateNavigationBadges(totalCount, worldCount, guildCount) {
+function updateNavigationBadges(privCount, worldCount, guildCount, achCount) {
     const isWorldChatActive = document.getElementById("messages-section")?.dataset.chatType === "world"
         || window.location.search.includes("worldchat");
     const isGuildChatActive = document.getElementById("messages-section")?.dataset.chatType === "guild"
@@ -752,8 +752,6 @@ function updateNavigationBadges(totalCount, worldCount, guildCount) {
 
     if (isWorldChatActive) worldCount = 0;
     if (isGuildChatActive) guildCount = 0;
-
-    const privCount = Math.max(0, totalCount - worldCount - guildCount);
 
     const privBadges = document.querySelectorAll(".js-badge-priv");
     privBadges.forEach(badge => {
@@ -785,10 +783,22 @@ function updateNavigationBadges(totalCount, worldCount, guildCount) {
         }
     });
 
+    if (achCount !== undefined) {
+        const achBadges = document.querySelectorAll(".box[data-url='achievements.php'] .msg-badge");
+        achBadges.forEach(badge => {
+            if (achCount > 0) {
+                badge.innerText = achCount > 9 ? "9+" : achCount;
+                badge.style.display = "inline-flex";
+            } else {
+                badge.style.display = "none";
+            }
+        });
+    }
+
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
         const hasAlert = mobileDot.dataset.hasAlert === "true";
-        const effectiveTotal = privCount + (isWorldChatActive ? 0 : worldCount) + (isGuildChatActive ? 0 : guildCount);
+        const effectiveTotal = (privCount || 0) + (isWorldChatActive ? 0 : (worldCount || 0)) + (isGuildChatActive ? 0 : (guildCount || 0)) + (achCount || 0);
         mobileDot.style.display = (effectiveTotal > 0 || hasAlert) ? "block" : "none";
     }
 }
@@ -818,7 +828,7 @@ function initializeChat() {
 
             messageSection.innerHTML = data.html;
 
-            updateNavigationBadges(data.unreadCount, data.worldUnread, data.guildUnread);
+            updateNavigationBadges(data.unreadCount, data.worldUnread, data.guildUnread, data.achievementsUnread);
 
             const messageInput = document.getElementById("message-input");
             const messageForm = document.getElementById("newmessage")

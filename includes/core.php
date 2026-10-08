@@ -90,13 +90,18 @@ $db_instance = $db->get_connection();
 $logger = Logger::get_instance();
 
 // Server Settings
-$maintenance_res = $db_instance->execute_query("SELECT value FROM system_settings WHERE name = 'maintenance_mode'");
-$m_reason_res = $db_instance->execute_query("SELECT value FROM system_settings WHERE name = 'maintenance_reason'");
-define("MAINTENANCE_REASON", ($m_reason_res->fetch_assoc()["value"] ?? "Wartungsarbeiten"));
-define("MAINTENANCE_MODE", ($maintenance_res->fetch_assoc()["value"] === "1"));
+$settings_res = $db_instance->query("SELECT name, value FROM system_settings");
+$sys_settings = [];
+while ($s_row = $settings_res->fetch_assoc()) {
+    $sys_settings[$s_row["name"]] = $s_row["value"];
+}
+
+define("MAINTENANCE_MODE", ($sys_settings["maintenance_mode"] ?? '0') === '1');
+define("MAINTENANCE_REASON", $sys_settings["maintenance_reason"] ?? "Wartungsarbeiten");
+define("DEBUG_FIXED_MARCH_SECONDS", (int)($sys_settings["debug_fixed_march_seconds"] ?? 0));
 
 // Create User instance
-$user = new User($_SESSION["userid"] ?? -1, $_SESSION["username"] ?? "", $_SESSION["kingdomid"] ?? -1);
+$user = new User($_SESSION["userid"] ?? -1, "", $_SESSION["kingdomid"] ?? -1);
 
 if (!$is_cli) {
     require_once("sessions.php");

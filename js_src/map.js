@@ -263,8 +263,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     }
                 } else {
-                    selectedX = null;
-                    selectedY = null;
+                    // selectedX = null;
+                    // selectedY = null;
 
                     draw();
                 }
@@ -1030,6 +1030,12 @@ function selectField(x, y, shouldCenter = false) {
 
         if (isCommandLimitReached) {
             html += `<small class="error">${cmdLimitMsg}</small>`;
+        } else if (gameConfig.settleStatus && gameConfig.settleStatus.limitReached) {
+            if (gameConfig.settleStatus.canResearchImperium) {
+                html += `<small class="error">Gründungslimit erreicht! Imperium forschen.</small>`;
+            } else {
+                html += `<small class="error">Gründungslimit erreicht!</small>`;
+            }
         } else if (gameConfig.currentKingdom.troops[gameConfig.constants.SOLDIER_SETTLER] > 0) {
             html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}&cat=3" ${btnDisabled}>Gründen</button>`;
         } else {

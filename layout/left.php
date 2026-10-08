@@ -9,19 +9,9 @@ $unread_news = $unreads["news"];
 $unread_world = $unreads["world"];
 $unread_guild = $unreads["guild"];
 $unread_suggestions = $unreads["suggestions"] ?? 0;
+$unread_achievements = $unreads["achievements"] ?? 0;
 
 $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
-
-$ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
-$ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
-
-$atk_count = !empty($_SESSION["active_attacks"])
-        ? count(array_filter($_SESSION["active_attacks"], fn($atk) => !empty($atk["is_new"]) && !in_array($atk["eventid"], $ack_ids)))
-        : 0;
-
-$sup_count = !empty($_SESSION["active_supports"])
-        ? count(array_filter($_SESSION["active_supports"], fn($sup) => !in_array($sup["eventid"], $ack_sup_ids)))
-        : 0;
 ?>
     <div class="box-container left-right-container">
         <div class="box-header">
@@ -86,6 +76,14 @@ $sup_count = !empty($_SESSION["active_supports"])
             <div class="box<?= $current_page === 'warsim.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="warsim.php">
                 <img src="images/icons/icon_warsim.png" class="menu-icons" alt=""/> War Simulator
+            </div>
+            <div class="box<?= $current_page === 'achievements.php' ? ' active' : '' ?>" data-on-click="navigate"
+                 data-url="achievements.php">
+                <img src="images/icons/icon_achievement.png" class="menu-icons" alt="Errungenschaften"/>
+                <span>Errungenschaften</span>
+                <?php if ($unread_achievements > 0): ?>
+                    <span class="msg-badge"><?= $messages->show_messages_indicator($unread_achievements) ?></span>
+                <?php endif; ?>
             </div>
             <div class="box<?= $current_page === 'halloffame.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="halloffame.php">

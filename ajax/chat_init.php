@@ -29,11 +29,15 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     preg_match_all('/id=["\'](?:guild-msg-|world-msg-|msg-)(\d+)["\']/', $html, $matches);
     $last_id = !empty($matches[1]) ? max(array_map('intval', $matches[1])) : 0;
 
+    $unreads = $user->get_unread_counts();
+    $inbox_only = $unreads["pms"] + $unreads["server"] + $unreads["support"];
+
     echo json_encode([
         "html" => $html,
         "lastId" => $last_id,
-        "unreadCount" => $user->get_unread_messages(),
-        "worldUnread" => $messages->get_unread_world_count(),
-        "guildUnread" => $messages->get_unread_guild_count()
+        "privUnread" => $inbox_only,
+        "worldUnread" => (int)$unreads["world"],
+        "guildUnread" => (int)$unreads["guild"],
+        "achievementsUnread" => (int)($unreads["achievements"] ?? 0)
     ]);
 }

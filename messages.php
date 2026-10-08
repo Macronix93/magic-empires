@@ -47,8 +47,6 @@ if (isset($_POST["sendpm"])) {
             $receiver_id = (int)$receiver_data["id"];
             $receiver_username = $receiver_data["username"];
 
-            $_SESSION["msgreceiver"] = $receiver_id;
-
             if ($receiver_id === $sender_id) {
                 $error = "Du kannst dir selbst keine Nachricht schicken!";
             } else {
@@ -141,8 +139,6 @@ if (isset($_GET["action"])) {
                 $error = "Der Spieler existiert nicht!";
                 $view = $messages->show_private_inbox();
             } else {
-                $_SESSION["msgreceiver"] = $sender_id;
-
                 // Get chat partner name based on id
                 $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$sender_id]);
                 $chat_partner = $result->fetch_assoc()["username"] ?? "";
@@ -392,9 +388,5 @@ if (isset($_GET["worldchat"])) {
 $title = "Nachrichten";
 $header = $inbox_header ?? "Nachrichten";
 $script_files = ["timer", "chat", "userinfo", "guild"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

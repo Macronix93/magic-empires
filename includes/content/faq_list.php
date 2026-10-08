@@ -5,31 +5,75 @@
         </button>
     </div>
 <?php endif; ?>
+
+<div style="text-align: left;">
+    <ul style="padding-left: 25px;">
+        <li><a href="#faq-was-ist-magic-empires">Was ist Magic Empires?</a></li>
+        <li><a href="#faq-kostet-das-spiel-etwas">Kostet das Spiel etwas?</a></li>
+        <li><a href="#faq-werden-die-spielstaende-zurueckgesetzt">Werden die Spielstände zurückgesetzt?</a></li>
+        <li><a href="#faq-wie-versende-ich-eine-nachricht">Wie versende ich eine Nachricht?</a></li>
+        <li><a href="#faq-rohstoff-ertraege">Wie steigere ich meine Rohstoff-Erträge?</a></li>
+        <li><a href="#faq-handel">Wie betreibe ich Handel?</a></li>
+        <li><a href="#faq-dorfzentrum">Wozu dient das Dorfzentrum?</a></li>
+        <li><a href="#faq-gebaeude-stufen">Wieviele Stufen können ausgebaut werden?</a></li>
+        <li><a href="#faq-keine-dorfbewohner">Warum habe ich keine Dorfbewohner mehr?</a></li>
+        <li><a href="#faq-lager-voll">Mein Lager ist voll, was nun?</a></li>
+        <li><a href="#faq-ressourcen-karte">Gibt es noch andere Möglichkeiten, um an Ressourcen zu kommen?</a></li>
+        <li><a href="#faq-muenzen">Was fange ich mit Münzen an?</a></li>
+        <li><a href="#faq-feldtypen-ertraege">Wie erfahre ich die Erträge der Feldtypen auf der Karte?</a></li>
+        <li><a href="#faq-erzminen">Was sind Erzminen?</a></li>
+        <li><a href="#faq-abbau-geschwindigkeit">Wie berechnet sich die Abbau-Geschwindigkeit?</a></li>
+        <li><a href="#faq-arbeitspunkte-minen">Welche Arbeitspunkte werden pro Minen-Stufe benötigt?</a></li>
+        <li><a href="#faq-mine-uebernommen">Was passiert, wenn eine Mine von einer anderen Gilde übernommen
+                wird?</a></li>
+        <li><a href="#faq-kampfsystem-detail">Wie funktioniert das Kampfsystem im Detail?</a></li>
+        <li><a href="#faq-noob-schutz">Was ist der Noob-Schutz?</a></li>
+        <li><a href="#faq-neues-koenigreich">Wie gründe ich ein neues Königreich?</a></li>
+        <li><a href="#faq-koenigreich-erobern">Wie erobere ich ein Königreich?</a></li>
+        <li><a href="#faq-mauer">Was bewirkt die Mauer?</a></li>
+        <li><a href="#faq-kaempfe">Wie funktionieren Kämpfe?</a></li>
+        <li><a href="#faq-truppen-aufwerten">Kann ich bestehende Truppen aufwerten?</a></li>
+        <li><a href="#faq-truppen-upgrade">Was bringt mir ein Truppen-Upgrade?</a></li>
+        <li><a href="#faq-gilde-gruenden">Wie gründe ich eine Gilde?</a></li>
+        <li><a href="#faq-gilden-vorteile">Welche Vorteile bietet eine Gilde?</a></li>
+        <li><a href="#faq-gilden-forschungen">Wie funktionieren Gilden-Forschungen?</a></li>
+        <li><a href="#faq-gilden-schatzkammer">Was ist die Gilden-Schatzkammer?</a></li>
+        <li><a href="#faq-verbuendete-unterstuetzen">Wie kann ich Verbündete unterstützen?</a></li>
+        <li><a href="#faq-gilde-verlassen">Was passiert, wenn ich eine Gilde verlasse?</a></li>
+        <li><a href="#faq-welt-events">Wann finden Welt-Events statt?</a></li>
+        <li><a href="#faq-truppen-events">Muss ich Angst um meine Truppen haben?</a></li>
+        <li><a href="#faq-event-belohnungen">Wonach richten sich die Belohnungen?</a></li>
+    </ul>
+</div>
+
 <div class="box-container" style="margin-bottom: 20px;">
     <div class="box-header">Allgemeine Fragen</div>
     <div class="box-content box-content-bg">
         <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Was ist Magic Empires?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-was-ist-magic-empires"><b>Was ist Magic Empires?</b>
+                </td>
                 <td>Magic Empires ist ein klassisches Aufbau-Strategiespiel im Browser. Du schlüpfst in die Rolle eines
                     Herrschers, errichtest Gebäude, erforschst Technologien und misst dich mit anderen Spielern auf
                     einer riesigen Weltkarte.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Kostet das Spiel etwas?</b></td>
+                <td class="td-gradient" id="faq-kostet-das-spiel-etwas"><b>Kostet das Spiel etwas?</b></td>
                 <td>Nein. Magic Empires ist grundlegend kostenlos spielbar. Das Projekt wird durch
                     freiwillige Spenden getragen.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Werden die Spielstände zurückgesetzt?</b></td>
+                <td class="td-gradient" id="faq-werden-die-spielstaende-zurueckgesetzt"><b>Werden die Spielstände
+                        zurückgesetzt?</b></td>
                 <td>Das Spiel ist auf Langzeit ausgelegt. Sollte es dennoch zu einem Reset kommen (z.B. nach einer
                     Beta-Phase), wird dies rechtzeitig in den News bekannt gegeben.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie versende ich eine Nachricht?</b></td>
+                <td class="td-gradient" id="faq-wie-versende-ich-eine-nachricht"><b>Wie versende ich eine Nachricht?</b>
+                </td>
                 <td>Du kannst Spielern direkt über die Rangliste oder das Info-Overlay auf der Karte eine Nachricht
                     schicken. Alternativ wählst du im Menü "Nachrichten" und suchst den Namen aus der Spielerliste aus.
                 </td>
@@ -42,20 +86,21 @@
     <div class="box-content box-content-bg">
         <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Wie steigere ich meine Rohstoff-Erträge?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-rohstoff-ertraege"><b>Wie steigere ich meine
+                        Rohstoff-Erträge?</b></td>
                 <td>Deine Erträge hängen von der Stufe deiner Produktionsgebäude (Mühle, Sägewerk, Steinbruch, Goldmine)
                     ab. Zudem kannst du in der Universität Forschungen betreiben, die deine Produktion dauerhaft
                     erhöhen.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie betreibe ich Handel?</b></td>
+                <td class="td-gradient" id="faq-handel"><b>Wie betreibe ich Handel?</b></td>
                 <td>Du benötigst einen <b>Marktplatz</b>. Dort kannst du eigene Angebote einstellen oder die anderer
                     Spieler annehmen. Deine Karawanen transportieren die Waren dann automatisch zum Ziel.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wozu dient das Dorfzentrum?</b></td>
+                <td class="td-gradient" id="faq-dorfzentrum"><b>Wozu dient das Dorfzentrum?</b></td>
                 <td>Das Dorfzentrum ist das Herz deines Reiches. Die Stufe deines Dorfzentrums limitiert die maximale
                     Stufe aller anderen Gebäude. Möchtest du also ein Gebäude auf Stufe 5 ausbauen, muss dein
                     Dorfzentrum ebenfalls mindestens Stufe 5 sein (ausgenommen von dieser Regel ist das Lager - dieses
@@ -65,37 +110,38 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wieviele Stufen können ausgebaut werden?</b></td>
+                <td class="td-gradient" id="faq-gebaeude-stufen"><b>Wieviele Stufen können ausgebaut werden?</b></td>
                 <td>Gebäude können derzeit bis <b>Stufe <?= MAX_BUILDING_LEVEL ?></b> ausgebaut werden. Forschungen in
                     der Universität oder der
                     Schmiede haben unterschiedliche Maximalstufen, welche du im Techtree einsehen kannst.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Warum habe ich keine Dorfbewohner mehr?</b></td>
+                <td class="td-gradient" id="faq-keine-dorfbewohner"><b>Warum habe ich keine Dorfbewohner mehr?</b></td>
                 <td>Jede Einheit benötigt Arbeitskraft. Baue dein <b>Anwesen</b> aus, um das
                     Bevölkerungslimit zu erhöhen und die Geburtenrate zu steigern. Ansonsten warte bis der nächste
                     Ressourcen-Zuwachs (jede Stunde) kommt.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Mein Lager ist voll, was nun?</b></td>
+                <td class="td-gradient" id="faq-lager-voll"><b>Mein Lager ist voll, was nun?</b></td>
                 <td>Überschüssige Rohstoffe gehen verloren. Baue dein <b>Lager</b> aus, um die Kapazität zu erhöhen,
                     oder investiere Rohstoffe in Truppen und Forschung. Das Lager schützt zudem einen Teil deiner
                     Vorräte vor Plünderungen.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Gibt es noch andere Möglichkeiten, um an Ressourcen zu kommen?</b></td>
+                <td class="td-gradient" id="faq-ressourcen-karte"><b>Gibt es noch andere Möglichkeiten, um an Ressourcen
+                        zu kommen?</b></td>
                 <td><b>Ja!</b> Auf der Karte sind bestimmte Kacheln mit einem Diamanten-Symbol versehen. Hier befinden
                     sich plünderbare Lager. Mit <b>Räubern</b> können diese Lager geplündert werden, wobei jedes Lager
                     unterschiedliche Ressourcen besitzt. Aber Achtung: Während eines Raubzugs kann es vorkommen, dass
-                    deine
-                    Räuber durch lauernde Diebe in den Hinterhalt geraten...
+                    deine Räuber durch lauernde Diebe in den Hinterhalt geraten... Desweiteren geben auch gesäuberte
+                    Monstercamps Ressourcen!
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Was fange ich mit Münzen an?</b></td>
+                <td class="td-gradient" id="faq-muenzen"><b>Was fange ich mit Münzen an?</b></td>
                 <td>Münzen sind dafür da, bei den Ressourcen-Gebäuden (Mühle, Sägewerk, Steinmine, Goldmine) die
                     Ressourcen-Erträge
                     pro Stunde zu erhöhen. Außerdem sind sie Bezahlwerkzeug im Marktplatz (bei Angebotsannahme). Münzen
@@ -103,7 +149,8 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie erfahre ich die Erträge der Feldtypen auf der Karte?</b></td>
+                <td class="td-gradient" id="faq-feldtypen-ertraege"><b>Wie erfahre ich die Erträge der Feldtypen auf der
+                        Karte?</b></td>
                 <td>Du kannst auf der Weltkarte in der oberen Legende einfach mit der Maus über die jeweiligen Feldtypen
                     (<b>Hochland</b>, <b>Wald</b>, <b>Wüste</b>, <b>Küste</b> oder <b>Gebirge</b>) fahren oder sie
                     auf dem Smartphone antippen. Es öffnet sich ein Info-Fenster, das dir den genauen Marschzeit-Faktor
@@ -111,20 +158,22 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Was sind Erzminen?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-erzminen"><b>Was sind Erzminen?</b></td>
                 <td>Erzminen sind spezielle Ressourcen-Kacheln auf der Weltkarte, in denen du seltene Spezial-Erze
                     (Kohle, Eisen, Saphir, Diamant) für deine Gilden-Schatzkammer abbauen kannst.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie berechnet sich die Abbau-Geschwindigkeit?</b></td>
+                <td class="td-gradient" id="faq-abbau-geschwindigkeit"><b>Wie berechnet sich die
+                        Abbau-Geschwindigkeit?</b></td>
                 <td>Die Geschwindigkeit basiert auf dem Gesamt-Angriffswert aller in der Mine stationierten
                     Truppen. Jede Einheit erzeugt Arbeitspunkte (zu sehen im Techtree). Je stärker und größer die
                     Armee, desto schneller ist die Mine leergeräumt!
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Welche Arbeitspunkte werden pro Minen-Stufe benötigt?</b></td>
+                <td class="td-gradient" id="faq-arbeitspunkte-minen"><b>Welche Arbeitspunkte werden pro Minen-Stufe
+                        benötigt?</b></td>
                 <td>
                     <?php
                     for ($i = 1; $i < count(MINE_WORK_BY_LEVEL) + 1; $i++) {
@@ -134,7 +183,8 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Was passiert, wenn eine Mine von einer anderen Gilde übernommen wird?</b>
+                <td class="td-gradient" id="faq-mine-uebernommen"><b>Was passiert, wenn eine Mine von einer anderen
+                        Gilde übernommen wird?</b>
                 </td>
                 <td>Wenn eine feindliche Gilde eine stärkere Armee in eine von dir besetzte Mine schickt, verlierst du
                     zwar <b>keine Truppen</b>, aber die feindliche Gilde übernimmt die Mine und führt den Abbau ab
@@ -149,7 +199,8 @@
     <div class="box-content box-content-bg">
         <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
-                <td class="td-gradient" style="width: 40%; vertical-align: top;"><b>Wie funktioniert das Kampfsystem im
+                <td class="td-gradient" style="width: 40%; vertical-align: top;" id="faq-kampfsystem-detail"><b>Wie
+                        funktioniert das Kampfsystem im
                         Detail?</b></td>
                 <td>
                     Kämpfe finden in Echtzeit exakt in der Sekunde des Eintreffens am Zielort statt. Die Berechnung
@@ -237,7 +288,7 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Was ist der Noob-Schutz?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-noob-schutz"><b>Was ist der Noob-Schutz?</b></td>
                 <td>Um faire Bedingungen zu schaffen, können Spieler mit sehr hohem Punktestand keine Anfänger
                     angreifen. Das Gleiche gilt auch andersrum: Spieler mit sehr niedrigem Punktestand können Spieler
                     mit
@@ -246,7 +297,7 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie gründe ich ein neues Königreich?</b></td>
+                <td class="td-gradient" id="faq-neues-koenigreich"><b>Wie gründe ich ein neues Königreich?</b></td>
                 <td>Du benötigst einen <b>Siedlungskarren</b> (aus der Kaserne) und musst diesen zu einem leeren Feld
                     auf der Karte schicken. Beachte, dass die Gründung fehlschlagen kann – je mehr Siedlungskarren du
                     schickst, desto höher ist die Erfolgschance.
@@ -257,35 +308,36 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie erobere ich ein Königreich?</b></td>
+                <td class="td-gradient" id="faq-koenigreich-erobern"><b>Wie erobere ich ein Königreich?</b></td>
                 <td>Um ein anderes Königreich zu übernehmen, musst du einen <b>Eroberer</b> mitschicken. Du musst
                     den Kampf gewinnen und die Verteidigung des Gegners zerschlagen. Bei Erfolg opfert sich der Eroberer
                     und das Dorf gehört dir. Je mehr Eroberer du mitschickst, desto höher die Erfolgschance.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Was bewirkt die Mauer?</b></td>
+                <td class="td-gradient" id="faq-mauer"><b>Was bewirkt die Mauer?</b></td>
                 <td>Die Mauer gibt deinen stationierten Truppen einen massiven Verteidigungsbonus. Eine beschädigte
                     Mauer kann im Mauer-Menü mit Stein repariert werden. Sinkt die Haltbarkeit auf 0, entfällt der
                     Bonus.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie funktionieren Kämpfe?</b></td>
+                <td class="td-gradient" id="faq-kaempfe"><b>Wie funktionieren Kämpfe?</b></td>
                 <td>Kämpfe basieren auf einem Schere-Stein-Papier-Prinzip zwischen Infanterie, Kavallerie und
                     Bogenschützen. Nutze den <b>War Simulator</b> im Menü, um verschiedene Szenarien durchzurechnen,
                     bevor du deine Truppen in die Schlacht schickst!
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Kann ich bestehende Truppen aufwerten?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-truppen-aufwerten"><b>Kann ich bestehende Truppen
+                        aufwerten?</b></td>
                 <td>Ja! In der Kaserne kannst du Einheiten in stärkere Ränge derselben Kategorie umwandeln (z.B. Miliz
                     zu Schwertkämpfer). Wähle dazu einfach die Ziel-Einheit im Dropdown-Menü bei der entsprechenden
                     Truppe aus.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Was bringt mir ein Truppen-Upgrade?</b></td>
+                <td class="td-gradient" id="faq-truppen-upgrade"><b>Was bringt mir ein Truppen-Upgrade?</b></td>
                 <td>Ein Upgrade kostet dich nur die <b>Differenz</b> der Ressourcenkosten. Es ist der effizienteste Weg,
                     deine Armee zu modernisieren, ohne dein Truppenlimit mit schwachen Einheiten zu belasten. Zudem
                     behältst du so deine militärische Schlagkraft bei minimalem Ressourcenaufwand.
@@ -299,41 +351,43 @@
     <div class="box-content box-content-bg">
         <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Wie gründe ich eine Gilde?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-gilde-gruenden"><b>Wie gründe ich eine Gilde?</b>
+                </td>
                 <td>Du benötigst in deinem Haupt-Königreich eine <b>Botschaft</b>. Anschließend kannst du im
                     Menü unter „Gilde“ einen Namen, ein Kürzel (Tag) und ein optionales Motto festlegen.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Welche Vorteile bietet eine Gilde?</b></td>
+                <td class="td-gradient" id="faq-gilden-vorteile"><b>Welche Vorteile bietet eine Gilde?</b></td>
                 <td>Als Gildenmitglied erhältst du Zugriff auf den internen <b>Gilden-Chat</b>, gemeinsame <b>Gildenforschungen</b>
                     (die globale Boni für alle Mitglieder freischalten), eine gemeinsame <b>Schatzkammer</b> sowie die
                     Möglichkeit, Verbündeten <b>militärische Unterstützung</b> ins Dorf zu stellen.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie funktionieren Gilden-Forschungen?</b></td>
+                <td class="td-gradient" id="faq-gilden-forschungen"><b>Wie funktionieren Gilden-Forschungen?</b></td>
                 <td>Die Gildenführung kann ein Forschungsprojekt ausrufen. Alle Mitglieder können Rohstoffe spenden, um
                     den Bau voranzutreiben. Sobald das Ziel erreicht ist, startet die Forschung und die Boni (z. B. mehr
                     Lagerplatz, schnellere Truppenmärsche, mehr Event-Gold) gelten dauerhaft für die gesamte Gilde.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Was ist die Gilden-Schatzkammer?</b></td>
+                <td class="td-gradient" id="faq-gilden-schatzkammer"><b>Was ist die Gilden-Schatzkammer?</b></td>
                 <td>In der Schatzkammer werden seltene Spezial-Erze (Kohle, Eisen, Saphir und Diamant) gelagert, die
                     deine Truppen beim Schürfen in <b>Erzminen</b> erbeuten. Diese Erze werden benötigt, um höhere
                     Gilden-Technologien freizuschalten.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wie kann ich Verbündete unterstützen?</b></td>
+                <td class="td-gradient" id="faq-verbuendete-unterstuetzen"><b>Wie kann ich Verbündete unterstützen?</b>
+                </td>
                 <td>Wähle auf der Karte das Königreich eines Gildenmitglieds an und sende Truppen mit dem Befehl <b>„Unterstützen“</b>.
                     Deine Einheiten verteidigen fortan das befreundete Dorf gegen Angreifer und können jederzeit über
                     deine eigene Kaserne zurückgerufen werden.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Was passiert, wenn ich eine Gilde verlasse?</b></td>
+                <td class="td-gradient" id="faq-gilde-verlassen"><b>Was passiert, wenn ich eine Gilde verlasse?</b></td>
                 <td>Deine stationierten Unterstützungstruppen bei Gildenmitgliedern treten sofort den Rückmarsch in
                     deine
                     Kaserne an. Nach dem Verlassen gilt eine <b>Sperrfrist von <?= (GUILD_JOIN_COOLDOWN / 3600) ?>
@@ -349,19 +403,20 @@
     <div class="box-content box-content-bg">
         <table class="table faq-table" style="width: 100%; border: none;">
             <tr>
-                <td class="td-gradient" style="width: 40%;"><b>Wann finden Welt-Events statt?</b></td>
+                <td class="td-gradient" style="width: 40%;" id="faq-welt-events"><b>Wann finden Welt-Events statt?</b>
+                </td>
                 <td>Jeden <b>Dienstag</b> und <b>Freitag</b> um <b>16:00 Uhr</b> öffnen sich die Siegel im Zentrum der
                     Karte [50:50]. Ein Event dauert in der Regel 24 Stunden.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Muss ich Angst um meine Truppen haben?</b></td>
+                <td class="td-gradient" id="faq-truppen-events"><b>Muss ich Angst um meine Truppen haben?</b></td>
                 <td><b>Nein!</b> Im Auge des Sturms herrscht ein besonderer Schutzzauber. Alle Truppen, die zum Event
                     entsandt werden, kehren nach dem Kampf garantiert und ohne Verluste in dein Königreich zurück.
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient"><b>Wonach richten sich die Belohnungen?</b></td>
+                <td class="td-gradient" id="faq-event-belohnungen"><b>Wonach richten sich die Belohnungen?</b></td>
                 <td>Die Beute ist fair und skaliert mit deinem Fortschritt. Je höher der Durchschnitt deiner
                     Gebäude-Stufen und dein Dorfzentrum sind, desto massiver fallen die Ressourcen- und Truppenpakete
                     aus.

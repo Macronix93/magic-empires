@@ -3,6 +3,7 @@ require_once("includes/core.php");
 
 $user->check_user_login();
 
+$uid = $user->get_user_id();
 $current_k_id = $user->get_current_kingdom();
 $kingdom = new Kingdom($current_k_id);
 $map = new Map($user);
@@ -75,20 +76,52 @@ $occupied_commands = $cmd_stats["occupied"];
 $max_commands = $cmd_stats["max"];
 $commands_full = $cmd_stats["is_full"];
 
+// Check Settlement Status
+$res_ongoing = $db_instance->execute_query("
+    SELECT COUNT(DISTINCT e.eventid) 
+    FROM events e 
+    JOIN sent_troops st ON e.eventid = st.eventid 
+    WHERE e.userid = ? 
+    AND e.targetid = ? 
+    AND st.soldierid = ? 
+    AND e.actionid = ?
+", [$uid, MapFieldTypes::MAP_FIELD_EMPTY, Soldiers::SOLDIER_SETTLER_WAGON, ActionTypes::ACTION_SEND_TROOPS]);
+$ongoing_foundations = (int)($res_ongoing->fetch_column() ?? 0);
+
+$res_k_count = $db_instance->execute_query(
+    "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != ?",
+    [$uid, KingdomCreationTypes::KINGDOM_CREATION_CONQUEST]
+);
+$current_settled = (int)($res_k_count->fetch_column() ?? 0);
+
+$res_imp = $db_instance->execute_query(
+    "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ?",
+    [$uid, TechTypes::TECH_TYPE_IMPERIAL]
+);
+$imp_level = (int)($res_imp->fetch_column() ?? 0);
+$max_allowed_slots = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_level);
+
+$settle_limit_reached = ($current_settled + $ongoing_foundations) >= $max_allowed_slots;
+$can_research_imperium = ($max_allowed_slots < GLOBAL_SETTLEMENT_MAX);
+
 $js_config = [
     "useAutoTiling" => MAP_USE_AUTOTILING,
     "autoTilingRadius" => MAP_AUTOTILING_RADIUS,
     "autoTilingPadding" => MAP_AUTOTILING_PADDING,
     "usePopup" => $use_map_popup,
+    "settleStatus" => [
+        "limitReached" => $settle_limit_reached,
+        "canResearchImperium" => $can_research_imperium
+    ],
     "currentKingdom" => [
         "id" => $current_k_id,
-        "ownerId" => $user->get_user_id(),
+        "ownerId" => $uid,
         "x" => $kingdom->get_kingdom_map_x(),
         "y" => $kingdom->get_kingdom_map_y(),
         "marchMultiplier" => $kingdom->get_march_speed_multiplier(),
         "troops" => $user_troops,
         "guildId" => $user->get_user_guild_id(),
-        "guildSupportSpeedLvl" => Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED),
+        "guildSupportSpeedLvl" => Guild::get_user_guild_tech_level($uid, GuildTechTypes::GUILD_TECH_SUPPORT_SPEED),
         "occupiedCommands" => $occupied_commands,
         "maxCommands" => $max_commands,
         "commandsFull" => $commands_full
@@ -115,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])
     $target_kid = isset($_POST["kingdom_id"]) ? (int)$_POST["kingdom_id"] : $current_k_id;
     $recall_kingdom = new Kingdom($target_kid);
 
-    if ($recall_kingdom->get_kingdom_owner_id() === $user->get_user_id()) {
+    if ($recall_kingdom->get_kingdom_owner_id() === $uid) {
         if ($recall_kingdom->recall_mine_troops($x, $y)) {
             $_SESSION["game_success"] = "Deine Schürfer haben die Mine verlassen und befinden sich mit der Beute auf dem Heimweg!";
         }
@@ -145,8 +178,6 @@ if (is_numeric($get_x) && is_numeric($get_y)) {
 
 if ($coords_valid) {
     $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
-
-    $field_id = ($result->num_rows != 0) ? $result->fetch_assoc()["kingdomid"] : -1;
 } else {
     if ($get_x !== null || $get_y !== null) {
         $_SESSION["game_error"] = "Ungültige Koordinaten aufgerufen!";

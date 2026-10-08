@@ -39,10 +39,16 @@ if (empty($header_icon)) {
             'disclaimer.php' => 'images/icons/icon_disclaimer.png',
             'imprint.php' => 'images/icons/icon_imprint.png',
             'privacy.php' => 'images/icons/icon_privacy.png',
+            'achievements.php' => 'images/icons/icon_achievement.png',
             default => null,
         };
     }
 }
+
+$show_attack_alert = false;
+$show_support_alert = false;
+$atk_count = 0;
+$sup_count = 0;
 
 if ($user->is_logged_in()) {
     if (in_array("userinfo", $script_files ?? [])
@@ -50,8 +56,6 @@ if ($user->is_logged_in()) {
         $script_files[] = "sendtroops";
     }
 
-    $show_attack_alert = false;
-    $show_support_alert = false;
     $uid = $user->get_user_id();
     $gid = $user->get_user_guild_id();
 
@@ -65,16 +69,16 @@ if ($user->is_logged_in()) {
     $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
     $ack_sup_ids = $_SESSION["acknowledged_supports"] ?? [];
 
-    $unacknowledged_attacks = !empty($_SESSION["active_attacks"])
-            ? count(array_filter($_SESSION["active_attacks"], fn($atk) => $atk["is_new"] && !in_array($atk["eventid"], $ack_ids)))
+    $atk_count = !empty($_SESSION["active_attacks"])
+            ? count(array_filter($_SESSION["active_attacks"], fn($atk) => !empty($atk["is_new"]) && !in_array($atk["eventid"], $ack_ids)))
             : 0;
 
-    $unacknowledged_supports = !empty($_SESSION["active_supports"])
+    $sup_count = !empty($_SESSION["active_supports"])
             ? count(array_filter($_SESSION["active_supports"], fn($sup) => !in_array($sup["eventid"], $ack_sup_ids)))
             : 0;
 
-    $show_attack_alert = ($unacknowledged_attacks > 0);
-    $show_support_alert = ($unacknowledged_supports > 0);
+    $show_attack_alert = ($atk_count > 0);
+    $show_support_alert = ($sup_count > 0);
 }
 ?>
 <!DOCTYPE html>
@@ -145,6 +149,30 @@ if ($user->is_logged_in()) {
         <?php include_once("layout/left.php"); ?>
     </div>
     <div class="middle-container">
+        <div id="middle-flash-container" class="middle-flash-container">
+            <?php
+            $success_msg = $_SESSION["game_success"] ?? $_SESSION["admin_flash_msg"] ?? $_SESSION["guild_success"] ?? $_SESSION["support_success"] ?? null;
+            if ($success_msg) {
+                echo show_passed_box($success_msg);
+                unset($_SESSION["game_success"], $_SESSION["admin_flash_msg"], $_SESSION["guild_success"], $_SESSION["support_success"]);
+            }
+
+            $error_msg = $_SESSION["game_error"] ?? $_SESSION["guild_error"] ?? null;
+            if ($error_msg) {
+                echo show_error_box($error_msg);
+                unset($_SESSION["game_error"], $_SESSION["guild_error"]);
+            }
+
+            if (!empty($flash_box)) {
+                echo $flash_box;
+            }
+
+            if (!empty($error)) {
+                echo show_error_box($error);
+            }
+            ?>
+        </div>
+
         <div class="big-box-container">
             <div class="big-box-header">
                 <?php if (!empty($header_icon) && file_exists($header_icon)): ?>
@@ -153,19 +181,6 @@ if ($user->is_logged_in()) {
                 <?= $header ?? 'Default Header'; ?>
             </div>
             <div class="big-box-content">
-                <?php
-                $success_msg = $_SESSION["game_success"] ?? $_SESSION["admin_flash_msg"] ?? $_SESSION["guild_success"] ?? $_SESSION["support_success"] ?? null;
-                if ($success_msg) {
-                    echo show_passed_box($success_msg);
-                    unset($_SESSION["game_success"], $_SESSION["admin_flash_msg"], $_SESSION["guild_success"], $_SESSION["support_success"]);
-                }
-
-                $error_msg = $_SESSION["game_error"] ?? $_SESSION["guild_error"] ?? null;
-                if ($error_msg) {
-                    echo show_error_box($error_msg);
-                    unset($_SESSION["game_error"], $_SESSION["guild_error"]);
-                }
-                ?>
                 <?= $view ?? "Default Content"; ?>
             </div>
         </div>

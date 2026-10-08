@@ -412,8 +412,6 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                         }
                     }
                 } else {
-                    $count = (int)$_GET["count"];
-
                     $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost());
                     $unit_cost_gold = (int)($soldiers[$s_id]->get_soldier_gold_cost());
                     $unit_cost_wood = (int)($soldiers[$s_id]->get_soldier_wood_cost());
@@ -569,7 +567,7 @@ if (!$category_availability[$active_cat]) {
 }
 
 if (!empty($last_upgraded)) {
-    $view .= show_weighted_box($last_upgraded["name"] . " (+" . $last_upgraded["count"] . ")", "Aufwertung abgeschlossen:");
+    $flash_box = show_weighted_box($last_upgraded["name"] . " (+" . $last_upgraded["count"] . ")", "Aufwertung abgeschlossen:");
 
     $user->clear_last_upgraded_soldier($current_kingdom);
 }
@@ -578,7 +576,7 @@ if (!empty($last_recruited_soldier)) {
     $soldier_name = $last_recruited_soldier["soldiername"];
     $soldier_count = $last_recruited_soldier["soldiercount"];
 
-    $view .= show_weighted_box("$soldier_name (+$soldier_count)", "Ausbildung abgeschlossen:");
+    $flash_box = show_weighted_box("$soldier_name (+$soldier_count)", "Ausbildung abgeschlossen:");
 
     $user->clear_last_recruited_soldier($current_kingdom);
 }
@@ -745,7 +743,7 @@ if (!empty($other_kingdoms)) {
                 Truppen stationieren
             </button>";
     }
-    $view .= "</div></div>";
+    $view .= "</div></div><div class='title-border'>Ausbildung & Aufwertung</div>";
 }
 
 $categories = SoldierTypes::get_labels();
@@ -807,6 +805,15 @@ $category_names = [
     SoldierTypes::SOLDIER_TYPE_ARCHERS => "Fernkampf",
     SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezialeinheiten"
 ];
+
+$res_founded = $db_instance->execute_query(
+    "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
+    [$user->get_user_id()]
+);
+$res_imp = $db_instance->execute_query(
+    "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ?",
+    [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
+);
 
 for ($i = 0; $i < $soldiers_count; $i++) {
     $s_id_internal = $soldiers[$i]->get_soldier_id();
@@ -877,16 +884,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $capacity_text .= "<br><small>(+$step% je weiteren Eroberer, max. $max%)</small>";
             break;
         case Soldiers::SOLDIER_SETTLER_WAGON:
-            $res_founded = $db_instance->execute_query(
-                "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method = 0",
-                [$user->get_user_id()]
-            );
             $curr_founded = (int)$res_founded->fetch_row()[0];
-
-            $res_imp = $db_instance->execute_query(
-                "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ?",
-                [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
-            );
             $imp_bonus = (int)$res_imp->fetch_row()[0];
             $current_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
 
@@ -895,7 +893,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$base_chance%</b> Erfolgsrate</span>";
             $capacity_text .= "<br><span style='font-size: 0.9em;'>Imperium: <b>$curr_founded / $current_limit</b> gegründeten Siedlungen</span>";
 
-            if ($current_limit >= GLOBAL_SETTLEMENT_MAX) {
+            if ($curr_founded >= $current_limit) {
                 $capacity_text .= "<br><small class='error'>(Maximales Limit erreicht)</small>";
             } else {
                 $capacity_text .= "<br><small>(Erhöhbar durch 'Imperium' Forschung)</small>";
@@ -954,7 +952,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $rem = max(0, $total_diff % $upg_unit_time);
             if ($rem == 0) $rem = $upg_unit_time;
 
-            $text_build = "<b>Aufwertung zu $target_name:</b> " . $upgrade_event["soldiergoal"] . "<br>
+            $text_build = "Aufwertung zu </b>$target_name:</b> " . $upgrade_event["soldiergoal"] . "<br>
             <span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg' data-timer-cat='$unit_cat'>" . format_time_for_js($rem) . "</span><br>
             <form id='cancel-form-upg' action='barracks.php' method='GET'>
                 <input type='hidden' name='recruit' value='$i'>
@@ -1034,7 +1032,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
 
             if (!empty($possible_targets)) {
-                $text_build .= "<select name='upgrade_to' class='js-upgrade-select' data-id='$soldier_id'>
+                $text_build .= "<select name='upgrade_to' class='js-upgrade-select' data-id='$s_id_internal'>
                                 <option value=''>Ausbildung</option>";
 
                 foreach ($possible_targets as $pt) {
@@ -1302,9 +1300,5 @@ $view .= "</div>";
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["timer", "barracks", "userinfo"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

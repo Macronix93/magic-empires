@@ -16,6 +16,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "priv" => $inbox_only,
         "world" => (int)$unreads["world"],
         "guild" => (int)$unreads["guild"],
-        "suggestions" => (int)$unreads["suggestions"]
+        "suggestions" => (int)$unreads["suggestions"],
+        "achievements" => (int)($unreads["achievements"] ?? 0)
     ]);
 }

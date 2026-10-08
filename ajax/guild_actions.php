@@ -121,5 +121,5 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     header('Content-Type: application/json');
     echo json_encode($response);
 } else {
-    change_location("guilds.php");
+    change_location("guild.php");
 }

@@ -87,6 +87,7 @@ const MAX_MARKET_RATIO = 10;
 const MARKET_LISTING_FEE_STEP = 20000;
 const CARAVAN_SPEED_FACTOR = 0.5;
 const MAX_MARKETPLACE_OFFERS_PER_PAGE = 10;
+const TRADE_REROUTE_DELAY = 1800;
 
 // --- Building & Kingdom Development ---
 const MAX_BUILDING_LEVEL = 10;
@@ -103,6 +104,11 @@ const WATCHTOWER_DETECTION_PER_LEVEL = 2100;
 const KINGDOM_OVERFLOW_FACTOR = 0.95;
 
 // --- Military, Battle ---
+const SHRINE_WAR_DEFAULT_BONUS = 0.08;
+const SPY_INTEL_THRESHOLD_BUILDINGS = 5;
+const SPY_INTEL_THRESHOLD_TROOPS = 15;
+const SPY_INTEL_THRESHOLD_TECHS = 20;
+const CONQUERED_HOME_REDIRECT_DELAY = 600;
 const HERO_DISTRIBUTION_PLAYER_STEP = 8;
 const STARTING_SCORE = 0;
 const MAX_ROWS_PER_RANKING_PAGE = 10;
@@ -113,7 +119,6 @@ const GLOBAL_SETTLEMENT_MAX = 8;
 const DEFAULT_WALL_HP = 1000;
 const WALL_ABSORPTION_PER_LEVEL = 100;
 const WALL_EFFECTIVE_DMG_FACTOR = 0.03;
-const WALL_ACCUMULATED_DMG_FACTOR = 0.001;
 const MIN_WALL_DEFENSE = 1500;
 const MAX_WALL_DEFENSE = 25000;
 const WALL_DEFENSE_FACTOR = 0.7;
@@ -156,6 +161,7 @@ const BASE_SETTLER_CHANCE = 0.3;
 const SETTLER_CHANCE_STEP = 0.2;
 const MAX_SETTLER_CHANCE = 1.0;
 const PLAYER_KINGDOM_SCOUT_BOOST = 0.5;
+const RESOURCE_TILE_DEPLETED_THRESHOLD = 5;
 
 // --- Techs ---
 const RESEARCH_FOOD_INC = 2500;
@@ -232,11 +238,12 @@ const SUGGESTION_DESC_MAX_LENGTH = 2000;
 const SUGGESTION_COOLDOWN_SECONDS = 600;
 const MAX_SUGGESTIONS_PER_PAGE = 5;
 const SUGGESTION_COMMENT_MIN_LENGTH = 3;
-const SUGGESTION_COMMENT_MAX_LENGTH = 600;
+const SUGGESTION_COMMENT_MAX_LENGTH = 1000;
 const SUGGESTION_COMMENT_COOLDOWN_SECONDS = 15;
 const MAX_SUGGESTION_COMMENTS_PER_PAGE = 50;
 
 // --- World Events ---
+const WORLD_EVENT_MIN_SERVER_POWER = 50000;
 const WORLD_EVENT_DURATION = 86400;
 const WORLD_EVENT_HP_REWARD_TIME = 1800;
 const WORLD_EVENT_POWER_FACTOR = 8;
@@ -250,7 +257,6 @@ const WORLD_EVENT_REWARD_TRESHOLD_3 = 500000;
 const WORLD_EVENT_REWARD_TRESHOLD_4 = 2500000;
 const WORLD_EVENT_REWARD_TRESHOLD_5 = 5000000;
 const WORLD_EVENT_REWARD_TRESHOLD_6 = 10000000;
-
 const WORLD_EVENT_REWARD_COINS_MIN = 5;
 const WORLD_EVENT_REWARD_COINS_1 = 5;
 const WORLD_EVENT_REWARD_COINS_2 = 5;
@@ -314,7 +320,7 @@ const GUILD_STORAGE_BASE_IRON = 700;
 const GUILD_STORAGE_BASE_SAPPHIRE = 200;
 const GUILD_STORAGE_BASE_DIAMOND = 100;
 const GUILD_STORAGE_INC_FACTOR = 1.58;
-const GUILD_BONUS_EVENT_GOLD_PER_LVL = 0.05;
+const GUILD_BONUS_EVENT_GOLD_PER_LVL = 0.065;
 const GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL = 0.03;
 const GUILD_BONUS_SUPPORT_CAP_PER_LVL = 50;
 const GUILD_BONUS_SUPPORT_SPEED_PER_LVL = 0.03;
@@ -393,9 +399,67 @@ const ALCHEMY_RESOURCE_WEIGHTS = [
     ResourceTypes::RESOURCE_TYPE_GOLD => 0.2
 ];
 
+// --- Achievements ---
+const ACHIEVEMENT_FAQ_OPEN_TIME = 120;
+
 /*
  * Interfaces
  */
+
+class AchievementCategories
+{
+    const int CATEGORY_SCORE = 1;
+    const int CATEGORY_COMBAT = 2;
+    const int CATEGORY_ECONOMY = 3;
+    const int CATEGORY_EXPANSION = 4;
+    const int CATEGORY_EVENTS = 5;
+    const int CATEGORY_SPECIAL = 6;
+
+    public static function get_labels(): array
+    {
+        return [
+            self::CATEGORY_SCORE => "Rang & Macht",
+            self::CATEGORY_COMBAT => "Militär & Kampf",
+            self::CATEGORY_ECONOMY => "Wirtschaft & Minen",
+            self::CATEGORY_EXPANSION => "Expansion & Reich",
+            self::CATEGORY_EVENTS => "Events",
+            self::CATEGORY_SPECIAL => "Geheim"
+        ];
+    }
+}
+
+interface AchievementTypes
+{
+    const int ACHIEVEMENT_SCORE = 1;
+    const int ACHIEVEMENT_MINES_DEPLETED = 2;
+    const int ACHIEVEMENT_TRADES_COUNT = 3;
+    const int ACHIEVEMENT_RESOURCES_LOOTED = 4;
+    const int ACHIEVEMENT_MONSTER_KILLS = 5;
+    const int ACHIEVEMENT_CAMPS_CLEARED = 6;
+    const int ACHIEVEMENT_EVENT_DAMAGE = 7;
+    const int ACHIEVEMENT_KINGDOMS_COUNT = 8;
+    const int ACHIEVEMENT_SPY_COUNT = 9;
+    const int ACHIEVEMENT_UNITS_FALLEN_PVP = 10;
+    const int ACHIEVEMENT_RESOURCES_STOLEN = 11;
+    const int ACHIEVEMENT_MAX_BUILDING = 12;
+    const int ACHIEVEMENT_MAX_UNI_TECH = 13;
+    const int ACHIEVEMENT_MAX_SMITHY_TECH = 14;
+    const int ACHIEVEMENT_FOUNDED_KINGDOMS = 15;
+    const int ACHIEVEMENT_MINE_CAPTURED = 16;
+    const int ACHIEVEMENT_MINE_DEFENDED = 17;
+    const int ACHIEVEMENT_EVENT_ATTENDED = 18;
+    const int ACHIEVEMENT_PERFECT_CAMP_KILL = 19;
+    const int ACHIEVEMENT_SHRINE_ALIGNMENT = 20;
+    const int ACHIEVEMENT_ANCESTRAL_RITES = 21;
+    const int ACHIEVEMENT_ALCHEMY_CLAIMED = 22;
+    const int ACHIEVEMENT_INTERNAL_TRANSPORT = 23;
+    const int ACHIEVEMENT_BOOST_ACTIVATED = 24;
+    const int ACHIEVEMENT_SECRET_TECHTREE = 25;
+    const int ACHIEVEMENT_SECRET_FAQ = 26;
+    const int ACHIEVEMENT_SECRET_FORUM = 27;
+    const int ACHIEVEMENT_SECRET_WARSIM = 28;
+    const int ACHIEVEMENT_SECRET_RENAME = 29;
+}
 
 interface TransportTypes
 {
@@ -413,6 +477,13 @@ interface MapFieldTypes
     const int MAP_FIELD_ABANDONED_KINGDOM = -4;
     const int MAP_FIELD_MINE = -5;
     const int MAP_FIELD_WORLD_EVENT = -999;
+}
+
+interface KingdomCreationTypes
+{
+    const int KINGDOM_CREATION_INITIAL = 0;  // Starting Kingdom
+    const int KINGDOM_CREATION_CONQUEST = 1; // Received through Conquerors
+    const int KINGDOM_CREATION_FOUNDED = 2;  // Received through Settlers
 }
 
 interface GuildTechTypes

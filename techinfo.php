@@ -96,7 +96,7 @@ if ($row) {
                     "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
         } else if ($soldier_id === Soldiers::SOLDIER_SETTLER_WAGON) {
             $res_founded = $db_instance->execute_query(
-                    "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method = 0",
+                    "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
                     [$user->get_user_id()]
             );
             $curr_founded = (int)$res_founded->fetch_row()[0];
@@ -114,9 +114,9 @@ if ($row) {
 
             $chance_info = "Ein Karren hat eine Erfolgschance von <b>$base%</b>. Jeder weitere erhöht diese um <b>$step%</b> (max. <b>$max%</b>).<br><br>";
             $chance_info .= "<b>Globaler Siedlungs-Status:</b><br>";
-            $chance_info .= "Gegründete Dörfer: <b>$curr_founded</b><br>"; // Hier steht nun 2
+            $chance_info .= "Belegte Siedlungs-Slots: <b>$curr_founded / $limit</b><br>";
             $chance_info .= "Aktuelles Limit: <b>$limit</b> (Maximal: " . GLOBAL_SETTLEMENT_MAX . ")<br>";
-            $chance_info .= "<i>Eroberte Dörfer zählen nicht gegen dieses Limit.</i>";
+            $chance_info .= "<i style='opacity: 0.7;'>Eroberte Dörfer zählen nicht gegen dieses Limit.</i>";
         }
 
         $active_res = [];
@@ -490,7 +490,6 @@ if ($row) {
             }
         }
 
-        $name = $row["buildingname"] ?? $row["techname"];
         $is_uni_tech = ($tech_id !== null && $tech_id < TechTypes::TECH_TYPE_BLADES);
         $is_smithy_tech = ($tech_id !== null && $tech_id >= TechTypes::TECH_TYPE_BLADES);
 
@@ -616,7 +615,7 @@ if ($row) {
         $view .= "</div></div>";
     }
 } else {
-    $view .= show_error_box("Nichts zum Anzeigen gefunden!");
+    $error = "Nichts zum Anzeigen gefunden!";
 }
 echo $view;
 ?>

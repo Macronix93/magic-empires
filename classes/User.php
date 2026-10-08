@@ -9,6 +9,7 @@ class User
     private int $current_kingdom;
     private ?array $cached_unread_counts = null;
     private ?array $user_row = null;
+    private static ?array $title_cache = null;
 
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
@@ -93,14 +94,11 @@ class User
         setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, lastlogin, mainkingdom, msgcount, lastsentmsgend, adminlevel, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
+        $result = $this->mysqli->execute_query("SELECT username, mainkingdom, msgcount, lastsentmsgend, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
-        $_SESSION["lastlogin"] = $row["lastlogin"];
-        $_SESSION["username"] = $row["username"];
         $_SESSION["kingdomid"] = $row["mainkingdom"];
-        $_SESSION["adminlevel"] = $row["adminlevel"];
         $_SESSION["message_count"] = $row["msgcount"];
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
         $_SESSION["device_id"] = $device_id;
@@ -110,6 +108,9 @@ class User
         // Update login time and session id
         $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ?, device_id = ? WHERE id = ?",
             [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $device_id, $user_id]);
+
+        // Check for new achievements
+        Achievement::check($user_id);
 
         Logger::get_instance()->log_game("ACCOUNT", "LOGIN_SUCCESS");
     }
@@ -177,7 +178,8 @@ class User
         ?string $popup_id = null,
         bool    $show_last_activity = false,
         ?int    $last_activity_timestamp = null,
-        bool    $exact_time = false
+        bool    $exact_time = false,
+        bool    $show_title = false
     ): string
     {
         $avatar = $this->get_avatar();
@@ -210,6 +212,14 @@ class User
             }
         }
 
+        $title_html = "";
+        if ($show_title) {
+            $user_title = $this->get_active_title();
+            if (!empty($user_title)) {
+                $title_html = "<small class='user-title'>&bdquo;" . e($user_title) . "&ldquo;</small>";
+            }
+        }
+
         return "
             <div class='image-and-user'>
                 <div class='avatar-container popup' id='$pop_id'>
@@ -221,6 +231,7 @@ class User
                 </div>
                 <div class='user-name-container' style='text-align: left; min-width: 0; flex: 1;'>
                     $content
+                    $title_html
                 </div>
             </div>";
     }
@@ -336,11 +347,22 @@ class User
 
         $uid = $this->get_user_id();
         if ($uid <= 0) {
-            return ["pms" => 0, "server" => 0, "world" => 0, "guild" => 0, "support" => 0, "news" => 0, "total" => 0];
+            return [
+                "pms" => 0,
+                "server" => 0,
+                "world" => 0,
+                "guild" => 0,
+                "support" => 0,
+                "news" => 0,
+                "suggestions" => 0,
+                "achievements" => 0,
+                "total" => 0
+            ];
         }
 
         $gid = $this->get_user_guild_id();
         $is_staff = ($this->get_user_admin_level() > 0);
+        $claimable_achs = Achievement::get_claimable_count($uid);
 
         $support_subquery = $is_staff
             ? "(SELECT COUNT(*) FROM support_messages sm 
@@ -387,8 +409,6 @@ class User
         $news = (int)($res["news"] ?? 0);
         $suggestions = (int)($res["suggestions"] ?? 0);
 
-        $total = $pms + $server + $world + $guild + $support + $suggestions;
-
         $this->cached_unread_counts = [
             "pms" => $pms,
             "server" => $server,
@@ -397,7 +417,8 @@ class User
             "support" => $support,
             "news" => $news,
             "suggestions" => $suggestions,
-            "total" => $total
+            "achievements" => $claimable_achs,
+            "total" => $pms + $server + $world + $guild + $support + $suggestions + $claimable_achs
         ];
 
         return $this->cached_unread_counts;
@@ -426,6 +447,10 @@ class User
 
     public function get_user_name(): string
     {
+        if (empty($this->user_name) && $this->user_id > 0) {
+            $row = $this->load_user_row();
+            $this->user_name = $row["username"] ?? "Unbekannt";
+        }
         return $this->user_name;
     }
 
@@ -654,7 +679,7 @@ class User
           AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
           AND e.is_processing = 0
           AND e.arrivaltime > ?
-          AND (e.arrivaltime - ?) <= (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ")
+          AND e.arrivaltime <= (? + (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . "))
           AND EXISTS (
               SELECT 1 FROM sent_troops st 
               WHERE st.eventid = e.eventid 
@@ -766,5 +791,51 @@ class User
             "guild_status" => $guild_status,
             "alchemy_status" => $res["alchemy_status"] ?? ''
         ];
+    }
+
+    public function get_gender(): string
+    {
+        return $this->load_user_row()["gender"] ?? 'm';
+    }
+
+    public function get_active_title(): string
+    {
+        $row = $this->load_user_row();
+        $title_id = (int)($row["active_title_id"] ?? 0);
+        $gender = $row["gender"] ?? 'm';
+
+        if ($title_id === 0) {
+            return ""; // Don't show a title
+        }
+
+        if ($title_id === -1) {
+            return ($gender === 'f') ? "Freifrau" : "Freiherr";
+        }
+
+        if (self::$title_cache === null) {
+            $res = $this->mysqli->query("SELECT id, title, title_f FROM achievements");
+            self::$title_cache = [];
+            while ($ach = $res->fetch_assoc()) {
+                self::$title_cache[(int)$ach["id"]] = $ach;
+            }
+        }
+
+        if (isset(self::$title_cache[$title_id])) {
+            $ach = self::$title_cache[$title_id];
+            return ($gender === 'f' && !empty($ach["title_f"])) ? $ach["title_f"] : $ach["title"];
+        }
+
+        return "";
+    }
+
+    public function get_active_title_id(): int
+    {
+        $row = $this->load_user_row();
+        return (int)($row["active_title_id"] ?? 0);
+    }
+
+    public function has_achievement(int $req_type): bool
+    {
+        return Achievement::has($this->user_id, $req_type);
     }
 }

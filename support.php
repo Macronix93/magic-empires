@@ -144,10 +144,6 @@ $title = "Support";
 $header = "Support-System";
 $script_files = ["support"];
 
-if (!empty($error)) {
-    $view .= show_error_box($error);
-}
-
 if (isset($_GET["tid"])) {
     // TICKET DETAILS
     $tid = (int)$_GET["tid"];
@@ -160,9 +156,9 @@ if (isset($_GET["tid"])) {
     $ticket = $res->fetch_assoc();
 
     if (!$ticket) {
-        $view .= show_error_box("Dieses Ticket wurde gelöscht oder existiert nicht.");
+        $error = "Dieses Ticket wurde gelöscht oder existiert nicht.";
     } else if (!$is_staff && $ticket["userid"] != $uid) {
-        $view .= show_error_box("Zugriff verweigert.");
+        $error = "Zugriff verweigert.";
     } else {
         $is_acting_as_staff = ($is_staff && (int)$ticket["userid"] !== $uid);
 

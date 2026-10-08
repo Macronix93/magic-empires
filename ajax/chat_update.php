@@ -4,7 +4,6 @@ require_once("../includes/core.php");
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $chat_partner_id = (int)$_GET["s"];
     $last_id = (int)($_GET["last_id"] ?? 0);
-    $session_partner_id = (int)($_SESSION["msgreceiver"] ?? 0);
     $client_token = $_GET["token"] ?? "";
     $session_token = $_SESSION["active_chat_token"] ?? "";
     $messages_to_delete = [];
@@ -102,7 +101,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         "messagesToDelete" => $messages_to_delete,
         "lastId" => $new_last_id,
         "error" => $error,
-        "chatPartner" => $session_partner_id,
+        "chatPartner" => $chat_partner_id,
         "reactionUpdates" => $reaction_updates
     ]);
 } else {

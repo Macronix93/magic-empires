@@ -4,6 +4,8 @@
 </div>
 <div class="credits-scroll-box">
     <ul class="credits-list">
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                Rashad - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/fruits-and-vegetables" title="fruits and vegetables icons">Fruits
                 and vegetables icons created by Nhor Phai - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by

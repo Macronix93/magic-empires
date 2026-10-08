@@ -102,8 +102,6 @@ registerAction("switchSettingsTab", (el) => {
     }
     el.classList.add("active");
 
-    document.cookie = "me_settings_tab=" + tabName + "; path=/; max-age=31536000; SameSite=Lax";
-
     const url = new URL(window.location);
     url.searchParams.set("tab", tabName);
     window.history.replaceState({}, '', url);

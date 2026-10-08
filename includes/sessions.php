@@ -107,11 +107,11 @@ if ($user->is_logged_in()) {
         }
     } else {
         if (!MAINTENANCE_MODE || $user->is_admin()) {
+            $_SESSION["lastactivity"] = $timestamp;
+
             $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
 
             if (!$is_ajax) {
-                $_SESSION["lastactivity"] = $timestamp;
-
                 if (!isset($_SESSION["last_db_update"])) {
                     $_SESSION["last_db_update"] = 0;
                 }

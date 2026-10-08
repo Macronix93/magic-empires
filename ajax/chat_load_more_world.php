@@ -4,7 +4,7 @@ require_once("../includes/core.php");
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     if (isset($_GET["oldest_id"])) {
         $oldest_id = (int)$_GET["oldest_id"];
-        $limit = 30;
+        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
         $u_id = $user->get_user_id();
         $is_admin = $user->is_admin();
 

@@ -127,8 +127,6 @@ if ($has_active_process) {
 
     $stock = ($in_res !== -1) ? ($stocks[$in_res] ?? 0) : 0;
     $free_space = max(0, $capacity - $in_amt);
-    $raw_max_top_up = min($stock, $free_space);
-    $max_top_up = $raw_max_top_up - ($raw_max_top_up % $step);
 
     $input_per_sec = $speed / 3600;
     $output_per_sec = $input_per_sec * $conversion_rate;
@@ -292,9 +290,5 @@ if ($has_active_process) {
 $title = $building_name;
 $header = $building_name . " (" . $lab_level . ")";
 $script_files = ["timer", "alchemylab"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

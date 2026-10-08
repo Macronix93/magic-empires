@@ -226,11 +226,6 @@ if (!$active_event) {
     $user_damage = $user_participation["total_damage"] ?? 0;
     $user_attempts = $user_participation["attempts_used"] ?? 0;
     $top_kingdom_id = $user_participation["top_kingdom_id"] ?? 0;
-    $avg_lvl = $world_event_manager->get_user_max_building_avg($user_id);
-    $max_tc = $world_event_manager->get_max_tc_level($user_id);
-
-    $num_slots = ($max_tc >= WORLD_EVENT_HP_SLOT_HIGH_TC) ? 3 : ($max_tc >= WORLD_EVENT_HP_SLOT_MID_TC ? 2 : WORLD_EVENT_HP_SLOT_LOW);
-    $special_chance = WORLD_EVENT_HP_SPECIAL_CHANCE_BASE + ($max_tc * WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT);
 
     $target_url = "ajax/send_troops.php?x=50&y=50";
     $pool = $world_event_manager->get_monster_pool();
@@ -300,6 +295,12 @@ if (!$active_event) {
 
     if ($event_type === "BOSS_HP") {
         // --- BOSS HP LOGIC ---
+        $avg_lvl = $world_event_manager->get_user_max_building_avg($user_id);
+        $max_tc = $world_event_manager->get_max_tc_level($user_id);
+
+        $num_slots = ($max_tc >= WORLD_EVENT_HP_SLOT_HIGH_TC) ? 3 : ($max_tc >= WORLD_EVENT_HP_SLOT_MID_TC ? 2 : WORLD_EVENT_HP_SLOT_LOW);
+        $special_chance = WORLD_EVENT_HP_SPECIAL_CHANCE_BASE + ($max_tc * WORLD_EVENT_HP_SPECIAL_CHANCE_TC_MULT);
+
         $total_hp = $active_event["total_hp"];
         $hp_raw_percent = ($total_hp > 0) ? ($current_hp / $total_hp) * 100 : 0;
 

@@ -27,7 +27,7 @@ if (isset($_GET["accept"])) {
     if (!$res["success"]) {
         $error = $res["error"];
     } else {
-        $view .= show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $res["arrival_str"]);
+        $flash_box = show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $res["arrival_str"]);
 
         $daily_trades_count++;
     }
@@ -39,7 +39,7 @@ if (isset($_GET["delete"])) {
     if ($err) {
         $error = $err;
     } else {
-        $view .= show_passed_box("Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.");
+        $flash_box = show_passed_box("Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.");
 
         $daily_trades_count = max(0, $daily_trades_count - 1);
     }
@@ -62,7 +62,7 @@ if (isset($_GET["send_own"])) {
     if (!$res["success"]) {
         $error = $res["error"];
     } else {
-        $view .= show_passed_box("Transport nach <b>" . e($res["target_name"]) . "</b> gestartet!<br>Ankunft in " . $res["arrival_str"]);
+        $flash_box = show_passed_box("Transport nach <b>" . e($res["target_name"]) . "</b> gestartet!<br>Ankunft in " . $res["arrival_str"]);
 
         $daily_trades_count++;
     }
@@ -229,15 +229,11 @@ if ($result->num_rows > 0) {
         $kingdom_coords = "$map_x:$map_y";
 
         if ($is_my_offer) {
-            $action = "&#10060;";
             $param = "delete";
             $btn_class = "btn-delete";
-            $title_attr = "Angebot löschen";
         } else {
-            $action = "&#9989;";
             $param = "accept";
             $btn_class = "btn-accept";
-            $title_attr = "Angebot annehmen";
         }
 
         $is_guild_deal = ((int)($row["guild_id"] ?? 0) > 0);
@@ -332,10 +328,10 @@ if ($other_kingdoms_res->num_rows > 0) {
     $placeholders = implode(',', array_fill(0, count($other_ids), '?'));
     $incoming_res_query = "
         SELECT kingdomid,
-               SUM(loot_food + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 0, buildinglevel, 0)) AS inc_food,
-               SUM(loot_wood + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 1, buildinglevel, 0)) AS inc_wood,
-               SUM(loot_stone + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 2, buildinglevel, 0)) AS inc_stone,
-               SUM(loot_gold + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = 3, buildinglevel, 0)) AS inc_gold
+               SUM(loot_food + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = " . ResourceTypes::RESOURCE_TYPE_FOOD . ", buildinglevel, 0)) AS inc_food,
+               SUM(loot_wood + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = " . ResourceTypes::RESOURCE_TYPE_WOOD . ", buildinglevel, 0)) AS inc_wood,
+               SUM(loot_stone + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = " . ResourceTypes::RESOURCE_TYPE_STONE . ", buildinglevel, 0)) AS inc_stone,
+               SUM(loot_gold + IF(buildingname != '" . TransportTypes::TRANSPORT_TYPE_INTERNAL . "' AND buildingid = " . ResourceTypes::RESOURCE_TYPE_GOLD . ", buildinglevel, 0)) AS inc_gold
         FROM events
         WHERE actionid = ? AND kingdomid IN ($placeholders)
         GROUP BY kingdomid
@@ -485,9 +481,5 @@ $view .= '<div id="market-configs"
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["marketplace", "userinfo", "timer"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

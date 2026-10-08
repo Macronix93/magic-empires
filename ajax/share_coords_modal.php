@@ -89,7 +89,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     <label for="share-recipient-input"></label><input type="text" name="recipient"
                                                                       id="share-recipient-input"
                                                                       placeholder="Name eingeben..."
-                                                                      maxlength="24" style="flex: 1;">
+                                                                      maxlength="<?= MAX_USERNAME_LENGTH ?>"
+                                                                      style="flex: 1;">
                     <button type="button"
                             data-on-click="openOverlay"
                             data-url="userlist.php"

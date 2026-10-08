@@ -35,6 +35,8 @@ if (isset($_POST["activate_boost"])) {
                 [$current_kingdom, $res_type, $boost_duration_ticks, $hourly_boost]
             );
 
+            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+
             change_location("sawmill.php");
             exit;
         } else {
@@ -91,9 +93,5 @@ if ($ticks_left > 0) {
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["timer"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

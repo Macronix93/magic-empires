@@ -14,6 +14,26 @@ class Stats
         $db = Database::get_instance()->get_connection();
         $query = "INSERT INTO player_stats (userid, `$column`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `$column` = `$column` + VALUES(`$column`)";
         $db->execute_query($query, [$user_id, $increment]);
+
+        $stat_map = [
+            "mines_depleted" => AchievementTypes::ACHIEVEMENT_MINES_DEPLETED,
+            "monster_kills" => AchievementTypes::ACHIEVEMENT_MONSTER_KILLS,
+            "camps_cleared" => AchievementTypes::ACHIEVEMENT_CAMPS_CLEARED,
+            "resources_looted" => AchievementTypes::ACHIEVEMENT_RESOURCES_LOOTED,
+            "trades_count" => AchievementTypes::ACHIEVEMENT_TRADES_COUNT,
+            "spy_count" => AchievementTypes::ACHIEVEMENT_SPY_COUNT,
+            "units_fallen_pvp" => AchievementTypes::ACHIEVEMENT_UNITS_FALLEN_PVP,
+            "resources_stolen" => AchievementTypes::ACHIEVEMENT_RESOURCES_STOLEN,
+            "event_damage_total" => AchievementTypes::ACHIEVEMENT_EVENT_DAMAGE,
+            "mines_captured" => AchievementTypes::ACHIEVEMENT_MINE_CAPTURED,
+            "mines_defended" => AchievementTypes::ACHIEVEMENT_MINE_DEFENDED,
+            "events_attended" => AchievementTypes::ACHIEVEMENT_EVENT_ATTENDED,
+            "alchemy_claimed" => AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED,
+        ];
+
+        if (isset($stat_map[$column])) {
+            Achievement::check($user_id, $stat_map[$column]);
+        }
     }
 
     public static function update_global_stat(string $name, int $increment = 1): void
@@ -31,6 +51,8 @@ class Stats
             "UPDATE users SET score = ?, ranking_points = ? WHERE id = ?",
             [$breakdown["total"], $breakdown["total"], $user_id]
         );
+
+        Achievement::check($user_id, AchievementTypes::ACHIEVEMENT_SCORE);
         return $breakdown;
     }
 

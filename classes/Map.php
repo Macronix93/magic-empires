@@ -126,6 +126,10 @@ class Map
                                      bool $is_caravan = false,
                                      bool $is_support = false): int
     {
+        if (defined("DEBUG_FIXED_MARCH_SECONDS") && DEBUG_FIXED_MARCH_SECONDS > 0) {
+            return DEBUG_FIXED_MARCH_SECONDS;
+        }
+
         $actual_target_id = ($target_id !== null) ? $target_id : $this->get_field_kingdom_id($end_x, $end_y);
 
         $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
@@ -166,8 +170,7 @@ class Map
             }
         }
 
-        //return (int)round($modified_time);
-        return 30;
+        return (int)round($modified_time);
     }
 
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array

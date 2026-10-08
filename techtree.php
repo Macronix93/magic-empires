@@ -6,6 +6,8 @@ if (!($user->is_logged_in())) {
     exit;
 }
 
+Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SECRET_TECHTREE);
+
 $dependency_text = "";
 
 // Current kingdom
@@ -16,7 +18,6 @@ $main_kid = $user->get_main_kingdom();
 $kingdom = new Kingdom($user->get_current_kingdom());
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
-$tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
 if ($current_kid === $main_kid) {
     $main_buildings = $buildings;
@@ -28,7 +29,6 @@ if ($current_kid === $main_kid) {
     $main_techs = $main_k->fetch_all_kingdom_techs();
     $embassy_level = $main_buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level();
 }
-
 
 $view .= "<p style='font-style: italic; margin-top: 0;'>Klicke oder tippe auf einen Listeneintrag, um mehr zu erfahren.</p>";
 $view .= '<div class="title-border">Gebäude-Struktur</div>';

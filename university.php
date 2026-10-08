@@ -31,13 +31,11 @@ $imp_data = $db_instance->execute_query("
          WHERE t.kingdomid = ? AND t.techid = ?) AS imp_level,
         (SELECT COUNT(*) 
          FROM kingdoms 
-         WHERE userid = ? AND creation_method = 0) AS founded_count
-", [$main_kid, TechTypes::TECH_TYPE_IMPERIAL, $uid])->fetch_assoc();
+         WHERE userid = ? AND creation_method != ?) AS founded_count
+", [$main_kid, TechTypes::TECH_TYPE_IMPERIAL, $uid, KingdomCreationTypes::KINGDOM_CREATION_CONQUEST])->fetch_assoc();
 
 $global_imp_level = (int)($imp_data["imp_level"] ?? 0);
 $curr_founded = (int)($imp_data["founded_count"] ?? 1);
-
-$max_settlement_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $global_imp_level);
 
 if (isset($_GET["action"])) {
     if ($tech_id >= 0 && $tech_id < $tech_count) {
@@ -164,7 +162,7 @@ if (!empty($last_researched_tech)) {
     $researched_tech_name = $last_researched_tech["techname"];
     $researched_tech_level = $last_researched_tech["techlevel"];
 
-    $view .= show_weighted_box("$researched_tech_name (" . $researched_tech_level . " → " . ($researched_tech_level + 1) . ")", "Forschung abgeschlossen:");
+    $flash_box = show_weighted_box("$researched_tech_name (" . $researched_tech_level . " → " . ($researched_tech_level + 1) . ")", "Forschung abgeschlossen:");
 
     $user->clear_last_researched_tech($current_kingdom);
 }
@@ -430,9 +428,5 @@ $view .= "</table>";
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["timer"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

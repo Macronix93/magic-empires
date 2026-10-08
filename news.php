@@ -43,11 +43,11 @@ if ($is_admin) {
         $raw_content = trim($_POST["content"] ?? "");
 
         if (empty($raw_title) || empty($raw_content)) {
-            $view .= show_error_box("Bitte alle Felder ausfüllen!");
+            $error = "Bitte alle Felder ausfüllen!";
         } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-            $view .= show_error_box("Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!");
+            $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
         } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-            $view .= show_error_box("Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
+            $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
         } else {
             $title = e($raw_title);
             $content = $process_content($raw_content);
@@ -62,7 +62,7 @@ if ($is_admin) {
                 [$news_id]
             );
 
-            $view .= show_passed_box("News-Beitrag aktualisiert!");
+            $flash_box = show_passed_box("News-Beitrag aktualisiert!");
         }
     }
 
@@ -71,11 +71,11 @@ if ($is_admin) {
         $raw_content = trim($_POST["content"] ?? "");
 
         if (empty($raw_title) || empty($raw_content)) {
-            $view .= show_error_box("Bitte alle Felder ausfüllen!");
+            $error = "Bitte alle Felder ausfüllen!";
         } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-            $view .= show_error_box("Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!");
+            $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
         } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-            $view .= show_error_box("Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
+            $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
         } else {
             $title = e($raw_title);
             $content = $process_content($raw_content);
@@ -84,7 +84,7 @@ if ($is_admin) {
                 "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
                 [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
             );
-            $view .= show_passed_box("Neuigkeit veröffentlicht!");
+            $flash_box = show_passed_box("Neuigkeit veröffentlicht!");
         }
     }
 
@@ -92,7 +92,7 @@ if ($is_admin) {
         $news_id = (int)$_GET["delete"];
         $db_instance->execute_query("DELETE FROM news WHERE id = ?", [$news_id]);
 
-        $view .= show_passed_box("Eintrag gelöscht.");
+        $flash_box = show_passed_box("Eintrag gelöscht.");
     }
 }
 
@@ -121,7 +121,7 @@ if ($is_admin) {
     <div class='box-container allow-overflow' style='margin-bottom: 30px;'>
         <div class='box-header'>Neuigkeit verfassen</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
-            <form method='POST'>
+            <form method='POST' action='news.php'>
                 <input type='text' maxlength='" . MAX_NEWS_TITLE_LENGTH . "' name='title' placeholder='Titel' style='width: 100%; margin-bottom: 10px;' required><br>
                 <textarea id='new-news-content' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='10' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
                 <div style='display: flex; justify-content: center; align-items: center; gap: 10px;'>

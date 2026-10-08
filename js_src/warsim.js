@@ -15,7 +15,6 @@ const W_CONF = {
     wallFactor: parseFloat(warsimConstEl.dataset.wall_factor),
     wallAbsorptionPerLevel: parseInt(warsimConstEl.dataset.wall_absorption_per_lvl),
     wallEffDmgFactor: parseFloat(warsimConstEl.dataset.wall_eff_dmg_factor),
-    wallAccDmgFactor: parseFloat(warsimConstEl.dataset.wall_acc_dmg_factor),
     siegeBonus: parseFloat(warsimConstEl.dataset.siege_bonus),
     ramFactor: parseFloat(warsimConstEl.dataset.ram_factor),
     ramLimit: parseFloat(warsimConstEl.dataset.ram_limit),
@@ -245,6 +244,42 @@ function calculateWallDefenseBonus(hp, lvl) {
 
 function calculateWarOutcome(soldierTypes) {
     const isMonsterMode = document.querySelector(".tablinks[data-tab='monsters']").classList.contains("active");
+
+    let hasOwnUnits = false;
+    document.querySelectorAll('input[id$="_own"]').forEach(i => {
+        if (parseInt(i.value, 10) > 0) hasOwnUnits = true;
+    });
+
+    let hasEnemyUnits = false;
+    if (isMonsterMode) {
+        document.querySelectorAll('.js-mon-input').forEach(i => {
+            if (parseInt(i.value, 10) > 0) hasEnemyUnits = true;
+        });
+    } else {
+        document.querySelectorAll('input[id$="_enemy"]').forEach(i => {
+            if (parseInt(i.value, 10) > 0) hasEnemyUnits = true;
+        });
+    }
+
+    if (!hasOwnUnits || !hasEnemyUnits) return;
+
+    const warsimData = document.getElementById("warsim-data");
+    const alreadyUnlocked = warsimData ? warsimData.dataset.hasSimAch === "1" : false;
+
+    if (!alreadyUnlocked) {
+        fetch("ajax/warsim_ping.php", {
+            method: "POST",
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && warsimData) {
+                    warsimData.dataset.hasSimAch = "1";
+                }
+            })
+            .catch(() => {
+            });
+    }
 
     const inputs = [];
     document.querySelectorAll(".warsim-table input, .js-mon-input").forEach(i => {

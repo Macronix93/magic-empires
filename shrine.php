@@ -8,26 +8,27 @@ $building = $result['building'];
 
 if (isset($_POST["choose_align"])) {
     $choice = (int)$_POST["choose_align"];
-    $cost = SHRINE_CHANGE_COST;
 
     $res_check = $db_instance->execute_query("SELECT required_level FROM shrine_alignments WHERE id = ?", [$choice]);
     $req_lvl = (int)$res_check->fetch_column();
 
     if ($building->get_building_level() < $req_lvl) {
         $error = "Dein Schrein hat eine zu niedrige Stufe für diese Gesinnung!";
-    } else if ($kingdom->get_kingdom_gold() < $cost) {
+    } else if ($kingdom->get_kingdom_gold() < SHRINE_CHANGE_COST) {
         $error = "Du hast nicht genug Gold für das Opferritual!";
     } else if ($choice == $kingdom->get_kingdom_alignment() && $choice != AlignmentTypes::ALIGN_NONE) {
         $error = "Diese Gesinnung ist bereits aktiv!";
     } else if ($choice == AlignmentTypes::ALIGN_NONE && $kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_NONE) {
         $error = "Derzeit ist keine Gesinnung aktiv!";
     } else {
-        $db_instance->execute_query("UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?", [$choice, $cost, $current_kingdom]);
+        $db_instance->execute_query("UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?", [$choice, SHRINE_CHANGE_COST, $current_kingdom]);
         $logger->log_game("ECONOMY", "SHRINE_ALIGNMENT_CHANGE", ["alignment" => $choice], $current_kingdom);
 
         // Recalculate old per-hour values
         $kingdom->set_kingdom_alignment($choice);
         $kingdom->recalculate_production();
+
+        Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SHRINE_ALIGNMENT);
 
         change_location("shrine.php");
         exit;

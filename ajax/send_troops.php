@@ -270,8 +270,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
 
         $res_k_count = $db_instance->execute_query(
-            "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method = 0",
-            [$user->get_user_id()]
+            "SELECT COUNT(*) AS total FROM kingdoms WHERE userid = ? AND creation_method != ?",
+            [$user->get_user_id(), KingdomCreationTypes::KINGDOM_CREATION_CONQUEST]
         );
         $current_settled_count = $res_k_count->fetch_assoc()["total"] ?? 0;
 
@@ -303,7 +303,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($max_allowed_slots >= GLOBAL_SETTLEMENT_MAX) {
                 $error = "Das absolute Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Dörfern ist erreicht!";
             } else {
-                $error = "Du hast bereits $current_settled_count Königreiche gegründet und $ongoing_foundations Gründungen laufen (Limit: $max_allowed_slots). Erforsche 'Imperium' im Haupt-Königreich, falls möglich.";
+                $error = "Du hast bereits $current_settled_count " . ($current_settled_count > 1 ? "Königreiche" : "Königreich") . " gegründet 
+                            " . ($ongoing_foundations > 0 ? "und $ongoing_foundations Gründungen laufen" : "") . " (Limit: $max_allowed_slots). Erforsche 'Imperium' im Haupt-Königreich, falls möglich.";
             }
         } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
             $res_mine = $db_instance->execute_query("SELECT id, level, max_troops, claimed_guild_id, claimed_user_id, work_total FROM mines WHERE mapx = ? AND mapy = ?",
@@ -527,7 +528,7 @@ $has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
 if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
     $is_spying = $only_scouts_allowed || ($mining_units_count === 0 && $scout_count > 0);
 } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
-    $is_spying = !$has_raiders && $scout_count > 0;
+    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || (!$has_raiders && $scout_count > 0);
 } else {
     $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
 }
@@ -869,6 +870,8 @@ if ($barracks_level > 0) {
             $button_label = "Einheiten stationieren";
         } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
             $button_label = $is_spying ? "Späher entsenden" : "Ruine stürmen";
+        } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
+            $button_label = $is_spying ? "Späher entsenden" : "Vorratslager plündern";
         }
 
         $mine_attrs = "";

@@ -18,11 +18,11 @@ if ($user_id) {
     $now = time();
 
     $query = "
-        SELECT users.id, users.username, users.lastactivity, users.guildid, users.registerdate,
-               users.ranking_points AS score, users.is_vacation, users.vacation_until,
-               kingdoms.mapx, kingdoms.mapy
-        FROM users
-        JOIN kingdoms ON users.mainkingdom = kingdoms.id
+        SELECT users.id, users.username, users.lastactivity, users.guildid, 
+               users.registerdate, users.ranking_points AS score, users.is_vacation, 
+               users.vacation_until, kingdoms.mapx, kingdoms.mapy
+        FROM users 
+        JOIN kingdoms ON users.mainkingdom = kingdoms.id 
         WHERE users.id = ?
     ";
     $result = $db_instance->execute_query($query, [$user_id]);
@@ -115,6 +115,10 @@ if ($user_id) {
     $register_date = $row["registerdate"];
     $x = $row["mapx"];
     $y = $row["mapy"];
+    $target_user_obj = new User($row["id"], $row["username"]);
+    $user_title = $target_user_obj->get_active_title();
+
+    $title_html = !empty($user_title) ? "<div class='user-title' style='display: inline-block; margin-left: 5px;'>&bdquo;" . e($user_title) . "&ldquo;</div>" : "";
 
     // Get sorted list of players and calculate the rank
     $rank_query = "
@@ -134,12 +138,12 @@ if ($user_id) {
             <td><b>Spieler</b></td>
             <td>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <?php if ($now - $last_activity > INACTIVITY_DELAY && $last_activity != 0): ?>
+                        <div><i><?= e($user_name) ?><?= $title_html ?></i> (Inaktiv)</div>
+                    <?php else: ?>
+                        <div><?= e($user_name) ?><?= $title_html ?></div>
+                    <?php endif; ?>
                     <?php
-                    if ($now - $last_activity > INACTIVITY_DELAY && $last_activity != 0) {
-                        echo "<div><i>" . e($user_name) . "</i> (Inaktiv)</div>";
-                    } else {
-                        echo e($user_name);
-                    }
                     if ($user_id !== $user->get_user_id()): ?>
                         <div data-on-click="redirect" data-url="<?= $msg_url ?>"
                              style="font-size: 18px; cursor: pointer;"><?= Messages::wrap_emojis("✉️") ?>

@@ -3,12 +3,18 @@ require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $response = [];
-    $receiver_id = (int)($_SESSION["msgreceiver"] ?? 0);
     $client_token = $_POST["token"] ?? "";
     $session_token = $_SESSION["active_chat_token"] ?? "";
+    $receiver_id = (int)($_POST["receiver"] ?? 0);
+    $u_id = $user->get_user_id();
 
     if ($client_token !== $session_token) {
         echo json_encode(["error" => "redirect", "chatPartner" => "privmsgs"]);
+        exit;
+    }
+
+    if ($receiver_id <= 0) {
+        echo json_encode(["error" => "Kein gültiger Empfänger angegeben!"]);
         exit;
     }
 
@@ -58,7 +64,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
             $receiver = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiver_id])->fetch_column();
             $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?) RETURNING id;";
-            $res = $db_instance->execute_query($query, [$_SESSION["userid"], $_SESSION["username"], $receiver_id, $receiver, $current_time, $cleaned_text]);
+            $res = $db_instance->execute_query($query, [$u_id, $user->get_user_name(), $receiver_id, $receiver, $current_time, $cleaned_text]);
 
             $message_id = $res->fetch_assoc()["id"];
             $response["lastId"] = $message_id;
@@ -93,16 +99,16 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $res_unread = $db_instance->execute_query("
                 SELECT COUNT(*) FROM messages 
                 WHERE senderid = ? AND receiverid = ? AND hasread = 0 AND deleted = 0 AND id != ?
-            ", [$_SESSION["userid"], $receiver_id, $message_id]);
+            ", [$u_id, $receiver_id, $message_id]);
             $existing_unread = (int)$res_unread->fetch_column();
 
             if ($existing_unread === 0) {
                 send_user_push(
                     $receiver_id,
                     "📩 Neue Nachricht",
-                    "{$_SESSION["username"]} hat dir eine Nachricht geschrieben.",
+                    "{$user->get_user_name()} hat dir eine Nachricht geschrieben.",
                     "messages",
-                    "messages.php?action=read&s=" . $_SESSION["userid"]
+                    "messages.php?action=read&s=" . $u_id
                 );
             }
         }

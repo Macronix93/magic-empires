@@ -50,7 +50,7 @@ function applyOverlayStyles(modal = null) {
         if (!m || m.style.display === "none") return;
 
         if (window.innerWidth <= 600 || window.innerHeight < 600) {
-            m.style.top = "10px";
+            m.style.top = "50px";
         } else {
             m.style.top = "50px";
         }

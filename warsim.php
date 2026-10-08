@@ -5,6 +5,7 @@ $user->check_user_login();
 
 $has_import = isset($_GET["import_monsters"]);
 $keep_sim = isset($_GET["keep_sim"]);
+$has_warsim_ach = $user->has_achievement(AchievementTypes::ACHIEVEMENT_SECRET_WARSIM);
 
 if (!$has_import && !$keep_sim) {
     setcookie("me_sim_tab", "", time() - 3600, "/");
@@ -121,8 +122,8 @@ foreach ($res_m as $row) {
 }
 
 // Shrine bonus
-$res_war_data = $db_instance->execute_query("SELECT base_bonus FROM shrine_alignments WHERE id = 1");
-$war_base_bonus = $res_war_data->fetch_column() ?: 0.08;
+$res_war_data = $db_instance->execute_query("SELECT base_bonus FROM shrine_alignments WHERE id = ?", [AlignmentTypes::ALIGN_WAR]);
+$war_base_bonus = $res_war_data->fetch_column() ?: SHRINE_WAR_DEFAULT_BONUS;
 $is_war_god = ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR);
 
 // Wall bonus
@@ -366,7 +367,8 @@ if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
 $view .= '<div id="warsim-data" 
                 data-current-kid="' . $user->get_current_kingdom() . '"
                 data-soldiers="' . e(json_encode(array_map(fn($s) => $s->get_soldier_name(), $soldiers))) . '"
-                data-shrine-atk-mult="' . $shrine_atk_mult . '"></div> 
+                data-shrine-atk-mult="' . $shrine_atk_mult . '"
+                data-has-sim-ach="' . ($has_warsim_ach ? '1' : '0') . '"></div> 
           <div id="warsim-const" 
                 data-inf_atk="' . SMITHY_INF_ATK_BONUS . '" data-inf_def="' . SMITHY_INF_DEF_BONUS . '"
                 data-cav_atk="' . SMITHY_CAV_ATK_BONUS . '" data-cav_def="' . SMITHY_CAV_DEF_BONUS . '"
@@ -378,7 +380,6 @@ $view .= '<div id="warsim-data"
                 data-wall_factor="' . WALL_DEFENSE_FACTOR . '"
                 data-wall_absorption_per_lvl="' . WALL_ABSORPTION_PER_LEVEL . '"
                 data-wall_eff_dmg_factor="' . WALL_EFFECTIVE_DMG_FACTOR . '"
-                data-wall_acc_dmg_factor="' . WALL_ACCUMULATED_DMG_FACTOR . '"
                 data-siege_bonus="' . SMITHY_SIEGE_BONUS . '"
                 data-ram_factor="' . RAM_WALL_DAMAGE_FACTOR . '" 
                 data-ram_limit="' . RAM_WALL_DAMAGE_LIMIT . '"

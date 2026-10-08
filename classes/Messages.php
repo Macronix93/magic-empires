@@ -26,9 +26,9 @@ class Messages
         send_user_push(
             $receiver_id,
             "📩 Neue Nachricht",
-            "{$_SESSION["username"]} hat dir eine Nachricht geschrieben.",
+            "$sender_name hat dir eine Nachricht geschrieben.",
             "messages",
-            "messages.php?action=read&s=" . $_SESSION["userid"]
+            "messages.php?action=read&s=" . $sender_id
         );
     }
 
@@ -223,6 +223,8 @@ class Messages
         foreach ($rows as $index => $row) {
             if (!empty($row["data_json"])) {
                 $data = json_decode($row["data_json"], true);
+                $data["msg_date"] = (int)$row["date"];
+
                 $content = $this->render_message_template($data);
             } else {
                 $content = $row["message"];
@@ -735,6 +737,23 @@ class Messages
         $type = $data["template"] ?? $data["type"] ?? "text";
 
         switch ($type) {
+            case "achievement_unlocked":
+                $ach_name = e($data["name"] ?? "Errungenschaft");
+                $ach_title = e($data["title"] ?? "Titel");
+                $ach_desc = e($data["description"] ?? "");
+                $coins = (int)($data["reward_coins"] ?? 0);
+
+                $coin_text = ($coins > 0) ? get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " <b>+$coins</b><br><br>
+                Gehe zu <a href='achievements.php'>Errungenschaften</a>, um deine Belohnung zu beanspruchen!" : "";
+
+                $main_text = "Du hast eine neue <b>Errungenschaft</b> gemeistert:";
+                $main_text .= "<div style='margin: 15px; text-align: center;'><b>„{$ach_name}“</b><br><small style='opacity: 0.8;'>$ach_desc</small></div>";
+                $main_text .= "Neuer Titel freigeschaltet: <b class='passed'>&bdquo;$ach_title&ldquo;</b><br>Belohnung: $coin_text";
+                $sub_text = "Du kannst deinen neuen Titel in den <a href='settings.php'>Einstellungen</a> aktivieren.";
+                $wrapped_title = self::wrap_emojis("🏆 Errungenschaft freigeschaltet!");
+
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box($wrapped_title, $main_text, 0, 0, $sub_text, "success"
+                    ) . "</div>";
             case "guild_project_started":
                 $tech = e($data["tech"] ?? "Projekt");
                 $by = e($data["by"] ?? "Jemand");
@@ -1748,54 +1767,85 @@ class Messages
                 $kname = e($data["kingdom_name"] ?? "Königreich");
                 $intel = (int)($data["intel_level"] ?? 0);
                 $arrival_sec = (int)($data["arrival_seconds"] ?? 0);
+                $time_str = ($arrival_sec > 0) ? convert_sec_to_str($arrival_sec) : "Unbekannt";
 
-                $main_text = "Unsere Grenzwachen in <b>$kname</b> haben herannahende Truppen gesichtet!<br>";
+                $msg_date = (int)($data["msg_date"] ?? 0);
+                $arrival_timestamp = (int)($data["arrival_time"] ?? ($msg_date > 0 ? $msg_date + $arrival_sec : 0));
 
-                // Level 1: Arrival Time
-                $sub_text = ($intel < 1)
-                    ? "Die Truppen sind auf dem Vormarsch."
-                    : "Ankunft in ca.: " . convert_sec_to_str($arrival_sec);
-
-                // Level 2: Location
-                if ($intel >= 2 && !empty($data["source"])) {
-                    $src = $data["source"];
-                    $main_text .= "<br>Herkunft: <b>" . e($src["name"]) . "</b> (" . (int)$src["x"] . ":" . (int)$src["y"] . ")";
+                if ($arrival_timestamp > 0) {
+                    $arrival_clock = date("H:i", $arrival_timestamp) . " Uhr";
+                    $arrival_text = "um ca. <b>$arrival_clock</b> (in $time_str)";
+                } else {
+                    $arrival_text = "in ca. $time_str";
                 }
 
-                // Level 3: Rough Troop Strength
+                $html = "<div class='battle-report'>";
+                $html .= "<div class='battle-column' style='background: rgba(231, 76, 60, 0.15); border-color: #e74c3c;'>";
+
+                // Header
+                $html .= "<div class='title-border'>WACHTURM-ALARM: $kname</div>";
+
+                // Base Information (Level 0 to 2)
+                $info_rows = [];
+                if ($intel >= 1) {
+                    $info_rows[] = "<b>Geschätzte Ankunft:</b> <span class='error'>$arrival_text</span>";
+                } else {
+                    $info_rows[] = "<b>Status:</b> <span class='error'>Feindliche Truppen im Anmarsch!</span>";
+                }
+
+                if ($intel >= 2 && !empty($data["source"])) {
+                    $src = $data["source"];
+                    $sx = (int)$src["x"];
+                    $sy = (int)$src["y"];
+                    $s_link = "<a href='map.php?startx=$sx&starty=$sy' data-on-click='mapJump' data-x='$sx' data-y='$sy'>$sx:$sy</a>";
+
+                    $info_rows[] = "<b>Herkunft des Angriffs:</b> " . e($src["name"]) . " ($s_link)";
+                }
+
+                $html .= "<div style='background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 4px; text-align: left; line-height: 1.6; margin: 0 5px;'>";
+                $html .= implode("<br>", $info_rows);
+                $html .= "</div>";
+
+                // Level 3: Estimated Troop Strength
                 if ($intel >= 3 && isset($data["total_units"])) {
                     $total = (int)$data["total_units"];
+
                     if ($total < 50) $strength_label = "Ein kleiner Trupp";
                     else if ($total < 200) $strength_label = "Eine ansehnliche Streitmacht";
                     else if ($total < 1000) $strength_label = "Ein großes Heer";
-                    else $strength_label = "Eine gewaltige Armee";
+                    else                   $strength_label = "Eine gewaltige Armee";
 
-                    $main_text .= "<br>Späherbericht: <i>$strength_label (ca. " . fnum($total) . " Einheiten)</i>";
+                    $html .= "<div class='report-section-title'>Truppenstärke</div>";
+                    $html .= "<div style='text-align: left;'>";
+                    $html .= "<div style='background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 4px; margin: 0 5px;'>
+                                <b>$strength_label</b> <small style='opacity: 0.8;'>(ca. " . fnum($total) . " " . ($total === 1 ? "Einheit" : "Einheiten") . ")</small></div>";
+                    $html .= "</div>";
                 }
 
-                // Level 4: Troops identified
+                // Level 4: Identified Units
                 if ($intel >= 4 && !empty($data["units"])) {
-                    $main_text .= "<br><br><b>Identifizierte Einheiten:</b><br>";
-                    $main_text .= "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;'>";
-                    foreach ($data["units"] as $t) {
-                        $main_text .= BattleReportRenderer::render_unit_card($t, 0, 0, "", true);
+                    $html .= "<div class='report-section-title'>Gesichtete Einheiten</div>";
+                    $html .= "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin: 0 5px;'>";
+                    foreach ($data["units"] as $u) {
+                        $html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
                     }
-                    $main_text .= "</div>";
+                    $html .= "</div>";
 
-                    // Level 5: Battle Strength
+                    // Level 5: Calculate battle power
                     if ($intel >= 5 && !empty($data["strength"])) {
                         $str = $data["strength"];
-                        $main_text .= "<div style='margin-top: 12px; padding-top: 8px; border-top: 1px ridge rgba(212,175,55,0.4); text-align: left;'>";
-                        $main_text .= "<b>Geschätzte Gesamtstärke:</b><br>";
-                        $main_text .= "<span style='margin-right: 20px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($str["atk"]) . "</span>";
-                        $main_text .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($str["def"]) . "</span>";
-                        $main_text .= "</div>";
+                        $html .= "<div class='report-section-title'>Geschätzte Kampfkraft des Gegners</div>";
+                        $html .= "<div class='battle-strength' style='margin: 0 0 10px 0; justify-content: start;'>";
+                        $html .= "<span style='gap: 20px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 4px; margin: 0 5px;'>
+                                    <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <b>" . fnum($str["atk"]) . "</b></span>
+                                    <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <b>" . fnum($str["def"]) . "</b></span></span>";
+                        $html .= "</div>";
                     }
                 }
 
-                return "<div class='battle-report'>" .
-                    BattleReportRenderer::render_outcome_box("WACHTURM-MELDUNG", $main_text, 0, 0, $sub_text, "error") .
-                    "</div>";
+                $html .= "</div></div>";
+
+                return $html;
 
             case "world_event_missed":
                 $status = $data["status"] ?? "boss_dead";

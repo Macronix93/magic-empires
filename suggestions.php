@@ -113,7 +113,6 @@ if ($is_admin) {
             ];
             $status_label = $status_labels[$status] ?? "Aktualisiert";
             $res_type = match ($status) {
-                1 => "neutral",
                 2 => "success",
                 3 => "error",
                 default => "neutral"
@@ -346,7 +345,7 @@ while ($row = $suggestions->fetch_assoc()) {
                     <input type='hidden' name='admin_update_status' value='1'>
                     <select name='status' style='font-size: 12px; padding: 2px 20px 2px 4px;'>
                         <option value='0' " . ($row["status"] == 0 ? "selected" : "") . ">In Prüfung</option>
-                        <option value='1' " . ($row["status"] == 1 ? "selected" : "") . ">Angenommen</option>
+                        <option value='1' " . ($row["status"] == 1 ? "selected" : "") . ">Geplant</option>
                         <option value='2' " . ($row["status"] == 2 ? "selected" : "") . ">Umgesetzt</option>
                         <option value='3' " . ($row["status"] == 3 ? "selected" : "") . ">Abgelehnt</option>
                     </select>
@@ -473,9 +472,5 @@ $view .= "<div id='suggestions-empty-box' class='info-box' style='display: none;
 $title = "Vorschläge";
 $header = "Vorschläge & Wünsche";
 $script_files = ["suggestions", "userinfo"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

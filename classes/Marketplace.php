@@ -35,7 +35,7 @@ class Marketplace
 
     public static function calculate_listing_fee(int $supply_value): int
     {
-        return (int)max(1, ceil($supply_value / 20000));
+        return (int)max(1, ceil($supply_value / MARKET_LISTING_FEE_STEP));
     }
 
     public function get_max_capacity(): int
@@ -57,7 +57,7 @@ class Marketplace
 
         if ((int)($trade_check["last_trade_reset"] ?? 0) < $today_start) {
             $daily_trades_count = 0;
-            
+
             $this->db->execute_query(
                 "UPDATE users SET daily_trades_count = 0, last_trade_reset = ? WHERE id = ?",
                 [time(), $uid]
@@ -335,31 +335,40 @@ class Marketplace
     public function cancel_offer(int $offer_id): ?string
     {
         $uid = $this->user->get_user_id();
-        $result = $this->db->execute_query("
-            SELECT supply, supplyvalue, kingdomid FROM marketplace 
-            WHERE offerid = ? AND userid = ?",
-            [$offer_id, $uid]
-        );
-        $row = $result->fetch_assoc();
 
-        if ($row) {
-            $origin_kingdom_id = (int)$row["kingdomid"];
-            $origin_kingdom = new Kingdom($origin_kingdom_id);
+        $this->db->begin_transaction();
+        try {
+            $result = $this->db->execute_query(
+                "SELECT supply, supplyvalue, kingdomid FROM marketplace WHERE offerid = ? AND userid = ? FOR UPDATE",
+                [$offer_id, $uid]
+            );
+            $row = $result->fetch_assoc();
 
-            $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
-            $this->db->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
-            $this->db->execute_query("UPDATE users SET daily_trades_count = GREATEST(0, daily_trades_count - 1) WHERE id = ?", [$uid]);
+            if ($row) {
+                $origin_kingdom_id = (int)$row["kingdomid"];
+                $origin_kingdom = new Kingdom($origin_kingdom_id);
 
-            Logger::get_instance()->log_game("TRADE", "OFFER_DELETE", [
-                "offer_id" => $offer_id,
-                "refund_res" => $row["supply"],
-                "refund_amount" => $row["supplyvalue"]
-            ], $origin_kingdom_id);
+                $this->db->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
+                $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
 
-            return null;
+                $this->db->execute_query("UPDATE users SET daily_trades_count = GREATEST(0, daily_trades_count - 1) WHERE id = ?", [$uid]);
+
+                Logger::get_instance()->log_game("TRADE", "OFFER_DELETE", [
+                    "offer_id" => $offer_id,
+                    "refund_res" => $row["supply"],
+                    "refund_amount" => $row["supplyvalue"]
+                ], $origin_kingdom_id);
+
+                $this->db->commit();
+                return null;
+            }
+
+            $this->db->rollback();
+            return "Dieses Angebot existiert nicht mehr oder wurde bereits angenommen!";
+        } catch (Exception $e) {
+            $this->db->rollback();
+            return "Fehler beim Abbrechen: " . $e->getMessage();
         }
-
-        return "Dieses Angebot existiert nicht oder ist nicht von deinem aktuellen Königreich!";
     }
 
     public function send_internal_transport(int $target_id, array $amounts, Map $map): array
@@ -451,6 +460,8 @@ class Marketplace
                 "stone" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
                 "gold" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
             ], $kid);
+
+            Achievement::unlock($uid, AchievementTypes::ACHIEVEMENT_INTERNAL_TRANSPORT);
 
             $this->db->commit();
 

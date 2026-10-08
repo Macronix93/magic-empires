@@ -125,16 +125,23 @@ registerAction("switchAdminTab", (el) => {
     document.querySelectorAll('.admin-tab').forEach(tab => {
         tab.style.display = "none";
     });
-
     document.querySelectorAll('.tablinks').forEach(btn => {
         btn.classList.remove("active");
     });
-
     document.getElementById("tab_" + tabName).style.display = "block";
     el.classList.add("active");
 
     const url = new URL(window.location);
     url.searchParams.set("tab", tabName);
+
+    if (tabName !== "users") {
+        url.searchParams.delete("userid");
+        url.searchParams.delete("kingdomid");
+    }
+    if (tabName !== "gamelogs") {
+        url.searchParams.delete("logpage");
+    }
+
     window.history.replaceState({}, '', url);
 });
 

@@ -187,13 +187,18 @@ $categories = [
         "title" => "Höchstes Münzlimit",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, 
-                    (2 * (" . BOOST_COIN_BASE . " + " . BOOST_COIN_FACTOR . " * GREATEST(0, MAX(b.buildinglevel) - 1))) as val 
+        "query" => "SELECT 
+                        u.username, 
+                        u.id AS uid, 
+                        COALESCE(
+                            (2 * (" . BOOST_COIN_BASE . " + " . BOOST_COIN_FACTOR . " * GREATEST(0, MAX(b.buildinglevel) - 1))),
+                            " . BOOST_COIN_BASE . "
+                        ) AS val 
                     FROM users u 
-                    JOIN kingdoms k ON u.id = k.userid 
-                    JOIN buildings b ON k.id = b.kingdomid 
-                    WHERE b.buildingid IN (" . BuildingTypes::BUILDING_MILL . ", " . BuildingTypes::BUILDING_SAWMILL . ", " . BuildingTypes::BUILDING_STONEMINE . ", " . BuildingTypes::BUILDING_GOLDMINE . ") 
-                    GROUP BY u.id 
+                    LEFT JOIN kingdoms k ON u.id = k.userid 
+                    LEFT JOIN buildings b ON k.id = b.kingdomid AND b.buildingid IN (" . BuildingTypes::BUILDING_MILL . ", " . BuildingTypes::BUILDING_SAWMILL . ", " . BuildingTypes::BUILDING_STONEMINE . ", " . BuildingTypes::BUILDING_GOLDMINE . ") 
+                    WHERE u.status = 1 
+                    GROUP BY u.id, u.username 
                     ORDER BY val DESC, uid"
     ],
     "merchants" => [
@@ -217,6 +222,18 @@ $categories = [
                     JOIN users u ON s.userid = u.id 
                     WHERE s.spy_count > 0 
                     ORDER BY val DESC, uid"
+    ],
+    "achievements" => [
+        "label" => "Errungenschaften",
+        "title" => "Freigeschaltete Errungenschaften",
+        "limit" => 20,
+        "type" => "player",
+        "query" => "SELECT u.username, u.id as uid, COUNT(ua.id) as val 
+                FROM user_achievements ua 
+                JOIN users u ON ua.user_id = u.id 
+                WHERE u.status = 1 
+                GROUP BY u.id 
+                ORDER BY val DESC, uid"
     ]
 ];
 

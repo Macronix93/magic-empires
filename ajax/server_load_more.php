@@ -21,6 +21,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         foreach ($history as $row) {
             if (!empty($row["data_json"])) {
                 $data = json_decode($row["data_json"], true);
+                $data["msg_date"] = (int)$row["date"];
+
                 $content = $messages_obj->render_message_template($data);
             } else {
                 $content = $row["message"];

@@ -14,9 +14,40 @@ if (!$user->is_admin()) {
     $game_logs_table = "";
     $user_info_html = "";
 
-    $active_tab = $_GET['tab'] ?? 'system';
-    if (isset($_GET['logpage'])) $active_tab = 'gamelogs';
-    if (isset($_GET['userid'])) $active_tab = 'users';
+    $allowed_tabs = ['system', 'users', 'logs', 'gamelogs'];
+    $active_tab = $_GET['tab'] ?? null;
+
+    if ($active_tab === null) {
+        if (isset($_GET['userid'])) {
+            $active_tab = 'users';
+        } elseif (isset($_GET['logpage'])) {
+            $active_tab = 'gamelogs';
+        } else {
+            $active_tab = $_COOKIE['me_admin_tab'] ?? 'system';
+        }
+    }
+
+    if (!in_array($active_tab, $allowed_tabs)) {
+        $active_tab = 'system';
+    }
+
+    if (isset($_POST["update_fixed_march"])) {
+        $seconds = max(0, min(86400, (int)$_POST["fixed_seconds"]));
+
+        $db_instance->execute_query(
+            "UPDATE system_settings SET value = ? WHERE name = 'debug_fixed_march_seconds'",
+            [(string)$seconds]
+        );
+
+        $logger->admin("Marschzeit gesetzt auf: " . ($seconds > 0 ? "{$seconds}s (Fest)" : "Deaktiviert (Normal)"));
+
+        $_SESSION["admin_flash_msg"] = ($seconds > 0)
+            ? "Feste Marschzeit auf <b>{$seconds} Sekunden</b> gesetzt!"
+            : "Marschzeit deaktiviert. Es gelten wieder normale Entfernungszeiten.";
+
+        change_location("adminpanel.php?tab=system");
+        exit;
+    }
 
     if (isset($_POST["reset_round"])) {
         $logger->admin("ROUND RESET STARTED by Admin " . $user->get_user_name() . " (ID " . $user->get_user_id() . ")");
@@ -225,275 +256,24 @@ if (!$user->is_admin()) {
 
     if (isset($_POST["spawn_map_entities"])) {
         $spawn_type = $_POST["spawn_type"];
+        $spawner = new MapSpawner($db_instance);
         $report = [];
-        $now = time();
 
-        // --- RESSOURCES ---
         if ($spawn_type === "all" || $spawn_type === "resources") {
-            // Cleanup first
-            $db_instance->execute_query("DELETE FROM resource_tiles_data WHERE expires_at < ?", [$now]);
-            $db_instance->query("UPDATE map m LEFT JOIN resource_tiles_data r ON m.mapx = r.mapx AND m.mapy = r.mapy SET m.kingdomid = -1 WHERE m.kingdomid = -2 AND r.mapx IS NULL");
-
-            $res_count = $db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_column();
-            if ($res_count < MAX_RESOURCE_TILES) {
-                $limit = min(RESOURCE_TILES_SPAWN_RATE, MAX_RESOURCE_TILES - $res_count);
-                $fields = $db_instance->execute_query("
-                SELECT m.mapx, m.mapy FROM map m 
-                WHERE m.kingdomid = -1 
-                AND NOT EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy)
-                ORDER BY RAND() LIMIT ?", [$limit]);
-
-                if ($fields->num_rows > 0) {
-                    $insert_values = [];
-                    $update_coords = [];
-
-                    foreach ($fields as $f) {
-                        $x = (int)$f["mapx"];
-                        $y = (int)$f["mapy"];
-                        $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
-                        $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
-                        $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
-                        $active_keys = [];
-
-                        foreach ($res_values as $key => $val) {
-                            if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
-                        }
-
-                        if (empty($active_keys)) $active_keys[] = array_rand($res_values);
-
-                        $temp_total = $total;
-                        $count_keys = count($active_keys);
-
-                        for ($i = 0; $i < $count_keys; $i++) {
-                            $key = $active_keys[$i];
-                            if ($i == $count_keys - 1) {
-                                $res_values[$key] = $temp_total;
-                            } else {
-                                $share = mt_rand(10, 80) / 100;
-                                $val = (int)($temp_total * $share);
-                                $res_values[$key] = $val;
-                                $temp_total -= $val;
-                            }
-                        }
-
-                        $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]}, $expires)";
-                        $update_coords[] = "($x, $y)";
-                    }
-                    $db_instance->query("INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold, expires_at) VALUES " . implode(',', $insert_values));
-                    $db_instance->query("UPDATE map SET kingdomid = -2 WHERE (mapx, mapy) IN (" . implode(',', $update_coords) . ")");
-
-                    $report[] = count($update_coords) . " Ressourcenfelder generiert.";
-                }
-            } else {
-                $report[] = "Ressourcenlimit bereits erreicht.";
-            }
+            $count = $spawner->spawn_resources(true);
+            $report[] = $count > 0 ? "$count Ressourcenfelder generiert." : "Ressourcenlimit bereits erreicht.";
         }
-
-        // --- MONSTER CAMPS ---
         if ($spawn_type === "all" || $spawn_type === "monsters") {
-            $db_instance->execute_query("DELETE FROM monster_camps WHERE expires_at < ?", [$now]);
-            $db_instance->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -3 AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM monster_camps)");
-            $count_res = $db_instance->query("SELECT SUM(IF(level BETWEEN 1 AND 3, 1, 0)) AS low, SUM(IF(level BETWEEN 4 AND 6, 1, 0)) AS mid, 
-                                                           SUM(IF(level BETWEEN 7 AND 9, 1, 0)) AS high, 
-                                                           SUM(IF(level = 10, 1, 0)) AS boss, 
-                                                           COUNT(*) AS total FROM monster_camps")->fetch_assoc();
-            $total_on_map = (int)($count_res["total"] ?? 0);
-
-            if ($total_on_map < MAX_MONSTER_CAMPS) {
-                $limit = min(MONSTER_CAMP_SPAWN_RATE, MAX_MONSTER_CAMPS - $total_on_map);
-                $current_counts = ["low" => (int)$count_res["low"], "mid" => (int)$count_res["mid"], "high" => (int)$count_res["high"], "boss" => (int)$count_res["boss"]];
-                $targets = ["low" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_LOW, "mid" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_MID, "high" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_HIGH, "boss" => MAX_MONSTER_CAMPS * MONSTER_CAMP_WEIGHT_BOSS];
-
-                $monster_pool = [];
-                $res_all_m = $db_instance->query("SELECT id, level FROM monster_list");
-                while ($m = $res_all_m->fetch_assoc()) {
-                    $monster_pool[(int)$m["level"]][] = (int)$m["id"];
-                }
-
-                $free_fields = $db_instance->execute_query("SELECT m.mapx, m.mapy FROM map m WHERE m.kingdomid = -1 AND NOT 
-                                                                    EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy) 
-                                                                    ORDER BY RAND() LIMIT ?", [$limit]);
-
-                if ($free_fields->num_rows > 0) {
-                    $insert_camps = [];
-                    $insert_units = [];
-                    $update_map_coords = [];
-
-                    foreach ($free_fields as $f) {
-                        $x = (int)$f["mapx"];
-                        $y = (int)$f["mapy"];
-                        $fill_grades = [];
-
-                        foreach ($targets as $key => $targetV) {
-                            $fill_grades[$key] = ($targetV > 0) ? $current_counts[$key] / $targetV : 1;
-                        }
-
-                        asort($fill_grades);
-
-                        $chosen_group = array_key_first($fill_grades);
-                        $camp_level = ($chosen_group == "low") ? mt_rand(1, 3) : (($chosen_group == "mid") ? mt_rand(4, 6) : (($chosen_group == "high") ? mt_rand(7, 9) : 10));
-                        $current_counts[$chosen_group]++;
-                        $expires = $now + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
-                        $insert_camps[] = "($x, $y, $camp_level, $expires)";
-                        $update_map_coords[] = "($x, $y)";
-
-                        if (!empty($monster_pool[$camp_level])) {
-                            $main_m_id = $monster_pool[$camp_level][array_rand($monster_pool[$camp_level])];
-                            $main_cnt = mt_rand(MIN_NUM_MONSTERS_PER_TYPE, MAX_NUM_MONSTERS_PER_TYPE);
-                            $insert_units[] = "($x, $y, $main_m_id, $main_cnt, $main_cnt)";
-
-                            if ($camp_level >= 10) {
-                                $num_extra = 4; // 5 groups
-                            } else if ($camp_level >= 7) {
-                                $num_extra = mt_rand(3, 4); // At least 4 groups
-                            } else if ($camp_level >= 5) {
-                                $num_extra = mt_rand(2, 4); // At least 3 groups
-                            } else {
-                                $num_extra = ($camp_level <= 3)
-                                    ? mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_LOW, MAX_MONSTER_CAMP_EXTRA_SLOTS_LOW)
-                                    : mt_rand(MIN_MONSTER_CAMP_EXTRA_SLOTS_HIGH, MAX_MONSTER_CAMP_EXTRA_SLOTS_HIGH);
-                            }
-
-                            for ($i = 0; $i < $num_extra; $i++) {
-                                $rand_lvl = mt_rand(max(1, $camp_level - MONSTER_CAMP_EXTRA_LEVEL_CAP), $camp_level);
-
-                                if (!empty($monster_pool[$rand_lvl])) {
-                                    $ex_id = $monster_pool[$rand_lvl][array_rand($monster_pool[$rand_lvl])];
-                                    $ex_cnt = mt_rand(MONSTER_CAMP_EXTRA_MONSTER - 4, MONSTER_CAMP_EXTRA_MONSTER + 4);
-                                    $insert_units[] = "($x, $y, $ex_id, $ex_cnt, $ex_cnt)";
-                                }
-                            }
-                        }
-                    }
-                    $db_instance->query("INSERT INTO monster_camps (mapx, mapy, level, expires_at) VALUES " . implode(',', $insert_camps));
-                    $db_instance->query("UPDATE map SET kingdomid = -3 WHERE (mapx, mapy) IN (" . implode(',', $update_map_coords) . ")");
-                    $db_instance->query("INSERT INTO monster_camp_units (mapx, mapy, monster_id, count, initial_count) VALUES " . implode(',', $insert_units) . " 
-                                                ON DUPLICATE KEY UPDATE count = count + VALUES(count), initial_count = initial_count + VALUES(initial_count)");
-
-                    $report[] = count($insert_camps) . " Monstercamps balance-optimiert generiert.";
-                }
-            } else {
-                $report[] = "Monsterlimit ($total_on_map/" . MAX_MONSTER_CAMPS . ") bereits erreicht.";
-            }
+            $count = $spawner->spawn_monster_camps(true);
+            $report[] = $count > 0 ? "$count Monstercamps balance-optimiert generiert." : "Monsterlimit bereits erreicht.";
         }
-
-        // --- MINES ---
         if ($spawn_type === "all" || $spawn_type === "mines") {
-            $db_instance->execute_query("DELETE FROM mines WHERE expires_at < ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
-            $db_instance->query("UPDATE map SET kingdomid = -1 WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM mines)");
-
-            $mine_count = (int)$db_instance->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_MINE)->fetch_column();
-
-            if ($mine_count < MAX_MINES) {
-                $limit = MAX_MINES - $mine_count;
-
-                $count_mines_res = $db_instance->query("
-                    SELECT 
-                        SUM(IF(level = 1, 1, 0)) AS lvl1,
-                        SUM(IF(level = 2, 1, 0)) AS lvl2,
-                        SUM(IF(level = 3, 1, 0)) AS lvl3,
-                        SUM(IF(level = 4, 1, 0)) AS lvl4,
-                        SUM(IF(level = 5, 1, 0)) AS lvl5
-                    FROM mines
-                ")->fetch_assoc();
-
-                $current_mine_counts = [
-                    1 => (int)($count_mines_res["lvl1"] ?? 0),
-                    2 => (int)($count_mines_res["lvl2"] ?? 0),
-                    3 => (int)($count_mines_res["lvl3"] ?? 0),
-                    4 => (int)($count_mines_res["lvl4"] ?? 0),
-                    5 => (int)($count_mines_res["lvl5"] ?? 0)
-                ];
-
-                $mine_targets = [
-                    1 => MAX_MINES * MINE_WEIGHT_LVL_1,
-                    2 => MAX_MINES * MINE_WEIGHT_LVL_2,
-                    3 => MAX_MINES * MINE_WEIGHT_LVL_3,
-                    4 => MAX_MINES * MINE_WEIGHT_LVL_4,
-                    5 => MAX_MINES * MINE_WEIGHT_LVL_5
-                ];
-
-                $free_fields = $db_instance->execute_query("
-                    SELECT m.mapx, m.mapy FROM map m 
-                    WHERE m.kingdomid = -1 
-                    AND NOT EXISTS (SELECT 1 FROM events e WHERE e.actionid = 2 AND e.targetid = -1 AND e.targetx = m.mapx AND e.targety = m.mapy)
-                    ORDER BY RAND() LIMIT ?", [$limit]);
-
-                if ($free_fields->num_rows > 0) {
-                    $insert_mines = [];
-                    $update_coords = [];
-
-                    $variance = function (int $val) {
-                        if ($val <= 0) return 0;
-                        $pct = mt_rand(MINE_RESOURCE_MIN_RANGE, MINE_RESOURCE_MAX_RANGE) / 100;
-                        return max(1, (int)round($val * $pct));
-                    };
-
-                    foreach ($free_fields as $f) {
-                        $x = (int)$f["mapx"];
-                        $y = (int)$f["mapy"];
-
-                        $fill_grades = [];
-                        foreach ($mine_targets as $m_lvl => $target_val) {
-                            $fill_grades[$m_lvl] = ($target_val > 0) ? $current_mine_counts[$m_lvl] / $target_val : 1;
-                        }
-                        asort($fill_grades);
-                        $lvl = (int)array_key_first($fill_grades);
-                        $current_mine_counts[$lvl]++;
-
-                        $max_troops = MINE_CAPACITY;
-                        $work_total = MINE_WORK_BY_LEVEL[$lvl];
-                        $base_res = MINE_BASE_RESOURCES_BY_LEVEL[$lvl];
-                        $guild_res = MINE_GUILD_RESOURCES_BY_LEVEL[$lvl];
-
-                        $stone = 0;
-                        $gold = 0;
-                        if (mt_rand(0, 1) === 0) {
-                            $stone = $variance($base_res);
-                        } else {
-                            $gold = $variance($base_res);
-                        }
-
-                        $all_specials = ["coal", "iron", "sapphire", "diamond"];
-                        $available_specials = [];
-                        foreach ($all_specials as $k) {
-                            if (($guild_res[$k] ?? 0) > 0) $available_specials[] = $k;
-                        }
-                        if (count($available_specials) < 2) {
-                            $available_specials = ["coal", "iron"];
-                        }
-                        shuffle($available_specials);
-                        $num_to_pick = min(count($available_specials), mt_rand(2, 4));
-                        $active_specials = array_slice($available_specials, 0, $num_to_pick);
-
-                        $coal = 0;
-                        $iron = 0;
-                        $sapphire = 0;
-                        $diamond = 0;
-                        foreach ($active_specials as $s_key) {
-                            $base_val = $guild_res[$s_key] > 0 ? $guild_res[$s_key] : 150;
-                            $$s_key = $variance($base_val);
-                        }
-
-                        $expires = $now + mt_rand(MINE_LIFETIME_MIN * 86400, MINE_LIFETIME_MAX * 86400);
-
-                        $insert_mines[] = "($x, $y, $lvl, $max_troops, $stone, $gold, $coal, $iron, $sapphire, $diamond, $work_total, $expires)";
-                        $update_coords[] = "($x, $y)";
-                    }
-
-                    if (!empty($insert_mines)) {
-                        $db_instance->query("INSERT INTO mines (mapx, mapy, level, max_troops, stone, gold, coal, iron, sapphire, diamond, work_total, expires_at) VALUES " . implode(',', $insert_mines));
-                        $db_instance->query("UPDATE map SET kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " WHERE (mapx, mapy) IN (" . implode(',', $update_coords) . ")");
-
-                        $report[] = count($insert_mines) . " Erzminen generiert (Voll: " . MAX_MINES . ").";
-                    }
-                }
-            } else {
-                $report[] = "Minenlimit (" . MAX_MINES . ") bereits erreicht.";
-            }
+            $count = $spawner->spawn_mines(true);
+            $report[] = $count > 0 ? "$count Erzminen generiert (Voll: " . MAX_MINES . ")." : "Minenlimit bereits erreicht.";
         }
 
         $logger->admin("MANUAL MAP SPAWN: $spawn_type");
+
         $_SESSION["admin_flash_msg"] = implode("<br>", $report);
 
         change_location("adminpanel.php?tab=system");
@@ -596,16 +376,16 @@ if (!$user->is_admin()) {
                 if (rename($file_path, $new_file_path)) {
                     $result = true;
                 } else {
-                    $view .= show_error_box("Fehler beim Umbenennen der Datei!");
+                    $error = "Fehler beim Umbenennen der Datei!";
                 }
             } else if (file_exists($new_file_path)) {
                 $result = true;
             } else {
-                $view .= show_error_box("Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!");
+                $error = "Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!";
             }
         } else {
             if ($field == "password") {
-                $new_value_db = password_hash(make_secure($new_value ?? ""), PASSWORD_BCRYPT);
+                $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
             } else {
                 $new_value_db = $new_value;
             }
@@ -623,7 +403,7 @@ if (!$user->is_admin()) {
             exit;
         } else {
             if (empty($view)) {
-                $view .= show_error_box("Fehler beim Aktualisieren! Feld: $field");
+                $error = "Fehler beim Aktualisieren! Feld: $field";
             }
         }
     }
@@ -654,7 +434,7 @@ if (!$user->is_admin()) {
             $kingdoms = [];
             $events = [];
             $user_info = [];
-            $found_kingdom = -1;
+            $found_kingdom = null;
 
             foreach ($result as $row) {
                 $kingdom_id = $row["kingdom_id"];
@@ -717,7 +497,7 @@ if (!$user->is_admin()) {
 
                 if ($label === "Avatar") {
                     $display_value = '<img class="user-image" src="' . e($raw_value) . '" alt="Nutzerbild">';
-                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Letzte Nachricht", "Rate-Limit Ende"])) {
+                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Rate-Limit Ende"])) {
                     $display_value = date("d.m.Y", $raw_value) . ' um ' . date("H:i:s", $raw_value);
                 } else if ($label === "Punkte") {
                     $display_value = fnum($raw_value);
@@ -783,7 +563,7 @@ if (!$user->is_admin()) {
 
             // Check for Subnet (Root IP)
             $multi_ip = $db_instance->execute_query(
-                "SELECT id, username, ip, linked_user FROM users WHERE ip LIKE ? AND id != ?",
+                "SELECT id, username, ip, linked_user_id FROM users WHERE ip LIKE ? AND id != ?",
                 [$subnet, $user_id]
             );
 
@@ -799,15 +579,15 @@ if (!$user->is_admin()) {
                 foreach ($multi_ip as $m) {
                     $is_exact = ($m["ip"] === $row["ip"]) ? ' <b>(Gleiche IP)</b>' : ' (Subnetz)';
 
-                    $consider_linked = ($row["linked_user"] === $m["username"]);
-                    $back_linked = ($m["linked_user"] === $row["username"]);
+                    $consider_linked = ((int)($row["linked_user_id"] ?? 0) === (int)$m["id"]);
+                    $back_linked = ((int)($m["linked_user_id"] ?? 0) === (int)$user_id);
 
                     if ($consider_linked && $back_linked) {
-                        $link_status = '<span class="passed"> [Gegenseitig angemeldet]</span>';
+                        $link_status = ' <b class="passed">[Gegenseitig angemeldet]</b>';
                     } elseif ($consider_linked || $back_linked) {
-                        $link_status = '<span class="event-warning"> [Einseitig angemeldet!]</span>';
+                        $link_status = ' <b class="event-warning">[Einseitig angemeldet!]</b>';
                     } else {
-                        $link_status = '<b class="error"> [NICHT ANGEMELDET!]</b>';
+                        $link_status = ' <b class="error">[NICHT ANGEMELDET!]</b>';
                     }
 
                     $user_info_html .= '<a href="adminpanel.php?userid=' . $m['id'] . '" class="error">' . e($m["username"]) . '</a>'
@@ -950,12 +730,14 @@ if (!$user->is_admin()) {
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
 
+            PhpBBBridge::delete_forum_user($username);
+
             $em = new EventManager($user);
             $em->process_orphaned_support();
 
             $logger->admin("DELETED USER: $username (ID: $user_id)");
 
-            $view .= show_passed_box("Benutzer erfolgreich gelöscht!");
+            $flash_box = show_passed_box("Benutzer erfolgreich gelöscht!");
         } else {
             $error .= "Der Benutzer existiert nicht!";
         }
@@ -1001,6 +783,26 @@ if (!$user->is_admin()) {
                         </form>
                     </div>
                 </div>";
+    $current_fixed = DEBUG_FIXED_MARCH_SECONDS;
+    $status_badge = ($current_fixed > 0)
+        ? "<span class='error' style='font-weight: bold;'>AKTIV ({$current_fixed} Sek.)</span>"
+        : "<span class='passed'>Inaktiv (Normal)</span>";
+
+    $settings_list .= "
+    <div class='box-container' style='margin-top: 20px;'>
+        <div class='box-header'>Marschzeiten-Steuerung</div>
+        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+            <span>Status: $status_badge</span>
+            <p style='opacity: 0.8;'>Überschreibt alle Marschgeschwindigkeiten mit einer festen Sekundenzahl.<br>Trage <b>0</b> ein, um die normale Berechnung zu aktivieren.</p>
+            <form method='POST' style='display: flex; gap: 10px; justify-content: center; align-items: center;'>
+                <label for='fixed_seconds'>Dauer (Sekunden):</label>
+                <input type='text' inputmode='numeric' pattern='[0-9]*' name='fixed_seconds' id='fixed_seconds' 
+                       value='$current_fixed' 
+                       style='width: 60px;' required>
+                <input type='submit' name='update_fixed_march' value='Speichern'>
+            </form>
+        </div>
+    </div>";
 
     $system_log_section .= "<div class='title-border'>System-Logfiles (.log)</div>";
     $system_log_section .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
@@ -1200,10 +1002,6 @@ $tab_menu = "<div class='tab'>
 </div>";
 
 $view = $tab_menu;
-
-if (!empty($error)) {
-    $view .= show_error_box($error);
-}
 
 // TAB: System
 $view .= "<div id='tab_system' class='admin-tab' style='display: " . ($active_tab == 'system' ? 'block' : 'none') . ";'>

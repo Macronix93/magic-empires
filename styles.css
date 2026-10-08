@@ -16,6 +16,11 @@
     box-sizing: border-box;
 }
 
+*:not(html):not(body) {
+    scrollbar-color: var(--border-gold) transparent;
+    scrollbar-width: thin;
+}
+
 html {
     color: rgb(230, 220, 200);
     text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
@@ -183,6 +188,42 @@ input[type="checkbox"] {
     display: flex;
     flex-direction: column;
     gap: 15px;
+}
+
+.landing-flash {
+    position: fixed !important;
+    top: 20px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 30px) !important;
+    max-width: 600px !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+}
+
+.landing-flash .info-box,
+.landing-warning-wrap .info-box {
+    max-width: 650px;
+}
+
+.landing-warning-wrap .info-box {
+    margin: 10px auto 0 auto;
+}
+
+.landing-flash .event-passed {
+    background-color: rgba(35, 125, 40, 0.7) !important;
+    border: 1px solid rgb(50, 180, 55) !important;
+}
+
+.landing-flash .event-error {
+    background-color: rgba(145, 15, 15, 0.7) !important;
+    border: 1px solid rgb(210, 30, 30) !important;
 }
 
 /****************/
@@ -607,14 +648,17 @@ hr {
 
 .tab div {
     background-color: transparent;
-    float: left;
     cursor: pointer;
     width: auto;
     flex: 1 1 0;
     min-width: fit-content;
-    padding: 14px;
+    padding: 10px;
     transition: 0.3s;
     border: solid 1px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
 }
 
 .tab div:hover {
@@ -1097,14 +1141,6 @@ select:-webkit-autofill:focus {
     z-index: 2;
 }
 
-.rank-arrow {
-    width: 16px;
-    height: 16px;
-    position: absolute;
-    top: -5px;
-    right: -15px;
-}
-
 .guild-avatar {
     width: 128px;
     height: 128px;
@@ -1291,7 +1327,7 @@ select:-webkit-autofill:focus {
 
 /* Boxes at each side */
 .box-container {
-    margin-bottom: 15px;
+    margin-bottom: 5px;
     border-radius: 5px;
     border: 2px solid var(--box-header);
     overflow: hidden;
@@ -1425,7 +1461,7 @@ select:-webkit-autofill:focus {
 
 .left-container {
     grid-area: left;
-    width: 225px;
+    width: 235px;
 }
 
 .middle-container {
@@ -1436,8 +1472,79 @@ select:-webkit-autofill:focus {
 
 .right-container {
     grid-area: right;
-    width: 225px;
+    width: 235px;
 }
+
+.middle-flash-container {
+    position: sticky;
+    top: 15px;
+    z-index: 2500;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    pointer-events: none;
+    overflow: visible;
+    width: 100%;
+}
+
+.middle-flash-container .info-box {
+    pointer-events: auto;
+    position: relative;
+    top: 15px;
+    width: 95%;
+    flex-shrink: 0 !important;
+    height: auto !important;
+    min-height: 40px;
+    margin: 0 auto 10px auto;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+    animation: flashToastIn 0.25s ease-out forwards;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+@keyframes flashToastIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes flashToastOut {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+}
+
+.middle-flash-container .info-box.fade-out {
+    animation: flashToastOut 0.35s ease-in forwards !important;
+    pointer-events: none;
+}
+
+.middle-flash-container .event-passed {
+    background-color: rgba(45, 194, 48, 0.3);
+    border: 1px solid rgba(45, 194, 48, 0.5);
+}
+
+.middle-flash-container .event-error {
+    background-color: rgba(236, 16, 16, 0.3);
+    border: 1px solid rgba(225, 53, 53, 0.5);
+}
+
 
 /* Misc. */
 a.box {
@@ -1564,10 +1671,12 @@ tr:first-child td.td-gradient {
 
 .info-box span {
     white-space: normal;
-    flex: 1;
+    min-width: 0;
     text-align: center;
     margin: 0 auto;
     padding: 5px 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .info-box .weighted {
@@ -1732,15 +1841,6 @@ tr:first-child td.td-gradient {
     z-index: 100;
     pointer-events: none;
     font-family: monospace;
-}
-
-/* Container für alles */
-.map-view-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    margin: 0 auto;
 }
 
 /* Live Power Container Warsim */
@@ -1919,10 +2019,6 @@ tr:first-child td.td-gradient {
     display: flex;
     align-items: center;
     gap: 5px;
-}
-
-.highlight {
-    border: 2px solid rgb(246, 34, 34) !important;
 }
 
 
@@ -2643,14 +2739,6 @@ body.modal-open footer {
     margin-bottom: 15px;
 }
 
-.trade-header-text {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
-}
-
 .no-transition,
 .no-transition * {
     transition: none !important;
@@ -3318,7 +3406,7 @@ img[data-on-click] {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 175px;
+    max-height: 230px;
     overflow-y: auto;
     padding-right: 6px;
     scrollbar-width: thin;
@@ -3331,6 +3419,34 @@ img[data-on-click] {
 .btn-comments.has-new-comments {
     border-color: var(--link-color) !important;
     background-color: rgba(165, 124, 0, 0.3) !important;
+}
+
+.user-title {
+    display: block;
+    opacity: 0.5;
+    font-style: italic;
+    font-size: 12px;
+}
+
+.unlocked-at {
+    font-size: 13px;
+}
+
+.ach-desc {
+    font-size: 16px;
+    opacity: 0.85;
+}
+
+.ach-status {
+    width: 50px;
+}
+
+.ach-title {
+    width: auto;
+}
+
+.ach-reward {
+    width: 110px;
 }
 
 /* Landscape Modus */
@@ -3355,11 +3471,94 @@ img[data-on-click] {
     }
 }
 
-/* Smartphone Ansicht */
+/* Smartphone View */
 @media screen and (max-width: 600px) {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .ach-name {
+        font-size: 14px;
+    }
+
+    .ach-status {
+        width: 10px;
+    }
+
+    .ach-title {
+        width: auto;
+    }
+
+    .ach-reward {
+        width: 100px;
+    }
+
+    .col-guild-description {
+        width: auto;
+    }
+
+    .col-guild-action {
+        width: 120px;
+    }
+
+    .ach-desc {
+        font-size: 11px;
+    }
+
+    .unlocked-at {
+        font-size: 9px;
+    }
+
+    .user-title {
+        font-size: 8px;
+    }
+
+    .login-register input[type="text"],
+    .login-register input[type="password"],
+    .login-register input[type="email"] {
+        font-size: 12px !important;
+        padding: 5px 6px !important;
+        height: auto !important;
+    }
+
+    .login-register input[name="login"],
+    .login-register input[name="register"] {
+        font-size: 14px !important;
+        padding: 5px 6px !important;
+        height: auto !important;
+    }
+
+    .middle-flash-container {
+        position: sticky !important;
+        top: 44px !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        z-index: 2700 !important;
+        width: 100% !important;
+    }
+
+    body.logged-in .middle-flash-container {
+        top: 44px !important;
+    }
+
+    .landing-flash {
+        position: fixed !important;
+        top: 10px !important;
+    }
+
+    .landing-flash .desktop-only-errors {
+        display: none !important;
+    }
+
+    .middle-flash-container .info-box {
+        min-height: 25px;
+    }
+
+    .landing-warning-wrap .info-box {
+        max-width: 98%;
     }
 
     #tutorial-overlay .big-box-container {
@@ -3411,7 +3610,6 @@ img[data-on-click] {
 
     .info-box {
         font-size: 14px;
-        min-height: 0;
     }
 
     .msg-badge.badge-cell-right {
@@ -3527,10 +3725,6 @@ img[data-on-click] {
         z-index: 2;
         width: 100%;
         max-width: 360px;
-    }
-
-    .auth-modal-content fieldset {
-        position: relative;
     }
 
     .auth-modal-close {
@@ -4129,16 +4323,6 @@ img[data-on-click] {
         height: 14px !important;
     }
 
-    .trade-header-text {
-        flex-direction: column;
-        gap: 0;
-    }
-
-    .header-arrow {
-        line-height: 1;
-        margin: 2px 0;
-    }
-
     .location-wrapper {
         display: flex;
         flex-direction: row;
@@ -4146,6 +4330,10 @@ img[data-on-click] {
         align-items: center;
         gap: 10px;
         text-align: left;
+    }
+
+    .overlay-modal {
+        max-height: 83vh;
     }
 
     .overlay-modal .kingdom-name-break {
@@ -4410,14 +4598,6 @@ img[data-on-click] {
     }
 
     .col-description {
-        width: auto;
-    }
-
-    .col-guild-description {
-        width: 265px;
-    }
-
-    .col-guild-action {
         width: auto;
     }
 
@@ -4736,11 +4916,6 @@ img[data-on-click] {
         bottom: -1px;
         width: 7px;
         height: 7px;
-    }
-
-    .rank-arrow {
-        width: 12px;
-        height: 12px;
     }
 
     .sent-troops-table {

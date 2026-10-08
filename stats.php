@@ -69,7 +69,6 @@ $view = "
                     <b>Handel</b>
                 </div>
                 <div class='split-content'><span>Handelsabschlüsse:</span><b>" . fnum($my_stats["trades_count"]) . "</b></div>
-                <div class='split-content'><span>Angebote:</span> <b>" . fnum($stats["market_volume"]) . " Res.</b></div>
                 
                 <div style='margin-top: 15px;'>
                     <div class='stats-import-export'>Exportiert (Gesendet):</div>

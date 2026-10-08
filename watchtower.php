@@ -41,8 +41,4 @@ $title = $building_name;
 $header = $building_name . " (" . $level . ")";
 $script_files = [];
 
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
-
 include("layout/base.php");

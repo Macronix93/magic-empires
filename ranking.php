@@ -90,10 +90,10 @@ foreach ($players_res as $row) {
     $last_active = $row["lastactivity"];
     $user_score = $row["score"];
     $user_guild_id = $row["guildid"];
-    $is_attackable = !$conquest_helper->has_noob_protection($my_score, $user_score) && $my_uid != $user_id && $my_guild_id != $user_guild_id;
 
     $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $is_same_guild = ($my_guild_id > 0 && $my_guild_id === (int)$user_guild_id);
+    $is_attackable = !$conquest_helper->has_noob_protection($my_score, $user_score) && $my_uid !== (int)$user_id && !$is_same_guild;
     $is_me = ($my_uid === (int)$user_id);
 
     if ($is_same_guild || $is_me) {
@@ -136,7 +136,7 @@ foreach ($players_res as $row) {
 
     $view .= "<tr>
                 <td class='td-shrink' style='text-align: right;'>$pos</td>
-                <td class='td-expand'>" . $player->render_user("$user_link $guild_display $vacation_badge", $color, "rank_av_$pos") . "</td>
+                <td class='td-expand'>" . $player->render_user("$user_link $guild_display $vacation_badge", $color, "rank_av_$pos", false, null, false, true) . "</td>
                 <td class='td-score'>" . fnum($row["score"], true) . " $sword_icon</td>
             </tr>";
     $pos++;

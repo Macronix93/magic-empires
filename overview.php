@@ -6,7 +6,6 @@ $user->check_user_login();
 // Get main kingdom of user
 $active_k_id = $user->get_current_kingdom();
 $uid = $user->get_user_id();
-$my_guild_id = $user->get_user_guild_id();
 $now = time();
 $kingdom = new Kingdom($active_k_id);
 
@@ -338,7 +337,7 @@ foreach ($user_kingdoms as $k) {
             $indicators_html .= "
                 <span class='popup' id='pop_overflow_storage_$kid'>
                     <img src='images/icons/icon_building9.png' class='overflow-icon $s_class' alt='Lager-Status'>
-                    <div id='pop_overflow_storage_{$kid}_box' class='popupbox' style='text-align: left; min-width: 180px;'>
+                    <div id='pop_overflow_storage_{$kid}_box' class='popupbox popup-right'>
                         <b>$s_title</b><br>
                         " . implode("<br>", $storage_warnings) . "
                     </div>
@@ -351,7 +350,7 @@ foreach ($user_kingdoms as $k) {
             $indicators_html .= "
                 <span class='popup' id='pop_overflow_vill_$kid'>
                     <img src='images/icons/icon_villager.png' class='overflow-icon $v_class' alt='Bewohner-Status'>
-                    <div id='pop_overflow_vill_{$kid}_box' class='popupbox' style='text-align: left; min-width: 180px;'>
+                    <div id='pop_overflow_vill_{$kid}_box' class='popupbox popup-right'>
                         <b>$v_title</b><br>$vill_warnings
                     </div>
                 </span>";
@@ -361,11 +360,6 @@ foreach ($user_kingdoms as $k) {
 
     $max_commands = BASE_SEND_TROOPS_LIMIT + (int)$k["tc_level"];
     $active_commands = $commands_by_kingdom[$kid] ?? 0;
-
-    if ($kid === $active_k_id && isset($count_tp_active_k)) {
-        $active_commands = $count_tp_active_k;
-    }
-
     $cmd_class = ($active_commands >= $max_commands) ? "error" : "";
 
     $get_res_class = function (int $cur, int $max, int $prod) {
@@ -382,7 +376,7 @@ foreach ($user_kingdoms as $k) {
 
     $k_pop_id = "pop_k_preview_" . $kid;
     $k_res_popup = "
-        <div id='{$k_pop_id}_box' class='popupbox' style='text-align: left; min-width: 200px;'>
+        <div id='{$k_pop_id}_box' class='popupbox popup-right'>
             <div style='display: flex; justify-content: space-between;'><b>$k_name</b> <small>$k_coords</small></div>
             <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
             <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
@@ -813,7 +807,6 @@ if (!empty($all_tp_entries)) {
             $difference_time = max(0, $event_data["arrivaltime"] - $now);
             $counter_id = "counter_" . $event_id;
 
-            //$my_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["mapx"]) . "' data-y='" . e($event_data["mapy"]) . "'>" . e($event_data["mapx"]) . ":" . e($event_data["mapy"]) . "</a>";
             $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
 
             $target_name_info = "";
@@ -821,7 +814,7 @@ if (!empty($all_tp_entries)) {
                 $target_name_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
             }
 
-            $coords_str = "$target_coords" . $target_name_info; // $my_coords →
+            $coords_str = "$target_coords" . $target_name_info;
 
             $action_counter = "<span class='js-countdown' 
                                id='$counter_id' 
@@ -852,10 +845,10 @@ if (!empty($all_tp_entries)) {
                     $player_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
                 }
 
-                $coords_str = "$names_str $player_info<br><small>$target_coords</small>"; // $my_coords →
+                $coords_str = "$names_str $player_info<br><small>$target_coords</small>";
             } else if ($action_id === ActionTypes::ACTION_RETURN_TROOPS || $action_id === ActionTypes::ACTION_SUPPORT_RETURN) {
                 $action_type = ($action_id === ActionTypes::ACTION_SUPPORT_RETURN) ? "Support-Rückzug" : "Rückkehr";
-                $coords_str = "$target_coords"; // $target_coords →
+                $coords_str = "$target_coords";
             } else if ($action_id === ActionTypes::ACTION_SEND_TROOPS) {
                 if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_EMPTY) {
                     $action_type = "Gründung";
@@ -1134,9 +1127,5 @@ if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
 $title = "Übersicht";
 $header = "Übersicht";
 $script_files = ["timer", "userinfo"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

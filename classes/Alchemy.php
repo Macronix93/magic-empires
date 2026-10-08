@@ -309,10 +309,12 @@ class Alchemy
             } else {
                 $this->db->execute_query("
                     UPDATE kingdom_alchemy 
-                    SET output_amount = 0, last_update = ?
+                    SET output_amount = 0
                     WHERE kingdom_id = ?
-                ", [time(), $kingdom_id]);
+                ", [$kingdom_id]);
             }
+
+            Stats::update_player_stat($k->get_kingdom_owner_id(), "alchemy_claimed", $claimable);
 
             $this->db->commit();
             return null;

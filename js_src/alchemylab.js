@@ -241,21 +241,33 @@ function initAlchemyLiveTicker() {
     const convertibleInput = inAmt - targetMinIn;
 
     if (convertibleInput > 0 && inRate > 0) {
+        // Wie viele Sekunden dauert 1 Schritt?
+        const secondsPerStep = (step * 3600) / (inRate * 3600); // entspricht: step / inRate
+        // Wie viel Ertrag entsteht pro Schritt?
+        const conversionRate = outRate / inRate;
+        const outputPerStep = Math.max(1, Math.round(step * conversionRate));
+
+        let stepTimer = 0; // Zählt die Sekunden für den aktuellen Schritt
+
         const tickerInterval = setInterval(() => {
-            if (outAmt >= maxOutput || inAmt <= targetMinIn) {
+            const room = maxOutput - outAmt;
+            // Stop wenn kein Platz im Puffer oder Kessel zu leer für nächsten Schritt
+            if (room < outputPerStep || inAmt < step) {
                 clearInterval(tickerInterval);
                 return;
             }
 
-            const remainingConvertible = inAmt - targetMinIn;
-            const room = maxOutput - outAmt;
-            const maxStepIn = (outRate > 0) ? (room / (outRate / inRate)) : remainingConvertible;
-            const stepIn = Math.min(remainingConvertible, inRate, maxStepIn);
+            stepTimer += 1.0;
 
-            inAmt -= stepIn;
-            outAmt += (stepIn * (outRate / inRate));
+            // Prüfen, ob ein oder mehrere Schritte vollendet wurden
+            while (stepTimer >= secondsPerStep && inAmt >= step && (maxOutput - outAmt) >= outputPerStep) {
+                stepTimer -= secondsPerStep;
+                inAmt -= step;
+                outAmt += outputPerStep;
+            }
 
-            if (inAmt <= targetMinIn + 0.05) {
+            // Wenn Kesselinhalt auf oder unter Minimalgrenze fällt
+            if (inAmt <= targetMinIn) {
                 inAmt = targetMinIn;
                 outAmt = Math.round(outAmt);
 

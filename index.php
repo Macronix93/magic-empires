@@ -57,6 +57,10 @@ if (!empty($_GET["key"])) {
                 $db_instance->execute_query($query_rank, [$user_id]);
                 $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $user_id]);
 
+                if (!IS_DEV) {
+                    PhpBBBridge::create_forum_user($username, $user_data["email"], $user_data["password"]);
+                }
+
                 $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
             } else {
                 $error = "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de";
@@ -131,7 +135,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // LOGIN
     if (isset($_POST["login"])) {
         $name = make_secure($_POST["username"] ?? "");
-        $pass = make_secure($_POST["password"] ?? "");
+        $pass = trim($_POST["password"] ?? "");
 
         if (empty($name) || empty($pass)) {
             $error .= "Bitte beide Felder ausfüllen!";
@@ -243,7 +247,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                     if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $name)) {
                         $error .= "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -<br>";
-                    } else if (!empty($bad_names_matches) || contains_bad_words($name, $bad_names_list) || preg_match_all(regex_pattern(), $name, $matches)) {
+                    } else if (!empty($bad_names_matches) || contains_bad_words($name, $bad_names_list) || preg_match_all(regex_pattern(), $name)) {
                         $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
                     } else if (mb_strlen($name) < MIN_USERNAME_LENGTH || mb_strlen($name) > MAX_USERNAME_LENGTH) {
                         $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
@@ -332,26 +336,27 @@ $count_online = $res_online->fetch_row()[0];
 </div>
 
 <div class="middle-container" style="margin: auto; width: 1100px; max-width: 90%;">
-    <div class="big-box-container">
-        <?php if (!empty($success) || !empty($error) || !empty($warning)): ?>
-            <div class="landing-messages">
+    <div id="middle-flash-container" class="middle-flash-container landing-flash">
+        <?php if (!empty($success)): ?>
+            <?= (str_contains($success, "info-box")) ? $success : show_passed_box($success) ?>
+        <?php endif; ?>
+
+        <?php if (!empty($error)): ?>
+            <div class="desktop-only-errors" style="width: 100%;">
                 <?php
-                if (!empty($success)) {
-                    echo (str_contains($success, "info-box")) ? $success : show_passed_box($success);
-                }
-
-                if (!empty($error)) {
-                    $errors = explode("<br>", $error);
-
-                    foreach ($errors as $e) {
-                        if (trim($e) !== "") echo show_error_box($e);
-                    }
-                }
-
-                if (!empty($warning)) {
-                    echo show_warning_box($warning);
+                $errors = explode("<br>", $error);
+                foreach ($errors as $e) {
+                    if (trim($e) !== "") echo show_error_box($e);
                 }
                 ?>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <div class="big-box-container">
+        <?php if (!empty($warning)): ?>
+            <div class="landing-warning-wrap">
+                <?= show_warning_box($warning) ?>
             </div>
         <?php endif; ?>
 
@@ -600,6 +605,34 @@ $count_online = $res_online->fetch_row()[0];
                 if (errBox) errBox.style.display = "none";
             }
         }));
+
+        const flashContainer = document.getElementById("middle-flash-container");
+        if (flashContainer) {
+            const boxes = flashContainer.querySelectorAll(".info-box");
+
+            if (boxes.length > 0) {
+                const dismissBox = (box) => {
+                    if (!box || box.classList.contains("fade-out")) return;
+                    box.classList.add("fade-out");
+                    box.addEventListener("animationend", () => {
+                        box.remove();
+                    }, {once: true});
+                };
+
+                boxes.forEach(box => {
+                    setTimeout(() => dismissBox(box), 4000);
+                });
+
+                const handleGlobalDismiss = () => {
+                    boxes.forEach(box => dismissBox(box));
+                    document.removeEventListener("click", handleGlobalDismiss);
+                };
+
+                setTimeout(() => {
+                    document.addEventListener("click", handleGlobalDismiss);
+                }, 100);
+            }
+        }
 
         <?php if ($_SERVER["REQUEST_METHOD"] === "POST" && (!empty($error) || !empty($warning))): ?>
         if (window.innerWidth <= 600 && modal) {

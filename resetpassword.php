@@ -32,6 +32,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
 
     $db_instance->execute_query("UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
 
+    PhpBBBridge::update_password($user_data["username"] ?? "", $new_hash);
+
     $success = "Dein neues Passwort lautet: <br><br><b style='font-size: 24px; color: var(--link-color); border: 1px dashed; padding: 5px;'>$new_plain_password</b><br><br>Bitte notiere es dir sofort und logge dich damit ein!";
 
     $token_valid = false;

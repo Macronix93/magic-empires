@@ -131,7 +131,7 @@ if (!empty($last_built_building)) {
     $built_building_name = $last_built_building["buildingname"];
     $built_building_level = $last_built_building["buildinglevel"];
 
-    $view .= show_weighted_box("$built_building_name (" . $built_building_level . " → " . ($built_building_level + 1) . ")", "Bau abgeschlossen:");
+    $flash_box = show_weighted_box("$built_building_name (" . $built_building_level . " → " . ($built_building_level + 1) . ")", "Bau abgeschlossen:");
 
     $user->clear_last_built_building($current_kingdom);
 }
@@ -298,9 +298,5 @@ $view .= "</table>";
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = ["timer"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

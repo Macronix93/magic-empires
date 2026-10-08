@@ -66,7 +66,7 @@ class WorldEvent
 
             $server_power = (int)$this->mysqli->query($query)->fetch_column();
 
-            if ($server_power < 5000) $server_power = 50000;
+            if ($server_power < (WORLD_EVENT_MIN_SERVER_POWER / 10)) $server_power = WORLD_EVENT_MIN_SERVER_POWER;
 
             $total_hp = (int)($server_power * WORLD_EVENT_POWER_FACTOR);
         }
@@ -120,7 +120,6 @@ class WorldEvent
                 $boss = $res->fetch_assoc();
 
                 if (!$boss || $boss["current_hp"] <= 0) {
-                    $this->mysqli->rollback();
                     return -1; // Boss already dead
                 }
 
@@ -159,6 +158,10 @@ class WorldEvent
                 $actual_damage, $actual_damage,
                 $actual_damage
             ]);
+
+            if ($this->mysqli->affected_rows === 1) {
+                Stats::update_player_stat($user_id, "events_attended");
+            }
 
             if ($type === "DAMAGE") {
                 $new_damage = $old_damage + $actual_damage;
@@ -373,7 +376,8 @@ class WorldEvent
                     $rams_given++;
                 } else {
                     // OTHER SPECIAL UNITS (Scout, Raider, Thief)
-                    $sid = [Soldiers::SOLDIER_SCOUT, Soldiers::SOLDIER_RAIDER, Soldiers::SOLDIER_THIEF][array_rand([0, 1, 2])];
+                    $specials = [Soldiers::SOLDIER_SCOUT, Soldiers::SOLDIER_RAIDER, Soldiers::SOLDIER_THIEF];
+                    $sid = $specials[array_rand($specials)];
 
                     $min_scaled = (int)(WORLD_EVENT_HP_UNIT_SPEC_MIN * ($tc_lvl / 2));
                     $max_scaled = (int)(WORLD_EVENT_HP_UNIT_SPEC_MAX * ($tc_lvl / 2));
@@ -416,6 +420,10 @@ class WorldEvent
 
     public function get_current_duration(): int
     {
+        if (defined("DEBUG_FIXED_MARCH_SECONDS") && DEBUG_FIXED_MARCH_SECONDS > 0) {
+            return DEBUG_FIXED_MARCH_SECONDS;
+        }
+
         $event = $this->get_active_event();
         if (!$event) return WORLD_EVENT_DMG_ATTACK_DURATION;
 

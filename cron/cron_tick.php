@@ -6,6 +6,11 @@ $_SERVER["REQUEST_METHOD"] = "GET";
 
 require_once("../includes/core.php");
 
+if (MAINTENANCE_MODE) {
+    echo "[" . date("Y-m-d H:i:s") . "] Wartungsmodus ist aktiv. Cron-Tick abgebrochen.\n";
+    exit;
+}
+
 $db = Database::get_instance()->get_connection();
 $now = time();
 
@@ -137,6 +142,8 @@ while ($ev = $finished_events->fetch_assoc()) {
 
                     if ($total_score_gain > 0) {
                         $db_instance->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_score_gain, $u_id]);
+
+                        Achievement::check($u_id, AchievementTypes::ACHIEVEMENT_SCORE);
                     }
 
                     $hp_reward_json = [
@@ -195,10 +202,9 @@ while ($ev = $finished_events->fetch_assoc()) {
 }
 
 //// Storage Push Message
-$storage_push_cooldown = 14400; // 4 Stunden Cooldown, falls Lager voll bleibt
-$warning_threshold = 0.95;     // Warnt ab 95% bzw. wenn voll
+$storage_push_cooldown = 14400;
+$warning_threshold = 0.95;
 
-// 1. Königreiche finden, die voll sind oder vollzulaufen drohen und deren Cooldown abgelaufen ist
 $full_storage_query = "
     SELECT k.id AS kingdom_id, k.userid, k.kingdomname,
            k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,

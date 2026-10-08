@@ -114,13 +114,16 @@ class Kingdom
     }
 
     // Function to create a new kingdom
-    public function create_kingdom(int $user_id, string $user_name, bool $is_conquest = false, int $map_x = -1, int $map_y = -1): false|int
+    public function create_kingdom(int $user_id, string $user_name, int $creation_method = KingdomCreationTypes::KINGDOM_CREATION_INITIAL,
+                                   int $map_x = -1, int $map_y = -1): false|int
     {
-        if ($is_conquest) {
+        if ($map_x >= 1 && $map_y >= 1 && $map_x <= MAX_X && $map_y <= MAX_Y) {
             $result = $this->mysqli->execute_query("SELECT fieldtype FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
             $row = $result->fetch_assoc();
 
-            return $this->found_free_field($row["fieldtype"], $map_x, $map_y, $user_id, $user_name);
+            if (!$row) return false;
+
+            return $this->found_free_field($row["fieldtype"], $map_x, $map_y, $user_id, $user_name, $creation_method);
         } else {
             // Select a random map entry and deny registration, if no map entry was found
             $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1");
@@ -129,12 +132,13 @@ class Kingdom
             if (!$row) {
                 return false;
             } else {
-                return $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name);
+                return $this->found_free_field($row["fieldtype"], $row["mapx"], $row["mapy"], $user_id, $user_name, $creation_method);
             }
         }
     }
 
-    public function found_free_field(int $field_type, int $rand_x, int $rand_y, int $user_id, string $user_name): int
+    public function found_free_field(int $field_type, int $rand_x, int $rand_y, int $user_id, string $user_name,
+                                     int $creation_method = KingdomCreationTypes::KINGDOM_CREATION_INITIAL): int
     {
         // Get resource gain rates based on fieldtype
         $result = $this->mysqli->execute_query("SELECT foodrate, woodrate, stonerate, goldrate FROM field_types WHERE fieldid = ?", [$field_type]);
@@ -152,13 +156,14 @@ class Kingdom
 
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
-                                          woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
+                                          woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate, 
+                                          creation_method, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
         ";
 
         $result_kingdom = $this->mysqli->execute_query($query, [$random_name, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
-            $food_rate, $gold_rate, $stone_rate, $wood_rate, time()]);
+            $food_rate, $gold_rate, $stone_rate, $wood_rate, $creation_method, time()]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
 
         // Update map properties of x and y
@@ -821,10 +826,7 @@ class Kingdom
         // Own troops (barracks + sent)
         $query_own = "SELECT (
                 (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?) +
-                (SELECT IFNULL(SUM(st.soldiercount), 0) 
-                 FROM sent_troops st 
-                 JOIN events e ON st.eventid = e.eventid 
-                 WHERE st.source_kingdom_id = ?) + 
+                (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops WHERE source_kingdom_id = ?) + 
                 (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?)
             ) AS total";
 

@@ -778,17 +778,18 @@ if ($my_guild_id === -1) {
     $mine_offset = ($current_mine_page - 1) * $mines_per_page;
 
     $active_mines_res = $db_instance->execute_query("
-        SELECT 
-            mn.id AS mine_id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total,
-            SUM(mst.soldiercount * mst.unit_atk) AS total_mine_atk,
-            COUNT(*) OVER() AS total_count
-        FROM mine_stationed_troops mst
-        JOIN users u ON mst.user_id = u.id
-        JOIN mines mn ON mst.mine_id = mn.id
-        WHERE u.guildid = ?
-        GROUP BY mn.id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total
-        ORDER BY mn.level DESC, mn.mapx
-        LIMIT ?, ?
+        SELECT  
+            mn.id AS mine_id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total, mn.last_update,
+            mn.stone, mn.gold, mn.coal, mn.iron, mn.sapphire, mn.diamond,
+            (SELECT IFNULL(SUM(mst_all.soldiercount * mst_all.unit_atk), 0) FROM mine_stationed_troops mst_all WHERE mst_all.mine_id = mn.id) AS total_mine_atk,
+            COUNT(*) OVER() AS total_count 
+        FROM mine_stationed_troops mst 
+        JOIN users u ON mst.user_id = u.id 
+        JOIN mines mn ON mst.mine_id = mn.id 
+        WHERE u.guildid = ? 
+        GROUP BY mn.id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total, mn.last_update, mn.stone, mn.gold, mn.coal, mn.iron, mn.sapphire, mn.diamond
+        ORDER BY mn.level DESC, mn.mapx 
+        LIMIT ?, ? 
     ", [$my_guild_id, $mine_offset, $mines_per_page])->fetch_all(MYSQLI_ASSOC);
 
     $total_active_mines = !empty($active_mines_res) ? (int)$active_mines_res[0]["total_count"] : 0;
@@ -815,9 +816,39 @@ if ($my_guild_id === -1) {
             $my = (int)$am["mapy"];
             $mine_lvl = (int)$am["level"];
 
-            $w_done = (int)$am["work_done"];
-            $w_total = max(1, (int)$am["work_total"]);
-            $percent_val = ($w_done / $w_total) * 100;
+            $elapsed = max(0, $now - (int)($am["last_update"] ?: $now));
+            $total_mine_atk = (float)$am["total_mine_atk"];
+            $work_total = max(1, (int)$am["work_total"]);
+            $work_done = (float)$am["work_done"];
+
+            if ($elapsed > 0 && $total_mine_atk > 0) {
+                $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
+                $effective_rate = min($total_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+                $work_delta = $effective_rate * $elapsed;
+                $work_done = min($work_total, $work_done + $work_delta);
+            }
+            $mined_ratio = min(1.0, $work_done / $work_total);
+
+            $loot_stone = (int)floor($am["stone"] * $mined_ratio);
+            $loot_gold = (int)floor($am["gold"] * $mined_ratio);
+            $loot_coal = (int)floor($am["coal"] * $mined_ratio);
+            $loot_iron = (int)floor($am["iron"] * $mined_ratio);
+            $loot_sapphire = (int)floor($am["sapphire"] * $mined_ratio);
+            $loot_diamond = (int)floor($am["diamond"] * $mined_ratio);
+
+            $loot_items = [];
+            if ($loot_stone > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>" . fnum($loot_stone) . "</span></div>";
+            if ($loot_gold > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>" . fnum($loot_gold) . "</span></div>";
+            if ($loot_coal > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " <span>" . fnum($loot_coal) . "</span></div>";
+            if ($loot_iron > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " <span>" . fnum($loot_iron) . "</span></div>";
+            if ($loot_sapphire > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span>" . fnum($loot_sapphire) . "</span></div>";
+            if ($loot_diamond > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span>" . fnum($loot_diamond) . "</span></div>";
+
+            $loot_popup_content = !empty($loot_items)
+                ? "<div style='display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;'>" . implode("", $loot_items) . "</div>"
+                : "<div style='margin-top: 5px; opacity: 0.8;'><i>Noch keine Erze abgebaut.</i></div>";
+
+            $percent_val = ($work_done / $work_total) * 100;
             $percent_display = fdec($percent_val);
 
             $rate = (float)$am["total_mine_atk"] * MINE_WORK_RATE_FACTOR;
@@ -839,23 +870,27 @@ if ($my_guild_id === -1) {
             }
             $members_html .= "</div>";
 
-            $t_res = $db_instance->execute_query("
-                SELECT SUM(mst.soldiercount) as soldiercount, sl.soldiername, sl.icon 
-                FROM mine_stationed_troops mst
-                JOIN users u ON mst.user_id = u.id
-                JOIN soldier_list sl ON mst.soldier_id = sl.id
-                WHERE mst.mine_id = ? AND u.guildid = ?
-                GROUP BY mst.soldier_id, sl.soldiername, sl.icon
-                ORDER BY mst.soldier_id
+            $t_res = $db_instance->execute_query(" 
+                SELECT mst.soldier_id, SUM(mst.soldiercount) as soldiercount, sl.soldiername, sl.icon  
+                FROM mine_stationed_troops mst 
+                JOIN users u ON mst.user_id = u.id 
+                JOIN soldier_list sl ON mst.soldier_id = sl.id 
+                WHERE mst.mine_id = ? AND u.guildid = ? 
+                GROUP BY mst.soldier_id, sl.soldiername, sl.icon 
+                ORDER BY mst.soldier_id 
             ", [$mine_id, $my_guild_id]);
 
             $troop_badges = "<div style='display: flex; flex-wrap: wrap; gap: 3px; justify-content: center;'>";
             while ($tr = $t_res->fetch_assoc()) {
-                $troop_badges .= "
-                    <div class='unit-badge' title='{$tr["soldiername"]}' style='padding: 2px 5px;'>
-                        <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''>
-                        <b>{$tr["soldiercount"]}</b>
-                    </div>";
+                $s_id = (int)$tr["soldier_id"];
+                $p_id = "pop_guild_mine_{$mine_id}_$s_id";
+
+                $troop_badges .= " <div class='unit-badge popup' id='$p_id' title='{$tr["soldiername"]}' style='padding: 2px 5px;'> 
+                                    <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''> <b>{$tr["soldiercount"]}</b> 
+                                    <div id='{$p_id}_box' class='popupbox' style='text-align: left; min-width: 150px;'> 
+                                        <b>Geschürfte Ressourcen:</b><br>$loot_popup_content 
+                                    </div> 
+                                </div>";
             }
             $troop_badges .= "</div>";
 
@@ -867,7 +902,7 @@ if ($my_guild_id === -1) {
                         <td class='td-center'>$members_html</td>
                         <td class='td-center'>$troop_badges</td>
                         <td class='td-center'>
-                            <span><b class='js-mine-progress' data-work-done='$w_done' data-work-total='$w_total' data-rate='$rate'>$percent_display %</b></span>
+                            <span><b class='js-mine-progress' data-work-done='$work_done' data-work-total='$work_total' data-rate='$rate'>$percent_display %</b></span>
                             <div class='tick-progress-bg mining-progress'>
                                 <div class='tick-progress-fill js-mine-progress-bar' style='width: " . min(100, $percent_val) . "%;'></div>
                             </div>
@@ -1200,7 +1235,7 @@ if ($my_guild_id === -1) {
         if ($level >= $max_lvl) {
             $action_btn = "<b class='passed'>MAX</b>";
         } else if ($is_researching) {
-            $action_btn = "<small style='opacity: 0.7;'>Forschung läuft</small>";
+            $action_btn = "-";
         } else if ($project && $project["tech_id"] == $t["id"]) {
             $action_btn = "<b class='passed'>AKTIV</b>";
 
@@ -1232,10 +1267,8 @@ if ($my_guild_id === -1) {
 
         $view .= "<tr>
             <td>
-                <div class='map-legend' style='justify-content: left;'>
-                    <div class='legend-item'>
-                        <img src='images/icons/{$t["icon"]}.png' class='buildable-icons' alt=''>
-                    </div>
+                <div class='map-legend' style='justify-content: left; margin-bottom: 10px;'>
+                    <img src='images/icons/{$t["icon"]}.png' class='buildable-icons' alt=''>
                     <div class='legend-item'>
                         <b class='popup' id='gt_{$t["id"]}'>{$t["name"]} ($level / $max_lvl)
                             <div id='gt_{$t["id"]}_box' class='popupbox'>{$t['description']}</div>
@@ -1245,20 +1278,18 @@ if ($my_guild_id === -1) {
 
         if ($level < $max_lvl) {
             if (!empty($res_html)) {
-                $view .= "<div class='map-legend' style='justify-content: left; gap: 5px;'>$res_html</div>";
+                $view .= "<div class='map-legend' style='justify-content: left; gap: 2px;'>$res_html</div>";
             }
             if (!empty($special_res_html)) {
-                $view .= "<div class='map-legend' style='justify-content: left; gap: 5px; margin-top: 4px;'>$special_res_html</div>";
+                $view .= "<div class='map-legend' style='justify-content: left; gap: 2px;'>$special_res_html</div>";
             }
-            $view .= "<div style='opacity: 0.8; margin-top: 5px;'>
-                " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($costs["time"]) . "
-            </div>";
+            $view .= get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " " . convert_sec_to_str($costs["time"]);
         }
 
         $view .= "
-        </td>
-        <td class='td-center'>$action_btn</td>
-    </tr>";
+            </td>
+            <td class='td-center'>$action_btn</td>
+        </tr>";
     }
     $view .= "</table></div>";
 }
@@ -1269,9 +1300,5 @@ if ($my_guild_id === -1) {
 $title = "Gilde";
 $header = "Gilde";
 $script_files = ["userinfo", "guild", "chat", "timer"];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

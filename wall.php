@@ -28,7 +28,7 @@ if ($wall_level < MAX_BUILDING_LEVEL) {
     $next_level_text = "
         <div class='split-content'>
             <div><b>Nächste Stufe:</b></div>
-            <div class='passed'>" . fnum($next_max_hp) . " HP (" . $next_defense . " DEF)</div>
+            <div class='passed'>" . fnum($next_max_hp) . " HP (" . fnum($next_defense) . " DEF)</div>
         </div>";
 }
 
@@ -128,9 +128,5 @@ $view .= "</div></div>";
 $title = $building_name;
 $header = $building_name . " (" . $building->get_building_level() . ")";
 $script_files = [];
-
-if (!empty($error)) {
-    $view = show_error_box($error) . $view;
-}
 
 include("layout/base.php");

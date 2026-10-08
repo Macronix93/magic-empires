@@ -666,27 +666,36 @@ function setup() {
 
                 const boxWidth = box.offsetWidth;
                 const boxHeight = box.offsetHeight;
-
                 const viewportWidth = window.innerWidth;
                 const viewportHeight = window.innerHeight;
                 const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
 
-                // Horizontal
-                let left = mousePos[0] - (boxWidth / 2);
+                let left, top;
 
-                if (left < scrollX + 10) {
-                    left = scrollX + 10;
-                }
-                if (left + boxWidth > scrollX + viewportWidth - 10) {
-                    left = scrollX + viewportWidth - boxWidth - 10;
-                }
+                if (box.classList.contains("popup-right") && window.innerWidth < 600) {
+                    left = mousePos[0] + 18;
+                    top = mousePos[1] - 15;
 
-                // Vertical
-                let top = mousePos[1] + 25;
-                let clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+                    if (left + boxWidth > scrollX + viewportWidth - 10) {
+                        left = mousePos[0] - boxWidth - 18;
+                    }
 
-                if (clientY + 25 + boxHeight > viewportHeight) {
-                    top = mousePos[1] - boxHeight - 20;
+                    let clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+                    if (clientY - 15 + boxHeight > viewportHeight - 10) {
+                        top = mousePos[1] - boxHeight + 10;
+                    }
+                } else {
+                    left = mousePos[0] - (boxWidth / 2);
+
+                    if (left < scrollX + 10) left = scrollX + 10;
+                    if (left + boxWidth > scrollX + viewportWidth - 10) left = scrollX + viewportWidth - boxWidth - 10;
+
+                    top = mousePos[1] + 25;
+
+                    let clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+                    if (clientY + 25 + boxHeight > viewportHeight) {
+                        top = mousePos[1] - boxHeight - 20;
+                    }
                 }
 
                 box.style.left = left + "px";
@@ -1090,6 +1099,33 @@ window.addEventListener("DOMContentLoaded", function () {
         }
     }, {passive: true, capture: true});
 
+    const flashContainer = document.getElementById("middle-flash-container");
+    if (flashContainer) {
+        const boxes = flashContainer.querySelectorAll(".info-box");
+
+        if (boxes.length > 0) {
+            const dismissBox = (box) => {
+                if (!box || box.classList.contains("fade-out")) return;
+
+                box.classList.add("fade-out");
+
+                box.addEventListener("animationend", () => {
+                    box.remove();
+                }, {once: true});
+            };
+
+            boxes.forEach(box => {
+                setTimeout(() => {
+                    dismissBox(box);
+                }, 4000);
+
+                box.addEventListener("click", () => {
+                    dismissBox(box);
+                });
+            });
+        }
+    }
+
     setTimeout(() => {
         document.body.classList.remove("preload");
     }, 100);
@@ -1218,7 +1254,8 @@ function updateSidebarBadges(counts) {
     if (counts.guild !== undefined) update(".js-badge-guild", counts.guild);
     if (counts.suggestions !== undefined) update(".js-badge-suggestions", counts.suggestions);
 
-    const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0) + (counts.suggestions || 0);
+    const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0) + (counts.suggestions || 0) +
+        (counts.achievements || 0);
 
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
