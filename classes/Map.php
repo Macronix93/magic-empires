@@ -42,11 +42,11 @@ class Map
 
         $query = "SELECT m.mapx, m.mapy, m.fieldtype, m.kingdomid, IFNULL(b.buildinglevel, 1) AS buildinglevel 
               FROM map m 
-              LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = 0
+              LEFT JOIN buildings b ON m.kingdomid = b.kingdomid AND b.buildingid = ?
               WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?
               ORDER BY m.mapy, m.mapx";
 
-        $result = $this->mysqli->execute_query($query, [$min_x, $max_x, $min_y, $max_y]);
+        $result = $this->mysqli->execute_query($query, [BuildingTypes::BUILDING_TOWNCENTER, $min_x, $max_x, $min_y, $max_y]);
 
         $tiles = [];
         foreach ($result as $row) {

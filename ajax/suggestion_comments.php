@@ -234,7 +234,3 @@ $comments = $db_instance->execute_query(
         </div>
     </form>
 </div>
-<br>
-<div style="text-align: center;">
-    <button data-on-click="closeOverlay">Schließen</button>
-</div>

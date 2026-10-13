@@ -63,7 +63,7 @@ $view .= "<div class='map-toolbar' style='margin-bottom: 12px;'>
         <div class='map-legend-item'>
             <img src='images/icons/icon_sword.png' class='map-legend-entity-item' alt=''> Angreifbar
         </div>
-        <div class='legend-divider'></div>
+        <div class='legend-divider show'></div>
         <div class='map-legend-item'>
             <i style='opacity: 0.8;'>Spielername</i> = Inaktiv
         </div>

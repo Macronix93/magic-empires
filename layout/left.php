@@ -133,20 +133,22 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                  data-on-click="navigate" data-url="donations.php">
                 <img src="images/icons/icon_guildtech1.png" class="menu-icons" alt="Spenden"/> Spenden
             </div>
-            <div class="box<?= $current_page === 'suggestions.php' ? ' active' : '' ?>" data-on-click="navigate"
-                 data-url="suggestions.php">
-                <img src="images/icons/icon_feedback.png" class="menu-icons" alt="Vorschläge"/> Vorschläge
-                <span class="msg-badge js-badge-suggestions"
-                      style="<?= $unread_suggestions > 0 ? '' : 'display: none;' ?>">
+            <?php if (SUGGESTIONS_ENABLED): ?>
+                <div class="box<?= $current_page === 'suggestions.php' ? ' active' : '' ?>" data-on-click="navigate"
+                     data-url="suggestions.php">
+                    <img src="images/icons/icon_feedback.png" class="menu-icons" alt="Vorschläge"/> Vorschläge
+                    <span class="msg-badge js-badge-suggestions"
+                          style="<?= $unread_suggestions > 0 ? '' : 'display: none;' ?>">
                     <?= $messages->show_messages_indicator($unread_suggestions) ?>
                 </span>
-            </div>
+                </div>
+            <?php endif ?>
         </div>
     </div>
     <div class="box-container left-right-container" style="margin-bottom: 0;">
         <div class="box-header">Sonstiges</div>
         <div class="box-content">
-            <div class="box box-disabled" data-on-click="navigate" data-url="forum.php">
+            <div class="box" data-on-click="navigate" data-url="forum.php">
                 <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
             </div>
             <div class="box<?= $current_page === 'stats.php' ? ' active' : '' ?>"

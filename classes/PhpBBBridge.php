@@ -298,4 +298,61 @@ class PhpBBBridge
         header("Location: " . $target_url);
         exit;
     }
+
+    public static function username_exists(string $username): bool
+    {
+        if (!self::is_enabled()) return false;
+
+        $db = self::get_connection();
+        if (!$db) return false;
+
+        $prefix = self::get_prefix();
+        $res = $db->execute_query(
+            "SELECT user_id FROM {$prefix}users WHERE username_clean = ?",
+            [self::clean_username($username)]
+        );
+
+        return ($res && $res->num_rows > 0);
+    }
+
+    public static function sync_all_missing_forum_users(): array
+    {
+        if (!self::is_enabled()) {
+            return [
+                "created" => 0,
+                "skipped" => 0,
+                "errors" => ["Forum-Bridge ist deaktiviert oder nicht konfiguriert."]
+            ];
+        }
+
+        $game_db = Database::get_instance()->get_connection();
+        $res = $game_db->execute_query("SELECT username, email, password FROM users WHERE status = 1");
+
+        $created = 0;
+        $skipped = 0;
+        $errors = [];
+
+        while ($u = $res->fetch_assoc()) {
+            $username = $u["username"];
+            $email = $u["email"];
+            $password_hash = $u["password"];
+
+            if (self::username_exists($username)) {
+                $skipped++;
+                continue;
+            }
+
+            if (self::create_forum_user($username, $email, $password_hash)) {
+                $created++;
+            } else {
+                $errors[] = "Fehler beim Anlegen von: " . htmlspecialchars($username);
+            }
+        }
+
+        return [
+            "created" => $created,
+            "skipped" => $skipped,
+            "errors" => $errors
+        ];
+    }
 }

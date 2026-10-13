@@ -221,7 +221,7 @@ if ($user->is_logged_in()) {
     }
     ?>
     <div class="mobile-nav-arrow" style="left: 60px; top: 1px;" data-on-click="switchKingdomPrev">
-        <span class="arrow-nav-symbol" data-on-click="switchKingdomPrev" title="Vorheriges Königreich">❮</span>
+        <span class="arrow-nav-symbol" title="Vorheriges Königreich">❮</span>
     </div>
     <div class="mobile-kingdom-display" style="top: 1px;" data-on-click="toggleMobileKingdomMenu">
         <span class="mobile-kingdom-title"><?= $cur_pos ?> - <?= e($cur_kname) ?> <span
@@ -242,11 +242,18 @@ if ($user->is_logged_in()) {
         <?php endforeach; ?>
     </div>
     <div class="mobile-nav-arrow" style="right: 60px; top: 1px;" data-on-click="switchKingdomNext">
-        <span class="arrow-nav-symbol" data-on-click="switchKingdomNext" title="Nächstes Königreich">❯</span>
+        <span class="arrow-nav-symbol" title="Nächstes Königreich">❯</span>
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">
     <p><?= Messages::wrap_emojis("🏰") ?></p>
+    <?php if ($user->is_logged_in()):
+        $right_has_alert = (!empty($sidebar_data["alchemy_status"]) && $sidebar_data["alchemy_status"] === "ready"); ?>
+        <span class="nav-notification-dot"
+              id="mobile-right-nav-dot"
+              style="<?= $right_has_alert ? '' : 'display: none;' ?>">
+        </span>
+    <?php endif; ?>
 </div>
 <div id="nav-right-menu" class="mobile-side-nav">
     <?php

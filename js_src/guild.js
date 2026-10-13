@@ -94,7 +94,7 @@ registerAction("changeMemberRank", (el) => {
 registerAction("openGuildInfo", (el) => {
     const guildId = el.dataset.id;
 
-    openOverlay(`ajax/guild_info.php?id=${guildId}`, "Gilden-Information");
+    openOverlay(`ajax/guild_info.php?id=${guildId}`, "Gilden-Information", null, false, el);
 });
 registerAction("confirmLeaveGuild", (el) => {
     const cooldown = el.dataset.cooldown;

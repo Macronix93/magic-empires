@@ -1577,6 +1577,10 @@ a:hover b {
     margin: 0 auto;
 }
 
+.ranking-table .image-and-user {
+    height: 35px;
+}
+
 td {
     background-color: var(--table-color);
     border: solid 1px rgba(0, 0, 0, 0.2);
@@ -1728,6 +1732,11 @@ tr:first-child td.td-gradient {
     vertical-align: bottom;
     width: 24px;
     height: 24px;
+}
+
+.guild-research-icon {
+    width: 19px;
+    height: 19px;
 }
 
 .menu-icons {
@@ -2221,7 +2230,7 @@ tr:first-child td.td-gradient {
     border: 2px solid var(--border-gold);
     border-radius: 5px;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.85);
-    z-index: 2850;
+    z-index: 1000002;
     max-height: 400px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -2782,6 +2791,32 @@ img[data-on-click] {
     max-width: 320px;
     text-align: left;
     flex: 1;
+}
+
+.userinfo-k-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.userinfo-k-row .kingdom-name-break {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 160px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.userinfo-k-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .location-wrapper a {
@@ -3397,7 +3432,6 @@ img[data-on-click] {
     gap: 4px;
     max-height: 230px;
     overflow-y: auto;
-    padding-right: 6px;
     scrollbar-width: thin;
 }
 
@@ -3438,6 +3472,10 @@ img[data-on-click] {
     width: 110px;
 }
 
+.item-needed {
+    font-size: 12px;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3465,6 +3503,14 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .ranking-table .image-and-user {
+        height: 24px;
+    }
+
+    .item-needed {
+        font-size: 10px;
     }
 
     .ach-name {
@@ -3732,7 +3778,23 @@ img[data-on-click] {
     }
 
     .minimap-container {
-        grid-template-columns: 20px repeat(13, 16px) !important;
+        grid-template-columns: 16px repeat(13, 13px) !important;
+        gap: 1px !important;
+    }
+
+    .minimap-tile {
+        width: 13px !important;
+        height: 13px !important;
+        font-size: 8px !important;
+    }
+
+    .minimap-label {
+        font-size: 8px !important;
+    }
+
+    .minimap-origin {
+        font-size: 7px !important;
+        line-height: 1 !important;
     }
 
     .ranking-attack-sword {
@@ -3798,6 +3860,11 @@ img[data-on-click] {
     .guild-mining-table span,
     .guild-mining-table .unit-badge b {
         font-size: 10px !important;
+    }
+
+    .guild-mining-table .ressource-icons {
+        width: 16px;
+        height: 16px;
     }
 
     .no-event {
@@ -4325,16 +4392,16 @@ img[data-on-click] {
         max-height: 83vh;
     }
 
-    .overlay-modal .kingdom-name-break {
-        max-width: 160px;
-    }
-
     .overlay-header {
         font-size: 13px;
     }
 
     .overlay-modal td {
         font-size: 12px;
+    }
+
+    .userinfo-k-row:has(button) .kingdom-name-break {
+        max-width: 100px !important;
     }
 
     .kingdom-name-break {
@@ -4749,16 +4816,6 @@ img[data-on-click] {
         width: 100% !important;
     }
 
-    .minimap-tile {
-        width: 16px;
-        height: 16px;
-        font-size: 8px;
-    }
-
-    .minimap-label {
-        font-size: 10px;
-    }
-
     html {
         width: 100%;
     }
@@ -4780,6 +4837,11 @@ img[data-on-click] {
     .info-box img {
         width: 20px;
         height: 20px;
+    }
+
+    .guild-research-icon {
+        width: 14px;
+        height: 14px;
     }
 
     textarea {
@@ -4862,6 +4924,12 @@ img[data-on-click] {
         display: none;
     }
 
+    .show {
+        display: block;
+        height: 11px;
+        margin: 0;
+    }
+
     .search-divider {
         display: none;
     }
@@ -4904,6 +4972,7 @@ img[data-on-click] {
         bottom: -1px;
         width: 7px;
         height: 7px;
+        border: 1px solid var(--table-color)
     }
 
     .sent-troops-table {

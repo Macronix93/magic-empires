@@ -443,7 +443,8 @@ if (isset($_GET["recruit"]) && isset($_GET["count"])) {
                         $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
                                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                         $db_instance->execute_query($query,
-                            [ActionTypes::ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, '0', $current_time, '0', '-', $s_id, $recruiting_time, $count]);
+                            [ActionTypes::ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, BuildingTypes::BUILDING_TOWNCENTER,
+                                $current_time, '0', '-', $s_id, $recruiting_time, $count]);
 
                         // Subtract values
                         $kingdom->give_kingdom_food(-$total_food);
@@ -805,14 +806,15 @@ $category_names = [
     SoldierTypes::SOLDIER_TYPE_SPECIAL => "Spezialeinheiten"
 ];
 
-$res_founded = $db_instance->execute_query(
+$curr_founded = (int)($db_instance->execute_query(
     "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
     [$user->get_user_id()]
-);
-$res_imp = $db_instance->execute_query(
+)->fetch_column() ?? 0);
+
+$imp_bonus = (int)($db_instance->execute_query(
     "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ?",
     [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
-);
+)->fetch_column() ?? 0);
 
 for ($i = 0; $i < $soldiers_count; $i++) {
     $s_id_internal = $soldiers[$i]->get_soldier_id();
@@ -883,8 +885,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $capacity_text .= "<br><small>(+$step% je weiteren Eroberer, max. $max%)</small>";
             break;
         case Soldiers::SOLDIER_SETTLER_WAGON:
-            $curr_founded = (int)$res_founded->fetch_row()[0];
-            $imp_bonus = (int)$res_imp->fetch_row()[0];
             $current_limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
 
             $base_chance = fdec(BASE_SETTLER_CHANCE * 100);
@@ -904,7 +904,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         $text_build = "<i>Einzigartig</i>";
     } else if (!$can_train) {
         $text_build = "<div style='font-size: 11px;'>
-                        <span class='error' style='font-size: 11px;'>Benötigt Kaserne Stufe $req_lvl</span>
+                        <span class='error item-needed'>Kaserne Stufe $req_lvl benötigt</span>
                       </div>";
     } else if ($kingdom_is_recruiting || $kingdom_is_upgrading) {
         if ($kingdom_recruiting_id == $i) {
@@ -912,7 +912,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                 [$current_kingdom, ActionTypes::ACTION_BUILD_TROOPS, $i]);
             $row = $result->fetch_assoc();
 
-            $recruit_time_end = $row["recruittime"];
             $soldier_goal = $row["soldiergoal"];
 
             $current_unit_time = $unit_time_display;

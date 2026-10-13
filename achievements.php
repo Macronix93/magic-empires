@@ -68,8 +68,16 @@ foreach ($grouped as $catKey => $items) {
             ? "<img src='images/icons/icon_checked.png' class='ressource-icons' alt='Erreicht' title='Freigeschaltet am " . date("d.m.Y H:i:s", $ach["unlocked_at"]) . "'>"
             : "<img src='images/icons/icon_lock.png' class='ressource-icons' alt='Gesperrt'>";
 
-        $name = $is_secret ? "???" : "<i>" . e($ach["name"]) . "</i>";
+        if ($is_secret) {
+            $name = "???";
+        } else {
+            $name = "<span style='cursor: pointer; text-decoration: underline;' 
+                            data-on-click='openOverlay' data-url='ajax/achievement_unlockers.php?id={$ach["id"]}'>
+                            <i>" . e($ach["name"]) . "</i></span>";
+        }
+
         $desc = $is_secret ? "<i>Diese Errungenschaft ist geheim.</i>" : e($ach["description"]);
+
         $ach_title = ($user_gender === 'f' && !empty($ach["title_f"])) ? $ach["title_f"] : $ach["title"];
         $title_tag = $is_secret
             ? "<small style='opacity: 0.6;'>Titel: ???</small>"
@@ -153,6 +161,6 @@ foreach ($grouped as $catKey => $items) {
 $title = "Errungenschaften";
 $header = "Errungenschaften";
 
-$script_files = ["achievements"];
+$script_files = ["achievements", "userinfo"];
 
 include("layout/base.php");

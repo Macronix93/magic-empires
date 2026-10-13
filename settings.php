@@ -151,7 +151,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     } else {
                         $check = $db_instance->execute_query("SELECT id FROM users WHERE username = ? AND id != ?", [$new_name, $uid]);
 
-                        if ($check->num_rows > 0) {
+                        if ($check->num_rows > 0 || PhpBBBridge::username_exists($new_name)) {
                             $error = "Dieser Name ist bereits vergeben.";
                         } else {
                             $db_instance->execute_query("UPDATE users SET username = ?, last_username_change = ? WHERE id = ?", [$new_name, $now, $uid]);
@@ -321,15 +321,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $user_data['partner_name'] = $partner_data['username'];
                 }
             }
-        }
-
-        // Update privacy settings
-        if (isset($_POST['update_privacy'])) {
-            $filter_val = isset($_POST['chat_filter']) ? 1 : 0;
-            $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
-            $_SESSION['chat_filter'] = $filter_val;
-
-            $flash_box = show_passed_box("Privatsphäre-Einstellungen gespeichert.");
         }
 
         // Update display settings

@@ -619,11 +619,5 @@ if ($row) {
 }
 echo $view;
 ?>
-<br>
-<div style="text-align:center">
-    <button data-on-click="closeOverlay">
-        Schließen
-    </button>
-</div>
 </body>
 </html>

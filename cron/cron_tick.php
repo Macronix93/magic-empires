@@ -107,7 +107,11 @@ while ($ev = $finished_events->fetch_assoc()) {
         $u_name = $p["username"];
         $is_boss_fail = false;
 
-        $actual_target_kid = $we_logic->get_valid_delivery_kingdom($u_id, (int)$p["top_kingdom_id"]);
+        $target_choice = (!empty($p["reward_kingdom_id"]) && (int)$p["reward_kingdom_id"] > 0)
+            ? (int)$p["reward_kingdom_id"]
+            : (int)$p["top_kingdom_id"];
+
+        $actual_target_kid = $we_logic->get_valid_delivery_kingdom($u_id, $target_choice);
 
         if ($ev["event_type"] === "BOSS_HP") {
             if ($ev["current_hp"] <= 0) {

@@ -7,7 +7,7 @@ registerAction("claimAchievement", (btn) => {
     let coinLimit = meta ? parseInt(meta.dataset.limit, 10) : 0;
 
     if (!coinLimit) {
-        const coinRow = Array.from(document.querySelectorAll("#kingdom-info .split-content")).find(row =>
+        const coinRow = Array.from(document.querySelectorAll(".right-container .split-content, #nav-right-menu .split-content")).find(row =>
             row.querySelector("img[src*='icon_coins']")
         );
         if (coinRow) {
@@ -75,29 +75,29 @@ function executeClaim(btn, achId, reward) {
             if (data.success) {
                 btn.remove();
 
-                const coinRow = Array.from(document.querySelectorAll("#kingdom-info .split-content")).find(row =>
-                    row.querySelector("img[src*='icon_coins']")
-                );
-                if (coinRow) {
-                    const coinSpan = coinRow.querySelector("span");
-                    if (coinSpan) {
-                        const parts = coinSpan.innerText.split("/");
-                        const limitText = parts.length > 1 ? " / " + parts[1].trim() : "";
-                        const coinLimit = data.coin_limit || (parts.length > 1 ? parseInt(parts[1].replace(/\D/g, ''), 10) : 0);
+                const coinRows = document.querySelectorAll(".right-container .split-content, #nav-right-menu .split-content");
+                coinRows.forEach(coinRow => {
+                    if (coinRow.querySelector("img[src*='icon_coins']")) {
+                        const coinSpan = coinRow.querySelector("span");
 
-                        const newFormatted = (typeof formatNumJS === "function")
-                            ? formatNumJS(data.new_coins)
-                            : Number(data.new_coins).toLocaleString("de-DE");
+                        if (coinSpan) {
+                            const parts = coinSpan.innerText.split("/");
+                            const limitText = parts.length > 1 ? " / " + parts[1].trim() : "";
+                            const coinLimit = data.coin_limit || (parts.length > 1 ? parseInt(parts[1].replace(/\D/g, ''), 10) : 0);
+                            const newFormatted = (typeof formatNumJS === "function")
+                                ? formatNumJS(data.new_coins)
+                                : Number(data.new_coins).toLocaleString("de-DE");
 
-                        coinSpan.innerText = `${newFormatted}${limitText}`;
+                            coinSpan.innerText = `${newFormatted}${limitText}`;
 
-                        if (coinLimit > 0 && data.new_coins >= coinLimit) {
-                            coinSpan.className = "over-limit";
-                        } else {
-                            coinSpan.className = "under-limit";
+                            if (coinLimit > 0 && data.new_coins >= coinLimit) {
+                                coinSpan.className = "over-limit";
+                            } else {
+                                coinSpan.className = "under-limit";
+                            }
                         }
                     }
-                }
+                });
 
                 const meta = document.getElementById("achievement-coin-meta");
                 if (meta) {

@@ -10,120 +10,152 @@ $user_id = $user->get_user_id();
 $current_kid = $user->get_current_kingdom();
 $current_k_obj = new Kingdom($current_kid);
 
-if ($active_event && isset($_POST["attack_all_kingdoms"])) {
-    $current_kid = $user->get_current_kingdom();
-    $current_k_obj = new Kingdom($current_kid);
+$cmd_stats = $current_k_obj->get_command_stats();
+$commands_full = $cmd_stats["is_full"];
 
-    $res_any_barracks = $db_instance->execute_query(
-        "SELECT COUNT(*) FROM buildings b 
+$res_any_barracks = $db_instance->execute_query(
+    "SELECT COUNT(*) FROM buildings b 
          JOIN kingdoms k ON b.kingdomid = k.id 
          WHERE k.userid = ? AND b.buildingid = ? AND b.buildinglevel > 0",
-        [$user_id, BuildingTypes::BUILDING_BARRACKS]
-    );
-    $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
+    [$user_id, BuildingTypes::BUILDING_BARRACKS]
+);
+$has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
 
-    if (!$has_any_barracks) {
-        $_SESSION["game_error"] = "Befehl verweigert: Du besitzt in keinem deiner Königreiche eine Kaserne!";
-    }
+if ($active_event) {
+    if (isset($_POST["set_reward_kingdom"])) {
+        $chosen_kid = (int)($_POST["reward_kingdom_id"] ?? 0);
+        $top_kid = (int)($user_participation["top_kingdom_id"] ?? 0);
 
-    // Check if user has attempts left for damage event
-    if ($active_event["event_type"] === "DAMAGE") {
-        $res_check = $db_instance->execute_query(
-            "SELECT attempts_used FROM world_event_participants WHERE event_id = ? AND userid = ?",
-            [$active_event["id"], $user_id]
-        );
-        $attempts = $res_check->fetch_assoc()["attempts_used"] ?? 0;
+        if ($chosen_kid === 0 || ($top_kid > 0 && $chosen_kid === $top_kid)) {
+            $db_instance->execute_query("
+                INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage, reward_kingdom_id)
+                VALUES (?, ?, 0, 0, 0, 0, NULL)
+                ON DUPLICATE KEY UPDATE reward_kingdom_id = NULL
+            ", [$active_event["id"], $user_id]);
 
-        if ($attempts >= WORLD_EVENT_MAX_ATTEMPTS) {
-            $_SESSION["game_error"] = "Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!";
-        }
-    }
+            $_SESSION["game_success"] = "Beute-Ziel auf 'Automatisch' gesetzt!";
 
-    // Is there still time left to send troops?
-    $arrival_delay = $world_event_manager->get_current_duration();
-    $time_left = $active_event["end_time"] - time();
-
-    if ($time_left < $arrival_delay) {
-        $_SESSION["game_error"] = "Befehl verweigert: Der Anmarsch dauert " . convert_sec_to_str($arrival_delay) . ", aber das Event endet bereits in " . convert_sec_to_str($time_left) . "!";
-    }
-
-    // Check, if troop marching limit was reached
-    $cmd_stats = $current_k_obj->get_command_stats();
-    $max_commands = $cmd_stats["max"];
-    $total_occupied_commands = $cmd_stats["occupied"];
-
-    if ($cmd_stats["is_full"]) {
-        $_SESSION["game_error"] = "Befehlslimit erreicht: Deine Offiziere in <b>" . e($current_k_obj->get_kingdom_name()) . "</b> sind bereits voll ausgelastet ($total_occupied_commands/$max_commands Befehle)!";
-    }
-
-    if (empty($_SESSION["game_error"])) {
-        // Get all available troops from every kingdom of the user and exclude specific ones
-        $exclude_specials = isset($_POST["exclude_specials"]);
-        setcookie("me_mass_exclude_specials", $exclude_specials ? "1" : "0", time() + 31536000, "/", "", false, false);
-        $_COOKIE["me_mass_exclude_specials"] = $exclude_specials ? "1" : "0";
-
-        $excluded_units = [
-            Soldiers::SOLDIER_CONQUEROR,
-            Soldiers::SOLDIER_SETTLER_WAGON
-        ];
-
-        if ($exclude_specials) {
-            $excluded_units = array_merge($excluded_units, [
-                Soldiers::SOLDIER_THIEF,
-                Soldiers::SOLDIER_SCOUT,
-                Soldiers::SOLDIER_RAIDER,
-                Soldiers::SOLDIER_RAM
-            ]);
-        }
-        $excluded_str = implode(',', $excluded_units);
-
-        $query_troops = "SELECT kingdomid, soldierid, soldiercount FROM soldiers 
-                         WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
-                         AND soldierid NOT IN ($excluded_str)
-                         AND soldiercount > 0";
-        $res_troops = $db_instance->execute_query($query_troops, [$user_id]);
-        $troops = $res_troops->fetch_all(MYSQLI_ASSOC);
-
-        if (empty($troops)) {
-            $_SESSION["game_error"] = "Du hast aktuell in keinem deiner Königreiche Einheiten zur Verfügung (Spezial-Einheiten, außer Helden, ausgenommen).";
+            change_location("events.php");
+            exit;
         } else {
-            $db_instance->begin_transaction();
+            $check_k = $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?", [$chosen_kid, $user_id]);
 
-            try {
-                $now = time();
-                $arrival_delay = $world_event_manager->get_current_duration();
+            if ($check_k->num_rows > 0) {
+                $db_instance->execute_query("
+                    INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage, reward_kingdom_id)
+                    VALUES (?, ?, 0, 0, 0, 0, ?)
+                    ON DUPLICATE KEY UPDATE reward_kingdom_id = VALUES(reward_kingdom_id)
+                ", [$active_event["id"], $user_id, $chosen_kid]);
 
-                $db_instance->execute_query(
-                    "INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime) 
-                     VALUES (?, ?, ?, ?, 50, 50, ?, ?)",
-                    [ActionTypes::ACTION_SEND_TROOPS, $user_id, $current_kid, MapFieldTypes::MAP_FIELD_WORLD_EVENT, $now + $arrival_delay, $now]
-                );
-                $event_id = $db_instance->insert_id;
-
-                $insert_values = [];
-                foreach ($troops as $t) {
-                    $insert_values[] = "($event_id, {$t["soldierid"]}, {$t["soldiercount"]}, {$t["soldiercount"]}, {$t["kingdomid"]})";
-                }
-                $db_instance->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_values));
-
-                $db_instance->execute_query(
-                    "UPDATE soldiers SET soldiercount = 0 
-                     WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
-                       AND soldierid NOT IN ($excluded_str) 
-                       AND soldiercount > 0",
-                    [$user_id]
-                );
-
-                $db_instance->commit();
-
-                $_SESSION["game_success"] = "Massenmobilisierung erfolgreich! Eine riesige Armee formiert sich.";
+                $_SESSION["game_success"] = "Beute-Zielkönigreich erfolgreich festgelegt!";
 
                 change_location("events.php");
                 exit;
-            } catch (Exception $e) {
-                $db_instance->rollback();
+            }
+        }
+    }
 
-                $_SESSION["game_error"] = "Ein Fehler ist aufgetreten: " . $e->getMessage();
+    if (isset($_POST["attack_all_kingdoms"])) {
+        if (!$has_any_barracks) {
+            $_SESSION["game_error"] = "Befehl verweigert: Du besitzt in keinem deiner Königreiche eine Kaserne!";
+        }
+
+        // Check if user has attempts left for damage event
+        if ($active_event["event_type"] === "DAMAGE") {
+            $res_check = $db_instance->execute_query(
+                "SELECT attempts_used FROM world_event_participants WHERE event_id = ? AND userid = ?",
+                [$active_event["id"], $user_id]
+            );
+            $attempts = $res_check->fetch_assoc()["attempts_used"] ?? 0;
+
+            if ($attempts >= WORLD_EVENT_MAX_ATTEMPTS) {
+                $_SESSION["game_error"] = "Du hast bereits alle " . WORLD_EVENT_MAX_ATTEMPTS . " Versuche für dieses Event verbraucht!";
+            }
+        }
+
+        // Is there still time left to send troops?
+        $arrival_delay = $world_event_manager->get_current_duration();
+        $time_left = $active_event["end_time"] - time();
+
+        if ($time_left < $arrival_delay) {
+            $_SESSION["game_error"] = "Befehl verweigert: Der Anmarsch dauert " . convert_sec_to_str($arrival_delay) . ", aber das Event endet bereits in " . convert_sec_to_str($time_left) . "!";
+        }
+
+        // Check, if troop marching limit was reached
+        if ($commands_full) {
+            $_SESSION["game_error"] = "Befehlslimit erreicht: Deine Offiziere in <b>" . e($current_k_obj->get_kingdom_name()) . "</b> sind bereits voll ausgelastet ({$cmd_stats['occupied']}/{$cmd_stats['max']} Befehle)!";
+        }
+
+        if (empty($_SESSION["game_error"])) {
+            // Get all available troops from every kingdom of the user and exclude specific ones
+            $exclude_specials = isset($_POST["exclude_specials"]);
+            setcookie("me_mass_exclude_specials", $exclude_specials ? "1" : "0", time() + 31536000, "/", "", false, false);
+            $_COOKIE["me_mass_exclude_specials"] = $exclude_specials ? "1" : "0";
+
+            $excluded_units = [
+                Soldiers::SOLDIER_CONQUEROR,
+                Soldiers::SOLDIER_SETTLER_WAGON
+            ];
+
+            if ($exclude_specials) {
+                $excluded_units = array_merge($excluded_units, [
+                    Soldiers::SOLDIER_THIEF,
+                    Soldiers::SOLDIER_SCOUT,
+                    Soldiers::SOLDIER_RAIDER,
+                    Soldiers::SOLDIER_RAM
+                ]);
+            }
+            $excluded_str = implode(',', $excluded_units);
+
+            $query_troops = "SELECT kingdomid, soldierid, soldiercount FROM soldiers 
+                         WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                         AND soldierid NOT IN ($excluded_str)
+                         AND soldiercount > 0";
+            $res_troops = $db_instance->execute_query($query_troops, [$user_id]);
+            $troops = $res_troops->fetch_all(MYSQLI_ASSOC);
+
+            if (empty($troops)) {
+                $_SESSION["game_error"] = "Du hast aktuell in keinem deiner Königreiche Einheiten zur Verfügung (Spezial-Einheiten, außer Helden, ausgenommen).";
+            } else {
+                $db_instance->begin_transaction();
+
+                try {
+                    $now = time();
+                    $arrival_delay = $world_event_manager->get_current_duration();
+
+                    $db_instance->execute_query(
+                        "INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        [ActionTypes::ACTION_SEND_TROOPS, $user_id, $current_kid, MapFieldTypes::MAP_FIELD_WORLD_EVENT, WORLD_EVENT_CENTER_X,
+                            WORLD_EVENT_CENTER_Y, $now + $arrival_delay, $now]
+                    );
+                    $event_id = $db_instance->insert_id;
+
+                    $insert_values = [];
+                    foreach ($troops as $t) {
+                        $insert_values[] = "($event_id, {$t["soldierid"]}, {$t["soldiercount"]}, {$t["soldiercount"]}, {$t["kingdomid"]})";
+                    }
+                    $db_instance->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_values));
+
+                    $db_instance->execute_query(
+                        "UPDATE soldiers SET soldiercount = 0 
+                     WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                       AND soldierid NOT IN ($excluded_str) 
+                       AND soldiercount > 0",
+                        [$user_id]
+                    );
+
+                    $db_instance->commit();
+
+                    $_SESSION["game_success"] = "Massenmobilisierung erfolgreich! Eine riesige Armee formiert sich.";
+
+                    change_location("events.php");
+                    exit;
+                } catch (Exception $e) {
+                    $db_instance->rollback();
+
+                    $_SESSION["game_error"] = "Ein Fehler ist aufgetreten: " . $e->getMessage();
+                }
             }
         }
     }
@@ -234,14 +266,6 @@ if (!$active_event) {
 
     $has_current_barracks = ($current_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS) > 0);
 
-    $res_any_barracks = $db_instance->execute_query(
-        "SELECT COUNT(*) FROM buildings b 
-         JOIN kingdoms k ON b.kingdomid = k.id 
-         WHERE k.userid = ? AND b.buildingid = ? AND b.buildinglevel > 0",
-        [$user_id, BuildingTypes::BUILDING_BARRACKS]
-    );
-    $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
-
     $arrival_delay = $world_event_manager->get_current_duration();
     $is_time_too_short = ($time_left < $arrival_delay);
 
@@ -249,20 +273,26 @@ if (!$active_event) {
         ($event_type == "DAMAGE" && $user_attempts >= WORLD_EVENT_MAX_ATTEMPTS) ||
         $is_time_too_short;
 
-    $single_disabled = ($is_event_locked || !$has_current_barracks) ? "disabled" : "";
+    $cmd_limit_title = "title='Befehlslimit in diesem Königreich erreicht ({$cmd_stats["occupied"]}/{$cmd_stats["max"]})!'";
+
+    $single_disabled = ($is_event_locked || !$has_current_barracks || $commands_full) ? "disabled" : "";
     $single_title = "";
     if ($is_time_too_short) {
         $single_title = "title='Die verbleibende Event-Zeit reicht für den Anmarsch (" . convert_sec_to_str($arrival_delay) . ") nicht mehr aus!'";
     } else if (!$has_current_barracks) {
         $single_title = "title='Kaserne im aktuellen Königreich benötigt!'";
+    } else if ($commands_full) {
+        $single_title = $cmd_limit_title;
     }
 
-    $mass_disabled = ($is_event_locked || !$has_any_barracks) ? "disabled" : "";
+    $mass_disabled = ($is_event_locked || !$has_any_barracks || $commands_full) ? "disabled" : "";
     $mass_title = "";
     if ($is_time_too_short) {
         $mass_title = "title='Die verbleibende Event-Zeit reicht für den Anmarsch (" . convert_sec_to_str($arrival_delay) . ") nicht mehr aus!'";
     } else if (!$has_any_barracks) {
         $mass_title = "title='Du besitzt keine Kaserne!'";
+    } else if ($commands_full) {
+        $mass_title = $cmd_limit_title;
     } else {
         $mass_title = "title='Bündelt alle Truppen deiner Königreiche zu einem Angriff!'";
     }
@@ -270,7 +300,6 @@ if (!$active_event) {
     $exclude_specials_cookie = ($_COOKIE["me_mass_exclude_specials"] ?? "1") === "1";
     $checkbox_checked = $exclude_specials_cookie ? "checked" : "";
 
-    $view .= "<div class='title-border'>" . e($monster["name"]) . "</div>";
     $view .= "<div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-direction: column; margin-bottom: 20px;'>
                 <div style='display: flex; justify-content: space-between; width: 240px;'>
                     Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
@@ -291,6 +320,7 @@ if (!$active_event) {
                     </form>
                 </div>
               </div>";
+    $view .= "<div class='title-border'>" . e($monster["name"]) . "</div>";
 
     if ($event_type === "BOSS_HP") {
         // --- BOSS HP LOGIC ---
@@ -382,17 +412,55 @@ if (!$active_event) {
                     </div>
                 </div>";
 
-        if ($top_kingdom_id > 0) {
-            $top_k_name = $db_instance->query("SELECT kingdomname FROM kingdoms WHERE id = $top_kingdom_id")->fetch_column();
+        $user_all_k = $db_instance->execute_query(
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
+            [$user_id]
+        )->fetch_all(MYSQLI_ASSOC);
 
-            $view .= "<p style='font-size: 13px; border-top: 1px solid #555; padding-top: 8px; margin-top: 15px;'>
-                        Beute-Ziel: <b>" . e($top_k_name) . "</b> (Am meisten Schaden verursacht).
-                      </p>";
-        } else {
-            $view .= "<p style='font-size: 13px; border-top: 1px solid #555; padding-top: 8px; margin-top: 15px; opacity: 0.7;'>
-                        <i>Nimm am Kampf teil, um ein Ziel-Königreich für den Loot festzulegen.</i>
-                      </p>";
+        $current_reward_kid = (int)($user_participation["reward_kingdom_id"] ?? 0);
+        $top_kid = (int)($user_participation["top_kingdom_id"] ?? 0);
+
+        $is_auto_active = ($current_reward_kid === 0 || ($top_kid > 0 && $current_reward_kid === $top_kid));
+
+        $auto_label = "Automatisch (Höchster Schaden)";
+        if ($top_kid > 0) {
+            $top_k_name = $db_instance->query("SELECT kingdomname FROM kingdoms WHERE id = $top_kid")->fetch_column();
+            if ($top_k_name) {
+                $auto_label = "Automatisch (Aktuell: " . e($top_k_name) . ")";
+            }
         }
+
+        $options_html = "<option value='0' " . ($is_auto_active ? "selected" : "") . ">$auto_label</option>";
+
+        foreach ($user_all_k as $uk) {
+            $uk_id = (int)$uk["id"];
+            $is_top = ($top_kid > 0 && $uk_id === $top_kid);
+
+            if ($is_top) {
+                $options_html .= "<option value='$uk_id' disabled style='color: #888;'> " . e($uk["kingdomname"]) . " (Bereits via Automatik aktiv)</option>";
+            } else {
+                $sel = (!$is_auto_active && $uk_id === $current_reward_kid) ? "selected" : "";
+                $options_html .= "<option value='$uk_id' $sel>" . e($uk["kingdomname"]) . " ({$uk["mapx"]}:{$uk["mapy"]})</option>";
+            }
+        }
+
+        $view .= "<div style='font-size: 13px; border-top: 1px solid #555; padding-top: 10px; margin-top: 10px;'>";
+        if (count($user_all_k) > 1) {
+            $view .= "
+            <form method='POST' style='display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;'>
+                <span><b>Beute-Ziel:</b></span>
+                <div style='display: flex; gap: 6px; align-items: center;'>
+                    <select name='reward_kingdom_id' style='padding: 3px 25px 3px 6px; font-size: 12px;'>
+                        $options_html
+                    </select>
+                    <input type='submit' name='set_reward_kingdom' value='Speichern' style='font-size: 11px; padding: 3px 8px;'>
+                </div>
+            </form>";
+        } else {
+            $single_kname = !empty($user_all_k) ? e($user_all_k[0]["kingdomname"]) : "Haupt-Königreich";
+            $view .= "Beute-Ziel: <b>$single_kname</b>";
+        }
+        $view .= "</div>";
 
         $view .= "</div></div>";
     } else {
@@ -406,13 +474,11 @@ if (!$active_event) {
 
         $total_gold_earned = 0;
         $total_coins_earned = 0;
-        $highest_reached_threshold = 0;
 
         foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
             if ($user_damage >= $threshold) {
                 $total_gold_earned += (int)round($rewards["gold"] * $guild_gold_mult);
                 $total_coins_earned += $rewards["coins"];
-                $highest_reached_threshold = $threshold;
             }
         }
 

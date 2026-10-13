@@ -7,8 +7,8 @@ registerAction("openOverlay", (el) => {
 
     openOverlay(url, title, width, false, el);
 });
-registerAction("closeOverlay", () => {
-    closeOverlay();
+registerAction("closeOverlay", (el) => {
+    closeOverlay(el);
 });
 registerAction("mapJump", (el) => {
     const x = el.dataset.x;
@@ -196,87 +196,119 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
     targetModal.dataset.currentUrl = url;
     currentOverlayUrl = url;
 
-    const delay = isAlreadyOpen ? 150 : 0;
-    setTimeout(() => {
-        if (isAlreadyOpen && content) {
-            content.innerHTML = '<div class="spinner">Lade...</div>';
-            content.style.opacity = "1";
-        }
+    if (isAlreadyOpen && content) {
+        content.innerHTML = '<div class="spinner">Lade...</div>';
+        content.style.opacity = "1";
+    }
 
-        fetch(url, {
-            headers: {"X-Requested-With": "XMLHttpRequest"},
-            cache: "no-store",
-            signal: signal
-        })
-            .then(response => {
-                const isJson = response.headers.get("content-type")?.includes("application/json");
-                if (isJson) {
-                    return response.json().then(data => {
-                        closeOverlay(targetModal);
-                        if (data.error && typeof showMapFlashMessage === "function") {
-                            showMapFlashMessage(data.error, "error");
-                        }
-                    });
-                }
-                return response.text().then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, "text/html");
-                    let customWidth = width;
-                    let customTitle = title;
-                    const titleData = doc.getElementById("modal-title-data");
-
-                    if (titleData) {
-                        if (titleData.dataset.title) customTitle = titleData.dataset.title;
-                        if (titleData.dataset.width) customWidth = titleData.dataset.width;
-                    }
-
-                    if (customTitle && customTitle.trim() !== "" && overlayTitle) {
-                        overlayTitle.innerText = customTitle;
-                    }
-                    if (customWidth) {
-                        targetModal.style.maxWidth = customWidth;
-                    } else if (!isAlreadyOpen && !isStacking) {
-                        targetModal.style.maxWidth = "";
-                    }
-
-                    if (!isAlreadyOpen) {
-                        document.body.classList.add("modal-open");
-                        document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
-                        targetModal.style.display = "grid";
-
-                        applyOverlayStyles(targetModal);
-                    }
-
-                    content.style.transition = "none";
-                    content.style.opacity = isAlreadyOpen ? "0" : "1";
-                    content.innerHTML = doc.body.innerHTML;
-                    content.style.minHeight = "";
-                    content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
-
-                    if (typeof setup === "function") {
-                        setup();
-                    }
-
-                    if (isAlreadyOpen) {
-                        setTimeout(() => {
-                            content.style.transition = "opacity 0.15s ease";
-                            content.style.opacity = "1";
-                        }, 20);
-                    } else {
-                        content.style.opacity = "1";
+    fetch(url, {
+        headers: {"X-Requested-With": "XMLHttpRequest"},
+        cache: "no-store",
+        signal: signal
+    })
+        .then(response => {
+            const isJson = response.headers.get("content-type")?.includes("application/json");
+            if (isJson) {
+                return response.json().then(data => {
+                    closeOverlay(targetModal);
+                    if (data.error && typeof showMapFlashMessage === "function") {
+                        showMapFlashMessage(data.error, "error");
                     }
                 });
-            })
-            .catch(err => {
-                if (err.name !== 'AbortError') {
-                    console.error("Overlay Fehler:", err);
-                    if (content) {
-                        content.innerHTML = '<div class="info-box event-error" style="margin: 10px;"><span>Fehler beim Laden.</span></div>';
+            }
+            return response.text().then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+                let customWidth = width;
+                let customTitle = title;
+                const titleData = doc.getElementById("modal-title-data");
+
+                if (titleData) {
+                    if (titleData.dataset.title) customTitle = titleData.dataset.title;
+                    if (titleData.dataset.width) customWidth = titleData.dataset.width;
+                }
+
+                if (customTitle && customTitle.trim() !== "" && overlayTitle) {
+                    overlayTitle.innerText = customTitle;
+                }
+                if (customWidth) {
+                    targetModal.style.maxWidth = customWidth;
+                } else if (!isAlreadyOpen && !isStacking) {
+                    targetModal.style.maxWidth = "";
+                }
+
+                const closeWrap = document.createElement("div");
+                closeWrap.style.textAlign = "center";
+                closeWrap.style.marginTop = "20px";
+                closeWrap.innerHTML = '<button type="button" data-on-click="closeOverlay">Schließen</button>';
+                doc.body.appendChild(closeWrap);
+
+                if (!isAlreadyOpen) {
+                    document.body.classList.add("modal-open");
+                    document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+                    targetModal.style.display = "grid";
+
+                    applyOverlayStyles(targetModal);
+                }
+
+                content.style.transition = "none";
+                content.style.opacity = isAlreadyOpen ? "0" : "1";
+                content.innerHTML = doc.body.innerHTML;
+                content.style.minHeight = "";
+                content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+
+                if (typeof setup === "function") {
+                    setup();
+                }
+
+                if (isAlreadyOpen) {
+                    setTimeout(() => {
+                        content.style.transition = "opacity 0.15s ease";
                         content.style.opacity = "1";
-                    }
+                    }, 20);
+                } else {
+                    content.style.opacity = "1";
                 }
             });
-    }, delay);
+        })
+        .catch(err => {
+            if (err.name !== 'AbortError') {
+                console.error("Overlay Fehler:", err);
+                if (content) {
+                    content.innerHTML = '<div class="info-box event-error" style="margin: 10px;"><span>Fehler beim Laden.</span></div>';
+                    content.style.opacity = "1";
+                }
+            }
+        });
+}
+
+function destroySingleOverlay(modal) {
+    if (!modal) return;
+
+    if (modal._abortController) {
+        modal._abortController.abort();
+        modal._abortController = null;
+    }
+
+    if (modal.id === "onpage-overlay") {
+        modal.style.display = "none";
+        modal.style.maxWidth = "";
+        modal.dataset.currentUrl = "";
+        currentOverlayUrl = "";
+    } else {
+        modal.remove();
+    }
+}
+
+function closeAllOverlays() {
+    document.querySelectorAll('.stacked-overlay').forEach(m => destroySingleOverlay(m));
+
+    const baseModal = document.getElementById("onpage-overlay");
+    if (baseModal) {
+        destroySingleOverlay(baseModal);
+    }
+
+    document.body.classList.remove("modal-open");
 }
 
 function closeOverlay(targetEl = null) {
@@ -284,6 +316,7 @@ function closeOverlay(targetEl = null) {
     if (targetEl && targetEl.nodeType) {
         modalToClose = targetEl.closest(".overlay-modal");
     }
+
     if (!modalToClose) {
         const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
         if (openModals.length > 0) {
@@ -293,18 +326,18 @@ function closeOverlay(targetEl = null) {
 
     if (!modalToClose) return;
 
-    if (modalToClose._abortController) {
-        modalToClose._abortController.abort();
-        modalToClose._abortController = null;
+    if (modalToClose.id === "onpage-overlay") {
+        closeAllOverlays();
+        return;
     }
 
-    if (modalToClose.id === "onpage-overlay") {
-        modalToClose.style.display = "none";
-        modalToClose.style.maxWidth = "";
-        modalToClose.dataset.currentUrl = "";
-        currentOverlayUrl = "";
+    const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
+    const idx = openModals.indexOf(modalToClose);
+    if (idx !== -1) {
+        const modalsToClose = openModals.slice(idx);
+        modalsToClose.forEach(m => destroySingleOverlay(m));
     } else {
-        modalToClose.remove();
+        destroySingleOverlay(modalToClose);
     }
 
     const remainingOpen = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
@@ -365,6 +398,12 @@ function redirectToMap(x, y) {
     const isOnMapPage = window.location.pathname.includes("map.php");
 
     if (isOnMapPage) {
+        if (typeof closeAllOverlays === "function") {
+            closeAllOverlays();
+        } else if (typeof closeOverlay === "function") {
+            closeOverlay();
+        }
+        
         if (typeof jumpToCoordinates === "function") {
             jumpToCoordinates(x, y);
         } else {
@@ -377,4 +416,5 @@ function redirectToMap(x, y) {
 
 window.openOverlay = openOverlay;
 window.closeOverlay = closeOverlay;
+window.closeAllOverlays = closeAllOverlays;
 window.reloadOverlay = reloadOverlay;

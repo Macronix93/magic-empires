@@ -7,6 +7,11 @@
     Check session and create if non-existent
 */
 if (session_status() == PHP_SESSION_NONE) {
+    if (!str_contains($_SERVER["HTTP_HOST"] ?? '', "localhost")) {
+        ini_set("session.cookie_domain", ".magic-empires.de");
+        ini_set("session.cookie_samesite", "Lax");
+    }
+
     session_start();
 }
 
@@ -18,12 +23,17 @@ require_once("functions.php");
 $is_cli = (php_sapi_name() === "cli");
 
 if (!$is_cli) {
-    if (str_contains($_SERVER["HTTP_HOST"] ?? '', "localhost") || str_contains($_SERVER["HTTP_HOST"] ?? '', "127.0.0.1")) {
+    $host = $_SERVER["HTTP_HOST"] ?? '';
+    $is_dev_host = str_contains($host, "localhost")
+        || str_contains($host, "127.0.0.1")
+        || str_contains($host, "home.magic-empires.de");
+
+    define("IS_DEV", $is_dev_host);
+
+    if (str_contains($_SERVER["REQUEST_URI"] ?? '', "/magic-empires/")) {
         define("BASE_URL", "/magic-empires/");
-        define("IS_DEV", true);
     } else {
         define("BASE_URL", '/');
-        define("IS_DEV", false);
     }
 } else {
     define("BASE_URL", '/');
@@ -36,7 +46,7 @@ if (!$is_cli) {
     header("Content-Security-Policy: " .
         "default-src 'self'; " .
         "script-src 'self' 'nonce-$nonce' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://storage.ko-fi.com; " .
-        "frame-src https://www.google.com/recaptcha/ https://ko-fi.com; " .
+        "frame-src https://www.google.com/recaptcha/ https://ko-fi.com 'self' https://board.magic-empires.de; " .
         "style-src 'self' 'unsafe-inline' https://storage.ko-fi.com https://fonts.googleapis.com; " .
         "img-src 'self' data: https://storage.ko-fi.com https://ko-fi.com; " .
         "connect-src 'self' https://ko-fi.com; " .
@@ -46,14 +56,21 @@ if (!$is_cli) {
 /*
  * PHP Options
  */
-if (!IS_DEV) {
-    set_exception_handler("global_exception_handler");
-    set_error_handler("global_error_handler");
-    register_shutdown_function("fatal_error_shutdown_handler");
-} else {
+$is_local_developer = str_contains($_SERVER["HTTP_HOST"] ?? '', "localhost")
+    || str_contains($_SERVER["HTTP_HOST"] ?? '', "127.0.0.1");
+
+if ($is_local_developer) {
     ini_set("display_errors", 1);
     ini_set("display_startup_errors", 1);
     error_reporting(E_ALL);
+} else {
+    ini_set("display_errors", 0);
+    ini_set("display_startup_errors", 0);
+    error_reporting(E_ALL);
+
+    set_exception_handler("global_exception_handler");
+    set_error_handler("global_error_handler");
+    register_shutdown_function("fatal_error_shutdown_handler");
 }
 
 ini_set("max_execution_time", 300);

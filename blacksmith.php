@@ -264,20 +264,19 @@ foreach ($techs as $i => $tech) {
             $current_smithy_lvl = $building->get_building_level();
             $required_smithy_lvl = Tech::get_required_smithy_level($i, $target_level);
             $is_smithy_locked = ($current_smithy_lvl < $required_smithy_lvl);
-            $restriction_note = "";
 
             if ($is_smithy_locked) {
-                $restriction_note = "<br><span class='error' style='font-size: 11px;'>Schmiede Stufe $required_smithy_lvl benötigt</span>";
+                $text_build = "<span class='error item-needed'>Schmiede Stufe $required_smithy_lvl benötigt</span>";
+            } else {
+                $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
+                $disabled = $res_disabled ? "disabled" : "";
+
+                $text_build = "<form action='blacksmith.php' method='GET'>
+                                    <input type='hidden' name='action' value='research'>
+                                    <input type='hidden' name='tid' value='" . $i . "'>
+                                    <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Forschen") . "' $disabled>
+                                </form>";
             }
-
-            $disabled = ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold || $is_smithy_locked) ? "disabled" : "";
-
-            $text_build = "<form action='blacksmith.php' method='GET'>
-                            <input type='hidden' name='action' value='research'>
-                            <input type='hidden' name='tid' value='" . $i . "'>
-                            <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Forschen") . "' $disabled>
-                            $restriction_note
-                          </form>";
         }
     }
 

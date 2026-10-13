@@ -101,9 +101,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     style="padding: 7px 25px; font-weight: bold;">
                 🗺️ Zur Karte
             </button>
-            <button type="button" data-on-click="closeOverlay" style="padding: 7px 18px;">
-                Schließen
-            </button>
         </div>
     </div>
     <?php

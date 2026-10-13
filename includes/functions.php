@@ -86,7 +86,18 @@ function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_se
 
 function change_location(string $url, int $seconds = 0): void
 {
-    $full_url = rtrim(BASE_URL, "/") . "/" . ltrim($url, "/");
+    $is_absolute = str_starts_with($url, "http://")
+            || str_starts_with($url, "https://")
+            || str_starts_with($url, "//");
+
+    if ($is_absolute) {
+        $full_url = $url;
+    } elseif (defined("BASE_URL") && BASE_URL !== "/" && str_starts_with($url, BASE_URL)) {
+        $full_url = $url;
+    } else {
+        $base = defined("BASE_URL") ? rtrim(BASE_URL, "/") : "";
+        $full_url = $base . "/" . ltrim($url, "/");
+    }
 
     if ($seconds === 0) {
         header("Location: $full_url");
@@ -397,15 +408,11 @@ function render_error_page(string $title, string $message): void
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="icon" type="image/x-icon" href="<?= defined("BASE_URL") ? BASE_URL : '' ?>images/favicon.ico"
-              id="icon">
+        <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
+        <link href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>" rel="stylesheet">
         <title>Magic Empires - <?= $title ?></title>
         <style>
             body {
-                background: #1a120b url("images/background.jpg") no-repeat center center fixed;
-                background-size: cover;
-                color: #e6dcce;
-                font-family: 'Georgia', 'Times New Roman', serif;
                 display: flex;
                 justify-content: center;
                 align-items: center;

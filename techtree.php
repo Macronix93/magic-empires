@@ -13,6 +13,7 @@ $dependency_text = "";
 // Current kingdom
 $current_kid = $user->get_current_kingdom();
 $main_kid = $user->get_main_kingdom();
+$main_k = new Kingdom($main_kid);
 
 // Fetch all buildings and their dependencies
 $kingdom = new Kingdom($user->get_current_kingdom());
@@ -24,7 +25,6 @@ if ($current_kid === $main_kid) {
     $main_techs = $techs;
     $embassy_level = $buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level();
 } else {
-    $main_k = new Kingdom($main_kid);
     $main_buildings = $main_k->fetch_all_kingdom_buildings();
     $main_techs = $main_k->fetch_all_kingdom_techs();
     $embassy_level = $main_buildings[BuildingTypes::BUILDING_EMBASSY]->get_building_level();
@@ -90,7 +90,7 @@ foreach ($techs as $t) {
     }
 }
 
-$renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, $techs, $main_buildings, $main_techs) {
+$renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, $techs, $main_buildings, $main_techs, $current_kid, $main_k) {
     $html = '<div class="title-border">' . $title . '</div>';
     $html .= '<table class="table">
         <tr>
@@ -126,6 +126,10 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
             }
         } else {
             $dependency_text = " - ";
+        }
+
+        if ($is_imperial && $current_kid !== $main_k->get_kingdom_id()) {
+            $dependency_text = "<span style='white-space: nowrap;'>Nur in <i>" . $main_k->get_kingdom_name() . "</i> forschbar</span> ";
         }
 
         $html .= "<tr>

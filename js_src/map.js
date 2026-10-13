@@ -1081,6 +1081,18 @@ function selectField(x, y, shouldCenter = false) {
         const lifetime = expiresAt - now;
         const isTooSlow = travelMonster > lifetime;
 
+        const troops = gameConfig.currentKingdom.troops || {};
+        const scoutId = gameConfig.constants.SOLDIER_SCOUT;
+        const scoutCount = parseInt(troops[scoutId]) || 0;
+
+        let hasCombatUnits = false;
+        for (let sId in troops) {
+            if (parseInt(sId) !== scoutId && parseInt(troops[sId]) > 0) {
+                hasCombatUnits = true;
+                break;
+            }
+        }
+
         const timeColorStyle = isTooSlow ? "style='color: #ff4d4d;'" : "";
 
         html += `<div class="title-border">Monstercamp (Stufe ${m_lvl})</div>`;
@@ -1090,11 +1102,22 @@ function selectField(x, y, shouldCenter = false) {
         html += `<tr><td class="td-mapinfo"><b>Restzeit</b></td><td><span ${timeColorStyle}>${formatTimeJS(lifetime, false)}</span></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
-        if (isCommandLimitReached) {
-            html += `<small class="error">${cmdLimitMsg}</small>`;
+        let btnHtml;
+        if (!hasOutgoing && isCommandLimitReached) {
+            btnHtml = `<small class="error">${cmdLimitMsg}</small>`;
+        } else if (!hasCombatUnits && scoutCount === 0) {
+            btnHtml = `<small class="error">Keine Truppen verfügbar</small>`;
         } else {
-            html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}" ${btnDisabled}>Camp angreifen</button>`;
+            let actionBtnText = "Camp angreifen";
+            let actionUrl = `ajax/send_troops.php?x=${tx}&y=${ty}`;
+
+            if (!hasCombatUnits && scoutCount > 0) {
+                actionBtnText = "Camp spionieren";
+            }
+
+            btnHtml = `<button data-on-click="openOverlay" data-url="${actionUrl}" ${btnDisabled}>${actionBtnText}</button>`;
         }
+        html += `${btnHtml}</td></tr>`;
 
         html += `</td></tr></table>`;
     } else if (kid === -4) {
@@ -1686,8 +1709,28 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
     }
 
     if (sidebarHtml) {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = sidebarHtml;
+
         document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
-            container.innerHTML = sidebarHtml;
+            const newKingdomInfo = tempDiv.querySelector("#kingdom-info");
+            const currentKingdomInfo = container.querySelector("#kingdom-info");
+            if (newKingdomInfo && currentKingdomInfo) {
+                currentKingdomInfo.innerHTML = newKingdomInfo.innerHTML;
+            }
+
+            const newBuildings = tempDiv.querySelector("#kingdom-buildings");
+            const currentBuildings = container.querySelector("#kingdom-buildings");
+            if (newBuildings && currentBuildings) {
+                currentBuildings.innerHTML = newBuildings.innerHTML;
+            }
+
+            const newSelect = tempDiv.querySelector("#choosekingdom");
+            const currentSelect = container.querySelector("#choosekingdom");
+            if (newSelect && currentSelect) {
+                currentSelect.value = newSelect.value;
+            }
+
             container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
         });
 
@@ -1768,6 +1811,15 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
 
     if (isOverlayOpen && typeof window.reloadOverlay === "function") {
         window.reloadOverlay();
+    }
+
+    const rightDot = document.getElementById("mobile-right-nav-dot");
+    if (rightDot) {
+        const hasAlchemyAlert = sidebarHtml.includes("icon_building15.png")
+            && sidebarHtml.includes("msg-badge")
+            && !sidebarHtml.includes("golden-badge");
+        
+        rightDot.style.display = hasAlchemyAlert ? "block" : "none";
     }
 
     refreshMapDataSilently(!wasPopupOpen);

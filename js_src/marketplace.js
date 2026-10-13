@@ -148,27 +148,21 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     };
 
+    const getOtherInternalResSum = (currentInput) => {
+        let sum = 0;
+        internalInputs.forEach(inp => {
+            if (inp !== currentInput) {
+                sum += parseInt(inp.value, 10) || 0;
+            }
+        });
+        return sum;
+    };
+
     const updateInternalSum = () => {
         let total = 0;
-        const maxCap = window.marketConfig.max_capacity_per_offer;
-        const storage = window.curKingdomStorage;
-
+        const maxCap = window.marketConfig ? window.marketConfig.max_capacity_per_offer : 0;
         internalInputs.forEach(input => {
-            input.value = input.value.replace(/[^0-9]/g, '');
-            let val = parseInt(input.value) || 0;
-
-            const match = input.name.match(/am\[(\d+)]/);
-            if (match) {
-                const index = match[1];
-                const stock = storage[index] ? parseInt(storage[index].cur) : 0;
-
-                if (val > stock) {
-                    val = stock;
-                    input.value = stock;
-                }
-            }
-
-            total += val;
+            total += parseInt(input.value, 10) || 0;
         });
 
         if (sumDisplay) {
@@ -185,13 +179,33 @@ document.addEventListener("DOMContentLoaded", function () {
     internalInputs.forEach(input => {
         input.addEventListener("input", function () {
             let rawValue = this.value.replace(/[^0-9]/g, '');
-
             if (rawValue.length > 1 && rawValue.startsWith('0')) {
                 rawValue = rawValue.replace(/^0+/, '');
-                if (rawValue === "") rawValue = "0";
             }
 
-            this.value = rawValue;
+            if (rawValue === '') {
+                this.value = '';
+                updateInternalSum();
+                return;
+            }
+
+            let val = parseInt(rawValue, 10) || 0;
+            const match = this.name.match(/am\[(\d+)]/);
+            const resIndex = match ? match[1] : null;
+
+            const maxCap = window.marketConfig ? window.marketConfig.max_capacity_per_offer : Infinity;
+            const storage = window.curKingdomStorage;
+            const stock = (resIndex !== null && storage && storage[resIndex]) ? parseInt(storage[resIndex].cur, 10) : Infinity;
+
+            const otherSum = getOtherInternalResSum(this);
+            const remainingCap = Math.max(0, maxCap - otherSum);
+            const maxAllowed = Math.min(stock, remainingCap);
+
+            if (val > maxAllowed) {
+                this.value = maxAllowed > 0 ? maxAllowed : '';
+            } else {
+                this.value = val;
+            }
 
             updateInternalSum();
         });

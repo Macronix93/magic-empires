@@ -229,21 +229,18 @@ for ($i = 0; $i < $building_count; $i++) {
             $current_max_by_tc = ($i == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
             $is_tc_limit_reached = ($i != BuildingTypes::BUILDING_TOWNCENTER && ($level + 1) > $current_max_by_tc);
 
-            $restriction_note = "";
             if ($is_tc_limit_reached) {
                 $needed_tc = ($i == BuildingTypes::BUILDING_STORAGE) ? $level : $level + 1;
-                $restriction_note = "<br><span class='error' style='font-size: 11px;'>Dorfzentrum Stufe $needed_tc benötigt</span>";
+                $text_build = "<span class='error item-needed'>Dorfzentrum Stufe $needed_tc benötigt</span>";
+            } else {
+                $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
+                $is_disabled = $res_disabled ? "disabled" : "";
+                $text_build = "<form action='towncenter.php' method='GET'> 
+                                    <input type='hidden' name='action' value='build'> 
+                                    <input type='hidden' name='bid' value='" . $i . "'> 
+                                    <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "' $is_disabled>
+                                </form>";
             }
-
-            $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-            $is_disabled = ($res_disabled || $is_tc_limit_reached) ? "disabled" : "";
-
-            $text_build = "<form action='towncenter.php' method='GET'>
-                            <input type='hidden' name='action' value='build'>
-                            <input type='hidden' name='bid' value='" . $i . "'>
-                            <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "' $is_disabled>
-                            $restriction_note
-                          </form>";
         }
 
         $base_sec = round($buildings[$i]->get_building_time() * pow($buildings[$i]->get_building_mult(), $level));

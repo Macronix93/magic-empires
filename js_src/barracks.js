@@ -1,3 +1,5 @@
+const SUPPORT_CATEGORY = document.getElementById("support-container")?.dataset.unitCategory || "4";
+
 registerAction("toggleAllUnitsView", (el) => {
     const showAll = el.checked;
 
@@ -48,7 +50,7 @@ registerAction("toggleAllUnitsView", (el) => {
         const activeStandardTab = standardTabs ? standardTabs.querySelector(".tablinks.active") : null;
         const category = activeStandardTab ? activeStandardTab.dataset.category : "0";
 
-        if (category === "4") {
+        if (category === SUPPORT_CATEGORY) {
             if (recruitmentTable) recruitmentTable.style.display = "none";
             if (supportContainer) supportContainer.style.display = "";
         } else {
@@ -77,7 +79,7 @@ registerAction("filterBarracksList", (el) => {
         if (supportContainer) supportContainer.style.display = "";
 
         const url = new URL(window.location);
-        url.searchParams.set("cat", "4");
+        url.searchParams.set("cat", SUPPORT_CATEGORY);
         window.history.replaceState({}, '', url);
     } else {
         if (recruitmentTable) recruitmentTable.style.display = "";
@@ -109,7 +111,7 @@ registerAction("filterBarracks", (el) => {
         row.style.display = "none";
     });
 
-    if (category === "4") {
+    if (category === SUPPORT_CATEGORY) {
         if (recruitmentTable) recruitmentTable.style.display = "none";
         if (supportContainer) supportContainer.style.display = "";
     } else {
@@ -402,8 +404,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             this.value = amount;
-
-            console.log("set amount")
 
             updateRecruitCosts(this);
         });

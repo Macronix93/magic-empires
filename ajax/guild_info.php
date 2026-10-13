@@ -55,9 +55,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>
           </tr>";
     }
-    echo "</table><br>";
-
-    echo "<div style='text-align: center'><button data-on-click='closeOverlay'>Schließen</button></div>";
+    echo "</table>";
 } else {
     change_location("guilds.php");
 }

@@ -31,6 +31,21 @@ if (!$user->is_admin()) {
         $active_tab = 'system';
     }
 
+    if (isset($_POST["sync_forum_accounts"])) {
+        $result = PhpBBBridge::sync_all_missing_forum_users();
+        $msg = "Foren-Sync abgeschlossen: <b>{$result['created']}</b> neu angelegt, <b>{$result['skipped']}</b> existierten bereits.";
+
+        if (!empty($result['errors'])) {
+            $msg .= "<br><span class='error'>" . implode("<br>", $result['errors']) . "</span>";
+        }
+
+        $logger->admin("Forum User Sync durchgeführt: {$result['created']} neu erstellt.");
+        $_SESSION["admin_flash_msg"] = $msg;
+
+        change_location("adminpanel.php?tab=system");
+        exit;
+    }
+
     if (isset($_POST["update_fixed_march"])) {
         $seconds = max(0, min(86400, (int)$_POST["fixed_seconds"]));
 
@@ -653,8 +668,6 @@ if (!$user->is_admin()) {
 
             // Display kingdom data and event data for kingdom
             if (isset($_GET['kingdomid'])) {
-                $found_kingdom = null;
-
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
                     if ($kingdom_id == $_GET['kingdomid']) {
                         $user_info_html .= '<h3>Königreich-Info</h3>';
@@ -800,6 +813,16 @@ if (!$user->is_admin()) {
                        value='$current_fixed' 
                        style='width: 60px;' required>
                 <input type='submit' name='update_fixed_march' value='Speichern'>
+            </form>
+        </div>
+    </div>";
+    $settings_list .= "
+    <div class='box-container' style='margin-top: 20px;'>
+        <div class='box-header'>Forum-Synchronisation</div>
+        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+            <p style='margin-top: 0;'>Erstellt fehlende Benutzerkonten im phpBB-Forum nach.</p>
+            <form method='POST'>
+                <input type='submit' name='sync_forum_accounts' value='Fehlende Foren-User synchronisieren'>
             </form>
         </div>
     </div>";

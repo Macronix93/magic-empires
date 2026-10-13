@@ -87,23 +87,27 @@ class Kingdom
     private function generate_random_name(): string
     {
         $adjectives = [
-            "Goldenes", "Silbernes", "Uraltes", "Ewiges", "Stolzes", "Freies",
-            "Heiliges", "Eisiges", "Wildes", "Finsteres", "Sonniges", "Nebliges",
-            "Düsteres", "Edles", "Fernes", "Mächtiges", "Dunkles", "Glühendes",
-            "Stilles", "Graues", "Frostiges", "Loderndes", "Lichtes", "Wahres",
-            "Reines", "Kühles", "Grünes", "Verlassenes", "Verborgenes"
+            "Goldenes", "Silbernes", "Uraltes", "Ewiges", "Stolzes", "Freies", "Heiliges",
+            "Eisiges", "Wildes", "Finsteres", "Sonniges", "Nebliges", "Düsteres", "Edles",
+            "Fernes", "Mächtiges", "Dunkles", "Glühendes", "Stilles", "Graues", "Frostiges",
+            "Loderndes", "Lichtes", "Wahres", "Reines", "Kühles", "Grünes", "Verlassenes",
+            "Verborgenes", "Erhabenes", "Sturmfestes", "Ehernes", "Dorniges", "Nebelhaftes",
+            "Blühendes", "Kaiserliches", "Königliches", "Kristallenes", "Smaragdenes",
+            "Rubinrotes", "Schattenhaftes", "Flammendes", "Stählernes", "Weises",
+            "Unbezwingbares", "Schimmerndes", "Glänzendes", "Verschollenes", "Friedvolles"
         ];
 
         $nouns = [
-            "Reich", "Land", "Tal", "Ufer", "Eiland", "Plateau", "Ödland",
-            "Feld", "Gehölz", "Massiv", "Becken", "Moor", "Delta", "Bündnis",
-            "Erbe", "Bollwerk", "Monument", "Hort", "Heim", "Tor", "Schloss",
-            "Kastell", "Grabmal", "Domizil", "Zentrum", "Atrium", "Refugium"
+            "Reich", "Land", "Tal", "Ufer", "Eiland", "Plateau", "Ödland", "Feld",
+            "Gehölz", "Massiv", "Becken", "Moor", "Delta", "Bündnis", "Erbe", "Bollwerk",
+            "Monument", "Heim", "Tor", "Schloss", "Kastell", "Grabmal", "Domizil",
+            "Zentrum", "Atrium", "Refugium", "Gefilde", "Fürstentum", "Herzogtum",
+            "Protektorat", "Vorgebirge", "Hochland", "Dickicht", "Gewölbe", "Heiligtum",
+            "Sanktum", "Gestade", "Paradies", "Reichslehen", "Kronland", "Kastell"
         ];
 
         $adj = $adjectives[array_rand($adjectives)];
         $noun = $nouns[array_rand($nouns)];
-
         $name = $adj . " " . $noun;
 
         if (mb_strlen($name) > 32) {

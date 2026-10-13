@@ -261,7 +261,11 @@ function calculateWarOutcome(soldierTypes) {
         });
     }
 
-    if (!hasOwnUnits || !hasEnemyUnits) return;
+    if (isMonsterMode) {
+        if (!hasOwnUnits || !hasEnemyUnits) return;
+    } else {
+        if (!hasOwnUnits) return;
+    }
 
     const warsimData = document.getElementById("warsim-data");
     const alreadyUnlocked = warsimData ? warsimData.dataset.hasSimAch === "1" : false;

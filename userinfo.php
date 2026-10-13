@@ -7,8 +7,6 @@ $user->check_user_login();
 <html lang="de">
 <?php
 $script_files = ["userinfo", "guild", "sendtroops"];
-
-include_once("layout/head.php");
 ?>
 <body>
 <?php
@@ -48,31 +46,47 @@ if ($user_id) {
             ? "messages.php?action=read&s=" . $user_id
             : "messages.php?action=new&receiver=" . urlencode($row["username"]);
 
-    $res_all_k = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
-            [$user_id]
-    );
-
     $my_guild_id = $user->get_user_guild_id();
     $target_guild_id = (int)$row["guildid"];
     $is_ally = ($my_guild_id > 0 && $my_guild_id === $target_guild_id && $user->get_user_id() !== $user_id);
 
+// 1. Gilden-Kapazitätsbonus EINMALIG vorab ermitteln (statt in jedem Schleifendurchlauf):
+    $g_cap_bonus = 0;
+    if ($is_ally) {
+        $g_cap_lvl = Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
+        $g_cap_bonus = $g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL;
+    }
+
+// 2. Alle Dörfer INKLUSIVE Kasernen-Stufe und Truppenbelegung in EINEM EINZIGEN Query abfragen:
+    $query_all_k = "
+    SELECT 
+        k.id, 
+        k.kingdomname, 
+        k.mapx, 
+        k.mapy,
+        IFNULL(b.buildinglevel, 0) AS barracks_level,
+        (
+            IFNULL((SELECT SUM(soldiercount) FROM stationed_troops WHERE target_kingdom_id = k.id), 0) +
+            IFNULL((SELECT SUM(st.soldiercount) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = k.id AND e.actionid = " . ActionTypes::ACTION_STATION_TROOPS . "), 0)
+        ) AS current_support
+    FROM kingdoms k
+    LEFT JOIN buildings b ON b.kingdomid = k.id AND b.buildingid = " . BuildingTypes::BUILDING_BARRACKS . "
+    WHERE k.userid = ?
+    ORDER BY k.created_at, k.id
+";
+    $res_all_k = $db_instance->execute_query($query_all_k, [$user_id]);
+    $kingdom_count = $res_all_k->num_rows;
+
     $all_kingdoms_html = "";
     if ($res_all_k->num_rows > 0) {
-        $all_kingdoms_html .= "<div class='userinfo-kingdoms-scroll'>";
-
+        $all_kingdoms_html .= "<div class='userinfo-kingdoms-scroll' style='padding-right: 5px;'>";
         while ($k = $res_all_k->fetch_assoc()) {
             $coords_display = e($k["mapx"]) . ":" . e($k["mapy"]);
 
             if ($is_ally) {
-                $limit = new Kingdom($k["id"])->get_support_limit();
-
-                $res_count = $db_instance->execute_query("
-                    SELECT (
-                        (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?) +
-                        (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.actionid = ?)
-                    ) as total", [$k["id"], $k["id"], ActionTypes::ACTION_STATION_TROOPS]);
-                $current = (int)$res_count->fetch_column();
+                $barracks_lvl = (int)$k["barracks_level"];
+                $limit = SUPPORT_LIMIT_BASE + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + $g_cap_bonus;
+                $current = (int)$k["current_support"];
 
                 if ($current >= $limit) {
                     $support_ui = "<button disabled style='padding: 2px 5px; font-size: 10px; opacity: 0.6;'>Voll</button>";
@@ -82,21 +96,23 @@ if ($user_id) {
                 }
 
                 $all_kingdoms_html .= "
-                    <div class='location-wrapper' style='display: flex; justify-content: space-between; align-items: center; padding: 2px 0;'>
-                        <span class='kingdom-name-break' title='" . e($k["kingdomname"]) . "' style='flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 10px;'>
-                            • " . e($k["kingdomname"]) . "
-                        </span>
-                        <div style='display: flex; align-items: center; gap: 10px; flex-shrink: 0;'>
-                            <a href='#' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "'>$coords_display</a>
-                            $support_ui
-                        </div>
-                    </div>";
+                <div class='location-wrapper userinfo-k-row'>
+                    <span class='kingdom-name-break' title='" . e($k["kingdomname"]) . "'>
+                        • " . e($k["kingdomname"]) . "
+                    </span>
+                    <div class='userinfo-k-actions'>
+                        <a href='#' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "'>$coords_display</a>
+                        $support_ui
+                    </div>
+                </div>";
             } else {
                 $all_kingdoms_html .= "
-                    <div class='location-wrapper' style='display: flex; justify-content: space-between; align-items: center; padding: 2px 0;'>
-                        <span class='kingdom-name-break' title='" . e($k["kingdomname"]) . "'>• " . e($k["kingdomname"]) . "</span>
-                        <a href='#' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "' style='margin-left: 10px;'>$coords_display</a>
-                    </div>";
+                <div class='location-wrapper userinfo-k-row'>
+                    <span class='kingdom-name-break' title='" . e($k["kingdomname"]) . "'>• " . e($k["kingdomname"]) . "</span>
+                    <div class='userinfo-k-actions'>
+                        <a href='#' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "'>$coords_display</a>
+                    </div>
+                </div>";
             }
         }
         $all_kingdoms_html .= "</div>";
@@ -181,6 +197,33 @@ if ($user_id) {
             <td><b>Rang</b></td>
             <?= "<td>" . $user_rank . "</td>" ?>
         </tr>
+        <?php
+        $res_ach_stats = $db_instance->execute_query(
+                "SELECT 
+            (SELECT COUNT(*) FROM user_achievements WHERE user_id = ?) AS unlocked, 
+            (SELECT COUNT(*) FROM achievements) AS total",
+                [$user_id]
+        )->fetch_assoc();
+
+        $unlocked_ach = (int)($res_ach_stats["unlocked"] ?? 0);
+        $total_ach = (int)($res_ach_stats["total"] ?? 0);
+        $ach_percent = ($total_ach > 0) ? round(($unlocked_ach / $total_ach) * 100, 1) : 0;
+        ?>
+        <tr>
+            <td><b>Errungenschaften</b></td>
+            <td>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <span><b><?= $unlocked_ach ?> / <?= $total_ach ?></b> <small
+                                style="opacity: 0.75;">(<?= $ach_percent ?>%)</small></span>
+                    <button type="button"
+                            data-on-click="openOverlay"
+                            data-url="ajax/achievement_unlockers.php?userid=<?= $user_id ?>"
+                            data-title="Errungenschaften">
+                        Ansehen
+                    </button>
+                </div>
+            </td>
+        </tr>
         <tr>
             <td>
                 <b>Gilde</b>
@@ -233,18 +276,12 @@ if ($user_id) {
             </td>
         </tr>
         <tr>
-            <td><b>Königreiche</b></td>
+            <td><b>Königreiche (<?= $kingdom_count ?>)</b></td>
             <td>
                 <?= $all_kingdoms_html ?>
             </td>
         </tr>
     </table>
-    <br>
-    <div style="text-align: center">
-        <button data-on-click="closeOverlay">
-            Schließen
-        </button>
-    </div>
     <title>Magic Empires - <?= $user_name ?></title>
     <?php
 }

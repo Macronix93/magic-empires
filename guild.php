@@ -506,9 +506,9 @@ if ($my_guild_id === -1) {
 
     $research_badge_html = "";
     if ($guild_logic->is_researching()) {
-        $research_badge_html = " <img src='images/icons/icon_time.png' class='ressource-icons' title='Forschung läuft' alt='Forschung läuft'>";
+        $research_badge_html = " <img src='images/icons/icon_time.png' class='ressource-icons guild-research-icon' title='Forschung läuft' alt='Forschung läuft'>";
     } else if ($guild_logic->get_active_project()) {
-        $research_badge_html = " <img src='images/icons/icon_hammer.png' class='ressource-icons' title='Projekt aktiv' alt='Projekt aktiv'>";
+        $research_badge_html = " <img src='images/icons/icon_hammer.png' class='ressource-icons guild-research-icon' title='Projekt aktiv' alt='Projekt aktiv'>";
     }
 
     $view .= "<div class='msg-back-button-container'>
@@ -770,8 +770,69 @@ if ($my_guild_id === -1) {
 
     $view .= "<div id='guild_tab_mines' class='js-guild-tab' style='display: " . ($active_tab == "mines" ? "block" : "none") . ";'>";
 
-    // Active Guild Miners Listing
-    $view .= "<div class='title-border' style='margin-top: 20px;'>Aktive Minen-Schürfer</div>";
+    // Active Guild Miners + Last Storage Inserts Listing
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Letzten " . NUM_LAST_GUILD_MINERS . " Schürfvorgänge</div>";
+    $res_logs = $db_instance->execute_query(
+        "SELECT user_id, username, coal, iron, sapphire, diamond, created_at 
+         FROM guild_storage_logs 
+         WHERE guild_id = ? 
+         ORDER BY created_at DESC, id DESC 
+         LIMIT ?",
+        [$my_guild_id, NUM_LAST_GUILD_MINERS]
+    );
+
+    if ($res_logs->num_rows > 0) {
+        $view .= "<table class='table guild-mining-table' style='margin: 0 auto 20px auto;'>
+        <colgroup>
+            <col style='width: 32%;'>
+            <col style='width: auto;'>
+            <col style='width: 32%;'>
+        </colgroup>
+        <tr>
+            <td class='td-gradient td-center'><b>Mitglied</b></td>
+            <td class='td-gradient td-center'><b>Eingelagerte Erze</b></td>
+            <td class='td-gradient td-center'><b>Zeitpunkt</b></td>
+        </tr>";
+
+        while ($log = $res_logs->fetch_assoc()) {
+            $member_user = new User((int)$log["user_id"], $log["username"]);
+
+            $badges = [];
+            $special_res = [
+                ResourceTypes::RESOURCE_TYPE_COAL => (int)$log["coal"],
+                ResourceTypes::RESOURCE_TYPE_IRON => (int)$log["iron"],
+                ResourceTypes::RESOURCE_TYPE_SAPPHIRE => (int)$log["sapphire"],
+                ResourceTypes::RESOURCE_TYPE_DIAMOND => (int)$log["diamond"],
+            ];
+
+            foreach ($special_res as $res_type => $amount) {
+                if ($amount > 0) {
+                    $badges[] = "<div>" . get_resource_icon($res_type) . " " . fnum($amount) . "</div>";
+                }
+            }
+
+            $date_display = date("d.m.Y H:i", $log["created_at"]) . " Uhr";
+            $view .= "<tr>
+            <td>" . $member_user->render_user() . "</td>
+            <td class='td-center'><div style='display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;'>" . implode("", $badges) . "</div></td>
+            <td class='td-center'>$date_display</td>
+        </tr>";
+        }
+        $view .= "</table>";
+    } else {
+        $view .= "<p style='text-align: center; opacity: 0.6;'>Bisher wurden noch keine Spezial-Erze eingelagert.</p>";
+    }
+
+    $res_miner_count = $db_instance->execute_query("
+        SELECT COUNT(DISTINCT mst.mine_id) 
+        FROM mine_stationed_troops mst 
+        JOIN users u ON mst.user_id = u.id 
+        JOIN mines mn ON mst.mine_id = mn.id
+        WHERE u.guildid = ?
+    ", [$my_guild_id]);
+    $active_miners_count = (int)($res_miner_count->fetch_column() ?? 0);
+
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Aktive Schürfvorgänge ($active_miners_count)</div>";
 
     $mines_per_page = NUM_MINES_PER_PAGE;
     $current_mine_page = max(1, (int)($_GET["minepage"] ?? 1));
@@ -1267,7 +1328,7 @@ if ($my_guild_id === -1) {
 
         $view .= "<tr>
             <td>
-                <div class='map-legend' style='justify-content: left; margin-bottom: 10px;'>
+                <div class='map-legend' style='justify-content: left;'>
                     <img src='images/icons/{$t["icon"]}.png' class='buildable-icons' alt=''>
                     <div class='legend-item'>
                         <b class='popup' id='gt_{$t["id"]}'>{$t["name"]} ($level / $max_lvl)
@@ -1278,7 +1339,7 @@ if ($my_guild_id === -1) {
 
         if ($level < $max_lvl) {
             if (!empty($res_html)) {
-                $view .= "<div class='map-legend' style='justify-content: left; gap: 2px;'>$res_html</div>";
+                $view .= "<div class='map-legend' style='justify-content: left; gap: 2px; margin-top: 10px;'>$res_html</div>";
             }
             if (!empty($special_res_html)) {
                 $view .= "<div class='map-legend' style='justify-content: left; gap: 2px;'>$special_res_html</div>";

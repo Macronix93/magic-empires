@@ -293,9 +293,8 @@ class EventManager
                 $kingdom->set_kingdom_max_gold($kingdom->get_kingdom_max_gold() + RESEARCH_STORAGE_INC);
                 break;
             case TechTypes::TECH_TYPE_WALL_HP_INC:
-                if ($kingdom->get_wall_hp() == $kingdom->get_wall_max_hp()) {
-                    $kingdom->set_wall_hp($kingdom->get_wall_hp() + RESEARCH_WALL_HP_INC);
-                }
+                $new_wall_hp = min($kingdom->get_wall_max_hp(), $kingdom->get_wall_hp() + RESEARCH_WALL_HP_INC);
+                $kingdom->set_wall_hp($new_wall_hp);
                 break;
             case TechTypes::TECH_TYPE_ANCESTRAL_RITES:
                 $kingdom->recalculate_production();
@@ -985,28 +984,26 @@ class EventManager
                 JOIN soldier_list sl ON st.soldierid = sl.id 
                 WHERE st.eventid = ?", [$event_id])->fetch_all(MYSQLI_ASSOC);
 
-            $total_atk_units = array_sum(array_column($res_atk_troops, "soldiercount"));
-            $total_def_units = array_sum(array_column($defenders, "soldiercount"));
-
             // Troop cards and base values for Attacker
             $atk_cards = [];
             $atk_prepared = [];
-            foreach ($res_atk_troops as $at) {
+            foreach ($res_atk_troops as $idx => $at) {
                 $cat = (int)$at["category"];
                 $t_bonus_a = $atk_techs[$cat]["a"] ?? 0;
                 $t_bonus_d = $atk_techs[$cat]["d"] ?? 0;
-
                 $final_atk = (int)round(($at["attack"] * $atk_shrine) + $t_bonus_a);
                 $final_def = (int)round($at["defense"] + $t_bonus_d);
 
+                $key = "atk_" . $idx;
                 $atk_prepared[] = [
+                    "id" => (int)$at["soldierid"],
+                    "key" => $key,
                     "count" => (int)$at["soldiercount"],
-                    "cat" => $cat,
+                    "category" => $cat,
                     "atk" => $final_atk,
                     "def" => $final_def
                 ];
-
-                $atk_cards[] = [
+                $atk_cards[$idx] = [
                     "id" => (int)$at["soldierid"],
                     "initial" => (int)$at["soldiercount"],
                     "losses" => 0,
@@ -1019,14 +1016,13 @@ class EventManager
             $def_cards = [];
             $def_prepared = [];
             $k_cache = [];
-
-            foreach ($defenders as $dt) {
+            foreach ($defenders as $idx => $dt) {
                 $dkid = (int)$dt["kingdom_id"];
 
                 if (!isset($k_cache[$dkid])) {
                     $k_obj = new Kingdom($dkid);
-                    $sh_mod = 1.0;
 
+                    $sh_mod = 1.0;
                     if ($k_obj->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
                         $sh_mod += $k_obj->calculate_shrine_bonus($k_obj->get_shrine_modifier());
                     }
@@ -1043,23 +1039,23 @@ class EventManager
                         ]
                     ];
                 }
-
                 $cat = (int)$dt["category"];
                 $d_shrine = $k_cache[$dkid]["shrine"];
                 $d_bonus_a = $k_cache[$dkid]["techs"][$cat]["a"] ?? 0;
                 $d_bonus_d = $k_cache[$dkid]["techs"][$cat]["d"] ?? 0;
-
                 $final_atk = (int)round(($dt["attack"] * $d_shrine) + $d_bonus_a);
                 $final_def = (int)round($dt["defense"] + $d_bonus_d);
 
+                $key = "def_" . $idx;
                 $def_prepared[] = [
+                    "id" => (int)$dt["soldier_id"],
+                    "key" => $key,
                     "count" => (int)$dt["soldiercount"],
-                    "cat" => $cat,
+                    "category" => $cat,
                     "atk" => $final_atk,
                     "def" => $final_def
                 ];
-
-                $def_cards[] = [
+                $def_cards[$idx] = [
                     "id" => (int)$dt["soldier_id"],
                     "initial" => (int)$dt["soldiercount"],
                     "losses" => 0,
@@ -1068,161 +1064,23 @@ class EventManager
                 ];
             }
 
-            // Calculate Battle with RPS
-            $get_preferred_target_cat = function (int $cat): int {
-                return match ($cat) {
-                    SoldierTypes::SOLDIER_TYPE_INFANTRY => SoldierTypes::SOLDIER_TYPE_CAVALRY,
-                    SoldierTypes::SOLDIER_TYPE_CAVALRY => SoldierTypes::SOLDIER_TYPE_ARCHERS,
-                    SoldierTypes::SOLDIER_TYPE_ARCHERS => SoldierTypes::SOLDIER_TYPE_INFANTRY,
-                    default => -1
-                };
-            };
+            // Centralized battle calculation
+            $combat_result = CombatEngine::calculate_pvp($atk_prepared, $def_prepared);
 
-            $get_category_def_pool = function (array $units_prepared): array {
-                $pools = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
-                foreach ($units_prepared as $u) {
-                    $pools[$u["cat"]] += ($u["count"] * $u["def"]);
-                }
-                return $pools;
-            };
-
-            $own_def_pools = $get_category_def_pool($atk_prepared);
-            $enemy_def_pools = $get_category_def_pool($def_prepared);
-
-            $total_attacker_def = array_sum($own_def_pools);
-            $total_defender_def = array_sum($enemy_def_pools);
-
-            $distribute_damage = function (
-                array $attacker_units,
-                array $defender_units,
-                array $defender_def_pools,
-                int   $total_def
-            ) use ($get_preferred_target_cat): array {
-                $targeted_dmg = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
-                $shared_dmg = 0;
-                $total_raw_atk = 0;
-                $focus_share = defined('RPS_TARGET_FOCUS') ? RPS_TARGET_FOCUS : 0.70;
-                $default_share = 1.0 - $focus_share;
-
-                $defender_has_cat = [];
-                foreach ($defender_units as $du) {
-                    if ($du["count"] > 0) $defender_has_cat[$du["cat"]] = true;
-                }
-
-                foreach ($attacker_units as $u) {
-                    if ($u["count"] <= 0) continue;
-                    $unit_atk_sum = $u["count"] * $u["atk"];
-                    $total_raw_atk += $unit_atk_sum;
-                    $target_cat = $get_preferred_target_cat($u["cat"]);
-
-                    if ($target_cat !== -1 && !empty($defender_has_cat[$target_cat])) {
-                        $target_damage_with_bonus = $unit_atk_sum * $focus_share * (1.0 + RPS_BONUS);
-                        $max_def_capacity = ($defender_def_pools[$target_cat] ?? 0) * LETHALITY_PVP;
-
-                        if ($target_damage_with_bonus > $max_def_capacity && $max_def_capacity > 0) {
-                            $excess = $target_damage_with_bonus - $max_def_capacity;
-                            $targeted_dmg[$target_cat] += $max_def_capacity;
-                            $shared_dmg += ($excess / (1.0 + RPS_BONUS)) + ($unit_atk_sum * $default_share);
-                        } else {
-                            $targeted_dmg[$target_cat] += $target_damage_with_bonus;
-                            $shared_dmg += ($unit_atk_sum * $default_share);
-                        }
-                    } else {
-                        $shared_dmg += $unit_atk_sum;
-                    }
-                }
-
-                $final_incoming_dmg = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
-                foreach ($defender_def_pools as $cat => $cat_def) {
-                    $final_incoming_dmg[$cat] = $targeted_dmg[$cat];
-                    if ($total_def > 0 && $cat_def > 0) {
-                        $final_incoming_dmg[$cat] += $shared_dmg * ($cat_def / $total_def);
-                    }
-                }
-
-                return [
-                    "final_incoming_dmg" => $final_incoming_dmg,
-                    "total_raw_atk" => $total_raw_atk
-                ];
-            };
-
-            $own_offense = $distribute_damage($atk_prepared, $def_prepared, $enemy_def_pools, $total_defender_def);
-            $enemy_offense = $distribute_damage($def_prepared, $atk_prepared, $own_def_pools, $total_attacker_def);
-
-            $global_atk_loss_damping = 1.0;
-            $global_def_loss_damping = 1.0;
-
-            if ($own_offense["total_raw_atk"] > 0 && $enemy_offense["total_raw_atk"] > 0) {
-                $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
-                $ratio_def = $enemy_offense["total_raw_atk"] / $own_offense["total_raw_atk"];
-                if ($ratio_def > PVP_DAMPING_THRESHOLD) {
-                    $clamped = max(0.0, min(1.0, ($ratio_def - PVP_DAMPING_THRESHOLD) / $range));
-                    $global_def_loss_damping *= pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
-                }
-                $ratio_atk = $own_offense["total_raw_atk"] / $enemy_offense["total_raw_atk"];
-                if ($ratio_atk > PVP_DAMPING_THRESHOLD) {
-                    $clamped = max(0.0, min(1.0, ($ratio_atk - PVP_DAMPING_THRESHOLD) / $range));
-                    $global_atk_loss_damping *= pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
-                }
-            }
-
-            $get_cat_loss_ratio = function (float $incoming_dmg, int $cat_def, float $damping): float {
-                if ($cat_def <= 0) return 1.0;
-                return ($incoming_dmg / ($cat_def * LETHALITY_PVP)) * $damping;
-            };
-
-            $own_cat_loss_ratios = [];
-            foreach ($own_def_pools as $c => $cat_def) {
-                $own_cat_loss_ratios[$c] = $get_cat_loss_ratio((float)($enemy_offense["final_incoming_dmg"][$c] ?? 0), $cat_def, $global_atk_loss_damping);
-            }
-
-            $enemy_cat_loss_ratios = [];
-            foreach ($enemy_def_pools as $c => $cat_def) {
-                $enemy_cat_loss_ratios[$c] = $get_cat_loss_ratio((float)($own_offense["final_incoming_dmg"][$c] ?? 0), $cat_def, $global_def_loss_damping);
-            }
-
-            $avg_own_def = $total_atk_units > 0 ? ($total_attacker_def / $total_atk_units) : 1;
-            $avg_enemy_def = $total_def_units > 0 ? ($total_defender_def / $total_def_units) : 1;
-            $exp = defined('ARMOR_WEIGHT_EXPONENT') ? ARMOR_WEIGHT_EXPONENT : 0.50;
-
-            $total_atk_losses = 0;
-            foreach ($atk_cards as &$ac) {
-                $cat = (int)$this->mysqli->execute_query("SELECT category FROM soldier_list WHERE id = ?", [$ac["id"]])->fetch_column();
-                $base_ratio = $own_cat_loss_ratios[$cat] ?? 0.0;
-                $unit_def = max(1, $ac["def"]);
-                $armor_modifier = pow($avg_own_def / $unit_def, $exp);
-                $loss_ratio = max(0.0, min(1.0, $base_ratio * $armor_modifier));
-
-                $ac["losses"] = (int)round($ac["initial"] * $loss_ratio);
+            // Fictional losses in mine battles
+            foreach ($atk_cards as $idx => &$ac) {
+                $ac["losses"] = $combat_result["attacker_losses"]["atk_" . $idx] ?? 0;
                 $ac["is_fictional"] = true;
-                $total_atk_losses += $ac["losses"];
             }
             unset($ac);
 
-            $total_def_losses = 0;
-            foreach ($def_cards as &$dc) {
-                $cat = (int)$this->mysqli->execute_query("SELECT category FROM soldier_list WHERE id = ?", [$dc["id"]])->fetch_column();
-                $base_ratio = $enemy_cat_loss_ratios[$cat] ?? 0.0;
-                $unit_def = max(1, $dc["def"]);
-                $armor_modifier = pow($avg_enemy_def / $unit_def, $exp);
-                $loss_ratio = max(0.0, min(1.0, $base_ratio * $armor_modifier));
-
-                $dc["losses"] = (int)round($dc["initial"] * $loss_ratio);
+            foreach ($def_cards as $idx => &$dc) {
+                $dc["losses"] = $combat_result["defender_losses"]["def_" . $idx] ?? 0;
                 $dc["is_fictional"] = true;
-                $total_def_losses += $dc["losses"];
             }
             unset($dc);
 
-            $atk_survivors = max(0, $total_atk_units - $total_atk_losses);
-            $def_survivors = max(0, $total_def_units - $total_def_losses);
-
-            $atk_survivor_ratio = $total_atk_units > 0 ? ($atk_survivors / $total_atk_units) : 0;
-            $def_survivor_ratio = $total_def_units > 0 ? ($def_survivors / $total_def_units) : 0;
-
-            $attacker_wins = ($atk_survivors > 0) && (
-                    ($total_def_losses >= $total_def_units) ||
-                    ($atk_survivor_ratio > $def_survivor_ratio)
-                );
+            $attacker_wins = $combat_result["attacker_won"];
 
             $def_players = [];
             foreach ($defenders as $d) {
@@ -1617,6 +1475,11 @@ class EventManager
             if ($loot_iron > 0) $guild_logic->modify_storage_resource("iron", $loot_iron);
             if ($loot_sapphire > 0) $guild_logic->modify_storage_resource("sapphire", $loot_sapphire);
             if ($loot_diamond > 0) $guild_logic->modify_storage_resource("diamond", $loot_diamond);
+
+            $this->mysqli->execute_query(
+                "INSERT INTO guild_storage_logs (guild_id, user_id, username, coal, iron, sapphire, diamond, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [$user_gid, $owner_id, $u_name, $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond, time()]
+            );
 
             $total_special_loot = $loot_coal + $loot_iron + $loot_sapphire + $loot_diamond;
 
@@ -2299,7 +2162,7 @@ class EventManager
                 ]
             );
 
-            $c_id = $conquest->fetch_conquerer_id();
+            $c_id = Soldiers::SOLDIER_CONQUEROR;
             $soldier_types = $conquest->get_soldier_types();
             $score_loss = $soldier_types[$c_id]["score"];
 
@@ -2314,9 +2177,11 @@ class EventManager
             $has_more_kingdoms = ($k_count_res->fetch_column() > 1);
 
             // Get all Buildings for score loss
+            $base_buildings = implode(',', [BuildingTypes::BUILDING_TOWNCENTER, BuildingTypes::BUILDING_WALL, BuildingTypes::BUILDING_STORAGE]);
+
             $res_b_score = $this->mysqli->execute_query("
                 SELECT SUM(
-                    IF(b.buildingid IN (0, 3, 9), GREATEST(0, (b.buildinglevel * (b.buildinglevel + 1) / 2) - 1) * bl.buildingscore, 
+                    IF(b.buildingid IN ($base_buildings), GREATEST(0, (b.buildinglevel * (b.buildinglevel + 1) / 2) - 1) * bl.buildingscore, 
                     (b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore)
                 ) AS loss 
                 FROM buildings b 

@@ -37,7 +37,7 @@ class MapSpawner
             WHERE m.kingdomid = " . MapFieldTypes::MAP_FIELD_RESOURCE_TILE . "  AND r.mapx IS NULL
         ");
 
-        $res_count = $this->db->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = -2")->fetch_column();
+        $res_count = $this->db->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_RESOURCE_TILE)->fetch_column();
         if ($res_count >= MAX_RESOURCE_TILES) {
             return 0;
         }
@@ -271,7 +271,7 @@ class MapSpawner
 
             if (!empty($insert_mines)) {
                 $this->db->query("INSERT INTO mines (mapx, mapy, level, max_troops, stone, gold, coal, iron, sapphire, diamond, work_total, expires_at) VALUES " . implode(',', $insert_mines));
-                
+
                 $coords_string = implode(',', $update_coords);
                 $this->db->execute_query(
                     "UPDATE map SET kingdomid = ? WHERE (mapx, mapy) IN ($coords_string)",

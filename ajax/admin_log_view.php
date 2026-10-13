@@ -60,8 +60,3 @@ echo "</pre>";
 
 // Footer Info
 echo "<div style='margin-top: 10px; font-size: 12px; opacity: 0.7;'>Gesamtzeilen: $total_lines</div>";
-echo '<div style="text-align:center">
-            <button data-on-click="closeOverlay">
-                Schließen
-            </button>
-        </div>';

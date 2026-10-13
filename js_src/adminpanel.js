@@ -244,11 +244,7 @@ function userDeletionDialog(userID) {
         "Ja",
         "Nein",
         () => {
-            deleteUser("adminpanel.php?deleteuser=" + userID);
+            window.location.href = "adminpanel.php?deleteuser=" + userID;
         }
     );
-}
-
-function deleteUser(url) {
-    window.location.href = url;
 }

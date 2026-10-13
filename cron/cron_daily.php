@@ -71,15 +71,23 @@ if ($player_count > 0) {
 // Support Cleanup
 $delete_limit = $now - (SUPPORT_TICKET_AUTO_DELETE_DAYS * 86400);
 $db->execute_query("DELETE FROM support_tickets WHERE status = 0 AND closed_at < ?", [$delete_limit]);
-
 $deleted_count = $db->affected_rows;
 if ($deleted_count > 0) {
     echo "[" . date("H:i:s") . "] Support-Cleanup: $deleted_count alte Tickets gelöscht.\n";
 }
 
+// Guild Storage Logs Cleanup
+$guild_log_limit = $now - (GUILD_STORAGE_LOG_RETENTION_DAYS * 86400);
+$db->execute_query("DELETE FROM guild_storage_logs WHERE created_at < ?", [$guild_log_limit]);
+$guild_logs_deleted = $db->affected_rows;
+if ($guild_logs_deleted > 0) {
+    echo "[" . date("H:i:s") . "] Gilden-Einlagerungs-Cleanup: $guild_logs_deleted alte Einträge gelöscht.\n";
+}
+
 // Abandoned Kingdoms Cleanup
 $db->execute_query("DELETE FROM abandoned_kingdoms WHERE expires_at < ?", [$now]);
-$db->execute_query("UPDATE map SET kingdomid = -1 WHERE kingdomid = -4 AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM abandoned_kingdoms)");
+$db->execute_query("UPDATE map SET kingdomid = " . MapFieldTypes::MAP_FIELD_EMPTY . " WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM . " 
+                            AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM abandoned_kingdoms)");
 
 // Spawn Monster Camps
 $camps = new MapSpawner($db)->spawn_monster_camps();

@@ -367,7 +367,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $res_exists = $db_instance->execute_query("
                 SELECT 
                     (SELECT 1 FROM stationed_troops WHERE owner_id = ? AND target_kingdom_id = ? LIMIT 1) AS already_there,
-                    (SELECT 1 FROM events WHERE userid = ? AND targetid = ? AND actionid = 9 LIMIT 1) AS on_the_way
+                    (SELECT 1 FROM events WHERE userid = ? AND targetid = ? AND actionid = " . ActionTypes::ACTION_STATION_TROOPS . " LIMIT 1) AS on_the_way
             ", [$attacker_id, $kingdom_id, $attacker_id, $kingdom_id]);
 
             $check_data = $res_exists->fetch_assoc();
@@ -460,7 +460,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $user->get_user_id() . ".json";
             if (file_exists($cache_file)) {
-                @unlink($cache_file);
+                try {
+                    @unlink($cache_file);
+                } catch (Throwable) {
+                }
             }
 
             $is_world_event = ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT);
@@ -522,11 +525,20 @@ for ($i = Soldiers::SOLDIER_MILITIA; $i <= Soldiers::SOLDIER_ELVENARCHER; $i++) 
 }
 
 $has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
+$has_camp_combat_troops = false;
+foreach ($kingdom_soldiers as $s_id => $cnt) {
+    if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && $cnt > 0) {
+        $has_camp_combat_troops = true;
+        break;
+    }
+}
 
 if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
     $is_spying = $only_scouts_allowed || ($mining_units_count === 0 && $scout_count > 0);
 } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
     $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || (!$has_raiders && $scout_count > 0);
+} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
+    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || (!$has_camp_combat_troops && $scout_count > 0);
 } else {
     $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
 }
@@ -580,8 +592,14 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
 
         while ($inc = $res_inc->fetch_assoc()) {
             $incoming_guild_troops += (int)$inc["count"];
-            $time_left = max(0, (int)$inc["earliest_arrival"] - $now);
-            $info_text = "<b>" . e($inc["username"]) . "</b> (" . fnum($inc["count"]) . " Truppen, Ankunft in " . convert_sec_to_str($time_left) . ")";
+
+            $time_diff = (int)$inc["earliest_arrival"] - $now;
+            if ($time_diff <= 0) {
+                $time_text = "treffen gerade ein";
+            } else {
+                $time_text = "Ankunft in " . convert_sec_to_str($time_diff);
+            }
+            $info_text = "<b>" . e($inc["username"]) . "</b> (" . fnum($inc["count"]) . " Truppen, $time_text)";
 
             $incoming_marchers_info[] = $info_text;
 
@@ -870,6 +888,8 @@ if ($barracks_level > 0) {
             $button_label = $is_spying ? "Späher entsenden" : "Ruine stürmen";
         } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
             $button_label = $is_spying ? "Späher entsenden" : "Vorratslager plündern";
+        } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
+            $button_label = $is_spying ? "Späher entsenden" : "Camp angreifen";
         }
 
         $mine_attrs = "";
@@ -1072,7 +1092,7 @@ if ($barracks_level > 0) {
     }
 } else {
     $view .= "<div style='margin-top: 20px;'>" .
-        show_warning_box("Du kannst keine Truppen versenden, da du in diesem Königreich keine Kaserne errichtet hast.") .
+        show_warning_box("Du hast in diesem Königreich keine Kaserne errichtet.") .
         "</div>";
 }
 
@@ -1081,4 +1101,3 @@ if ($barracks_level > 0) {
  */
 echo "<div id='modal-title-data' data-title='" . e($send_title) . "' data-width='850px' style='display: none;'></div>";
 echo "<div style='padding: 10px; max-width: 850px; margin: 0 auto; box-sizing: border-box; text-align: left;'>" . $view . "</div>";
-echo "<br><div style='text-align: center;'><button type='button' data-on-click='closeOverlay'>Schließen</button></div>";

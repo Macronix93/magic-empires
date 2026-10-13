@@ -25,7 +25,7 @@ $now = time();
 // ACCOUNT ACTIVATION
 if (!empty($_GET["key"])) {
     $activation_key = make_secure($_GET["key"]);
-    $result = $db_instance->execute_query("SELECT id, username, status FROM users WHERE activationkey = ? LIMIT 1", [$activation_key]);
+    $result = $db_instance->execute_query("SELECT id, username, status, email FROM users WHERE activationkey = ? LIMIT 1", [$activation_key]);
 
     if ($result && $result->num_rows > 0) {
         $user_data = $result->fetch_assoc();
@@ -296,7 +296,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if (empty($error)) {
                 $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? OR email = ?", [$name, $email]);
 
-                if ($result->num_rows > 0) {
+                if ($result->num_rows > 0 || PhpBBBridge::username_exists($name)) {
                     $error .= "Benutzername oder E-Mail existiert bereits!<br>";
                 } else {
                     try {

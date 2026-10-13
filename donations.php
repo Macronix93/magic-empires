@@ -54,7 +54,7 @@ $view .= "
             </tr>
             <tr>
                 <td><b>Kopfnuss</b></td>
-                <td class='td-center'>1 €</td>
+                <td class='td-center'>2 €</td>
             </tr>
             <tr>
                 <td><b>Hörnchen</b></td>

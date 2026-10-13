@@ -334,8 +334,8 @@ class WorldEvent
         $res = $this->mysqli->execute_query("
         SELECT MAX(buildinglevel) 
         FROM buildings 
-        WHERE buildingid = 0 
-        AND kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?)", [$user_id]);
+        WHERE buildingid = ? 
+        AND kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?)", [BuildingTypes::BUILDING_TOWNCENTER, $user_id]);
         return (int)($res->fetch_column() ?? 1);
     }
 

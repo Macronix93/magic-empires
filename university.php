@@ -353,32 +353,34 @@ for ($i = 0; $i < $tech_count; $i++) {
             $required_uni_lvl = Tech::get_required_university_level($tech_obj_id, $target_level);
             $is_uni_locked = ($current_uni_lvl < $required_uni_lvl);
 
-            $restriction_note = "";
-            if ($is_uni_locked) {
-                $restriction_note = "<br><span class='error' style='font-size: 11px;'>Universität Stufe $required_uni_lvl benötigt</span>";
-            }
-
             $is_wt_locked = false;
+            $required_wt_lvl = 0;
             if ($tech_obj_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
                 $required_wt_lvl = $target_level + 1;
                 $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
-
                 if ($current_wt_lvl < $required_wt_lvl) {
                     $is_wt_locked = true;
-                    $restriction_note .= "<br><span class='error' style='font-size: 11px;'>Wachturm Stufe $required_wt_lvl benötigt</span>";
                 }
             }
 
-            $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-            $disabled = ($res_disabled || $is_uni_locked || $is_wt_locked) ? "disabled" : "";
-            $btn_text = ($level > 0 ? "Upgrade" : "Forschen");
+            if ($is_uni_locked || $is_wt_locked) {
+                $lock_msgs = [];
 
-            $text_build = "<form action='university.php' method='GET'>
-                            <input type='hidden' name='action' value='research'>
-                            <input type='hidden' name='tid' value='" . $i . "'>
-                            <input type='submit' value='" . $btn_text . "' $disabled>
-                            $restriction_note
-                        </form>";
+                if ($is_uni_locked) $lock_msgs[] = "Universität Stufe $required_uni_lvl benötigt";
+                if ($is_wt_locked) $lock_msgs[] = "Wachturm Stufe $required_wt_lvl benötigt";
+
+                $text_build = "<span class='error item-needed'>" . implode("<br>", $lock_msgs) . "</span>";
+            } else {
+                $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
+                $disabled = $res_disabled ? "disabled" : "";
+
+                $btn_text = ($level > 0 ? "Upgrade" : "Forschen");
+                $text_build = "<form action='university.php' method='GET'>
+                                <input type='hidden' name='action' value='research'>
+                                <input type='hidden' name='tid' value='" . $i . "'>
+                                <input type='submit' value='" . $btn_text . "' $disabled>
+                                </form>";
+            }
         }
 
         if ($cost_food > 0) {

@@ -47,7 +47,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     if (empty($res_miners)) {
         echo "<p style='text-align: center; opacity: 0.7;'>Aktuell sind keine Truppen in dieser Mine stationiert.</p>";
-        echo "<div style='text-align: center;'><button data-on-click='closeOverlay'>Schließen</button></div>";
         exit;
     }
 
@@ -116,7 +115,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     echo "</table>";
-    echo "<div style='text-align: center;'><button data-on-click='closeOverlay'>Schließen</button></div>";
 } else {
     change_location("map.php");
 }

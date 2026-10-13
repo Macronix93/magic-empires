@@ -173,11 +173,6 @@ registerAction("quoteMessage", (el) => {
         input.scrollIntoView({behavior: "smooth", block: "center"});
     }
 });
-registerAction("toggleReaction", (el) => {
-    const container = el.closest('.reaction-container');
-
-    sendReaction(el.dataset.type, el.dataset.id, el.dataset.emoji, container);
-});
 registerAction("toggleReactionPicker", (el) => {
     const container = el.closest('.reaction-add-wrapper');
     const picker = container.querySelector('.reaction-picker');

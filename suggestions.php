@@ -3,6 +3,11 @@ require_once("includes/core.php");
 
 $user->check_user_login();
 
+if (!SUGGESTIONS_ENABLED) {
+    change_location("https://board.magic-empires.de/viewforum.php?f=7");
+    exit;
+}
+
 $uid = $user->get_user_id();
 $is_admin = $user->is_admin();
 

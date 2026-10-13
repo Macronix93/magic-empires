@@ -735,13 +735,9 @@ function conversationDeletionDialog(chatPartnerID, chatPartner) {
         "Ja",
         "Nein",
         () => {
-            deleteConversation("messages.php?action=delete&s=" + chatPartnerID);
+            window.location.href = "messages.php?action=delete&s=" + chatPartnerID;
         }
     );
-}
-
-function deleteConversation(url) {
-    window.location.href = url;
 }
 
 function updateNavigationBadges(privCount, worldCount, guildCount, achCount) {

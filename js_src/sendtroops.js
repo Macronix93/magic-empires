@@ -119,7 +119,7 @@ registerAction("selectAllTroops", () => {
     const hasMineLimit = form && form.dataset.mineLimit !== undefined;
     let remainingQuota = hasMineLimit ? parseInt(form.dataset.mineLimit) : Infinity;
     const isMine = form && form.dataset.isMine === "true";
-    const scoutId = form ? (form.dataset.scoutId || "12") : "12";
+    const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
 
     let hasNormalUnitsAvailable = false;
     if (isMine) {
@@ -312,7 +312,7 @@ function updateTroopSummary() {
     const summaryContainer = document.getElementById("troop-summary-container");
     const actionButtons = document.getElementById("troop-action-buttons");
     const form = document.getElementById("send-troops-form");
-    const scoutId = form ? (form.dataset.scoutId || "12") : "12";
+    const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
 
     if (form && form.dataset.isMine === "true") {
         const scoutInput = document.getElementById("sol_" + scoutId);
@@ -469,7 +469,7 @@ function updateTroopSummary() {
         let hasOnlyScouts;
         let nonScoutCount = 0;
         let scoutCount = 0;
-        const scoutId = form.dataset.scoutId || "12";
+        const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
 
         inputs.forEach(input => {
             const val = parseInt(input.value) || 0;
