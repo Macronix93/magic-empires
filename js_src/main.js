@@ -173,6 +173,12 @@ registerAction("quoteMessage", (el) => {
         input.scrollIntoView({behavior: "smooth", block: "center"});
     }
 });
+registerAction("toggleReaction", (el) => {
+    window.lastReactionClick = Date.now();
+    const container = el.closest('.reaction-container');
+
+    sendReaction(el.dataset.type, el.dataset.id, el.dataset.emoji, container);
+});
 registerAction("toggleReactionPicker", (el) => {
     const container = el.closest('.reaction-add-wrapper');
     const picker = container.querySelector('.reaction-picker');
@@ -428,7 +434,7 @@ function switchKingdomById(kingdomId) {
                 let filename = currentUrl.pathname.split('/').pop();
 
                 if (filename === "map.php" && typeof window.handleMapKingdomSwitch === "function") {
-                    window.handleMapKingdomSwitch(data.kingdom, data.sidebar_html);
+                    window.handleMapKingdomSwitch(data.kingdom, data.sidebar_html, data.has_any_alchemy_ready);
                     return;
                 }
 
@@ -976,7 +982,11 @@ window.addEventListener("DOMContentLoaded", function () {
             leftMenu.classList.toggle("open");
             leftTrigger.classList.toggle("open");
 
-            closeOverlay();
+            if (typeof closeAllOverlays === "function") {
+                closeAllOverlays();
+            } else if (typeof closeOverlay === "function") {
+                closeOverlay();
+            }
 
             const isAnyMenuOpen = leftMenu.classList.contains("open") || rightMenu.classList.contains("open");
             toggleMobileElements(isAnyMenuOpen);
@@ -995,7 +1005,11 @@ window.addEventListener("DOMContentLoaded", function () {
             rightMenu.classList.toggle("open");
             rightTrigger.classList.toggle("open");
 
-            closeOverlay();
+            if (typeof closeAllOverlays === "function") {
+                closeAllOverlays();
+            } else if (typeof closeOverlay === "function") {
+                closeOverlay();
+            }
 
             const isAnyMenuOpen = leftMenu.classList.contains("open") || rightMenu.classList.contains("open");
             toggleMobileElements(isAnyMenuOpen);
@@ -1060,14 +1074,43 @@ window.addEventListener("DOMContentLoaded", function () {
     if (serverTime) updateServerTime(parseInt(serverTime));
     initAutomaticCountdowns();
 
+    const isTouchDevice = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    let pageLoadedAt = Date.now();
+    let userTouchedPage = false;
+
+    if (isTouchDevice) {
+        window.addEventListener("touchstart", () => {
+            userTouchedPage = true;
+        }, {passive: true, capture: true, once: true});
+    }
+
     document.addEventListener("focus", function (e) {
-        if (e.target.tagName === "INPUT") {
-            if (e.target.getAttribute("inputmode") === "numeric" ||
-                e.target.classList.contains("js-unit-input") ||
-                e.target.classList.contains("js-recruit-input")) {
-                e.target.select();
-            }
+        const target = e.target;
+        if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") return;
+
+        const isNumericInput = target.getAttribute("inputmode") === "numeric" ||
+            target.classList.contains("js-unit-input") ||
+            target.classList.contains("js-recruit-input");
+
+        if (!isNumericInput) return;
+
+        if (!isTouchDevice) {
+            target.select();
+            return;
         }
+
+        if (!userTouchedPage && (Date.now() - pageLoadedAt < 350)) {
+            target.blur();
+            return;
+        }
+
+        setTimeout(() => {
+            try {
+                target.setSelectionRange(0, target.value.length);
+            } catch (_) {
+                target.select();
+            }
+        }, 30);
     }, true);
 
     document.addEventListener("mousemove", (e) => {

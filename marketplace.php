@@ -169,8 +169,9 @@ $view .= '<form action="marketplace.php" method="GET"
 </table><br>';
 
 $query = "
-    SELECT m.*, k.mapx, k.mapy 
-    FROM marketplace m 
+    SELECT m.*, k.mapx, k.mapy, u.guildid AS seller_guild_id
+    FROM marketplace m
+    JOIN users u ON m.userid = u.id
     LEFT JOIN kingdoms k ON m.kingdomid = k.id 
     WHERE (m.guild_id = 0 OR (m.guild_id > 0 AND m.guild_id = ?))
     ORDER BY m.offerid DESC LIMIT ?, ?
@@ -222,7 +223,10 @@ if ($result->num_rows > 0) {
         if ($is_my_offer) {
             $arrival_time_str = "-";
         } else {
-            $seconds = $map->get_arrival_time($my_x, $my_y, $map_x, $map_y, -1, null, false, true);
+            $seller_gid = (int)($row["seller_guild_id"] ?? 0);
+            $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
+
+            $seconds = $map->get_arrival_time($my_x, $my_y, $map_x, $map_y, -1, null, false, true, false, $is_ally_deal);
             $arrival_time_str = convert_sec_to_str($seconds, true);
         }
 

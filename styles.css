@@ -1149,6 +1149,26 @@ select:-webkit-autofill:focus {
     display: block;
 }
 
+.guild-donation-table {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    font-size: 14px;
+}
+
+.guild-donation-table-name {
+    width: 35%;
+}
+
+.guild-donation-table-resources {
+    width: auto;
+}
+
+.guild-donation-table-sum {
+    width: 17%;
+}
+
 .avatar-container {
     position: relative;
     display: inline-block;
@@ -1616,7 +1636,7 @@ tr:first-child td.td-gradient {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.6);
     z-index: 2000000;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -2805,7 +2825,7 @@ img[data-on-click] {
 .userinfo-k-row .kingdom-name-break {
     flex: 1 1 auto;
     min-width: 0;
-    max-width: 160px !important;
+    max-width: 190px !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3476,6 +3496,11 @@ img[data-on-click] {
     font-size: 12px;
 }
 
+.boost-button .ressource-icons {
+    width: 20px;
+    height: 20px;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3503,6 +3528,32 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .boost-button .ressource-icons {
+        width: 14px;
+        height: 14px;
+    }
+
+    .guild-donation-table {
+        font-size: 12px;
+    }
+
+    .guild-donation-table .ressource-icons {
+        width: 16px;
+        height: 16px;
+    }
+
+    .guild-donation-table-name {
+        width: 40%;
+    }
+
+    .guild-donation-table-resources {
+        width: auto;
+    }
+
+    .guild-donation-table-sum {
+        width: 22%;
     }
 
     .ranking-table .image-and-user {
@@ -3866,6 +3917,7 @@ img[data-on-click] {
         width: 16px;
         height: 16px;
     }
+
 
     .no-event {
         font-size: 14px;

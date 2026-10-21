@@ -23,10 +23,7 @@ if (isset($_POST["activate_boost"])) {
         if ($user->get_user_coins() >= $boost_cost) {
             $user->give_user_coins(-$boost_cost);
 
-            $res_ft = $db_instance->execute_query("SELECT ft.foodrate FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$current_kingdom]);
-            $ft = $res_ft->fetch_assoc();
-
-            $hourly_boost = (int)round(BASE_FOOD_GAIN * $ft["foodrate"] * BOOST_PRODUCTION_BONUS);
+            $hourly_boost = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
 
             $db_instance->execute_query(
                 "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
@@ -60,7 +57,7 @@ $res_ft = $db_instance->execute_query("
     JOIN field_types ft ON m.fieldtype = ft.fieldid 
     WHERE m.kingdomid = ?", [$current_kingdom]);
 $ft_res = $res_ft->fetch_assoc();
-$boost_value = (int)($ft_res["foodrate"] * BASE_FOOD_GAIN);
+$boost_value = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
 
 $next_level_text = "";
 if ($lvl < MAX_BUILDING_LEVEL) {
@@ -79,7 +76,7 @@ if ($ticks_left > 0) {
 } else {
     $view .= "<p>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
     $view .= "<form method='POST'>
-                <button type='submit' name='activate_boost' $disabled>
+                <button type='submit' name='activate_boost' class='boost-button' $disabled>
                     Boost aktivieren für $cost_display_html
                 </button>
             </form>";

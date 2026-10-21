@@ -110,7 +110,7 @@ foreach ($grouped as $catKey => $items) {
                 $reward_display = $reward_text_and_coin;
             }
         } else {
-            $reward_display = "<span style='opacity: 0.5;'>-</span>";
+            $reward_display = "-";
         }
 
         $progress_html = "";

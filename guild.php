@@ -615,8 +615,9 @@ if ($my_guild_id === -1) {
     $view .= "</table>";
 
     $my_rank = $user->get_guild_rank_id();
+    $can_view_invites = ($my_rank <= GuildRanks::GUILD_OFFICER || !empty($my_perms["can_invite"]));
 
-    if ($my_rank <= GuildRanks::GUILD_OFFICER) {
+    if ($can_view_invites) {
         $pending = $guild_logic->get_pending_invites($my_guild_id);
 
         if ($pending->num_rows > 0) {
@@ -635,24 +636,31 @@ if ($my_guild_id === -1) {
                         <td class='td-gradient'></td>
                     </tr>";
 
+            $is_high_rank = ($my_rank <= GuildRanks::GUILD_OFFICER);
+
             while ($p = $pending->fetch_assoc()) {
                 $time_left = $p["expires_at"] - time();
 
                 $invited_user = new User($p["invited_user_id"], $p["username"]);
                 $inviter = new User($p["inviter_id"], $p["inviter_name"]);
 
+                $is_my_invite = ((int)$p["inviter_id"] === $user->get_user_id());
+                $can_cancel_this = ($is_high_rank || $is_my_invite);
+
+                $action_cell = $can_cancel_this ? "
+                    <img src='images/icons/icon_error.png' class='ressource-icons' 
+                         style='cursor:pointer' 
+                         data-on-click='confirmCancelInvite' 
+                         data-id='{$p["id"]}' 
+                         data-name='" . e($p["username"]) . "' 
+                         title='Einladung zurückziehen' alt='X'>
+                " : "-";
+
                 $view .= "<tr>
                         <td>" . $invited_user->render_user() . "</td>
                         <td>" . $inviter->render_user() . "</td>
                         <td class='td-center'>" . convert_sec_to_str($time_left) . "</td>
-                        <td class='td-center'>
-                            <img src='images/icons/icon_error.png' class='ressource-icons' 
-                                 style='cursor:pointer' 
-                                 data-on-click='confirmCancelInvite' 
-                                 data-id='{$p["id"]}' 
-                                 data-name='" . e($p["username"]) . "'
-                                 title='Einladung zurückziehen' alt=''>
-                        </td>
+                        <td class='td-center'>$action_cell</td>
                       </tr>";
             }
             $view .= "</table>";
@@ -1146,21 +1154,45 @@ if ($my_guild_id === -1) {
 
         $view .= "<div class='title-border' style='margin-top: 25px;'>Projekt-Unterstützer</div>";
         if ($top->num_rows > 0) {
-            $view .= "<table class='table' style='max-width: 450px; margin-bottom: 20px;'>
+            $view .= "<table class='table' style='margin: 0 auto 20px auto;'>
+                        <colgroup>
+                            <col class='guild-donation-table-name'>
+                            <col class='guild-donation-table-resources'>
+                            <col class='guild-donation-table-sum'>
+                        </colgroup>
                         <tr>
-                            <td class='td-gradient'><b>Name</b></td>
+                            <td class='td-gradient td-center'><b>Name</b></td>
                             <td class='td-gradient td-center'><b>Ressourcen</b></td>
+                            <td class='td-gradient td-center'><b>Summe</b></td>
                         </tr>";
 
             while ($r = $top->fetch_assoc()) {
                 $contributor_user = new User($r["id"], $r["username"]);
 
-                $view .= "<tr>
-                                <td>" . $contributor_user->render_user() . "</td>
-                                <td class='td-center'>" . fnum($r["val"]) . "</td>
-                              </tr>";
-            }
+                $donated_items = [];
+                if ((int)$r["food"] > 0) {
+                    $donated_items[] = "<span class='guild-donation-table'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum((int)$r["food"]) . "</span>";
+                }
+                if ((int)$r["wood"] > 0) {
+                    $donated_items[] = "<span class='guild-donation-table'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum((int)$r["wood"]) . "</span>";
+                }
+                if ((int)$r["stone"] > 0) {
+                    $donated_items[] = "<span class='guild-donation-table'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum((int)$r["stone"]) . "</span>";
+                }
+                if ((int)$r["gold"] > 0) {
+                    $donated_items[] = "<span class='guild-donation-table'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum((int)$r["gold"]) . "</span>";
+                }
 
+                $donations_html = !empty($donated_items)
+                    ? "<div style='display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: center; align-items: center;'>" . implode("", $donated_items) . "</div>"
+                    : "-";
+
+                $view .= "<tr>
+                    <td>" . $contributor_user->render_user() . "</td>
+                    <td class='td-center'>$donations_html</td>
+                    <td class='td-center'>" . fnum($r["val"]) . "</td>
+                </tr>";
+            }
             $view .= "</table>";
         } else {
             $view .= "<p style='text-align: center; opacity: 0.6;'>Bisher hat noch niemand zu diesem Projekt beigetragen.</p>";
@@ -1203,12 +1235,12 @@ if ($my_guild_id === -1) {
     if ($member_limit_lvl > 0) {
         $val = fnum($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
         $total_max = GUILD_BASE_MEMBER_LIMIT + ($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
-        $guild_boni_view .= "<tr><td>Ratsversammlung:</td><td class='passed'>+$val Mitglieder (Gesamt: $total_max)</td></tr>";
+        $guild_boni_view .= "<tr><td>Ratsversammlung:</td><td class='passed'>+$val Mitglieder-Slots (Gesamt: $total_max)</td></tr>";
     }
 
     if (!empty($guild_boni_view)) {
         $view .= "<div class='title-border'>Aktive Gilden-Boni</div>";
-        $view .= "<table class='table' style='max-width: 550px; margin-bottom: 25px;'>$guild_boni_view</table>";
+        $view .= "<table class='table' style='margin-bottom: 25px;'>$guild_boni_view</table>";
     }
 
     // Guild Storage

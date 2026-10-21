@@ -117,6 +117,9 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
                     <span class="msg-badge"><?= $unread_news ?></span>
                 <?php endif; ?>
             </div>
+            <div class="box" data-on-click="navigate" data-url="forum.php">
+                <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
+            </div>
             <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="settings.php">
                 <img src="images/icons/icon_settings.png" class="menu-icons" alt="Einstellungen"/> Einstellungen
@@ -148,9 +151,6 @@ $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
     <div class="box-container left-right-container" style="margin-bottom: 0;">
         <div class="box-header">Sonstiges</div>
         <div class="box-content">
-            <div class="box" data-on-click="navigate" data-url="forum.php">
-                <img src="images/icons/icon_forum.png" class="menu-icons" alt="Forum"/> Forum
-            </div>
             <div class="box<?= $current_page === 'stats.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="stats.php">
                 <img src="images/icons/icon_statistics.png" class="menu-icons" alt="Statistiken"/> Statistiken

@@ -500,6 +500,18 @@ $pure_base_atk = 0;
 $pure_base_def = 0;
 $total_smithy_atk = 0;
 $total_shrine_atk = 0;
+$cat_atk = [
+    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
+    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
+    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
+    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
+];
+$cat_def = [
+    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
+    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
+    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
+    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
+];
 
 foreach ($result_combined as $row) {
     $soldier_id = (int)$row["soldierid"];
@@ -513,28 +525,35 @@ foreach ($result_combined as $row) {
         $pure_base_atk += $sol_count * $s_obj->get_soldier_attack();
         $pure_base_def += $sol_count * $s_obj->get_soldier_defense();
 
-        $b_atk = 0;
-        $b_def = 0;
-        if ($cat == SoldierTypes::SOLDIER_TYPE_INFANTRY) {
-            $b_atk = $inf_atk_lvl * SMITHY_INF_ATK_BONUS;
-            $b_def = $inf_def_lvl * SMITHY_INF_DEF_BONUS;
-        } else if ($cat == SoldierTypes::SOLDIER_TYPE_CAVALRY) {
-            $b_atk = $cav_atk_lvl * SMITHY_CAV_ATK_BONUS;
-            $b_def = $cav_def_lvl * SMITHY_CAV_DEF_BONUS;
-        } else if ($cat == SoldierTypes::SOLDIER_TYPE_ARCHERS) {
-            $b_atk = $arc_atk_lvl * SMITHY_ARC_ATK_BONUS;
-            $b_def = $arc_def_lvl * SMITHY_ARC_DEF_BONUS;
-        }
+        $b_atk = match ($cat) {
+            SoldierTypes::SOLDIER_TYPE_INFANTRY => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
+            SoldierTypes::SOLDIER_TYPE_CAVALRY => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
+            SoldierTypes::SOLDIER_TYPE_ARCHERS => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
+            default => 0
+        };
+        $b_def = match ($cat) {
+            SoldierTypes::SOLDIER_TYPE_INFANTRY => $inf_def_lvl * SMITHY_INF_DEF_BONUS,
+            SoldierTypes::SOLDIER_TYPE_CAVALRY => $cav_def_lvl * SMITHY_CAV_DEF_BONUS,
+            SoldierTypes::SOLDIER_TYPE_ARCHERS => $arc_def_lvl * SMITHY_ARC_DEF_BONUS,
+            default => 0
+        };
 
         $unit_atk_with_shrine = (int)($s_obj->get_soldier_attack() * $shrine_atk_mult);
         $unit_shrine_gain = $unit_atk_with_shrine - $s_obj->get_soldier_attack();
 
-        $total_k_atk += $sol_count * ($unit_atk_with_shrine + $b_atk);
-        $total_k_def += $sol_count * ($s_obj->get_soldier_defense() + $b_def);
+        $final_atk = $sol_count * ($unit_atk_with_shrine + $b_atk);
+        $final_def = $sol_count * ($s_obj->get_soldier_defense() + $b_def);
+
+        $total_k_atk += $final_atk;
+        $total_k_def += $final_def;
         $total_smithy_atk += ($sol_count * $b_atk);
         $total_shrine_atk += ($sol_count * $unit_shrine_gain);
-
         $total_k_units += $sol_count;
+
+        if (isset($cat_atk[$cat])) {
+            $cat_atk[$cat] += $final_atk;
+            $cat_def[$cat] += $final_def;
+        }
     }
 }
 
@@ -592,6 +611,27 @@ $res_support_sum = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount),
 $total_support_units = (int)$res_support_sum->fetch_row()[0];
 $support_limit = $kingdom->get_support_limit();
 
+$inf_cat = SoldierTypes::SOLDIER_TYPE_INFANTRY;
+$cav_cat = SoldierTypes::SOLDIER_TYPE_CAVALRY;
+$arc_cat = SoldierTypes::SOLDIER_TYPE_ARCHERS;
+$spec_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
+
+$render_split_row = function (string $label, int $val, string $extra_class = ""): string {
+    if ($val <= 0) return "";
+    $class = "split-content" . ($extra_class ? " $extra_class" : "");
+    return "<div class='$class' style='gap: 15px;'><span>$label:</span>" . fnum($val, true) . "</div>";
+};
+
+$cat_numbers_atk_str = $render_split_row("Infanterie", $cat_atk[$inf_cat])
+    . $render_split_row("Kavallerie", $cat_atk[$cav_cat])
+    . $render_split_row("Schützen", $cat_atk[$arc_cat])
+    . $render_split_row("Spezial", $cat_atk[$spec_cat]);
+
+$cat_numbers_def_str = $render_split_row("Infanterie", $cat_def[$inf_cat])
+    . $render_split_row("Kavallerie", $cat_def[$cav_cat])
+    . $render_split_row("Schützen", $cat_def[$arc_cat])
+    . $render_split_row("Spezial", $cat_def[$spec_cat]);
+
 $view .= "
 <div class='garnison-box'>
     <table style='width: 100%; border-collapse: collapse; border: none; background: transparent;'>
@@ -602,19 +642,25 @@ $view .= "
             <td style='background: transparent; border: none; padding: 2px 0; text-align: right; white-space: nowrap;'>
                 <span class='popup $atk_class' id='total_atk_info'>
                     " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span>" . fnum($total_k_atk, false, true) . "</span>
-                    <div id='total_atk_info_box' class='popupbox' style='text-align:left;'>
-                        <b>Angriffs-Bonus:</b><br>
-                        Basis: " . fnum($pure_base_atk, true) . "<br>
-                        " . ($total_smithy_atk > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_atk, true) . "</span><br>" : "") . "
-                        " . ($total_shrine_atk > 0 ? "<span class='passed'>Schrein: +" . fnum($total_shrine_atk, true) . "</span>" : "") . "
+                    <div id='total_atk_info_box' class='popupbox' style='text-align: left; min-width: 240px;'>
+                        <b>Angriffs-Bonus:</b>
+                        <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base_atk, true) . "</span></div>
+                        " . ($total_smithy_atk > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_atk, true) . "</span></div>" : "") . "
+                        " . ($total_shrine_atk > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($total_shrine_atk, true) . "</span></div>" : "") . "
+                        <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+                        <b>Gattungen:</b>
+                        $cat_numbers_atk_str
                     </div>
                 </span>
                 <span style='margin-left: 10px;' class='popup $def_class' id='total_def_info'>
                     " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span>" . fnum($total_k_def, false, true) . "</span>
-                    <div id='total_def_info_box' class='popupbox' style='text-align:left;'>
-                        <b>Verteidigungs-Bonus:</b><br>
-                        Basis: " . fnum($pure_base_def, true) . "<br>
-                        " . ($total_smithy_def > 0 ? "<span class='passed'>Schmiede: +" . fnum($total_smithy_def, true) . "</span>" : "") . "
+                    <div id='total_def_info_box' class='popupbox' style='text-align: left; min-width: 240px;'>
+                        <b>Verteidigungs-Bonus:</b>
+                        <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base_def, true) . "</span></div>
+                        " . ($total_smithy_def > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_def, true) . "</span></div>" : "") . "
+                        <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+                        <b>Gattungen:</b>
+                        $cat_numbers_def_str
                     </div>
                 </span>
             </td>

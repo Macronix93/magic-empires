@@ -100,7 +100,8 @@ while ($ev = $finished_events->fetch_assoc()) {
         SELECT p.*, u.username, u.mainkingdom 
         FROM world_event_participants p 
         JOIN users u ON p.userid = u.id 
-        WHERE p.event_id = ?", [$ev["id"]]);
+        WHERE p.event_id = ? AND p.total_damage > 0",
+        [$ev["id"]]);
 
     while ($p = $participants->fetch_assoc()) {
         $u_id = (int)$p["userid"];

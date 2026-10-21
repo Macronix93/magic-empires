@@ -33,6 +33,8 @@ if ($user_id) {
         return;
     }
 
+    echo '<div id="modal-title-data" data-width="580px" style="display: none;"></div>';
+
     // Check, if a conversation already exists with that user
     $res_conv = $db_instance->execute_query("
         SELECT 1 FROM messages 
@@ -50,30 +52,28 @@ if ($user_id) {
     $target_guild_id = (int)$row["guildid"];
     $is_ally = ($my_guild_id > 0 && $my_guild_id === $target_guild_id && $user->get_user_id() !== $user_id);
 
-// 1. Gilden-Kapazitätsbonus EINMALIG vorab ermitteln (statt in jedem Schleifendurchlauf):
     $g_cap_bonus = 0;
     if ($is_ally) {
         $g_cap_lvl = Guild::get_user_guild_tech_level($user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
         $g_cap_bonus = $g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL;
     }
 
-// 2. Alle Dörfer INKLUSIVE Kasernen-Stufe und Truppenbelegung in EINEM EINZIGEN Query abfragen:
     $query_all_k = "
-    SELECT 
-        k.id, 
-        k.kingdomname, 
-        k.mapx, 
-        k.mapy,
-        IFNULL(b.buildinglevel, 0) AS barracks_level,
-        (
-            IFNULL((SELECT SUM(soldiercount) FROM stationed_troops WHERE target_kingdom_id = k.id), 0) +
-            IFNULL((SELECT SUM(st.soldiercount) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = k.id AND e.actionid = " . ActionTypes::ACTION_STATION_TROOPS . "), 0)
-        ) AS current_support
-    FROM kingdoms k
-    LEFT JOIN buildings b ON b.kingdomid = k.id AND b.buildingid = " . BuildingTypes::BUILDING_BARRACKS . "
-    WHERE k.userid = ?
-    ORDER BY k.created_at, k.id
-";
+        SELECT 
+            k.id, 
+            k.kingdomname, 
+            k.mapx, 
+            k.mapy,
+            IFNULL(b.buildinglevel, 0) AS barracks_level,
+            (
+                IFNULL((SELECT SUM(soldiercount) FROM stationed_troops WHERE target_kingdom_id = k.id), 0) +
+                IFNULL((SELECT SUM(st.soldiercount) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = k.id AND e.actionid = " . ActionTypes::ACTION_STATION_TROOPS . "), 0)
+            ) AS current_support
+        FROM kingdoms k
+        LEFT JOIN buildings b ON b.kingdomid = k.id AND b.buildingid = " . BuildingTypes::BUILDING_BARRACKS . "
+        WHERE k.userid = ?
+        ORDER BY k.created_at, k.id
+    ";
     $res_all_k = $db_instance->execute_query($query_all_k, [$user_id]);
     $kingdom_count = $res_all_k->num_rows;
 

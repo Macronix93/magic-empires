@@ -42,6 +42,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             echo json_encode([
                 "success" => true,
                 "sidebar_html" => $sidebar_html,
+                "has_any_alchemy_ready" => !empty($sidebar_data["has_any_alchemy_ready"]),
                 "kingdom" => [
                     "id" => $chosen,
                     "name" => $target_name,

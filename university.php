@@ -233,8 +233,8 @@ if ($current_kingdom == $user->get_main_kingdom()) {
             <td>Imperium:</td>
             <td>
                 <span class='passed'>+$settlement_lvl Gründungs-Slots</span><br>
-                <small style='opacity:0.8;'>Erlaubt: $current_allowed Dörfer (Max: " . GLOBAL_SETTLEMENT_MAX . ")</small><br>
-                <small style='opacity:0.8;'>Gegründet: $curr_founded / $current_allowed</small>
+                <small style='opacity: 0.8;'>Erlaubt: $current_allowed Dörfer (Max: " . GLOBAL_SETTLEMENT_MAX . ")</small><br>
+                <small style='opacity: 0.8;'>Gegründet: $curr_founded / $current_allowed</small>
             </td>
         </tr>";
     }
@@ -242,7 +242,7 @@ if ($current_kingdom == $user->get_main_kingdom()) {
 
 if (!empty($boni_view)) {
     $view .= "<div class='title-border'>Aktive Boni (Forschung)</div>";
-    $view .= "<table class='table' style='max-width: 450px; margin-bottom: 10px;'>$boni_view</table>";
+    $view .= "<table class='table' style='max-width: 500px; margin-bottom: 10px;'>$boni_view</table>";
 }
 
 

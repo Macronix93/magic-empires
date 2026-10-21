@@ -35,7 +35,7 @@ registerAction("switchSuggestionTab", (el) => {
 });
 registerAction("voteSuggestion", (el) => {
     const sugId = el.dataset.id;
-    const type = el.dataset.type; // "up" oder "down"
+    const type = el.dataset.type; // "up" or "down"
     const voteBar = el.closest(".suggestion-vote-bar");
 
     const formData = new URLSearchParams();

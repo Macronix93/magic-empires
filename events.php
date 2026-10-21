@@ -24,9 +24,8 @@ $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
 if ($active_event) {
     if (isset($_POST["set_reward_kingdom"])) {
         $chosen_kid = (int)($_POST["reward_kingdom_id"] ?? 0);
-        $top_kid = (int)($user_participation["top_kingdom_id"] ?? 0);
 
-        if ($chosen_kid === 0 || ($top_kid > 0 && $chosen_kid === $top_kid)) {
+        if ($chosen_kid === 0) {
             $db_instance->execute_query("
                 INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage, reward_kingdom_id)
                 VALUES (?, ?, 0, 0, 0, 0, NULL)
@@ -34,7 +33,6 @@ if ($active_event) {
             ", [$active_event["id"], $user_id]);
 
             $_SESSION["game_success"] = "Beute-Ziel auf 'Automatisch' gesetzt!";
-
             change_location("events.php");
             exit;
         } else {
@@ -48,7 +46,6 @@ if ($active_event) {
                 ", [$active_event["id"], $user_id, $chosen_kid]);
 
                 $_SESSION["game_success"] = "Beute-Zielkönigreich erfolgreich festgelegt!";
-
                 change_location("events.php");
                 exit;
             }
@@ -139,11 +136,13 @@ if ($active_event) {
 
                     $db_instance->execute_query(
                         "UPDATE soldiers SET soldiercount = 0 
-                     WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
-                       AND soldierid NOT IN ($excluded_str) 
-                       AND soldiercount > 0",
+                         WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
+                           AND soldierid NOT IN ($excluded_str) 
+                           AND soldiercount > 0",
                         [$user_id]
                     );
+
+                    Stats::update_player_stat($user_id, "troops_sent_combat");
 
                     $db_instance->commit();
 
@@ -300,26 +299,32 @@ if (!$active_event) {
     $exclude_specials_cookie = ($_COOKIE["me_mass_exclude_specials"] ?? "1") === "1";
     $checkbox_checked = $exclude_specials_cookie ? "checked" : "";
 
-    $view .= "<div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-direction: column; margin-bottom: 20px;'>
-                <div style='display: flex; justify-content: space-between; width: 240px;'>
-                    Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
-                </div>
-                <div style='display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 320px;'>
-                    <button data-on-click='openOverlay' data-url='" . $target_url . "' $single_disabled $single_title style='width: 230px;'>
-                        Aus Königreich auswählen
-                    </button>
-                    <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
-                    <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
-                        <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
-                            " . Messages::wrap_emojis("⚔️ Massenmobilisierung") . "
+    $view .= "
+    <div class='box-container' style='max-width: 420px; margin: 0 auto 25px auto;'>
+        <div class='box-header'>Truppenentsendung</div>
+            <div class='box-content box-content-bg' style='padding: 15px 20px;'>
+                <div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-direction: column;'>
+                    <div style='display: flex; justify-content: space-between; width: 240px;'>
+                        Verbleibende Zeit: <b><span class='js-countdown' data-seconds='$time_left'>$php_timer_display</span></b>
+                    </div>
+                    <div style='display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 320px;'>
+                        <button data-on-click='openOverlay' data-url='" . $target_url . "' $single_disabled $single_title style='width: 230px;'>
+                            Aus Königreich auswählen
                         </button>
-                        <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none;'>
-                            <input type='checkbox' name='exclude_specials' value='1' data-on-change='toggleMassExcludeSpecials' $checkbox_checked style='margin: 0; width: auto;'>
-                            <span class='mass-troop-label'>Ohne Spezial-Einheiten (außer Helden)</span>
-                        </label>
-                    </form>
+                        <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
+                        <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
+                            <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
+                                " . Messages::wrap_emojis("⚔️ Massenmobilisierung") . "
+                            </button>
+                            <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none; margin-top: 15px;'>
+                                <input type='checkbox' name='exclude_specials' value='1' data-on-change='toggleMassExcludeSpecials' $checkbox_checked style='margin: 0; width: auto;'>
+                                <span class='mass-troop-label'>Ohne Spezial-Einheiten (außer Helden)</span>
+                            </label>
+                        </form>
+                    </div>
                 </div>
-              </div>";
+          </div>
+    </div>";
     $view .= "<div class='title-border'>" . e($monster["name"]) . "</div>";
 
     if ($event_type === "BOSS_HP") {
@@ -420,28 +425,23 @@ if (!$active_event) {
         $current_reward_kid = (int)($user_participation["reward_kingdom_id"] ?? 0);
         $top_kid = (int)($user_participation["top_kingdom_id"] ?? 0);
 
-        $is_auto_active = ($current_reward_kid === 0 || ($top_kid > 0 && $current_reward_kid === $top_kid));
-
         $auto_label = "Automatisch (Höchster Schaden)";
         if ($top_kid > 0) {
             $top_k_name = $db_instance->query("SELECT kingdomname FROM kingdoms WHERE id = $top_kid")->fetch_column();
             if ($top_k_name) {
-                $auto_label = "Automatisch (Aktuell: " . e($top_k_name) . ")";
+                $auto_label = "Automatisch (" . e($top_k_name) . ")";
             }
         }
 
-        $options_html = "<option value='0' " . ($is_auto_active ? "selected" : "") . ">$auto_label</option>";
+        $options_html = "<option value='0' " . ($current_reward_kid === 0 ? "selected" : "") . ">$auto_label</option>";
 
+        $count = 0;
         foreach ($user_all_k as $uk) {
+            $count++;
             $uk_id = (int)$uk["id"];
-            $is_top = ($top_kid > 0 && $uk_id === $top_kid);
+            $sel = ($uk_id === $current_reward_kid) ? "selected" : "";
 
-            if ($is_top) {
-                $options_html .= "<option value='$uk_id' disabled style='color: #888;'> " . e($uk["kingdomname"]) . " (Bereits via Automatik aktiv)</option>";
-            } else {
-                $sel = (!$is_auto_active && $uk_id === $current_reward_kid) ? "selected" : "";
-                $options_html .= "<option value='$uk_id' $sel>" . e($uk["kingdomname"]) . " ({$uk["mapx"]}:{$uk["mapy"]})</option>";
-            }
+            $options_html .= "<option value='$uk_id' $sel>$count - " . e($uk["kingdomname"]) . " ({$uk["mapx"]}:{$uk["mapy"]})</option>";
         }
 
         $view .= "<div style='font-size: 13px; border-top: 1px solid #555; padding-top: 10px; margin-top: 10px;'>";
@@ -450,10 +450,10 @@ if (!$active_event) {
             <form method='POST' style='display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;'>
                 <span><b>Beute-Ziel:</b></span>
                 <div style='display: flex; gap: 6px; align-items: center;'>
-                    <select name='reward_kingdom_id' style='padding: 3px 25px 3px 6px; font-size: 12px;'>
+                    <select name='reward_kingdom_id' style='max-width: 220px; font-size: 12px;'>
                         $options_html
                     </select>
-                    <input type='submit' name='set_reward_kingdom' value='Speichern' style='font-size: 11px; padding: 3px 8px;'>
+                    <input type='submit' name='set_reward_kingdom' value='Speichern' style='font-size: 11px;'>
                 </div>
             </form>";
         } else {
@@ -461,7 +461,6 @@ if (!$active_event) {
             $view .= "Beute-Ziel: <b>$single_kname</b>";
         }
         $view .= "</div>";
-
         $view .= "</div></div>";
     } else {
         // --- DAMAGE EVENT LOGIC ---
@@ -642,7 +641,7 @@ if (!$active_event) {
         SELECT u.id, u.username, p.total_damage 
         FROM world_event_participants p 
         JOIN users u ON p.userid = u.id 
-        WHERE p.event_id = ? 
+        WHERE p.event_id = ? AND p.total_damage > 0
         ORDER BY p.total_damage DESC 
         LIMIT 20", [$event_id]);
 

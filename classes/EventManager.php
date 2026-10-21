@@ -489,7 +489,17 @@ class EventManager
 
                 $this->user->set_last_recruited_soldier($row["kingdomid"], $soldier_name, $units_to_deliver, (int)$soldiers[$s_id]->get_soldier_category());
                 $this->update_user_score((int)($units_to_deliver * $soldiers[$s_id]->get_soldier_score_gain()), $this->user);
+
                 Stats::update_player_stat((int)$row["userid"], "units_produced", $units_to_deliver);
+
+                $soldier_cat = (int)$soldiers[$s_id]->get_soldier_category();
+                if (in_array($soldier_cat, [
+                    SoldierTypes::SOLDIER_TYPE_INFANTRY,
+                    SoldierTypes::SOLDIER_TYPE_CAVALRY,
+                    SoldierTypes::SOLDIER_TYPE_ARCHERS
+                ])) {
+                    Stats::update_player_stat((int)$row["userid"], "military_units_produced", $units_to_deliver);
+                }
             }
         }
 
@@ -2988,6 +2998,10 @@ class EventManager
                 $this->mysqli->execute_query("DELETE FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
 
                 $this->turn_back_incoming_resource_tile_troops($target_x, $target_y, $event_id);
+
+                if ($total_actually_looted >= (MAX_RESOURCES_PER_TILE - PERFECT_RESOURCE_PLUNDER_RANGE)) {
+                    Achievement::unlock($attacker_user->get_user_id(), AchievementTypes::ACHIEVEMENT_PERFECT_PLUNDER);
+                }
             } else {
                 $this->mysqli->execute_query("UPDATE resource_tiles_data SET food = food - ?, wood = wood - ?, stone = stone - ?, gold = gold - ? WHERE mapx = ? AND mapy = ?",
                     [$loot_f, $loot_w, $loot_s, $loot_g, $target_x, $target_y]);

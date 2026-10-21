@@ -131,6 +131,16 @@ $css_v = file_exists("styles.css") ? filemtime("styles.css") : 1;
         .receiver-bubble {
             max-width: 700px;
         }
+
+        @media screen and (max-width: 600px) {
+            #messages-section {
+                font-size: 13px;
+            }
+
+            #tab_worldchat {
+                height: 80%;
+            }
+        }
     </style>
 </head>
 <body class="logged-in" data-server-time="<?= time(); ?>" data-flash-limit="120">

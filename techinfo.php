@@ -343,9 +343,6 @@ if ($row) {
 
         switch ($building_id) {
             case BuildingTypes::BUILDING_ALCHEMY_LAB:
-                $cap_inc = fnum(ALCHEMY_CAPACITY_PER_LEVEL);
-                $spd_inc = fnum(ALCHEMY_SPEED_PER_LEVEL);
-
                 $w = ALCHEMY_RESOURCE_WEIGHTS;
                 $w_food = fdec($w[ResourceTypes::RESOURCE_TYPE_FOOD]);
                 $w_wood = fdec($w[ResourceTypes::RESOURCE_TYPE_WOOD]);
@@ -353,10 +350,18 @@ if ($row) {
                 $w_gold = fdec($w[ResourceTypes::RESOURCE_TYPE_GOLD]);
 
                 $biome_info = "<div class='tech-info-box'>";
-                $biome_info .= "<b>Kessel-Effekt:</b><br>";
-                $biome_info .= "Jede Stufe erhöht die Kessel-Kapazität um <span class='passed'>+$cap_inc</span> und das Umwandlungstempo um <span class='passed'>+$spd_inc / Std.</span><br><br>";
-                $biome_info .= "<b>Ressourcen-Wertigkeiten:</b><br>";
-                $biome_info .= "<div style='display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 4px;'>";
+                $biome_info .= "<b>Kessel-Werte nach Ausbaustufe:</b><br>";
+                $biome_info .= "<div style='margin: 5px auto 10px; max-width: fit-content; text-align: left;'>";
+
+                for ($lvl = 1; $lvl <= ALCHEMY_MAX_LEVEL; $lvl++) {
+                    $cap = fnum(Alchemy::get_capacity($lvl), true);
+                    $spd = fnum(Alchemy::get_speed_per_hour($lvl), true);
+
+                    $biome_info .= "<span class='passed'>Stufe $lvl:</span> Kessel: <b>$cap</b> | Tempo: <b>$spd Res./Std.</b><br>";
+                }
+
+                $biome_info .= "</div><b>Ressourcen-Wertigkeiten:</b><br>";
+                $biome_info .= "<div style='display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; margin-top: 4px;'>";
                 $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " <b>$w_food</b></span>";
                 $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " <b>$w_wood</b></span>";
                 $biome_info .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <b>$w_stone</b></span>";
@@ -376,7 +381,8 @@ if ($row) {
                 $res_aligns = $db_instance->query("SELECT name, required_level, bonus_text, malus_text, base_bonus, base_malus FROM shrine_alignments ORDER BY required_level");
 
                 $biome_info = "<div class='tech-info-box'>";
-                $biome_info .= "<b>Freischaltungen nach Stufe:</b><br>";
+                $biome_info .= "<b>Freischaltungen nach Stufe:</b>";
+                $biome_info .= "<div style='margin: 5px auto 10px; max-width: fit-content; text-align: left;'>";
 
                 while ($sa = $res_aligns->fetch_assoc()) {
                     $b_val = (int)($sa["base_bonus"] * 100);
@@ -389,10 +395,9 @@ if ($row) {
                             "</small><br>";
                 }
 
-                $biome_info .= "</div>";
+                $biome_info .= "</div></div>";
                 break;
             case BuildingTypes::BUILDING_MARKETPLACE:
-                $base_trades = MARKET_DAILY_TRADES_BASE;
                 $trade_per_upg = MARKET_TRADES_PER_UPGRADE;
                 $max_mkt_lvl = MARKET_UPGRADE_LIMIT;
 
@@ -400,7 +405,6 @@ if ($row) {
                 $biome_info .= "<b>Tägliche Handelsaktionen:</b><br>";
                 $biome_info .= "Jede Ausbaustufe eines Marktplatzes (bis max. Stufe $max_mkt_lvl) aller deiner Königreiche 
                                 erhöht dein tägliches globales Handelslimit dauerhaft um <span class='passed'>+" . fdec($trade_per_upg) . " Aktionen</span>.<br>";
-                $biome_info .= "Formel: $base_trades Basis + (Summe aller Stufen bis $max_mkt_lvl × " . fdec($trade_per_upg) . "), abgerundet.";
                 $biome_info .= "</div>";
                 break;
         }
@@ -455,12 +459,12 @@ if ($row) {
                 TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
                 TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung (nur im Hauptkönigreich forschbar)."],
                 TechTypes::TECH_TYPE_ARCANE_INTEL => ["", "Erweitert die Informationen herannahender Truppen im Wachturm:<br>" .
-                        "<div style='margin-top: 5px;'>" .
-                        "• <span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
-                        "• <span class='passed'>Stufe 2:</span> Name & Herkunft des Angreifers<br>" .
-                        "• <span class='passed'>Stufe 3:</span> Grobe Schätzung der Truppenzahl<br>" .
-                        "• <span class='passed'>Stufe 4:</span> Exakte Einheitenliste & Anzahl<br>" .
-                        "• <span class='passed'>Stufe 5:</span> Berechnung der gegnerischen Kampfkraft" .
+                        "<div style='margin: 5px auto 0; max-width: fit-content; text-align: left;'>" .
+                        "<span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
+                        "<span class='passed'>Stufe 2:</span> Name & Herkunft des Angreifers<br>" .
+                        "<span class='passed'>Stufe 3:</span> Grobe Schätzung der Truppenzahl<br>" .
+                        "<span class='passed'>Stufe 4:</span> Exakte Einheitenliste & Anzahl<br>" .
+                        "<span class='passed'>Stufe 5:</span> Berechnung der gegnerischen Kampfkraft" .
                         "</div>"
                 ],
 

@@ -25,7 +25,7 @@ $now = time();
 // ACCOUNT ACTIVATION
 if (!empty($_GET["key"])) {
     $activation_key = make_secure($_GET["key"]);
-    $result = $db_instance->execute_query("SELECT id, username, status, email FROM users WHERE activationkey = ? LIMIT 1", [$activation_key]);
+    $result = $db_instance->execute_query("SELECT id, username, status, email, password FROM users WHERE activationkey = ? LIMIT 1", [$activation_key]);
 
     if ($result && $result->num_rows > 0) {
         $user_data = $result->fetch_assoc();

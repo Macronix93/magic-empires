@@ -33,22 +33,25 @@ class Alchemy
         return (int)round($cap * $rate * ALCHEMY_OUTPUT_BUFFER_MULTIPLIER);
     }
 
-    public static function get_capacity(int $level): int
-    {
+    public static function get_capacity(int $level): int {
         if ($level <= 0) {
             return 0;
         }
-        return ALCHEMY_BASE_CAPACITY + (($level - 1) * ALCHEMY_CAPACITY_PER_LEVEL);
+
+        $lvl = max(1, min($level, ALCHEMY_MAX_LEVEL));
+        return ALCHEMY_CAPACITY_BY_LEVEL[$lvl] ?? 50000;
     }
 
-    public static function get_speed_per_hour(int $level, ?int $from_res = null): int
-    {
+    public static function get_speed_per_hour(int $level, ?int $from_res = null): int {
         if ($level <= 0) return 0;
-        $base_speed = ALCHEMY_BASE_SPEED + (($level - 1) * ALCHEMY_SPEED_PER_LEVEL);
+
+        $lvl = max(1, min($level, ALCHEMY_MAX_LEVEL));
+        $base_speed = ALCHEMY_SPEED_BY_LEVEL[$lvl] ?? 8000;
 
         if ($from_res !== null && isset(ALCHEMY_RESOURCE_WEIGHTS[$from_res])) {
             return (int)round($base_speed * ALCHEMY_RESOURCE_WEIGHTS[$from_res]);
         }
+
         return $base_speed;
     }
 
@@ -134,15 +137,27 @@ class Alchemy
             }
 
             $seconds_per_step = ($step * 3600.0) / $speed_per_hour;
-            $possible_steps_by_time = (int)floor($elapsed / $seconds_per_step);
-
-            if ($possible_steps_by_time <= 0) {
+            if ($seconds_per_step <= 0) {
                 $this->db->commit();
                 return;
             }
 
             $possible_steps_by_input = (int)floor((int)$row["input_amount"] / $step);
             $possible_steps_by_room = (int)floor($output_room / $output_per_step);
+
+            $remaining_seconds_for_all = $possible_steps_by_input * $seconds_per_step;
+            $grace_tolerance = max(1.0, min(3.0, $seconds_per_step));
+
+            if ($elapsed >= ($remaining_seconds_for_all - $grace_tolerance) && $possible_steps_by_room >= $possible_steps_by_input) {
+                $possible_steps_by_time = $possible_steps_by_input;
+            } else {
+                $possible_steps_by_time = (int)floor(($elapsed + 0.001) / $seconds_per_step);
+            }
+
+            if ($possible_steps_by_time <= 0) {
+                $this->db->commit();
+                return;
+            }
 
             $steps_to_run = min($possible_steps_by_time, $possible_steps_by_input, $possible_steps_by_room);
 

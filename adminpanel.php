@@ -771,16 +771,6 @@ if (!$user->is_admin()) {
                             </form>
                         </div>
                     </div>";
-    $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
-                        <div class='box-header' style='background: #a62121; color: white; border-bottom: #340202 2px solid;'>Welt-Reset</div>
-                        <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
-                            <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
-                            <form method='POST'>
-                                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
-                                <input type='hidden' name='reset_round' id='hidden_reset_submit'>
-                            </form>
-                        </div>
-                    </div>";
     $settings_list .= "<div class='box-container' style='margin-top: 20px;'>
                     <div class='box-header'>Karten-Wartung</div>
                     <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
@@ -826,6 +816,16 @@ if (!$user->is_admin()) {
             </form>
         </div>
     </div>";
+    $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
+                        <div class='box-header' style='background: #a62121; color: white; border-bottom: #340202 2px solid;'>Welt-Reset</div>
+                        <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
+                            <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
+                            <form method='POST'>
+                                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
+                                <input type='hidden' name='reset_round' id='hidden_reset_submit'>
+                            </form>
+                        </div>
+                    </div>";
 
     $system_log_section .= "<div class='title-border'>System-Logfiles (.log)</div>";
     $system_log_section .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";

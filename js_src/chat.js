@@ -4,15 +4,8 @@ let isFetchingOlder = false;
 let canLoadMore = true;
 let lastSeenId = 0;
 let isUpdatingChat = false;
-let lastReactionClick = 0;
 let isSendingChat = false;
 
-registerAction("toggleReaction", (el) => {
-    lastReactionClick = Date.now();
-    const container = el.closest('.reaction-container');
-
-    sendReaction(el.dataset.type, el.dataset.id, el.dataset.emoji, container);
-});
 registerAction("loadOlderChat", (el) => {
     const partnerId = el.dataset.partnerid;
 
@@ -431,7 +424,7 @@ function updateChat(chatPartner) {
             }
 
             if (data.reactionUpdates) {
-                if (Date.now() - lastReactionClick < 2000) {
+                if (Date.now() - (window.lastReactionClick || 0) < 2000) {
                     return;
                 }
 

@@ -9,6 +9,7 @@ $user->check_user_login();
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
     $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
     $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
+
     change_location("map.php?startx=$x&starty=$y");
     exit;
 }
@@ -455,6 +456,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 "arrival_in" => $arrival_time,
                 "troops" => $log_troops
             ], $user->get_current_kingdom());
+
+            $is_self_station = ($enemy_user_id == $user->get_user_id() && $target_x != -1);
+
+            if (!$is_support && !$is_self_station && $kingdom_id != MapFieldTypes::MAP_FIELD_EMPTY && $has_non_scout_units) {
+                Stats::update_player_stat($user->get_user_id(), "troops_sent_combat");
+            }
 
             $db_instance->commit();
 

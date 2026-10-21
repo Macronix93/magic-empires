@@ -129,7 +129,7 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
         }
 
         if ($is_imperial && $current_kid !== $main_k->get_kingdom_id()) {
-            $dependency_text = "<span style='white-space: nowrap;'>Nur in <i>" . $main_k->get_kingdom_name() . "</i> forschbar</span> ";
+            $dependency_text = "Nur in <i>" . $main_k->get_kingdom_name() . "</i>";
         }
 
         $html .= "<tr>

@@ -124,7 +124,8 @@ class Map
                                      ?int $target_id = null,
                                      bool $is_scouting = false,
                                      bool $is_caravan = false,
-                                     bool $is_support = false): int
+                                     bool $is_support = false,
+                                     bool $is_ally_caravan = false): int
     {
         if (defined("DEBUG_FIXED_MARCH_SECONDS") && DEBUG_FIXED_MARCH_SECONDS > 0) {
             return DEBUG_FIXED_MARCH_SECONDS;
@@ -149,8 +150,12 @@ class Map
 
             $modified_time *= (GUILD_SUPPORT_TRAVEL_BOOST * $support_speed_mult);
         } else if ($is_caravan) {
-            $g_trade_lvl = Guild::get_user_guild_tech_level($this->user->get_user_id(), GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED);
-            $caravan_speed_mult = max(0.1, 1.0 - ($g_trade_lvl * GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL));
+            $caravan_speed_mult = 1.0;
+
+            if ($is_ally_caravan) {
+                $g_trade_lvl = Guild::get_user_guild_tech_level($this->user->get_user_id(), GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED);
+                $caravan_speed_mult = max(0.1, 1.0 - ($g_trade_lvl * GUILD_BONUS_ALLY_TRADE_SPEED_PER_LVL));
+            }
 
             $modified_time *= (CARAVAN_SPEED_FACTOR * $caravan_speed_mult);
         } else {

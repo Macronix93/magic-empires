@@ -303,6 +303,9 @@ class Achievement
             AchievementTypes::ACHIEVEMENT_MINE_CAPTURED => (int)($p_stats["mines_captured"] ?? 0),
             AchievementTypes::ACHIEVEMENT_MINE_DEFENDED => (int)($p_stats["mines_defended"] ?? 0),
             AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED => (int)($p_stats["alchemy_claimed"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED => (int)($p_stats["military_units_produced"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT => (int)($p_stats["troops_sent_combat"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_BALANCED_ARMY => self::check_balanced_army($user_id) ? 1 : 0,
         ];
     }
 
@@ -318,5 +321,66 @@ class Achievement
         ", [$user_id, $req_type]);
 
         return $res->num_rows > 0;
+    }
+
+    private static function check_balanced_army(int $user_id): bool
+    {
+        $db = Database::get_instance()->get_connection();
+        $res_k = $db->execute_query("SELECT id FROM kingdoms WHERE userid = ?", [$user_id]);
+
+        $inf = SoldierTypes::SOLDIER_TYPE_INFANTRY;
+        $cav = SoldierTypes::SOLDIER_TYPE_CAVALRY;
+        $arc = SoldierTypes::SOLDIER_TYPE_ARCHERS;
+
+        while ($k_row = $res_k->fetch_assoc()) {
+            $kid = (int)$k_row["id"];
+            $kingdom = new Kingdom($kid);
+
+            $inf_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
+            $cav_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
+            $arc_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
+
+            $shrine_atk_mult = 1.0;
+            if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+                $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
+            }
+
+            $res_troops = $db->execute_query("
+                SELECT s.soldiercount, sl.attack, sl.category
+                FROM soldiers s
+                JOIN soldier_list sl ON s.soldierid = sl.id
+                WHERE s.kingdomid = ? AND s.soldiercount > 0 AND sl.category IN (?, ?, ?)
+            ", [$kid, $inf, $cav, $arc]);
+
+            $cat_counts = [$inf => 0, $cav => 0, $arc => 0];
+            $cat_atk = [$inf => 0, $cav => 0, $arc => 0];
+
+            while ($t = $res_troops->fetch_assoc()) {
+                $cat = (int)$t["category"];
+                $cnt = (int)$t["soldiercount"];
+
+                $b_atk = match ($cat) {
+                    SoldierTypes::SOLDIER_TYPE_INFANTRY => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_CAVALRY => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_ARCHERS => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
+                    default => 0
+                };
+
+                $unit_atk = (int)round(($t["attack"] * $shrine_atk_mult) + $b_atk);
+                $cat_counts[$cat] += $cnt;
+                $cat_atk[$cat] += ($cnt * $unit_atk);
+            }
+
+            if ($cat_counts[$inf] > 0 && $cat_counts[$cav] > 0 && $cat_counts[$arc] > 0) {
+                $max_atk = max($cat_atk[$inf], $cat_atk[$cav], $cat_atk[$arc]);
+                $min_atk = min($cat_atk[$inf], $cat_atk[$cav], $cat_atk[$arc]);
+
+                if (($max_atk - $min_atk) <= ARMY_BALANCE_TOLERANCE) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

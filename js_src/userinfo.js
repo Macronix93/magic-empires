@@ -255,6 +255,7 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                 content.style.opacity = isAlreadyOpen ? "0" : "1";
                 content.innerHTML = doc.body.innerHTML;
                 content.style.minHeight = "";
+                content.scrollTop = 0;
                 content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
 
                 if (typeof setup === "function") {
@@ -288,6 +289,11 @@ function destroySingleOverlay(modal) {
     if (modal._abortController) {
         modal._abortController.abort();
         modal._abortController = null;
+    }
+
+    const body = modal.querySelector(".overlay-body, #overlay-content-body");
+    if (body) {
+        body.scrollTop = 0;
     }
 
     if (modal.id === "onpage-overlay") {
@@ -372,11 +378,11 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("touchstart", (e) => {
-    if (e.target.closest('.overlay-close-btn')) {
+    const closeBtn = e.target.closest('.overlay-close-btn');
+    if (closeBtn) {
         e.preventDefault();
         e.stopPropagation();
-
-        closeOverlay();
+        closeOverlay(closeBtn);
     }
 }, {passive: false});
 
@@ -403,7 +409,7 @@ function redirectToMap(x, y) {
         } else if (typeof closeOverlay === "function") {
             closeOverlay();
         }
-        
+
         if (typeof jumpToCoordinates === "function") {
             jumpToCoordinates(x, y);
         } else {

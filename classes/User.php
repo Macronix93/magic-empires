@@ -206,9 +206,15 @@ class User
                                         data-url='userinfo.php?userid=$this->user_id' 
                                         data-title='Spieler-Info' 
                                         class='popup user-name-link' id='$link_pop_id'
-                                        style='cursor: pointer;'>" . e($this->user_name) . "<div id='{$link_pop_id}_box' class='popupbox'>Zuletzt aktiv: $act_str</div></a>";
+                                        style='cursor: pointer;'>" . e($this->user_name) . "
+                                        <div id='{$link_pop_id}_box' class='popupbox'>Zuletzt aktiv: $act_str</div>
+                            </a>";
             } else {
-                $content = "<a href='#' class='user-name-link' data-on-click='openOverlay' data-url='userinfo.php?userid=$this->user_id' data-title='Spieler-Info' style='cursor: pointer;'>" . e($this->user_name) . "</a>";
+                $content = "<a href='#' class='user-name-link' 
+                                        data-on-click='openOverlay' 
+                                        data-url='userinfo.php?userid=$this->user_id' 
+                                        data-title='Spieler-Info' 
+                                        style='cursor: pointer;'>" . e($this->user_name) . "</a>";
             }
         }
 
@@ -770,11 +776,13 @@ class User
             (SELECT CASE 
                 WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
                 WHEN input_amount > 0 THEN 'running'
-                ELSE ''
-             END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
+                ELSE '' END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status,
+            (SELECT 1 FROM kingdom_alchemy ka 
+             JOIN kingdoms k ON ka.kingdom_id = k.id 
+             WHERE k.userid = ? AND ka.input_amount = 0 AND ka.output_amount >= 1 LIMIT 1) AS has_any_alchemy_ready
         ";
 
-        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid])->fetch_assoc();
+        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid, $uid])->fetch_assoc();
 
         $guild_status = '';
         if ($gid > 0) {
@@ -789,7 +797,8 @@ class User
             "has_world_event" => !empty($res["has_event"]),
             "market_offers" => (int)($res["market_count"] ?? 0),
             "guild_status" => $guild_status,
-            "alchemy_status" => $res["alchemy_status"] ?? ''
+            "alchemy_status" => $res["alchemy_status"] ?? '',
+            "has_any_alchemy_ready" => !empty($res["has_any_alchemy_ready"])
         ];
     }
 

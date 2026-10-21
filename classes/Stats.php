@@ -29,6 +29,8 @@ class Stats
             "mines_defended" => AchievementTypes::ACHIEVEMENT_MINE_DEFENDED,
             "events_attended" => AchievementTypes::ACHIEVEMENT_EVENT_ATTENDED,
             "alchemy_claimed" => AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED,
+            "military_units_produced" => AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED,
+            "troops_sent_combat" => AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT
         ];
 
         if (isset($stat_map[$column])) {
@@ -67,7 +69,8 @@ class Stats
             "units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve",
             "units_defeated_pvp", "monster_kills", "buildings_upgraded", "trades_count",
             "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen",
-            "resources_looted", "mines_depleted", "special_resources_mined", "event_damage_total"
+            "resources_looted", "mines_depleted", "special_resources_mined", "event_damage_total",
+            "military_units_produced", "troops_sent_combat"
         ];
 
         $defaults = array_fill_keys($cols, 0);

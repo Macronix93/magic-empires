@@ -510,18 +510,25 @@ class Guild
 
     public function cancel_invite(int $invite_id): ?string
     {
+        $uid = $this->user->get_user_id();
         $my_guild = $this->user->get_user_guild_id();
-        $rank_id = $this->user->get_guild_rank_id();
+        $my_rank = $this->user->get_guild_rank_id();
 
-        if ($rank_id > GuildRanks::GUILD_OFFICER) {
-            return "Nur die Gildenführung kann Einladungen zurückziehen.";
-        }
-
-        $res = $this->db->execute_query("SELECT guild_id FROM guild_invites WHERE id = ?", [$invite_id]);
+        $res = $this->db->execute_query(
+            "SELECT guild_id, invited_by FROM guild_invites WHERE id = ?",
+            [$invite_id]
+        );
         $inv_data = $res->fetch_assoc();
 
         if (!$inv_data || (int)$inv_data["guild_id"] !== $my_guild) {
             return "Die Einladung existiert nicht mehr oder wurde bereits vom Empfänger verarbeitet.";
+        }
+
+        $is_high_rank = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
+        $is_own_invite = ((int)$inv_data["invited_by"] === $uid);
+
+        if (!$is_high_rank && !$is_own_invite) {
+            return "Du kannst nur Einladungen zurückziehen, die du selbst ausgesprochen hast.";
         }
 
         $this->db->execute_query("DELETE FROM guild_invites WHERE id = ?", [$invite_id]);
@@ -1158,12 +1165,14 @@ class Guild
     public function get_project_contributors(): mysqli_result
     {
         return $this->db->execute_query("
-            SELECT u.id, u.username, c.current_project_amount as val 
+            SELECT u.id, u.username, c.current_project_amount as val,
+                   c.food, c.wood, c.stone, c.gold
             FROM guild_member_contributions c
             JOIN users u ON c.user_id = u.id
             WHERE c.guild_id = ? AND c.current_project_amount > 0
             ORDER BY c.current_project_amount DESC",
-            [$this->id]);
+            [$this->id]
+        );
     }
 
     public function get_top_contributors(): mysqli_result

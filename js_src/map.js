@@ -1504,7 +1504,7 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
         const dx = targetTX - currentTranslateX;
         const dy = targetTY - currentTranslateY;
 
-        if (Math.abs(dx) < 3.0 && Math.abs(dy) < 3.0) {
+        if (Math.abs(dx) < 0.6 && Math.abs(dy) < 0.6) {
             currentTranslateX = targetTX;
             currentTranslateY = targetTY;
 
@@ -1517,8 +1517,8 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
             return;
         }
 
-        currentTranslateX += dx * 0.15;
-        currentTranslateY += dy * 0.15;
+        currentTranslateX += dx * 0.22;
+        currentTranslateY += dy * 0.22;
 
         clampMapPosition();
         draw();
@@ -1696,7 +1696,7 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
         });
 }
 
-window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
+window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemyReady) {
     if (!newKingdom) return;
 
     if (newKingdom.kingdom) {
@@ -1795,6 +1795,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
         }
 
         draw();
+        refreshMapDataSilently(!wasPopupOpen);
     } else {
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set("startx", newKingdom.x);
@@ -1807,6 +1808,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
 
         if (popupBox) popupBox.style.display = "none";
         jumpTo(newKingdom.x, newKingdom.y);
+        refreshMapDataSilently(false);
     }
 
     if (isOverlayOpen && typeof window.reloadOverlay === "function") {
@@ -1815,14 +1817,13 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml) {
 
     const rightDot = document.getElementById("mobile-right-nav-dot");
     if (rightDot) {
-        const hasAlchemyAlert = sidebarHtml.includes("icon_building15.png")
-            && sidebarHtml.includes("msg-badge")
-            && !sidebarHtml.includes("golden-badge");
-        
-        rightDot.style.display = hasAlchemyAlert ? "block" : "none";
-    }
+        const hasAlert = (hasAnyAlchemyReady !== undefined)
+            ? hasAnyAlchemyReady
+            : (sidebarHtml.includes("icon_building15.png") && sidebarHtml.includes("msg-badge")
+                && !sidebarHtml.includes("golden-badge"));
 
-    refreshMapDataSilently(!wasPopupOpen);
+        rightDot.style.display = hasAlert ? "block" : "none";
+    }
 };
 
 window.jumpToCoordinates = jumpTo;

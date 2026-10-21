@@ -248,7 +248,7 @@ if ($user->is_logged_in()) {
 <div id="nav-right-trigger" class="mobile-trigger">
     <p><?= Messages::wrap_emojis("🏰") ?></p>
     <?php if ($user->is_logged_in()):
-        $right_has_alert = (!empty($sidebar_data["alchemy_status"]) && $sidebar_data["alchemy_status"] === "ready"); ?>
+        $right_has_alert = !empty($sidebar_data["has_any_alchemy_ready"]); ?>
         <span class="nav-notification-dot"
               id="mobile-right-nav-dot"
               style="<?= $right_has_alert ? '' : 'display: none;' ?>">

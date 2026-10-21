@@ -255,16 +255,24 @@ class Marketplace
             $this->user->give_user_coins(-$coins_cost);
 
             $now = time();
+
             $my_x = $this->kingdom->get_kingdom_map_x();
             $my_y = $this->kingdom->get_kingdom_map_y();
+
             $creator_id = (int)$row["userid"];
             $creator_name = $row["username"];
             $supply = (int)$row["supply"];
             $supply_value = (int)$row["supplyvalue"];
 
-            $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $kid, null, false, true);
+            $seller_gid = (int)($this->db->execute_query("SELECT guildid FROM users WHERE id = ?", [$creator_id])->fetch_column() ?? 0);
+            $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
+
+            $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $kid, null, false, true, false, $is_ally_deal);
             $buyer_arrival_time = $now + $buyer_seconds;
-            $seller_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $row["kingdomid"], null, false, true);
+
+            $seller_user = new User($creator_id, $creator_name);
+            $seller_map = new Map($seller_user);
+            $seller_seconds = $seller_map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $row["kingdomid"], null, false, true, false, $is_ally_deal);
             $seller_arrival_time = $now + $seller_seconds;
 
             // Supply to buyer
