@@ -761,28 +761,24 @@ class User
         return $supports;
     }
 
-    public function get_sidebar_data(?int $specific_kid = null): array
-    {
+    public function get_sidebar_data(?int $specific_kid = null): array {
         $kid = $specific_kid ?? $this->current_kingdom;
         $gid = $this->get_user_guild_id();
         $uid = $this->user_id;
 
         $query = "
             SELECT 
-            (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
-            (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?)) AND userid != ?) AS market_count,
-            (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
-            (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
-            (SELECT CASE 
-                WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
-                WHEN input_amount > 0 THEN 'running'
-                ELSE '' END FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status,
-            (SELECT 1 FROM kingdom_alchemy ka 
-             JOIN kingdoms k ON ka.kingdom_id = k.id 
-             WHERE k.userid = ? AND ka.input_amount = 0 AND ka.output_amount >= 1 LIMIT 1) AS has_any_alchemy_ready
+                (SELECT 1 FROM world_events WHERE is_active = 1 AND end_time > UNIX_TIMESTAMP() LIMIT 1) AS has_event,
+                (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?)) AND userid != ?) AS market_count,
+                (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
+                (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
+                (SELECT CASE 
+                    WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
+                    WHEN input_amount > 0 THEN 'running'
+                    ELSE '' END
+                 FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
         ";
-
-        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid, $uid])->fetch_assoc();
+        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid])->fetch_assoc();
 
         $guild_status = '';
         if ($gid > 0) {
@@ -793,12 +789,15 @@ class User
             }
         }
 
+        $alchemy_status = $res["alchemy_status"] ?? '';
+        $is_alchemy_ready = ($alchemy_status === "ready");
+
         return [
             "has_world_event" => !empty($res["has_event"]),
             "market_offers" => (int)($res["market_count"] ?? 0),
             "guild_status" => $guild_status,
-            "alchemy_status" => $res["alchemy_status"] ?? '',
-            "has_any_alchemy_ready" => !empty($res["has_any_alchemy_ready"])
+            "alchemy_status" => $alchemy_status,
+            "has_any_alchemy_ready" => $is_alchemy_ready
         ];
     }
 

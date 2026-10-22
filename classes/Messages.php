@@ -2608,4 +2608,178 @@ class Messages
             '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
         ];
     }
+
+    public static function check_rate_limit(): int {
+        $now = time();
+        $timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
+        $count = $_SESSION["message_count"] ?? 0;
+
+        if ($now > $timeframe_end) {
+            $_SESSION["message_count"] = 0;
+            $_SESSION["message_timeframe_end"] = $now + MESSAGES_RATE_INTERVAL;
+            $count = 0;
+        }
+
+        if ($count >= MAX_MESSAGES_RATELIMIT) {
+            return max(1, $timeframe_end - $now);
+        }
+
+        $_SESSION["message_count"] = $count + 1;
+        return 0;
+    }
+
+    public static function clean_and_validate_chat_text(string $raw_text): array {
+        $cleaned = preg_replace([
+            '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
+            '/[ \t]+/u',
+            '/^[ \t]+/m',
+            '/[ \t]+$/m'
+        ], ['', ' ', '', ''], $raw_text);
+
+        $cleaned = trim($cleaned);
+        $text_only = trim(preg_replace('/\[\/?quote.*?]/i', '', $cleaned));
+
+        if (empty($cleaned) || empty($text_only)) {
+            return ["error" => "Bitte eine Nachricht eingeben!"];
+        }
+
+        $length = mb_strlen($cleaned, "UTF-8");
+        if ($length > MAX_MESSAGE_LENGTH) {
+            return ["error" => "Nachricht zu lang! ($length / " . MAX_MESSAGE_LENGTH . ")"];
+        }
+
+        $line_breaks = substr_count($cleaned, "\n");
+        if ($line_breaks > MAX_LINE_BREAK_COUNT) {
+            return ["error" => "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!"];
+        }
+
+        return ["text" => $cleaned];
+    }
+
+    public static function render_chat_bubble(
+        string $chat_type,
+        int $msg_id,
+        int $sender_id,
+        string $sender_name,
+        string $raw_message,
+        int $timestamp,
+        User $viewer_user,
+        ?string $avatar_url = null
+    ): string {
+        $is_me = ($sender_id === $viewer_user->get_user_id());
+        $is_admin = $viewer_user->is_admin();
+
+        $bubble_class = $is_me ? "receiver-bubble" : "sender-bubble";
+        $dom_id = match ($chat_type) {
+            "world" => "world-msg-$msg_id",
+            "guild" => "guild-msg-$msg_id",
+            default => "msg-$msg_id"
+        };
+
+        if ($avatar_url === null) {
+            $sender_obj = $is_me ? $viewer_user : new User($sender_id, $sender_name);
+            $avatar_url = $sender_obj->get_avatar();
+        }
+
+        $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($sender_name) . "</a>";
+
+        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' style='cursor: pointer; margin-left: 5px;' " .
+            "data-on-click='quoteMessage' data-author='" . e($sender_name) . "' data-text='" . e($raw_message) . "' title='Nachricht zitieren' alt=''>";
+
+        $can_delete = $is_me || $is_admin;
+        if ($chat_type === "guild" && !$can_delete) {
+            $my_rank = $viewer_user->get_guild_rank_id();
+            if ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER) {
+                $can_delete = true;
+            }
+        }
+
+        $delete_icon = "";
+        if ($can_delete) {
+            $del_action = match ($chat_type) {
+                "world" => "deleteWorldChatMsg",
+                "guild" => "deleteGuildChatMsg",
+                default => "deleteChatMsg"
+            };
+            $delete_icon = "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='$del_action' data-id='$msg_id' style='cursor: pointer;' alt='Löschen'>";
+        }
+
+        $reaction_type = match ($chat_type) {
+            "world" => "world_chat",
+            "guild" => "guild_chat",
+            default => "chat"
+        };
+
+        $formatted_text = self::format_chat_message($raw_message);
+        $date_str = date(DATE_FORMAT_CHAT, $timestamp);
+
+        return "
+        <div class='$bubble_class' id='$dom_id'>
+            <div class='message-border'>
+                <span class='msg-header-left'>
+                    <img class='user-image' src='" . e($avatar_url) . "' alt=''>
+                    <span>$sender_display <small class='msg-date'>$date_str</small></span>
+                </span>
+                <span style='display: flex; gap: 5px; align-items: center;'>
+                    " . self::render_reactions_bar($reaction_type, $msg_id, $viewer_user, "btn_only") . "
+                    $quote_icon
+                    $delete_icon
+                </span>
+            </div>
+            <div class='chat-text'>$formatted_text</div>
+            <div class='chat-reaction-footer'>
+                " . self::render_reactions_bar($reaction_type, $msg_id, $viewer_user, "badges_only") . "
+            </div>
+        </div>";
+    }
+
+    public static function get_batch_reaction_badges(string $reaction_type, array $message_ids, User $viewer_user): array {
+        if (empty($message_ids)) return [];
+
+        $db = Database::get_instance()->get_connection();
+        $my_id = $viewer_user->get_user_id();
+
+        $result_map = [];
+        foreach ($message_ids as $id) {
+            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '"></div>';
+        }
+
+        $raw_badges = array_fill_keys($message_ids, "");
+
+        $placeholders = implode(',', array_fill(0, count($message_ids), '?'));
+        $query = "SELECT r.entity_id, r.emoji, COUNT(*) as total, 
+                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted, 
+                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names 
+                  FROM reactions r 
+                  JOIN users u ON r.user_id = u.id 
+                  WHERE r.entity_type = ? AND r.entity_id IN ($placeholders) 
+                  GROUP BY r.entity_id, r.emoji";
+
+        $params = array_merge([$my_id, $reaction_type], $message_ids);
+        $res = $db->execute_query($query, $params);
+
+        while ($row = $res->fetch_assoc()) {
+            $eid = (int)$row["entity_id"];
+            $active_class = ((int)$row["self_reacted"] === 1) ? " active" : "";
+            $user_list = e($row["names"]);
+            $popup_id = "reac_" . $reaction_type . "_" . $eid . "_" . md5($row["emoji"]);
+
+            $raw_badges[$eid] .= '
+            <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '" data-on-click="toggleReaction" 
+                  data-type="' . $reaction_type . '" 
+                  data-id="' . $eid . '" 
+                  data-emoji="' . e($row["emoji"]) . '">
+                ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
+                <div id="' . $popup_id . '_box" class="popupbox">
+                    <b>Reaktionen:</b><br>' . $user_list . '
+                </div>
+            </span>';
+        }
+
+        foreach ($message_ids as $id) {
+            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '">' . $raw_badges[$id] . '</div>';
+        }
+
+        return $result_map;
+    }
 }

@@ -1,12 +1,67 @@
 <?php
 require_once("../includes/core.php");
 
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $response = [];
+if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
+    change_location("messages.php");
+    exit;
+}
+
+if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
+    echo json_encode(["error" => "redirect", "chatPartner" => "privmsgs"]);
+    exit;
+}
+
+$type = $_POST["type"] ?? "private";
+$u_id = $user->get_user_id();
+$u_name = $user->get_user_name();
+$now = time();
+
+// Rate limit check
+$remaining_seconds = Messages::check_rate_limit();
+if ($remaining_seconds > 0) {
+    echo json_encode([
+        "error" => "Du schickst zu viele Nachrichten! Warte bitte:",
+        "counter" => $remaining_seconds
+    ]);
+    exit;
+}
+
+// Validate text
+$validation = Messages::clean_and_validate_chat_text($_POST["text"] ?? "");
+if (isset($validation["error"])) {
+    echo json_encode(["error" => $validation["error"]]);
+    exit;
+}
+$cleaned_text = $validation["text"];
+
+$message_id = 0;
+
+if ($type === "world") {
+    $res = $db_instance->execute_query(
+        "INSERT INTO world_chat (userid, username, message, date) VALUES (?, ?, ?, ?) RETURNING id",
+        [$u_id, $u_name, $cleaned_text, $now]
+    );
+    $message_id = (int)$res->fetch_assoc()["id"];
+    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
+
+} else if ($type === "guild") {
+    $guild_id = $user->get_user_guild_id();
+    if ($guild_id <= 0) {
+        echo json_encode(["error" => "Du bist in keiner Gilde!"]);
+        exit;
+    }
+
+    $res = $db_instance->execute_query(
+        "INSERT INTO guild_chat (guild_id, userid, username, message, date) VALUES (?, ?, ?, ?, ?) RETURNING id",
+        [$guild_id, $u_id, $u_name, $cleaned_text, $now]
+    );
+    $message_id = (int)$res->fetch_assoc()["id"];
+    $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
+
+} else { // private
     $client_token = $_POST["token"] ?? "";
     $session_token = $_SESSION["active_chat_token"] ?? "";
     $receiver_id = (int)($_POST["receiver"] ?? 0);
-    $u_id = $user->get_user_id();
 
     if ($client_token !== $session_token) {
         echo json_encode(["error" => "redirect", "chatPartner" => "privmsgs"]);
@@ -18,104 +73,47 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit;
     }
 
-    $raw_text = $_POST["text"] ?? "";
-
-    $cleaned_text = preg_replace([
-        '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-        '/[ \t]+/u',
-        '/^[ \t]+/m',
-        '/[ \t]+$/m'
-    ], ['', ' ', '', ''], $raw_text);
-
-    $cleaned_text = trim($cleaned_text);
-    $text_only = preg_replace('/\[\/?quote.*?]/i', '', $cleaned_text);
-
-    $line_breaks_count = substr_count($cleaned_text, "\n");
-    $length = mb_strlen($cleaned_text, "UTF-8");
-
-    if (empty($cleaned_text) || empty(trim($text_only))) {
-        $error = "Bitte alle Felder ausfüllen!";
-    } else if ($length > MAX_MESSAGE_LENGTH) {
-        $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
-    } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
-        $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
-    } else {
-        $result = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE id = ?", [$receiver_id]);
-        if ($result->fetch_row()[0] == 0) {
-            $error = "Dieser Spieler existiert nicht!";
-        }
+    $res_u = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiver_id]);
+    $receiver_name = $res_u->fetch_column();
+    if (!$receiver_name) {
+        echo json_encode(["error" => "Dieser Spieler existiert nicht!"]);
+        exit;
     }
 
-    if (empty($error)) {
-        $current_time = time();
-        $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
-        $message_count = $_SESSION["message_count"] ?? 0;
+    $res = $db_instance->execute_query(
+        "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+        [$u_id, $u_name, $receiver_id, $receiver_name, $now, $cleaned_text]
+    );
+    $message_id = (int)$res->fetch_assoc()["id"];
 
-        if ($current_time > $message_timeframe_end) {
-            $message_count = 0;
-            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-        }
-
-        if ($message_count >= MAX_MESSAGES_RATELIMIT) {
-            $response["counter"] = $_SESSION["message_timeframe_end"] - $current_time;
-            $response["error"] = "Du schickst zu viele Nachrichten! Warte bitte:";
-        } else {
-            $_SESSION["message_count"] = ++$message_count;
-
-            $receiver = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiver_id])->fetch_column();
-            $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?) RETURNING id;";
-            $res = $db_instance->execute_query($query, [$u_id, $user->get_user_name(), $receiver_id, $receiver, $current_time, $cleaned_text]);
-
-            $message_id = $res->fetch_assoc()["id"];
-            $response["lastId"] = $message_id;
-
-            $display_text = Messages::format_chat_message($cleaned_text);
-
-            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' 
-                         style='cursor: pointer; margin-left: 5px;' 
-                         data-on-click='quoteMessage' 
-                         data-author='" . e($user->get_user_name()) . "' 
-                         data-text='" . e($cleaned_text) . "' 
-                         title='Zitieren' alt=''>";
-
-            $response["html"] = "<div class='receiver-bubble' id='msg-$message_id'>
-                                    <div class='message-border'>
-                                        <span class='msg-header-left'>
-                                            <img class='user-image' src='" . $user->get_avatar() . "' alt='Nutzerbild'> 
-                                            <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $current_time) . "</small></span>
-                                        </span>
-                                        <span style='display: flex; gap: 5px; align-items: center;'>
-                                            " . Messages::render_reactions_bar("chat", $message_id, $user, "btn_only") . "
-                                            $quote_icon 
-                                            <img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteChatMsg' data-id='$message_id' style='cursor: pointer;' alt=''>
-                                        </span>
-                                    </div>
-                                    <div class='chat-text'>" . $display_text . "</div>
-                                    <div class='chat-reaction-footer'>
-                                        " . Messages::render_reactions_bar("chat", $message_id, $user, "badges_only") . "
-                                    </div>
-                                </div>";
-
-            $res_unread = $db_instance->execute_query("
-                SELECT COUNT(*) FROM messages 
-                WHERE senderid = ? AND receiverid = ? AND hasread = 0 AND deleted = 0 AND id != ?
-            ", [$u_id, $receiver_id, $message_id]);
-            $existing_unread = (int)$res_unread->fetch_column();
-
-            if ($existing_unread === 0) {
-                send_user_push(
-                    $receiver_id,
-                    "📩 Neue Nachricht",
-                    "{$user->get_user_name()} hat dir eine Nachricht geschrieben.",
-                    "messages",
-                    "messages.php?action=read&s=" . $u_id
-                );
-            }
-        }
-    } else {
-        $response["error"] = $error;
+    // Push Message
+    $res_unread = $db_instance->execute_query(
+        "SELECT COUNT(*) FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0 AND deleted = 0 AND id != ?",
+        [$u_id, $receiver_id, $message_id]
+    );
+    if ((int)$res_unread->fetch_column() === 0) {
+        send_user_push(
+            $receiver_id,
+            "📩 Neue Nachricht",
+            "$u_name hat dir eine Nachricht geschrieben.",
+            "messages",
+            "messages.php?action=read&s=" . $u_id
+        );
     }
-    echo json_encode($response);
-} else {
-    change_location("messages.php");
 }
+
+$bubble_html = Messages::render_chat_bubble(
+    $type,
+    $message_id,
+    $u_id,
+    $u_name,
+    $cleaned_text,
+    $now,
+    $user,
+    $user->get_avatar()
+);
+
+echo json_encode([
+    "lastId" => $message_id,
+    "html" => $bubble_html
+]);

@@ -3023,7 +3023,6 @@ img[data-on-click] {
 
 .chat-reaction-footer:has(.reaction-badge) {
     margin-top: 8px;
-    padding-top: 4px;
 }
 
 .chat-coord-link {

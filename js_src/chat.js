@@ -1,3 +1,1193 @@
+// const CHAT_UPDATE_INTERVAL = 5000;
+// const ERROR_IMAGE_PATH = "images/icons/icon_error.png";
+// let isFetchingOlder = false;
+// let canLoadMore = true;
+// let lastSeenId = 0;
+// let isUpdatingChat = false;
+// let isSendingChat = false;
+//
+// registerAction("loadOlderChat", (el) => {
+//     const partnerId = el.dataset.partnerid;
+//
+//     if (typeof loadOlderMessages === "function") {
+//         loadOlderMessages(partnerId);
+//     }
+// });
+// registerAction("loadMoreServerMsgs", () => {
+//     loadOlderServerMessages();
+// });
+// registerAction("filterServer", (el) => {
+//     if (typeof filterServerMessages === "function") {
+//         filterServerMessages(el);
+//     }
+// });
+// registerAction("deleteServerMsg", (el) => {
+//     const msgId = el.dataset.id;
+//
+//     if (typeof deleteServerMessage === "function") {
+//         deleteServerMessage(msgId);
+//     }
+// });
+// registerAction("deleteChatMsg", (el) => {
+//     const msgId = el.dataset.id;
+//
+//     if (typeof deleteChatMessage === "function") {
+//         deleteChatMessage(msgId);
+//     }
+// });
+// registerAction("confirmDeleteConversation", (el) => {
+//     const partnerId = el.dataset.id;
+//     const partnerName = el.dataset.name;
+//
+//     if (typeof conversationDeletionDialog === "function") {
+//         conversationDeletionDialog(partnerId, partnerName);
+//     }
+// });
+// registerAction("sendWorldMessage", () => {
+//     if (isSendingChat) return;
+//
+//     const messageInput = document.getElementById("message-input");
+//     const text = messageInput.value;
+//     const form = document.getElementById("world-chat-form");
+//     const submitBtn = form?.querySelector('input[type="button"], input[type="submit"]');
+//
+//     if (text === "") return;
+//
+//     isSendingChat = true;
+//     if (messageInput) messageInput.disabled = true;
+//     if (submitBtn) submitBtn.disabled = true;
+//
+//     const formData = new URLSearchParams();
+//     formData.append("type", "world");
+//     formData.append("text", text);
+//
+//     fetch("ajax/chat_insert.php", {
+//         method: "POST",
+//         headers: {"X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded"},
+//         body: formData.toString()
+//     })
+//         .then(r => r.json())
+//         .then(response => {
+//             if (response.error) {
+//                 displayChatError(response.error, response.counter);
+//             } else if (response.html) {
+//                 const errorBox = document.querySelector(".event-error");
+//                 if (errorBox) errorBox.style.display = "none";
+//
+//                 removeEmptyPlaceholder();
+//
+//                 document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
+//                 messageInput.value = "";
+//
+//                 lastSeenId = response.lastId;
+//
+//                 scrollDown(true);
+//             }
+//         })
+//         .catch(err => console.error("Error:", err))
+//         .finally(() => {
+//             isSendingChat = false;
+//
+//             if (messageInput) {
+//                 messageInput.disabled = false;
+//                 messageInput.focus();
+//             }
+//             if (submitBtn) submitBtn.disabled = false;
+//         });
+// });
+// registerAction("deleteWorldChatMsg", (el) => {
+//     const msgId = el.dataset.id;
+//     deleteChatMessage(msgId, "world");
+// });
+// registerAction("loadOlderWorldChat", () => {
+//     loadOlderWorldMessages();
+// });
+// registerAction("confirmDeleteAllServer", (el) => {
+//     const activeTab = document.querySelector(".tablinks.active");
+//     const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+//     const catName = activeTab ? activeTab.textContent.trim() : "Alle";
+//     const catText = category === "-1" ? "ALLE Nachrichten" : `alle Nachrichten der Kategorie "${catName}"`;
+//
+//     const maxId = el.dataset.maxId || 0;
+//
+//     showConfirmationDialog(
+//         `Möchtest du wirklich ${catText} unwiderruflich löschen?`,
+//         "Ja",
+//         "Abbrechen",
+//         () => {
+//             fetch(`ajax/chat_delete.php?type=server&delete_all=1&category=${encodeURIComponent(category)}&max_id=${maxId}`, {
+//                 headers: {"X-Requested-With": "XMLHttpRequest"}
+//             })
+//                 .then(r => r.json())
+//                 .then(data => {
+//                     if (data.success) {
+//                         window.location.reload();
+//                     }
+//                 });
+//         }
+//     );
+// });
+// registerAction("sendGuildMessage", () => {
+//     const form = document.getElementById("guild-chat-form");
+//     const submitBtn = form?.querySelector('input[type="button"], input[type="submit"]');
+//     const messageInput = document.getElementById("message-input");
+//     const text = messageInput.value;
+//
+//     if (text.trim() === "") return;
+//
+//     isSendingChat = true;
+//     if (messageInput) messageInput.disabled = true;
+//     if (submitBtn) submitBtn.disabled = true;
+//
+//     const formData = new URLSearchParams();
+//     formData.append("type", "guild");
+//     formData.append("text", text);
+//
+//     fetch("ajax/chat_insert.php", {
+//         method: "POST",
+//         headers: {"X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded"},
+//         body: formData.toString()
+//     })
+//         .then(r => r.json())
+//         .then(response => {
+//             if (response.error) {
+//                 displayChatError(response.error, response.counter);
+//             } else if (response.html) {
+//                 const errorBox = document.querySelector(".event-error");
+//                 if (errorBox) errorBox.style.display = "none";
+//
+//                 removeEmptyPlaceholder();
+//
+//                 document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
+//                 messageInput.value = "";
+//                 lastSeenId = response.lastId;
+//
+//                 scrollDown(true);
+//             }
+//         })
+//         .catch(err => console.error("Error:", err))
+//         .finally(() => {
+//             isSendingChat = false;
+//
+//             if (messageInput) {
+//                 messageInput.disabled = false;
+//                 messageInput.focus();
+//             }
+//             if (submitBtn) submitBtn.disabled = false;
+//         });
+// });
+// registerAction("deleteGuildChatMsg", (el) => {
+//     const msgId = el.dataset.id;
+//     deleteChatMessage(msgId, "guild");
+// });
+// registerAction("loadOlderGuildMessages", () => {
+//     loadOlderGuildMessages();
+// });
+//
+// function applyChatPrefill() {
+//     const prefill = sessionStorage.getItem("me_chat_prefill");
+//     if (!prefill) return;
+//
+//     const input = document.getElementById("message-input") || document.querySelector("textarea[name='text']");
+//     if (input) {
+//         input.value = prefill + " ";
+//         sessionStorage.removeItem("me_chat_prefill");
+//         input.focus();
+//         input.setSelectionRange(input.value.length, input.value.length);
+//
+//         input.scrollIntoView({behavior: "smooth", block: "center"});
+//     }
+// }
+//
+// function scrollToLatestMessage() {
+//     const newMessageLine = document.getElementById("new-message-line");
+//     const parentContainer = document.getElementById("messages-section");
+//
+//     if (!parentContainer) return;
+//
+//     const isServerInbox = window.location.search.includes("servermsgs");
+//
+//     if (!newMessageLine) {
+//         if (isServerInbox) {
+//             parentContainer.scrollTop = 0;
+//         } else {
+//             parentContainer.scrollTop = parentContainer.scrollHeight;
+//         }
+//         return;
+//     }
+//
+//     if (isServerInbox) {
+//         let target = newMessageLine.offsetTop - parentContainer.clientHeight + newMessageLine.clientHeight;
+//
+//         parentContainer.scrollTop = target + 10;
+//
+//         if (window.innerWidth <= 600) {
+//             parentContainer.scrollIntoView({behavior: "smooth", block: "center"});
+//         }
+//     } else {
+//         parentContainer.scrollTop = newMessageLine.offsetTop - 10;
+//     }
+// }
+//
+// function scrollDown(force = false) {
+//     const messagesSection = document.getElementById("messages-section");
+//
+//     if (messagesSection) {
+//         if (force) {
+//             messagesSection.scrollTop = messagesSection.scrollHeight;
+//         } else {
+//             const isAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
+//
+//             if (isAtBottom) {
+//                 messagesSection.scrollTo({
+//                     top: messagesSection.scrollHeight,
+//                     behavior: "smooth"
+//                 });
+//             }
+//         }
+//     }
+// }
+//
+// window.addEventListener("focus", () => {
+//     updateChat();
+// });
+//
+// document.addEventListener("visibilitychange", () => {
+//     if (document.visibilityState === "visible") {
+//         updateChat();
+//     }
+// });
+//
+//
+// function updateChat(chatPartner) {
+//     if (isUpdatingChat) return;
+//
+//     const messageSection = document.getElementById("messages-section");
+//     if (!messageSection) return;
+//
+//     const chatType = messageSection.dataset.chatType;
+//     if (!chatType || !["private", "world", "guild"].includes(chatType)) {
+//         return;
+//     }
+//
+//     if (chatType === "private" && !document.getElementById("message-input")) {
+//         return;
+//     }
+//
+//     const effectivePartner = chatPartner || messageSection.dataset.partnerId
+//         || (new URLSearchParams(window.location.search)).get("s") || "0";
+//
+//     let highestDomId = 0;
+//     let oldestDomId = 0;
+//
+//     if (messageSection) {
+//         const bubbles = messageSection.querySelectorAll("[id^='world-msg-'], [id^='guild-msg-'], [id^='msg-']");
+//         bubbles.forEach(el => {
+//             const num = parseInt(el.id.replace(/^(?:world-msg-|guild-msg-|msg-)/, ''), 10);
+//
+//             if (!isNaN(num)) {
+//                 if (num > highestDomId) highestDomId = num;
+//                 if (oldestDomId === 0 || num < oldestDomId) oldestDomId = num;
+//             }
+//         });
+//     }
+//
+//     const safeLastId = Math.max(lastSeenId, highestDomId);
+//     if (safeLastId <= 0) return;
+//
+//     let queryParams = `?type=${encodeURIComponent(chatType)}&last_id=${safeLastId}&oldest_id=${oldestDomId}`;
+//     if (chatType === "private") {
+//         queryParams += `&s=${encodeURIComponent(effectivePartner)}`;
+//     }
+//     const endpoint = 'ajax/chat_update.php';
+//
+//     isUpdatingChat = true;
+//
+//     fetch(`${endpoint}${queryParams}`, {
+//         method: "GET",
+//         headers: {
+//             "X-Requested-With": "XMLHttpRequest",
+//             "Content-Type": "application/x-www-form-urlencoded"
+//         }
+//     })
+//         .then(response => response.json())
+//         .then(data => {
+//             isUpdatingChat = false;
+//
+//             if (data.error === "redirect") {
+//                 const target = data.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + data.chatPartner;
+//                 window.location.href = "messages.php?" + target;
+//                 return;
+//             }
+//
+//             /** @type {{ html: string, messagesToDelete: array, error: string, chatPartner: string }} */
+//             const response = data;
+//             /** @type {HTMLElement} */
+//             const newMessageLine = document.getElementById("new-message-line");
+//             const infoBox = document.querySelector(".info-box");
+//
+//             if (response.error) {
+//                 if (response.error === "redirect") {
+//                     location.href = "messages.php?action=read&s=" + response.chatPartner;
+//                 } else {
+//                     setInfoBoxError(response.error);
+//                     infoBox.style.display = "flex";
+//                 }
+//                 return;
+//             }
+//
+//             if (data.lastId && data.lastId > lastSeenId) {
+//                 lastSeenId = data.lastId;
+//             }
+//
+//             if (response.html === "") {
+//                 if (newMessageLine) {
+//                     messageSection.removeChild(newMessageLine);
+//                 }
+//             } else {
+//                 removeEmptyPlaceholder();
+//
+//                 const messagesSection = document.getElementById("messages-section");
+//                 const wasAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
+//
+//                 let temp = document.createElement("div");
+//                 temp.innerHTML = response.html;
+//                 let newBubbles = temp.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
+//
+//                 newBubbles.forEach(bubble => {
+//                     insertChatBubbleSorted(messageSection, bubble);
+//                 });
+//
+//                 if (wasAtBottom) {
+//                     scrollDown(true);
+//                 } else {
+//                     scrollDown();
+//                 }
+//             }
+//
+//             if (response.messagesToDelete) {
+//                 response.messagesToDelete.forEach(item => {
+//                     removeChatBubble(item);
+//                 });
+//             }
+//
+//             if (data.reactionUpdates) {
+//                 if (Date.now() - (window.lastReactionClick || 0) < 2000) {
+//                     return;
+//                 }
+//
+//                 Object.keys(data.reactionUpdates).forEach(msgId => {
+//                     const msgElement = document.getElementById("msg-" + msgId) || document.getElementById("world-msg-" + msgId) || document.getElementById("guild-msg-" + msgId);
+//                     if (msgElement) {
+//                         const footer = msgElement.querySelector('.chat-reaction-footer');
+//
+//                         if (footer) {
+//                             if (footer.matches(':hover') || footer.querySelector(':hover')) {
+//                                 return;
+//                             }
+//
+//                             const newContent = data.reactionUpdates[msgId];
+//                             const tempDiv = document.createElement("div");
+//                             tempDiv.innerHTML = newContent;
+//                             tempDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
+//
+//                             const currentDiv = footer.cloneNode(true);
+//                             currentDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
+//
+//                             if (currentDiv.innerHTML.trim() !== tempDiv.innerHTML.trim()) {
+//                                 footer.innerHTML = newContent;
+//                             }
+//                         }
+//                     }
+//                 });
+//             }
+//
+//             if (data.guildUnread !== undefined) {
+//                 const guildTabBadge = document.getElementById("badge-guild-tab");
+//                 const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
+//
+//                 if (guildTabBadge && !chatTabActive) {
+//                     if (data.guildUnread > 0) {
+//                         guildTabBadge.innerText = data.guildUnread > 9 ? "9+" : data.guildUnread;
+//                         guildTabBadge.style.display = "inline-flex";
+//                     } else {
+//                         guildTabBadge.style.display = "none";
+//                     }
+//                 }
+//             }
+//
+//             if (chatType === "world") {
+//                 document.querySelectorAll(".js-badge-world").forEach(b => b.style.display = "none");
+//             }
+//
+//             if (chatType === "guild") {
+//                 const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
+//                 if (chatTabActive) {
+//                     document.querySelectorAll(".js-badge-guild, #badge-guild-tab").forEach(b => b.style.display = "none");
+//                 }
+//             }
+//
+//             cleanupPopups();
+//
+//             if (messageSection && messageSection.innerText.trim() === "") {
+//                 messageSection.innerText = "Schreibe eine Nachricht, um den Chat zu beginnen.";
+//             }
+//         })
+//         .catch(error => {
+//             isUpdatingChat = false;
+//
+//             console.error("Error:", error);
+//         });
+// }
+//
+// function removeChatBubble(bubbleID) {
+//     const el = document.getElementById("msg-" + bubbleID) ||
+//         document.getElementById("world-msg-" + bubbleID) ||
+//         document.getElementById("guild-msg-" + bubbleID);
+//
+//     if (el) {
+//         const parent = el.parentNode;
+//         el.remove();
+//
+//         const remainingMessages = parent.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
+//
+//         if (remainingMessages.length === 0) {
+//             const placeholder = document.createElement("div");
+//             placeholder.id = "chat-empty-placeholder";
+//             placeholder.className = "info-box";
+//             placeholder.style.justifyContent = "center";
+//             placeholder.textContent = "Schreibe eine Nachricht, um den Chat zu beginnen.";
+//             parent.replaceChildren(placeholder);
+//         }
+//     }
+// }
+//
+// function checkServerMessagesEmpty() {
+//     const messageSection = document.getElementById("messages-section");
+//     if (!messageSection) return;
+//
+//     const activeTab = document.querySelector(".tablinks.active");
+//     const category = activeTab ? activeTab.textContent.trim() : "Alle";
+//     const categoryId = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+//
+//     const allBubbles = messageSection.querySelectorAll(".server-bubble");
+//     let visibleCount = 0;
+//     allBubbles.forEach(msg => {
+//         if (categoryId === "-1" || category === "Alle" || msg.dataset.category === category || msg.dataset.category === categoryId) {
+//             visibleCount++;
+//         }
+//     });
+//
+//     const btn = document.getElementById("load-more-server-btn");
+//
+//     if (visibleCount === 0 && !btn) {
+//         let placeholder = document.getElementById("server-empty-category");
+//         if (!placeholder) {
+//             placeholder = document.createElement("div");
+//             placeholder.id = "server-empty-category";
+//             placeholder.className = "no-event";
+//             placeholder.style.textAlign = "center";
+//             placeholder.style.opacity = "0.6";
+//             messageSection.appendChild(placeholder);
+//         }
+//         placeholder.textContent = (category === "Alle" || categoryId === "-1")
+//             ? "Keine Servernachrichten vorhanden."
+//             : `Keine Servernachrichten in "${category}" vorhanden.`;
+//         placeholder.style.display = "block";
+//     } else if (visibleCount > 0) {
+//         let placeholder = document.getElementById("server-empty-category");
+//         if (placeholder) {
+//             placeholder.style.display = "none";
+//         }
+//     }
+// }
+//
+// function deleteChatMessage(messageID, type = "private") {
+//     fetch(`ajax/chat_delete.php?m_id=${messageID}&type=${type}`, {
+//         method: "GET",
+//         headers: {
+//             "X-Requested-With": "XMLHttpRequest"
+//         }
+//     })
+//         .then(response => response.json())
+//         .then(response => {
+//             if (response.error) {
+//                 setInfoBoxError(response.error);
+//             } else {
+//                 removeChatBubble(messageID);
+//             }
+//         })
+//         .catch(error => {
+//             console.error("Error:", error);
+//         });
+// }
+//
+// function deleteServerMessage(messageID) {
+//     fetch(`ajax/chat_delete.php?type=server&m_id=${messageID}`, {
+//         method: "GET",
+//         headers: {
+//             "X-Requested-With": "XMLHttpRequest",
+//             "Content-Type": "application/x-www-form-urlencoded"
+//         },
+//     })
+//         .then(response => response.json())
+//         .then(response => {
+//             const infoBox = document.querySelector(".info-box");
+//
+//             if (response.error) {
+//                 infoBox.innerText = response.error;
+//                 infoBox.style.display = "flex";
+//             } else {
+//                 const newMessagesLine = document.getElementById("new-message-line");
+//                 const chatBubble = document.getElementById("msg-" + messageID);
+//
+//                 if (newMessagesLine) {
+//                     newMessagesLine.remove();
+//                 }
+//
+//                 if (chatBubble) {
+//                     chatBubble.remove();
+//                 }
+//
+//                 // Count remaining chat bubbles
+//                 /** @type {HTMLElement} */
+//                 const messageSection = document.getElementById("messages-section");
+//                 const remainingBubbles = messageSection.querySelectorAll(".server-bubble").length;
+//                 const btn = document.getElementById("load-more-server-btn");
+//
+//                 if (remainingBubbles === 0 && btn) {
+//                     btn.remove();
+//                     canLoadMore = false;
+//                 }
+//
+//                 checkServerMessagesEmpty();
+//
+//                 if (remainingBubbles > 0) {
+//                     checkScrollPosition();
+//                 }
+//             }
+//         })
+//         .catch(error => {
+//             console.error("Error:", error);
+//         });
+// }
+//
+// function removeEmptyPlaceholder() {
+//     const placeholder = document.getElementById("chat-empty-placeholder");
+//
+//     if (placeholder) {
+//         placeholder.remove();
+//     }
+// }
+//
+// function insertChatBubbleSorted(container, newBubble) {
+//     if (!container || !newBubble) return;
+//     if (document.getElementById(newBubble.id)) return;
+//
+//     const newId = parseInt(newBubble.id.replace(/\D/g, ''), 10) || 0;
+//     const existingBubbles = container.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
+//
+//     let inserted = false;
+//     for (let i = 0; i < existingBubbles.length; i++) {
+//         const curId = parseInt(existingBubbles[i].id.replace(/\D/g, ''), 10) || 0;
+//
+//         if (curId > newId) {
+//             container.insertBefore(newBubble, existingBubbles[i]);
+//             inserted = true;
+//             break;
+//         }
+//     }
+//
+//     if (!inserted) {
+//         container.appendChild(newBubble);
+//     }
+// }
+//
+// function insertNewChatMessage(e) {
+//     if (e) e.preventDefault();
+//     if (isSendingChat) return;
+//
+//     const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
+//     const messageInput = document.getElementById("message-input");
+//     const form = document.getElementById("newmessage");
+//     const submitBtn = form?.querySelector('input[type="submit"], input[type="button"]');
+//     let receiver = document.querySelector('input[name="receiver"]').value;
+//     const text = messageInput.value;
+//
+//     if (text === "") return;
+//
+//     isSendingChat = true;
+//     if (messageInput) messageInput.disabled = true;
+//     if (submitBtn) submitBtn.disabled = true;
+//
+//     const formData = new URLSearchParams();
+//     formData.append("receiver", receiver);
+//     formData.append("text", text);
+//     formData.append("token", tabToken);
+//
+//     fetch("ajax/chat_insert.php", {
+//         method: "POST",
+//         headers: {
+//             "X-Requested-With": "XMLHttpRequest",
+//             "Content-Type": "application/x-www-form-urlencoded"
+//         },
+//         body: formData.toString()
+//     })
+//         .then(response => response.json())
+//         .then(response => {
+//             if (response.error === "redirect") {
+//                 const target = response.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + response.chatPartner;
+//                 window.location.href = "messages.php?" + target;
+//                 return;
+//             }
+//
+//             const infoBox = document.querySelector(".info-box");
+//
+//             if (response.error) {
+//                 displayChatError(response.error, response.counter);
+//             } else if (response.html) {
+//                 removeEmptyPlaceholder();
+//
+//                 document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
+//                 messageInput.value = "";
+//                 lastSeenId = response.lastId;
+//
+//                 if (infoBox) infoBox.style.display = "none";
+//
+//                 scrollDown(true);
+//             }
+//         })
+//         .catch(error => console.error("Error:", error))
+//         .finally(() => {
+//             isSendingChat = false;
+//
+//             if (messageInput) {
+//                 messageInput.disabled = false;
+//                 messageInput.focus();
+//             }
+//             if (submitBtn) submitBtn.disabled = false;
+//         });
+// }
+//
+// function conversationDeletionDialog(chatPartnerID, chatPartner) {
+//     showConfirmationDialog(
+//         "Willst du die Konversation mit " + chatPartner + " wirklich löschen?",
+//         "Ja",
+//         "Nein",
+//         () => {
+//             window.location.href = "messages.php?action=delete&s=" + chatPartnerID;
+//         }
+//     );
+// }
+//
+// function updateNavigationBadges(privCount, worldCount, guildCount, achCount) {
+//     const isWorldChatActive = document.getElementById("messages-section")?.dataset.chatType === "world"
+//         || window.location.search.includes("worldchat");
+//     const isGuildChatActive = document.getElementById("messages-section")?.dataset.chatType === "guild"
+//         || (window.location.pathname.includes("guild.php") && document.getElementById("guild_tab_chat")?.style.display !== "none");
+//
+//     if (isWorldChatActive) worldCount = 0;
+//     if (isGuildChatActive) guildCount = 0;
+//
+//     const privBadges = document.querySelectorAll(".js-badge-priv");
+//     privBadges.forEach(badge => {
+//         if (privCount > 0) {
+//             badge.innerText = privCount > 9 ? "9+" : privCount;
+//             badge.style.display = "flex";
+//         } else {
+//             badge.style.display = "none";
+//         }
+//     });
+//
+//     const worldBadges = document.querySelectorAll(".js-badge-world");
+//     worldBadges.forEach(badge => {
+//         if (worldCount > 0 && !isWorldChatActive) {
+//             badge.innerText = worldCount > 9 ? "9+" : worldCount;
+//             badge.style.display = "flex";
+//         } else {
+//             badge.style.display = "none";
+//         }
+//     });
+//
+//     const guildBadges = document.querySelectorAll(".js-badge-guild");
+//     guildBadges.forEach(badge => {
+//         if (guildCount > 0 && !isGuildChatActive) {
+//             badge.innerText = guildCount > 9 ? "9+" : guildCount;
+//             badge.style.display = "flex";
+//         } else {
+//             badge.style.display = "none";
+//         }
+//     });
+//
+//     if (achCount !== undefined) {
+//         const achBadges = document.querySelectorAll(".box[data-url='achievements.php'] .msg-badge");
+//         achBadges.forEach(badge => {
+//             if (achCount > 0) {
+//                 badge.innerText = achCount > 9 ? "9+" : achCount;
+//                 badge.style.display = "inline-flex";
+//             } else {
+//                 badge.style.display = "none";
+//             }
+//         });
+//     }
+//
+//     const mobileDot = document.getElementById("mobile-nav-dot");
+//     if (mobileDot) {
+//         const hasAlert = mobileDot.dataset.hasAlert === "true";
+//         const effectiveTotal = (privCount || 0) + (isWorldChatActive ? 0 : (worldCount || 0)) + (isGuildChatActive ? 0 : (guildCount || 0)) + (achCount || 0);
+//         mobileDot.style.display = (effectiveTotal > 0 || hasAlert) ? "block" : "none";
+//     }
+// }
+//
+// function initializeChat() {
+//     const messageSection = document.getElementById("messages-section");
+//     if (!messageSection) return;
+//
+//     const chatType = messageSection.dataset.chatType;
+//     const params = new URLSearchParams({type: chatType});
+//
+//     if (chatType === "private") {
+//         params.append("s", messageSection.dataset.partnerId || "0");
+//         params.append("token", messageSection.dataset.token || "");
+//         params.append("partner_name", messageSection.dataset.partnerName || "");
+//     }
+//
+//     fetch(`ajax/chat_init.php?${params.toString()}`, {
+//         headers: {'X-Requested-With': 'XMLHttpRequest'}
+//     })
+//         .then(r => r.json())
+//         .then(data => {
+//             if (data.error === "redirect") {
+//                 window.location.href = "messages.php";
+//                 return;
+//             }
+//
+//             messageSection.innerHTML = data.html;
+//
+//             updateNavigationBadges(data.privUnread, data.worldUnread, data.guildUnread, data.achievementsUnread);
+//
+//             const messageInput = document.getElementById("message-input");
+//             const messageForm = document.getElementById("newmessage")
+//                 || document.getElementById("world-chat-form")
+//                 || document.getElementById("guild-chat-form");
+//             const loadMoreBtn = document.getElementById("load-older-btn");
+//             const chatCfg = document.getElementById("chat-config");
+//
+//             lastSeenId = data.lastId;
+//
+//             if (chatCfg) {
+//                 canLoadMore = chatCfg.dataset.hasMore === "true";
+//             }
+//
+//             if (loadMoreBtn && !canLoadMore) {
+//                 loadMoreBtn.style.display = "none";
+//             }
+//
+//             messageSection.addEventListener("scroll", () => {
+//                 checkScrollPosition();
+//             });
+//
+//             if (messageInput) {
+//                 messageInput.addEventListener("keydown", e => {
+//                     if (e.key === "Enter" && !e.shiftKey) {
+//                         e.preventDefault();
+//
+//                         if (chatType === "world" || chatType === "guild") {
+//                             const sendBtn = messageForm.querySelector('input[type="button"]');
+//                             if (sendBtn) sendBtn.click();
+//                         } else {
+//                             messageForm.requestSubmit();
+//                         }
+//                     }
+//                 });
+//             }
+//
+//             if (messageForm && messageForm.id === "newmessage") {
+//                 messageForm.addEventListener("submit", e => {
+//                     insertNewChatMessage(e);
+//                 });
+//             }
+//
+//             setInterval(() => {
+//                 updateChat();
+//             }, CHAT_UPDATE_INTERVAL);
+//
+//             scrollDown();
+//             scrollToLatestMessage();
+//
+//             const loadingOverlay = document.getElementById("chat-loading-overlay");
+//
+//             messageSection.style.opacity = "1";
+//
+//             if (loadingOverlay) loadingOverlay.style.display = "none";
+//
+//             applyChatPrefill();
+//         })
+//         .catch(err => console.error("Chat Init Fehler:", err));
+// }
+//
+// // Filter server log messages
+// function filterServerMessages(element) {
+//     const categoryId = element.dataset.category !== undefined ? element.dataset.category : "-1";
+//     const categoryName = element.textContent.trim();
+//     let messages = document.querySelectorAll('.server-bubble');
+//     let newLine = document.getElementById('new-message-line');
+//     let visibleCount = 0;
+//
+//     messages.forEach(msg => {
+//         if (categoryId === "-1" || msg.dataset.category === categoryId) {
+//             msg.style.display = "block";
+//             visibleCount++;
+//         } else {
+//             msg.style.display = "none";
+//         }
+//     });
+//
+//     if (newLine) {
+//         newLine.style.display = (categoryId === "-1") ? "flex" : "none";
+//     }
+//
+//     const section = document.getElementById("messages-section");
+//     let placeholder = document.getElementById("server-empty-category");
+//
+//     if (visibleCount === 0) {
+//         if (!placeholder && section) {
+//             placeholder = document.createElement("div");
+//             placeholder.id = "server-empty-category";
+//             placeholder.className = "no-event";
+//             placeholder.style.textAlign = "center";
+//             section.appendChild(placeholder);
+//         }
+//         if (placeholder) {
+//             placeholder.textContent = (categoryId === "-1")
+//                 ? "Keine Servernachrichten vorhanden."
+//                 : `Keine Servernachrichten in "${categoryName}" vorhanden.`;
+//             placeholder.style.display = "block";
+//         }
+//     } else {
+//         if (placeholder) {
+//             placeholder.style.display = "none";
+//         }
+//     }
+//
+//     canLoadMore = true;
+//
+//     // Update active tab
+//     document.querySelectorAll('.tablinks').forEach(tab => tab.classList.remove("active"));
+//     element.classList.add("active");
+//
+//     checkScrollPosition();
+// }
+//
+// function checkScrollPosition() {
+//     const messageSection = document.getElementById("messages-section");
+//     if (!messageSection || isFetchingOlder || !canLoadMore) return;
+//
+//     const isServerInbox = window.location.search.includes("servermsgs");
+//     const isWorldChat = messageSection.dataset.chatType === "world";
+//     const isGuildChat = messageSection.dataset.chatType === "guild";
+//
+//     if (isServerInbox) {
+//         const scrollPos = messageSection.scrollTop + messageSection.clientHeight;
+//
+//         if (scrollPos > messageSection.scrollHeight - 20) {
+//             loadOlderServerMessages();
+//         }
+//     } else if (isWorldChat) {
+//         if (messageSection.scrollTop < 20) {
+//             loadOlderWorldMessages();
+//         }
+//     } else if (isGuildChat) {
+//         if (messageSection.scrollTop < 20) {
+//             loadOlderGuildMessages();
+//         }
+//     } else {
+//         if (messageSection.scrollTop < 20) {
+//             const urlParams = new URLSearchParams(window.location.search);
+//             const chatPartner = urlParams.get("s");
+//
+//             if (chatPartner) loadOlderMessages(chatPartner);
+//         }
+//     }
+// }
+//
+// function loadOlderGuildMessages() {
+//     if (isFetchingOlder || !canLoadMore) return;
+//
+//     const section = document.getElementById("messages-section");
+//     const firstMsg = section.querySelector("[id^='guild-msg-']");
+//     if (!firstMsg) return;
+//
+//     const oldestId = firstMsg.id.replace("guild-msg-", "");
+//     const btn = document.getElementById("load-older-btn");
+//
+//     isFetchingOlder = true;
+//     btn.innerText = "Lade...";
+//
+//     fetch(`ajax/chat_load_more.php?type=guild&oldest_id=${oldestId}`, {
+//         headers: {"X-Requested-With": "XMLHttpRequest"}
+//     })
+//         .then(r => r.json())
+//         .then(data => {
+//             if (data.count > 0) {
+//                 const oldHeight = section.scrollHeight;
+//
+//                 btn.insertAdjacentHTML("afterend", data.html);
+//                 section.scrollTop = section.scrollHeight - oldHeight;
+//
+//                 canLoadMore = data.hasMore;
+//             } else {
+//                 canLoadMore = false;
+//             }
+//             btn.style.display = canLoadMore ? "block" : "none";
+//             btn.innerText = "Ältere Nachrichten";
+//
+//             isFetchingOlder = false;
+//         });
+// }
+//
+// function loadOlderWorldMessages() {
+//     if (isFetchingOlder || !canLoadMore) return;
+//
+//     const section = document.getElementById("messages-section");
+//     const firstMsg = section.querySelector("[id^='world-msg-']");
+//     if (!firstMsg) return;
+//
+//     const oldestId = firstMsg.id.replace("world-msg-", "");
+//     const btn = document.getElementById("load-older-btn");
+//
+//     isFetchingOlder = true;
+//     if (btn) {
+//         btn.style.display = "block";
+//         btn.innerText = "Lade ältere Welt-Nachrichten...";
+//     }
+//
+//     fetch(`ajax/chat_load_more.php?type=world&oldest_id=${oldestId}`, {
+//         headers: {"X-Requested-With": "XMLHttpRequest"}
+//     })
+//         .then(r => r.json())
+//         .then(data => {
+//             if (data.count > 0) {
+//                 const oldHeight = section.scrollHeight;
+//                 btn.insertAdjacentHTML("afterend", data.html);
+//
+//                 const newHeight = section.scrollHeight;
+//                 section.scrollTop = newHeight - oldHeight;
+//
+//                 canLoadMore = data.hasMore;
+//             } else {
+//                 canLoadMore = false;
+//             }
+//             finishLoading(btn);
+//         })
+//         .catch(err => {
+//             console.error("Fehler:", err);
+//             isFetchingOlder = false;
+//             if (btn) btn.innerText = "Fehler beim Laden";
+//         });
+// }
+//
+// function loadOlderServerMessages() {
+//     if (isFetchingOlder || !canLoadMore) return;
+//
+//     const section = document.getElementById("messages-section");
+//     const bubbles = section.querySelectorAll(".server-bubble");
+//     const lastMsg = bubbles[bubbles.length - 1];
+//     const btn = document.getElementById("load-more-server-btn");
+//
+//     if (!lastMsg) return;
+//
+//     const oldestId = lastMsg.id.replace("msg-", "");
+//     const activeTab = document.querySelector(".tablinks.active");
+//     const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+//
+//     isFetchingOlder = true;
+//
+//     if (btn) btn.innerText = "Lade...";
+//
+//     fetch(`ajax/chat_load_more.php?type=server&oldest_id=${oldestId}&category=${encodeURIComponent(category)}`, {
+//         headers: {"X-Requested-With": "XMLHttpRequest"}
+//     })
+//         .then(r => r.json())
+//         .then(data => {
+//             if (data.count > 0) {
+//                 if (btn) {
+//                     btn.insertAdjacentHTML("beforebegin", data.html);
+//                 } else {
+//                     section.insertAdjacentHTML("beforeend", data.html);
+//                 }
+//
+//                 canLoadMore = data.hasMore;
+//             } else {
+//                 canLoadMore = false;
+//             }
+//
+//             if (btn) {
+//                 if (!canLoadMore) {
+//                     btn.remove();
+//                 } else {
+//                     btn.innerText = "Ältere Berichte laden";
+//                 }
+//             }
+//
+//             isFetchingOlder = false;
+//             checkServerMessagesEmpty();
+//         })
+//         .catch(() => {
+//             isFetchingOlder = false;
+//
+//             if (btn) btn.innerText = "Fehler beim Laden";
+//         });
+// }
+//
+// function loadOlderMessages(partnerId) {
+//     if (isFetchingOlder || !canLoadMore) return;
+//
+//     const section = document.getElementById("messages-section");
+//     const firstMsg = section.querySelector("[id^='msg-']");
+//     if (!firstMsg) return;
+//
+//     const oldestId = firstMsg.id.replace("msg-", "");
+//     /** @type {HTMLElement} */
+//     const btn = document.getElementById("load-older-btn");
+//
+//     isFetchingOlder = true;
+//     if (btn) {
+//         btn.style.display = "block";
+//         btn.innerText = "Lade ältere Nachrichten...";
+//     }
+//
+//     fetch(`ajax/chat_load_more.php?s=${partnerId}&oldest_id=${oldestId}`, {
+//         headers: {"X-Requested-With": "XMLHttpRequest"}
+//     })
+//         .then(r => r.json())
+//         .then(data => {
+//             if (data.count > 0) {
+//                 const oldHeight = section.scrollHeight;
+//                 btn.insertAdjacentHTML("afterend", data.html);
+//                 const newHeight = section.scrollHeight;
+//                 section.scrollTop = newHeight - oldHeight;
+//
+//                 /** @type {{hasMore: boolean}} */
+//                 canLoadMore = data.hasMore;
+//             } else {
+//                 canLoadMore = false;
+//             }
+//
+//             finishLoading(btn);
+//         })
+//         .catch(err => {
+//             console.error("Fehler:", err);
+//             isFetchingOlder = false;
+//
+//             if (btn) {
+//                 btn.innerText = "Fehler beim Laden";
+//                 btn.style.display = "block";
+//             }
+//         });
+// }
+//
+// function finishLoading(btn) {
+//     if (btn) {
+//         if (canLoadMore) {
+//             btn.innerText = "Ältere Nachrichten laden";
+//         } else {
+//             btn.style.display = "none";
+//         }
+//     }
+//     setTimeout(() => {
+//         isFetchingOlder = false;
+//         checkScrollPosition();
+//     }, 800);
+// }
+//
+// function setInfoBoxError(message) {
+//     displayChatError(message);
+// }
+//
+// function displayChatError(message, seconds = undefined) {
+//     const infoBox = document.querySelector(".info-box");
+//     if (!infoBox) return;
+//
+//     let contentWrapper = infoBox.querySelector(".info-wrapper");
+//     if (!contentWrapper) {
+//         infoBox.replaceChildren(); // Box leeren
+//         const errImg = document.createElement("img");
+//         errImg.src = ERROR_IMAGE_PATH;
+//         errImg.alt = "Fehler";
+//         infoBox.appendChild(errImg);
+//
+//         contentWrapper = document.createElement("span");
+//         contentWrapper.className = "info-wrapper";
+//         contentWrapper.style.flex = "1";
+//         contentWrapper.style.textAlign = "center";
+//         infoBox.append(contentWrapper);
+//     }
+//
+//     let errorTextSpan = contentWrapper.querySelector(".error-msg-text");
+//     if (!errorTextSpan) {
+//         errorTextSpan = document.createElement("span");
+//         errorTextSpan.className = "error-msg-text";
+//         contentWrapper.append(errorTextSpan);
+//     }
+//
+//     errorTextSpan.innerText = message + (seconds !== undefined ? " " : "");
+//
+//     let counterElement = document.getElementById("counter");
+//
+//     if (seconds !== undefined) {
+//         if (!counterElement) {
+//             counterElement = document.createElement("span");
+//             counterElement.id = "counter";
+//             counterElement.style.fontWeight = "bold";
+//             contentWrapper.append(counterElement);
+//         }
+//
+//         if (typeof startCountdown === "function") {
+//             startCountdown(counterElement, seconds, 0, null, true);
+//         }
+//     } else {
+//         if (counterElement) {
+//             counterElement.remove();
+//         }
+//     }
+//
+//     infoBox.style.display = "flex";
+// }
+//
+// document.addEventListener("DOMContentLoaded", () => {
+//     const messageSection = document.getElementById("messages-section");
+//     const classicNewForm = document.querySelector("form[action='messages.php?action=new']");
+//
+//     if (classicNewForm) {
+//         classicNewForm.addEventListener("submit", function () {
+//             const btn = this.querySelector('input[type="submit"]');
+//             if (btn) {
+//                 setTimeout(() => {
+//                     btn.disabled = true;
+//                     btn.value = "Wird gesendet...";
+//                 }, 1);
+//             }
+//         });
+//     }
+//
+//     if (messageSection) {
+//         messageSection.addEventListener("scroll", () => {
+//             checkScrollPosition();
+//         });
+//
+//         if (document.getElementById("message-input")) {
+//             initializeChat();
+//         } else {
+//             canLoadMore = !!document.getElementById("load-more-server-btn");
+//
+//             scrollToLatestMessage();
+//         }
+//     }
+//
+//     applyChatPrefill();
+// });
+
 const CHAT_UPDATE_INTERVAL = 5000;
 const ERROR_IMAGE_PATH = "images/icons/icon_error.png";
 let isFetchingOlder = false;
@@ -6,127 +1196,30 @@ let lastSeenId = 0;
 let isUpdatingChat = false;
 let isSendingChat = false;
 
-registerAction("loadOlderChat", (el) => {
-    const partnerId = el.dataset.partnerid;
-
-    if (typeof loadOlderMessages === "function") {
-        loadOlderMessages(partnerId);
-    }
-});
-registerAction("loadMoreServerMsgs", () => {
-    loadOlderServerMessages();
-});
-registerAction("filterServer", (el) => {
-    if (typeof filterServerMessages === "function") {
-        filterServerMessages(el);
-    }
-});
-registerAction("deleteServerMsg", (el) => {
-    const msgId = el.dataset.id;
-
-    if (typeof deleteServerMessage === "function") {
-        deleteServerMessage(msgId);
-    }
-});
-registerAction("deleteChatMsg", (el) => {
-    const msgId = el.dataset.id;
-
-    if (typeof deleteChatMessage === "function") {
-        deleteChatMessage(msgId);
-    }
-});
-registerAction("confirmDeleteConversation", (el) => {
-    const partnerId = el.dataset.id;
-    const partnerName = el.dataset.name;
-
-    if (typeof conversationDeletionDialog === "function") {
-        conversationDeletionDialog(partnerId, partnerName);
-    }
-});
-registerAction("sendWorldMessage", () => {
-    if (isSendingChat) return;
-
-    const messageInput = document.getElementById("message-input");
-    const text = messageInput.value;
-    const form = document.getElementById("world-chat-form");
-    const submitBtn = form?.querySelector('input[type="button"], input[type="submit"]');
-
-    if (text === "") return;
-
-    isSendingChat = true;
-    if (messageInput) messageInput.disabled = true;
-    if (submitBtn) submitBtn.disabled = true;
-
-    const formData = new URLSearchParams();
-    formData.append("text", text);
-
-    fetch("ajax/chat_insert_world.php", {
-        method: "POST",
-        headers: {"X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded"},
-        body: formData.toString()
-    })
-        .then(r => r.json())
-        .then(response => {
-            if (response.error) {
-                displayChatError(response.error, response.counter);
-            } else if (response.html) {
-                const errorBox = document.querySelector(".event-error");
-                if (errorBox) errorBox.style.display = "none";
-
-                removeEmptyPlaceholder();
-
-                document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
-                messageInput.value = "";
-
-                lastSeenId = response.lastId;
-
-                scrollDown(true);
-            }
-        })
-        .catch(err => console.error("Error:", err))
-        .finally(() => {
-            isSendingChat = false;
-
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.focus();
-            }
-            if (submitBtn) submitBtn.disabled = false;
-        });
-});
-registerAction("deleteWorldChatMsg", (el) => {
-    const msgId = el.dataset.id;
-
-    fetch(`ajax/chat_delete_world.php?m_id=${msgId}`, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                const bubble = document.getElementById("world-msg-" + msgId);
-
-                if (bubble) bubble.remove();
-            }
-        })
-        .catch(err => console.error("Fehler beim Löschen:", err));
-});
-registerAction("loadOlderWorldChat", () => {
-    loadOlderWorldMessages();
-});
+registerAction("sendWorldMessage", () => sendChatMessage("world"));
+registerAction("sendGuildMessage", () => sendChatMessage("guild"));
+registerAction("deleteChatMsg", (el) => deleteChatMessage(el.dataset.id, "private"));
+registerAction("deleteWorldChatMsg", (el) => deleteChatMessage(el.dataset.id, "world"));
+registerAction("deleteGuildChatMsg", (el) => deleteChatMessage(el.dataset.id, "guild"));
+registerAction("deleteServerMsg", (el) => deleteServerMessage(el.dataset.id));
+registerAction("loadOlderChat", (el) => loadOlderChatMessages("private", el.dataset.partnerid));
+registerAction("loadOlderWorldChat", () => loadOlderChatMessages("world"));
+registerAction("loadOlderGuildMessages", () => loadOlderChatMessages("guild"));
+registerAction("loadMoreServerMsgs", () => loadOlderServerMessages());
+registerAction("filterServer", (el) => filterServerMessages(el));
+registerAction("confirmDeleteConversation", (el) => conversationDeletionDialog(el.dataset.id, el.dataset.name));
 registerAction("confirmDeleteAllServer", (el) => {
     const activeTab = document.querySelector(".tablinks.active");
     const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
     const catName = activeTab ? activeTab.textContent.trim() : "Alle";
     const catText = category === "-1" ? "ALLE Nachrichten" : `alle Nachrichten der Kategorie "${catName}"`;
-
     const maxId = el.dataset.maxId || 0;
 
     showConfirmationDialog(
         `Möchtest du wirklich ${catText} unwiderruflich löschen?`,
-        "Ja",
-        "Abbrechen",
+        "Ja", "Abbrechen",
         () => {
-            fetch(`ajax/chat_srv_delete_all.php?category=${encodeURIComponent(category)}&max_id=${maxId}`, {
+            fetch(`ajax/chat_delete.php?type=server&delete_all=1&category=${encodeURIComponent(category)}&max_id=${maxId}`, {
                 headers: {"X-Requested-With": "XMLHttpRequest"}
             })
                 .then(r => r.json())
@@ -138,28 +1231,53 @@ registerAction("confirmDeleteAllServer", (el) => {
         }
     );
 });
-registerAction("sendGuildMessage", () => {
-    const form = document.getElementById("guild-chat-form");
-    const submitBtn = form?.querySelector('input[type="button"], input[type="submit"]');
-    const messageInput = document.getElementById("message-input");
-    const text = messageInput.value;
 
+function sendChatMessage(chatType, extraParams = {}) {
+    if (isSendingChat) return;
+
+    const messageInput = document.getElementById("message-input");
+    if (!messageInput) return;
+
+    const text = messageInput.value;
     if (text.trim() === "") return;
 
+    document.querySelectorAll(".emoji-menu.open").forEach(menu => menu.classList.remove("open"));
+
+    const form = messageInput.closest("form")
+        || document.getElementById(`${chatType}-chat-form`)
+        || document.getElementById("newmessage");
+    const submitBtn = form?.querySelector('input[type="button"], input[type="submit"], button[type="submit"]');
+
     isSendingChat = true;
-    if (messageInput) messageInput.disabled = true;
+
+    messageInput.disabled = true;
     if (submitBtn) submitBtn.disabled = true;
 
     const formData = new URLSearchParams();
+    formData.append("type", chatType);
     formData.append("text", text);
+    for (const [key, val] of Object.entries(extraParams)) {
+        if (val !== undefined && val !== null) {
+            formData.append(key, String(val));
+        }
+    }
 
-    fetch("ajax/chat_insert_guild.php", {
+    fetch("ajax/chat_insert.php", {
         method: "POST",
-        headers: {"X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded"},
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
         body: formData.toString()
     })
         .then(r => r.json())
         .then(response => {
+            if (response.error === "redirect") {
+                const target = response.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + response.chatPartner;
+                window.location.href = "messages.php?" + target;
+                return;
+            }
+
             if (response.error) {
                 displayChatError(response.error, response.counter);
             } else if (response.html) {
@@ -170,40 +1288,164 @@ registerAction("sendGuildMessage", () => {
 
                 document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
                 messageInput.value = "";
+
                 lastSeenId = response.lastId;
 
                 scrollDown(true);
             }
         })
-        .catch(err => console.error("Error:", err))
+        .catch(err => console.error("Chat Send Fehler:", err))
         .finally(() => {
             isSendingChat = false;
 
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.focus();
-            }
+            messageInput.disabled = false;
+            messageInput.focus();
+
             if (submitBtn) submitBtn.disabled = false;
         });
-});
-registerAction("deleteGuildChatMsg", (el) => {
-    const msgId = el.dataset.id;
+}
 
-    fetch(`ajax/chat_delete_guild.php?m_id=${msgId}`, {
+function insertNewChatMessage(e) {
+    if (e) e.preventDefault();
+
+    const receiver = document.querySelector('input[name="receiver"]')?.value || "";
+    const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
+
+    sendChatMessage("private", { receiver: receiver, token: tabToken });
+}
+
+function loadOlderChatMessages(type, partnerId = null) {
+    if (isFetchingOlder || !canLoadMore) return;
+
+    const section = document.getElementById("messages-section");
+    if (!section) return;
+
+    const prefix = type === "world" ? "world-msg-" : (type === "guild" ? "guild-msg-" : "msg-");
+    const firstMsg = section.querySelector(`[id^='${prefix}']`);
+    if (!firstMsg) return;
+
+    const oldestId = firstMsg.id.replace(prefix, "");
+    const btn = document.getElementById("load-older-btn");
+
+    isFetchingOlder = true;
+
+    if (btn) {
+        btn.style.display = "block";
+        btn.innerText = "Lade ältere Nachrichten...";
+    }
+
+    let query = `?type=${encodeURIComponent(type)}&oldest_id=${encodeURIComponent(oldestId)}`;
+    if (type === "private" && partnerId) {
+        query += `&s=${encodeURIComponent(partnerId)}`;
+    }
+
+    fetch(`ajax/chat_load_more.php${query}`, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.json())
         .then(data => {
-            if (data.success) {
-                const bubble = document.getElementById("guild-msg-" + msgId);
-                if (bubble) bubble.remove();
+            if (data.count > 0) {
+                const oldHeight = section.scrollHeight;
+                btn.insertAdjacentHTML("afterend", data.html);
+
+                section.scrollTop = section.scrollHeight - oldHeight;
+
+                canLoadMore = data.hasMore;
+            } else {
+                canLoadMore = false;
             }
+            finishLoading(btn);
         })
-        .catch(err => console.error("Fehler beim Löschen:", err));
-});
-registerAction("loadOlderGuildMessages", () => {
-    loadOlderGuildMessages();
-});
+        .catch(err => {
+            console.error("Fehler beim Laden älterer Nachrichten:", err);
+
+            isFetchingOlder = false;
+
+            if (btn) btn.innerText = "Fehler beim Laden";
+        });
+}
+
+function loadOlderGuildMessages() {
+    loadOlderChatMessages("guild");
+}
+window.loadOlderGuildMessages = loadOlderGuildMessages;
+
+function loadOlderServerMessages() {
+    if (isFetchingOlder || !canLoadMore) return;
+
+    const section = document.getElementById("messages-section");
+    const bubbles = section.querySelectorAll(".server-bubble");
+    const lastMsg = bubbles[bubbles.length - 1];
+    const btn = document.getElementById("load-more-server-btn");
+    if (!lastMsg) return;
+
+    const oldestId = lastMsg.id.replace("msg-", "");
+    const activeTab = document.querySelector(".tablinks.active");
+    const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+
+    isFetchingOlder = true;
+
+    if (btn) btn.innerText = "Lade...";
+
+    fetch(`ajax/chat_load_more.php?type=server&oldest_id=${oldestId}&category=${encodeURIComponent(category)}`, {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.count > 0) {
+                if (btn) {
+                    btn.insertAdjacentHTML("beforebegin", data.html);
+                } else {
+                    section.insertAdjacentHTML("beforeend", data.html);
+                }
+
+                canLoadMore = data.hasMore;
+            } else {
+                canLoadMore = false;
+            }
+
+            if (btn) {
+                if (!canLoadMore) {
+                    btn.remove();
+                } else {
+                    btn.innerText = "Ältere Berichte laden";
+                }
+            }
+
+            isFetchingOlder = false;
+
+            checkServerMessagesEmpty();
+        })
+        .catch(() => {
+            isFetchingOlder = false;
+            if (btn) btn.innerText = "Fehler beim Laden";
+        });
+}
+
+function checkScrollPosition() {
+    const messageSection = document.getElementById("messages-section");
+    if (!messageSection || isFetchingOlder || !canLoadMore) return;
+
+    const isServerInbox = window.location.search.includes("servermsgs");
+    const chatType = messageSection.dataset.chatType;
+
+    if (isServerInbox) {
+        const scrollPos = messageSection.scrollTop + messageSection.clientHeight;
+        if (scrollPos > messageSection.scrollHeight - 20) {
+            loadOlderServerMessages();
+        }
+    } else if (chatType === "world" || chatType === "guild") {
+        if (messageSection.scrollTop < 20) {
+            loadOlderChatMessages(chatType);
+        }
+    } else {
+        if (messageSection.scrollTop < 20) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const chatPartner = urlParams.get("s");
+            if (chatPartner) loadOlderChatMessages("private", chatPartner);
+        }
+    }
+}
 
 function applyChatPrefill() {
     const prefill = sessionStorage.getItem("me_chat_prefill");
@@ -212,10 +1454,11 @@ function applyChatPrefill() {
     const input = document.getElementById("message-input") || document.querySelector("textarea[name='text']");
     if (input) {
         input.value = prefill + " ";
+
         sessionStorage.removeItem("me_chat_prefill");
+
         input.focus();
         input.setSelectionRange(input.value.length, input.value.length);
-
         input.scrollIntoView({behavior: "smooth", block: "center"});
     }
 }
@@ -223,23 +1466,16 @@ function applyChatPrefill() {
 function scrollToLatestMessage() {
     const newMessageLine = document.getElementById("new-message-line");
     const parentContainer = document.getElementById("messages-section");
-
     if (!parentContainer) return;
 
     const isServerInbox = window.location.search.includes("servermsgs");
-
     if (!newMessageLine) {
-        if (isServerInbox) {
-            parentContainer.scrollTop = 0;
-        } else {
-            parentContainer.scrollTop = parentContainer.scrollHeight;
-        }
+        parentContainer.scrollTop = isServerInbox ? 0 : parentContainer.scrollHeight;
         return;
     }
 
     if (isServerInbox) {
         let target = newMessageLine.offsetTop - parentContainer.clientHeight + newMessageLine.clientHeight;
-
         parentContainer.scrollTop = target + 10;
 
         if (window.innerWidth <= 600) {
@@ -252,13 +1488,11 @@ function scrollToLatestMessage() {
 
 function scrollDown(force = false) {
     const messagesSection = document.getElementById("messages-section");
-
     if (messagesSection) {
         if (force) {
             messagesSection.scrollTop = messagesSection.scrollHeight;
         } else {
             const isAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
-
             if (isAtBottom) {
                 messagesSection.scrollTo({
                     top: messagesSection.scrollHeight,
@@ -269,49 +1503,10 @@ function scrollDown(force = false) {
     }
 }
 
-function checkSessionSync() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const chatPartnerInTab = urlParams.get("s");
-
-    if (!chatPartnerInTab) return;
-
-    updateChat(chatPartnerInTab);
-}
-
-window.addEventListener("focus", function () {
-    checkSessionSync();
-
-    isUpdatingChat = false;
-
-    const messageSection = document.getElementById("messages-section");
-    const chatType = messageSection?.dataset.chatType;
-
-    if (messageSection && chatType && ["private", "world", "guild"].includes(chatType)) {
-        const chatPartner = messageSection.dataset.partnerId
-            || (new URLSearchParams(window.location.search)).get("s")
-            || "0";
-
-        updateChat(chatPartner);
-    }
+window.addEventListener("focus", () => updateChat());
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") updateChat();
 });
-
-document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible") {
-        isUpdatingChat = false;
-
-        const messageSection = document.getElementById("messages-section");
-        const chatType = messageSection?.dataset.chatType;
-
-        if (messageSection && chatType && ["private", "world", "guild"].includes(chatType)) {
-            const chatPartner = messageSection.dataset.partnerId
-                || (new URLSearchParams(window.location.search)).get("s")
-                || "0";
-
-            updateChat(chatPartner);
-        }
-    }
-});
-
 
 function updateChat(chatPartner) {
     if (isUpdatingChat) return;
@@ -320,42 +1515,34 @@ function updateChat(chatPartner) {
     if (!messageSection) return;
 
     const chatType = messageSection.dataset.chatType;
-    if (!chatType || !["private", "world", "guild"].includes(chatType)) {
-        return;
-    }
+    if (!chatType || !["private", "world", "guild"].includes(chatType)) return;
+    if (chatType === "private" && !document.getElementById("message-input")) return;
 
-    if (chatType === "private" && !document.getElementById("message-input")) {
-        return;
-    }
-
-    let endpoint;
+    const effectivePartner = chatPartner || messageSection.dataset.partnerId || (new URLSearchParams(window.location.search)).get("s") || "0";
     let highestDomId = 0;
-    if (messageSection) {
-        messageSection.querySelectorAll("[id^='world-msg-'], [id^='guild-msg-'], [id^='msg-']").forEach(el => {
-            const num = parseInt(el.id.replace(/^(?:world-msg-|guild-msg-|msg-)/, ''), 10);
+    let oldestDomId = 0;
 
-            if (!isNaN(num) && num > highestDomId) highestDomId = num;
-        });
-    }
+    const bubbles = messageSection.querySelectorAll("[id^='world-msg-'], [id^='guild-msg-'], [id^='msg-']");
+    bubbles.forEach(el => {
+        const num = parseInt(el.id.replace(/^(?:world-msg-|guild-msg-|msg-)/, ''), 10);
+
+        if (!isNaN(num)) {
+            if (num > highestDomId) highestDomId = num;
+            if (oldestDomId === 0 || num < oldestDomId) oldestDomId = num;
+        }
+    });
+
     const safeLastId = Math.max(lastSeenId, highestDomId);
     if (safeLastId <= 0) return;
 
-    let queryParams = `?last_id=${safeLastId}`;
-
-    if (chatType === "world") {
-        endpoint = 'ajax/chat_update_world.php';
-    } else if (chatType === "guild") {
-        endpoint = 'ajax/chat_update_guild.php';
-    } else {
-        const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
-
-        endpoint = 'ajax/chat_update.php';
-        queryParams += `&s=${encodeURIComponent(chatPartner)}&token=${tabToken}`;
+    let queryParams = `?type=${encodeURIComponent(chatType)}&last_id=${safeLastId}&oldest_id=${oldestDomId}`;
+    if (chatType === "private") {
+        queryParams += `&s=${encodeURIComponent(effectivePartner)}`;
     }
 
     isUpdatingChat = true;
 
-    fetch(`${endpoint}${queryParams}`, {
+    fetch(`ajax/chat_update.php${queryParams}`, {
         method: "GET",
         headers: {
             "X-Requested-With": "XMLHttpRequest",
@@ -372,19 +1559,10 @@ function updateChat(chatPartner) {
                 return;
             }
 
-            /** @type {{ html: string, messagesToDelete: array, error: string, chatPartner: string }} */
-            const response = data;
-            /** @type {HTMLElement} */
-            const newMessageLine = document.getElementById("new-message-line");
             const infoBox = document.querySelector(".info-box");
-
-            if (response.error) {
-                if (response.error === "redirect") {
-                    location.href = "messages.php?action=read&s=" + response.chatPartner;
-                } else {
-                    setInfoBoxError(response.error);
-                    infoBox.style.display = "flex";
-                }
+            if (data.error) {
+                setInfoBoxError(data.error);
+                if (infoBox) infoBox.style.display = "flex";
                 return;
             }
 
@@ -392,62 +1570,42 @@ function updateChat(chatPartner) {
                 lastSeenId = data.lastId;
             }
 
-            if (response.html === "") {
-                if (newMessageLine) {
-                    messageSection.removeChild(newMessageLine);
-                }
+            const newMessageLine = document.getElementById("new-message-line");
+            if (data.html === "") {
+                if (newMessageLine) messageSection.removeChild(newMessageLine);
             } else {
                 removeEmptyPlaceholder();
 
-                const messagesSection = document.getElementById("messages-section");
-                const wasAtBottom = (messagesSection.scrollHeight - messagesSection.scrollTop - messagesSection.clientHeight) < 150;
-
+                const wasAtBottom = (messageSection.scrollHeight - messageSection.scrollTop - messageSection.clientHeight) < 150;
                 let temp = document.createElement("div");
-                temp.innerHTML = response.html;
+                temp.innerHTML = data.html;
+
                 let newBubbles = temp.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
+                newBubbles.forEach(bubble => insertChatBubbleSorted(messageSection, bubble));
 
-                newBubbles.forEach(bubble => {
-                    insertChatBubbleSorted(messageSection, bubble);
-                });
-
-                if (wasAtBottom) {
-                    scrollDown(true);
-                } else {
-                    scrollDown();
-                }
+                if (wasAtBottom) scrollDown(true); else scrollDown();
             }
 
-            if (response.messagesToDelete) {
-                response.messagesToDelete.forEach(item => {
-                    removeChatBubble(item);
-                });
+            if (data.messagesToDelete) {
+                data.messagesToDelete.forEach(item => removeChatBubble(item));
             }
 
-            if (data.reactionUpdates) {
-                if (Date.now() - (window.lastReactionClick || 0) < 2000) {
-                    return;
-                }
-
+            if (data.reactionUpdates && (Date.now() - (window.lastReactionClick || 0) >= 2000)) {
                 Object.keys(data.reactionUpdates).forEach(msgId => {
-                    const msgElement = document.getElementById("msg-" + msgId) || document.getElementById("world-msg-" + msgId) || document.getElementById("guild-msg-" + msgId);
+                    const msgElement = document.getElementById("msg-" + msgId)
+                        || document.getElementById("world-msg-" + msgId)
+                        || document.getElementById("guild-msg-" + msgId);
                     if (msgElement) {
                         const footer = msgElement.querySelector('.chat-reaction-footer');
-
-                        if (footer) {
-                            if (footer.matches(':hover') || footer.querySelector(':hover')) {
-                                return;
-                            }
-
-                            const newContent = data.reactionUpdates[msgId];
+                        if (footer && !footer.matches(':hover') && !footer.querySelector(':hover')) {
                             const tempDiv = document.createElement("div");
-                            tempDiv.innerHTML = newContent;
+                            tempDiv.innerHTML = data.reactionUpdates[msgId];
                             tempDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
 
                             const currentDiv = footer.cloneNode(true);
                             currentDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
-
                             if (currentDiv.innerHTML.trim() !== tempDiv.innerHTML.trim()) {
-                                footer.innerHTML = newContent;
+                                footer.innerHTML = data.reactionUpdates[msgId];
                             }
                         }
                     }
@@ -471,7 +1629,6 @@ function updateChat(chatPartner) {
             if (chatType === "world") {
                 document.querySelectorAll(".js-badge-world").forEach(b => b.style.display = "none");
             }
-
             if (chatType === "guild") {
                 const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
                 if (chatTabActive) {
@@ -487,82 +1644,38 @@ function updateChat(chatPartner) {
         })
         .catch(error => {
             isUpdatingChat = false;
-
-            console.error("Error:", error);
+            console.error("Chat Update Error:", error);
         });
 }
 
 function removeChatBubble(bubbleID) {
-    const el = document.getElementById("msg-" + bubbleID) ||
-        document.getElementById("world-msg-" + bubbleID) ||
-        document.getElementById("guild-msg-" + bubbleID);
-
+    const el = document.getElementById("msg-" + bubbleID)
+        || document.getElementById("world-msg-" + bubbleID)
+        || document.getElementById("guild-msg-" + bubbleID);
     if (el) {
         const parent = el.parentNode;
+
         el.remove();
 
-        const remainingMessages = parent.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
-
-        if (remainingMessages.length === 0) {
+        const remaining = parent.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
+        if (remaining.length === 0) {
             const placeholder = document.createElement("div");
             placeholder.id = "chat-empty-placeholder";
             placeholder.className = "info-box";
             placeholder.style.justifyContent = "center";
             placeholder.textContent = "Schreibe eine Nachricht, um den Chat zu beginnen.";
+
             parent.replaceChildren(placeholder);
         }
     }
 }
 
-function checkServerMessagesEmpty() {
-    const messageSection = document.getElementById("messages-section");
-    if (!messageSection) return;
-
-    const activeTab = document.querySelector(".tablinks.active");
-    const category = activeTab ? activeTab.textContent.trim() : "Alle";
-    const categoryId = activeTab ? (activeTab.dataset.category || "-1") : "-1";
-
-    const allBubbles = messageSection.querySelectorAll(".server-bubble");
-    let visibleCount = 0;
-    allBubbles.forEach(msg => {
-        if (categoryId === "-1" || category === "Alle" || msg.dataset.category === category || msg.dataset.category === categoryId) {
-            visibleCount++;
-        }
-    });
-
-    const btn = document.getElementById("load-more-server-btn");
-
-    if (visibleCount === 0 && !btn) {
-        let placeholder = document.getElementById("server-empty-category");
-        if (!placeholder) {
-            placeholder = document.createElement("div");
-            placeholder.id = "server-empty-category";
-            placeholder.className = "no-event";
-            placeholder.style.textAlign = "center";
-            placeholder.style.opacity = "0.6";
-            messageSection.appendChild(placeholder);
-        }
-        placeholder.textContent = (category === "Alle" || categoryId === "-1")
-            ? "Keine Servernachrichten vorhanden."
-            : `Keine Servernachrichten in "${category}" vorhanden.`;
-        placeholder.style.display = "block";
-    } else if (visibleCount > 0) {
-        let placeholder = document.getElementById("server-empty-category");
-        if (placeholder) {
-            placeholder.style.display = "none";
-        }
-    }
-}
-
-function deleteChatMessage(messageID) {
-    fetch(`ajax/chat_delete.php?m_id=${messageID}`, {
+function deleteChatMessage(messageID, type = "private") {
+    fetch(`ajax/chat_delete.php?m_id=${messageID}&type=${type}`, {
         method: "GET",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
+        headers: { "X-Requested-With": "XMLHttpRequest" }
     })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(response => {
             if (response.error) {
                 setInfoBoxError(response.error);
@@ -570,46 +1683,32 @@ function deleteChatMessage(messageID) {
                 removeChatBubble(messageID);
             }
         })
-        .catch(error => {
-            console.error("Error:", error);
-        });
+        .catch(err => console.error("Error:", err));
 }
 
 function deleteServerMessage(messageID) {
-    fetch(`ajax/chat_srv_delete.php?m_id=${messageID}`, {
+    fetch(`ajax/chat_delete.php?type=server&m_id=${messageID}`, {
         method: "GET",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
+        headers: { "X-Requested-With": "XMLHttpRequest" }
     })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(response => {
-            const infoBox = document.querySelector(".info-box");
-
             if (response.error) {
-                infoBox.innerText = response.error;
-                infoBox.style.display = "flex";
+                const infoBox = document.querySelector(".info-box");
+                if (infoBox) {
+                    infoBox.innerText = response.error;
+                    infoBox.style.display = "flex";
+                }
             } else {
-                const newMessagesLine = document.getElementById("new-message-line");
-                const chatBubble = document.getElementById("msg-" + messageID);
+                document.getElementById("new-message-line")?.remove();
+                document.getElementById("msg-" + messageID)?.remove();
 
-                if (newMessagesLine) {
-                    newMessagesLine.remove();
-                }
-
-                if (chatBubble) {
-                    chatBubble.remove();
-                }
-
-                // Count remaining chat bubbles
-                /** @type {HTMLElement} */
                 const messageSection = document.getElementById("messages-section");
-                const remainingBubbles = messageSection.querySelectorAll(".server-bubble").length;
+                const remainingBubbles = messageSection ? messageSection.querySelectorAll(".server-bubble").length : 0;
                 const btn = document.getElementById("load-more-server-btn");
-
                 if (remainingBubbles === 0 && btn) {
                     btn.remove();
+
                     canLoadMore = false;
                 }
 
@@ -620,30 +1719,22 @@ function deleteServerMessage(messageID) {
                 }
             }
         })
-        .catch(error => {
-            console.error("Error:", error);
-        });
+        .catch(err => console.error("Error:", err));
 }
 
 function removeEmptyPlaceholder() {
-    const placeholder = document.getElementById("chat-empty-placeholder");
-
-    if (placeholder) {
-        placeholder.remove();
-    }
+    document.getElementById("chat-empty-placeholder")?.remove();
 }
 
 function insertChatBubbleSorted(container, newBubble) {
-    if (!container || !newBubble) return;
-    if (document.getElementById(newBubble.id)) return;
+    if (!container || !newBubble || document.getElementById(newBubble.id)) return;
 
     const newId = parseInt(newBubble.id.replace(/\D/g, ''), 10) || 0;
     const existingBubbles = container.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
-
     let inserted = false;
+
     for (let i = 0; i < existingBubbles.length; i++) {
         const curId = parseInt(existingBubbles[i].id.replace(/\D/g, ''), 10) || 0;
-
         if (curId > newId) {
             container.insertBefore(newBubble, existingBubbles[i]);
             inserted = true;
@@ -656,77 +1747,10 @@ function insertChatBubbleSorted(container, newBubble) {
     }
 }
 
-function insertNewChatMessage(e) {
-    if (e) e.preventDefault();
-    if (isSendingChat) return;
-
-    const tabToken = document.getElementById("chat-tab-token")?.dataset.token || "";
-    const messageInput = document.getElementById("message-input");
-    const form = document.getElementById("newmessage");
-    const submitBtn = form?.querySelector('input[type="submit"], input[type="button"]');
-    let receiver = document.querySelector('input[name="receiver"]').value;
-    const text = messageInput.value;
-
-    if (text === "") return;
-
-    isSendingChat = true;
-    if (messageInput) messageInput.disabled = true;
-    if (submitBtn) submitBtn.disabled = true;
-
-    const formData = new URLSearchParams();
-    formData.append("receiver", receiver);
-    formData.append("text", text);
-    formData.append("token", tabToken);
-
-    fetch("ajax/chat_insert.php", {
-        method: "POST",
-        headers: {
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: formData.toString()
-    })
-        .then(response => response.json())
-        .then(response => {
-            if (response.error === "redirect") {
-                const target = response.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + response.chatPartner;
-                window.location.href = "messages.php?" + target;
-                return;
-            }
-
-            const infoBox = document.querySelector(".info-box");
-
-            if (response.error) {
-                displayChatError(response.error, response.counter);
-            } else if (response.html) {
-                removeEmptyPlaceholder();
-
-                document.getElementById("messages-section").insertAdjacentHTML("beforeend", response.html);
-                messageInput.value = "";
-                lastSeenId = response.lastId;
-
-                if (infoBox) infoBox.style.display = "none";
-
-                scrollDown(true);
-            }
-        })
-        .catch(error => console.error("Error:", error))
-        .finally(() => {
-            isSendingChat = false;
-
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.focus();
-            }
-            if (submitBtn) submitBtn.disabled = false;
-        });
-}
-
 function conversationDeletionDialog(chatPartnerID, chatPartner) {
     showConfirmationDialog(
         "Willst du die Konversation mit " + chatPartner + " wirklich löschen?",
-        "Ja",
-        "Nein",
+        "Ja", "Nein",
         () => {
             window.location.href = "messages.php?action=delete&s=" + chatPartnerID;
         }
@@ -742,39 +1766,23 @@ function updateNavigationBadges(privCount, worldCount, guildCount, achCount) {
     if (isWorldChatActive) worldCount = 0;
     if (isGuildChatActive) guildCount = 0;
 
-    const privBadges = document.querySelectorAll(".js-badge-priv");
-    privBadges.forEach(badge => {
-        if (privCount > 0) {
-            badge.innerText = privCount > 9 ? "9+" : privCount;
-            badge.style.display = "flex";
-        } else {
-            badge.style.display = "none";
-        }
-    });
+    const setBadges = (selector, count) => {
+        document.querySelectorAll(selector).forEach(badge => {
+            if (count > 0) {
+                badge.innerText = count > 9 ? "9+" : count;
+                badge.style.display = "flex";
+            } else {
+                badge.style.display = "none";
+            }
+        });
+    };
 
-    const worldBadges = document.querySelectorAll(".js-badge-world");
-    worldBadges.forEach(badge => {
-        if (worldCount > 0 && !isWorldChatActive) {
-            badge.innerText = worldCount > 9 ? "9+" : worldCount;
-            badge.style.display = "flex";
-        } else {
-            badge.style.display = "none";
-        }
-    });
-
-    const guildBadges = document.querySelectorAll(".js-badge-guild");
-    guildBadges.forEach(badge => {
-        if (guildCount > 0 && !isGuildChatActive) {
-            badge.innerText = guildCount > 9 ? "9+" : guildCount;
-            badge.style.display = "flex";
-        } else {
-            badge.style.display = "none";
-        }
-    });
+    setBadges(".js-badge-priv", privCount);
+    if (!isWorldChatActive) setBadges(".js-badge-world", worldCount);
+    if (!isGuildChatActive) setBadges(".js-badge-guild", guildCount);
 
     if (achCount !== undefined) {
-        const achBadges = document.querySelectorAll(".box[data-url='achievements.php'] .msg-badge");
-        achBadges.forEach(badge => {
+        document.querySelectorAll(".box[data-url='achievements.php'] .msg-badge").forEach(badge => {
             if (achCount > 0) {
                 badge.innerText = achCount > 9 ? "9+" : achCount;
                 badge.style.display = "inline-flex";
@@ -816,65 +1824,47 @@ function initializeChat() {
             }
 
             messageSection.innerHTML = data.html;
-
             updateNavigationBadges(data.privUnread, data.worldUnread, data.guildUnread, data.achievementsUnread);
 
             const messageInput = document.getElementById("message-input");
-            const messageForm = document.getElementById("newmessage")
-                || document.getElementById("world-chat-form")
-                || document.getElementById("guild-chat-form");
+            const messageForm = document.getElementById("newmessage") || document.getElementById("world-chat-form") || document.getElementById("guild-chat-form");
             const loadMoreBtn = document.getElementById("load-older-btn");
             const chatCfg = document.getElementById("chat-config");
 
             lastSeenId = data.lastId;
-
             if (chatCfg) {
                 canLoadMore = chatCfg.dataset.hasMore === "true";
             }
-
             if (loadMoreBtn && !canLoadMore) {
                 loadMoreBtn.style.display = "none";
             }
 
-            messageSection.addEventListener("scroll", () => {
-                checkScrollPosition();
-            });
+            messageSection.addEventListener("scroll", () => checkScrollPosition());
 
             if (messageInput) {
                 messageInput.addEventListener("keydown", e => {
                     if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-
                         if (chatType === "world" || chatType === "guild") {
-                            const sendBtn = messageForm.querySelector('input[type="button"]');
-                            if (sendBtn) sendBtn.click();
+                            sendChatMessage(chatType);
                         } else {
-                            messageForm.requestSubmit();
+                            messageForm?.requestSubmit();
                         }
                     }
                 });
             }
 
             if (messageForm && messageForm.id === "newmessage") {
-                messageForm.addEventListener("submit", e => {
-                    insertNewChatMessage(e);
-                });
+                messageForm.addEventListener("submit", e => insertNewChatMessage(e));
             }
 
-            setInterval(() => {
-                const urlParams = new URLSearchParams(window.location.search);
-                const chatPartner = urlParams.get("s") || "0";
-
-                updateChat(chatPartner);
-            }, CHAT_UPDATE_INTERVAL);
+            setInterval(() => updateChat(), CHAT_UPDATE_INTERVAL);
 
             scrollDown();
             scrollToLatestMessage();
 
             const loadingOverlay = document.getElementById("chat-loading-overlay");
-
             messageSection.style.opacity = "1";
-
             if (loadingOverlay) loadingOverlay.style.display = "none";
 
             applyChatPrefill();
@@ -882,7 +1872,6 @@ function initializeChat() {
         .catch(err => console.error("Chat Init Fehler:", err));
 }
 
-// Filter server log messages
 function filterServerMessages(element) {
     const categoryId = element.dataset.category !== undefined ? element.dataset.category : "-1";
     const categoryName = element.textContent.trim();
@@ -915,9 +1904,7 @@ function filterServerMessages(element) {
             section.appendChild(placeholder);
         }
         if (placeholder) {
-            placeholder.textContent = (categoryId === "-1")
-                ? "Keine Servernachrichten vorhanden."
-                : `Keine Servernachrichten in "${categoryName}" vorhanden.`;
+            placeholder.textContent = (categoryId === "-1") ? "Keine Servernachrichten vorhanden." : `Keine Servernachrichten in "${categoryName}" vorhanden.`;
             placeholder.style.display = "block";
         }
     } else {
@@ -928,219 +1915,46 @@ function filterServerMessages(element) {
 
     canLoadMore = true;
 
-    // Update active tab
     document.querySelectorAll('.tablinks').forEach(tab => tab.classList.remove("active"));
     element.classList.add("active");
 
     checkScrollPosition();
 }
 
-function checkScrollPosition() {
+function checkServerMessagesEmpty() {
     const messageSection = document.getElementById("messages-section");
-    if (!messageSection || isFetchingOlder || !canLoadMore) return;
+    if (!messageSection) return;
 
-    const isServerInbox = window.location.search.includes("servermsgs");
-    const isWorldChat = messageSection.dataset.chatType === "world";
-    const isGuildChat = messageSection.dataset.chatType === "guild";
-
-    if (isServerInbox) {
-        const scrollPos = messageSection.scrollTop + messageSection.clientHeight;
-
-        if (scrollPos > messageSection.scrollHeight - 20) {
-            loadOlderServerMessages();
-        }
-    } else if (isWorldChat) {
-        if (messageSection.scrollTop < 20) {
-            loadOlderWorldMessages();
-        }
-    } else if (isGuildChat) {
-        if (messageSection.scrollTop < 20) {
-            loadOlderGuildMessages();
-        }
-    } else {
-        if (messageSection.scrollTop < 20) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const chatPartner = urlParams.get("s");
-
-            if (chatPartner) loadOlderMessages(chatPartner);
-        }
-    }
-}
-
-function loadOlderGuildMessages() {
-    if (isFetchingOlder || !canLoadMore) return;
-
-    const section = document.getElementById("messages-section");
-    const firstMsg = section.querySelector("[id^='guild-msg-']");
-    if (!firstMsg) return;
-
-    const oldestId = firstMsg.id.replace("guild-msg-", "");
-    const btn = document.getElementById("load-older-btn");
-
-    isFetchingOlder = true;
-    btn.innerText = "Lade...";
-
-    fetch(`ajax/chat_load_more_guild.php?oldest_id=${oldestId}`, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.count > 0) {
-                const oldHeight = section.scrollHeight;
-
-                btn.insertAdjacentHTML("afterend", data.html);
-                section.scrollTop = section.scrollHeight - oldHeight;
-
-                canLoadMore = data.hasMore;
-            } else {
-                canLoadMore = false;
-            }
-            btn.style.display = canLoadMore ? "block" : "none";
-            btn.innerText = "Ältere Nachrichten";
-
-            isFetchingOlder = false;
-        });
-}
-
-function loadOlderWorldMessages() {
-    if (isFetchingOlder || !canLoadMore) return;
-
-    const section = document.getElementById("messages-section");
-    const firstMsg = section.querySelector("[id^='world-msg-']");
-    if (!firstMsg) return;
-
-    const oldestId = firstMsg.id.replace("world-msg-", "");
-    const btn = document.getElementById("load-older-btn");
-
-    isFetchingOlder = true;
-    if (btn) {
-        btn.style.display = "block";
-        btn.innerText = "Lade ältere Welt-Nachrichten...";
-    }
-
-    fetch(`ajax/chat_load_more_world.php?oldest_id=${oldestId}`, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.count > 0) {
-                const oldHeight = section.scrollHeight;
-                btn.insertAdjacentHTML("afterend", data.html);
-
-                const newHeight = section.scrollHeight;
-                section.scrollTop = newHeight - oldHeight;
-
-                canLoadMore = data.hasMore;
-            } else {
-                canLoadMore = false;
-            }
-            finishLoading(btn);
-        })
-        .catch(err => {
-            console.error("Fehler:", err);
-            isFetchingOlder = false;
-            if (btn) btn.innerText = "Fehler beim Laden";
-        });
-}
-
-function loadOlderServerMessages() {
-    if (isFetchingOlder || !canLoadMore) return;
-
-    const section = document.getElementById("messages-section");
-    const bubbles = section.querySelectorAll(".server-bubble");
-    const lastMsg = bubbles[bubbles.length - 1];
-    const btn = document.getElementById("load-more-server-btn");
-
-    if (!lastMsg) return;
-
-    const oldestId = lastMsg.id.replace("msg-", "");
     const activeTab = document.querySelector(".tablinks.active");
-    const category = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+    const category = activeTab ? activeTab.textContent.trim() : "Alle";
+    const categoryId = activeTab ? (activeTab.dataset.category || "-1") : "-1";
+    const allBubbles = messageSection.querySelectorAll(".server-bubble");
+    let visibleCount = 0;
 
-    isFetchingOlder = true;
+    allBubbles.forEach(msg => {
+        if (categoryId === "-1" || category === "Alle" || msg.dataset.category === category || msg.dataset.category === categoryId) {
+            visibleCount++;
+        }
+    });
 
-    if (btn) btn.innerText = "Lade...";
+    const btn = document.getElementById("load-more-server-btn");
+    if (visibleCount === 0 && !btn) {
+        let placeholder = document.getElementById("server-empty-category");
 
-    fetch(`ajax/server_load_more.php?oldest_id=${oldestId}&category=${encodeURIComponent(category)}`, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.count > 0) {
-                if (btn) {
-                    btn.insertAdjacentHTML("beforebegin", data.html);
-                } else {
-                    section.insertAdjacentHTML("beforeend", data.html);
-                }
+        if (!placeholder) {
+            placeholder = document.createElement("div");
+            placeholder.id = "server-empty-category";
+            placeholder.className = "no-event";
+            placeholder.style.textAlign = "center";
+            placeholder.style.opacity = "0.6";
+            messageSection.appendChild(placeholder);
+        }
 
-                canLoadMore = data.hasMore;
-            } else {
-                canLoadMore = false;
-            }
-
-            if (btn) {
-                if (!canLoadMore) {
-                    btn.remove();
-                } else {
-                    btn.innerText = "Ältere Berichte laden";
-                }
-            }
-
-            isFetchingOlder = false;
-            checkServerMessagesEmpty();
-        })
-        .catch(() => {
-            isFetchingOlder = false;
-
-            if (btn) btn.innerText = "Fehler beim Laden";
-        });
-}
-
-function loadOlderMessages(partnerId) {
-    if (isFetchingOlder || !canLoadMore) return;
-
-    const section = document.getElementById("messages-section");
-    const firstMsg = section.querySelector("[id^='msg-']");
-    if (!firstMsg) return;
-
-    const oldestId = firstMsg.id.replace("msg-", "");
-    /** @type {HTMLElement} */
-    const btn = document.getElementById("load-older-btn");
-
-    isFetchingOlder = true;
-    if (btn) {
-        btn.style.display = "block";
-        btn.innerText = "Lade ältere Nachrichten...";
+        placeholder.textContent = (category === "Alle" || categoryId === "-1") ? "Keine Servernachrichten vorhanden." : `Keine Servernachrichten in "${categoryName}" vorhanden.`;
+        placeholder.style.display = "block";
+    } else if (visibleCount > 0) {
+        document.getElementById("server-empty-category")?.remove();
     }
-
-    fetch(`ajax/chat_load_more.php?s=${partnerId}&oldest_id=${oldestId}`, {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.count > 0) {
-                const oldHeight = section.scrollHeight;
-                btn.insertAdjacentHTML("afterend", data.html);
-                const newHeight = section.scrollHeight;
-                section.scrollTop = newHeight - oldHeight;
-
-                /** @type {{hasMore: boolean}} */
-                canLoadMore = data.hasMore;
-            } else {
-                canLoadMore = false;
-            }
-
-            finishLoading(btn);
-        })
-        .catch(err => {
-            console.error("Fehler:", err);
-            isFetchingOlder = false;
-
-            if (btn) {
-                btn.innerText = "Fehler beim Laden";
-                btn.style.display = "block";
-            }
-        });
 }
 
 function finishLoading(btn) {
@@ -1153,6 +1967,7 @@ function finishLoading(btn) {
     }
     setTimeout(() => {
         isFetchingOlder = false;
+
         checkScrollPosition();
     }, 800);
 }
@@ -1167,7 +1982,8 @@ function displayChatError(message, seconds = undefined) {
 
     let contentWrapper = infoBox.querySelector(".info-wrapper");
     if (!contentWrapper) {
-        infoBox.replaceChildren(); // Box leeren
+        infoBox.replaceChildren();
+
         const errImg = document.createElement("img");
         errImg.src = ERROR_IMAGE_PATH;
         errImg.alt = "Fehler";
@@ -1186,11 +2002,9 @@ function displayChatError(message, seconds = undefined) {
         errorTextSpan.className = "error-msg-text";
         contentWrapper.append(errorTextSpan);
     }
-
     errorTextSpan.innerText = message + (seconds !== undefined ? " " : "");
 
     let counterElement = document.getElementById("counter");
-
     if (seconds !== undefined) {
         if (!counterElement) {
             counterElement = document.createElement("span");
@@ -1198,23 +2012,18 @@ function displayChatError(message, seconds = undefined) {
             counterElement.style.fontWeight = "bold";
             contentWrapper.append(counterElement);
         }
-
         if (typeof startCountdown === "function") {
             startCountdown(counterElement, seconds, 0, null, true);
         }
     } else {
-        if (counterElement) {
-            counterElement.remove();
-        }
+        counterElement?.remove();
     }
-
     infoBox.style.display = "flex";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     const messageSection = document.getElementById("messages-section");
     const classicNewForm = document.querySelector("form[action='messages.php?action=new']");
-
     if (classicNewForm) {
         classicNewForm.addEventListener("submit", function () {
             const btn = this.querySelector('input[type="submit"]');
@@ -1228,18 +2037,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (messageSection) {
-        messageSection.addEventListener("scroll", () => {
-            checkScrollPosition();
-        });
-
+        messageSection.addEventListener("scroll", () => checkScrollPosition());
         if (document.getElementById("message-input")) {
             initializeChat();
         } else {
             canLoadMore = !!document.getElementById("load-more-server-btn");
-
             scrollToLatestMessage();
         }
     }
-
     applyChatPrefill();
 });
