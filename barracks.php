@@ -490,7 +490,7 @@ $arc_def_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET);
 
 $shrine_atk_mult = 1.0;
 if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-    $shrine_atk_mult += $kingdom->get_shrine_modifier();
+    $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
 }
 
 $total_k_atk = 0;
@@ -538,7 +538,7 @@ foreach ($result_combined as $row) {
             default => 0
         };
 
-        $unit_atk_with_shrine = (int)($s_obj->get_soldier_attack() * $shrine_atk_mult);
+        $unit_atk_with_shrine = (int)round($s_obj->get_soldier_attack() * $shrine_atk_mult);
         $unit_shrine_gain = $unit_atk_with_shrine - $s_obj->get_soldier_attack();
 
         $final_atk = $sol_count * ($unit_atk_with_shrine + $b_atk);
@@ -701,6 +701,13 @@ $view .= "
             </td>
             <td style='background: transparent; border: none; padding: 2px 0; text-align: right;'>
                 $dynamic_limit Einheiten
+            </td>
+        </tr>
+        <tr>
+            <td colspan='2' style='background: transparent; border: none; padding-top: 10px; text-align: center;'>
+                <button type='button' data-on-click='openAllTroopsOverlay'>
+                    " . Messages::wrap_emojis("Alle Truppen anzeigen") . "
+                </button>
             </td>
         </tr>
     </table>

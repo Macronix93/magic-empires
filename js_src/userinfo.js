@@ -1,6 +1,8 @@
 let currentOverlayUrl = "";
 
-registerAction("openOverlay", (el) => {
+registerAction("openOverlay", (el, e) => {
+    if (e) e.stopPropagation();
+
     const url = el.dataset.url;
     const title = el.dataset.title || "";
     const width = el.dataset.width || null;
@@ -378,7 +380,8 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("touchstart", (e) => {
-    const closeBtn = e.target.closest('.overlay-close-btn');
+    const closeBtn = e.target.closest('.overlay-close-btn, [data-on-click="closeOverlay"]');
+
     if (closeBtn) {
         e.preventDefault();
         e.stopPropagation();

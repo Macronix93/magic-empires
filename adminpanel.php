@@ -31,6 +31,16 @@ if (!$user->is_admin()) {
         $active_tab = 'system';
     }
 
+    if (isset($_POST["reset_arena_season"])) {
+        $rewarded_count = Arena::check_and_process_season_reset(true);
+
+        $logger->admin("Arena Saison manuell beendet & neugestartet von " . $user->get_user_name() . " ($rewarded_count Spieler belohnt)");
+        $_SESSION["admin_flash_msg"] = "Arena-Saison erfolgreich beendet & direkt neu gestartet! <b>{$rewarded_count}</b> Spieler wurden belohnt.";
+
+        change_location("adminpanel.php?tab=system");
+        exit;
+    }
+
     if (isset($_POST["sync_forum_accounts"])) {
         $result = PhpBBBridge::sync_all_missing_forum_users();
         $msg = "Foren-Sync abgeschlossen: <b>{$result['created']}</b> neu angelegt, <b>{$result['skipped']}</b> existierten bereits.";
@@ -84,7 +94,11 @@ if (!$user->is_admin()) {
             "world_events",
             "server_messages",
             "player_stats",
-            "reactions"
+            "reactions",
+            "kingdom_alchemy",
+            "arena_battles",
+            "arena_hero_skills",
+            "arena_players"
         ];
 
         foreach ($tables_to_clear as $t) {
@@ -121,7 +135,6 @@ if (!$user->is_admin()) {
         $db_instance->query("ALTER TABLE map AUTO_INCREMENT = 1");
 
         $seed = rand(1000, 99999);
-        //$map_helper = new Map($db_instance, $user);
 
         // Noise Functions
         function noise_rand($x, $y, $s): float|int
@@ -410,7 +423,7 @@ if (!$user->is_admin()) {
 
         if ($result) {
             $log_display = ($field === "password") ? "***" : $new_value;
-            $logger->admin("Edited field '$field' for user ID $user_id. New Value: " . $log_display);
+            $logger->admin("Edited field '$field' from '$old_value' to '$log_display' for user ID $user_id.");
 
             $_SESSION["admin_flash_msg"] = "Daten erfolgreich aktualisiert! Feld: $field";
 
@@ -816,6 +829,16 @@ if (!$user->is_admin()) {
             </form>
         </div>
     </div>";
+    $settings_list .= "
+    <div class='box-container' style='margin-top: 20px;'>
+        <div class='box-header'>Arena-Steuerung</div>
+        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+            <p style='margin-top: 0;'>Schüttet sofort alle Saison-Belohnungen an die Spieler aus, setzt Wertungen/Tickets zurück und startet direkt die neue Saison.</p>
+            <form method='POST'>
+                <input type='submit' name='reset_arena_season' value='Arena Saison-Reset jetzt durchführen' onclick='return confirm(\"Bist du sicher? Alle Belohnungen werden ausgeschüttet und eine neue Saison gestartet!\");'>
+            </form>
+        </div>
+    </div>";
     $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
                         <div class='box-header' style='background: #a62121; color: white; border-bottom: #340202 2px solid;'>Welt-Reset</div>
                         <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
@@ -879,7 +902,6 @@ if (!$user->is_admin()) {
         foreach ($backups as $b_file) {
             $parts = explode('_', $b_file);
             $display_info = "Log: " . ($parts[2] ?? "?") . " vs " . ($parts[4] ?? "?");
-            $date_part = str_replace('.log', '', $parts[5] ?? "");
 
             $url = "ajax/admin_log_view.php?file=$b_file&sub=chat_backups";
 

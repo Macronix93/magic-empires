@@ -492,18 +492,6 @@ if ($my_guild_id === -1) {
     $has_actions = ($my_perms["can_kick"] || $my_perms["can_edit_settings"]);
     $cooldown_time = convert_sec_to_str(GUILD_JOIN_COOLDOWN);
 
-    // Update chat messages counter
-    $max_g_id = (int)($db_instance->execute_query(
-        "SELECT MAX(id) FROM guild_chat WHERE guild_id = ?", [$my_guild_id]
-    )->fetch_row()[0] ?? 0);
-
-    if ($max_g_id > 0) {
-        $db_instance->execute_query(
-            "UPDATE users SET last_guild_chat_id = ? WHERE id = ?",
-            [$max_g_id, $user->get_user_id()]
-        );
-    }
-
     $research_badge_html = "";
     if ($guild_logic->is_researching()) {
         $research_badge_html = " <img src='images/icons/icon_time.png' class='ressource-icons guild-research-icon' title='Forschung läuft' alt='Forschung läuft'>";
@@ -819,7 +807,7 @@ if ($my_guild_id === -1) {
                 }
             }
 
-            $date_display = date("d.m.Y H:i", $log["created_at"]) . " Uhr";
+            $date_display = date("d.m H:i", $log["created_at"]) . " Uhr";
             $view .= "<tr>
             <td>" . $member_user->render_user() . "</td>
             <td class='td-center'><div style='display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;'>" . implode("", $badges) . "</div></td>
@@ -865,19 +853,50 @@ if ($my_guild_id === -1) {
     $total_mine_pages = ceil($total_active_mines / $mines_per_page);
 
     if (!empty($active_mines_res)) {
+        $mine_ids = array_column($active_mines_res, "mine_id");
+        $placeholders = implode(',', array_fill(0, count($mine_ids), '?'));
+
+        // All guild members of shown mines
+        $grouped_members = [];
+        $users_res = $db_instance->execute_query("
+            SELECT DISTINCT mst.mine_id, u.id, u.username 
+            FROM mine_stationed_troops mst 
+            JOIN users u ON mst.user_id = u.id 
+            WHERE mst.mine_id IN ($placeholders) AND u.guildid = ?
+            ORDER BY u.username
+        ", array_merge($mine_ids, [$my_guild_id]));
+        while ($u_row = $users_res->fetch_assoc()) {
+            $grouped_members[(int)$u_row["mine_id"]][] = $u_row;
+        }
+
+        // All troops of shown mines
+        $grouped_troops = [];
+        $t_res = $db_instance->execute_query("
+            SELECT mst.mine_id, mst.soldier_id, SUM(mst.soldiercount) as soldiercount, sl.soldiername, sl.icon 
+            FROM mine_stationed_troops mst 
+            JOIN users u ON mst.user_id = u.id 
+            JOIN soldier_list sl ON mst.soldier_id = sl.id 
+            WHERE mst.mine_id IN ($placeholders) AND u.guildid = ? 
+            GROUP BY mst.mine_id, mst.soldier_id, sl.soldiername, sl.icon 
+            ORDER BY mst.soldier_id
+        ", array_merge($mine_ids, [$my_guild_id]));
+        while ($tr = $t_res->fetch_assoc()) {
+            $grouped_troops[(int)$tr["mine_id"]][] = $tr;
+        }
+
         $view .= "<table class='table guild-mining-table' style='margin: 0 auto;'>
-                    <colgroup>
-                        <col class='guild-mining-table-mine'>
-                        <col class='guild-mining-table-members'>
-                        <col class='guild-mining-table-troops'>
-                        <col class='guild-mining-table-progress'>
-                    </colgroup>
-                    <tr>
-                        <td class='td-gradient td-center'><b>Mine</b></td>
-                        <td class='td-gradient td-center'><b>Mitglieder</b></td>
-                        <td class='td-gradient td-center'><b>Truppen</b></td>
-                        <td class='td-gradient td-center'><b>Fortschritt</b></td>
-                    </tr>";
+        <colgroup>
+            <col class='guild-mining-table-mine'>
+            <col class='guild-mining-table-members'>
+            <col class='guild-mining-table-troops'>
+            <col class='guild-mining-table-progress'>
+        </colgroup>
+        <tr>
+            <td class='td-gradient td-center'><b>Mine</b></td>
+            <td class='td-gradient td-center'><b>Mitglieder</b></td>
+            <td class='td-gradient td-center'><b>Truppen</b></td>
+            <td class='td-gradient td-center'><b>Fortschritt</b></td>
+        </tr>";
 
         foreach ($active_mines_res as $am) {
             $mine_id = (int)$am["mine_id"];
@@ -896,8 +915,8 @@ if ($my_guild_id === -1) {
                 $work_delta = $effective_rate * $elapsed;
                 $work_done = min($work_total, $work_done + $work_delta);
             }
-            $mined_ratio = min(1.0, $work_done / $work_total);
 
+            $mined_ratio = min(1.0, $work_done / $work_total);
             $loot_stone = (int)floor($am["stone"] * $mined_ratio);
             $loot_gold = (int)floor($am["gold"] * $mined_ratio);
             $loot_coal = (int)floor($am["coal"] * $mined_ratio);
@@ -913,70 +932,53 @@ if ($my_guild_id === -1) {
             if ($loot_sapphire > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span>" . fnum($loot_sapphire) . "</span></div>";
             if ($loot_diamond > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span>" . fnum($loot_diamond) . "</span></div>";
 
-            $loot_popup_content = !empty($loot_items)
-                ? "<div style='display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;'>" . implode("", $loot_items) . "</div>"
-                : "<div style='margin-top: 5px; opacity: 0.8;'><i>Noch keine Erze abgebaut.</i></div>";
+            $loot_popup_content = !empty($loot_items) ? "<div style='display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;'>" .
+                implode("", $loot_items) . "</div>" : "<div style='margin-top: 5px; opacity: 0.8;'><i>Noch keine Erze abgebaut.</i></div>";
 
             $percent_val = ($work_done / $work_total) * 100;
             $percent_display = fdec($percent_val);
-
             $rate = (float)$am["total_mine_atk"] * MINE_WORK_RATE_FACTOR;
-
             $c_link = "<a href='map.php?startx=$mx&starty=$my' data-on-click='mapJump' data-x='$mx' data-y='$my'>$mx:$my</a>";
 
-            $users_res = $db_instance->execute_query("
-                SELECT DISTINCT u.id, u.username 
-                FROM mine_stationed_troops mst
-                JOIN users u ON mst.user_id = u.id
-                WHERE mst.mine_id = ? AND u.guildid = ?
-                ORDER BY u.username
-            ", [$mine_id, $my_guild_id]);
-
             $members_html = "<div style='display: flex; flex-direction: column; gap: 4px; align-items: center;'>";
-            while ($u_row = $users_res->fetch_assoc()) {
-                $m_user = new User((int)$u_row["id"], $u_row["username"]);
-                $members_html .= $m_user->render_user();
+            if (!empty($grouped_members[$mine_id])) {
+                foreach ($grouped_members[$mine_id] as $u_row) {
+                    $m_user = new User((int)$u_row["id"], $u_row["username"]);
+                    $members_html .= $m_user->render_user();
+                }
             }
             $members_html .= "</div>";
 
-            $t_res = $db_instance->execute_query(" 
-                SELECT mst.soldier_id, SUM(mst.soldiercount) as soldiercount, sl.soldiername, sl.icon  
-                FROM mine_stationed_troops mst 
-                JOIN users u ON mst.user_id = u.id 
-                JOIN soldier_list sl ON mst.soldier_id = sl.id 
-                WHERE mst.mine_id = ? AND u.guildid = ? 
-                GROUP BY mst.soldier_id, sl.soldiername, sl.icon 
-                ORDER BY mst.soldier_id 
-            ", [$mine_id, $my_guild_id]);
-
             $troop_badges = "<div style='display: flex; flex-wrap: wrap; gap: 3px; justify-content: center;'>";
-            while ($tr = $t_res->fetch_assoc()) {
-                $s_id = (int)$tr["soldier_id"];
-                $p_id = "pop_guild_mine_{$mine_id}_$s_id";
-
-                $troop_badges .= " <div class='unit-badge popup' id='$p_id' title='{$tr["soldiername"]}' style='padding: 2px 5px;'> 
-                                    <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''> <b>{$tr["soldiercount"]}</b> 
-                                    <div id='{$p_id}_box' class='popupbox' style='text-align: left; min-width: 150px;'> 
-                                        <b>Geschürfte Ressourcen:</b><br>$loot_popup_content 
-                                    </div> 
-                                </div>";
+            if (!empty($grouped_troops[$mine_id])) {
+                foreach ($grouped_troops[$mine_id] as $tr) {
+                    $s_id = (int)$tr["soldier_id"];
+                    $p_id = "pop_guild_mine_{$mine_id}_$s_id";
+                    $troop_badges .= "
+                    <div class='unit-badge popup' id='$p_id' title='{$tr["soldiername"]}' style='padding: 2px 5px;'> 
+                        <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''> <b>{$tr["soldiercount"]}</b> 
+                        <div id='{$p_id}_box' class='popupbox' style='text-align: left; min-width: 150px;'> 
+                            <b>Geschürfte Ressourcen:</b><br>$loot_popup_content 
+                        </div> 
+                    </div>";
+                }
             }
             $troop_badges .= "</div>";
 
             $view .= "<tr>
-                        <td class='td-center'>
-                            <b>Stufe $mine_lvl</b><br>
-                            <small>($c_link)</small>
-                        </td>
-                        <td class='td-center'>$members_html</td>
-                        <td class='td-center'>$troop_badges</td>
-                        <td class='td-center'>
-                            <span><b class='js-mine-progress' data-work-done='$work_done' data-work-total='$work_total' data-rate='$rate'>$percent_display %</b></span>
-                            <div class='tick-progress-bg mining-progress'>
-                                <div class='tick-progress-fill js-mine-progress-bar' style='width: " . min(100, $percent_val) . "%;'></div>
-                            </div>
-                        </td>
-                      </tr>";
+                <td class='td-center'>
+                    <b>Stufe $mine_lvl</b><br>
+                    <small>($c_link)</small>
+                </td>
+                <td class='td-center'>$members_html</td>
+                <td class='td-center'>$troop_badges</td>
+                <td class='td-center'>
+                    <span><b class='js-mine-progress' data-work-done='$work_done' data-work-total='$work_total' data-rate='$rate'>$percent_display %</b></span>
+                    <div class='tick-progress-bg mining-progress'>
+                        <div class='tick-progress-fill js-mine-progress-bar' style='width: " . min(100, $percent_val) . "%;'></div>
+                    </div>
+                </td>
+            </tr>";
         }
         $view .= "</table>";
 

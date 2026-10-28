@@ -12,6 +12,449 @@ class Messages
         $this->user = $user;
     }
 
+    public static function broadcast_server_message(int $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
+    {
+        $db = Database::get_instance()->get_connection();
+        $now = time();
+        $json = is_array($data) ? json_encode($data) : null;
+
+        $res = $db->query("SELECT id, username FROM users WHERE status = 1");
+        if ($res->num_rows === 0) return [];
+
+        $rows = [];
+        $types = "";
+        $params = [];
+        $users = [];
+
+        while ($u = $res->fetch_assoc()) {
+            $users[] = $u;
+            $rows[] = "(?, ?, ?, ?, ?, ?)";
+            $types .= "isiiss";
+            $params[] = (int)$u["id"];
+            $params[] = $u["username"];
+            $params[] = $now;
+            $params[] = "";
+            $params[] = $category;
+            $params[] = $json;
+        }
+
+        $sql = "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES " . implode(", ", $rows);
+
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+
+        return $users;
+    }
+
+    public static function send_server_message(int               $user_id, string $user_name, int $category = MessageCategories::CATEGORY_DEFAULT,
+                                               array|string|null $data = null): void
+    {
+        $db = Database::get_instance()->get_connection();
+        $message = "";
+        $json = null;
+
+        if (is_array($data)) {
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+        } else if (is_string($data)) {
+            $message = $data;
+        }
+
+        $db->execute_query(
+            "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
+            [$user_id, $user_name, time(), $message, $category, $json]
+        );
+    }
+
+    public static function check_rate_limit(): int
+    {
+        $now = time();
+        $timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
+        $count = $_SESSION["message_count"] ?? 0;
+
+        if ($now > $timeframe_end) {
+            $_SESSION["message_count"] = 0;
+            $_SESSION["message_timeframe_end"] = $now + MESSAGES_RATE_INTERVAL;
+            $count = 0;
+        }
+
+        if ($count >= MAX_MESSAGES_RATELIMIT) {
+            return max(1, $timeframe_end - $now);
+        }
+
+        $_SESSION["message_count"] = $count + 1;
+        return 0;
+    }
+
+    public static function clean_and_validate_chat_text(string $raw_text): array
+    {
+        $cleaned = preg_replace([
+            '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
+            '/[ \t]+/u',
+            '/^[ \t]+/m',
+            '/[ \t]+$/m'
+        ], ['', ' ', '', ''], $raw_text);
+
+        $cleaned = trim($cleaned);
+        $text_only = trim(preg_replace('/\[\/?quote.*?]/i', '', $cleaned));
+
+        if (empty($cleaned) || empty($text_only)) {
+            return ["error" => "Bitte eine Nachricht eingeben!"];
+        }
+
+        $length = mb_strlen($cleaned, "UTF-8");
+        if ($length > MAX_MESSAGE_LENGTH) {
+            return ["error" => "Nachricht zu lang! ($length / " . MAX_MESSAGE_LENGTH . ")"];
+        }
+
+        $line_breaks = substr_count($cleaned, "\n");
+        if ($line_breaks > MAX_LINE_BREAK_COUNT) {
+            return ["error" => "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!"];
+        }
+
+        return ["text" => $cleaned];
+    }
+
+    public static function render_chat_bubble(
+        string  $chat_type,
+        int     $msg_id,
+        int     $sender_id,
+        string  $sender_name,
+        string  $raw_message,
+        int     $timestamp,
+        User    $viewer_user,
+        ?string $avatar_url = null
+    ): string
+    {
+        $is_me = ($sender_id === $viewer_user->get_user_id());
+        $is_admin = $viewer_user->is_admin();
+
+        $bubble_class = $is_me ? "receiver-bubble" : "sender-bubble";
+        $dom_id = match ($chat_type) {
+            "world" => "world-msg-$msg_id",
+            "guild" => "guild-msg-$msg_id",
+            default => "msg-$msg_id"
+        };
+
+        if ($avatar_url === null) {
+            $sender_obj = $is_me ? $viewer_user : new User($sender_id, $sender_name);
+            $avatar_url = $sender_obj->get_avatar();
+        }
+
+        $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($sender_name) . "</a>";
+
+        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' style='cursor: pointer; margin-left: 5px;' " .
+            "data-on-click='quoteMessage' data-author='" . e($sender_name) . "' data-text='" . e($raw_message) . "' title='Nachricht zitieren' alt=''>";
+
+        $can_delete = $is_me || $is_admin;
+        if ($chat_type === "guild" && !$can_delete) {
+            $my_rank = $viewer_user->get_guild_rank_id();
+            if ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER) {
+                $can_delete = true;
+            }
+        }
+
+        $delete_icon = "";
+        if ($can_delete) {
+            $del_action = match ($chat_type) {
+                "world" => "deleteWorldChatMsg",
+                "guild" => "deleteGuildChatMsg",
+                default => "deleteChatMsg"
+            };
+            $delete_icon = "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='$del_action' data-id='$msg_id' style='cursor: pointer;' alt='Löschen'>";
+        }
+
+        $reaction_type = match ($chat_type) {
+            "world" => "world_chat",
+            "guild" => "guild_chat",
+            default => "chat"
+        };
+
+        $formatted_text = self::format_chat_message($raw_message);
+        $date_str = date(DATE_FORMAT_CHAT, $timestamp);
+
+        return "
+        <div class='$bubble_class' id='$dom_id'>
+            <div class='message-border'>
+                <span class='msg-header-left'>
+                    <img class='user-image' src='" . e($avatar_url) . "' alt=''>
+                    <span>$sender_display <small class='msg-date'>$date_str</small></span>
+                </span>
+                <span style='display: flex; gap: 5px; align-items: center;'>
+                    " . self::render_reactions_bar($reaction_type, $msg_id, $viewer_user, "btn_only") . "
+                    $quote_icon
+                    $delete_icon
+                </span>
+            </div>
+            <div class='chat-text'>$formatted_text</div>
+            <div class='chat-reaction-footer'>
+                " . self::render_reactions_bar($reaction_type, $msg_id, $viewer_user, "badges_only") . "
+            </div>
+        </div>";
+    }
+
+    public static function format_chat_message(string $raw_text, ?bool $use_filter = null): string
+    {
+        $filter = ($use_filter !== null) ? $use_filter : (!empty($_SESSION["chat_filter"]));
+
+        $text = e($raw_text);
+        $text = self::parse_chat_quotes($text);
+        $text = nl2br($text);
+
+        if ($filter) {
+            $text = Messages::filter_chat_message($text);
+        }
+
+        $text = self::parse_chat_coordinates($text);
+
+        return self::wrap_emojis($text);
+    }
+
+    public static function parse_chat_quotes(string $text): string
+    {
+        $max_depth = 5;
+        $depth = 0;
+        $open_divs = 0;
+        $output = '';
+
+        $pattern = '#(\[quote=[^\[\]]+]|\[/quote])#iu';
+        $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        foreach ($parts as $part) {
+            if ($part === '' || $part === null) continue;
+
+            if (preg_match('#^\[quote=([^]]+)]$#i', $part, $m)) {
+                $depth++;
+
+                if ($depth <= $max_depth) {
+                    $name = trim(strip_tags(preg_replace('/\p{C}/u', '', $m[1])));
+
+                    if (preg_match('/^[a-zA-Z0-9äöüÄÖÜß \-_]{1,24}$/u', $name)) {
+                        $output .= '<div class="chat-quote"><span class="chat-quote-author">' . e($name) . ' schrieb:</span>';
+                        $open_divs++;
+                    } else {
+                        $output .= e($part);
+                        $depth--;
+                    }
+                }
+            } else if ($part === '[/quote]') {
+                if ($depth > 0) {
+                    if ($depth <= $max_depth && $open_divs > 0) {
+                        $output .= '</div>';
+                        $open_divs--;
+                    }
+                    $depth--;
+                }
+            } else {
+                $output .= $part;
+            }
+        }
+
+        while ($open_divs > 0) {
+            $output .= '</div>';
+            $open_divs--;
+        }
+
+        return $output;
+    }
+
+    public static function filter_chat_message($text): string
+    {
+        if (empty($text)) return '';
+
+        $filtered_text = (string)$text;
+
+        $censor_fn = function ($matches) {
+            return str_repeat('*', mb_strlen($matches[0], 'UTF-8'));
+        };
+
+        $filtered_text = preg_replace_callback('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $censor_fn, $filtered_text);
+        $filtered_text = preg_replace_callback('/(?<!k)anal/iu', $censor_fn, $filtered_text);
+
+        $patterns = get_prepared_chat_patterns();
+
+        foreach ($patterns as $pattern) {
+            $res = preg_replace_callback($pattern, $censor_fn, $filtered_text);
+            if ($res !== null) {
+                $filtered_text = $res;
+            }
+        }
+
+        return $filtered_text;
+    }
+
+    public static function parse_chat_coordinates(string $text): string
+    {
+        $pattern = '/(<[^>]+>)|(?<![\d:])(100|[1-9][0-9]|0?[1-9])\s*[:|]\s*(100|[1-9][0-9]|0?[1-9])(?![:\d])(?!\s*(?:uhr|std\.?|stunden?|h|min\.?|minuten?|sek\.?|sekunden?)\b)/iu';
+
+        return preg_replace_callback($pattern, function ($matches) {
+            if (!empty($matches[1])) {
+                return $matches[1];
+            }
+
+            $x = (int)$matches[2];
+            $y = (int)$matches[3];
+
+            if ($x >= 1 && $x <= MAX_X && $y >= 1 && $y <= MAX_Y) {
+                $display_text = $matches[2] . ':' . $matches[3];
+                $url = "ajax/share_coords_preview.php?x=$x&y=$y";
+                return "<a href='map.php?startx=$x&starty=$y' data-on-click='openOverlay' data-url='$url' data-title='Koordinaten $display_text' class='chat-coord-link'>$display_text</a>";
+            }
+
+            return $matches[0];
+        }, $text);
+    }
+
+    public static function wrap_emojis($text): array|string|null
+    {
+        $emoji_pattern = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
+
+        return preg_replace($emoji_pattern, '<span class="emoji-fix">$0</span>', $text);
+    }
+
+    public static function render_reactions_bar(string $type, int $id, User $user, string $mode = "full"): string
+    {
+        $my_id = $user->get_user_id();
+        $db = Database::get_instance()->get_connection();
+
+        $badges_html = '';
+        if ($mode !== "btn_only") {
+            $query = "SELECT r.emoji, COUNT(*) as total, 
+                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted,
+                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names
+                  FROM reactions r
+                  JOIN users u ON r.user_id = u.id
+                  WHERE r.entity_type = ? AND r.entity_id = ? 
+                  GROUP BY r.emoji";
+            $res = $db->execute_query($query, [$my_id, $type, $id]);
+
+            while ($row = $res->fetch_assoc()) {
+                $active_class = ($row["self_reacted"] == 1) ? " active" : '';
+
+                $user_list = e($row["names"]);
+                $popup_id = "reac_" . $type . "_" . $id . "_" . md5($row["emoji"]);
+
+                $badges_html .= '
+                <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '"
+                      data-on-click="toggleReaction" 
+                      data-type="' . $type . '" 
+                      data-id="' . $id . '" 
+                      data-emoji="' . e($row["emoji"]) . '">
+                    ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
+                    <div id="' . $popup_id . '_box" class="popupbox">
+                        <b>Reaktionen:</b><br>' . $user_list . '
+                    </div>
+                </span>';
+            }
+        }
+
+        $picker_html = '';
+        if ($mode === "full" || $mode === "btn_only") {
+            $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
+                            <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
+                            <div class="reaction-picker" style="display:none;">';
+            foreach (Messages::get_chat_emojis() as $emoji) {
+                $picker_html .= '<span class="picker-emoji" data-on-click="toggleReaction" 
+                            data-type="' . $type . '" data-id="' . $id . '" 
+                            data-emoji="' . e($emoji) . '">' . e($emoji) . '</span>';
+            }
+            $picker_html .= '</div></div>';
+        }
+
+        $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
+
+        $res_count = $db->execute_query("SELECT COUNT(*) FROM reactions WHERE entity_type = ? AND entity_id = ?", [$type, $id]);
+        $has_reactions = ($res_count->fetch_row()[0] > 0);
+
+        $info_btn = "";
+        if ($has_reactions) {
+            $info_btn = "<img src='images/icons/icon_feedback.png' 
+                      class='ressource-icons' 
+                      style='cursor: pointer; opacity: 0.7;' 
+                      data-on-click='openReactorList' 
+                      data-type='$type' 
+                      data-id='$id' 
+                      title='Wer hat reagiert?' alt=''>";
+        }
+
+        if ($mode === "full") {
+            $html .= '<div class="reaction-bar-btn-row">' . $picker_html . '</div>';
+            $html .= '<div class="reaction-bar-badges-row">' . $badges_html . '</div>';
+        } else if ($mode === "btn_only") {
+            $html .= $picker_html . $info_btn;
+        } else if ($mode === "badges_only") {
+            $html .= $badges_html;
+        }
+
+        $html .= '</div>';
+        return $html;
+    }
+
+    public static function get_chat_emojis(): array
+    {
+        return [
+            '😀', '😃', '😄', '😁', '😅', '😂', '🥲', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
+            '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
+            '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
+            '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
+            '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
+            '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
+            '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
+            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
+        ];
+    }
+
+    public static function get_batch_reaction_badges(string $reaction_type, array $message_ids, User $viewer_user): array
+    {
+        if (empty($message_ids)) return [];
+
+        $db = Database::get_instance()->get_connection();
+        $my_id = $viewer_user->get_user_id();
+
+        $result_map = [];
+        foreach ($message_ids as $id) {
+            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '"></div>';
+        }
+
+        $raw_badges = array_fill_keys($message_ids, "");
+
+        $placeholders = implode(',', array_fill(0, count($message_ids), '?'));
+        $query = "SELECT r.entity_id, r.emoji, COUNT(*) as total, 
+                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted, 
+                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names 
+                  FROM reactions r 
+                  JOIN users u ON r.user_id = u.id 
+                  WHERE r.entity_type = ? AND r.entity_id IN ($placeholders) 
+                  GROUP BY r.entity_id, r.emoji";
+
+        $params = array_merge([$my_id, $reaction_type], $message_ids);
+        $res = $db->execute_query($query, $params);
+
+        while ($row = $res->fetch_assoc()) {
+            $eid = (int)$row["entity_id"];
+            $active_class = ((int)$row["self_reacted"] === 1) ? " active" : "";
+            $user_list = e($row["names"]);
+            $popup_id = "reac_" . $reaction_type . "_" . $eid . "_" . md5($row["emoji"]);
+
+            $raw_badges[$eid] .= '
+            <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '" data-on-click="toggleReaction" 
+                  data-type="' . $reaction_type . '" 
+                  data-id="' . $eid . '" 
+                  data-emoji="' . e($row["emoji"]) . '">
+                ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
+                <div id="' . $popup_id . '_box" class="popupbox">
+                    <b>Reaktionen:</b><br>' . $user_list . '
+                </div>
+            </span>';
+        }
+
+        foreach ($message_ids as $id) {
+            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '">' . $raw_badges[$id] . '</div>';
+        }
+
+        return $result_map;
+    }
+
     public function send_message(
         int    $sender_id,
         string $sender_name,
@@ -53,32 +496,6 @@ class Messages
         $params[] = $limit;
         $result = $this->mysqli->execute_query($query, $params);
         return $result->fetch_all(MYSQLI_ASSOC);
-    }
-
-    public function get_chat_history_paged(int $sender_id, ?int $oldest_id = null, int $limit = 20): array
-    {
-        $uid = $this->user->get_user_id();
-
-        if ($oldest_id === null) {
-            $query = "SELECT * FROM messages 
-                  WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
-                  AND deleted = 0 
-                  ORDER BY id DESC LIMIT ?";
-            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $limit]);
-        } else {
-            $query = "SELECT * FROM messages 
-                  WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
-                  AND deleted = 0 AND id < ?
-                  ORDER BY id DESC LIMIT ?";
-            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $oldest_id, $limit]);
-        }
-
-        $messages = [];
-        foreach ($result as $row) {
-            $messages[] = $row;
-        }
-
-        return array_reverse($messages);
     }
 
     function show_private_inbox(): string
@@ -257,505 +674,32 @@ class Messages
         return $html;
     }
 
-    public function get_unread_private_count(): int
-    {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0",
-            [$this->user->get_user_id()]);
-        return $result->fetch_assoc()["unreadcount"];
-    }
-
-    public function get_unread_server_count(): int
-    {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM server_messages WHERE receiverid = ? AND hasread = 0",
-            [$this->user->get_user_id()]);
-        return $result->fetch_assoc()["unreadcount"];
-    }
-
-    public function get_unread_world_count(): int
-    {
-        $uid = $this->user->get_user_id();
-        $query = "SELECT COUNT(*) FROM world_chat WHERE id > (SELECT last_world_chat_id FROM users WHERE id = ?) AND userid != ? AND deleted = 0";
-        return (int)$this->mysqli->execute_query($query, [$uid, $uid])->fetch_row()[0];
-    }
-
-    public function get_unread_guild_count(): int
-    {
-        $guild_id = $this->user->get_user_guild_id();
-        if ($guild_id <= 0) {
-            return 0;
-        }
-
-        $uid = $this->user->get_user_id();
-        $query = "SELECT COUNT(*) FROM guild_chat 
-              WHERE guild_id = ? 
-              AND id > (SELECT last_guild_chat_id FROM users WHERE id = ?) 
-              AND userid != ? 
-              AND deleted = 0";
-
-        return (int)$this->mysqli->execute_query($query, [$guild_id, $uid, $uid])->fetch_row()[0];
-    }
-
-    public function delete_marked_messages(int $sender_id): void
-    {
-        $this->mysqli->execute_query("DELETE FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (receiverid = ? AND senderid = ?)) AND deleted = 1",
-            [$this->user->get_user_id(), $sender_id, $sender_id, $this->user->get_user_id()]
-        );
-    }
-
-    public function show_messages_with_chatpartner(int $sender_id, string $chat_partner): string
-    {
-        $token = time() . "_" . rand(1000, 9999);
-        $_SESSION["active_chat_token"] = $token;
-
-        return "<div id='chat-loading-wrapper'>
-                    <div id='chat-loading-overlay' class='chat-spinner-full'>
-                        <div class='loading-spinner'></div>
-                        <p>Nachrichten werden geladen...</p>
-                    </div>
-                    <div id='messages-section' 
-                         data-chat-type='private' 
-                         data-partner-id='$sender_id' 
-                         data-partner-name='" . e($chat_partner) . "' 
-                         data-token='$token' 
-                         style='opacity: 0;'>
-                    </div>
-                </div>
-                <div id='chat-tab-token' data-token='$token' style='display: none;'></div>";
-    }
-
-    public function get_private_history_html(int $sender_id, string $chat_partner): array
-    {
-        $limit = SHOW_MESSAGES_LIMIT;
-        $result = $this->get_chat_history_paged($sender_id, null, $limit + 1);
-
-        $has_more = count($result) > $limit;
-        if ($has_more) array_shift($result);
-
-        $html = "<button id='load-older-btn' data-on-click='loadOlderChat' data-partnerid='" . e($sender_id) . "' class='msg-load-more' style='display: " . ($has_more ? 'block' : 'none') . "'>Ältere Nachrichten laden</button>";
-        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? 'true' : 'false') . "'></div>";
-
-        if (empty($result)) {
-            return [
-                "html" => $html . "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>",
-                "last_id" => 0
-            ];
-        }
-
-        $chat_partner_image = "";
-        $my_chat_image = $this->user->get_avatar();
-        $partner = new User($sender_id, $chat_partner);
-        $first_sender_message_displayed = false;
-        $unread_message_ids = [];
-
-        $is_admin = $this->user->is_admin();
-
-        $last_id = 0;
-        foreach ($result as $row) {
-            $message_id = $row["id"];
-            if ($message_id > $last_id) $last_id = $message_id;
-
-            $display_message = self::format_chat_message($row["message"]);
-
-            $has_read = $row["hasread"];
-            $date = $row["date"];
-            $is_me = ($row["senderid"] == $this->user->get_user_id());
-
-            $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
-            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
-                     style='cursor: pointer; margin-left: 5px;'
-                     data-on-click='quoteMessage'
-                     data-author='" . e($row["sender"]) . "'
-                     data-text='" . e($row["message"]) . "'
-                     title='Nachricht zitieren' alt=''>";
-            $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
-
-            if ($row["senderid"] == $sender_id) {
-                if (empty($chat_partner_image)) {
-                    $chat_partner_image = $partner->get_avatar() ?? "";
-                }
-
-                if (!$has_read && !$first_sender_message_displayed) {
-                    $first_sender_message_displayed = true;
-                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
-                }
-
-                $html .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
-                            <div class='message-border'>
-                                <span class='msg-header-left'>
-                                    <img class='user-image' src='$chat_partner_image' alt=''>
-                                    <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
-                                </span>
-                                <span style='display: flex; gap: 5px; align-items: center;'>
-                                    " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
-                                    $quote_icon
-                                    $delete_icon
-                                </span>
-                            </div>
-                            <div class='chat-text'>" . $display_message . "</div>
-                            <div class='chat-reaction-footer'>
-                                " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
-                            </div>
-                        </div>";
-            } else {
-                $html .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
-                            <div class='message-border'>
-                                <span class='msg-header-left'>
-                                    <img class='user-image' src='$my_chat_image' alt=''>
-                                    <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
-                                </span>
-                                <span style='display: flex; gap: 5px; align-items: center;'>
-                                    " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
-                                    $quote_icon
-                                    $delete_icon
-                                </span>
-                            </div>
-                            <div class='chat-text'>" . $display_message . "</div>
-                            <div class='chat-reaction-footer'>
-                                " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
-                            </div>
-                        </div>";
-            }
-
-            if (!$has_read && $row["receiverid"] == $this->user->get_user_id()) {
-                $unread_message_ids[] = $message_id;
-            }
-        }
-
-        if (!empty($unread_message_ids)) {
-            $placeholders = implode(",", array_fill(0, count($unread_message_ids), "?"));
-            $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
-        }
-
-        return [
-            "html" => $html,
-            "last_id" => $last_id
-        ];
-    }
-
-    public function show_world_chat(): string
-    {
-        $html = "<div class='info-box event-error' style='display: none;'></div>";
-        $html .= "
-        <div id='chat-loading-wrapper'>
-            <div id='chat-loading-overlay' class='chat-spinner-full'>
-                <div class='loading-spinner'></div>
-                <p>Welt-Chat wird geladen...</p>
-            </div>
-            <div id='messages-section' data-chat-type='world' style='opacity: 0; height: 55vh;'>
-            </div>
-        </div>";
-
-        $html .= "
-        <div id='newmessage-section'>
-            <form id='world-chat-form'>
-                <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
-                <div class='emoji-picker-container'>
-                    <div id='emoji-menu' class='emoji-menu'>";
-        foreach (Messages::get_chat_emojis() as $emoji) {
-            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
-        }
-        $html .= "  </div>
-                    <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
-                </div>
-                <input type='button' data-on-click='sendWorldMessage' value='Absenden\n[ENTER]' />
-            </form>
-        </div>";
-
-        return $html;
-    }
-
-    public function get_world_history_html(): array
-    {
-        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
-        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
-        $rows = $result->fetch_all(MYSQLI_ASSOC);
-
-        $has_more = (count($rows) > $limit);
-        if ($has_more) {
-            array_pop($rows);
-        }
-
-        $rows = array_reverse($rows);
-
-        $html = "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
-        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
-
-        $last_id = 0;
-
-        if (empty($rows)) {
-            $html .= "
-            <div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>
-                Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
-            </div>";
-        } else {
-            $last_read_id = $this->mysqli->execute_query("SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()])->fetch_row()[0] ?? 0;
-            $unread_line_shown = false;
-
-            foreach ($rows as $row) {
-                $last_id = $row["id"];
-                $is_me = ($row["userid"] == $this->user->get_user_id());
-
-                if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
-                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
-                    $unread_line_shown = true;
-                }
-
-                $class = $is_me ? "receiver-bubble" : "sender-bubble";
-
-                $is_admin = $this->user->is_admin();
-                $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'
-                                                            data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
-
-                $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
-                     style='cursor: pointer; margin-left: 5px;'
-                     data-on-click='quoteMessage'
-                     data-author='" . e($row["username"]) . "'
-                     data-text='" . e($row["message"]) . "'
-                     title='Nachricht zitieren' alt=''>";
-
-                $msg = self::format_chat_message($row["message"]);
-
-                $u = new User($row["userid"], $row["username"]);
-                $avatar = $u->get_avatar();
-
-                $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
-
-                $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
-                    <div class='message-border'>
-                        <span class='msg-header-left'>
-                            <img class='user-image' src='$avatar' alt=''>
-                            <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
-                        </span>
-                        <span style='display: flex; gap: 5px; align-items: center;'>
-                            " . Messages::render_reactions_bar("world_chat", $row["id"], $this->user, "btn_only") . "
-                            $quote_icon
-                            $delete_icon
-                        </span>
-                    </div>
-                    <div class='chat-text'>" . $msg . "</div>
-                    <div class='chat-reaction-footer'>
-                        " . Messages::render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
-                    </div>
-                  </div>";
-            }
-
-            if ($last_id > 0) {
-                $this->mysqli->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$last_id, $this->user->get_user_id()]);
-            }
-        }
-
-        return [
-            "html" => $html,
-            "last_id" => $last_id
-        ];
-    }
-
-    public function show_guild_chat(): string
-    {
-        $guild_id = $this->user->get_user_guild_id();
-
-        if ($guild_id <= 0) {
-            return "Du bist in keiner Gilde!";
-        }
-
-        $html = "<div class='info-box event-error' style='display: none;'></div> 
-                <div id='chat-loading-wrapper'>
-                    <div id='chat-loading-overlay' class='chat-spinner-full'>
-                        <div class='loading-spinner'></div>
-                        <p>Gilden-Chat wird geladen...</p>
-                    </div>
-                    <div id='messages-section' data-chat-type='guild' style='opacity: 0; height: 55vh;'>
-                    </div>
-                </div>
-                <div id='newmessage-section'>
-                    <form id='guild-chat-form'>
-                        <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
-                        <div class='emoji-picker-container'>
-                            <div id='emoji-menu' class='emoji-menu'>";
-        foreach (Messages::get_chat_emojis() as $emoji) {
-            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
-        }
-        $html .= "</div>
-                            <button type='button' class='emoji-trigger' data-on-click='toggleEmojis'>🙂</button>
-                        </div>
-                        <input type='button' data-on-click='sendGuildMessage' value='Absenden\n[ENTER]' />
-                    </form>
-                </div>";
-
-        return $html;
-    }
-
-    public function get_guild_history_html(): array
-    {
-        $guild_id = $this->user->get_user_guild_id();
-        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
-        $u_id = $this->user->get_user_id();
-        $is_admin = $this->user->is_admin();
-        $my_rank = $this->user->get_guild_rank_id();
-        $is_privileged = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
-
-        // Get the guild messages
-        $result = $this->mysqli->execute_query("SELECT * FROM guild_chat WHERE guild_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?", [$guild_id, $limit + 1]);
-        $rows = $result->fetch_all(MYSQLI_ASSOC);
-
-        $has_more = (count($rows) > $limit);
-        if ($has_more) array_pop($rows);
-        $rows = array_reverse($rows);
-
-        $html = "<button id='load-older-btn' data-on-click='loadOlderGuildChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
-        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
-
-        $last_id = 0;
-
-        if (empty($rows)) {
-            $html .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
-            return [
-                "html" => $html,
-                "last_id" => 0
-            ];
-        }
-
-        $last_read_id = $this->mysqli->execute_query("SELECT last_guild_chat_id FROM users WHERE id = ?", [$u_id])->fetch_row()[0] ?? 0;
-        $unread_line_shown = false;
-
-        foreach ($rows as $row) {
-            $last_id = $row["id"];
-            $is_me = ($row["userid"] == $u_id);
-
-            if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
-                $html .= "<div id='new-message-line' class='error'>Neue Gilden-Nachrichten</div>";
-                $unread_line_shown = true;
-            }
-
-            $class = $is_me ? "receiver-bubble" : "sender-bubble";
-
-            $display_msg = self::format_chat_message($row["message"]);
-
-            $sender_user = new User($row["userid"], $row["username"]);
-            $avatar = $sender_user->get_avatar();
-            $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
-
-            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' data-on-click='quoteMessage' data-author='" . e($row["username"]) . "' data-text='" . e($row["message"]) . "' title='Zitieren' style='cursor:pointer;'>";
-            $del_icon = ($is_me || $is_admin || $is_privileged) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteGuildChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
-
-            $html .= "<div class='$class' id='guild-msg-{$row["id"]}'>
-                <div class='message-border'>
-                    <span class='msg-header-left'>
-                        <img class='user-image' src='$avatar' alt=''>
-                        <span>$sender_display <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
-                    </span>
-                    <span style='display: flex; gap: 5px; align-items: center;'>
-                        " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "btn_only") . "
-                        $quote_icon
-                        $del_icon
-                    </span>
-                </div>
-                <div class='chat-text'>" . $display_msg . "</div>
-                <div class='chat-reaction-footer'>
-                    " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "badges_only") . "
-                </div>
-            </div>";
-        }
-
-        if (isset($last_id)) {
-            $this->mysqli->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$last_id, $u_id]);
-        }
-
-        return [
-            "html" => $html,
-            "last_id" => $last_id
-        ];
-    }
-
-    private function resolve_pvp_outcome(mixed $out, string $role): array
-    {
-        if (is_array($out)) return $out;
-
-        $is_atk = ($role === "attacker");
-
-        return match ($out) {
-            "unhindered" => [
-                "title" => $is_atk ? "Kampfausgang: Ungehinderter Vorstoß" : "Kampfausgang: Feind vor den Toren",
-                "main_text" => $is_atk
-                    ? "Es waren keine feindlichen Truppen zur Verteidigung bereit."
-                    : "Ein feindlicher Trupp wurde vor unseren Toren gesichtet und hat die Mauer attackiert.",
-                "sub_text" => $is_atk
-                    ? "Unsere Soldaten haben das Gebiet gesichert und kehren nun um."
-                    : "Der Angreifer zog nach einer Machtdemonstration wieder ab.",
-                "type" => $is_atk ? "success" : "neutral"
-            ],
-            "total_defeat" => [
-                "title" => $is_atk ? "Kampfausgang: Totale Niederlage" : "Kampfausgang: Glorreicher Sieg",
-                "main_text" => $is_atk
-                    ? "Die Schlacht war ein totaler Fehlschlag!"
-                    : "<span class='passed'>Die Angreifer wurden restlos vernichtet!</span>",
-                "sub_text" => $is_atk
-                    ? "Kein einziger Soldat kehrt lebend zurück."
-                    : "Unsere Verteidigung hat standgehalten. Kein Angreifer überlebte den Ansturm.",
-                "type" => $is_atk ? "error" : "success"
-            ],
-            "victory" => [
-                "title" => $is_atk ? "Kampfausgang: Sieg" : "Kampfausgang: Niederlage",
-                "main_text" => $is_atk
-                    ? "Der Sieg ist unser! Die Verteidigung wurde durchbrochen."
-                    : "<span class='error'>Das Königreich wurde überrannt!</span>",
-                "sub_text" => $is_atk
-                    ? "Die verbleibenden Truppen machen sich auf den Heimweg."
-                    : "Die Verteidiger wurden bis auf den letzten Mann aufgerieben.",
-                "type" => $is_atk ? "success" : "error"
-            ],
-            default => [
-                "title" => $is_atk ? "Kampfausgang: Rückzug" : "Kampfausgang: Abgewehrt",
-                "main_text" => $is_atk
-                    ? "Unser Angriff wurde zurückgeschlagen!"
-                    : "<span class='passed'>Die Angreifer wurden erfolgreich abgewehrt!</span>",
-                "sub_text" => $is_atk
-                    ? "Die verbleibenden Truppen treten den Rückzug an."
-                    : "Unsere Garnison hält die Stellung.",
-                "type" => $is_atk ? "error" : "success"
-            ]
-        };
-    }
-
-    private function resolve_conquest_data(mixed $cq): ?array
-    {
-        if (is_array($cq)) return $cq;
-        if (!$cq) return null;
-
-        return match ($cq) {
-            "conquered_attacker" => [
-                "title" => "Eroberung erfolgreich",
-                "main_text" => "<b>Glorreicher Sieg!</b> Das Königreich wurde eingenommen und gehört nun dir.",
-                "sub_text" => "Für die Eroberung hat sich ein <b>Eroberer</b> geopfert.",
-                "type" => "success"
-            ],
-            "conquered_defender" => [
-                "title" => "Königreich verloren",
-                "main_text" => "<b>Das Schicksal hat sich gegen uns gewandt!</b> Unser Königreich wurde vom Gegner besetzt.",
-                "sub_text" => "",
-                "type" => "error"
-            ],
-            "conquered_defender_wiped" => [
-                "title" => "Königreich verloren",
-                "main_text" => "<b>Das Schicksal hat sich gegen uns gewandt!</b> Unser Königreich wurde vom Gegner besetzt.",
-                "sub_text" => "Da dies dein letztes Dorf war, musst du an einem neuen Standort von vorne beginnen.",
-                "type" => "error"
-            ],
-            "failed_attacker" => [
-                "title" => "Eroberungsversuch",
-                "main_text" => "Die Eroberung ist gescheitert. Unsere Truppen konnten die Kontrolle über das Stadtzentrum nicht sichern.",
-                "sub_text" => "Die Soldaten ziehen sich zurück.",
-                "type" => "error"
-            ],
-            default => null
-        };
-    }
-
     public function render_message_template(array $data): string
     {
         $type = $data["template"] ?? $data["type"] ?? "text";
 
         switch ($type) {
+            case "arena_season_reward":
+                $rank = (int)($data["rank"] ?? 1);
+                $elo = (int)($data["elo"] ?? 1000);
+                $loot = $data["loot"] ?? [];
+
+                $main_text = "Die Arena-Saison wurde offiziell beendet!<br><br>";
+                $main_text .= "Du hast die Saison auf <b>Rang $rank</b> mit <b>$elo ELO</b> abgeschlossen.";
+
+                if (!empty($loot)) {
+                    $main_text .= "<br><br><b>Deine verdiente Saison-Beute:</b>";
+                    $main_text .= BattleReportRenderer::render_resource_list($loot);
+                }
+
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "🏆 Arena Saison-Abschluss",
+                        $main_text,
+                        0, 0,
+                        "Die Rohstoffe wurden deinem Königreich gutgeschrieben und dein ELO wurde für die nächste Saison angepasst.",
+                        "success"
+                    ) . "</div>";
+
             case "achievement_unlocked":
                 $ach_name = e($data["name"] ?? "Errungenschaft");
                 $ach_title = e($data["title"] ?? "Titel");
@@ -769,10 +713,11 @@ class Messages
                 $main_text .= "<div style='margin: 15px; text-align: center;'><b>„{$ach_name}“</b><br><small style='opacity: 0.8;'>$ach_desc</small></div>";
                 $main_text .= "Neuer Titel freigeschaltet: <b class='passed'>&bdquo;$ach_title&ldquo;</b><br>Belohnung: $coin_text";
                 $sub_text = "Du kannst deinen neuen Titel in den <a href='settings.php'>Einstellungen</a> aktivieren.";
-                $wrapped_title = self::wrap_emojis("🏆 Errungenschaft freigeschaltet!");
+                $wrapped_title = "🏆 Errungenschaft freigeschaltet!";
 
                 return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box($wrapped_title, $main_text, 0, 0, $sub_text, "success"
                     ) . "</div>";
+
             case "guild_project_started":
                 $tech = e($data["tech"] ?? "Projekt");
                 $by = e($data["by"] ?? "Jemand");
@@ -985,7 +930,7 @@ class Messages
 
                 if ($raiders_lost > 0) {
                     $main_text .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em;'>";
-                    $main_text .= Messages::wrap_emojis("⚠️ <b>Verluste:</b> $raiders_lost Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet.");
+                    $main_text .= "⚠️ <b>Verluste:</b> $raiders_lost Räuber wurden bei Kämpfen mit im Hinterhalt lauernden Dieben getötet.";
                     $main_text .= "</div>";
                 }
 
@@ -1430,7 +1375,7 @@ class Messages
 
                     if ($losses > 0) {
                         $html .= "<div style='margin-top: 10px; color: #ff4d4d; font-size: 0.9em; text-align: center;'>";
-                        $html .= Messages::wrap_emojis("⚠️ <b>Verluste:</b> $losses Späher wurden von der Minen-Besatzung entdeckt und ausgeschaltet.");
+                        $html .= "⚠️ <b>Verluste:</b> $losses Späher wurden von der Minen-Besatzung entdeckt und ausgeschaltet.";
                         $html .= "</div>";
                     }
                 } else {
@@ -2344,442 +2289,523 @@ class Messages
         }
     }
 
-    public static function parse_chat_coordinates(string $text): string
+    private function resolve_pvp_outcome(mixed $out, string $role): array
     {
-        $pattern = '/(<[^>]+>)|(?<![\d:])(100|[1-9][0-9]|0?[1-9])\s*[:|]\s*(100|[1-9][0-9]|0?[1-9])(?![:\d])(?!\s*(?:uhr|std\.?|stunden?|h|min\.?|minuten?|sek\.?|sekunden?)\b)/iu';
+        if (is_array($out)) return $out;
 
-        return preg_replace_callback($pattern, function ($matches) {
-            if (!empty($matches[1])) {
-                return $matches[1];
-            }
+        $is_atk = ($role === "attacker");
 
-            $x = (int)$matches[2];
-            $y = (int)$matches[3];
-
-            if ($x >= 1 && $x <= MAX_X && $y >= 1 && $y <= MAX_Y) {
-                $display_text = $matches[2] . ':' . $matches[3];
-                $url = "ajax/share_coords_preview.php?x=$x&y=$y";
-                return "<a href='map.php?startx=$x&starty=$y' data-on-click='openOverlay' data-url='$url' data-title='Koordinaten $display_text' class='chat-coord-link'>$display_text</a>";
-            }
-
-            return $matches[0];
-        }, $text);
-    }
-
-    public static function format_chat_message(string $raw_text, ?bool $use_filter = null): string
-    {
-        $filter = ($use_filter !== null) ? $use_filter : (!empty($_SESSION["chat_filter"]));
-
-        $text = e($raw_text);
-        $text = self::parse_chat_quotes($text);
-        $text = nl2br($text);
-
-        if ($filter) {
-            $text = Messages::filter_chat_message($text);
-        }
-
-        $text = self::parse_chat_coordinates($text);
-
-        return Messages::wrap_emojis($text);
-    }
-
-    public static function parse_chat_quotes(string $text): string
-    {
-        $max_depth = 5;
-        $depth = 0;
-        $open_divs = 0;
-        $output = '';
-
-        $pattern = '#(\[quote=[^\[\]]+]|\[/quote])#iu';
-        $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-
-        foreach ($parts as $part) {
-            if ($part === '' || $part === null) continue;
-
-            if (preg_match('#^\[quote=([^]]+)]$#i', $part, $m)) {
-                $depth++;
-
-                if ($depth <= $max_depth) {
-                    $name = trim(strip_tags(preg_replace('/\p{C}/u', '', $m[1])));
-
-                    if (preg_match('/^[a-zA-Z0-9äöüÄÖÜß \-_]{1,24}$/u', $name)) {
-                        $output .= '<div class="chat-quote"><span class="chat-quote-author">' . e($name) . ' schrieb:</span>';
-                        $open_divs++;
-                    } else {
-                        $output .= e($part);
-                        $depth--;
-                    }
-                }
-            } else if ($part === '[/quote]') {
-                if ($depth > 0) {
-                    if ($depth <= $max_depth && $open_divs > 0) {
-                        $output .= '</div>';
-                        $open_divs--;
-                    }
-                    $depth--;
-                }
-            } else {
-                $output .= $part;
-            }
-        }
-
-        while ($open_divs > 0) {
-            $output .= '</div>';
-            $open_divs--;
-        }
-
-        return $output;
-    }
-
-    public static function filter_chat_message($text): string
-    {
-        if (empty($text)) return '';
-
-        $filtered_text = (string)$text;
-
-        $censor_fn = function ($matches) {
-            return str_repeat('*', mb_strlen($matches[0], 'UTF-8'));
+        return match ($out) {
+            "unhindered" => [
+                "title" => $is_atk ? "Kampfausgang: Ungehinderter Vorstoß" : "Kampfausgang: Feind vor den Toren",
+                "main_text" => $is_atk
+                    ? "Es waren keine feindlichen Truppen zur Verteidigung bereit."
+                    : "Ein feindlicher Trupp wurde vor unseren Toren gesichtet und hat die Mauer attackiert.",
+                "sub_text" => $is_atk
+                    ? "Unsere Soldaten haben das Gebiet gesichert und kehren nun um."
+                    : "Der Angreifer zog nach einer Machtdemonstration wieder ab.",
+                "type" => $is_atk ? "success" : "neutral"
+            ],
+            "total_defeat" => [
+                "title" => $is_atk ? "Kampfausgang: Totale Niederlage" : "Kampfausgang: Glorreicher Sieg",
+                "main_text" => $is_atk
+                    ? "Die Schlacht war ein totaler Fehlschlag!"
+                    : "<span class='passed'>Die Angreifer wurden restlos vernichtet!</span>",
+                "sub_text" => $is_atk
+                    ? "Kein einziger Soldat kehrt lebend zurück."
+                    : "Unsere Verteidigung hat standgehalten. Kein Angreifer überlebte den Ansturm.",
+                "type" => $is_atk ? "error" : "success"
+            ],
+            "victory" => [
+                "title" => $is_atk ? "Kampfausgang: Sieg" : "Kampfausgang: Niederlage",
+                "main_text" => $is_atk
+                    ? "Der Sieg ist unser! Die Verteidigung wurde durchbrochen."
+                    : "<span class='error'>Das Königreich wurde überrannt!</span>",
+                "sub_text" => $is_atk
+                    ? "Die verbleibenden Truppen machen sich auf den Heimweg."
+                    : "Die Verteidiger wurden bis auf den letzten Mann aufgerieben.",
+                "type" => $is_atk ? "success" : "error"
+            ],
+            default => [
+                "title" => $is_atk ? "Kampfausgang: Rückzug" : "Kampfausgang: Abgewehrt",
+                "main_text" => $is_atk
+                    ? "Unser Angriff wurde zurückgeschlagen!"
+                    : "<span class='passed'>Die Angreifer wurden erfolgreich abgewehrt!</span>",
+                "sub_text" => $is_atk
+                    ? "Die verbleibenden Truppen treten den Rückzug an."
+                    : "Unsere Garnison hält die Stellung.",
+                "type" => $is_atk ? "error" : "success"
+            ]
         };
-
-        $filtered_text = preg_replace_callback('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $censor_fn, $filtered_text);
-        $filtered_text = preg_replace_callback('/(?<!k)anal/iu', $censor_fn, $filtered_text);
-
-        $patterns = get_prepared_chat_patterns();
-
-        foreach ($patterns as $pattern) {
-            $res = preg_replace_callback($pattern, $censor_fn, $filtered_text);
-            if ($res !== null) {
-                $filtered_text = $res;
-            }
-        }
-
-        return $filtered_text;
     }
 
-    public static function render_reactions_bar(string $type, int $id, User $user, string $mode = "full"): string
+    private function resolve_conquest_data(mixed $cq): ?array
     {
-        $my_id = $user->get_user_id();
-        $db = Database::get_instance()->get_connection();
+        if (is_array($cq)) return $cq;
+        if (!$cq) return null;
 
-        $badges_html = '';
-        if ($mode !== "btn_only") {
-            $query = "SELECT r.emoji, COUNT(*) as total, 
-                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted,
-                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names
-                  FROM reactions r
-                  JOIN users u ON r.user_id = u.id
-                  WHERE r.entity_type = ? AND r.entity_id = ? 
-                  GROUP BY r.emoji";
-            $res = $db->execute_query($query, [$my_id, $type, $id]);
-
-            while ($row = $res->fetch_assoc()) {
-                $active_class = ($row["self_reacted"] == 1) ? " active" : '';
-
-                $user_list = e($row["names"]);
-                $popup_id = "reac_" . $type . "_" . $id . "_" . md5($row["emoji"]);
-
-                $badges_html .= '
-                <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '"
-                      data-on-click="toggleReaction" 
-                      data-type="' . $type . '" 
-                      data-id="' . $id . '" 
-                      data-emoji="' . e($row["emoji"]) . '">
-                    ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
-                    <div id="' . $popup_id . '_box" class="popupbox">
-                        <b>Reaktionen:</b><br>' . $user_list . '
-                    </div>
-                </span>';
-            }
-        }
-
-        $picker_html = '';
-        if ($mode === "full" || $mode === "btn_only") {
-            $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
-                            <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
-                            <div class="reaction-picker" style="display:none;">';
-            foreach (Messages::get_chat_emojis() as $emoji) {
-                $picker_html .= '<span class="picker-emoji" data-on-click="toggleReaction" 
-                            data-type="' . $type . '" data-id="' . $id . '" 
-                            data-emoji="' . e($emoji) . '">' . e($emoji) . '</span>';
-            }
-            $picker_html .= '</div></div>';
-        }
-
-        $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
-
-        $res_count = $db->execute_query("SELECT COUNT(*) FROM reactions WHERE entity_type = ? AND entity_id = ?", [$type, $id]);
-        $has_reactions = ($res_count->fetch_row()[0] > 0);
-
-        $info_btn = "";
-        if ($has_reactions) {
-            $info_btn = "<img src='images/icons/icon_feedback.png' 
-                      class='ressource-icons' 
-                      style='cursor: pointer; opacity: 0.7;' 
-                      data-on-click='openReactorList' 
-                      data-type='$type' 
-                      data-id='$id' 
-                      title='Wer hat reagiert?' alt=''>";
-        }
-
-        if ($mode === "full") {
-            $html .= '<div class="reaction-bar-btn-row">' . $picker_html . '</div>';
-            $html .= '<div class="reaction-bar-badges-row">' . $badges_html . '</div>';
-        } else if ($mode === "btn_only") {
-            $html .= $picker_html . $info_btn;
-        } else if ($mode === "badges_only") {
-            $html .= $badges_html;
-        }
-
-        $html .= '</div>';
-        return $html;
+        return match ($cq) {
+            "conquered_attacker" => [
+                "title" => "Eroberung erfolgreich",
+                "main_text" => "<b>Glorreicher Sieg!</b> Das Königreich wurde eingenommen und gehört nun dir.",
+                "sub_text" => "Für die Eroberung hat sich ein <b>Eroberer</b> geopfert.",
+                "type" => "success"
+            ],
+            "conquered_defender" => [
+                "title" => "Königreich verloren",
+                "main_text" => "<b>Das Schicksal hat sich gegen uns gewandt!</b> Unser Königreich wurde vom Gegner besetzt.",
+                "sub_text" => "",
+                "type" => "error"
+            ],
+            "conquered_defender_wiped" => [
+                "title" => "Königreich verloren",
+                "main_text" => "<b>Das Schicksal hat sich gegen uns gewandt!</b> Unser Königreich wurde vom Gegner besetzt.",
+                "sub_text" => "Da dies dein letztes Dorf war, musst du an einem neuen Standort von vorne beginnen.",
+                "type" => "error"
+            ],
+            "failed_attacker" => [
+                "title" => "Eroberungsversuch",
+                "main_text" => "Die Eroberung ist gescheitert. Unsere Truppen konnten die Kontrolle über das Stadtzentrum nicht sichern.",
+                "sub_text" => "Die Soldaten ziehen sich zurück.",
+                "type" => "error"
+            ],
+            default => null
+        };
     }
 
-    public static function broadcast_server_message(int $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
+    public function get_unread_private_count(): int
     {
-        $db = Database::get_instance()->get_connection();
-        $now = time();
-        $json = is_array($data) ? json_encode($data) : null;
-
-        $res = $db->query("SELECT id, username FROM users WHERE status = 1");
-        if ($res->num_rows === 0) return [];
-
-        $rows = [];
-        $types = "";
-        $params = [];
-        $users = [];
-
-        while ($u = $res->fetch_assoc()) {
-            $users[] = $u;
-            $rows[] = "(?, ?, ?, ?, ?, ?)";
-            $types .= "isiiss";
-            $params[] = (int)$u["id"];
-            $params[] = $u["username"];
-            $params[] = $now;
-            $params[] = "";
-            $params[] = $category;
-            $params[] = $json;
-        }
-
-        $sql = "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES " . implode(", ", $rows);
-
-        $stmt = $db->prepare($sql);
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-
-        return $users;
+        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0",
+            [$this->user->get_user_id()]);
+        return $result->fetch_assoc()["unreadcount"];
     }
 
-    public static function send_server_message(int               $user_id, string $user_name, int $category = MessageCategories::CATEGORY_DEFAULT,
-                                               array|string|null $data = null): void
+    public function get_unread_server_count(): int
     {
-        $db = Database::get_instance()->get_connection();
-        $message = "";
-        $json = null;
+        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM server_messages WHERE receiverid = ? AND hasread = 0",
+            [$this->user->get_user_id()]);
+        return $result->fetch_assoc()["unreadcount"];
+    }
 
-        if (is_array($data)) {
-            $json = json_encode($data, JSON_UNESCAPED_UNICODE);
-        } else if (is_string($data)) {
-            $message = $data;
+    public function get_unread_world_count(): int
+    {
+        $uid = $this->user->get_user_id();
+        $query = "SELECT COUNT(*) FROM world_chat WHERE id > (SELECT last_world_chat_id FROM users WHERE id = ?) AND userid != ? AND deleted = 0";
+        return (int)$this->mysqli->execute_query($query, [$uid, $uid])->fetch_row()[0];
+    }
+
+    public function get_unread_guild_count(): int
+    {
+        $guild_id = $this->user->get_user_guild_id();
+        if ($guild_id <= 0) {
+            return 0;
         }
 
-        $db->execute_query(
-            "INSERT INTO server_messages (receiverid, receiver, date, message, category, data_json) VALUES (?, ?, ?, ?, ?, ?)",
-            [$user_id, $user_name, time(), $message, $category, $json]
+        $uid = $this->user->get_user_id();
+        $query = "SELECT COUNT(*) FROM guild_chat 
+              WHERE guild_id = ? 
+              AND id > (SELECT last_guild_chat_id FROM users WHERE id = ?) 
+              AND userid != ? 
+              AND deleted = 0";
+
+        return (int)$this->mysqli->execute_query($query, [$guild_id, $uid, $uid])->fetch_row()[0];
+    }
+
+    public function delete_marked_messages(int $sender_id): void
+    {
+        $this->mysqli->execute_query("DELETE FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (receiverid = ? AND senderid = ?)) AND deleted = 1",
+            [$this->user->get_user_id(), $sender_id, $sender_id, $this->user->get_user_id()]
         );
     }
 
-    public static function wrap_emojis($text): array|string|null
+    public function show_messages_with_chatpartner(int $sender_id, string $chat_partner): string
     {
-        $emoji_pattern = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
+        $token = time() . "_" . rand(1000, 9999);
+        $_SESSION["active_chat_token"] = $token;
 
-        return preg_replace($emoji_pattern, '<span class="emoji-fix">$0</span>', $text);
+        return "<div id='chat-loading-wrapper'>
+                    <div id='chat-loading-overlay' class='chat-spinner-full'>
+                        <div class='loading-spinner'></div>
+                        <p>Nachrichten werden geladen...</p>
+                    </div>
+                    <div id='messages-section' 
+                         data-chat-type='private' 
+                         data-partner-id='$sender_id' 
+                         data-partner-name='" . e($chat_partner) . "' 
+                         data-token='$token' 
+                         style='opacity: 0;'>
+                    </div>
+                </div>
+                <div id='chat-tab-token' data-token='$token' style='display: none;'></div>";
     }
 
-    public static function get_chat_emojis(): array
+    public function get_private_history_html(int $sender_id, string $chat_partner): array
     {
-        return [
-            '😀', '😃', '😄', '😁', '😅', '😂', '🥲', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘',
-            '😎', '🤓', '🧐', '🤨', '🤔', '😐', '😑', '😶', '🙄', '😏', '😣', '😥', '😮', '🤐', '😯',
-            '😴', '🥱', '😫', '🤤', '😒', '😓', '😔', '😕', '🙃', '🤑', '😲', '☹️', '🙁', '😖', '😞',
-            '😟', '😤', '😱', '😰', '😪', '😭', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '❤️',
-            '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
-            '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
-            '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
-            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
-        ];
-    }
+        $limit = SHOW_MESSAGES_LIMIT;
+        $result = $this->get_chat_history_paged($sender_id, null, $limit + 1);
 
-    public static function check_rate_limit(): int {
-        $now = time();
-        $timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
-        $count = $_SESSION["message_count"] ?? 0;
+        $has_more = count($result) > $limit;
+        if ($has_more) array_shift($result);
 
-        if ($now > $timeframe_end) {
-            $_SESSION["message_count"] = 0;
-            $_SESSION["message_timeframe_end"] = $now + MESSAGES_RATE_INTERVAL;
-            $count = 0;
+        $html = "<button id='load-older-btn' data-on-click='loadOlderChat' data-partnerid='" . e($sender_id) . "' class='msg-load-more' style='display: " . ($has_more ? 'block' : 'none') . "'>Ältere Nachrichten laden</button>";
+        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? 'true' : 'false') . "'></div>";
+
+        if (empty($result)) {
+            return [
+                "html" => $html . "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>",
+                "last_id" => 0
+            ];
         }
 
-        if ($count >= MAX_MESSAGES_RATELIMIT) {
-            return max(1, $timeframe_end - $now);
-        }
+        $chat_partner_image = "";
+        $my_chat_image = $this->user->get_avatar();
+        $partner = new User($sender_id, $chat_partner);
+        $first_sender_message_displayed = false;
+        $unread_message_ids = [];
 
-        $_SESSION["message_count"] = $count + 1;
-        return 0;
-    }
+        $is_admin = $this->user->is_admin();
 
-    public static function clean_and_validate_chat_text(string $raw_text): array {
-        $cleaned = preg_replace([
-            '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-            '/[ \t]+/u',
-            '/^[ \t]+/m',
-            '/[ \t]+$/m'
-        ], ['', ' ', '', ''], $raw_text);
+        $last_id = 0;
+        foreach ($result as $row) {
+            $message_id = $row["id"];
+            if ($message_id > $last_id) $last_id = $message_id;
 
-        $cleaned = trim($cleaned);
-        $text_only = trim(preg_replace('/\[\/?quote.*?]/i', '', $cleaned));
+            $display_message = self::format_chat_message($row["message"]);
 
-        if (empty($cleaned) || empty($text_only)) {
-            return ["error" => "Bitte eine Nachricht eingeben!"];
-        }
+            $has_read = $row["hasread"];
+            $date = $row["date"];
+            $is_me = ($row["senderid"] == $this->user->get_user_id());
 
-        $length = mb_strlen($cleaned, "UTF-8");
-        if ($length > MAX_MESSAGE_LENGTH) {
-            return ["error" => "Nachricht zu lang! ($length / " . MAX_MESSAGE_LENGTH . ")"];
-        }
+            $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
+            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
+                     style='cursor: pointer; margin-left: 5px;'
+                     data-on-click='quoteMessage'
+                     data-author='" . e($row["sender"]) . "'
+                     data-text='" . e($row["message"]) . "'
+                     title='Nachricht zitieren' alt=''>";
+            $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["senderid"] . "' data-title='Spieler-Info'>" . e($row["sender"]) . "</a>";
 
-        $line_breaks = substr_count($cleaned, "\n");
-        if ($line_breaks > MAX_LINE_BREAK_COUNT) {
-            return ["error" => "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!"];
-        }
+            if ($row["senderid"] == $sender_id) {
+                if (empty($chat_partner_image)) {
+                    $chat_partner_image = $partner->get_avatar() ?? "";
+                }
 
-        return ["text" => $cleaned];
-    }
+                if (!$has_read && !$first_sender_message_displayed) {
+                    $first_sender_message_displayed = true;
+                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
+                }
 
-    public static function render_chat_bubble(
-        string $chat_type,
-        int $msg_id,
-        int $sender_id,
-        string $sender_name,
-        string $raw_message,
-        int $timestamp,
-        User $viewer_user,
-        ?string $avatar_url = null
-    ): string {
-        $is_me = ($sender_id === $viewer_user->get_user_id());
-        $is_admin = $viewer_user->is_admin();
+                $html .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
+                            <div class='message-border'>
+                                <span class='msg-header-left'>
+                                    <img class='user-image' src='$chat_partner_image' alt=''>
+                                    <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
+                                </span>
+                                <span style='display: flex; gap: 5px; align-items: center;'>
+                                    " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
+                                    $quote_icon
+                                    $delete_icon
+                                </span>
+                            </div>
+                            <div class='chat-text'>" . $display_message . "</div>
+                            <div class='chat-reaction-footer'>
+                                " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+                            </div>
+                        </div>";
+            } else {
+                $html .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
+                            <div class='message-border'>
+                                <span class='msg-header-left'>
+                                    <img class='user-image' src='$my_chat_image' alt=''>
+                                    <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
+                                </span>
+                                <span style='display: flex; gap: 5px; align-items: center;'>
+                                    " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "btn_only") . "
+                                    $quote_icon
+                                    $delete_icon
+                                </span>
+                            </div>
+                            <div class='chat-text'>" . $display_message . "</div>
+                            <div class='chat-reaction-footer'>
+                                " . Messages::render_reactions_bar("chat", $row["id"], $this->user, "badges_only") . "
+                            </div>
+                        </div>";
+            }
 
-        $bubble_class = $is_me ? "receiver-bubble" : "sender-bubble";
-        $dom_id = match ($chat_type) {
-            "world" => "world-msg-$msg_id",
-            "guild" => "guild-msg-$msg_id",
-            default => "msg-$msg_id"
-        };
-
-        if ($avatar_url === null) {
-            $sender_obj = $is_me ? $viewer_user : new User($sender_id, $sender_name);
-            $avatar_url = $sender_obj->get_avatar();
-        }
-
-        $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($sender_name) . "</a>";
-
-        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' style='cursor: pointer; margin-left: 5px;' " .
-            "data-on-click='quoteMessage' data-author='" . e($sender_name) . "' data-text='" . e($raw_message) . "' title='Nachricht zitieren' alt=''>";
-
-        $can_delete = $is_me || $is_admin;
-        if ($chat_type === "guild" && !$can_delete) {
-            $my_rank = $viewer_user->get_guild_rank_id();
-            if ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER) {
-                $can_delete = true;
+            if (!$has_read && $row["receiverid"] == $this->user->get_user_id()) {
+                $unread_message_ids[] = $message_id;
             }
         }
 
-        $delete_icon = "";
-        if ($can_delete) {
-            $del_action = match ($chat_type) {
-                "world" => "deleteWorldChatMsg",
-                "guild" => "deleteGuildChatMsg",
-                default => "deleteChatMsg"
-            };
-            $delete_icon = "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='$del_action' data-id='$msg_id' style='cursor: pointer;' alt='Löschen'>";
+        if (!empty($unread_message_ids)) {
+            $placeholders = implode(",", array_fill(0, count($unread_message_ids), "?"));
+            $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
         }
 
-        $reaction_type = match ($chat_type) {
-            "world" => "world_chat",
-            "guild" => "guild_chat",
-            default => "chat"
-        };
-
-        $formatted_text = self::format_chat_message($raw_message);
-        $date_str = date(DATE_FORMAT_CHAT, $timestamp);
-
-        return "
-        <div class='$bubble_class' id='$dom_id'>
-            <div class='message-border'>
-                <span class='msg-header-left'>
-                    <img class='user-image' src='" . e($avatar_url) . "' alt=''>
-                    <span>$sender_display <small class='msg-date'>$date_str</small></span>
-                </span>
-                <span style='display: flex; gap: 5px; align-items: center;'>
-                    " . self::render_reactions_bar($reaction_type, $msg_id, $viewer_user, "btn_only") . "
-                    $quote_icon
-                    $delete_icon
-                </span>
-            </div>
-            <div class='chat-text'>$formatted_text</div>
-            <div class='chat-reaction-footer'>
-                " . self::render_reactions_bar($reaction_type, $msg_id, $viewer_user, "badges_only") . "
-            </div>
-        </div>";
+        return [
+            "html" => $html,
+            "last_id" => $last_id
+        ];
     }
 
-    public static function get_batch_reaction_badges(string $reaction_type, array $message_ids, User $viewer_user): array {
-        if (empty($message_ids)) return [];
+    public function get_chat_history_paged(int $sender_id, ?int $oldest_id = null, int $limit = 20): array
+    {
+        $uid = $this->user->get_user_id();
 
-        $db = Database::get_instance()->get_connection();
-        $my_id = $viewer_user->get_user_id();
-
-        $result_map = [];
-        foreach ($message_ids as $id) {
-            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '"></div>';
+        if ($oldest_id === null) {
+            $query = "SELECT * FROM messages 
+                  WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+                  AND deleted = 0 
+                  ORDER BY id DESC LIMIT ?";
+            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $limit]);
+        } else {
+            $query = "SELECT * FROM messages 
+                  WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
+                  AND deleted = 0 AND id < ?
+                  ORDER BY id DESC LIMIT ?";
+            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $oldest_id, $limit]);
         }
 
-        $raw_badges = array_fill_keys($message_ids, "");
+        $messages = [];
+        foreach ($result as $row) {
+            $messages[] = $row;
+        }
 
-        $placeholders = implode(',', array_fill(0, count($message_ids), '?'));
-        $query = "SELECT r.entity_id, r.emoji, COUNT(*) as total, 
-                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted, 
-                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names 
-                  FROM reactions r 
-                  JOIN users u ON r.user_id = u.id 
-                  WHERE r.entity_type = ? AND r.entity_id IN ($placeholders) 
-                  GROUP BY r.entity_id, r.emoji";
+        return array_reverse($messages);
+    }
 
-        $params = array_merge([$my_id, $reaction_type], $message_ids);
-        $res = $db->execute_query($query, $params);
+    public function show_world_chat(): string
+    {
+        $html = "<div class='info-box event-error' style='display: none;'></div>";
+        $html .= "
+        <div id='chat-loading-wrapper'>
+            <div id='chat-loading-overlay' class='chat-spinner-full'>
+                <div class='loading-spinner'></div>
+                <p>Welt-Chat wird geladen...</p>
+            </div>
+            <div id='messages-section' data-chat-type='world' style='opacity: 0; height: 55vh;'>
+            </div>
+        </div>";
 
-        while ($row = $res->fetch_assoc()) {
-            $eid = (int)$row["entity_id"];
-            $active_class = ((int)$row["self_reacted"] === 1) ? " active" : "";
-            $user_list = e($row["names"]);
-            $popup_id = "reac_" . $reaction_type . "_" . $eid . "_" . md5($row["emoji"]);
-
-            $raw_badges[$eid] .= '
-            <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '" data-on-click="toggleReaction" 
-                  data-type="' . $reaction_type . '" 
-                  data-id="' . $eid . '" 
-                  data-emoji="' . e($row["emoji"]) . '">
-                ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
-                <div id="' . $popup_id . '_box" class="popupbox">
-                    <b>Reaktionen:</b><br>' . $user_list . '
+        $html .= "
+        <div id='newmessage-section'>
+            <form id='world-chat-form'>
+                <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
+                <div class='emoji-picker-container'>
+                    <div id='emoji-menu' class='emoji-menu'>";
+        foreach (Messages::get_chat_emojis() as $emoji) {
+            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
+        }
+        $html .= "  </div>
+                    <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
                 </div>
-            </span>';
+                <input type='button' data-on-click='sendWorldMessage' value='Absenden\n[ENTER]' />
+            </form>
+        </div>";
+
+        return $html;
+    }
+
+    public function get_world_history_html(): array
+    {
+        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
+        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+
+        $has_more = (count($rows) > $limit);
+        if ($has_more) {
+            array_pop($rows);
         }
 
-        foreach ($message_ids as $id) {
-            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '">' . $raw_badges[$id] . '</div>';
+        $rows = array_reverse($rows);
+
+        $html = "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
+        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
+
+        $last_id = 0;
+
+        if (empty($rows)) {
+            $html .= "
+            <div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>
+                Im Welt-Chat wurde noch nichts geschrieben. Sei der Erste!
+            </div>";
+        } else {
+            $last_read_id = $this->mysqli->execute_query("SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()])->fetch_row()[0] ?? 0;
+            $unread_line_shown = false;
+
+            foreach ($rows as $row) {
+                $last_id = $row["id"];
+                $is_me = ($row["userid"] == $this->user->get_user_id());
+
+                if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
+                    $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", $row["date"]) . "</div>";
+                    $unread_line_shown = true;
+                }
+
+                $class = $is_me ? "receiver-bubble" : "sender-bubble";
+
+                $is_admin = $this->user->is_admin();
+                $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen'
+                                                            data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
+
+                $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
+                     style='cursor: pointer; margin-left: 5px;'
+                     data-on-click='quoteMessage'
+                     data-author='" . e($row["username"]) . "'
+                     data-text='" . e($row["message"]) . "'
+                     title='Nachricht zitieren' alt=''>";
+
+                $msg = self::format_chat_message($row["message"]);
+
+                $u = new User($row["userid"], $row["username"]);
+                $avatar = $u->get_avatar();
+
+                $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
+
+                $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
+                    <div class='message-border'>
+                        <span class='msg-header-left'>
+                            <img class='user-image' src='$avatar' alt=''>
+                            <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
+                        </span>
+                        <span style='display: flex; gap: 5px; align-items: center;'>
+                            " . Messages::render_reactions_bar("world_chat", $row["id"], $this->user, "btn_only") . "
+                            $quote_icon
+                            $delete_icon
+                        </span>
+                    </div>
+                    <div class='chat-text'>" . $msg . "</div>
+                    <div class='chat-reaction-footer'>
+                        " . Messages::render_reactions_bar("world_chat", $row["id"], $this->user, "badges_only") . "
+                    </div>
+                  </div>";
+            }
+
+            if ($last_id > 0) {
+                $this->mysqli->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$last_id, $this->user->get_user_id()]);
+            }
         }
 
-        return $result_map;
+        return [
+            "html" => $html,
+            "last_id" => $last_id
+        ];
+    }
+
+    public function show_guild_chat(): string
+    {
+        $guild_id = $this->user->get_user_guild_id();
+
+        if ($guild_id <= 0) {
+            return "Du bist in keiner Gilde!";
+        }
+
+        $html = "<div class='info-box event-error' style='display: none;'></div> 
+                <div id='chat-loading-wrapper'>
+                    <div id='chat-loading-overlay' class='chat-spinner-full'>
+                        <div class='loading-spinner'></div>
+                        <p>Gilden-Chat wird geladen...</p>
+                    </div>
+                    <div id='messages-section' data-chat-type='guild' style='opacity: 0; height: 55vh;'>
+                    </div>
+                </div>
+                <div id='newmessage-section'>
+                    <form id='guild-chat-form'>
+                        <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' style='resize: vertical; margin-right: 10px;'></textarea>
+                        <div class='emoji-picker-container'>
+                            <div id='emoji-menu' class='emoji-menu'>";
+        foreach (Messages::get_chat_emojis() as $emoji) {
+            $html .= "<span data-on-click='pickEmoji'>$emoji</span>";
+        }
+        $html .= "</div>
+                            <button type='button' class='emoji-trigger' data-on-click='toggleEmojis'>🙂</button>
+                        </div>
+                        <input type='button' data-on-click='sendGuildMessage' value='Absenden\n[ENTER]' />
+                    </form>
+                </div>";
+
+        return $html;
+    }
+
+    public function get_guild_history_html(): array
+    {
+        $guild_id = $this->user->get_user_guild_id();
+        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
+        $u_id = $this->user->get_user_id();
+        $is_admin = $this->user->is_admin();
+        $my_rank = $this->user->get_guild_rank_id();
+        $is_privileged = ($my_rank > 0 && $my_rank <= GuildRanks::GUILD_OFFICER);
+
+        // Get the guild messages
+        $result = $this->mysqli->execute_query("SELECT * FROM guild_chat WHERE guild_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?", [$guild_id, $limit + 1]);
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+
+        $has_more = (count($rows) > $limit);
+        if ($has_more) array_pop($rows);
+        $rows = array_reverse($rows);
+
+        $html = "<button id='load-older-btn' data-on-click='loadOlderGuildChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
+        $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
+
+        $last_id = 0;
+
+        if (empty($rows)) {
+            $html .= "<div id='chat-empty-placeholder' class='info-box' style='margin: 0; justify-content: center;'>Schreibe eine Nachricht, um den Chat zu beginnen.</div>";
+            return [
+                "html" => $html,
+                "last_id" => 0
+            ];
+        }
+
+        $last_read_id = $this->mysqli->execute_query("SELECT last_guild_chat_id FROM users WHERE id = ?", [$u_id])->fetch_row()[0] ?? 0;
+        $unread_line_shown = false;
+
+        foreach ($rows as $row) {
+            $last_id = $row["id"];
+            $is_me = ($row["userid"] == $u_id);
+
+            if ($last_read_id > 0 && !$is_me && $row["id"] > $last_read_id && !$unread_line_shown) {
+                $html .= "<div id='new-message-line' class='error'>Neue Gilden-Nachrichten</div>";
+                $unread_line_shown = true;
+            }
+
+            $class = $is_me ? "receiver-bubble" : "sender-bubble";
+
+            $display_msg = self::format_chat_message($row["message"]);
+
+            $sender_user = new User($row["userid"], $row["username"]);
+            $avatar = $sender_user->get_avatar();
+            $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
+
+            $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' data-on-click='quoteMessage' data-author='" . e($row["username"]) . "' data-text='" . e($row["message"]) . "' title='Zitieren' style='cursor:pointer;'>";
+            $del_icon = ($is_me || $is_admin || $is_privileged) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' data-on-click='deleteGuildChatMsg' data-id='{$row["id"]}' style='cursor: pointer;' alt='Löschen'>" : "";
+
+            $html .= "<div class='$class' id='guild-msg-{$row["id"]}'>
+                <div class='message-border'>
+                    <span class='msg-header-left'>
+                        <img class='user-image' src='$avatar' alt=''>
+                        <span>$sender_display <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
+                    </span>
+                    <span style='display: flex; gap: 5px; align-items: center;'>
+                        " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "btn_only") . "
+                        $quote_icon
+                        $del_icon
+                    </span>
+                </div>
+                <div class='chat-text'>" . $display_msg . "</div>
+                <div class='chat-reaction-footer'>
+                    " . Messages::render_reactions_bar("guild_chat", $row["id"], $this->user, "badges_only") . "
+                </div>
+            </div>";
+        }
+
+        if (isset($last_id)) {
+            $this->mysqli->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$last_id, $u_id]);
+        }
+
+        return [
+            "html" => $html,
+            "last_id" => $last_id
+        ];
     }
 }

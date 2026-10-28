@@ -11,6 +11,19 @@ $categories = [
                     WHERE status = 1
                     ORDER BY val DESC, uid"
     ],
+    "arena" => [
+        "label" => "Arena",
+        "title" => "Arena-Duelle",
+        "limit" => 20,
+        "type" => "player",
+        "format" => "wins_losses",
+        "val_label" => "S | N (Ges.)",
+        "query" => "SELECT u.username, u.id as uid, s.arena_wins as val, s.arena_losses as extra_val, s.arena_battles as total_games
+                    FROM player_stats s 
+                    JOIN users u ON s.userid = u.id 
+                    WHERE s.arena_battles > 0 AND u.status = 1 
+                    ORDER BY val DESC, s.arena_losses, s.arena_battles DESC, uid"
+    ],
     "monster" => [
         "label" => "Monster",
         "title" => "Besiegte Monster",
@@ -241,27 +254,27 @@ function render_hof_tab_content(array $data, mysqli $db, User $current_user): st
 {
     $is_guild = ($data["type"] ?? "player") === "guild";
     $second_col_title = $is_guild ? "Gilde" : "Herrscher";
+    $val_header = $data["val_label"] ?? "Wert";
 
     $html = "<h3 class='title-border' style='margin-top: 25px;'>Top {$data["limit"]}: {$data["title"]}</h3>";
     $html .= "<table class='table' style='max-width: 600px; width: 100%; table-layout: fixed;'>
-              <colgroup>
-                <col style='width: 15%;'>
-                <col style='width: 55%;'>
-                <col style='width: 30%;'>
-              </colgroup>
-                <tr>
-                    <td class='td-center td-gradient'><b>#</b></td>
-                    <td class='td-gradient'><b>$second_col_title</b></td>
-                    <td class='td-center td-gradient'><b>Wert</b></td>
-                </tr>";
+        <colgroup>
+            <col style='width: 15%;'>
+            <col style='width: 55%;'>
+            <col style='width: 30%;'>
+        </colgroup>
+        <tr>
+            <td class='td-center td-gradient'><b>#</b></td>
+            <td class='td-gradient'><b>$second_col_title</b></td>
+            <td class='td-center td-gradient'><b>$val_header</b></td>
+        </tr>";
 
     $final_query = $data["query"] . " LIMIT " . (int)$data["limit"];
     $res = $db->query($final_query);
-
     $rank = 1;
+
     if ($res && $res->num_rows > 0) {
         $guild_logic = new Guild($current_user);
-
         while ($row = $res->fetch_assoc()) {
             $rank_class = match ($rank) {
                 1 => "rank-gold",
@@ -273,29 +286,37 @@ function render_hof_tab_content(array $data, mysqli $db, User $current_user): st
             if ($is_guild) {
                 $is_me = ($row["gid"] == $current_user->get_user_guild_id());
                 $style = $is_me ? " background: rgba(212, 175, 55, 0.2);" : "";
-
                 $badge = $guild_logic->render_badge((int)$row["gid"], $row["tag"], $row["gname"]);
                 $cell_content = "<div style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$row["gid"]}'>$badge</div>";
             } else {
                 $is_me = ($row["uid"] == $current_user->get_user_id());
                 $style = $is_me ? " background: rgba(255, 255, 255, 0.2);" : "";
-
                 $player = new User($row["uid"], $row["username"]);
                 $cell_content = $player->render_user();
             }
 
-            $val_display = "";
-            if (isset($row["extra_count"])) {
-                $val_display = " <small style='font-size: 14px; font-weight: normal; color: rgb(230, 220, 200); opacity: 0.6;'>(" . (int)$row["extra_count"] . ")</small>";
+            if (($data["format"] ?? "") === "wins_losses") {
+                $wins = (int)$row["val"];
+                $losses = (int)($row["extra_val"] ?? 0);
+                $total_games = isset($row["total_games"]) ? (int)$row["total_games"] : ($wins + $losses);
+
+                $val_display = "<span class='passed'>" . fnum($wins) . "</span> <span style='color: rgb(230, 220, 200);'>|</span> <span class='error'>" . fnum($losses) . "</span> 
+                                <small style='font-size: 14px; font-weight: normal; opacity: 0.6; color: rgb(230, 220, 200);'>(" . fnum($total_games) . ")</small>";
+            } else {
+                $val_display = fnum($row["val"]);
+
+                if (isset($row["extra_count"])) {
+                    $val_display .= " <small style='font-size: 14px; font-weight: normal; color: rgb(230, 220, 200); opacity: 0.6;'>(" . (int)$row["extra_count"] . ")</small>";
+                }
             }
 
             $html .= "<tr>
-                        <td class='td-center $rank_class' style='$style'>$rank</td>
-                        <td style='overflow: hidden; text-overflow: ellipsis; white-space: nowrap; $style'>
-                            $cell_content
-                        </td>
-                        <td class='td-center $rank_class' style='$style'>" . fnum($row["val"]) . " $val_display</td>
-                      </tr>";
+                <td class='td-center $rank_class' style='$style'>$rank</td>
+                <td style='overflow: hidden; text-overflow: ellipsis; white-space: nowrap; $style'>
+                    $cell_content
+                </td>
+                <td class='td-center $rank_class' style='$style'>$val_display</td>
+            </tr>";
             $rank++;
         }
     } else {

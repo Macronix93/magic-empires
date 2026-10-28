@@ -99,3 +99,9 @@ $deleted_events = $we_logic->cleanup_old_events();
 if ($deleted_events > 0) {
     echo "[" . date("H:i:s") . "] Cleanup: $deleted_events alte Welt-Events aus der Datenbank entfernt.\n";
 }
+
+// Arena rewards
+$arena_rewarded = Arena::check_and_process_season_reset();
+if ($arena_rewarded > 0) {
+    echo "[" . date("H:i:s") . "] Arena: Saison abgeschlossen! $arena_rewarded Spieler belohnt.\n";
+}

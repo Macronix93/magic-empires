@@ -54,27 +54,44 @@ if ($user->is_logged_in()) {
 
     $current_k_id = $user->get_current_kingdom();
     $current_ip = $_SERVER["REMOTE_ADDR"];
+    $current_uid = $user->get_user_id();
 
+    // Check current user
     $query = "
         SELECT 
-            u.is_banned, u.ban_reason, u.mainkingdom,
-            k.id AS current_k_exists
+            u.is_banned, u.ban_reason, u.mainkingdom, k.id AS current_k_exists
         FROM users u
         LEFT JOIN kingdoms k ON k.id = ? AND k.userid = u.id
-        WHERE u.id = ? OR (u.ip = ? AND u.is_banned = 1)
+        WHERE u.id = ?
         LIMIT 1
     ";
-    $check_res = $db_instance->execute_query($query, [$current_k_id, $user->get_user_id(), $current_ip]);
+    $check_res = $db_instance->execute_query($query, [$current_k_id, $current_uid]);
     $user_status = $check_res->fetch_assoc();
 
-    if ($user_status && $user_status["is_banned"] == 1) {
-        $reason = $user_status["ban_reason"] ?? "Sicherheitsbann (IP-Match)";
-        session_destroy();
+    // Account is banned
+    if ($user_status && (int)$user_status["is_banned"] === 1) {
+        $reason = $user_status["ban_reason"] ?? "Dein Account wurde gesperrt.";
 
+        session_destroy();
         change_location("index.php?banned=" . urlencode($reason));
         exit;
     }
 
+    // Safety check: is the current IP banned?
+    $res_ip_ban = $db_instance->execute_query(
+        "SELECT ban_reason FROM users WHERE ip = ? AND is_banned = 1 LIMIT 1",
+        [$current_ip]
+    );
+    if ($res_ip_ban && $res_ip_ban->num_rows > 0) {
+        $ip_ban_row = $res_ip_ban->fetch_assoc();
+        $reason = $ip_ban_row["ban_reason"] ?? "Sicherheitsbann (Gesperrte IP-Adresse)";
+
+        session_destroy();
+        change_location("index.php?banned=" . urlencode($reason));
+        exit;
+    }
+
+    // Kingdom doesn't exist anymore
     if (!$user_status || $user_status["current_k_exists"] === null) {
         $main_k = $user_status["mainkingdom"] ?? -1;
         $_SESSION["kingdomid"] = $main_k;
@@ -124,7 +141,7 @@ if ($user->is_logged_in()) {
                 $user->process_user_events();
 
                 // Update villager count after events were processed (villager cap)
-                Kingdom::apply_villager_cap($user->get_current_kingdom());
+                //Kingdom::apply_villager_cap($user->get_current_kingdom());
 
                 $_SESSION["active_attacks"] = $user->check_for_incoming_attacks();
                 $_SESSION["active_supports"] = $user->check_for_incoming_support();

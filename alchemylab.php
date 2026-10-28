@@ -204,7 +204,6 @@ if ($has_active_process) {
                     <input type='button' value='Max.' data-on-click='fillAlchemyTopUpMax' $is_top_up_disabled>
                     <input type='submit' name='top_up_input' id='btn_top_up' value='Nachlegen' disabled>
                 </div>
-                <small style='opacity: 0.7;'>Frei im Kessel: <span id='live-free-space'>" . fnum($free_space) . "</span> | Min.: " . fnum($step) . " | Vorrat: " . fnum($stock) . "</small>
             </form>";
     }
 

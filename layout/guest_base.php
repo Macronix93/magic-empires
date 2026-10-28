@@ -1,15 +1,7 @@
 <?php
 if (empty($header_icon)) {
-    $current_file = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
-    $header_icon = match ($current_file) {
-        'faq.php' => 'images/icons/icon_faq.png',
-        'rules.php' => 'images/icons/icon_rules.png',
-        'news.php' => 'images/icons/icon_news.png',
-        'disclaimer.php' => 'images/icons/icon_disclaimer.png',
-        'imprint.php' => 'images/icons/icon_imprint.png',
-        'privacy.php' => 'images/icons/icon_privacy.png',
-        default => null,
-    };
+    $current_file = basename(parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH));
+    $header_icon = PAGE_ICONS[$current_file] ?? null;
 }
 ?>
 <!DOCTYPE html>

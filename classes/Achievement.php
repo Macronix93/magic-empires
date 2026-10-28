@@ -45,26 +45,153 @@ class Achievement
         return $newly_unlocked;
     }
 
-    public static function unlock(int $user_id, int $req_type): bool
+    public static function get_player_metrics(int $user_id, ?int $filter_req_type = null): array
     {
-        if ($user_id <= 0) return false;
+        if ($user_id <= 0) return [];
         $db = Database::get_instance()->get_connection();
 
-        $ach = $db->execute_query(
-            "SELECT * FROM achievements WHERE req_type = ? LIMIT 1",
-            [$req_type]
-        )->fetch_assoc();
+        if ($filter_req_type === AchievementTypes::ACHIEVEMENT_SCORE) {
+            $score = (int)$db->execute_query("SELECT score FROM users WHERE id = ?", [$user_id])->fetch_column();
+            return [AchievementTypes::ACHIEVEMENT_SCORE => $score];
+        }
 
-        if (!$ach) return false;
-        $ach_id = (int)$ach["id"];
+        if ($filter_req_type === AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT || $filter_req_type === AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS) {
+            return self::get_kingdom_metrics($db, $user_id);
+        }
 
-        $check = $db->execute_query(
-            "SELECT 1 FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
-            [$user_id, $ach_id]
-        );
-        if ($check->num_rows > 0) return false;
+        $user_row = $db->execute_query("SELECT score FROM users WHERE id = ?", [$user_id])->fetch_assoc();
+        if (!$user_row) return [];
 
-        return self::grant_achievement($user_id, $ach);
+        $k_metrics = self::get_kingdom_metrics($db, $user_id);
+
+        $tech_data = $db->execute_query("
+            SELECT 
+                SUM(IF(tl.origin_building = " . BuildingTypes::BUILDING_UNIVERSITY . " AND t.techlevel >= tl.maxlevel, 1, 0)) AS max_uni_techs,
+                SUM(IF(tl.origin_building = " . BuildingTypes::BUILDING_SMITHY . " AND t.techlevel >= tl.maxlevel, 1, 0)) AS max_smithy_techs,
+                MAX(IF(t.techid = " . TechTypes::TECH_TYPE_ANCESTRAL_RITES . ", t.techlevel, 0)) AS rites_level
+            FROM techs t
+            JOIN tech_list tl ON t.techid = tl.id
+            JOIN kingdoms k ON t.kingdomid = k.id
+            WHERE k.userid = ?
+        ", [$user_id])->fetch_assoc();
+
+        $p_stats = new Stats()->get_player_stats($user_id);
+
+        $hero_lvl = (int)($db->execute_query(
+            "SELECT hero_level FROM arena_players WHERE user_id = ?", [$user_id]
+        )->fetch_column() ?? 1);
+
+        return [
+            // kingdoms
+            AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT => $k_metrics[AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT],
+            AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS => $k_metrics[AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS],
+
+            // users, buildings, techs
+            AchievementTypes::ACHIEVEMENT_SCORE => (int)$user_row["score"],
+            AchievementTypes::ACHIEVEMENT_MAX_UNI_TECH => (int)($tech_data["max_uni_techs"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MAX_SMITHY_TECH => (int)($tech_data["max_smithy_techs"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_ANCESTRAL_RITES => (int)($tech_data["rites_level"] ?? 0),
+
+            // player_stats
+            AchievementTypes::ACHIEVEMENT_EVENT_ATTENDED => (int)($p_stats["events_attended"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MINES_DEPLETED => (int)($p_stats["mines_depleted"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_TRADES_COUNT => (int)($p_stats["trades_count"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_RESOURCES_LOOTED => (int)($p_stats["resources_looted"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MONSTER_KILLS => (int)($p_stats["monster_kills"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_CAMPS_CLEARED => (int)($p_stats["camps_cleared"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_EVENT_DAMAGE => (int)($p_stats["event_damage_total"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_SPY_COUNT => (int)($p_stats["spy_count"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_UNITS_FALLEN_PVP => (int)($p_stats["units_fallen_pvp"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_RESOURCES_STOLEN => (int)($p_stats["resources_stolen"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MINE_CAPTURED => (int)($p_stats["mines_captured"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MINE_DEFENDED => (int)($p_stats["mines_defended"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED => (int)($p_stats["alchemy_claimed"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED => (int)($p_stats["military_units_produced"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT => (int)($p_stats["troops_sent_combat"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_BALANCED_ARMY => self::check_balanced_army($user_id) ? 1 : 0,
+            AchievementTypes::ACHIEVEMENT_ARENA_BATTLES => (int)($p_stats["arena_battles"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_ARENA_WINS => (int)($p_stats["arena_wins"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_ARENA_TOP3 => (int)($p_stats["arena_top3_count"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_ARENA_TOP5 => (int)($p_stats["arena_top5_count"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_ARENA_HERO_LEVEL => $hero_lvl
+        ];
+    }
+
+    private static function get_kingdom_metrics(mysqli $db, int $user_id): array
+    {
+        $k_data = $db->execute_query("
+            SELECT 
+                COUNT(*) AS total_kingdoms, 
+                SUM(IF(creation_method = ?, 1, 0)) AS founded_kingdoms
+            FROM kingdoms 
+            WHERE userid = ?
+        ", [KingdomCreationTypes::KINGDOM_CREATION_FOUNDED, $user_id])->fetch_assoc();
+
+        return [
+            AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT => (int)($k_data["total_kingdoms"] ?? 0),
+            AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS => (int)($k_data["founded_kingdoms"] ?? 0)
+        ];
+    }
+
+    private static function check_balanced_army(int $user_id): bool
+    {
+        $db = Database::get_instance()->get_connection();
+        $res_k = $db->execute_query("SELECT id FROM kingdoms WHERE userid = ?", [$user_id]);
+
+        $inf = SoldierTypes::SOLDIER_TYPE_INFANTRY;
+        $cav = SoldierTypes::SOLDIER_TYPE_CAVALRY;
+        $arc = SoldierTypes::SOLDIER_TYPE_ARCHERS;
+
+        while ($k_row = $res_k->fetch_assoc()) {
+            $kid = (int)$k_row["id"];
+            $kingdom = new Kingdom($kid);
+
+            $inf_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
+            $cav_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
+            $arc_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
+
+            $shrine_atk_mult = 1.0;
+            if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+                $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
+            }
+
+            $res_troops = $db->execute_query("
+                SELECT s.soldiercount, sl.attack, sl.category
+                FROM soldiers s
+                JOIN soldier_list sl ON s.soldierid = sl.id
+                WHERE s.kingdomid = ? AND s.soldiercount > 0 AND sl.category IN (?, ?, ?)
+            ", [$kid, $inf, $cav, $arc]);
+
+            $cat_counts = [$inf => 0, $cav => 0, $arc => 0];
+            $cat_atk = [$inf => 0, $cav => 0, $arc => 0];
+
+            while ($t = $res_troops->fetch_assoc()) {
+                $cat = (int)$t["category"];
+                $cnt = (int)$t["soldiercount"];
+
+                $b_atk = match ($cat) {
+                    SoldierTypes::SOLDIER_TYPE_INFANTRY => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_CAVALRY => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_ARCHERS => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
+                    default => 0
+                };
+
+                $unit_atk = (int)round(($t["attack"] * $shrine_atk_mult) + $b_atk);
+                $cat_counts[$cat] += $cnt;
+                $cat_atk[$cat] += ($cnt * $unit_atk);
+            }
+
+            if ($cat_counts[$inf] > 0 && $cat_counts[$cav] > 0 && $cat_counts[$arc] > 0) {
+                $max_atk = max($cat_atk[$inf], $cat_atk[$cav], $cat_atk[$arc]);
+                $min_atk = min($cat_atk[$inf], $cat_atk[$cav], $cat_atk[$arc]);
+
+                if (($max_atk - $min_atk) <= ARMY_BALANCE_TOLERANCE) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static function grant_achievement(int $user_id, array $ach): bool
@@ -114,6 +241,28 @@ class Achievement
         ]);
 
         return true;
+    }
+
+    public static function unlock(int $user_id, int $req_type): bool
+    {
+        if ($user_id <= 0) return false;
+        $db = Database::get_instance()->get_connection();
+
+        $ach = $db->execute_query(
+            "SELECT * FROM achievements WHERE req_type = ? LIMIT 1",
+            [$req_type]
+        )->fetch_assoc();
+
+        if (!$ach) return false;
+        $ach_id = (int)$ach["id"];
+
+        $check = $db->execute_query(
+            "SELECT 1 FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
+            [$user_id, $ach_id]
+        );
+        if ($check->num_rows > 0) return false;
+
+        return self::grant_achievement($user_id, $ach);
     }
 
     public static function claim_reward(int $user_id, int $achievement_id): bool
@@ -230,85 +379,6 @@ class Achievement
         return $titles;
     }
 
-    private static function get_kingdom_metrics(mysqli $db, int $user_id): array
-    {
-        $k_data = $db->execute_query("
-            SELECT 
-                COUNT(*) AS total_kingdoms, 
-                SUM(IF(creation_method = ?, 1, 0)) AS founded_kingdoms
-            FROM kingdoms 
-            WHERE userid = ?
-        ", [KingdomCreationTypes::KINGDOM_CREATION_FOUNDED, $user_id])->fetch_assoc();
-
-        return [
-            AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT => (int)($k_data["total_kingdoms"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS => (int)($k_data["founded_kingdoms"] ?? 0)
-        ];
-    }
-
-    public static function get_player_metrics(int $user_id, ?int $filter_req_type = null): array
-    {
-        if ($user_id <= 0) return [];
-        $db = Database::get_instance()->get_connection();
-
-        if ($filter_req_type === AchievementTypes::ACHIEVEMENT_SCORE) {
-            $score = (int)$db->execute_query("SELECT score FROM users WHERE id = ?", [$user_id])->fetch_column();
-            return [AchievementTypes::ACHIEVEMENT_SCORE => $score];
-        }
-
-        if ($filter_req_type === AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT || $filter_req_type === AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS) {
-            return self::get_kingdom_metrics($db, $user_id);
-        }
-
-        $user_row = $db->execute_query("SELECT score FROM users WHERE id = ?", [$user_id])->fetch_assoc();
-        if (!$user_row) return [];
-
-        $k_metrics = self::get_kingdom_metrics($db, $user_id);
-
-        $tech_data = $db->execute_query("
-            SELECT 
-                SUM(IF(tl.origin_building = " . BuildingTypes::BUILDING_UNIVERSITY . " AND t.techlevel >= tl.maxlevel, 1, 0)) AS max_uni_techs,
-                SUM(IF(tl.origin_building = " . BuildingTypes::BUILDING_SMITHY . " AND t.techlevel >= tl.maxlevel, 1, 0)) AS max_smithy_techs,
-                MAX(IF(t.techid = " . TechTypes::TECH_TYPE_ANCESTRAL_RITES . ", t.techlevel, 0)) AS rites_level
-            FROM techs t
-            JOIN tech_list tl ON t.techid = tl.id
-            JOIN kingdoms k ON t.kingdomid = k.id
-            WHERE k.userid = ?
-        ", [$user_id])->fetch_assoc();
-
-        $p_stats = new Stats()->get_player_stats($user_id);
-
-        return [
-            // kingdoms
-            AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT => $k_metrics[AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT],
-            AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS => $k_metrics[AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS],
-
-            // users, buildings, techs
-            AchievementTypes::ACHIEVEMENT_SCORE => (int)$user_row["score"],
-            AchievementTypes::ACHIEVEMENT_MAX_UNI_TECH => (int)($tech_data["max_uni_techs"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_MAX_SMITHY_TECH => (int)($tech_data["max_smithy_techs"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_ANCESTRAL_RITES => (int)($tech_data["rites_level"] ?? 0),
-
-            // player_stats
-            AchievementTypes::ACHIEVEMENT_EVENT_ATTENDED => (int)($p_stats["events_attended"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_MINES_DEPLETED => (int)($p_stats["mines_depleted"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_TRADES_COUNT => (int)($p_stats["trades_count"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_RESOURCES_LOOTED => (int)($p_stats["resources_looted"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_MONSTER_KILLS => (int)($p_stats["monster_kills"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_CAMPS_CLEARED => (int)($p_stats["camps_cleared"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_EVENT_DAMAGE => (int)($p_stats["event_damage_total"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_SPY_COUNT => (int)($p_stats["spy_count"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_UNITS_FALLEN_PVP => (int)($p_stats["units_fallen_pvp"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_RESOURCES_STOLEN => (int)($p_stats["resources_stolen"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_MINE_CAPTURED => (int)($p_stats["mines_captured"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_MINE_DEFENDED => (int)($p_stats["mines_defended"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED => (int)($p_stats["alchemy_claimed"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED => (int)($p_stats["military_units_produced"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT => (int)($p_stats["troops_sent_combat"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_BALANCED_ARMY => self::check_balanced_army($user_id) ? 1 : 0,
-        ];
-    }
-
     public static function has(int $user_id, int $req_type): bool
     {
         if ($user_id <= 0) return false;
@@ -323,64 +393,8 @@ class Achievement
         return $res->num_rows > 0;
     }
 
-    private static function check_balanced_army(int $user_id): bool
+    public static function resolve_title(array $ach, string $gender = 'm'): string
     {
-        $db = Database::get_instance()->get_connection();
-        $res_k = $db->execute_query("SELECT id FROM kingdoms WHERE userid = ?", [$user_id]);
-
-        $inf = SoldierTypes::SOLDIER_TYPE_INFANTRY;
-        $cav = SoldierTypes::SOLDIER_TYPE_CAVALRY;
-        $arc = SoldierTypes::SOLDIER_TYPE_ARCHERS;
-
-        while ($k_row = $res_k->fetch_assoc()) {
-            $kid = (int)$k_row["id"];
-            $kingdom = new Kingdom($kid);
-
-            $inf_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
-            $cav_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
-            $arc_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
-
-            $shrine_atk_mult = 1.0;
-            if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-                $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
-            }
-
-            $res_troops = $db->execute_query("
-                SELECT s.soldiercount, sl.attack, sl.category
-                FROM soldiers s
-                JOIN soldier_list sl ON s.soldierid = sl.id
-                WHERE s.kingdomid = ? AND s.soldiercount > 0 AND sl.category IN (?, ?, ?)
-            ", [$kid, $inf, $cav, $arc]);
-
-            $cat_counts = [$inf => 0, $cav => 0, $arc => 0];
-            $cat_atk = [$inf => 0, $cav => 0, $arc => 0];
-
-            while ($t = $res_troops->fetch_assoc()) {
-                $cat = (int)$t["category"];
-                $cnt = (int)$t["soldiercount"];
-
-                $b_atk = match ($cat) {
-                    SoldierTypes::SOLDIER_TYPE_INFANTRY => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
-                    SoldierTypes::SOLDIER_TYPE_CAVALRY => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
-                    SoldierTypes::SOLDIER_TYPE_ARCHERS => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
-                    default => 0
-                };
-
-                $unit_atk = (int)round(($t["attack"] * $shrine_atk_mult) + $b_atk);
-                $cat_counts[$cat] += $cnt;
-                $cat_atk[$cat] += ($cnt * $unit_atk);
-            }
-
-            if ($cat_counts[$inf] > 0 && $cat_counts[$cav] > 0 && $cat_counts[$arc] > 0) {
-                $max_atk = max($cat_atk[$inf], $cat_atk[$cav], $cat_atk[$arc]);
-                $min_atk = min($cat_atk[$inf], $cat_atk[$cav], $cat_atk[$arc]);
-
-                if (($max_atk - $min_atk) <= ARMY_BALANCE_TOLERANCE) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return ($gender === 'f' && !empty($ach["title_f"])) ? $ach["title_f"] : ($ach["title"] ?? "");
     }
 }

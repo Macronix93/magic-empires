@@ -2,6 +2,7 @@
 
 class User
 {
+    private static ?array $title_cache = null;
     private object $mysqli;
     private string $reg_status = "";
     private int $user_id;
@@ -9,7 +10,6 @@ class User
     private int $current_kingdom;
     private ?array $cached_unread_counts = null;
     private ?array $user_row = null;
-    private static ?array $title_cache = null;
 
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
@@ -19,13 +19,19 @@ class User
         $this->current_kingdom = $current_kingdom;
     }
 
-    private function load_user_row(): array
+    public static function delete_user_avatar_files(int $user_id): void
     {
-        if ($this->user_row === null && $this->user_id > 0) {
-            $res = $this->mysqli->execute_query("SELECT * FROM users WHERE id = ?", [$this->user_id]);
-            $this->user_row = $res->fetch_assoc() ?: [];
+        $hashed_name = substr(hash("sha256", $user_id . AVATAR_SALT), 0, 12);
+        $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
+        $files = glob($directory . $hashed_name . ".*");
+
+        if (!empty($files)) {
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
         }
-        return $this->user_row ?? [];
     }
 
     /**
@@ -157,21 +163,6 @@ class User
         return $this->user_id;
     }
 
-    public function get_avatar(): string
-    {
-        $hashedName = substr(hash("sha256", $this->user_id . AVATAR_SALT), 0, 12);
-
-        $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
-        $files = glob($directory . $hashedName . ".*");
-
-        if (!empty($files)) {
-            $info = pathinfo($files[0]);
-            return UPLOADS_FILE_PATH . $hashedName . "." . $info["extension"] . "?t=" . filemtime($files[0]);
-        }
-
-        return DEFAULT_AVATAR;
-    }
-
     public function render_user(
         string  $content = "",
         ?string $status_color = null,
@@ -179,7 +170,11 @@ class User
         bool    $show_last_activity = false,
         ?int    $last_activity_timestamp = null,
         bool    $exact_time = false,
-        bool    $show_title = false
+        bool    $show_title = false,
+        bool    $show_guild = false,
+        ?string $guild_tag = null,
+        ?int    $guild_id = null,
+        ?string $extra_badge = null
     ): string
     {
         $avatar = $this->get_avatar();
@@ -197,34 +192,53 @@ class User
         if ($content === "") {
             if ($show_last_activity) {
                 $act = $last_activity_timestamp ?? (int)($this->load_user_row()["lastactivity"] ?? 0);
-                $act_str = $exact_time
-                    ? ($act === 0 ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $act) . " Uhr")
-                    : format_relative_activity($act, $now);
-
+                $act_str = $exact_time ? ($act === 0 ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $act) . " Uhr") : format_relative_activity($act, $now);
                 $link_pop_id = "act_link_" . $this->user_id . "_" . mt_rand(100, 999);
-                $content = "<a href='#' data-on-click='openOverlay' 
-                                        data-url='userinfo.php?userid=$this->user_id' 
-                                        data-title='Spieler-Info' 
-                                        class='popup user-name-link' id='$link_pop_id'
-                                        style='cursor: pointer;'>" . e($this->user_name) . "
-                                        <div id='{$link_pop_id}_box' class='popupbox'>Zuletzt aktiv: $act_str</div>
-                            </a>";
+                $content = "<a href='#' data-on-click='openOverlay'  
+                                        data-url='userinfo.php?userid=$this->user_id'  
+                                        data-title='Spieler-Info'  
+                                        class='popup user-name-link' 
+                                        id='$link_pop_id' 
+                                        style='cursor: pointer;'>" . e($this->user_name) . " <div id='{$link_pop_id}_box' class='popupbox'>Zuletzt aktiv: $act_str</div></a>";
             } else {
-                $content = "<a href='#' class='user-name-link' 
-                                        data-on-click='openOverlay' 
-                                        data-url='userinfo.php?userid=$this->user_id' 
-                                        data-title='Spieler-Info' 
-                                        style='cursor: pointer;'>" . e($this->user_name) . "</a>";
+                $content = "<a href='#' class='user-name-link'  
+                                    data-on-click='openOverlay'  
+                                    data-url='userinfo.php?userid=$this->user_id'  
+                                    data-title='Spieler-Info'  
+                                    style='cursor: pointer;'>" . e($this->user_name) . "</a>";
             }
         }
 
         $title_html = "";
         if ($show_title) {
             $user_title = $this->get_active_title();
+
             if (!empty($user_title)) {
                 $title_html = "<small class='user-title'>&bdquo;" . e($user_title) . "&ldquo;</small>";
             }
         }
+
+        $guild_html = "";
+        if ($show_guild) {
+            if ($guild_tag === null) {
+                $g_res = $this->mysqli->execute_query(
+                    "SELECT g.id, g.tag FROM guilds g JOIN users u ON g.id = u.guildid WHERE u.id = ?",
+                    [$this->user_id]
+                )->fetch_assoc();
+
+                if ($g_res) {
+                    $guild_tag = $g_res["tag"];
+                    $guild_id = (int)$g_res["id"];
+                }
+            }
+
+            if (!empty($guild_tag)) {
+                $gid_attr = $guild_id ? "data-id='$guild_id'" : "";
+                $guild_html = " <b style='cursor: pointer;' data-on-click='openGuildInfo' $gid_attr>[" . e($guild_tag) . "]</b>";
+            }
+        }
+
+        $badge_html = !empty($extra_badge) ? " $extra_badge" : "";
 
         return "
             <div class='image-and-user'>
@@ -236,21 +250,64 @@ class User
                     </div>
                 </div>
                 <div class='user-name-container' style='text-align: left; min-width: 0; flex: 1;'>
-                    $content
+                    $content$guild_html$badge_html
                     $title_html
                 </div>
             </div>";
     }
 
-    public function is_logged_in(): bool
+    public function get_avatar(): string
     {
-        return isset($_SESSION["userid"]);
+        $hashedName = substr(hash("sha256", $this->user_id . AVATAR_SALT), 0, 12);
+
+        $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
+        $files = glob($directory . $hashedName . ".*");
+
+        if (!empty($files)) {
+            $info = pathinfo($files[0]);
+            return UPLOADS_FILE_PATH . $hashedName . "." . $info["extension"] . "?t=" . filemtime($files[0]);
+        }
+
+        return DEFAULT_AVATAR;
     }
 
-    public function get_user_admin_level(): int
+    private function load_user_row(): array
+    {
+        if ($this->user_row === null && $this->user_id > 0) {
+            $res = $this->mysqli->execute_query("SELECT * FROM users WHERE id = ?", [$this->user_id]);
+            $this->user_row = $res->fetch_assoc() ?: [];
+        }
+        return $this->user_row ?? [];
+    }
+
+    public function get_active_title(): string
     {
         $row = $this->load_user_row();
-        return (int)($row["adminlevel"] ?? 0);
+        $title_id = (int)($row["active_title_id"] ?? 0);
+        $gender = $row["gender"] ?? 'm';
+
+        if ($title_id === 0) {
+            return ""; // Don't show a title
+        }
+
+        if ($title_id === -1) {
+            return ($gender === 'f') ? "Freifrau" : "Freiherr";
+        }
+
+        if (self::$title_cache === null) {
+            $res = $this->mysqli->query("SELECT id, title, title_f FROM achievements");
+            self::$title_cache = [];
+            while ($ach = $res->fetch_assoc()) {
+                self::$title_cache[(int)$ach["id"]] = $ach;
+            }
+        }
+
+        if (isset(self::$title_cache[$title_id])) {
+            $ach = self::$title_cache[$title_id];
+            return ($gender === 'f' && !empty($ach["title_f"])) ? $ach["title_f"] : $ach["title"];
+        }
+
+        return "";
     }
 
     public function clear_last_built_building(int $kingdom_id): void
@@ -345,6 +402,11 @@ class User
         unset($_SESSION["last_upgraded"][$kingdom_id]);
     }
 
+    public function get_unread_messages(): int
+    {
+        return $this->get_unread_counts()["total"];
+    }
+
     public function get_unread_counts(): array
     {
         if ($this->cached_unread_counts !== null) {
@@ -388,6 +450,15 @@ class User
             ? "(SELECT COUNT(*) FROM guild_chat WHERE guild_id = $gid AND id > u.last_guild_chat_id AND userid != u.id AND deleted = 0)"
             : "0";
 
+        $suggestions_subquery = SUGGESTIONS_ENABLED
+            ? "(
+                (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) +
+                (SELECT COUNT(*) FROM suggestion_comments sc 
+                 LEFT JOIN suggestion_reads sr ON sr.user_id = u.id AND sr.suggestion_id = sc.suggestion_id 
+                 WHERE sc.id > IFNULL(sr.last_read_comment_id, 0) AND sc.user_id != u.id)
+               )"
+            : "0";
+
         $query = "
         SELECT 
             (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) AS pms,
@@ -396,12 +467,12 @@ class User
             $guild_subquery AS guild,
             $support_subquery AS support,
             (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news,
-            (
-              (SELECT COUNT(*) FROM suggestions WHERE id > u.last_suggestion_read) +
-              (SELECT COUNT(*) FROM suggestion_comments sc
-               LEFT JOIN suggestion_reads sr ON sr.user_id = u.id AND sr.suggestion_id = sc.suggestion_id
-               WHERE sc.id > IFNULL(sr.last_read_comment_id, 0) AND sc.user_id != u.id)
-            ) AS suggestions
+            $suggestions_subquery AS suggestions,
+            (SELECT COUNT(*) FROM arena_battles ab 
+             JOIN arena_players ap ON ap.user_id = u.id 
+             WHERE ab.defender_id = u.id 
+               AND ap.last_viewed_logs > 0 
+               AND ab.created_at > ap.last_viewed_logs) AS arena_unread
         FROM users u 
         WHERE u.id = ?";
 
@@ -414,6 +485,7 @@ class User
         $support = (int)($res["support"] ?? 0);
         $news = (int)($res["news"] ?? 0);
         $suggestions = (int)($res["suggestions"] ?? 0);
+        $arena_unread = (int)($res["arena_unread"] ?? 0);
 
         $this->cached_unread_counts = [
             "pms" => $pms,
@@ -424,31 +496,33 @@ class User
             "news" => $news,
             "suggestions" => $suggestions,
             "achievements" => $claimable_achs,
-            "total" => $pms + $server + $world + $guild + $support + $suggestions + $claimable_achs
+            "arena" => $arena_unread,
+            "total" => $pms + $server + $world + $guild + $support + $suggestions + $claimable_achs + $arena_unread
         ];
 
         return $this->cached_unread_counts;
     }
 
-    public function get_unread_messages(): int
+    public function get_user_guild_id(): int
     {
-        return $this->get_unread_counts()["total"];
+        if ($this->user_id <= 0) {
+            return -1;
+        }
+
+        $row = $this->load_user_row();
+        return (int)($row["guildid"] ?? -1);
+    }
+
+    public function get_user_admin_level(): int
+    {
+        $row = $this->load_user_row();
+        return (int)($row["adminlevel"] ?? 0);
     }
 
     public function get_user_score(): int
     {
         $row = $this->load_user_row();
         return (int)($row["score"] ?? 0);
-    }
-
-    public function get_current_kingdom(): int
-    {
-        return $this->current_kingdom;
-    }
-
-    public function set_current_kingdom(int $kingdom_id): void
-    {
-        $this->current_kingdom = $kingdom_id;
     }
 
     public function get_user_name(): string
@@ -491,32 +565,6 @@ class User
         return (int)($row["coins"] ?? 0);
     }
 
-    public function get_user_guild_id(): int
-    {
-        if ($this->user_id <= 0) {
-            return -1;
-        }
-
-        $row = $this->load_user_row();
-        return (int)($row["guildid"] ?? -1);
-    }
-
-    public function get_guild_rank_id(): int
-    {
-        $res = $this->mysqli->execute_query("SELECT guild_rank_id FROM users WHERE id = ?", [$this->get_user_id()]);
-        return (int)($res->fetch_column() ?? 0);
-    }
-
-    public function get_reg_status(): string
-    {
-        return $this->reg_status;
-    }
-
-    public function is_admin(): bool
-    {
-        return $this->get_user_admin_level() >= ADMIN_LEVEL_LIGHT_ADMIN;
-    }
-
     public function get_coin_limit(): int
     {
         $result = $this->mysqli->execute_query("
@@ -535,6 +583,22 @@ class User
 
         $max_lvl = (int)$row["max_lvl"];
         return 2 * (BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $max_lvl - 1));
+    }
+
+    public function get_guild_rank_id(): int
+    {
+        $res = $this->mysqli->execute_query("SELECT guild_rank_id FROM users WHERE id = ?", [$this->get_user_id()]);
+        return (int)($res->fetch_column() ?? 0);
+    }
+
+    public function get_reg_status(): string
+    {
+        return $this->reg_status;
+    }
+
+    public function is_admin(): bool
+    {
+        return $this->get_user_admin_level() >= ADMIN_LEVEL_LIGHT_ADMIN;
     }
 
     /**
@@ -574,14 +638,6 @@ class User
         setcookie("me_remember", $cookie_value, $expires, '/', '', true, true);
     }
 
-    public function check_user_login(): void
-    {
-        if (!($this->is_logged_in())) {
-            change_location("index.php");
-            exit;
-        }
-    }
-
     public function check_user_login_and_kingdom($building_type): array
     {
         // Check if user is logged in
@@ -615,19 +671,27 @@ class User
         ];
     }
 
-    public static function delete_user_avatar_files(int $user_id): void
+    public function check_user_login(): void
     {
-        $hashed_name = substr(hash("sha256", $user_id . AVATAR_SALT), 0, 12);
-        $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
-        $files = glob($directory . $hashed_name . ".*");
-
-        if (!empty($files)) {
-            foreach ($files as $file) {
-                if (is_file($file)) {
-                    unlink($file);
-                }
-            }
+        if (!($this->is_logged_in())) {
+            change_location("index.php");
+            exit;
         }
+    }
+
+    public function is_logged_in(): bool
+    {
+        return isset($_SESSION["userid"]);
+    }
+
+    public function get_current_kingdom(): int
+    {
+        return $this->current_kingdom;
+    }
+
+    public function set_current_kingdom(int $kingdom_id): void
+    {
+        $this->current_kingdom = $kingdom_id;
     }
 
     public function check_vacation_eligibility(): array
@@ -761,7 +825,8 @@ class User
         return $supports;
     }
 
-    public function get_sidebar_data(?int $specific_kid = null): array {
+    public function get_sidebar_data(?int $specific_kid = null): array
+    {
         $kid = $specific_kid ?? $this->current_kingdom;
         $gid = $this->get_user_guild_id();
         $uid = $this->user_id;
@@ -804,36 +869,6 @@ class User
     public function get_gender(): string
     {
         return $this->load_user_row()["gender"] ?? 'm';
-    }
-
-    public function get_active_title(): string
-    {
-        $row = $this->load_user_row();
-        $title_id = (int)($row["active_title_id"] ?? 0);
-        $gender = $row["gender"] ?? 'm';
-
-        if ($title_id === 0) {
-            return ""; // Don't show a title
-        }
-
-        if ($title_id === -1) {
-            return ($gender === 'f') ? "Freifrau" : "Freiherr";
-        }
-
-        if (self::$title_cache === null) {
-            $res = $this->mysqli->query("SELECT id, title, title_f FROM achievements");
-            self::$title_cache = [];
-            while ($ach = $res->fetch_assoc()) {
-                self::$title_cache[(int)$ach["id"]] = $ach;
-            }
-        }
-
-        if (isset(self::$title_cache[$title_id])) {
-            $ach = self::$title_cache[$title_id];
-            return ($gender === 'f' && !empty($ach["title_f"])) ? $ach["title_f"] : $ach["title"];
-        }
-
-        return "";
     }
 
     public function get_active_title_id(): int

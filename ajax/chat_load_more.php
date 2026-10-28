@@ -21,6 +21,12 @@ if ($oldest_id <= 0) {
 
 $type = $_GET["type"] ?? "private";
 
+$allowed_types = ["private", "world", "guild", "server"];
+if (!in_array($type, $allowed_types, true)) {
+    echo json_encode(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
+    exit;
+}
+
 if ($type === "server") {
     $category = (int)($_GET["category"] ?? -1);
     $limit = SHOW_MESSAGES_LIMIT;

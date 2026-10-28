@@ -34,7 +34,31 @@ class Database
                 }
 
                 if (class_exists("Logger")) {
-                    Logger::get_instance()->error("Datenbank-Verbindung fehlgeschlagen: " . $e->getMessage());
+                    $url = $_SERVER["REQUEST_URI"] ?? "CLI";
+                    $method = $_SERVER["REQUEST_METHOD"] ?? "GET";
+                    $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest") ? " [AJAX]" : "";
+
+                    $post_info = "";
+                    if ($method === "POST" && !empty($_POST)) {
+                        $keys = implode(", ", array_keys($_POST));
+                        $post_info = " | POST-Keys: ($keys)";
+                    }
+
+                    $target = (getenv("HOST") ?: "127.0.0.1") . ":" . (getenv("PORT") ?: 3306);
+
+                    $details = sprintf(
+                        "DB-Verbindungsfehler nach %d Versuchen zu [%s]! Aufruf: [%s %s%s]%s | Fehler (%d): %s",
+                        $attempt,
+                        $target,
+                        $method,
+                        $url,
+                        $is_ajax,
+                        $post_info,
+                        $e->getCode(),
+                        $e->getMessage()
+                    );
+
+                    Logger::get_instance()->error($details);
                 }
 
                 // CLI (Cronjobs) clean errorcode
@@ -88,11 +112,6 @@ class Database
         }
     }
 
-    public function __destruct()
-    {
-        $this->_connection?->close();
-    }
-
     public static function get_instance(): Database
     {
         // If no instance then make one
@@ -100,6 +119,11 @@ class Database
             self::$_instance = new self();
         }
         return self::$_instance;
+    }
+
+    public function __destruct()
+    {
+        $this->_connection?->close();
     }
 
     public function get_connection(): mysqli

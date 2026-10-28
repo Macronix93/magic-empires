@@ -5,99 +5,6 @@ class BattleReportRenderer
     private static ?array $soldier_cache = null;
     private static ?array $monster_cache = null;
 
-    private static function enrich_unit_data(array &$unit): void
-    {
-        $db_instance = Database::get_instance()->get_connection();
-
-        $id = $unit["id"] ?? null;
-
-        if (is_string($id) && str_starts_with($id, 'm')) {
-            $m_id = (int)substr($id, 1);
-
-            if (self::$monster_cache === null) {
-                $res = $db_instance->query("SELECT id, monster_name, icon FROM monster_list");
-
-                while ($row = $res->fetch_assoc()) {
-                    self::$monster_cache[(int)$row["id"]] = $row;
-                }
-            }
-
-            if (empty($unit["name"]) && isset(self::$monster_cache[$m_id])) {
-                $unit["name"] = self::$monster_cache[$m_id]["monster_name"];
-            }
-
-            if (empty($unit["icon"]) && isset(self::$monster_cache[$m_id])) {
-                $unit["icon"] = self::$monster_cache[$m_id]["icon"];
-            }
-        } else if ($id !== null) {
-            $s_id = (int)$id;
-
-            if (self::$soldier_cache === null) {
-                $res = $db_instance->query("SELECT id, soldiername, icon FROM soldier_list");
-
-                while ($row = $res->fetch_assoc()) {
-                    self::$soldier_cache[(int)$row["id"]] = $row;
-                }
-            }
-
-            if (empty($unit["name"]) && isset(self::$soldier_cache[$s_id])) {
-                $unit["name"] = self::$soldier_cache[$s_id]["soldiername"];
-            }
-
-            if (empty($unit["icon"]) && isset(self::$soldier_cache[$s_id])) {
-                $unit["icon"] = self::$soldier_cache[$s_id]["icon"];
-            }
-        }
-    }
-
-    public static function render_unit_card(
-        string|array $name_or_unit,
-        int          $initial = 0,
-        int          $losses = 0,
-        string       $icon_name = "",
-        bool         $is_scouting = false
-    ): string
-    {
-        $is_fictional = false;
-
-        if (is_array($name_or_unit)) {
-            $u = $name_or_unit;
-            self::enrich_unit_data($u);
-
-            $name = $u["name"] ?? "Einheit";
-            $initial = (int)($u["initial"] ?? $u["count"] ?? 0);
-            $losses = (int)($u["losses"] ?? 0);
-            $icon_name = $u["icon"] ?? "icon_error";
-            if (isset($u["is_scouting"])) $is_scouting = (bool)$u["is_scouting"];
-            if (!empty($u["is_fictional"])) $is_fictional = true;
-        } else {
-            $name = $name_or_unit;
-        }
-
-        $survivors = $is_fictional ? $initial : max(0, $initial - $losses);
-
-        $loss_class = $is_fictional ? "loss-gray" : "loss-red";
-        $loss_text = ($losses > 0) ? "<span class='$loss_class'>(-" . fnum($losses) . ")</span>" : "";
-
-        $survivor_color = ($survivors > 0) ? "survivor-green" : "loss-red";
-        $icon_path = "images/icons/" . ($icon_name ?: "icon_error") . ".png";
-        $troop_count_text = "<small style='color: #ccc;'> von $initial</small>";
-
-        if ($is_scouting) {
-            $survivor_color = "";
-            $troop_count_text = "";
-        }
-
-        return "
-        <div class='battle-unit-card'>
-            <img src='$icon_path' style='vertical-align: middle;' alt=''>
-            <div class='battle-unit-info'>
-                <span class='battle-unit-name'>$name</span>
-                <span class='battle-unit-count'><span class='$survivor_color'>$survivors</span>$troop_count_text $loss_text</span>
-            </div>
-        </div>";
-    }
-
     public static function render_vs_grid(array $attacker_units, array $defender_units, string $atk_label = "Deine Truppen", string $def_label = "Gegner"): string
     {
         // Calculate Power Sums
@@ -160,6 +67,113 @@ class BattleReportRenderer
         return $html;
     }
 
+    public static function render_unit_card(
+        string|array $name_or_unit,
+        int          $initial = 0,
+        int          $losses = 0,
+        string       $icon_name = "",
+        bool         $is_scouting = false
+    ): string
+    {
+        $is_fictional = false;
+
+        if (is_array($name_or_unit)) {
+            $u = $name_or_unit;
+            self::enrich_unit_data($u);
+
+            $name = $u["name"] ?? "Einheit";
+            $initial = (int)($u["initial"] ?? $u["count"] ?? 0);
+            $losses = (int)($u["losses"] ?? 0);
+            $icon_name = $u["icon"] ?? "icon_error";
+            if (isset($u["is_scouting"])) $is_scouting = (bool)$u["is_scouting"];
+            if (!empty($u["is_fictional"])) $is_fictional = true;
+        } else {
+            $name = $name_or_unit;
+        }
+
+        $survivors = $is_fictional ? $initial : max(0, $initial - $losses);
+
+        $loss_class = $is_fictional ? "loss-gray" : "loss-red";
+        $loss_text = ($losses > 0) ? "<span class='$loss_class'>(-" . fnum($losses) . ")</span>" : "";
+
+        $survivor_color = ($survivors > 0) ? "survivor-green" : "loss-red";
+        $icon_path = "images/icons/" . ($icon_name ?: "icon_error") . ".png";
+        $troop_count_text = "<small style='color: #ccc;'> von $initial</small>";
+
+        if ($is_scouting) {
+            $survivor_color = "";
+            $troop_count_text = "";
+        }
+
+        return "
+        <div class='battle-unit-card'>
+            <img src='$icon_path' style='vertical-align: middle;' alt=''>
+            <div class='battle-unit-info'>
+                <span class='battle-unit-name'>$name</span>
+                <span class='battle-unit-count'><span class='$survivor_color'>$survivors</span>$troop_count_text $loss_text</span>
+            </div>
+        </div>";
+    }
+
+    private static function enrich_unit_data(array &$unit): void
+    {
+        $db_instance = Database::get_instance()->get_connection();
+        $id = $unit["id"] ?? null;
+
+        if (is_string($id) && str_starts_with($id, 'm')) {
+            $m_id = (int)substr($id, 1);
+
+            if (self::$monster_cache === null) {
+                $res = $db_instance->query("SELECT id, monster_name, icon FROM monster_list");
+
+                while ($row = $res->fetch_assoc()) {
+                    self::$monster_cache[(int)$row["id"]] = $row;
+                }
+            }
+
+            if (empty($unit["name"]) && isset(self::$monster_cache[$m_id])) {
+                $unit["name"] = self::$monster_cache[$m_id]["monster_name"];
+            }
+
+            if (empty($unit["icon"]) && isset(self::$monster_cache[$m_id])) {
+                $unit["icon"] = self::$monster_cache[$m_id]["icon"];
+            }
+        } else if (is_string($id) && str_starts_with($id, "hero")) {
+            $unit["icon"] = "icon_hero";
+
+            if (empty($unit["name"])) {
+                $lvl = $unit["h_lvl"] ?? null;
+                $skill_id = $unit["s_id"] ?? null;
+
+                if ($lvl && $skill_id && isset(ARENA_HERO_SKILLS[$skill_id])) {
+                    $skill_name = ARENA_HERO_SKILLS[$skill_id]["name"];
+
+                    $unit["name"] = "Held (St. $lvl - $skill_name)";
+                } else {
+                    $unit["name"] = "Held";
+                }
+            }
+        } else if ($id !== null) {
+            $s_id = (int)$id;
+
+            if (self::$soldier_cache === null) {
+                $res = $db_instance->query("SELECT id, soldiername, icon FROM soldier_list");
+
+                while ($row = $res->fetch_assoc()) {
+                    self::$soldier_cache[(int)$row["id"]] = $row;
+                }
+            }
+
+            if (empty($unit["name"]) && isset(self::$soldier_cache[$s_id])) {
+                $unit["name"] = self::$soldier_cache[$s_id]["soldiername"];
+            }
+
+            if (empty($unit["icon"]) && isset(self::$soldier_cache[$s_id])) {
+                $unit["icon"] = self::$soldier_cache[$s_id]["icon"];
+            }
+        }
+    }
+
     public static function render_resource_box(array $res, string $title, string $color_class = "passed"): string
     {
         $items = [];
@@ -181,55 +195,6 @@ class BattleReportRenderer
         $html .= "</div></div>";
 
         return $html;
-    }
-
-    public static function render_scout_resource_bar(array $stocks, array $production = []): string
-    {
-        $html = "";
-        $types = [
-            "food" => ResourceTypes::RESOURCE_TYPE_FOOD,
-            "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
-            "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
-            "gold" => ResourceTypes::RESOURCE_TYPE_GOLD,
-            "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
-            "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
-            "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
-            "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
-        ];
-
-        $show_production = !empty($production);
-
-        foreach ($types as $key => $constant) {
-            if (!array_key_exists($key, $stocks)) {
-                continue;
-            }
-
-            $raw_stock = $stocks[$key] ?? 0;
-
-            if (!$show_production && $raw_stock <= 0) {
-                continue;
-            }
-
-            $s_val = fnum($raw_stock);
-
-            $html .= "<div style='display: flex; flex-direction: column; align-items: center;'>
-                    <div class='scout-resource-bar' style='gap: 5px;'>
-                        " . get_resource_icon($constant) . " <span>$s_val</span>
-                    </div>";
-
-            if ($show_production) {
-                $p_val = fnum($production[$key] ?? 0);
-                $html .= "<div style='font-size: 0.85em; color: #0BDA51; opacity: 0.9;'>$p_val/h</div>";
-            }
-
-            $html .= "</div>";
-        }
-
-        if (empty($html)) return "";
-
-        return "<div style='display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.4); padding: 12px 5px; border-radius: 5px; border: 1px solid #555; margin-top: 5px;'>
-            $html
-        </div>";
     }
 
     public static function render_own_scout_status(int $initial, int $losses): string
@@ -261,8 +226,8 @@ class BattleReportRenderer
         $style = $styles[$type] ?? $styles["neutral"];
 
         $html = "<div class='battle-column' style='background: {$style["bg"]}; border-color: {$style["border"]};'>";
-        $html .= "<div class='report-section-title' style='border-color: {$style["border"]};'>$title</div>";
-        $html .= "<div style='font-size: 1.1em; margin-bottom: 5px;'>$main_text</div>";
+        $html .= "<div class='report-section-title' style='border-color: {$style["border"]};'>" . Messages::wrap_emojis($title) . "</div>";
+        $html .= "<div style='font-size: 1.1em; margin-bottom: 5px;'>" . Messages::wrap_emojis($main_text) . "</div>";
 
         if ($wall_before > 0 || $wall_after > 0) {
             $wall_icon = get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE);
@@ -323,7 +288,7 @@ class BattleReportRenderer
         // Buildings
         if (!empty($intel["buildings"])) {
             $html .= "<div class='report-section-title' style='margin-top: 10px;'>Identifizierte Gebäude</div>";
-            $html .= "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left;'>";
+            $html .= "<div class='scout-grid'>";
 
             foreach ($intel["buildings"] as $b) {
                 $bid = (int)$b["id"];
@@ -336,7 +301,7 @@ class BattleReportRenderer
         // Troops
         if (!empty($intel["troops"])) {
             $html .= "<div class='report-section-title' style='margin-top: 10px;'>Gegnerische Garnison</div>";
-            $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; justify-content: center;'>";
+            $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
 
             foreach ($intel["troops"] as $t) {
                 $html .= self::render_unit_card($t, 0, 0, "", true);
@@ -348,7 +313,7 @@ class BattleReportRenderer
         // Techs
         if (!empty($intel["techs"])) {
             $html .= "<div class='report-section-title' style='margin-top: 10px;'>Erforschte Technologien</div>";
-            $html .= "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 5px; text-align: left;'>";
+            $html .= "<div class='scout-grid'>";
 
             foreach ($intel["techs"] as $t) {
                 $tid = (int)$t["id"];
@@ -359,5 +324,54 @@ class BattleReportRenderer
         }
 
         return $html;
+    }
+
+    public static function render_scout_resource_bar(array $stocks, array $production = []): string
+    {
+        $html = "";
+        $types = [
+            "food" => ResourceTypes::RESOURCE_TYPE_FOOD,
+            "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
+            "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
+            "gold" => ResourceTypes::RESOURCE_TYPE_GOLD,
+            "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
+            "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
+            "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+            "diamond" => ResourceTypes::RESOURCE_TYPE_DIAMOND
+        ];
+
+        $show_production = !empty($production);
+
+        foreach ($types as $key => $constant) {
+            if (!array_key_exists($key, $stocks)) {
+                continue;
+            }
+
+            $raw_stock = $stocks[$key] ?? 0;
+
+            if (!$show_production && $raw_stock <= 0) {
+                continue;
+            }
+
+            $s_val = fnum($raw_stock);
+
+            $html .= "<div style='display: flex; flex-direction: column; align-items: center;'>
+                    <div class='scout-resource-bar' style='gap: 5px;'>
+                        " . get_resource_icon($constant) . " <span>$s_val</span>
+                    </div>";
+
+            if ($show_production) {
+                $p_val = fnum($production[$key] ?? 0);
+                $html .= "<div style='font-size: 0.85em; color: #0BDA51; opacity: 0.9;'>$p_val/h</div>";
+            }
+
+            $html .= "</div>";
+        }
+
+        if (empty($html)) return "";
+
+        return "<div style='display: flex; justify-content: space-evenly; background: rgba(0,0,0,0.4); padding: 12px 5px; border-radius: 5px; border: 1px solid #555; margin-top: 5px;'>
+            $html
+        </div>";
     }
 }

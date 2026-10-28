@@ -237,14 +237,3 @@ function editField(userID, fieldID, currentValue, formattedValue) {
 function cancelEdit(td, originalValue) {
     td.innerHTML = originalValue;
 }
-
-function userDeletionDialog(userID) {
-    showConfirmationDialog(
-        "Willst du den Benutzer wirklich löschen?",
-        "Ja",
-        "Nein",
-        () => {
-            window.location.href = "adminpanel.php?deleteuser=" + userID;
-        }
-    );
-}

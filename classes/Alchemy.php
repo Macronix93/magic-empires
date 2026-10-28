@@ -9,81 +9,21 @@ class Alchemy
         $this->db = Database::get_instance()->get_connection();
     }
 
-    private static function gcd(int $a, int $b): int
+    public static function process_all(): void
     {
-        return ($b === 0) ? $a : self::gcd($b, $a % $b);
-    }
+        $db = Database::get_instance()->get_connection();
 
-    public static function get_step_size(int $from_res, int $to_res): int
-    {
-        $weights = ALCHEMY_RESOURCE_WEIGHTS;
-        if (!isset($weights[$from_res], $weights[$to_res])) return 1;
+        $active = $db->query("
+            SELECT a.kingdom_id, b.buildinglevel 
+            FROM kingdom_alchemy a
+            JOIN buildings b ON a.kingdom_id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_ALCHEMY_LAB . "
+            WHERE a.input_amount > 0 AND a.input_resource != -1
+        ");
 
-        $w_from = (int)round($weights[$from_res] * 1000);
-        $w_to = (int)round($weights[$to_res] * 1000);
-
-        $divisor = self::gcd($w_from, $w_to);
-        return max(1, (int)($w_from / $divisor));
-    }
-
-    public static function get_max_output_buffer(int $from_res, int $to_res, int $lab_level): int
-    {
-        $cap = self::get_capacity($lab_level);
-        $rate = self::get_conversion_rate($from_res, $to_res);
-        return (int)round($cap * $rate * ALCHEMY_OUTPUT_BUFFER_MULTIPLIER);
-    }
-
-    public static function get_capacity(int $level): int {
-        if ($level <= 0) {
-            return 0;
+        $alchemy = new self();
+        while ($row = $active->fetch_assoc()) {
+            $alchemy->process_kingdom((int)$row["kingdom_id"], (int)$row["buildinglevel"]);
         }
-
-        $lvl = max(1, min($level, ALCHEMY_MAX_LEVEL));
-        return ALCHEMY_CAPACITY_BY_LEVEL[$lvl] ?? 50000;
-    }
-
-    public static function get_speed_per_hour(int $level, ?int $from_res = null): int {
-        if ($level <= 0) return 0;
-
-        $lvl = max(1, min($level, ALCHEMY_MAX_LEVEL));
-        $base_speed = ALCHEMY_SPEED_BY_LEVEL[$lvl] ?? 8000;
-
-        if ($from_res !== null && isset(ALCHEMY_RESOURCE_WEIGHTS[$from_res])) {
-            return (int)round($base_speed * ALCHEMY_RESOURCE_WEIGHTS[$from_res]);
-        }
-
-        return $base_speed;
-    }
-
-    public static function get_conversion_rate(int $from_res, int $to_res): float
-    {
-        $weights = ALCHEMY_RESOURCE_WEIGHTS;
-        if (!isset($weights[$from_res], $weights[$to_res]) || $weights[$from_res] <= 0) {
-            return 0.0;
-        }
-
-        return (float)($weights[$to_res] / $weights[$from_res]);
-    }
-
-    public function get_state(int $kingdom_id, int $lab_level): array
-    {
-        $this->process_kingdom($kingdom_id, $lab_level);
-
-        $res = $this->db->execute_query("SELECT * FROM kingdom_alchemy WHERE kingdom_id = ?", [$kingdom_id]);
-        $row = $res->fetch_assoc();
-
-        if (!$row) {
-            return [
-                "kingdom_id" => $kingdom_id,
-                "input_resource" => -1,
-                "input_amount" => 0,
-                "target_resource" => -1,
-                "output_amount" => 0,
-                "last_update" => time()
-            ];
-        }
-
-        return $row;
     }
 
     public function process_kingdom(int $kingdom_id, int $lab_level): void
@@ -92,7 +32,6 @@ class Alchemy
         try {
             $res = $this->db->execute_query("SELECT * FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE", [$kingdom_id]);
             $row = $res->fetch_assoc();
-
             $now = time();
 
             if (!$row || (int)$row["input_resource"] === -1 || (int)$row["input_amount"] <= 0) {
@@ -107,8 +46,8 @@ class Alchemy
             $out_res = (int)$row["target_resource"];
             $step = self::get_step_size($in_res, $out_res);
             $rate = self::get_conversion_rate($in_res, $out_res);
-
             $output_per_step = (int)round($step * $rate);
+
             if ($output_per_step <= 0) {
                 $this->db->commit();
                 return;
@@ -144,33 +83,34 @@ class Alchemy
 
             $possible_steps_by_input = (int)floor((int)$row["input_amount"] / $step);
             $possible_steps_by_room = (int)floor($output_room / $output_per_step);
+            $max_possible_steps = min($possible_steps_by_input, $possible_steps_by_room);
 
-            $remaining_seconds_for_all = $possible_steps_by_input * $seconds_per_step;
-            $grace_tolerance = max(1.0, min(3.0, $seconds_per_step));
-
-            if ($elapsed >= ($remaining_seconds_for_all - $grace_tolerance) && $possible_steps_by_room >= $possible_steps_by_input) {
-                $possible_steps_by_time = $possible_steps_by_input;
-            } else {
-                $possible_steps_by_time = (int)floor(($elapsed + 0.001) / $seconds_per_step);
-            }
-
-            if ($possible_steps_by_time <= 0) {
+            if ($max_possible_steps <= 0) {
                 $this->db->commit();
                 return;
             }
 
-            $steps_to_run = min($possible_steps_by_time, $possible_steps_by_input, $possible_steps_by_room);
+            $remaining_seconds_for_all = $max_possible_steps * $seconds_per_step;
+            $grace_tolerance = min(1.0, $seconds_per_step);
+
+            if ($elapsed >= ($remaining_seconds_for_all - $grace_tolerance)) {
+                $steps_to_run = $max_possible_steps;
+            } else {
+                $steps_to_run = (int)floor(($elapsed + 0.001) / $seconds_per_step);
+                $steps_to_run = min($steps_to_run, $max_possible_steps);
+            }
 
             if ($steps_to_run > 0) {
                 $input_consumed = $steps_to_run * $step;
                 $output_generated = $steps_to_run * $output_per_step;
-                $time_consumed = (int)round($steps_to_run * $seconds_per_step);
-
                 $new_input = max(0, (int)$row["input_amount"] - $input_consumed);
                 $new_output = $current_output + $output_generated;
 
+                $time_used = $steps_to_run * $seconds_per_step;
+                $sub_second_remainder = max(0.0, $elapsed - $time_used);
+
                 $can_run_more = ($new_input >= $step && ($output_room - $output_generated) >= $output_per_step);
-                $new_last_update = $can_run_more ? ((int)$row["last_update"] + $time_consumed) : $now;
+                $new_last_update = $can_run_more ? ($now - (int)floor($sub_second_remainder)) : $now;
 
                 $this->db->execute_query("
                     UPDATE kingdom_alchemy 
@@ -183,6 +123,64 @@ class Alchemy
         } catch (Throwable) {
             $this->db->rollback();
         }
+    }
+
+    public static function get_step_size(int $from_res, int $to_res): int
+    {
+        $weights = ALCHEMY_RESOURCE_WEIGHTS;
+        if (!isset($weights[$from_res], $weights[$to_res])) return 1;
+
+        $w_from = (int)round($weights[$from_res] * 1000);
+        $w_to = (int)round($weights[$to_res] * 1000);
+
+        $divisor = self::gcd($w_from, $w_to);
+        return max(1, (int)($w_from / $divisor));
+    }
+
+    private static function gcd(int $a, int $b): int
+    {
+        return ($b === 0) ? $a : self::gcd($b, $a % $b);
+    }
+
+    public static function get_conversion_rate(int $from_res, int $to_res): float
+    {
+        $weights = ALCHEMY_RESOURCE_WEIGHTS;
+        if (!isset($weights[$from_res], $weights[$to_res]) || $weights[$from_res] <= 0) {
+            return 0.0;
+        }
+
+        return (float)($weights[$to_res] / $weights[$from_res]);
+    }
+
+    public static function get_max_output_buffer(int $from_res, int $to_res, int $lab_level): int
+    {
+        $cap = self::get_capacity($lab_level);
+        $rate = self::get_conversion_rate($from_res, $to_res);
+        return (int)round($cap * $rate * ALCHEMY_OUTPUT_BUFFER_MULTIPLIER);
+    }
+
+    public static function get_capacity(int $level): int
+    {
+        if ($level <= 0) {
+            return 0;
+        }
+
+        $lvl = max(1, min($level, ALCHEMY_MAX_LEVEL));
+        return ALCHEMY_CAPACITY_BY_LEVEL[$lvl] ?? 50000;
+    }
+
+    public static function get_speed_per_hour(int $level, ?int $from_res = null): int
+    {
+        if ($level <= 0) return 0;
+
+        $lvl = max(1, min($level, ALCHEMY_MAX_LEVEL));
+        $base_speed = ALCHEMY_SPEED_BY_LEVEL[$lvl] ?? 8000;
+
+        if ($from_res !== null && isset(ALCHEMY_RESOURCE_WEIGHTS[$from_res])) {
+            return (int)round($base_speed * ALCHEMY_RESOURCE_WEIGHTS[$from_res]);
+        }
+
+        return $base_speed;
     }
 
     public function start_transmutation(int $kingdom_id, int $from_res, int $to_res, int $amount, int $lab_level, Kingdom $k): ?string
@@ -252,6 +250,27 @@ class Alchemy
             $this->db->rollback();
             return "Fehler beim Starten der Umwandlung: " . $e->getMessage();
         }
+    }
+
+    public function get_state(int $kingdom_id, int $lab_level): array
+    {
+        $this->process_kingdom($kingdom_id, $lab_level);
+
+        $res = $this->db->execute_query("SELECT * FROM kingdom_alchemy WHERE kingdom_id = ?", [$kingdom_id]);
+        $row = $res->fetch_assoc();
+
+        if (!$row) {
+            return [
+                "kingdom_id" => $kingdom_id,
+                "input_resource" => -1,
+                "input_amount" => 0,
+                "target_resource" => -1,
+                "output_amount" => 0,
+                "last_update" => time()
+            ];
+        }
+
+        return $row;
     }
 
     public function top_up(int $kingdom_id, int $amount, int $lab_level, Kingdom $k): ?string
@@ -369,23 +388,6 @@ class Alchemy
         } catch (Exception $e) {
             $this->db->rollback();
             return "Fehler beim Abbrechen: " . $e->getMessage();
-        }
-    }
-
-    public static function process_all(): void
-    {
-        $db = Database::get_instance()->get_connection();
-
-        $active = $db->query("
-            SELECT a.kingdom_id, b.buildinglevel 
-            FROM kingdom_alchemy a
-            JOIN buildings b ON a.kingdom_id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_ALCHEMY_LAB . "
-            WHERE a.input_amount > 0 AND a.input_resource != -1
-        ");
-
-        $alchemy = new self();
-        while ($row = $active->fetch_assoc()) {
-            $alchemy->process_kingdom((int)$row["kingdom_id"], (int)$row["buildinglevel"]);
         }
     }
 }

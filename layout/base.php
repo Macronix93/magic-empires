@@ -17,31 +17,8 @@ if (empty($header_icon)) {
         $header_icon = "images/icons/icon_building" . $building->get_building_id() . ".png";
     } else {
         $current_file = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
-        $header_icon = match ($current_file) {
-            'overview.php' => 'images/icons/icon_buildings.png',
-            'map.php' => 'images/icons/icon_tech6.png',
-            'messages.php' => isset($_GET["worldchat"]) ? 'images/icons/icon_worldchat.png' : 'images/icons/icon_messages.png',
-            'guild.php' => 'images/icons/icon_guild.png',
-            'ranking.php' => 'images/icons/icon_ranking.png',
-            'techtree.php' => 'images/icons/icon_techtree.png',
-            'warsim.php' => 'images/icons/icon_warsim.png',
-            'halloffame.php' => 'images/icons/icon_score.png',
-            'events.php' => 'images/icons/icon_lich.png',
-            'stats.php' => 'images/icons/icon_statistics.png',
-            'adminpanel.php' => 'images/icons/icon_adminpanel.png',
-            'news.php' => 'images/icons/icon_news.png',
-            'settings.php' => 'images/icons/icon_settings.png',
-            'rules.php' => 'images/icons/icon_rules.png',
-            'faq.php' => 'images/icons/icon_faq.png',
-            'donations.php' => 'images/icons/icon_guildtech1.png',
-            'suggestions.php' => 'images/icons/icon_feedback.png',
-            'support.php' => 'images/icons/icon_question.png',
-            'disclaimer.php' => 'images/icons/icon_disclaimer.png',
-            'imprint.php' => 'images/icons/icon_imprint.png',
-            'privacy.php' => 'images/icons/icon_privacy.png',
-            'achievements.php' => 'images/icons/icon_achievement.png',
-            default => null,
-        };
+        $icon_key = ($current_file === 'messages.php' && isset($_GET["worldchat"])) ? 'worldchat' : $current_file;
+        $header_icon = PAGE_ICONS[$icon_key] ?? null;
     }
 }
 
@@ -59,10 +36,12 @@ if ($user->is_logged_in()) {
     $uid = $user->get_user_id();
     $gid = $user->get_user_guild_id();
 
-    $all_user_kingdoms = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at",
-            [$uid]
-    )->fetch_all(MYSQLI_ASSOC);
+    if (empty($all_user_kingdoms)) {
+        $all_user_kingdoms = $db_instance->execute_query(
+                "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at",
+                [$uid]
+        )->fetch_all(MYSQLI_ASSOC);
+    }
 
     $kingdom_count = count($all_user_kingdoms);
 
@@ -195,9 +174,9 @@ if ($user->is_logged_in()) {
 <div id="nav-left-trigger" class="mobile-trigger">
     <p>&#9776;</p>
     <?php if ($user->is_logged_in()):
-        $has_mobile_alert = (!empty($show_attack_alert) || !empty($show_support_alert)); ?>
-        <span class="nav-notification-dot"
-              id="mobile-nav-dot"
+        $has_mobile_alert = (!empty($show_attack_alert) || !empty($show_support_alert));
+        ?>
+        <span class="nav-notification-dot" id="mobile-nav-dot"
               data-has-alert="<?= $has_mobile_alert ? "true" : "false" ?>"
               style="<?= ($user->get_unread_messages() > 0 || $has_mobile_alert) ? '' : "display: none;" ?>">
         </span>
@@ -248,7 +227,8 @@ if ($user->is_logged_in()) {
 <div id="nav-right-trigger" class="mobile-trigger">
     <p><?= Messages::wrap_emojis("🏰") ?></p>
     <?php if ($user->is_logged_in()): $right_has_alert = ($sidebar_data["alchemy_status"] === "ready"); ?>
-        <span class="nav-notification-dot" id="mobile-right-nav-dot" style="<?= $right_has_alert ? '' : 'display: none;' ?>">
+        <span class="nav-notification-dot" id="mobile-right-nav-dot"
+              style="<?= $right_has_alert ? '' : 'display: none;' ?>">
         </span>
     <?php endif; ?>
 </div>

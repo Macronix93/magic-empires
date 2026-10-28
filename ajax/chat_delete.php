@@ -15,6 +15,12 @@ $u_id = $user->get_user_id();
 $is_admin = $user->is_admin();
 $type = $_GET["type"] ?? "private";
 
+$allowed_types = ["private", "world", "guild", "server"];
+if (!in_array($type, $allowed_types, true)) {
+    echo json_encode(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
+    exit;
+}
+
 if ($type === "server") {
     // Delete ALL server messages
     if (isset($_GET["delete_all"]) || isset($_GET["all"])) {

@@ -205,6 +205,9 @@ registerAction("changeStationTarget", (el) => {
 
     display.innerText = time ? "(Dauer: " + time + ")" : "";
 });
+registerAction("openAllTroopsOverlay", () => {
+    openOverlay(`ajax/all_kingdom_troops.php`, "Gesamt Streitkräfte");
+});
 
 function getLatestKingdomResources() {
     const resEl = document.getElementById("kingdom-resources");

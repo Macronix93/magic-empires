@@ -91,7 +91,9 @@ registerAction("changeMemberRank", (el) => {
         }
     );
 });
-registerAction("openGuildInfo", (el) => {
+registerAction("openGuildInfo", (el, e) => {
+    if (e) e.stopPropagation();
+
     const guildId = el.dataset.id;
 
     openOverlay(`ajax/guild_info.php?id=${guildId}`, "Gilden-Information", null, false, el);
@@ -155,7 +157,6 @@ registerAction("confirmCancelInvite", (el) => {
 });
 registerAction("switchGuildTab", (el) => {
     const tabName = el.dataset.tab;
-
     document.cookie = "me_guild_tab=" + tabName + "; path=/; max-age=31536000; SameSite=Lax";
 
     document.querySelectorAll('.js-guild-tab').forEach(tab => {
@@ -174,18 +175,23 @@ registerAction("switchGuildTab", (el) => {
         if (tabName === "chat") {
             const guildTabBadge = document.getElementById("badge-guild-tab");
             if (guildTabBadge) guildTabBadge.style.display = "none";
+
             document.querySelectorAll(".js-badge-guild").forEach(b => b.style.display = "none");
 
-            fetch("ajax/chat_update_guild.php?mark_all_read=1", {
+            fetch("ajax/chat_update.php?type=guild&mark_all_read=1", {
                 headers: {'X-Requested-With': 'XMLHttpRequest'}
             }).then(r => r.json())
                 .catch(err => console.error("Fehler beim Aktualisieren des Gilden-Chats:", err));
 
             setTimeout(() => {
-                if (typeof scrollDown === "function") {
+                if (document.getElementById("new-message-line")) {
+                    if (typeof scrollToLatestMessage === "function") {
+                        scrollToLatestMessage();
+                    }
+                } else if (typeof scrollDown === "function") {
                     scrollDown(true);
                 }
-            }, 50);
+            }, 60);
         }
     }
 

@@ -30,7 +30,11 @@ class Stats
             "events_attended" => AchievementTypes::ACHIEVEMENT_EVENT_ATTENDED,
             "alchemy_claimed" => AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED,
             "military_units_produced" => AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED,
-            "troops_sent_combat" => AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT
+            "troops_sent_combat" => AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT,
+            "arena_battles" => AchievementTypes::ACHIEVEMENT_ARENA_BATTLES,
+            "arena_wins" => AchievementTypes::ACHIEVEMENT_ARENA_WINS,
+            "arena_top3_count" => AchievementTypes::ACHIEVEMENT_ARENA_TOP3,
+            "arena_top5_count" => AchievementTypes::ACHIEVEMENT_ARENA_TOP5
         ];
 
         if (isset($stat_map[$column])) {
@@ -56,30 +60,6 @@ class Stats
 
         Achievement::check($user_id, AchievementTypes::ACHIEVEMENT_SCORE);
         return $breakdown;
-    }
-
-    public function get_player_stats(int $user_id): array
-    {
-        $stats = $this->db->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$user_id])->fetch_assoc();
-        if ($stats) {
-            return $stats;
-        }
-
-        $cols = [
-            "units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve",
-            "units_defeated_pvp", "monster_kills", "buildings_upgraded", "trades_count",
-            "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen",
-            "resources_looted", "mines_depleted", "special_resources_mined", "event_damage_total",
-            "military_units_produced", "troops_sent_combat"
-        ];
-
-        $defaults = array_fill_keys($cols, 0);
-        foreach (["food", "wood", "stone", "gold"] as $rk) {
-            $defaults["trade_sent_" . $rk] = 0;
-            $defaults["trade_received_" . $rk] = 0;
-        }
-
-        return $defaults;
     }
 
     public function calculate_user_score_breakdown(int $user_id): array
@@ -155,6 +135,31 @@ class Stats
             "perc_t" => $sum > 0 ? round(($score_techs / $sum) * 100, 1) : 0,
             "perc_u" => $sum > 0 ? round(($score_troops / $sum) * 100, 1) : 0
         ];
+    }
+
+    public function get_player_stats(int $user_id): array
+    {
+        $stats = $this->db->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$user_id])->fetch_assoc();
+        if ($stats) {
+            return $stats;
+        }
+
+        $cols = [
+            "units_produced", "units_upgraded", "units_fallen_pvp", "units_fallen_pve",
+            "units_defeated_pvp", "monster_kills", "buildings_upgraded", "trades_count",
+            "camps_cleared", "res_tiles_cleared", "spy_count", "resources_stolen",
+            "resources_looted", "mines_depleted", "special_resources_mined", "event_damage_total",
+            "military_units_produced", "troops_sent_combat", "arena_wins", "arena_losses", "arena_battles",
+            "arena_top3_count", "arena_top5_count"
+        ];
+
+        $defaults = array_fill_keys($cols, 0);
+        foreach (["food", "wood", "stone", "gold"] as $rk) {
+            $defaults["trade_sent_" . $rk] = 0;
+            $defaults["trade_received_" . $rk] = 0;
+        }
+
+        return $defaults;
     }
 
     public function get_global_stats(): array

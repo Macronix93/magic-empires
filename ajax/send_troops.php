@@ -157,6 +157,39 @@ foreach ($result as $row) {
 $result = $db_instance->execute_query("SELECT * FROM kingdoms WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
 $row = $result->fetch_assoc();
 
+$scout_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0);
+$has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
+$only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
+
+$mining_units_count = 0;
+for ($i = Soldiers::SOLDIER_MILITIA; $i <= Soldiers::SOLDIER_ELVENARCHER; $i++) {
+    $mining_units_count += (int)($kingdom_soldiers[$i] ?? 0);
+}
+
+$has_camp_combat_troops = false;
+foreach ($kingdom_soldiers as $s_id => $cnt) {
+    if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && $cnt > 0) {
+        $has_camp_combat_troops = true;
+        break;
+    }
+}
+
+$is_spying = false;
+
+if ($scout_count > 0) {
+    if ($only_scouts_allowed) {
+        $is_spying = true;
+    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
+        $is_spying = !$has_raiders;
+    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MONSTER_CAMP || $kingdom_id == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
+        $is_spying = !$has_camp_combat_troops;
+    } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
+        $is_spying = ($mining_units_count === 0);
+    } else if ($enemy_user_id > 0 && $enemy_user_id != $user->get_user_id()) {
+        $is_spying = !$has_camp_combat_troops;
+    }
+}
+
 // Get field info
 $query = "
             SELECT 
@@ -177,7 +210,7 @@ $field_name = $field_data["fieldname"];
 $expires_at = (int)$field_data["expires_at"];
 
 $arrival_time = $map->get_arrival_time($kingdom->get_kingdom_map_x(), $kingdom->get_kingdom_map_y(),
-    $target_x, $target_y, $user->get_current_kingdom(), $kingdom_id, false, false, $is_ally);
+    $target_x, $target_y, $user->get_current_kingdom(), $kingdom_id, $is_spying, false, $is_ally);
 
 if ($expires_at > 0) {
     $remaining_time = $expires_at - time();
@@ -510,9 +543,6 @@ if ($cmd_stats["is_full"]) {
 }
 
 // Noob protection check
-$only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
-$scout_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0);
-
 if ($only_scouts_allowed) {
     $my_score = $user->get_user_score();
     $min_allowed = floor($my_score * NOOB_PROTECTION_MULT);
@@ -524,45 +554,6 @@ if ($only_scouts_allowed) {
                     Du kannst nur Spieler angreifen, die einen Score von <b>" . fnum($min_allowed) . "</b> bis <b>" . fnum($max_allowed) . "</b> haben <b>(" . (NOOB_PROTECTION_MULT * 100) . "%)</b>.<br>
                     Reine Spionage (nur Späher) ist allerdings möglich.
                 ");
-}
-
-$mining_units_count = 0;
-for ($i = Soldiers::SOLDIER_MILITIA; $i <= Soldiers::SOLDIER_ELVENARCHER; $i++) {
-    $mining_units_count += (int)($kingdom_soldiers[$i] ?? 0);
-}
-
-$has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
-$has_camp_combat_troops = false;
-foreach ($kingdom_soldiers as $s_id => $cnt) {
-    if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && $cnt > 0) {
-        $has_camp_combat_troops = true;
-        break;
-    }
-}
-
-if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
-    $is_spying = $only_scouts_allowed || ($mining_units_count === 0 && $scout_count > 0);
-} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
-    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || (!$has_raiders && $scout_count > 0);
-} else if ($kingdom_id == MapFieldTypes::MAP_FIELD_MONSTER_CAMP) {
-    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || (!$has_camp_combat_troops && $scout_count > 0);
-} else {
-    $is_spying = (isset($_GET["mode"]) && $_GET["mode"] === "spy") || ($only_scouts_allowed && $scout_count > 0);
-}
-
-if (!empty($_POST["soldiers"])) {
-    $is_spying = true;
-
-    foreach ($_POST["soldiers"] as $s_id => $count) {
-        if ((int)$s_id !== Soldiers::SOLDIER_SCOUT && (int)$count > 0) {
-            $is_spying = false;
-            break;
-        }
-    }
-}
-
-if ($only_scouts_allowed) {
-    $is_spying = true;
 }
 
 if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
@@ -847,6 +838,10 @@ foreach ($soldiers as $soldier_id => $s_obj) {
     $count = $kingdom_soldiers[$soldier_id] ?? 0;
 
     if ($count > 0) {
+        if ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) {
+            continue;
+        }
+
         if (($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
                 && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
                 && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) ||
@@ -862,7 +857,6 @@ foreach ($soldiers as $soldier_id => $s_obj) {
 }
 
 $only_scouts_allowed = (!$is_ally && $is_noob_protected);
-$scout_count = $kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0;
 $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
 if (($only_scouts_allowed && $scout_count > 0) || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
@@ -884,7 +878,11 @@ if ($first_active_cat === -1 || ($category_counts[$first_active_cat] ?? 0) <= 0)
 $show_all_checked = (($_COOKIE["me_list_view"] ?? "0") === "1");
 
 if ($barracks_level > 0) {
-    if ($total_units_available > 0) {
+    if ($only_scouts_allowed && $scout_count <= 0) {
+        $view .= "<div style='margin-top: 20px;'>" .
+            show_warning_box("Du besitzt in diesem Königreich keine Späher, um auszuspionieren.") .
+            "</div>";
+    } else if ($total_units_available > 0) {
         $button_label = "Truppen schicken";
 
         if ($is_ally) {
@@ -985,6 +983,11 @@ if ($barracks_level > 0) {
 
         foreach ($soldiers as $soldier_id => $s_obj) {
             $soldier_id = $s_obj->get_soldier_id();
+
+            if ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) {
+                continue;
+            }
+
             $soldier_name = $s_obj->get_soldier_name();
             $unit_cat = $s_obj->get_soldier_category();
             $icon_name = $s_obj->get_soldier_icon_name();

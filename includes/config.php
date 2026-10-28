@@ -14,6 +14,33 @@ const REMEMBER_ME_COOKIE_DAYS = 14;
 const ERROR_LOG_FILE = __DIR__ . "/../logs/error.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MAX_SQL_BACKUPS = 7;
+const PAGE_ICONS = [
+    'overview.php' => 'images/icons/icon_buildings.png',
+    'messages.php' => 'images/icons/icon_messages.png',
+    'worldchat' => 'images/icons/icon_worldchat.png',
+    'guild.php' => 'images/icons/icon_guild.png',
+    'ranking.php' => 'images/icons/icon_ranking.png',
+    'map.php' => 'images/icons/icon_tech6.png',
+    'techtree.php' => 'images/icons/icon_techtree.png',
+    'warsim.php' => 'images/icons/icon_warsim.png',
+    'arena.php' => 'images/icons/icon_arena.png',
+    'achievements.php' => 'images/icons/icon_achievement.png',
+    'halloffame.php' => 'images/icons/icon_score.png',
+    'events.php' => 'images/icons/icon_lich.png',
+    'adminpanel.php' => 'images/icons/icon_adminpanel.png',
+    'news.php' => 'images/icons/icon_news.png',
+    'forum.php' => 'images/icons/icon_forum.png',
+    'settings.php' => 'images/icons/icon_settings.png',
+    'rules.php' => 'images/icons/icon_rules.png',
+    'faq.php' => 'images/icons/icon_faq.png',
+    'donations.php' => 'images/icons/icon_guildtech1.png',
+    'suggestions.php' => 'images/icons/icon_feedback.png',
+    'stats.php' => 'images/icons/icon_statistics.png',
+    'disclaimer.php' => 'images/icons/icon_disclaimer.png',
+    'imprint.php' => 'images/icons/icon_imprint.png',
+    'privacy.php' => 'images/icons/icon_privacy.png',
+    'support.php' => 'images/icons/icon_question.png',
+];
 
 // --- Admin-Level & Support-System ---
 const ADMIN_LEVEL_SUPPORTER = 1;
@@ -135,8 +162,8 @@ const WALL_COUNTER_DAMAGE_FACTOR = 0.5;
 const WALL_ABSORPTION_MULTIPLIER = 5;
 const WALL_NORMAL_TROOP_DAMAGE_FACTOR = 0.15;
 const WALL_MAX_NORMAL_DAMAGE_PERCENT = 0.2;
-const PVP_DAMPING_THRESHOLD = 1.0;                  // At which Superiority Factor does damp begin
-const PVP_DAMPING_MAX_RATIO = 3.0;                  // At which Superiority Factor is damage = 0 (Chip Damage Immunity)
+const PVP_DAMPING_THRESHOLD = 2.5;                  // At which Superiority Factor does damp begin
+const PVP_DAMPING_MAX_RATIO = 4.0;                  // At which Superiority Factor is damage = 0 (Chip Damage Immunity)
 const PVP_DAMPING_EXPONENT = 1.15;                  // Exponent for curve progress (like PvE)
 const RPS_TARGET_FOCUS = 0.7;                       // 70% damage on preferred counter target group
 const ARMOR_WEIGHT_EXPONENT = 0.5;                  // Exponent for Armor Weighting (0.5 = square root)
@@ -255,27 +282,17 @@ const WORLD_EVENT_HP_ATTACK_DURATION = 900;
 const WORLD_EVENT_DMG_ATTACK_DURATION = 30;
 const WORLD_EVENT_MAX_ATTEMPTS = 5;
 const WORLD_EVENT_REWARD_MIN_TRESHOLD = 1500;
-const WORLD_EVENT_REWARD_TRESHOLD_1 = 25000;
-const WORLD_EVENT_REWARD_TRESHOLD_2 = 150000;
-const WORLD_EVENT_REWARD_TRESHOLD_3 = 500000;
-const WORLD_EVENT_REWARD_TRESHOLD_4 = 2500000;
-const WORLD_EVENT_REWARD_TRESHOLD_5 = 5000000;
-const WORLD_EVENT_REWARD_TRESHOLD_6 = 10000000;
-const WORLD_EVENT_REWARD_COINS_MIN = 5;
-const WORLD_EVENT_REWARD_COINS_1 = 5;
-const WORLD_EVENT_REWARD_COINS_2 = 5;
-const WORLD_EVENT_REWARD_COINS_3 = 4;
-const WORLD_EVENT_REWARD_COINS_4 = 4;
-const WORLD_EVENT_REWARD_COINS_5 = 3;
-const WORLD_EVENT_REWARD_COINS_6 = 2;
 const WORLD_EVENT_DAMAGE_TIERS = [
-    WORLD_EVENT_REWARD_MIN_TRESHOLD => ["coins" => WORLD_EVENT_REWARD_COINS_MIN, "gold" => 5000],
-    WORLD_EVENT_REWARD_TRESHOLD_1 => ["coins" => WORLD_EVENT_REWARD_COINS_1, "gold" => 5500],
-    WORLD_EVENT_REWARD_TRESHOLD_2 => ["coins" => WORLD_EVENT_REWARD_COINS_2, "gold" => 6000],
-    WORLD_EVENT_REWARD_TRESHOLD_3 => ["coins" => WORLD_EVENT_REWARD_COINS_3, "gold" => 6500],
-    WORLD_EVENT_REWARD_TRESHOLD_4 => ["coins" => WORLD_EVENT_REWARD_COINS_4, "gold" => 7000],
-    WORLD_EVENT_REWARD_TRESHOLD_5 => ["coins" => WORLD_EVENT_REWARD_COINS_5, "gold" => 7500],
-    WORLD_EVENT_REWARD_TRESHOLD_6 => ["coins" => WORLD_EVENT_REWARD_COINS_6, "gold" => 8000]
+    1500 => ["coins" => 5, "gold" => 5000],
+    25000 => ["coins" => 5, "gold" => 5500],
+    150000 => ["coins" => 5, "gold" => 6000],
+    500000 => ["coins" => 4, "gold" => 6500],
+    2500000 => ["coins" => 4, "gold" => 7000],
+    5000000 => ["coins" => 3, "gold" => 7500],
+    10000000 => ["coins" => 3, "gold" => 8000],
+    20000000 => ["coins" => 2, "gold" => 9000],
+    30000000 => ["coins" => 1, "gold" => 10000],
+    40000000 => ["coins" => 1, "gold" => 11000]
 ];
 // HP-Boss Resources
 const WORLD_EVENT_HP_RES_BASE = 5000;            // Base resources per average building level
@@ -420,31 +437,95 @@ const ACHIEVEMENT_FAQ_OPEN_TIME = 120;
 const ARMY_BALANCE_TOLERANCE = 200;
 const PERFECT_RESOURCE_PLUNDER_RANGE = 150;
 
+// --- Arena System ---
+const ARENA_DEFAULT_ELO = 1000;
+const ARENA_ELO_K_FACTOR = 32;                   // Impact of wins/losses on rating
+const ARENA_MAX_COINS = 5;                       // Maximum stackable arena coins (tickets)
+const ARENA_COIN_REGEN_HOURS = 4;                // 1 coin every 4 hours (6 attacks per 24h with optimal usage)
+const ARENA_ROLL_COUNT = 3;                      // Number of opponents displayed at once
+const ARENA_ROLL_ELO_WINDOW = 120;               // Opponent search range (own Elo +/- X)
+const ARENA_ARMY_UNIT_LIMIT = 5000;              // Fixed troop count to distribute freely
+const ARENA_MAX_TECH_POINTS = 30;                // Total points for smith techs (e.g. level 0-10 per category)
+const ARENA_MAX_TECH_LEVEL = 10;                 // Maximum level per individual smith tech
+const ARENA_SEASON_ACTIVE_DAYS = 28;
+const ARENA_MAX_REROLLS_PER_DAY = 3;
+const ARENA_MIN_ELO = 100;
+const ARENA_ELO_LOSS_FACTOR = 0.9;
+
+// Allowed soldier IDs
+const ARENA_ALLOWED_SOLDIER_IDS = [
+    Soldiers::SOLDIER_HALBERDIER,
+    Soldiers::SOLDIER_CUIRASSIER,
+    Soldiers::SOLDIER_ELVENARCHER
+];
+
+// Allowed smith techs
+const ARENA_ALLOWED_TECH_IDS = [
+    TechTypes::TECH_TYPE_BLADES,
+    TechTypes::TECH_TYPE_SHIELDWALL,
+    TechTypes::TECH_TYPE_LANCE_RIDING,
+    TechTypes::TECH_TYPE_CUIRASS,
+    TechTypes::TECH_TYPE_ARROWHEADS,
+    TechTypes::TECH_TYPE_DOUBLET
+];
+
+const ARENA_SEASON_REWARDS = [
+    1 => ["coins" => 50, "res" => 225000, "label" => "1. Platz"],
+    2 => ["coins" => 35, "res" => 150000, "label" => "2. Platz"],
+    3 => ["coins" => 25, "res" => 112500, "label" => "3. Platz"],
+    10 => ["coins" => 15, "res" => 60000, "label" => "Top 10"],
+    25 => ["coins" => 10, "res" => 37500, "label" => "Top 25"],
+    50 => ["coins" => 5, "res" => 22500, "label" => "Top 50"],
+    99999 => ["coins" => 2, "res" => 7500, "label" => "Teilnahme"]
+];
+
+const ARENA_HERO_BASE_ATK = 5000;
+const ARENA_HERO_BASE_DEF = 5000;
+const ARENA_HERO_MAX_LEVEL = 20;
+const ARENA_HERO_XP_WIN = 50;
+const ARENA_HERO_XP_DRAW = 20;
+const ARENA_HERO_BASE_XP = 60;
+const ARENA_HERO_XP_FACTOR = 1.41;
+const ARENA_HERO_STAT_FACTOR = 1.18;
+const ARENA_HERO_RPS_BASE = 0.05;
+const ARENA_HERO_RPS_FACTOR = 1.22;
+const ARENA_SKILL_MAX_LEVEL = 10;
+const ARENA_SKILL_BASE_XP = 50;
+const ARENA_SKILL_XP_FACTOR = 2.1;
+const ARENA_HERO_SKILLS = [
+    1 => [
+        "id" => 1,
+        "name" => "Anti-Infanterie",
+        "desc" => "Trifft gezielt Schwachstellen feindlicher Fußsoldaten.",
+        "icon" => "icon_sword",
+        "target_cat" => 0,
+        "target_name" => "Infanterie",
+        "rps_base" => ARENA_HERO_RPS_BASE
+    ],
+    2 => [
+        "id" => 2,
+        "name" => "Anti-Kavallerie",
+        "desc" => "Bricht mit schweren Piken den Ansturm berittener Einheiten.",
+        "icon" => "icon_shield",
+        "target_cat" => 1,
+        "target_name" => "Kavallerie",
+        "rps_base" => ARENA_HERO_RPS_BASE
+    ],
+    3 => [
+        "id" => 3,
+        "name" => "Anti-Fernkampf",
+        "desc" => "Durchbricht mit hoher Geschwindigkeit feindliche Schützenreihen.",
+        "icon" => "icon_hero",
+        "target_cat" => 2,
+        "target_name" => "Fernkampf",
+        "rps_base" => ARENA_HERO_RPS_BASE
+    ]
+];
+
+
 /*
  * Interfaces
  */
-
-class AchievementCategories
-{
-    const int CATEGORY_SCORE = 1;
-    const int CATEGORY_COMBAT = 2;
-    const int CATEGORY_ECONOMY = 3;
-    const int CATEGORY_EXPANSION = 4;
-    const int CATEGORY_EVENTS = 5;
-    const int CATEGORY_SPECIAL = 6;
-
-    public static function get_labels(): array
-    {
-        return [
-            self::CATEGORY_SCORE => "Rang & Macht",
-            self::CATEGORY_COMBAT => "Militär & Kampf",
-            self::CATEGORY_ECONOMY => "Wirtschaft & Minen",
-            self::CATEGORY_EXPANSION => "Expansion & Reich",
-            self::CATEGORY_EVENTS => "Events",
-            self::CATEGORY_SPECIAL => "Geheim"
-        ];
-    }
-}
 
 interface AchievementTypes
 {
@@ -481,6 +562,11 @@ interface AchievementTypes
     const int ACHIEVEMENT_MILITARY_UNITS_PRODUCED = 31;
     const int ACHIEVEMENT_BALANCED_ARMY = 32;
     const int ACHIEVEMENT_TROOPS_SENT_COMBAT = 33;
+    const int ACHIEVEMENT_ARENA_BATTLES = 34;
+    const int ACHIEVEMENT_ARENA_TOP3 = 35;
+    const int ACHIEVEMENT_ARENA_TOP5 = 36;
+    const int ACHIEVEMENT_ARENA_WINS = 37;
+    const int ACHIEVEMENT_ARENA_HERO_LEVEL = 38;
 }
 
 interface TransportTypes
@@ -535,26 +621,6 @@ interface AlignmentTypes
     const int ALIGN_NATURE = 3;
 }
 
-class MessageCategories
-{
-    const int CATEGORY_DEFAULT = 0;
-    const int CATEGORY_WAR = 1;
-    const int CATEGORY_TRADE = 2;
-    const int CATEGORY_EVENT = 3;
-    const int CATEGORY_GUILD = 4;
-
-    public static function get_labels(): array
-    {
-        return [
-            self::CATEGORY_DEFAULT => "Allgemein",
-            self::CATEGORY_WAR => "Militärisch",
-            self::CATEGORY_TRADE => "Handel",
-            self::CATEGORY_EVENT => "Event",
-            self::CATEGORY_GUILD => "Gilde"
-        ];
-    }
-}
-
 interface BuildingTypes
 {
     const int BUILDING_TOWNCENTER = 0;
@@ -592,6 +658,7 @@ interface ResourceTypes
     const int RESOURCE_TYPE_IRON = 12;
     const int RESOURCE_TYPE_SAPPHIRE = 13;
     const int RESOURCE_TYPE_DIAMOND = 14;
+    const int RESOURCE_TYPE_ARENA_COINS = 15;
 }
 
 interface ActionTypes
@@ -635,26 +702,6 @@ interface TechTypes
     const int TECH_TYPE_SIEGE = 20;
 }
 
-class SoldierTypes
-{
-    const int SOLDIER_TYPE_INFANTRY = 0;
-    const int SOLDIER_TYPE_CAVALRY = 1;
-    const int SOLDIER_TYPE_ARCHERS = 2;
-    const int SOLDIER_TYPE_SPECIAL = 3;
-    const int SOLDIER_TYPE_SUPPORT = 4;
-
-    public static function get_labels(): array
-    {
-        return [
-            self::SOLDIER_TYPE_INFANTRY => "Infanterie",
-            self::SOLDIER_TYPE_CAVALRY => "Kavallerie",
-            self::SOLDIER_TYPE_ARCHERS => "Schützen",
-            self::SOLDIER_TYPE_SPECIAL => "Spezial",
-            self::SOLDIER_TYPE_SUPPORT => "Unterstützung"
-        ];
-    }
-}
-
 interface Soldiers
 {
     const int SOLDIER_MILITIA = 0;
@@ -673,6 +720,68 @@ interface Soldiers
     const int SOLDIER_RAIDER = 13;
     const int SOLDIER_HERO = 14;
     const int SOLDIER_RAM = 15;
+}
+
+class AchievementCategories
+{
+    const int CATEGORY_SCORE = 1;
+    const int CATEGORY_COMBAT = 2;
+    const int CATEGORY_ECONOMY = 3;
+    const int CATEGORY_EXPANSION = 4;
+    const int CATEGORY_EVENTS = 5;
+    const int CATEGORY_SPECIAL = 6;
+
+    public static function get_labels(): array
+    {
+        return [
+            self::CATEGORY_SCORE => "Rang & Macht",
+            self::CATEGORY_COMBAT => "Militär & Kampf",
+            self::CATEGORY_ECONOMY => "Wirtschaft & Minen",
+            self::CATEGORY_EXPANSION => "Expansion & Reich",
+            self::CATEGORY_EVENTS => "Events",
+            self::CATEGORY_SPECIAL => "Geheim"
+        ];
+    }
+}
+
+class MessageCategories
+{
+    const int CATEGORY_DEFAULT = 0;
+    const int CATEGORY_WAR = 1;
+    const int CATEGORY_TRADE = 2;
+    const int CATEGORY_EVENT = 3;
+    const int CATEGORY_GUILD = 4;
+
+    public static function get_labels(): array
+    {
+        return [
+            self::CATEGORY_DEFAULT => "Allgemein",
+            self::CATEGORY_WAR => "Militärisch",
+            self::CATEGORY_TRADE => "Handel",
+            self::CATEGORY_EVENT => "Event",
+            self::CATEGORY_GUILD => "Gilde"
+        ];
+    }
+}
+
+class SoldierTypes
+{
+    const int SOLDIER_TYPE_INFANTRY = 0;
+    const int SOLDIER_TYPE_CAVALRY = 1;
+    const int SOLDIER_TYPE_ARCHERS = 2;
+    const int SOLDIER_TYPE_SPECIAL = 3;
+    const int SOLDIER_TYPE_SUPPORT = 4;
+
+    public static function get_labels(): array
+    {
+        return [
+            self::SOLDIER_TYPE_INFANTRY => "Infanterie",
+            self::SOLDIER_TYPE_CAVALRY => "Kavallerie",
+            self::SOLDIER_TYPE_ARCHERS => "Schützen",
+            self::SOLDIER_TYPE_SPECIAL => "Spezial",
+            self::SOLDIER_TYPE_SUPPORT => "Unterstützung"
+        ];
+    }
 }
 
 /*

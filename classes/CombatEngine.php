@@ -64,25 +64,27 @@ class CombatEngine
             $targeted_dmg = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
             $shared_dmg = 0;
             $total_raw_atk = 0;
-            $focus_share = defined("RPS_TARGET_FOCUS") ? RPS_TARGET_FOCUS : 0.7;
-            $default_share = 1.0 - $focus_share;
+            $global_focus_share = RPS_TARGET_FOCUS;
 
             foreach ($units as $u) {
                 $cnt = (int)$u["count"];
                 if ($cnt <= 0) continue;
-
                 $u_atk_sum = $cnt * (int)$u["atk"];
                 $total_raw_atk += $u_atk_sum;
-                $target_cat = $get_target_cat((int)$u["category"]);
+
+                $target_cat = isset($u["target_cat"]) ? (int)$u["target_cat"] : $get_target_cat((int)$u["category"]);
+                $unit_rps_bonus = isset($u["rps_bonus"]) ? (float)$u["rps_bonus"] : RPS_BONUS;
+                $focus_share = isset($u["target_focus"]) ? (float)$u["target_focus"] : $global_focus_share;
+                $default_share = 1.0 - $focus_share;
 
                 if ($target_cat !== -1 && !empty($enemy_has_cat[$target_cat])) {
-                    $target_dmg = $u_atk_sum * $focus_share * (1.0 + RPS_BONUS);
+                    $target_dmg = $u_atk_sum * $focus_share * (1.0 + $unit_rps_bonus);
                     $max_capacity = ($enemy_def_pools[$target_cat] ?? 0) * LETHALITY_PVP;
 
                     if ($target_dmg > $max_capacity && $max_capacity > 0) {
                         $excess = $target_dmg - $max_capacity;
                         $targeted_dmg[$target_cat] += $max_capacity;
-                        $shared_dmg += ($excess / (1.0 + RPS_BONUS)) + ($u_atk_sum * $default_share);
+                        $shared_dmg += ($excess / (1.0 + $unit_rps_bonus)) + ($u_atk_sum * $default_share);
                     } else {
                         $targeted_dmg[$target_cat] += $target_dmg;
                         $shared_dmg += ($u_atk_sum * $default_share);
@@ -95,6 +97,7 @@ class CombatEngine
             $final_incoming = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
             foreach ($enemy_def_pools as $cat => $cat_def) {
                 $final_incoming[$cat] = $targeted_dmg[$cat];
+
                 if ($enemy_total_def > 0 && $cat_def > 0) {
                     $final_incoming[$cat] += $shared_dmg * ($cat_def / $enemy_total_def);
                 }
@@ -181,6 +184,11 @@ class CombatEngine
                 ($atk_survivor_ratio > $def_survivor_ratio)
             );
 
+        $defender_won = ($def_survivors > 0) && (
+                ($total_atk_losses >= $total_atk_units) ||
+                ($def_survivor_ratio > $atk_survivor_ratio)
+            );
+
         return [
             "attacker_losses" => $atk_losses,
             "defender_losses" => $def_losses,
@@ -190,7 +198,8 @@ class CombatEngine
             "total_def_units" => $total_def_units,
             "attacker_raw_atk" => (int)round($own_offense["raw_atk"]),
             "defender_def_no_wall" => (int)round($total_def_def),
-            "attacker_won" => $attacker_won
+            "attacker_won" => $attacker_won,
+            "defender_won" => $defender_won
         ];
     }
 

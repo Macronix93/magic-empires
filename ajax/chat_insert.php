@@ -12,6 +12,13 @@ if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
 }
 
 $type = $_POST["type"] ?? "private";
+
+$allowed_types = ["private", "world", "guild"];
+if (!in_array($type, $allowed_types, true)) {
+    echo json_encode(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
+    exit;
+}
+
 $u_id = $user->get_user_id();
 $u_name = $user->get_user_name();
 $now = time();

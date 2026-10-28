@@ -1077,6 +1077,7 @@ window.addEventListener("DOMContentLoaded", function () {
     const isTouchDevice = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
     let pageLoadedAt = Date.now();
     let userTouchedPage = false;
+    let currentFocusedInput = null;
 
     if (isTouchDevice) {
         window.addEventListener("touchstart", () => {
@@ -1091,8 +1092,10 @@ window.addEventListener("DOMContentLoaded", function () {
         const isNumericInput = target.getAttribute("inputmode") === "numeric" ||
             target.classList.contains("js-unit-input") ||
             target.classList.contains("js-recruit-input");
-
         if (!isNumericInput) return;
+
+        if (currentFocusedInput === target) return;
+        currentFocusedInput = target;
 
         if (!isTouchDevice) {
             target.select();
@@ -1105,12 +1108,20 @@ window.addEventListener("DOMContentLoaded", function () {
         }
 
         setTimeout(() => {
-            try {
-                target.setSelectionRange(0, target.value.length);
-            } catch (_) {
-                target.select();
+            if (document.activeElement === target) {
+                try {
+                    target.setSelectionRange(0, target.value.length);
+                } catch (_) {
+                    target.select();
+                }
             }
-        }, 30);
+        }, 50);
+    }, true);
+
+    document.addEventListener("focusout", function (e) {
+        if (currentFocusedInput === e.target) {
+            currentFocusedInput = null;
+        }
     }, true);
 
     document.addEventListener("mousemove", (e) => {
@@ -1305,12 +1316,22 @@ function updateSidebarBadges(counts) {
     if (counts.guild !== undefined) update(".js-badge-guild", counts.guild);
     if (counts.suggestions !== undefined) update(".js-badge-suggestions", counts.suggestions);
 
+    const unreadArena = counts.arena || 0;
+    const hasArenaCoins = counts.arena_coins || 0;
+
+    update(".js-badge-arena", unreadArena);
+
+    document.querySelectorAll(".js-badge-arena-coins").forEach(el => {
+        el.style.display = (unreadArena === 0 && hasArenaCoins > 0) ? "flex" : "none";
+    });
+
     const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0) + (counts.suggestions || 0) +
-        (counts.achievements || 0);
+        (counts.achievements || 0) + unreadArena;
 
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
         const hasAlert = mobileDot.dataset.hasAlert === "true";
+
         mobileDot.style.display = (total > 0 || hasAlert) ? "block" : "none";
     }
 }

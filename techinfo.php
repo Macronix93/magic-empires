@@ -310,7 +310,8 @@ if ($row) {
         $view .= "</div></div>";
     } else {
         $m = $row["multiplicator"];
-        $calc_cost = fn($base, $lvl) => ($base <= 0) ? 0 : (int)round($base * pow($m, $lvl));
+        $current_bid = $building_id ?? (int)($row["id"] ?? -1);
+        $calc_cost = fn(int $base, int $lvl) => Building::calculate_cost($current_bid, $base, $lvl, $m);
 
         $biome_info = "";
         $is_prod_building = in_array($building_id, [

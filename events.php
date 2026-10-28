@@ -427,7 +427,7 @@ if (!$active_event) {
 
         $auto_label = "Automatisch (Höchster Schaden)";
         if ($top_kid > 0) {
-            $top_k_name = $db_instance->query("SELECT kingdomname FROM kingdoms WHERE id = $top_kid")->fetch_column();
+            $top_k_name = $db_instance->query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$top_kid])->fetch_column();
             if ($top_k_name) {
                 $auto_label = "Automatisch (" . e($top_k_name) . ")";
             }

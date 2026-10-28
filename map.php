@@ -212,6 +212,7 @@ $show_path_checked = (isset($_COOKIE["me_map_show_path"]) && $_COOKIE["me_map_sh
 
 echo '<div class="map-options">
         <form id="update-map" style="display: inline-flex; align-items: center; gap: 6px; margin: 0;">
+            <button type="button" data-on-click="jumpToHome" title="Zum aktuellen Königreich springen" style="margin-right: 15px;">Home</button>
             <b>X:</b><input type="text" inputmode="numeric" id="startx" name="startx" size="2" maxlength="3" value="' . $x . '" style="width: 37px; text-align: center;">
             <b>Y:</b><input type="text" inputmode="numeric" id="starty" name="starty" size="2" maxlength="3" value="' . $y . '" style="width: 37px; text-align: center;">
             <input type="submit" id="send-map-request" value="Los" style="padding: 2px 8px;">

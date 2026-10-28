@@ -117,7 +117,7 @@ function executeClaim(btn, achId, reward) {
 
                 const mobileDot = document.getElementById("mobile-nav-dot");
                 if (mobileDot && data.remaining_claims === 0) {
-                    const otherBadges = document.querySelectorAll("#nav-left-menu .msg-badge");
+                    const otherBadges = document.querySelectorAll("#nav-left-menu .msg-badge:not(.golden-badge)");
                     const hasOtherNotifications = Array.from(otherBadges).some(b => b.style.display !== "none" && b.innerText.trim() !== "");
                     const hasAlert = mobileDot.dataset.hasAlert === "true";
 

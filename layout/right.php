@@ -230,12 +230,12 @@
                 }
 
                 if ($is_wall && $kingdom->get_wall_hp() < $kingdom->get_wall_max_hp()) {
-                    echo "<span class='msg-badge' style='font-size: 18px;'>!</span>";
+                    echo "<span class='msg-badge' style='font-size: 16px;'>!</span>";
                 }
 
                 if ($is_alchemy) {
                     if ($sidebar_data["alchemy_status"] === "ready") {
-                        echo "<span class='msg-badge' style='font-size: 18px;'>!</span>";
+                        echo "<span class='msg-badge' style='font-size: 16px;'>!</span>";
                     } elseif ($sidebar_data["alchemy_status"] === "running") {
                         echo "<span class='msg-badge golden-badge'>...</span>";
                     }

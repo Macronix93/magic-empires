@@ -39,6 +39,11 @@ $view = "
                 <div class='split-content'><span>Truppen besiegt (PvP):</span> <b>" . fnum($my_stats["units_defeated_pvp"] ?? 0) . "</b></div>
                 <div class='split-content'><span>Truppen verloren (PvP):</span> <b>" . fnum($my_stats["units_fallen_pvp"]) . "</b></div>
                 <div class='split-content'><span>Truppen verloren (PvE):</span> <b>" . fnum($my_stats["units_fallen_pve"]) . "</b></div>
+                <div class='split-content'><span>Arena-Kämpfe:</span> <b>" . fnum($my_stats["arena_battles"] ?? 0) . "</b></div>
+                <div class='split-content'>
+                    <span>Arena-Bilanz (S | N):</span> 
+                    <b><span class='passed'>" . fnum($my_stats["arena_wins"] ?? 0) . "</span> | <span class='error'>" . fnum($my_stats["arena_losses"] ?? 0) . "</span></b>
+                </div>
                 <hr>
                 <div style='text-align: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;'>
                     <b>Wirtschaft & Expansion</b>

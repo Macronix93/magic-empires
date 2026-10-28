@@ -51,6 +51,16 @@ const COLORS = {
     5: "#78a55a"  // Hochland
 };
 
+registerAction("jumpToHome", (el, e) => {
+    if (e) e.stopPropagation();
+
+    if (gameConfig && gameConfig.currentKingdom) {
+        selectedX = null;
+        selectedY = null;
+
+        jumpTo(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y);
+    }
+});
 registerAction("closeMapPopup", () => {
     const popupBox = document.getElementById("field-popup-box");
     if (popupBox) {
@@ -1636,7 +1646,7 @@ function calculatePathLocal(sx, sy, ex, ey) {
     return {path: [], totalTime: 0};
 }
 
-function jumpTo(x, y) {
+function jumpTo(x, y, immediate = false) {
     x = parseInt(x);
     y = parseInt(y);
 
@@ -1650,11 +1660,11 @@ function jumpTo(x, y) {
         velocityY = 0;
 
         if (mapData.length === 0) {
-            setTimeout(() => jumpTo(x, y), 100);
+            setTimeout(() => jumpTo(x, y, immediate), 100);
             return;
         }
 
-        centerMapOn(x, y, false, () => {
+        centerMapOn(x, y, immediate, () => {
             selectField(x, y, false);
         });
     }
@@ -1760,7 +1770,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemy
     const overlay = document.getElementById("onpage-overlay");
     const isOverlayOpen = overlay && overlay.style.display !== "none";
     const popupBox = document.getElementById("field-popup-box");
-    const wasPopupOpen = popupBox && (popupBox.style.display === "block");
+    //const wasPopupOpen = popupBox && (popupBox.style.display === "block");
 
     let keepTarget = false;
     const prevTargetX = selectedX;
@@ -1769,13 +1779,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemy
     if (prevTargetX !== null && prevTargetY !== null && mapData.length > 0) {
         const currentSelectedTile = mapData.find(t => t[0] === prevTargetX && t[1] === prevTargetY);
         if (currentSelectedTile) {
-            const kid = currentSelectedTile[3];
-            const ownerId = currentSelectedTile[10];
-
-            const isOwnKingdom = (kid > 0 && ownerId === gameConfig.currentKingdom.ownerId);
-            if (!isOwnKingdom) {
-                keepTarget = true;
-            }
+            keepTarget = true;
         }
     }
 
@@ -1790,12 +1794,12 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemy
 
         selectField(prevTargetX, prevTargetY, false);
 
-        if (!wasPopupOpen && popupBox) {
-            popupBox.style.display = "none";
-        }
+        // if (!wasPopupOpen && popupBox) {
+        //     popupBox.style.display = "none";
+        // }
 
         draw();
-        refreshMapDataSilently(!wasPopupOpen);
+        refreshMapDataSilently(false);
     } else {
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set("startx", newKingdom.x);
@@ -1807,7 +1811,8 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemy
         selectedY = null;
 
         if (popupBox) popupBox.style.display = "none";
-        jumpTo(newKingdom.x, newKingdom.y);
+
+        jumpTo(newKingdom.x, newKingdom.y, true);
         refreshMapDataSilently(false);
     }
 

@@ -43,6 +43,9 @@
         <li><a href="#faq-welt-events">Wann finden Welt-Events statt?</a></li>
         <li><a href="#faq-truppen-events">Muss ich Angst um meine Truppen haben?</a></li>
         <li><a href="#faq-event-belohnungen">Wonach richten sich die Belohnungen?</a></li>
+        <li><a href="#faq-arena-ablauf">Wie funktioniert die Arena?</a></li>
+        <li><a href="#faq-arena-saison">Wann endet eine Arena-Saison?</a></li>
+        <li><a href="#faq-arena-belohnungen">Welche Arena-Belohnungen gibt es?</a></li>
     </ul>
 </div>
 
@@ -420,6 +423,42 @@
                 <td>Die Beute ist fair und skaliert mit deinem Fortschritt. Je höher der Durchschnitt deiner
                     Gebäude-Stufen und dein Dorfzentrum sind, desto massiver fallen die Ressourcen- und Truppenpakete
                     aus.
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+<div class="box-container" style="margin-bottom: 20px;">
+    <div class="box-header">Arena & Duelle</div>
+    <div class="box-content box-content-bg">
+        <table class="table faq-table" style="width: 100%; border: none;">
+            <tr>
+                <td class="td-gradient" style="width: 40%;" id="faq-arena-ablauf"><b>Wie funktioniert die Arena?</b>
+                </td>
+                <td>
+                    In der Arena duellierst du dich mit anderen Herrschern im Ranglistensystem (ELO).
+                    Jeder Spieler stellt eine standardisierte Streitmacht aus exakt
+                    <b><?= fnum(ARENA_ARMY_UNIT_LIMIT) ?> Truppen</b>
+                    und <b><?= fnum(ARENA_MAX_TECH_POINTS) ?> Technologie-Punkten</b> zusammen.
+                    Verluste sind <b>fiktiv</b> – deine echten Soldaten im Dorf bleiben unberührt!
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient" id="faq-arena-saison"><b>Wann endet eine Saison?</b></td>
+                <td>
+                    Jede Saison läuft über einen <b>Kalendermonat</b>.
+                    Sie endet genau <b>2 Tage vor Monatsende um 23:59 Uhr</b>, woraufhin alle Belohnungen ausgeschüttet
+                    werden.
+                    Während der 2-tägigen Saisonpause ruht der Kampfbetrieb, bevor am 1. Tag des neuen Monats die
+                    nächste Saison startet.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient" id="faq-arena-belohnungen"><b>Welche Belohnungen gibt es?</b></td>
+                <td>
+                    Am Ende der Saison erhältst du basierend auf deiner Platzierung wertvolle Münzen sowie große
+                    Rohstoff-Pakete
+                    (Nahrung, Holz, Stein und Gold), die direkt in dein gewähltes Beute-Dorf transferiert werden.
                 </td>
             </tr>
         </table>

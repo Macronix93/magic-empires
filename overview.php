@@ -184,15 +184,14 @@ if (!empty($_SESSION["active_attacks"])) {
 }
 
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
-$count_kp_res = $db_instance->execute_query("SELECT COUNT(*) as total FROM kingdoms WHERE userid = ?", [$uid]);
-$count_kp = (int)$count_kp_res->fetch_assoc()["total"];
+$all_user_kingdoms = $db_instance->execute_query(
+    "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id", [$uid]
+)->fetch_all(MYSQLI_ASSOC);
+
+$count_kp = count($all_user_kingdoms);
 $pages_kp = max(1, (int)ceil($count_kp / $limit));
 
-$all_user_k_ids = $db_instance->execute_query(
-    "SELECT id FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
-    [$uid]
-)->fetch_all();
-$flat_k_ids = array_column($all_user_k_ids, 0);
+$flat_k_ids = array_column($all_user_kingdoms, "id");
 $active_k_index = array_search($active_k_id, $flat_k_ids, true);
 $active_kingdom_page = ($active_k_index !== false) ? (int)floor($active_k_index / $limit) + 1 : 1;
 

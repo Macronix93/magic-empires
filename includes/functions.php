@@ -26,6 +26,7 @@ function get_resource_icon(int $resource_type): string
         ResourceTypes::RESOURCE_TYPE_IRON => "<img src='images/icons/icon_iron.png' class='ressource-icons' alt='Eisen' title='Eisen'/>",
         ResourceTypes::RESOURCE_TYPE_SAPPHIRE => "<img src='images/icons/icon_sapphire.png' class='ressource-icons' alt='Saphir' title='Saphir'/>",
         ResourceTypes::RESOURCE_TYPE_DIAMOND => "<img src='images/icons/icon_diamond.png' class='ressource-icons' alt='Diamant' title='Diamant'/>",
+        ResourceTypes::RESOURCE_TYPE_ARENA_COINS => "<img src='images/icons/icon_coin_arena.png' class='ressource-icons' alt='Arena-Coin' title='Arena-Coin'/>",
         default => "",
     };
 }
@@ -886,4 +887,10 @@ function render_tutorial_modal(?User $user = null, bool $is_replay = false): str
             </div> 
         </div> 
     </div>";
+}
+
+function get_page_icon(string $key, string $css_class = "menu-icons", string $alt = ''): string
+{
+    $src = PAGE_ICONS[$key] ?? "images/icons/icon_error.png";
+    return "<img src='$src' class='$css_class' alt='" . e($alt ?: $key) . "'/>";
 }

@@ -1157,6 +1157,11 @@ select:-webkit-autofill:focus {
     font-size: 14px;
 }
 
+.guild-donation-table .ressource-icons {
+    width: 20px;
+    height: 20px;
+}
+
 .guild-donation-table-name {
     width: 35%;
 }
@@ -3500,6 +3505,88 @@ img[data-on-click] {
     height: 20px;
 }
 
+/* Arena Styles */
+.arena-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.arena-unit-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 170px;
+    font-size: 14px;
+    text-align: left;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.arena-slider-row input[type="range"] {
+    flex: 1;
+    cursor: pointer;
+    accent-color: var(--link-color);
+}
+
+.arena-slider-row input[type="range"]::-moz-range-thumb {
+    background-color: var(--link-color);
+    border: 1px solid #111;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.arena-slider-row input[type="range"]::-webkit-slider-thumb {
+    background-color: var(--link-color);
+    border: 1px solid #111;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.scout-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    text-align: left;
+}
+
+.arena-xp-bar {
+    width: 100%;
+    height: 18px;
+    background: #222;
+    border: 1px solid var(--border-gold);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+}
+
+.arena-xp-bar-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    top: 0;
+    left: 0;
+    font-weight: bold;
+}
+
+.arena-skills-perc {
+    font-size: 12px;
+}
+
+.arena-choose-enemy-text {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3527,6 +3614,55 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .arena-battle-log {
+        font-size: 13px;
+    }
+
+    .arena-choose-enemy-text {
+        font-size: 11px;
+    }
+
+    .js-arena-input,
+    .js-arena-tech-input {
+        max-width: 40px;
+    }
+
+    .arena-tech-name,
+    .arena-soldier-name {
+        font-size: 11px;
+        white-space: normal;
+    }
+
+    .arena-skills-text {
+        font-size: 14px;
+    }
+
+    .arena-skills-perc {
+        font-size: 10px;
+    }
+
+    .arena-xp-bar {
+        height: 12px;
+    }
+
+    .arena-xp-bar-text {
+        font-size: 10px;
+    }
+
+    .scout-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 3px;
+    }
+
+    .scout-item {
+        font-size: 12px !important;
+    }
+
+    .scout-item .ressource-icons {
+        width: 16px !important;
+        height: 16px !important;
     }
 
     .boost-button .ressource-icons {
@@ -4544,24 +4680,24 @@ img[data-on-click] {
         max-width: fit-content;
     }
 
-    table:has(#sv) {
+    .marketplace-form-table {
         display: block !important;
         width: 100% !important;
         border-collapse: collapse;
         margin: 0 auto;
     }
 
-    table:has(#sv) tbody {
+    .marketplace-form-table tbody {
         display: block;
         width: 100%;
     }
 
-    table:has(#sv) tr {
+    .marketplace-form-table tr {
         display: flex;
         flex-direction: column;
     }
 
-    table:has(#sv) td {
+    .marketplace-form-table td {
         display: block;
         width: 100% !important;
         background-color: var(--table-color);
@@ -4572,17 +4708,17 @@ img[data-on-click] {
         text-align: center;
     }
 
-    table:has(#sv) input[type="text"],
-    table:has(#sv) select {
+    .marketplace-form-table input[type="text"],
+    .marketplace-form-table select {
         max-width: 300px;
         margin: 5px auto !important;
     }
 
-    table:has(#sv) td:last-child {
+    .marketplace-form-table td:last-child {
         border-bottom: 2px solid var(--box-header) !important;
     }
 
-    table:has(#sv) input[type="submit"] {
+    .marketplace-form-table input[type="submit"] {
         width: 150px;
         margin: 5px auto;
     }

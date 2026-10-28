@@ -16,6 +16,39 @@ class Building
     private string $b_description;
     private array $b_dependencies = [];
 
+    public static function get_building_file(int $building_id): string
+    {
+        return match ($building_id) {
+            BuildingTypes::BUILDING_TOWNCENTER => "towncenter",
+            BuildingTypes::BUILDING_UNIVERSITY => "university",
+            BuildingTypes::BUILDING_BARRACKS => "barracks",
+            BuildingTypes::BUILDING_WALL => "wall",
+            BuildingTypes::BUILDING_SMITHY => "blacksmith",
+            BuildingTypes::BUILDING_MILL => "mill",
+            BuildingTypes::BUILDING_SAWMILL => "sawmill",
+            BuildingTypes::BUILDING_STONEMINE => "stonemine",
+            BuildingTypes::BUILDING_GOLDMINE => "goldmine",
+            BuildingTypes::BUILDING_STORAGE => "storage",
+            BuildingTypes::BUILDING_MARKETPLACE => "marketplace",
+            BuildingTypes::BUILDING_ESTATE => "manor",
+            BuildingTypes::BUILDING_WATCHTOWER => "watchtower",
+            BuildingTypes::BUILDING_SHRINE => "shrine",
+            BuildingTypes::BUILDING_EMBASSY => "embassy",
+            BuildingTypes::BUILDING_ALCHEMY_LAB => "alchemylab",
+            default => "index",
+        };
+    }
+
+    public static function get_max_building_level(int $building_id): int
+    {
+        return match ($building_id) {
+            BuildingTypes::BUILDING_EMBASSY => EMBASSY_MAX_LEVEL,
+            BuildingTypes::BUILDING_SHRINE => SHRINE_MAX_LEVEL,
+            BuildingTypes::BUILDING_ALCHEMY_LAB => ALCHEMY_MAX_LEVEL,
+            default => MAX_BUILDING_LEVEL,
+        };
+    }
+
     public function get_building_kingdom_id(): int
     {
         return $this->kingdom_id;
@@ -74,23 +107,37 @@ class Building
         return $this->b_description;
     }
 
-    function calculate_building_cost(): array
+    public function calculate_building_cost(): array
     {
         $level = $this->b_level;
-        $factor = $this->b_mult;
-
-        $calc = function ($base) use ($factor, $level) {
-            if ($base <= 0) return 0;
-
-            return round($base * pow($factor, $level));
-        };
+        $mult = $this->b_mult;
+        $bid = $this->building_id;
 
         return [
-            "cost_wood" => $calc($this->b_woodcost),
-            "cost_food" => $calc($this->b_foodcost),
-            "cost_stone" => $calc($this->b_stonecost),
-            "cost_gold" => $calc($this->b_goldcost),
+            "cost_wood" => self::calculate_cost($bid, $this->b_woodcost, $level, $mult),
+            "cost_food" => self::calculate_cost($bid, $this->b_foodcost, $level, $mult),
+            "cost_stone" => self::calculate_cost($bid, $this->b_stonecost, $level, $mult),
+            "cost_gold" => self::calculate_cost($bid, $this->b_goldcost, $level, $mult),
         ];
+    }
+
+    public static function calculate_cost(int $building_id, int $base_cost, int $level, float $multiplicator): int
+    {
+        if ($base_cost <= 0) {
+            return 0;
+        }
+
+        [$threshold, $mult] = match ($building_id) {
+            BuildingTypes::BUILDING_ESTATE => [4, 1.12],
+            BuildingTypes::BUILDING_BARRACKS,
+            BuildingTypes::BUILDING_MILL,
+            BuildingTypes::BUILDING_SAWMILL => [3, 1.12],
+            BuildingTypes::BUILDING_GOLDMINE,
+            BuildingTypes::BUILDING_STONEMINE => [3, 1.18],
+            default => [0, 1.0]
+        };
+
+        return (int)round($base_cost * pow($multiplicator, $level) * pow($mult, max(0, $level - $threshold)));
     }
 
     public function get_building_icon(string $class = "buildable-icons"): string
@@ -121,11 +168,6 @@ class Building
 
         $buildings[$building_id] = $building;
         return $buildings;
-    }
-
-    public function set_building_kingdom_id(int $id): void
-    {
-        $this->kingdom_id = $id;
     }
 
     public function set_building_name(string $name): void
@@ -178,37 +220,9 @@ class Building
         $this->b_description = $description;
     }
 
-    public static function get_building_file(int $building_id): string
+    public function set_building_kingdom_id(int $id): void
     {
-        return match ($building_id) {
-            BuildingTypes::BUILDING_TOWNCENTER => "towncenter",
-            BuildingTypes::BUILDING_UNIVERSITY => "university",
-            BuildingTypes::BUILDING_BARRACKS => "barracks",
-            BuildingTypes::BUILDING_WALL => "wall",
-            BuildingTypes::BUILDING_SMITHY => "blacksmith",
-            BuildingTypes::BUILDING_MILL => "mill",
-            BuildingTypes::BUILDING_SAWMILL => "sawmill",
-            BuildingTypes::BUILDING_STONEMINE => "stonemine",
-            BuildingTypes::BUILDING_GOLDMINE => "goldmine",
-            BuildingTypes::BUILDING_STORAGE => "storage",
-            BuildingTypes::BUILDING_MARKETPLACE => "marketplace",
-            BuildingTypes::BUILDING_ESTATE => "manor",
-            BuildingTypes::BUILDING_WATCHTOWER => "watchtower",
-            BuildingTypes::BUILDING_SHRINE => "shrine",
-            BuildingTypes::BUILDING_EMBASSY => "embassy",
-            BuildingTypes::BUILDING_ALCHEMY_LAB => "alchemylab",
-            default => "index",
-        };
-    }
-
-    public static function get_max_building_level(int $building_id): int
-    {
-        return match ($building_id) {
-            BuildingTypes::BUILDING_EMBASSY => EMBASSY_MAX_LEVEL,
-            BuildingTypes::BUILDING_SHRINE => SHRINE_MAX_LEVEL,
-            BuildingTypes::BUILDING_ALCHEMY_LAB => ALCHEMY_MAX_LEVEL,
-            default => MAX_BUILDING_LEVEL,
-        };
+        $this->kingdom_id = $id;
     }
 
 }

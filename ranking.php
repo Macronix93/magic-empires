@@ -104,41 +104,46 @@ foreach ($players_res as $row) {
 
     $display_name = $inactive ? "<i style='opacity: 0.8;'>$user_name</i>" : $user_name;
     $color = ($now - $last_active > ONLINE_MAX_SECONDS) ? "#F55353" : ($now - $last_active > AFK_SECONDS ? "#FEDC56" : "#0BDA51");
-
-    $guild_display = $row["guild_tag"] ? " <b style='cursor: pointer;' data-on-click='openGuildInfo' data-id='{$user_guild_id}'>[" . e($row["guild_tag"]) . "]</b>" : "";
     $name_style = $row["rank_color"] && $row["rank_id"] != GuildRanks::GUILD_MEMBER ? " color: {$row["rank_color"]};" : "";
 
     $is_on_vacation = (!empty($row["is_vacation"]) && (int)$row["vacation_until"] > $now);
     $vacation_badge = "";
-
     if ($is_on_vacation) {
-        $vacation_badge = " <span class='popup' id='vac_{$row["id"]}'>🏖️<div id='vac_{$row["id"]}_box' class='popupbox'><b>Im Urlaubsmodus</b></div></span>";
+        $vacation_badge = "<span class='popup' id='vac_{$row["id"]}'>🏖️<div id='vac_{$row["id"]}_box' class='popupbox'><b>Im Urlaubsmodus</b></div></span>";
     }
 
     $sword_icon = "";
     if ($is_attackable) {
         $sword_icon = " <span class='ranking-attack-sword' title='Angreifbar'>
-                            <img src='images/icons/icon_sword.png' alt='Angreifbar'>
-                        </span>";
+                <img src='images/icons/icon_sword.png' alt='Angreifbar'>
+            </span>";
     }
 
     $player = new User($user_id, $user_name);
-
     $user_link = "<a href='#' 
-                    data-on-click='openOverlay' 
-                    data-url='userinfo.php?userid=$user_id' 
-                    data-title='Spieler-Info'
-                    class='popup' 
-                    id='activity_$pos' 
-                    style='$name_style'>$display_name
-                    <div id='activity_{$pos}_box' class='popupbox'>Zuletzt aktiv: $last_activity_text</div>
-                  </a>";
+            data-on-click='openOverlay' 
+            data-url='userinfo.php?userid=$user_id' 
+            data-title='Spieler-Info' 
+            class='popup' 
+            id='activity_$pos' 
+            style='$name_style'>$display_name
+            <div id='activity_{$pos}_box' class='popupbox'>Zuletzt aktiv: $last_activity_text</div>
+        </a>";
 
     $view .= "<tr>
-                <td class='td-shrink' style='text-align: right;'>$pos</td>
-                <td class='td-expand'>" . $player->render_user("$user_link $guild_display $vacation_badge", $color, "rank_av_$pos", false, null, false, true) . "</td>
-                <td class='td-score'>" . fnum($row["score"], true) . " $sword_icon</td>
-            </tr>";
+            <td class='td-shrink' style='text-align: right;'>$pos</td>
+            <td class='td-expand'>" . $player->render_user(
+            content: $user_link,
+            status_color: $color,
+            popup_id: "rank_av_$pos",
+            show_title: true,
+            show_guild: true,
+            guild_tag: $row["guild_tag"] ?? null,
+            guild_id: (int)$user_guild_id,
+            extra_badge: $vacation_badge
+        ) . "</td>
+            <td class='td-score'>" . fnum($row["score"], true) . " $sword_icon</td>
+        </tr>";
     $pos++;
 }
 $view .= "</table>";

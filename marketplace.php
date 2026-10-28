@@ -97,7 +97,7 @@ $view .= '<form action="marketplace.php" method="GET"
       data-type-field="d" 
       data-amount-field="dv"
       data-is-listing="true">
-    <table class="table" style="margin-bottom: 15px;">
+    <table class="table marketplace-form-table" style="margin-bottom: 15px;">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>

@@ -143,12 +143,6 @@ if (isset($_GET["action"])) {
                 $result = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$sender_id]);
                 $chat_partner = $result->fetch_assoc()["username"] ?? "";
 
-                // Set all unread msgs as read
-                $db_instance->execute_query(
-                    "UPDATE messages SET hasread = 1 WHERE senderid = ? AND receiverid = ? AND hasread = 0",
-                    [$sender_id, $user->get_user_id()]
-                );
-
                 // Check if conversation between the two exists
                 $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
                 $result = $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
@@ -280,8 +274,8 @@ if (isset($_GET["action"])) {
 if (isset($_GET["worldchat"])) {
     $view .= $messages->show_world_chat();
 
-    $max_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
-    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$max_id, $user->get_user_id()]);
+//    $max_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
+//    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$max_id, $user->get_user_id()]);
 
     $inbox_header = "Welt-Chat";
 } else if (isset($_GET["servermsgs"])) {
