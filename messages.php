@@ -303,7 +303,7 @@ if (isset($_GET["worldchat"])) {
 
     $view .= "</div>";
 
-    $view .= "<div id='messages-section' class='large-height'>";
+    $view .= "<div id='messages-section' class='large-height' data-chat-type='server'>";
     $view .= $messages->show_server_inbox();
     $view .= "</div>";
 

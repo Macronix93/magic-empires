@@ -15,7 +15,6 @@ require_once("includes/core.php");
 // Fetch all buildings and their dependencies
 $techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_UNIVERSITY);
 $buildings = $kingdom->fetch_all_kingdom_buildings();
-$tech_count = count($techs);
 $tech_id = (empty($_GET["tid"]) ? 0 : (int)$_GET["tid"]);
 
 $kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
@@ -38,7 +37,7 @@ $global_imp_level = (int)($imp_data["imp_level"] ?? 0);
 $curr_founded = (int)($imp_data["founded_count"] ?? 1);
 
 if (isset($_GET["action"])) {
-    if ($tech_id >= 0 && $tech_id < $tech_count) {
+    if (isset($techs[$tech_id])) {
         $tech_level = $techs[$tech_id]->get_tech_level();
         $tech_max_level = $techs[$tech_id]->get_tech_max_level();
         $costs = $techs[$tech_id]->calculate_tech_cost();
@@ -82,6 +81,15 @@ if (isset($_GET["action"])) {
                             }
                         }
 
+                        if ($tech_id == TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
+                            $required_barracks_lvl = ($target_level >= 3) ? 10 : 9;
+                            $current_barracks_lvl = $buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level();
+
+                            if ($current_barracks_lvl < $required_barracks_lvl) {
+                                $error .= "Für Stufe $target_level benötigst du Kaserne Stufe $required_barracks_lvl!<br>";
+                            }
+                        }
+
                         $tech_dependencies = $techs[$tech_id]->get_tech_dependencies();
 
                         foreach ($tech_dependencies as $dependency) {
@@ -113,7 +121,9 @@ if (isset($_GET["action"])) {
                             if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                                 $error = "Nicht genügend Ressourcen!";
                             } else {
-                                $tech_time = time() + (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
+                                $uni_mult = $kingdom->get_university_research_multiplier();
+                                $base_sec = (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
+                                $tech_time = time() + (int)round($base_sec * $uni_mult);
 
                                 // Subtract research costs from kingdom resources
                                 $kingdom->give_kingdom_wood(-$cost_wood);
@@ -224,6 +234,18 @@ if ($rites_lvl > 0) {
     $boni_view .= "<tr><td>Ahnenritus:</td><td class='passed'>+$effect% Schrein-Effektivität</td></tr>";
 }
 
+$scholarship_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SCHOLARSHIP);
+if ($scholarship_lvl > 0) {
+    $percent = fdec($scholarship_lvl * SCHOLARSHIP_RESEARCH_REDUCTION * 100);
+    $boni_view .= "<tr><td>Gelehrsamkeit:</td><td class='passed'>-$percent% Forschungszeit</td></tr>";
+}
+
+$barracks_exp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BARRACKS_EXPANSION);
+if ($barracks_exp_lvl > 0) {
+    $val = fnum($barracks_exp_lvl * BARRACKS_EXPANSION_CAPACITY_PER_LEVEL);
+    $boni_view .= "<tr><td>Kasernenausbau:</td><td class='passed'>+$val Truppenkapazität</td></tr>";
+}
+
 if ($current_kingdom == $user->get_main_kingdom()) {
     $settlement_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
     if ($settlement_lvl > 0) {
@@ -267,21 +289,21 @@ $view .= '<table class="table">
                         <b>Aktion</b></td>
                 </tr>';
 
-for ($i = 0; $i < $tech_count; $i++) {
-    $tech_obj_id = $techs[$i]->get_tech_id();
+foreach ($techs as $i => $tech) {
+    $tech_obj_id = $tech->get_tech_id();
 
-    // Imperium-Forschung nur im Haupt-Königreich anzeigen
+    // Show Imperial tech only in main kingdom
     if ($tech_obj_id == TechTypes::TECH_TYPE_IMPERIAL && $current_kingdom != $user->get_main_kingdom()) {
         continue;
     }
 
-    $level = (int)$techs[$i]->get_tech_level();
-    $max_level = (int)$techs[$i]->get_tech_max_level();
+    $level = (int)$tech->get_tech_level();
+    $max_level = (int)$tech->get_tech_max_level();
     $is_maxed = ($level >= $max_level);
 
     if (!$is_maxed) {
         $show_tech = true;
-        $tech_dependencies = $techs[$i]->get_tech_dependencies();
+        $tech_dependencies = $tech->get_tech_dependencies();
         foreach ($tech_dependencies as $dependency) {
             // BUILDING DEPENDENCIES check
             if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
@@ -317,7 +339,7 @@ for ($i = 0; $i < $tech_count; $i++) {
     if ($is_maxed) {
         $text_build = "<b class='passed'>MAX</b>";
     } else {
-        $costs = $techs[$i]->calculate_tech_cost();
+        $costs = $tech->calculate_tech_cost();
         $cost_wood = $costs["cost_wood"];
         $cost_food = $costs["cost_food"];
         $cost_stone = $costs["cost_stone"];
@@ -358,16 +380,29 @@ for ($i = 0; $i < $tech_count; $i++) {
             if ($tech_obj_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
                 $required_wt_lvl = $target_level + 1;
                 $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
+
                 if ($current_wt_lvl < $required_wt_lvl) {
                     $is_wt_locked = true;
                 }
             }
 
-            if ($is_uni_locked || $is_wt_locked) {
+            $is_barracks_locked = false;
+            $required_barracks_lvl = 0;
+            if ($tech_obj_id == TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
+                $required_barracks_lvl = ($target_level >= 3) ? 10 : 9;
+                $current_barracks_lvl = $buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level();
+
+                if ($current_barracks_lvl < $required_barracks_lvl) {
+                    $is_barracks_locked = true;
+                }
+            }
+
+            if ($is_uni_locked || $is_wt_locked || $is_barracks_locked) {
                 $lock_msgs = [];
 
                 if ($is_uni_locked) $lock_msgs[] = "Universität Stufe $required_uni_lvl benötigt";
                 if ($is_wt_locked) $lock_msgs[] = "Wachturm Stufe $required_wt_lvl benötigt";
+                if ($is_barracks_locked) $lock_msgs[] = "Kaserne Stufe $required_barracks_lvl benötigt";
 
                 $text_build = "<span class='error item-needed'>" . implode("<br>", $lock_msgs) . "</span>";
             } else {
@@ -400,21 +435,24 @@ for ($i = 0; $i < $tech_count; $i++) {
     $view .= "<tr>
         <td>
             <div class='map-legend' style='justify-content: left;'>
-            <div class='legend-item'>" . $techs[$i]->get_tech_icon() . "</div>
+            <div class='legend-item'>" . $tech->get_tech_icon() . "</div>
                 <div class='legend-item'>
-                    <b class='popup' id='description" . $i . "'>" . $techs[$i]->get_tech_name() . " 
-                        <div id='description" . $i . "_box' class='popupbox'>" . $techs[$i]->get_tech_description() . "</div> ($level)
+                    <b class='popup' id='description" . $i . "'>" . $tech->get_tech_name() . " 
+                        <div id='description" . $i . "_box' class='popupbox'>" . $tech->get_tech_description() . "</div> ($level)
                     </b>
                 </div>
             </div>";
 
     if (!$is_maxed) {
+        $uni_mult = $kingdom->get_university_research_multiplier();
+        $tech_base_sec = (int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level));
+
         $view .= "
             <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                 $resource_costs
             </div>
             " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-            " . convert_sec_to_str((int)round($techs[$i]->get_tech_time() * pow($techs[$i]->get_tech_mult(), $level)));
+            " . convert_sec_to_str((int)round($tech_base_sec * $uni_mult));
     }
 
     $view .= "

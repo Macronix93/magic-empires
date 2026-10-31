@@ -35,13 +35,14 @@ if (!$is_season_active) {
     // Load arena data
     $arena_rank_page = max(1, (int)($_GET["page"] ?? 1));
     $rank_per_page = 10;
-    $total_rank_entries = $is_participating ? $arena->get_leaderboard_count() : 0;
+
+    $total_rank_entries = $arena->get_leaderboard_count();
     $total_rank_pages = max(1, (int)ceil($total_rank_entries / $rank_per_page));
     if ($arena_rank_page > $total_rank_pages) $arena_rank_page = $total_rank_pages;
     $rank_offset = ($arena_rank_page - 1) * $rank_per_page;
 
     $opponents = ($is_participating) ? $arena->get_or_roll_opponents() : [];
-    $leaderboard = ($is_participating) ? $arena->get_leaderboard($rank_per_page, $rank_offset) : [];
+    $leaderboard = $arena->get_leaderboard($rank_per_page, $rank_offset);
     $history = $arena->get_battle_history(15);
 
     $seconds_next_coin = ($is_participating) ? $arena->get_seconds_until_next_coin() : 0;
@@ -89,9 +90,12 @@ if (!$is_season_active) {
         <div class='box-container' style='max-width: 650px; margin: 0 auto 20px auto;'>
             <div class='box-header' style='display: flex; justify-content: space-between; align-items: center; padding: 0 15px;'>
                 <span>Arena-Status</span>
-                <button type='button' data-on-click='refreshArena' style='font-size: 13px;' title='Arena-Werte aktualisieren'>
-                    " . Messages::wrap_emojis("🔄 Aktualisieren") . "
-                </button>
+                <div style='display: flex; justify-content: center; align-items: center; gap: 15px;'>
+                    <button data-on-click='openOverlay' data-url='ajax/arena_info.php' data-title='Arena-Erklärung' class='arena-info-button'>Info</button>
+                    <button type='button' data-on-click='refreshArena' title='Arena-Werte aktualisieren' class='arena-info-button'>
+                        " . Messages::wrap_emojis("🔄 Aktualisieren") . "
+                    </button>
+                </div>
             </div>
             <div class='box-content box-content-bg' style='padding: 15px;'>
                 <div style='display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px;'>
@@ -423,10 +427,20 @@ if (!$is_season_active) {
             default => ""
         };
 
+        $arena_user_link = "<a href='#' data-on-click='openArenaUserModal' 
+                                        data-userid='{$entry["user_id"]}' 
+                                        data-username='" . e($entry["username"]) . "' 
+                                        class='user-name-link'>" . e($entry["username"]) . "</a>";
+
         $view .= "
             <tr $row_style>
                 <td class='td-center $rank_class'>$pos</td>
-                <td>" . $u_obj->render_user(show_guild: true, guild_tag: $entry["guild_tag"] ?? null, guild_id: (int)($entry["guildid"] ?? 0)) . "</td>
+                <td>" . $u_obj->render_user(
+                content: $arena_user_link,
+                show_guild: true,
+                guild_tag: $entry["guild_tag"] ?? null,
+                guild_id: (int)($entry["guildid"] ?? 0)
+            ) . "</td>
                 <td class='td-center $rank_class'><b>" . fnum($entry["elo"]) . " ELO</b></td>
             </tr>";
 
@@ -463,6 +477,10 @@ if (!$is_season_active) {
 
     $user_max_tc = Arena::get_player_max_tc($uid);
 
+    $view .= "<button type='button' data-on-click='openOverlay' data-url='ajax/arena_season_history.php' data-title='Arena Saison-Archiv'
+                style='margin-top: 10px;'>
+                " . Messages::wrap_emojis("🏆 Saison-Archiv") . "
+            </button>";
     $view .= "
     <div class='box-container' style='margin: 25px auto; max-width: 500px;'>
         <div class='box-header'>Saison-Belohnungen</div>
@@ -559,6 +577,10 @@ if (!$is_season_active) {
                  data-defense-techs='" . e(json_encode($current_def_techs)) . "'
                  data-reward-kingdom-id='$current_reward_kid'
                  style='display:none;'></div>";
+}
+
+if ($is_season_active) {
+    $view = "<div id='arena-main-view'>$view</div><div id='arena-attack-inline-container' style='display: none;'></div>";
 }
 
 /*

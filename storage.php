@@ -48,6 +48,7 @@ $view .= "<div class='storage-listing' style='margin: auto;'>
             <div>von " . fnum($kingdom->get_kingdom_max_gold()) . "</div>
         </div>
 </div>";
+$view .= $next_level_text;
 $view .= "
     <div class='info-box event-passed' style='margin-top: 20px; flex-direction: column; padding: 15px; max-width: 550px;'>
         <span style='font-weight: bold; font-size: 22px;'>🛡️ Sichere Ressourcen</span>
@@ -60,7 +61,6 @@ $view .= "
         </span>
     </div>
 ";
-$view .= $next_level_text;
 
 /*
  * HTML Section

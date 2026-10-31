@@ -455,4 +455,95 @@ class MapSpawner
         }
         return 0;
     }
+
+    public function generate_base_map(?int $seed = null): int
+    {
+        $this->db->query("TRUNCATE TABLE map");
+
+        $seed = $seed ?? mt_rand(1000, 99999);
+        $insert_values = [];
+
+        for ($y = 1; $y <= MAX_Y; $y++) {
+            for ($x = 1; $x <= MAX_X; $x++) {
+                $mt = self::get_fractal($x, $y, $seed + 8888, 5, 0.25, 0.15);
+
+                if ($mt > 0.70) {
+                    $ft = 1; // Gebirge
+                } else {
+                    $e = self::get_fractal($x, $y, $seed, 5, 0.5, 0.35);
+                    if ($e < 0.35) {
+                        $ft = 2; // Küste
+                    } else {
+                        $m = self::get_fractal($x, $y, $seed + 5555, 4, 0.5, 0.2);
+                        if ($m < 0.38) {
+                            $ft = 4; // Wüste
+                        } else if ($m > 0.62) {
+                            $ft = 3; // Wald
+                        } else {
+                            $ft = 5; // Hochland
+                        }
+                    }
+                }
+                $insert_values[] = "($x, $y, $ft, -1)";
+            }
+        }
+
+        foreach (array_chunk($insert_values, 1000) as $chunk) {
+            $this->db->query("INSERT INTO map (mapx, mapy, fieldtype, kingdomid) VALUES " . implode(',', $chunk));
+        }
+
+        return count($insert_values);
+    }
+
+    private static function noise_rand(float|int $x, float|int $y, int $s): float|int
+    {
+        $n = ($x * 374761393 + $y * 668265263 + $s * 1446645) & 0xFFFFFFFF;
+        $n = (($n ^ ($n >> 13)) * 1274126177) & 0xFFFFFFFF;
+        return (($n ^ ($n >> 16)) & 0x7FFFFFFF) / 2147483647;
+    }
+
+    private static function noise_lerp(float|int $a, float|int $b, float|int $t): float|int
+    {
+        return $a + $t * ($b - $a);
+    }
+
+    private static function noise_fade(float|int $t): float|int
+    {
+        return $t * $t * $t * ($t * ($t * 6 - 15) + 10);
+    }
+
+    private static function get_val_noise(float|int $x, float|int $y, int $s): float|int
+    {
+        $x0 = floor($x);
+        $y0 = floor($y);
+        $sx = self::noise_fade($x - $x0);
+        $sy = self::noise_fade($y - $y0);
+
+        $n0 = self::noise_rand($x0, $y0, $s);
+        $n1 = self::noise_rand($x0 + 1, $y0, $s);
+        $ix0 = self::noise_lerp($n0, $n1, $sx);
+
+        $n0 = self::noise_rand($x0, $y0 + 1, $s);
+        $n1 = self::noise_rand($x0 + 1, $y0 + 1, $s);
+        $ix1 = self::noise_lerp($n0, $n1, $sx);
+
+        return self::noise_lerp($ix0, $ix1, $sy);
+    }
+
+    private static function get_fractal(float|int $x, float|int $y, int $s, int $oct, float $pers, float $scale): float|int
+    {
+        $total = 0;
+        $freq = $scale;
+        $amp = 1;
+        $maxV = 0;
+
+        for ($i = 0; $i < $oct; $i++) {
+            $total += self::get_val_noise($x * $freq, $y * $freq, $s + $i * 100) * $amp;
+            $maxV += $amp;
+            $amp *= $pers;
+            $freq *= 2;
+        }
+
+        return $total / $maxV;
+    }
 }

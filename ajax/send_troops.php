@@ -914,9 +914,10 @@ if ($barracks_level > 0) {
 
         $support_attrs = "";
         if ($is_ally) {
-            $support_attrs = ' data-is-support="true" 
-                                   data-support-current="' . $current_support_load . '" 
-                                   data-support-max="' . $total_support_limit . '"';
+            $free_support_slots = max(0, $total_support_limit - $current_support_load);
+            $support_attrs = ' data-is-support="true" data-support-limit="' . $free_support_slots . '" 
+                                data-support-current="' . $current_support_load . '" 
+                                data-support-max="' . $total_support_limit . '"';
         }
 
         $view .= '<form action="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . '>

@@ -7,6 +7,21 @@ let flashTimeout = null;
 let activeHoverPopup = null;
 const UPDATE_MSG_BADGES_INTERVAL = 60000;
 
+registerAction("switchKingdomFromPopup", (el, e) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    const kid = el.dataset.id;
+    if (kid) {
+        el.disabled = true;
+        el.innerText = "Wechsle...";
+        document.querySelectorAll('.popupbox').forEach(b => b.style.display = "none");
+
+        switchKingdomById(kid);
+    }
+});
 registerAction("redirect", (el) => {
     const url = el.dataset.url;
     if (url) {
@@ -674,16 +689,20 @@ function setup() {
                 let left, top;
 
                 if (box.classList.contains("popup-right") && window.innerWidth < 600) {
-                    left = mousePos[0] + 18;
-                    top = mousePos[1] - 15;
+                    const targetElem = trigger.querySelector('.kingdom-link') || trigger;
+                    const triggerRect = targetElem.getBoundingClientRect();
+                    const elemScrollX = window.pageXOffset || document.documentElement.scrollLeft;
+                    const elemScrollY = window.pageYOffset || document.documentElement.scrollTop;
 
-                    if (left + boxWidth > scrollX + viewportWidth - 10) {
-                        left = mousePos[0] - boxWidth - 18;
+                    left = triggerRect.right + elemScrollX + 8;
+                    top = triggerRect.top + elemScrollY - 10;
+
+                    if (left + boxWidth > elemScrollX + viewportWidth - 10) {
+                        left = Math.max(elemScrollX + 8, elemScrollX + viewportWidth - boxWidth - 10);
                     }
 
-                    let clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
-                    if (clientY - 15 + boxHeight > viewportHeight - 10) {
-                        top = mousePos[1] - boxHeight + 10;
+                    if (triggerRect.top - 10 + boxHeight > viewportHeight - 10) {
+                        top = Math.max(elemScrollY + 10, elemScrollY + viewportHeight - boxHeight - 10);
                     }
                 } else {
                     left = mousePos[0] - (boxWidth / 2);
@@ -1335,6 +1354,34 @@ function updateSidebarBadges(counts) {
         mobileDot.style.display = (total > 0 || hasAlert) ? "block" : "none";
     }
 }
+
+document.addEventListener("pointerdown", (e) => {
+    const btn = e.target.closest('div[id^="pop_k_preview_"] button[data-on-click="switchKingdomFromPopup"]');
+    if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const kid = btn.dataset.id;
+        if (kid) {
+            btn.disabled = true;
+            btn.innerText = "Wechsle...";
+
+            const box = btn.closest('.popupbox');
+            if (box) box.style.display = "none";
+
+            switchKingdomById(kid);
+        }
+        return;
+    }
+
+    if (window.innerWidth <= 600) {
+        const openPreview = document.querySelector('div[id^="pop_k_preview_"][id$="_box"][style*="display: block"]');
+
+        if (openPreview && !openPreview.contains(e.target) && !e.target.closest('.popup')) {
+            openPreview.style.display = "none";
+        }
+    }
+}, true);
 
 if (document.body.classList.contains("logged-in")) {
     setInterval(() => {

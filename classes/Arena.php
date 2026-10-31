@@ -97,14 +97,51 @@ class Arena
         if (empty($opponents)) {
             return show_warning_box("Aktuell befinden sich keine weiteren Spieler in deiner Wertungs-Reichweite. Versuche es später noch einmal!");
         }
+
+        // Load cooldowns
+        $opp_ids = array_column($opponents, "user_id");
+        $cooldowns = [];
+        if (!empty($opp_ids)) {
+            $placeholders = implode(',', array_fill(0, count($opp_ids), '?'));
+            $res_cd = Database::get_instance()->get_connection()->execute_query("
+                SELECT defender_id, MAX(created_at) as last_battle 
+                FROM arena_battles 
+                WHERE attacker_id = ? AND defender_id IN ($placeholders)
+                GROUP BY defender_id
+            ", array_merge([$uid], $opp_ids));
+            while ($row = $res_cd->fetch_assoc()) {
+                $cooldowns[(int)$row["defender_id"]] = (int)$row["last_battle"];
+            }
+        }
+
+        $now = time();
         $html = "";
         foreach ($opponents as $opp) {
+            $opp_id = (int)$opp["user_id"];
             $opp_elo = (int)$opp["elo"];
             $guild_badge = !empty($opp["guild_tag"]) ? " <small style='color: var(--link-color);'>[" . e($opp["guild_tag"]) . "]</small>" : "";
 
             [$win_gain,] = Arena::calculate_elo((int)$player_data["elo"], $opp_elo, $uid, $uid);
-            [$loss_gain,] = Arena::calculate_elo((int)$player_data["elo"], $opp_elo, (int)$opp["user_id"], $uid);
+            [$loss_gain,] = Arena::calculate_elo((int)$player_data["elo"], $opp_elo, $opp_id, $uid);
             $gain_text = "<span class='passed'>+$win_gain</span> / <span class='error'>$loss_gain</span>";
+
+            $last_battle_time = $cooldowns[$opp_id] ?? 0;
+            $cooldown_left = max(0, ($last_battle_time + ARENA_OPPONENT_ATTACK_COOLDOWN) - $now);
+
+            if ($cooldown_left > 0) {
+                $button_html = "
+                    <button type='button' class='btn-accept' disabled style='min-width: 120px; font-variant-numeric: tabular-nums;' title='Gegner-Cooldown aktiv'>
+                        <span class='js-countdown' data-seconds='$cooldown_left' data-keep-params='true' data-zero-text='Bereit'>" . format_time_for_js($cooldown_left) . "</span>
+                    </button>";
+            } else {
+                $is_no_coins = ($player_data["coins"] <= 0);
+                $btn_title = $is_no_coins ? "title='Keine Arena-Münzen übrig!'" : "";
+                $button_html = " <button type='button' class='btn-accept'  
+                                    data-on-click='openArenaAttackInline'  
+                                    data-id='$opp_id'  
+                                    data-name='" . e($opp["username"]) . "'  
+                                    data-elo='$opp_elo' " . ($is_no_coins ? "disabled" : "") . " $btn_title style='min-width: 120px;'> Herausfordern </button>";
+            }
 
             $html .= "
             <div class='box-container opponent-card' style='margin-bottom: 0;'>
@@ -118,13 +155,7 @@ class Arena
                         </div>
                     </div>
                     <div>
-                        <button type='button' class='btn-accept' 
-                            data-on-click='openArenaAttackModal' 
-                            data-id='{$opp["user_id"]}' 
-                            data-name='" . e($opp["username"]) . "' 
-                            data-elo='$opp_elo' " . ($player_data["coins"] <= 0 ? "disabled" : "") . ">
-                            Herausfordern
-                        </button>
+                        $button_html
                     </div>
                 </div>
             </div>";
@@ -159,13 +190,12 @@ class Arena
         return [$change_attacker, $change_defender];
     }
 
-    public static function check_and_process_season_reset(bool $force = false): int
+    public static function check_and_process_season_reset(bool $force = false, bool $distribute_rewards = true): int
     {
         $db = Database::get_instance()->get_connection();
         $now = time();
         $info = self::get_season_time_info();
         $current_month_key = date('Y-m', $now);
-
         $last_rewarded_month = (string)($db->execute_query(
             "SELECT value FROM system_settings WHERE name = 'arena_season_rewarded_month'"
         )->fetch_column() ?? '');
@@ -173,7 +203,8 @@ class Arena
         // PHASE 1: Active phase finished -> give users rewards
         if ($force || (!$info["is_active"] && $last_rewarded_month !== $current_month_key)) {
             $players_res = $db->query("
-                SELECT ap.user_id, ap.elo, ap.season_battles, ap.reward_kingdom_id, u.username, u.mainkingdom
+                SELECT ap.user_id, ap.elo, ap.wins, ap.losses, ap.draws, ap.season_battles, ap.reward_kingdom_id,
+                       u.username, u.mainkingdom
                 FROM arena_players ap
                 JOIN users u ON ap.user_id = u.id
                 WHERE ap.defense_troops IS NOT NULL 
@@ -181,91 +212,113 @@ class Arena
                   AND u.status = 1
                 ORDER BY ap.elo DESC, ap.wins DESC, ap.user_id
             ");
-
             $ranked_players = $players_res->fetch_all(MYSQLI_ASSOC);
             $total_rewarded = count($ranked_players);
             $rank = 1;
 
+            $messages_to_send = [];
+            $stats_to_update = [];
+
             $db->begin_transaction();
             try {
+                $db->execute_query("DELETE FROM arena_season_history WHERE season_month = ?", [$current_month_key]);
+
                 foreach ($ranked_players as $p) {
                     $uid = (int)$p["user_id"];
                     $uname = $p["username"];
                     $old_elo = (int)$p["elo"];
                     $preferred_kid = (int)($p["reward_kingdom_id"] ?? 0);
 
-                    if ($rank <= 3) {
-                        Stats::update_player_stat($uid, "arena_top3_count");
-                    }
-                    if ($rank <= 5) {
-                        Stats::update_player_stat($uid, "arena_top5_count");
-                    }
-
-                    $reward = null;
-                    foreach (ARENA_SEASON_REWARDS as $max_rank => $rew) {
-                        if ($rank <= $max_rank) {
-                            $reward = $rew;
-                            break;
+                    if ($distribute_rewards) {
+                        if ($rank <= 3) {
+                            $stats_to_update[] = [$uid, "arena_top3_count"];
                         }
-                    }
-
-                    if ($reward) {
-                        $u_obj = new User($uid, $uname);
-                        if ($reward["coins"] > 0) {
-                            $u_obj->give_user_coins($reward["coins"]);
+                        if ($rank <= 5) {
+                            $stats_to_update[] = [$uid, "arena_top5_count"];
                         }
 
-                        $target_kid = 0;
-                        if ($preferred_kid > 0) {
-                            $check_k = $db->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?", [$preferred_kid, $uid]);
-
-                            if ($check_k->num_rows > 0) $target_kid = $preferred_kid;
-                        }
-                        if ($target_kid <= 0) {
-                            $target_kid = (int)($db->execute_query("
-                                SELECT id FROM kingdoms WHERE userid = ? 
-                                ORDER BY (id = (SELECT mainkingdom FROM users WHERE id = ?)) DESC, id LIMIT 1
-                            ", [$uid, $uid])->fetch_column() ?? 0);
+                        $reward = null;
+                        foreach (ARENA_SEASON_REWARDS as $max_rank => $rew) {
+                            if ($rank <= $max_rank) {
+                                $reward = $rew;
+                                break;
+                            }
                         }
 
-                        $player_max_tc = self::get_player_max_tc($uid);
-                        $scaled_res = (int)round($reward["res"] / MAX_BUILDING_LEVEL * $player_max_tc);
+                        if ($reward) {
+                            $u_obj = new User($uid, $uname);
+                            if ($reward["coins"] > 0) {
+                                $u_obj->give_user_coins($reward["coins"]);
+                            }
 
-                        $res_loot = [];
-                        if ($scaled_res > 0 && $target_kid > 0) {
-                            $k_obj = new Kingdom($target_kid);
-                            $k_obj->give_kingdom_food($scaled_res);
-                            $k_obj->give_kingdom_wood($scaled_res);
-                            $k_obj->give_kingdom_stone($scaled_res);
-                            $k_obj->give_kingdom_gold($scaled_res);
+                            $target_kid = 0;
+                            if ($preferred_kid > 0) {
+                                $check_k = $db->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?", [$preferred_kid, $uid]);
+                                if ($check_k->num_rows > 0) $target_kid = $preferred_kid;
+                            }
+                            if ($target_kid <= 0) {
+                                $target_kid = (int)($db->execute_query("
+                                    SELECT id FROM kingdoms WHERE userid = ? 
+                                    ORDER BY (id = (SELECT mainkingdom FROM users WHERE id = ?)) DESC, id LIMIT 1
+                                ", [$uid, $uid])->fetch_column() ?? 0);
+                            }
 
-                            $res_loot = [
-                                ResourceTypes::RESOURCE_TYPE_COINS => $reward["coins"],
-                                ResourceTypes::RESOURCE_TYPE_FOOD => $scaled_res,
-                                ResourceTypes::RESOURCE_TYPE_WOOD => $scaled_res,
-                                ResourceTypes::RESOURCE_TYPE_STONE => $scaled_res,
-                                ResourceTypes::RESOURCE_TYPE_GOLD => $scaled_res
+                            $player_max_tc = self::get_player_max_tc($uid);
+                            $scaled_res = (int)round($reward["res"] / MAX_BUILDING_LEVEL * $player_max_tc);
+                            $res_loot = [];
+                            if ($scaled_res > 0 && $target_kid > 0) {
+                                $k_obj = new Kingdom($target_kid);
+                                $k_obj->give_kingdom_food($scaled_res);
+                                $k_obj->give_kingdom_wood($scaled_res);
+                                $k_obj->give_kingdom_stone($scaled_res);
+                                $k_obj->give_kingdom_gold($scaled_res);
+                                $res_loot = [
+                                    ResourceTypes::RESOURCE_TYPE_COINS => $reward["coins"],
+                                    ResourceTypes::RESOURCE_TYPE_FOOD => $scaled_res,
+                                    ResourceTypes::RESOURCE_TYPE_WOOD => $scaled_res,
+                                    ResourceTypes::RESOURCE_TYPE_STONE => $scaled_res,
+                                    ResourceTypes::RESOURCE_TYPE_GOLD => $scaled_res
+                                ];
+                            }
+
+                            $messages_to_send[] = [
+                                "uid" => $uid,
+                                "uname" => $uname,
+                                "json" => [
+                                    "template" => "arena_season_reward",
+                                    "rank" => $rank,
+                                    "tier_label" => $reward["label"],
+                                    "elo" => $old_elo,
+                                    "loot" => $res_loot
+                                ]
                             ];
                         }
-
-                        $msg_json = [
-                            "template" => "arena_season_reward",
-                            "rank" => $rank,
-                            "tier_label" => $reward["label"],
-                            "elo" => $old_elo,
-                            "loot" => $res_loot
-                        ];
-                        Messages::send_server_message($uid, $uname, MessageCategories::CATEGORY_DEFAULT, $msg_json);
                     }
+
+                    // Entry for seasonal archive
+                    $db->execute_query("
+                        INSERT INTO arena_season_history 
+                        (season_month, rank_pos, user_id, elo, wins, losses, draws, battles, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ", [
+                        $current_month_key,
+                        $rank,
+                        $uid,
+                        $old_elo,
+                        (int)$p["wins"],
+                        (int)$p["losses"],
+                        (int)$p["draws"],
+                        (int)$p["season_battles"],
+                        $now
+                    ]);
 
                     // Reset players in arena
                     $db->execute_query("
-                        UPDATE arena_players 
+                    UPDATE arena_players 
                         SET elo = ?, coins = ?, last_season_rank = ?, wins = 0, losses = 0, draws = 0, 
                             season_battles = 0, daily_rerolls = 0, hero_level = 1, hero_xp = 0, active_hero_skill_id = 1, 
-                            last_reroll_reset = ?, current_opponents = NULL, 
-                            defense_troops = NULL, defense_techs = NULL, reward_kingdom_id = NULL,
-                            last_coin_update = ?, updated_at = ?
+                            last_reroll_reset = ?, current_opponents = NULL, defense_troops = NULL, defense_techs = NULL, 
+                            reward_kingdom_id = NULL, last_coin_update = ?, updated_at = ?
                         WHERE user_id = ?
                     ", [ARENA_DEFAULT_ELO, ARENA_MAX_COINS, $rank, $now, $now, $now, $uid]);
 
@@ -275,34 +328,48 @@ class Arena
                 // Reset inactive players
                 $db->execute_query("
                     UPDATE arena_players 
-                    SET elo = ?, coins = ?, wins = 0, losses = 0, draws = 0, season_battles = 0,
-                        last_season_rank = NULL, daily_rerolls = 0, hero_level = 1, hero_xp = 0, active_hero_skill_id = 1,
-                        last_reroll_reset = ?, current_opponents = NULL, defense_troops = NULL, defense_techs = NULL,
-                        reward_kingdom_id = NULL, last_coin_update = ?, updated_at = ?
+                    SET elo = ?, coins = ?, wins = 0, losses = 0, draws = 0, season_battles = 0, last_season_rank = NULL, 
+                        daily_rerolls = 0, hero_level = 1, hero_xp = 0, active_hero_skill_id = 1, last_reroll_reset = ?, 
+                        current_opponents = NULL, defense_troops = NULL, defense_techs = NULL, reward_kingdom_id = NULL, 
+                        last_coin_update = ?, updated_at = ?
                     WHERE season_battles = 0
                 ", [ARENA_DEFAULT_ELO, ARENA_MAX_COINS, $now, $now, $now]);
 
-                // Delete battle logs
-                /** @noinspection SqlWithoutWhere */
+                // Clear battles and hero skills
+                /* @noinspection SqlWithoutWhere */
                 $db->query("DELETE FROM arena_battles");
-                $db->query("ALTER TABLE arena_battles AUTO_INCREMENT = 1");
-                /** @noinspection SqlWithoutWhere */
+                /* @noinspection SqlWithoutWhere */
                 $db->query("DELETE FROM arena_hero_skills");
 
                 // Mark month as rewarded
-                $db->execute_query("
-                    INSERT INTO system_settings (name, value) VALUES ('arena_season_rewarded_month', ?)
+                if ($distribute_rewards) {
+                    $db->execute_query("
+                    INSERT INTO system_settings (name, value) 
+                    VALUES ('arena_season_rewarded_month', ?) 
                     ON DUPLICATE KEY UPDATE value = VALUES(value)
                 ", [$current_month_key]);
+                }
 
                 $db->commit();
-                return $total_rewarded;
             } catch (Throwable $e) {
                 $db->rollback();
-
                 Logger::get_instance()->error("Fehler beim Arena Saison-Reset: " . $e->getMessage());
                 return 0;
             }
+
+            try {
+                $db->query("ALTER TABLE arena_battles AUTO_INCREMENT = 1");
+            } catch (Throwable) {
+            }
+
+            foreach ($messages_to_send as $m) {
+                Messages::send_server_message($m["uid"], $m["uname"], MessageCategories::CATEGORY_DEFAULT, $m["json"]);
+            }
+            foreach ($stats_to_update as $s) {
+                Stats::update_player_stat($s[0], $s[1]);
+            }
+
+            return $total_rewarded;
         }
 
         return 0;
@@ -364,16 +431,12 @@ class Arena
     public static function is_season_active(): bool
     {
         static $active = null;
+
         if ($active !== null) {
             return $active;
         }
 
-        $db = Database::get_instance()->get_connection();
-        $start = (int)($db->execute_query("SELECT value FROM system_settings WHERE name = 'arena_season_start'")->fetch_column() ?? time());
-        $now = time();
-        $active_seconds = ARENA_SEASON_ACTIVE_DAYS * 86400;
-
-        return $active = (($now - $start) < $active_seconds);
+        return $active = self::get_season_time_info()["is_active"];
     }
 
     public function get_rerolls_left(): int
@@ -607,6 +670,14 @@ class Arena
             return ["success" => false, "error" => "Du kannst dich nicht selbst herausfordern."];
         }
 
+        $cooldown_left = $this->get_opponent_cooldown_left($defender_id);
+        if ($cooldown_left > 0) {
+            return [
+                "success" => false,
+                "error" => "Du kannst diesen Herrscher erst in " . convert_sec_to_str($cooldown_left) . " wieder herausfordern!"
+            ];
+        }
+
         $defender = $this->get_player_data($defender_id);
         if (!$defender || empty($defender["defense_troops"])) {
             return ["success" => false, "error" => "Dieser Gegner ist nicht mehr verfügbar."];
@@ -739,7 +810,6 @@ class Arena
             ", [$new_def_elo, $def_win_inc, $def_loss_inc, $def_draw_inc, $now, $defender_id]);
 
             // Distribute XP
-            $atk_xp_gained = 0;
             $hero_leveled_up = false;
             $skill_leveled_up = false;
             $new_hero_level = $atk_hero["level"];
@@ -752,10 +822,14 @@ class Arena
             ", [$this->user_id, $defender_id, $today_start])->fetch_column();
 
             if ($combat_result["attacker_won"]) {
-                $atk_xp_gained = self::calculate_battle_xp($atk_elo_change, true, $fights_today);
-            } else if (!$combat_result["defender_won"]) {
-                $atk_xp_gained = self::calculate_battle_xp($atk_elo_change, false, $fights_today);
+                $atk_outcome = "win";
+            } else if ($combat_result["defender_won"]) {
+                $atk_outcome = "loss";
+            } else {
+                $atk_outcome = "draw";
             }
+
+            $atk_xp_gained = self::calculate_battle_xp($atk_elo_change, $atk_outcome, $fights_today);
 
             if ($atk_xp_gained > 0) {
                 $r_hero = $this->add_hero_xp($atk_xp_gained);
@@ -767,12 +841,15 @@ class Arena
                 $new_skill_level = $r_skill["level"];
             }
 
-            $def_xp_gained = 0;
             if ($combat_result["defender_won"]) {
-                $def_xp_gained = self::calculate_battle_xp($def_elo_change, true);
-            } else if (!$combat_result["attacker_won"]) {
-                $def_xp_gained = self::calculate_battle_xp($def_elo_change, false);
+                $def_outcome = "win";
+            } else if ($combat_result["attacker_won"]) {
+                $def_outcome = "loss";
+            } else {
+                $def_outcome = "draw";
             }
+
+            $def_xp_gained = self::calculate_battle_xp($def_elo_change, $def_outcome);
 
             if ($def_xp_gained > 0) {
                 $def_arena->add_hero_xp($def_xp_gained);
@@ -905,7 +982,7 @@ class Arena
             $hero_xp_notice = "<br><span style='color: var(--link-color);'>" .
                 "Held (Stufe $new_hero_level): $xp_text$h_up<br>" . "{$atk_skill["name"]} (Stufe $new_skill_level): $xp_text$s_up" . "</span>";
 
-            $main_text = "Wertungs-Änderung: <b class='$change_class' $change_style>$change_str ELO</b> (Neu: <b>" . fnum($new_atk_elo) . " ELO</b>)" . $hero_xp_notice;
+            $main_text = "<div class='arena-battle-log'>Wertungs-Änderung: <b class='$change_class' $change_style>$change_str ELO</b> (Neu: <b>" . fnum($new_atk_elo) . " ELO</b>)" . $hero_xp_notice . "</div>";
 
             $outcome_html = BattleReportRenderer::render_outcome_box(
                 $outcome_title,
@@ -917,12 +994,12 @@ class Arena
             );
 
             $battle_html = "
-            <div class='battle-report' style='padding: 5px; max-width: 650px; margin: 0 auto;'>
+            <div class='battle-report' style='padding: 5px; margin: 0 auto; text-align: left;'>
                 <div class='title-border' style='margin-top: 0;'>Arena-Duell: vs " . e($defender["username"]) . "</div>
                 $grid_html
                 $outcome_html
                 <div style='text-align: center; margin-top: 15px;'>
-                    <button type='button' data-on-click='closeOverlay' style='padding: 8px 30px; font-weight: bold;'>
+                    <button type='button' data-on-click='navigate' data-url='arena.php?tab=battle' style='padding: 8px 30px; font-weight: bold;'>
                         Weiter
                     </button>
                 </div>
@@ -943,6 +1020,18 @@ class Arena
             $this->db->rollback();
             return ["success" => false, "error" => "Fehler bei der Kampfabwicklung: " . $e->getMessage()];
         }
+    }
+
+    public function get_opponent_cooldown_left(int $defender_id): int
+    {
+        $last_battle = (int)$this->db->execute_query("
+            SELECT MAX(created_at) 
+            FROM arena_battles 
+            WHERE attacker_id = ? AND defender_id = ?
+        ", [$this->user_id, $defender_id])->fetch_column();
+
+        if ($last_battle <= 0) return 0;
+        return max(0, ($last_battle + ARENA_OPPONENT_ATTACK_COOLDOWN) - time());
     }
 
     private function prepare_combat_units(array $troops, array $techs, array $soldier_meta): array
@@ -1110,13 +1199,19 @@ class Arena
         return (float)(ARENA_HERO_RPS_BASE * pow(ARENA_HERO_RPS_FACTOR, max(0, $level - 1)));
     }
 
-    public static function calculate_battle_xp(int $elo_change, bool $is_win, int $fights_today = 0): int
+    public static function calculate_battle_xp(int $elo_change, string $outcome = "win", int $fights_today = 0): int
     {
-        if (!$is_win && $elo_change <= 0) {
+        $base = match ($outcome) {
+            "win" => ARENA_HERO_XP_WIN,
+            "draw" => ARENA_HERO_XP_DRAW,
+            "loss" => ARENA_HERO_XP_LOSS,
+            default => 0
+        };
+
+        if ($base <= 0) {
             return 0;
         }
 
-        $base = $is_win ? ARENA_HERO_XP_WIN : ARENA_HERO_XP_DRAW;
         $elo_scaling = max(0, $elo_change) * 1.5;
         $raw_xp = ($base + $elo_scaling);
 

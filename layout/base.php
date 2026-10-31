@@ -13,11 +13,11 @@ $all_user_kingdoms = [];
 $sidebar_data = $user->get_sidebar_data();
 
 if (empty($header_icon)) {
-    if (isset($building) && is_object($building) && method_exists($building, 'get_building_id')) {
+    if (isset($building) && is_object($building) && method_exists($building, "get_building_id")) {
         $header_icon = "images/icons/icon_building" . $building->get_building_id() . ".png";
     } else {
-        $current_file = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
-        $icon_key = ($current_file === 'messages.php' && isset($_GET["worldchat"])) ? 'worldchat' : $current_file;
+        $current_file = basename(parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH));
+        $icon_key = ($current_file === "messages.php" && isset($_GET["worldchat"])) ? "worldchat" : $current_file;
         $header_icon = PAGE_ICONS[$icon_key] ?? null;
     }
 }

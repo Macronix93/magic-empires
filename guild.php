@@ -780,9 +780,9 @@ if ($my_guild_id === -1) {
     if ($res_logs->num_rows > 0) {
         $view .= "<table class='table guild-mining-table' style='margin: 0 auto 20px auto;'>
         <colgroup>
-            <col style='width: 32%;'>
-            <col style='width: auto;'>
-            <col style='width: 32%;'>
+            <col class='guild-mining-finish-member'>
+            <col class='guild-mining-finish-ore'>
+            <col class='guild-mining-finish-date'>
         </colgroup>
         <tr>
             <td class='td-gradient td-center'><b>Mitglied</b></td>
@@ -1238,6 +1238,12 @@ if ($my_guild_id === -1) {
         $val = fnum($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
         $total_max = GUILD_BASE_MEMBER_LIMIT + ($member_limit_lvl * GUILD_BONUS_MEMBER_LIMIT_PER_LVL);
         $guild_boni_view .= "<tr><td>Ratsversammlung:</td><td class='passed'>+$val Mitglieder-Slots (Gesamt: $total_max)</td></tr>";
+    }
+
+    $trade_discount_lvl = $guild_logic->get_tech_level(GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
+    if ($trade_discount_lvl > 0) {
+        $val = fdec($trade_discount_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL * 100);
+        $guild_boni_view .= "<tr><td>Kaufmannskunst:</td><td class='passed'>-$val% Münzkosten bei Allianzkäufen</td></tr>";
     }
 
     if (!empty($guild_boni_view)) {

@@ -33,7 +33,8 @@ $prefill_techs = $player_data["defense_techs"] ?? [];
 <div id="modal-title-data" data-title="Duell: <?= e($defender["username"]) ?> (<?= $defender["elo"] ?> ELO)"
      data-width="650px" style="display: none;"></div>
 <div style="padding: 10px; max-width: 600px; margin: 0 auto; text-align: left;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-gold); padding-bottom: 10px;">
+    <div id="arena-opponent-header"
+         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-gold); padding-bottom: 10px;">
         <span>Gegner: <b><?= e($defender["username"]) ?></b></span>
         <span style="color: var(--link-color); font-weight: bold;"><?= fnum($defender["elo"]) ?> ELO</span>
     </div>

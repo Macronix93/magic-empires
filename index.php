@@ -113,7 +113,7 @@ if (isset($_GET["logout"])) {
                 [$_SESSION["message_count"] ?? 0, $_SESSION["message_timeframe_end"] ?? 0, $user->get_user_id()]);
 
         // Stop Session safely
-        $_SESSION = array();
+        $_SESSION = [];
 
         session_destroy();
     }

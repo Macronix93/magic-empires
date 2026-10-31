@@ -152,26 +152,26 @@ $categories = [
         "title" => "Universitäts-Forschungen",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val 
-                    FROM users u 
-                    JOIN kingdoms k ON u.id = k.userid 
-                    JOIN techs t ON k.id = t.kingdomid 
-                    WHERE t.techid < " . TechTypes::TECH_TYPE_BLADES . " AND t.techlevel > 0
-                    GROUP BY u.id 
-                    ORDER BY val DESC, uid"
+        "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val  
+                    FROM users u  
+                        JOIN kingdoms k ON u.id = k.userid  
+                        JOIN techs t ON k.id = t.kingdomid 
+                        JOIN tech_list tl ON t.techid = tl.id 
+                    WHERE tl.origin_building = " . BuildingTypes::BUILDING_UNIVERSITY . " 
+                    AND t.techlevel > 0 GROUP BY u.id  ORDER BY val DESC, uid"
     ],
     "smithy_sum" => [
         "label" => "Schmiede-Magnat",
         "title" => "Schmiede-Verbesserungen",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val 
-                    FROM users u 
-                    JOIN kingdoms k ON u.id = k.userid 
-                    JOIN techs t ON k.id = t.kingdomid 
-                    WHERE t.techid >= " . TechTypes::TECH_TYPE_BLADES . " AND t.techlevel > 0
-                    GROUP BY u.id 
-                    ORDER BY val DESC, uid"
+        "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val  
+                    FROM users u  
+                        JOIN kingdoms k ON u.id = k.userid  
+                        JOIN techs t ON k.id = t.kingdomid 
+                        JOIN tech_list tl ON t.techid = tl.id 
+                    WHERE tl.origin_building = " . BuildingTypes::BUILDING_SMITHY . " 
+                    AND t.techlevel > 0 GROUP BY u.id  ORDER BY val DESC, uid"
     ],
     "guild_research" => [
         "label" => "Gilden-Forschung",
@@ -300,8 +300,17 @@ function render_hof_tab_content(array $data, mysqli $db, User $current_user): st
                 $losses = (int)($row["extra_val"] ?? 0);
                 $total_games = isset($row["total_games"]) ? (int)$row["total_games"] : ($wins + $losses);
 
-                $val_display = "<span class='passed'>" . fnum($wins) . "</span> <span style='color: rgb(230, 220, 200);'>|</span> <span class='error'>" . fnum($losses) . "</span> 
-                                <small style='font-size: 14px; font-weight: normal; opacity: 0.6; color: rgb(230, 220, 200);'>(" . fnum($total_games) . ")</small>";
+                $val_display = "
+                <div style='display: flex; flex-direction: column; align-items: center; justify-content: center;'>
+                    <div style='display: inline-flex; align-items: center; justify-content: center; width: 100%;'>
+                        <span class='passed' style='min-width: 44px; text-align: right;'>" . fnum($wins) . "</span>
+                        <span style='padding: 0 5px; opacity: 0.4; font-weight: normal; color: rgb(230, 220, 200);'>|</span>
+                        <span class='error' style='min-width: 44px; text-align: left;'>" . fnum($losses) . "</span>
+                    </div>
+                    <div class='hof-arena-stats'>
+                        " . fnum($total_games) . " " . ($total_games === 1 ? "Duell" : "Duelle") . "
+                    </div>
+                </div>";
             } else {
                 $val_display = fnum($row["val"]);
 

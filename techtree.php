@@ -83,14 +83,14 @@ $uni_techs = [];
 $smithy_techs = [];
 
 foreach ($techs as $t) {
-    if ($t->get_tech_id() >= TechTypes::TECH_TYPE_BLADES) {
+    if ($t->get_origin_building() === BuildingTypes::BUILDING_SMITHY) {
         $smithy_techs[] = $t;
     } else {
         $uni_techs[] = $t;
     }
 }
 
-$renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, $techs, $main_buildings, $main_techs, $current_kid, $main_k) {
+$render_tech_table = function ($tech_array, $title, $info_title) use ($buildings, $techs, $main_buildings, $main_techs, $current_kid, $main_k) {
     $html = '<div class="title-border">' . $title . '</div>';
     $html .= '<table class="table">
         <tr>
@@ -147,8 +147,8 @@ $renderTechTable = function ($tech_array, $title, $info_title) use ($buildings, 
     return $html;
 };
 
-$view .= $renderTechTable($uni_techs, "Universitäts-Forschungen", "Tech-Info");
-$view .= $renderTechTable($smithy_techs, "Schmiede-Verbesserungen", "Schmiede-Info");
+$view .= $render_tech_table($uni_techs, "Universitäts-Forschungen", "Tech-Info");
+$view .= $render_tech_table($smithy_techs, "Schmiede-Verbesserungen", "Schmiede-Info");
 
 // --- GUILD TECHS ---
 $my_guild_id = $user->get_user_guild_id();

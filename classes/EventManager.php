@@ -532,7 +532,7 @@ class EventManager
                 $damage_per_kingdom = [];
 
                 $res_troops = $this->mysqli->execute_query("
-                    SELECT st.soldiercount, st.source_kingdom_id, sl.attack, sl.category, sl.soldiername, sl.icon 
+                    SELECT st.soldierid, st.soldiercount, st.source_kingdom_id, sl.attack, sl.category
                     FROM sent_troops st 
                     JOIN soldier_list sl ON st.soldierid = sl.id 
                     WHERE st.eventid = ?",
@@ -582,11 +582,14 @@ class EventManager
 
                     $damage_per_kingdom[$src_kid] = ($damage_per_kingdom[$src_kid] ?? 0) + $unit_damage;
 
-                    $s_name = $t["soldiername"];
-                    if (!isset($report_units[$s_name])) {
-                        $report_units[$s_name] = ["name" => $s_name, "count" => 0, "icon" => $t["icon"]];
+                    $s_id = (int)$t["soldierid"];
+                    if (!isset($report_units[$s_id])) {
+                        $report_units[$s_id] = [
+                            "id" => $s_id,
+                            "count" => 0
+                        ];
                     }
-                    $report_units[$s_name]["count"] += $t["soldiercount"];
+                    $report_units[$s_id]["count"] += (int)$t["soldiercount"];
                 }
 
                 $event_type = $active_event["event_type"] ?? "BOSS_HP";
@@ -612,13 +615,13 @@ class EventManager
                     ];
                     Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $event_json);
                 } else {
-                    // Sucessful Attack
+                    // Successful Attack
                     Logger::get_instance()->log_game("COMBAT", "WORLD_EVENT_ATTACK", [
                         "event_id" => $active_event["id"],
                         "event_type" => $active_event["event_type"],
                         "damage_caused" => $result_dmg,
                         "is_boss_kill" => ($active_event["event_type"] === "BOSS_HP" && $result_dmg >= $active_event["current_hp"]),
-                        "troops" => $report_units
+                        "troops" => array_values($report_units)
                     ], (int)$row["kingdomid"]);
                 }
             } else {
@@ -2950,7 +2953,7 @@ class EventManager
         $conquest->initialize_soldier_values();
         $conquest->get_enemy_soldiers();
         $conquest->set_initial_soldiers();
-        $conquest->calculate_wall_bonus();
+        $wall_def_bonus = $conquest->calculate_wall_bonus();
         $conquest->set_soldier_stats($home_kingdom, $enemy_kingdom);
         $conquest->calculate_battle_outcome();
         $conquest->calculate_wall_damage();
@@ -2958,10 +2961,7 @@ class EventManager
 
         $total_def_initial = $conquest->get_initial_enemy_count();
         $total_def_losses = $conquest->get_enemy_loss_count();
-
-        if ($total_def_losses > 0) {
-            $conquest->apply_losses_to_stationed_troops();
-        }
+        $supporters_data = $conquest->apply_losses_to_stationed_troops();
 
         $atk_units = $conquest->get_battle_result_data(true);
         $def_units = $conquest->get_battle_result_data(false);
@@ -3115,7 +3115,15 @@ class EventManager
             Stats::update_global_stat("total_fallen_soldiers", $total_losses_in_this_battle);
         }
 
-        // Send message to both sides
+        // Send message to both sides and supporters
+        $support_summary = [];
+        foreach ($supporters_data as $sup) {
+            $support_summary[] = [
+                "username" => $sup["username"],
+                "units" => $sup["units"]
+            ];
+        }
+
         $attacker_json = [
             "template" => "battle_pvp",
             "role" => "attacker",
@@ -3130,6 +3138,7 @@ class EventManager
             "def_units" => $def_units,
             "wall_before" => $wall_before,
             "wall_after" => $wall_after,
+            "wall_defense" => $wall_def_bonus,
             "outcome" => $outcome_code,
             "conquest" => $conquest_code_attacker,
             "loot" => $loot,
@@ -3150,14 +3159,48 @@ class EventManager
             "def_units" => $atk_units,
             "wall_before" => $wall_before,
             "wall_after" => $wall_after,
+            "wall_defense" => $wall_def_bonus,
             "outcome" => $outcome_code,
             "conquest" => $conquest_code_defender,
-            "loot" => $loot
+            "loot" => $loot,
+            "support_summary" => $support_summary
         ];
 
         // Send server messages to both sides
         Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $attacker_json);
         Messages::send_server_message($enemy_user_id, $enemy_user_name, MessageCategories::CATEGORY_WAR, $defender_json);
+
+        // Send whole battle report to all supporters
+        foreach ($supporters_data as $sup_uid => $sup_info) {
+            $supporter_json = [
+                "template" => "battle_pvp",
+                "role" => "supporter",
+                "opponent_name" => $attacker_name,
+                "opponent_kname" => $home_kingdom->get_kingdom_name(),
+                "opp_x" => $home_kingdom->get_kingdom_map_x(),
+                "opp_y" => $home_kingdom->get_kingdom_map_y(),
+                "my_kname" => $enemy_kingdom->get_kingdom_name(),
+                "my_x" => (int)$row["targetx"],
+                "my_y" => (int)$row["targety"],
+                "atk_units" => $def_units,
+                "def_units" => $atk_units,
+                "wall_before" => $wall_before,
+                "wall_after" => $wall_after,
+                "wall_defense" => $wall_def_bonus,
+                "outcome" => $outcome_code,
+                "conquest" => $conquest_code_defender,
+                "my_support_units" => $sup_info["units"]
+            ];
+            Messages::send_server_message($sup_uid, $sup_info["username"], MessageCategories::CATEGORY_WAR, $supporter_json);
+
+            send_user_push(
+                $sup_uid,
+                "🛡️ Unterstützungskampf: {$enemy_kingdom->get_kingdom_name()}",
+                "Deine Truppen waren in {$enemy_kingdom->get_kingdom_name()} in eine Schlacht gegen $attacker_name verwickelt!",
+                "combat",
+                "messages.php?servermsgs"
+            );
+        }
 
         // Send push message
         $def_kname = $enemy_kingdom->get_kingdom_name();
@@ -3345,32 +3388,13 @@ class EventManager
 
             Achievement::check($attacker_user->get_user_id(), AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT);
 
-            // Message for Attacker
-            $conquest_data_out = [
-                "title" => "Eroberung erfolgreich",
-                "main_text" => "<b>Glorreicher Sieg!</b> Das Königreich wurde eingenommen und gehört nun dir.",
-                "sub_text" => "Für die Eroberung hat sich ein <b>Eroberer</b> geopfert.",
-                "type" => "success"
-            ];
-
-            // Message for Defender
-            $def_sub = !$has_more_kingdoms ? "Da dies dein letztes Dorf war, musst du an einem neuen Standort von vorne beginnen." : "";
-            $defender_conquest_out = [
-                "title" => "Königreich verloren",
-                "main_text" => "<b>Das Schicksal hat sich gegen uns gewandt!</b> Unser Königreich wurde vom Gegner besetzt.",
-                "sub_text" => $def_sub,
-                "type" => "error"
-            ];
+            // Message for Attacker and Defender
+            $conquest_data_out = "conquered_attacker";
+            $defender_conquest_out = !$has_more_kingdoms ? "conquered_defender_wiped" : "conquered_defender";
 
             return true;
         } else {
-            $conquest_data_out = [
-                "title" => "Eroberungsversuch",
-                "main_text" => "Die Eroberung ist gescheitert. Unsere Truppen konnten die Kontrolle über das Stadtzentrum nicht sichern.",
-                "sub_text" => "Die Chance auf Erfolg lag bei " . $rate . "%. Die Soldaten ziehen sich zurück.",
-                "type" => "error"
-            ];
-
+            $conquest_data_out = "failed_attacker";
             $defender_conquest_out = null;
             return false;
         }
@@ -3506,10 +3530,8 @@ class EventManager
             }
         }
 
-        $push_cooldown = 300;
-
         foreach ($push_queue as $kid => $data) {
-            if (($current_time - $data["last_push"]) >= $push_cooldown) {
+            if (($current_time - $data["last_push"]) >= WATCHTOWER_PUSH_COOLDOWN) {
                 $arrival_text = $data["has_time_intel"] ? " Ankunft in ca. {$data["earliest_arrival"]}." : "";
 
                 if ($data["count"] === 1) {

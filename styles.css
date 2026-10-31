@@ -319,6 +319,10 @@ input[type="checkbox"] {
     font-variant-emoji: emoji;
 }
 
+button .emoji-fix {
+    line-height: 1;
+}
+
 .emoji-menu span {
     user-select: none;
     -webkit-user-select: none;
@@ -1579,6 +1583,22 @@ a.box span {
 a {
     text-decoration: none;
     color: rgb(240, 240, 240);
+}
+
+a, button, input, select, textarea, [data-on-click], [data-on-submit], .popup, .tab div, .box, .arrow-nav, .legend-item {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+input[type="text"], input[type="password"], input[type="email"], textarea, .chat-text, .news-content p, #messages-section {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+a:focus, a:active, button:focus, button:active, [data-on-click]:focus, [data-on-click]:active {
+    outline: none !important;
 }
 
 a:hover,
@@ -3316,6 +3336,18 @@ img[data-on-click] {
     width: 26%;
 }
 
+.guild-mining-finish-member {
+    width: 32%;
+}
+
+.guild-mining-finish-ore {
+    width: auto;
+}
+
+.guild-mining-finish-date {
+    width: 32%;
+}
+
 .mining-progress {
     height: 5px;
     width: 100%;
@@ -3587,6 +3619,98 @@ img[data-on-click] {
     opacity: 0.8;
 }
 
+.arena-info-button {
+    font-size: 13px;
+}
+
+.all-troops-kingdom-name {
+    font-size: 18px;
+}
+
+.all-troops-count {
+    opacity: 0.8;
+    margin-top: 4px;
+    font-size: 13px;
+}
+
+.all-troops-table {
+    max-height: 750px;
+    overflow-y: auto;
+    border: 2px solid var(--box-header);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.all-troops-unit-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    align-items: center;
+}
+
+.all-troops-supporter {
+    font-size: 13px;
+    color: #3498db;
+    margin-bottom: 6px;
+    text-align: left;
+    font-weight: bold;
+}
+
+.all-troops-stats-per-kingdom {
+    display: flex;
+    align-items: start;
+    gap: 12px;
+    margin: 12px 0;
+    font-size: 17px;
+}
+
+.all-troops-stats-per-kingdom .ressource-icons {
+    width: 20px;
+    height: 20px;
+}
+
+.all-troops-sum-text {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.all-troops-sum-stats {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    padding: 6px 12px;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 4px;
+}
+
+.all-troops-sum-box {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-gold);
+    border-radius: 5px;
+    padding: 12px 15px;
+    margin-bottom: 25px;
+}
+
+.mobile-only-switch-wrap {
+    display: none;
+}
+
+.hof-arena-stats {
+    font-size: 12px;
+    font-weight: normal;
+    opacity: 0.65;
+    color: rgb(230, 220, 200);
+}
+
+.battle-supporter-name {
+    font-size: 1.1em;
+    color: var(--link-color);
+    margin-bottom: 7px;
+    text-align: left;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3614,6 +3738,75 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .hof-arena-stats {
+        font-size: 9px;
+    }
+
+    div[id^="pop_k_preview_"][id$="_box"] {
+        pointer-events: auto !important;
+    }
+
+    div[id^="pop_k_preview_"][id$="_box"] button {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+    }
+
+    .mobile-only-switch-wrap {
+        display: block;
+    }
+
+    .all-troops-sum-box {
+        padding: 6px 7px;
+        margin-bottom: 10px;
+    }
+
+    .all-troops-sum-stats {
+        font-size: 14px;
+    }
+
+    .all-troops-sum-stats .ressource-icons {
+        width: 14px;
+        height: 14px;
+    }
+
+    .all-troops-stats-per-kingdom {
+        font-size: 12px;
+        margin: 8px 0;
+    }
+
+    .all-troops-stats-per-kingdom .ressource-icons {
+        width: 12px;
+        height: 12px;
+    }
+
+    .all-troops-sum-text {
+        font-size: 12px;
+    }
+
+    .all-troops-table {
+        max-height: 350px;
+    }
+
+    .all-troops-unit-list .unit-badge {
+        padding: 3px 3px;
+    }
+
+    .all-troops-unit-list b {
+        font-size: 10px !important;
+    }
+
+    .all-troops-kingdom-name {
+        font-size: 13px;
+    }
+
+    .all-troops-count {
+        font-size: 10px;
+    }
+
+    .all-troops-supporter {
+        font-size: 9px;
     }
 
     .arena-battle-log {
@@ -4053,6 +4246,17 @@ img[data-on-click] {
         height: 16px;
     }
 
+    .guild-mining-finish-member {
+        width: 33%;
+    }
+
+    .guild-mining-finish-ore {
+        width: auto;
+    }
+
+    .guild-mining-finish-date {
+        width: 26%;
+    }
 
     .no-event {
         font-size: 14px;
@@ -4272,7 +4476,7 @@ img[data-on-click] {
     }
 
     .overview-table .unit-badge {
-        padding: 4px 5px 4px 0 !important;
+        padding: 3px 5px 3px 0 !important;
         gap: 2px !important;
         margin: 0 !important;
     }
@@ -4672,7 +4876,7 @@ img[data-on-click] {
     }
 
     .header img {
-        max-width: 85%;
+        max-width: 65%;
         height: auto;
     }
 
@@ -5172,14 +5376,19 @@ img[data-on-click] {
     }
 
     .sent-troops-table colgroup col:nth-child(2) {
-        width: auto !important;
+        width: 25% !important;
         min-width: 60px;
     }
 
     .sent-troops-table .unit-badge {
-        padding: 4px 5px 4px 2px !important;
+        padding: 3px 5px 3px 2px !important;
         gap: 2px !important;
         margin: 0 !important;
+    }
+
+    .sent-troops-table .unit-badge img {
+        width: 14px;
+        height: 14px;
     }
 
     .sent-troops-table .unit-badge b {

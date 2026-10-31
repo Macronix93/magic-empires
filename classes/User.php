@@ -280,6 +280,11 @@ class User
         return $this->user_row ?? [];
     }
 
+    public function set_user_row(array $row): void
+    {
+        $this->user_row = $row;
+    }
+
     public function get_active_title(): string
     {
         $row = $this->load_user_row();
@@ -347,7 +352,7 @@ class User
     public function set_last_researched_tech(int $kingdom_id, string $tech_name, int $tech_level): void
     {
         if (!isset($_SESSION["last_researched_tech"])) {
-            $_SESSION["last_researched_tech"] = array();
+            $_SESSION["last_researched_tech"] = [];
         }
         $_SESSION["last_researched_tech"][$kingdom_id] = [
             "techname" => $tech_name,
@@ -370,7 +375,7 @@ class User
     public function set_last_recruited_soldier(int $kingdom_id, $soldier_name, $soldier_count, int $category = 0): void
     {
         if (!isset($_SESSION["last_recruited_soldier"])) {
-            $_SESSION["last_recruited_soldier"] = array();
+            $_SESSION["last_recruited_soldier"] = [];
         }
         $_SESSION["last_recruited_soldier"][$kingdom_id] = [
             "soldiername" => $soldier_name,
@@ -382,7 +387,7 @@ class User
     public function set_last_upgraded_soldier(int $kingdom_id, string $name, int $count, int $category = 0): void
     {
         if (!isset($_SESSION["last_upgraded"][$kingdom_id])) {
-            $_SESSION["last_upgraded"] = array();
+            $_SESSION["last_upgraded"] = [];
         }
 
         $_SESSION["last_upgraded"][$kingdom_id] = [
@@ -837,24 +842,58 @@ class User
                 (SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?)) AND userid != ?) AS market_count,
                 (SELECT 1 FROM events WHERE guild_id = ? AND actionid = " . ActionTypes::ACTION_RESEARCH_TECH . " LIMIT 1) AS guild_research_active,
                 (SELECT gtl.name FROM guild_projects gp JOIN guild_tech_list gtl ON gp.tech_id = gtl.id WHERE gp.guild_id = ? LIMIT 1) AS guild_project_name,
-                (SELECT CASE 
-                    WHEN input_amount = 0 AND output_amount >= 1 THEN 'ready'
-                    WHEN input_amount > 0 THEN 'running'
-                    ELSE '' END
-                 FROM kingdom_alchemy WHERE kingdom_id = ? LIMIT 1) AS alchemy_status
+                ka.input_resource,
+                ka.target_resource,
+                ka.input_amount,
+                ka.output_amount,
+                IFNULL(b.buildinglevel, 0) AS lab_level
+            FROM (SELECT 1) _d
+            LEFT JOIN kingdom_alchemy ka ON ka.kingdom_id = ?
+            LEFT JOIN buildings b ON b.kingdomid = ? AND b.buildingid = " . BuildingTypes::BUILDING_ALCHEMY_LAB . "
         ";
-        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid])->fetch_assoc();
+        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid, $kid])->fetch_assoc();
 
         $guild_status = '';
         if ($gid > 0) {
             if (!empty($res["guild_research_active"])) {
                 $guild_status = '<img src="images/icons/icon_time.png" class="ressource-icons" title="Gildenforschung läuft..." alt="Forschung">';
-            } elseif (!empty($res["guild_project_name"])) {
+            } else if (!empty($res["guild_project_name"])) {
                 $guild_status = '<img src="images/icons/icon_hammer.png" class="ressource-icons" title="Projekt aktiv: ' . e($res["guild_project_name"]) . '" alt="Projekt">';
             }
         }
 
-        $alchemy_status = $res["alchemy_status"] ?? '';
+        $alchemy_status = '';
+        if ($res && $res["input_resource"] !== null) {
+            $in_res = (int)$res["input_resource"];
+            $out_res = (int)$res["target_resource"];
+            $in_amt = (int)$res["input_amount"];
+            $out_amt = (float)$res["output_amount"];
+            $lab_lvl = (int)$res["lab_level"];
+            $ready_to_claim = (int)round($out_amt);
+
+            if ($ready_to_claim >= 1 && ($in_amt <= 0 || $in_res === -1)) {
+                $alchemy_status = "ready";
+            } else if ($in_amt > 0) {
+                if ($in_res !== -1 && $out_res !== -1 && $lab_lvl > 0) {
+                    $step = Alchemy::get_step_size($in_res, $out_res);
+                    $rate = Alchemy::get_conversion_rate($in_res, $out_res);
+                    $output_per_step = max(1, (int)round($step * $rate));
+                    $max_output = Alchemy::get_max_output_buffer($in_res, $out_res, $lab_lvl);
+
+                    $is_buffer_full = ($max_output > 0 && ($max_output - $ready_to_claim) < $output_per_step);
+                    $is_insufficient_input = ($in_amt < $step);
+
+                    if (($is_buffer_full || $is_insufficient_input) && $ready_to_claim >= 1) {
+                        $alchemy_status = "ready";
+                    } else {
+                        $alchemy_status = "running";
+                    }
+                } else {
+                    $alchemy_status = "running";
+                }
+            }
+        }
+
         $is_alchemy_ready = ($alchemy_status === "ready");
 
         return [
@@ -869,12 +908,6 @@ class User
     public function get_gender(): string
     {
         return $this->load_user_row()["gender"] ?? 'm';
-    }
-
-    public function get_active_title_id(): int
-    {
-        $row = $this->load_user_row();
-        return (int)($row["active_title_id"] ?? 0);
     }
 
     public function has_achievement(int $req_type): bool

@@ -222,6 +222,7 @@ if ($row) {
             GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY => ["+" . fnum(GUILD_BONUS_SUPPORT_CAP_PER_LVL), "zusätzliche Unterstützungstruppen"],
             GuildTechTypes::GUILD_TECH_SUPPORT_SPEED => ["-" . fdec(GUILD_BONUS_SUPPORT_SPEED_PER_LVL * 100) . "%", "Marschzeit für Unterstützungstruppen"],
             GuildTechTypes::GUILD_TECH_MEMBER_LIMIT => ["+" . GUILD_BONUS_MEMBER_LIMIT_PER_LVL, "maximale Gilden-Mitglieder"],
+            GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT => ["-" . fdec(GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL * 100) . "%", "Münzkosten für Handel zwischen Verbündeten"],
             default => null
         };
 
@@ -468,6 +469,8 @@ if ($row) {
                         "<span class='passed'>Stufe 5:</span> Berechnung der gegnerischen Kampfkraft" .
                         "</div>"
                 ],
+                TechTypes::TECH_TYPE_BARRACKS_EXPANSION => ["+" . fnum(BARRACKS_EXPANSION_CAPACITY_PER_LEVEL), "Truppenkapazität der Kaserne"],
+                TechTypes::TECH_TYPE_SCHOLARSHIP => [fdec(SCHOLARSHIP_RESEARCH_REDUCTION * 100) . "%", "Reduktion der Forschungszeit in der Universität"],
 
                 TechTypes::TECH_TYPE_BLADES => ["+" . SMITHY_INF_ATK_BONUS, "Angriff für Infanterie-Einheiten"],
                 TechTypes::TECH_TYPE_SHIELDWALL => ["+" . SMITHY_INF_DEF_BONUS, "Verteidigung für Infanterie-Einheiten"],
@@ -477,6 +480,7 @@ if ($row) {
                 TechTypes::TECH_TYPE_DOUBLET => ["+" . SMITHY_ARC_DEF_BONUS, "Verteidigung für Schützen-Einheiten"],
                 TechTypes::TECH_TYPE_WEIGHT => [fdec(SMITHY_WEIGHT_REDUCTION * 100) . "%", "Reduktion der Rekrutierungszeit"],
                 TechTypes::TECH_TYPE_SIEGE => ["+" . fdec(SMITHY_SIEGE_BONUS * 100) . "%", "zusätzlicher Schaden an Mauern"],
+                TechTypes::TECH_TYPE_METALLURGY => [fdec(METALLURGY_RESEARCH_REDUCTION * 100) . "%", "Reduktion der Forschungszeit in der Schmiede"],
 
                 default => null
             };
@@ -495,18 +499,20 @@ if ($row) {
             }
         }
 
-        $is_uni_tech = ($tech_id !== null && $tech_id < TechTypes::TECH_TYPE_BLADES);
-        $is_smithy_tech = ($tech_id !== null && $tech_id >= TechTypes::TECH_TYPE_BLADES);
+        $is_uni_tech = ($tech_id !== null && (int)($row["origin_building"] ?? 0) === BuildingTypes::BUILDING_UNIVERSITY);
+        $is_smithy_tech = ($tech_id !== null && (int)($row["origin_building"] ?? 0) === BuildingTypes::BUILDING_SMITHY);
 
         $cur_uni_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_UNIVERSITY);
         $cur_smithy_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_SMITHY);
         $cur_wt_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
         $cur_wall_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+        $cur_barracks_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
 
         $uni_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_UNIVERSITY . ".png' class='ressource-icons' alt='Universität' title='Universität'>";
         $smithy_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_SMITHY . ".png' class='ressource-icons' alt='Schmiede' title='Schmiede'>";
         $wt_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WATCHTOWER . ".png' class='ressource-icons' alt='Wachturm' title='Wachturm'>";
         $wall_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WALL . ".png' class='ressource-icons' alt='Mauer' title='Mauer'>";
+        $barracks_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_BARRACKS . ".png' class='ressource-icons' alt='Kaserne' title='Kaserne'>";
 
         $icon_filename = ($building_id !== null) ? "icon_building$building_id.png" : "icon_tech$tech_id.png";
 
@@ -574,6 +580,13 @@ if ($row) {
                             : "(2)";
 
                     $req_display .= "<span class='popup' id='$p_wall' style='display: flex; align-items: center; gap: 3px;'>$wall_icon $wall_lvl_display<div id='{$p_wall}_box' class='popupbox'>Mauer</div></span>";
+                } else if ($tech_id === TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
+                    $req_barracks = ($target_lvl >= 3) ? 10 : 9;
+                    $p_barracks = "req_barracks_{$tech_id}_$target_lvl";
+
+                    $barracks_lvl_display = $is_current_row ? "<b class='" . ($cur_barracks_lvl >= $req_barracks ? "passed" : "error") . "'>($req_barracks)</b>" : "($req_barracks)";
+
+                    $req_display .= "<span class='popup' id='$p_barracks' style='display: flex; align-items: center; gap: 3px;'>$barracks_icon $barracks_lvl_display<div id='{$p_barracks}_box' class='popupbox'>Kaserne</div></span>";
                 }
 
                 $view .= "<td class='td-center' $style>

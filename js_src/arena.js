@@ -1,3 +1,115 @@
+let previousArenaHeaderHtml = null;
+
+registerAction("openArenaAttackInline", (btn) => {
+    const oppId = btn.dataset.id;
+    const oppName = btn.dataset.name;
+    const oppElo = btn.dataset.elo;
+
+    const mainView = document.getElementById("arena-main-view");
+    const inlineContainer = document.getElementById("arena-attack-inline-container");
+    const boxHeader = document.querySelector(".middle-container .big-box-header");
+
+    if (!mainView || !inlineContainer) return;
+
+    const originalBtnHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerText = "Lade Duell...";
+
+    fetch(`ajax/arena_attack_modal.php?defender_id=${oppId}&name=${encodeURIComponent(oppName)}&elo=${oppElo}`, {
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+        .then(r => r.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            doc.getElementById("modal-title-data")?.remove();
+            doc.querySelectorAll(".overlay-close-btn, button[data-on-click='closeOverlay']").forEach(el => el.remove());
+
+            if (boxHeader) {
+                if (!previousArenaHeaderHtml) {
+                    previousArenaHeaderHtml = boxHeader.innerHTML;
+                }
+                boxHeader.innerHTML = `<img src="images/icons/icon_arena.png" class="header-icon" alt=""> Duell: ${oppName} (${oppElo} ELO)`;
+            }
+
+            const backBtnHtml = `
+                <div style="margin-bottom: 15px;">
+                    <button type="button" data-on-click="closeArenaAttackInline" style="padding: 4px 15px;">
+                        Zurück zur Arena
+                    </button>
+                </div>
+            `;
+
+            inlineContainer.innerHTML = backBtnHtml + doc.body.innerHTML;
+
+            mainView.style.display = "none";
+            inlineContainer.style.display = "block";
+
+            if (typeof bindActions === "function") {
+                inlineContainer.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+            }
+            if (typeof setup === "function") {
+                setup();
+            }
+
+            const attackForm = inlineContainer.querySelector("#arena-attack-form");
+            if (attackForm && typeof initArenaForm === "function") {
+                attackForm.dataset.initialized = "true";
+                initArenaForm(attackForm);
+            }
+
+            if (window.innerWidth <= 600) {
+                const opponentHeader = inlineContainer.querySelector("#arena-opponent-header");
+                if (opponentHeader) {
+                    const yOffset = -20;
+                    const y = opponentHeader.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                    window.scrollTo({top: Math.max(0, y), behavior: "smooth"});
+                }
+            }
+        })
+        .catch(err => {
+            console.error("Fehler beim Laden des Duells:", err);
+            displayArenaError("Fehler beim Laden des Duells.");
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHtml;
+        });
+});
+
+registerAction("closeArenaAttackInline", () => {
+    const mainView = document.getElementById("arena-main-view");
+    const inlineContainer = document.getElementById("arena-attack-inline-container");
+    const boxHeader = document.querySelector(".middle-container .big-box-header");
+
+    if (inlineContainer) {
+        inlineContainer.innerHTML = "";
+        inlineContainer.style.display = "none";
+    }
+
+    if (boxHeader && previousArenaHeaderHtml) {
+        boxHeader.innerHTML = previousArenaHeaderHtml;
+        previousArenaHeaderHtml = null;
+    }
+
+    if (mainView) {
+        mainView.style.display = "block";
+    }
+
+    if (typeof setup === "function") {
+        setup();
+    }
+});
+registerAction("openArenaUserModal", (el, e) => {
+    if (e) e.stopPropagation();
+    const userId = el.dataset.userid;
+    const username = el.dataset.username || "Spieler";
+    openOverlay(`ajax/arena_user_modal.php?userid=${userId}`, `Arena-Profil: ${username}`, null, false, el);
+});
+registerAction("changeSeasonHistoryMonth", (el) => {
+    const month = el.value;
+    openOverlay(`ajax/arena_season_history.php?month=${encodeURIComponent(month)}`, "Arena Saison-Archiv");
+});
 registerAction("openHeroProgressionModal", () => {
     openOverlay("ajax/arena_hero_progression.php?type=hero", "Champion: Werte & Progression");
 });
@@ -152,18 +264,31 @@ registerAction("executeArenaAttack", (form, e) => {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                const modalContent = document.getElementById("overlay-content-body");
-                if (modalContent) {
-                    modalContent.innerHTML = data.battle_html;
+                closeOverlay();
 
-                    const closeBtn = document.querySelector(".overlay-close-btn");
-                    if (closeBtn) {
-                        closeBtn.addEventListener("click", () => window.location.reload(), {once: true});
+                const inlineContainer = document.getElementById("arena-attack-inline-container");
+                const boxHeader = document.querySelector(".middle-container .big-box-header");
+
+                if (inlineContainer) {
+                    if (boxHeader) {
+                        boxHeader.innerHTML = `<img src="images/icons/icon_arena.png" class="header-icon" alt=""> Duellbericht`;
                     }
-                    const continueBtn = modalContent.querySelector('[data-on-click="closeOverlay"]');
-                    if (continueBtn) {
-                        continueBtn.addEventListener("click", () => window.location.reload(), {once: true});
+
+                    inlineContainer.innerHTML = data.battle_html;
+
+                    if (typeof bindActions === "function") {
+                        inlineContainer.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
                     }
+                    if (typeof setup === "function") {
+                        setup();
+                    }
+
+                    const middleContainer = document.querySelector(".middle-container");
+                    if (middleContainer) {
+                        middleContainer.scrollIntoView({behavior: "smooth", block: "start"});
+                    }
+                } else {
+                    window.location.reload();
                 }
             } else {
                 displayArenaError(data.error || "Fehler beim Ausführen des Kampfes.");
@@ -501,6 +626,19 @@ function initArenaForm(form) {
         });
     }
 
+    const dismissActiveInput = () => {
+        const active = document.activeElement;
+
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA") && active.type !== "range") {
+            active.blur();
+        }
+    };
+
+    form.querySelectorAll(".js-arena-slider, .js-arena-tech-slider").forEach(slider => {
+        slider.addEventListener("pointerdown", dismissActiveInput, {passive: true});
+        slider.addEventListener("touchstart", dismissActiveInput, {passive: true});
+    });
+
     updateTroopsCounter();
     updateTechsCounter();
     updateLivePower();
@@ -521,6 +659,17 @@ function displayArenaError(message) {
         modalBody.insertAdjacentHTML("afterbegin", errorHtml);
         modalBody.scrollTo({top: 0, behavior: "smooth"});
     } else {
+        const inlineContainer = document.getElementById("arena-attack-inline-container");
+        if (inlineContainer && inlineContainer.style.display !== "none") {
+            const oldError = inlineContainer.querySelector('.event-error');
+            if (oldError) oldError.remove();
+
+            inlineContainer.insertAdjacentHTML("afterbegin", errorHtml);
+
+            window.scrollTo({top: 0, behavior: "smooth"});
+            return;
+        }
+
         const flash = document.getElementById("middle-flash-container");
         if (flash) {
             const old = flash.querySelector('.event-error');

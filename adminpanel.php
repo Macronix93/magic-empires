@@ -32,7 +32,7 @@ if (!$user->is_admin()) {
     }
 
     if (isset($_POST["reset_arena_season"])) {
-        $rewarded_count = Arena::check_and_process_season_reset(true);
+        $rewarded_count = Arena::check_and_process_season_reset(true, false);
 
         $logger->admin("Arena Saison manuell beendet & neugestartet von " . $user->get_user_name() . " ($rewarded_count Spieler belohnt)");
         $_SESSION["admin_flash_msg"] = "Arena-Saison erfolgreich beendet & direkt neu gestartet! <b>{$rewarded_count}</b> Spieler wurden belohnt.";
@@ -56,6 +56,11 @@ if (!$user->is_admin()) {
         exit;
     }
 
+    if (isset($_POST["reset_fixed_march"])) {
+        $_POST["fixed_seconds"] = "0";
+        $_POST["update_fixed_march"] = "1";
+    }
+
     if (isset($_POST["update_fixed_march"])) {
         $seconds = max(0, min(86400, (int)$_POST["fixed_seconds"]));
 
@@ -65,10 +70,7 @@ if (!$user->is_admin()) {
         );
 
         $logger->admin("Marschzeit gesetzt auf: " . ($seconds > 0 ? "{$seconds}s (Fest)" : "Deaktiviert (Normal)"));
-
-        $_SESSION["admin_flash_msg"] = ($seconds > 0)
-            ? "Feste Marschzeit auf <b>{$seconds} Sekunden</b> gesetzt!"
-            : "Marschzeit deaktiviert. Es gelten wieder normale Entfernungszeiten.";
+        $_SESSION["admin_flash_msg"] = ($seconds > 0) ? "Feste Marschzeit auf <b>{$seconds} Sekunden</b> gesetzt!" : "Marschzeit deaktiviert. Es gelten wieder normale Entfernungszeiten.";
 
         change_location("adminpanel.php?tab=system");
         exit;
@@ -98,7 +100,8 @@ if (!$user->is_admin()) {
             "kingdom_alchemy",
             "arena_battles",
             "arena_hero_skills",
-            "arena_players"
+            "arena_players",
+            "arena_season_history"
         ];
 
         foreach ($tables_to_clear as $t) {
@@ -131,78 +134,8 @@ if (!$user->is_admin()) {
         ", [STARTING_SCORE, STARTING_SCORE]);
 
         // Generate a new random map
-        $db_instance->query("DELETE FROM map");
-        $db_instance->query("ALTER TABLE map AUTO_INCREMENT = 1");
-
-        $seed = rand(1000, 99999);
-
-        // Noise Functions
-        function noise_rand($x, $y, $s): float|int
-        {
-            $n = ($x * 374761393 + $y * 668265263 + $s * 1446645) & 0xFFFFFFFF;
-            $n = (($n ^ ($n >> 13)) * 1274126177) & 0xFFFFFFFF;
-            return (($n ^ ($n >> 16)) & 0x7FFFFFFF) / 2147483647;
-        }
-
-        function noise_lerp($a, $b, $t): float|int
-        {
-            return $a + $t * ($b - $a);
-        }
-
-        function noise_fade($t): float|int
-        {
-            return $t * $t * $t * ($t * ($t * 6 - 15) + 10);
-        }
-
-        function get_val_noise($x, $y, $s): float|int
-        {
-            $x0 = floor($x);
-            $y0 = floor($y);
-            $sx = noise_fade($x - $x0);
-            $sy = noise_fade($y - $y0);
-            $n0 = noise_rand($x0, $y0, $s);
-            $n1 = noise_rand($x0 + 1, $y0, $s);
-            $ix0 = noise_lerp($n0, $n1, $sx);
-            $n0 = noise_rand($x0, $y0 + 1, $s);
-            $n1 = noise_rand($x0 + 1, $y0 + 1, $s);
-            $ix1 = noise_lerp($n0, $n1, $sx);
-            return noise_lerp($ix0, $ix1, $sy);
-        }
-
-        function get_fractal($x, $y, $s, $oct, $pers, $scale): float|int
-        {
-            $total = 0;
-            $freq = $scale;
-            $amp = 1;
-            $maxV = 0;
-            for ($i = 0; $i < $oct; $i++) {
-                $total += get_val_noise($x * $freq, $y * $freq, $s + $i * 100) * $amp;
-                $maxV += $amp;
-                $amp *= $pers;
-                $freq *= 2;
-            }
-            return $total / $maxV;
-        }
-
-        // Write Map to DB
-        for ($y = 1; $y <= MAX_Y; $y++) {
-            for ($x = 1; $x <= MAX_X; $x++) {
-                $mt = get_fractal($x, $y, $seed + 8888, 5, 0.25, 0.15);
-                if ($mt > 0.70) $ft = 1; // Gebirge
-                else {
-                    $e = get_fractal($x, $y, $seed, 5, 0.5, 0.35);
-                    if ($e < 0.35) $ft = 2; // Küste
-                    else {
-                        $m = get_fractal($x, $y, $seed + 5555, 4, 0.5, 0.2);
-                        if ($m < 0.38) $ft = 4; // Wüste
-                        elseif ($m > 0.62) $ft = 3; // Wald
-                        else $ft = 5; // Hochland
-                    }
-                }
-
-                $db_instance->execute_query("INSERT INTO map (mapx, mapy, fieldtype, kingdomid) VALUES (?, ?, ?, -1)", [$x, $y, $ft]);
-            }
-        }
+        $spawner = new MapSpawner($db_instance);
+        $spawner->generate_base_map();
 
         // Create new kingdom for every registered and activated user
         $res_users = $db_instance->query("SELECT id, username FROM users WHERE status = 1");
@@ -804,21 +737,21 @@ if (!$user->is_admin()) {
         ? "<span class='error' style='font-weight: bold;'>AKTIV ({$current_fixed} Sek.)</span>"
         : "<span class='passed'>Inaktiv (Normal)</span>";
 
+    $reset_disabled = ($current_fixed === 0) ? "disabled" : "";
     $settings_list .= "
-    <div class='box-container' style='margin-top: 20px;'>
-        <div class='box-header'>Marschzeiten-Steuerung</div>
-        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
-            <span>Status: $status_badge</span>
-            <p style='opacity: 0.8;'>Überschreibt alle Marschgeschwindigkeiten mit einer festen Sekundenzahl.<br>Trage <b>0</b> ein, um die normale Berechnung zu aktivieren.</p>
-            <form method='POST' style='display: flex; gap: 10px; justify-content: center; align-items: center;'>
-                <label for='fixed_seconds'>Dauer (Sekunden):</label>
-                <input type='text' inputmode='numeric' pattern='[0-9]*' name='fixed_seconds' id='fixed_seconds' 
-                       value='$current_fixed' 
-                       style='width: 60px;' required>
-                <input type='submit' name='update_fixed_march' value='Speichern'>
-            </form>
-        </div>
-    </div>";
+     <div class='box-container' style='margin-top: 20px;'>
+         <div class='box-header'>Marschzeiten-Steuerung</div>
+         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+             <span>Status: $status_badge</span>
+             <p style='opacity: 0.8;'>Überschreibt alle Marschgeschwindigkeiten mit einer festen Sekundenzahl.<br>Trage <b>0</b> ein, um die normale Berechnung zu aktivieren.</p>
+             <form method='POST' style='display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;'>
+                 <label for='fixed_seconds'>Dauer (Sekunden):</label>
+                 <input type='text' inputmode='numeric' pattern='[0-9]*' name='fixed_seconds' id='fixed_seconds'  value='$current_fixed'  style='width: 60px;' required>
+                 <input type='submit' name='update_fixed_march' value='Speichern'>
+                 <input type='submit' name='reset_fixed_march' value='Reset' $reset_disabled>
+             </form>
+         </div>
+     </div>";
     $settings_list .= "
     <div class='box-container' style='margin-top: 20px;'>
         <div class='box-header'>Forum-Synchronisation</div>
@@ -860,7 +793,7 @@ if (!$user->is_admin()) {
         $system_log_section .= "<div class='box-container' style='width: 200px; margin: 0;'>
                     <div class='box-header' style='font-size: 14px;'>$f</div>
                     <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
-                        <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
+                        <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' data-width='1050px' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
                         
                         <form method='POST' id='form-clear-$f'>
                             <input type='hidden' name='log_to_clear' value='$f'>

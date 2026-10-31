@@ -4,6 +4,12 @@
 </div>
 <div class="credits-scroll-box">
     <ul class="credits-list">
+        <li><a href="https://www.flaticon.com/free-icons/foundry" title="foundry icons">Foundry icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/parchment" title="parchment icons">Parchment icons created by
+                Upnow Graphic - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
+                Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/medieval" title="medieval icons">Medieval icons created by
                 Rashad - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/fruits-and-vegetables" title="fruits and vegetables icons">Fruits

@@ -61,7 +61,12 @@ class CombatEngine
 
         // Damage Distribution
         $distribute = function (array $units, array $enemy_has_cat, array $enemy_def_pools, int $enemy_total_def) use ($get_target_cat) {
-            $targeted_dmg = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
+            $targeted_dmg = [
+                SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
+                SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
+                SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
+                SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
+            ];
             $shared_dmg = 0;
             $total_raw_atk = 0;
             $global_focus_share = RPS_TARGET_FOCUS;
@@ -94,7 +99,12 @@ class CombatEngine
                 }
             }
 
-            $final_incoming = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
+            $final_incoming = [
+                SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
+                SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
+                SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
+                SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
+            ];
             foreach ($enemy_def_pools as $cat => $cat_def) {
                 $final_incoming[$cat] = $targeted_dmg[$cat];
 

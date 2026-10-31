@@ -78,7 +78,9 @@ if (isset($_GET["action"])) {
                         if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
                             $error = "Nicht genügend Ressourcen!";
                         } else {
-                            $tech_time = time() + (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
+                            $smithy_mult = $kingdom->get_smithy_research_multiplier();
+                            $base_sec = (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
+                            $tech_time = time() + (int)round($base_sec * $smithy_mult);
 
                             // Subtract research costs from kingdom resources
                             $kingdom->give_kingdom_wood(-$cost_wood);
@@ -172,6 +174,12 @@ $siege_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SIEGE);
 if ($siege_lvl > 0) {
     $percent = fdec($siege_lvl * (SMITHY_SIEGE_BONUS * 100));
     $smithy_boni_view .= "<tr><td>Belagerung:</td><td class='passed'>+$percent% Schaden an Mauern</td></tr>";
+}
+
+$metallurgy_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_METALLURGY);
+if ($metallurgy_lvl > 0) {
+    $percent = fdec($metallurgy_lvl * (METALLURGY_RESEARCH_REDUCTION * 100));
+    $smithy_boni_view .= "<tr><td>Metallurgie:</td><td class='passed'>-$percent% Forschungszeit</td></tr>";
 }
 
 if (!empty($smithy_boni_view)) {
@@ -292,12 +300,15 @@ foreach ($techs as $i => $tech) {
             </div>";
 
     if (!$is_maxed) {
+        $smithy_mult = $kingdom->get_smithy_research_multiplier();
+        $base_sec = (int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level));
+
         $view .= "
             <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                 $res_html
             </div>
             " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-            " . convert_sec_to_str((int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level)));
+            " . convert_sec_to_str((int)round($base_sec * $smithy_mult));
     }
 
     $view .= "

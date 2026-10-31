@@ -48,6 +48,7 @@ class Achievement
     public static function get_player_metrics(int $user_id, ?int $filter_req_type = null): array
     {
         if ($user_id <= 0) return [];
+
         $db = Database::get_instance()->get_connection();
 
         if ($filter_req_type === AchievementTypes::ACHIEVEMENT_SCORE) {
@@ -57,6 +58,34 @@ class Achievement
 
         if ($filter_req_type === AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT || $filter_req_type === AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS) {
             return self::get_kingdom_metrics($db, $user_id);
+        }
+
+        $stat_column_map = [
+            AchievementTypes::ACHIEVEMENT_EVENT_ATTENDED => "events_attended",
+            AchievementTypes::ACHIEVEMENT_MINES_DEPLETED => "mines_depleted",
+            AchievementTypes::ACHIEVEMENT_TRADES_COUNT => "trades_count",
+            AchievementTypes::ACHIEVEMENT_RESOURCES_LOOTED => "resources_looted",
+            AchievementTypes::ACHIEVEMENT_MONSTER_KILLS => "monster_kills",
+            AchievementTypes::ACHIEVEMENT_CAMPS_CLEARED => "camps_cleared",
+            AchievementTypes::ACHIEVEMENT_EVENT_DAMAGE => "event_damage_total",
+            AchievementTypes::ACHIEVEMENT_SPY_COUNT => "spy_count",
+            AchievementTypes::ACHIEVEMENT_UNITS_FALLEN_PVP => "units_fallen_pvp",
+            AchievementTypes::ACHIEVEMENT_RESOURCES_STOLEN => "resources_stolen",
+            AchievementTypes::ACHIEVEMENT_MINE_CAPTURED => "mines_captured",
+            AchievementTypes::ACHIEVEMENT_MINE_DEFENDED => "mines_defended",
+            AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED => "alchemy_claimed",
+            AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED => "military_units_produced",
+            AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT => "troops_sent_combat",
+            AchievementTypes::ACHIEVEMENT_ARENA_BATTLES => "arena_battles",
+            AchievementTypes::ACHIEVEMENT_ARENA_WINS => "arena_wins",
+            AchievementTypes::ACHIEVEMENT_ARENA_TOP3 => "arena_top3_count",
+            AchievementTypes::ACHIEVEMENT_ARENA_TOP5 => "arena_top5_count"
+        ];
+
+        if ($filter_req_type !== null && isset($stat_column_map[$filter_req_type])) {
+            $col = $stat_column_map[$filter_req_type];
+            $val = (int)($db->execute_query("SELECT `$col` FROM player_stats WHERE userid = ?", [$user_id])->fetch_column() ?? 0);
+            return [$filter_req_type => $val];
         }
 
         $user_row = $db->execute_query("SELECT score FROM users WHERE id = ?", [$user_id])->fetch_assoc();

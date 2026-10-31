@@ -83,10 +83,13 @@ registerAction("fillMaxAndRefresh", (el) => {
         const form = document.getElementById("send-troops-form");
         let valToSet = maxValue;
 
-        if (form && form.dataset.mineLimit !== undefined) {
-            const mineLimit = parseInt(form.dataset.mineLimit);
+        const quotaLimit = form?.dataset.mineLimit !== undefined
+            ? parseInt(form.dataset.mineLimit)
+            : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
+
+        if (quotaLimit !== null) {
             const otherUnits = getSelectedTroopCountExcept(input);
-            const allowed = Math.max(0, mineLimit - otherUnits);
+            const allowed = Math.max(0, quotaLimit - otherUnits);
             valToSet = Math.min(valToSet, allowed);
         }
 
@@ -116,12 +119,16 @@ registerAction("clearAllTroops", () => {
 });
 registerAction("selectAllTroops", () => {
     const form = document.getElementById("send-troops-form");
-    const hasMineLimit = form && form.dataset.mineLimit !== undefined;
-    let remainingQuota = hasMineLimit ? parseInt(form.dataset.mineLimit) : Infinity;
+    const quotaLimit = form?.dataset.mineLimit !== undefined
+        ? parseInt(form.dataset.mineLimit)
+        : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
+
+    let remainingQuota = quotaLimit !== null ? quotaLimit : Infinity;
+
     const isMine = form && form.dataset.isMine === "true";
     const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
-
     let hasNormalUnitsAvailable = false;
+
     if (isMine) {
         document.querySelectorAll(".js-unit-input:not([disabled])").forEach(inp => {
             if (inp.id !== "sol_" + scoutId && (parseInt(inp.dataset.max) || 0) > 0) {
@@ -136,7 +143,6 @@ registerAction("selectAllTroops", () => {
             input.value = "";
             return;
         }
-
         const max = parseInt(input.dataset.max) || 0;
         if (max > 0 && remainingQuota > 0) {
             const take = Math.min(max, remainingQuota);
@@ -554,12 +560,14 @@ function formatMineDuration(totalSeconds) {
 document.addEventListener("input", (e) => {
     if (e.target.classList.contains("js-unit-input")) {
         const form = e.target.closest("#send-troops-form");
-        if (form && form.dataset.mineLimit !== undefined) {
-            const mineLimit = parseInt(form.dataset.mineLimit);
-            const otherUnits = getSelectedTroopCountExcept(e.target);
-            const allowedForThis = Math.max(0, mineLimit - otherUnits);
-            const maxOwn = parseInt(e.target.dataset.max) || 0;
+        const quotaLimit = form?.dataset.mineLimit !== undefined
+            ? parseInt(form.dataset.mineLimit)
+            : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
 
+        if (quotaLimit !== null) {
+            const otherUnits = getSelectedTroopCountExcept(e.target);
+            const allowedForThis = Math.max(0, quotaLimit - otherUnits);
+            const maxOwn = parseInt(e.target.dataset.max) || 0;
             let rawVal = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
             const cap = Math.min(maxOwn, allowedForThis);
 
@@ -567,6 +575,7 @@ document.addEventListener("input", (e) => {
                 e.target.value = cap > 0 ? cap : "";
             }
         }
+
         updateTroopSummary();
     }
 });

@@ -22,7 +22,7 @@ $player_pages = ceil($player_count / $rows_per_page);
 
 $players_res = $db_instance->execute_query("
     SELECT u.id, u.username, u.lastactivity, u.lastrank, u.ranking_points AS score,
-           u.is_vacation, u.vacation_until,
+           u.is_vacation, u.vacation_until, u.active_title_id, u.gender,
            g.tag as guild_tag, g.id as guildid, r.rank_color, r.id as rank_id
     FROM users u 
     LEFT JOIN guilds g ON u.guildid = g.id
@@ -120,6 +120,7 @@ foreach ($players_res as $row) {
     }
 
     $player = new User($user_id, $user_name);
+    $player->set_user_row($row);
     $user_link = "<a href='#' 
             data-on-click='openOverlay' 
             data-url='userinfo.php?userid=$user_id' 

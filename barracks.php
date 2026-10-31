@@ -705,9 +705,7 @@ $view .= "
         </tr>
         <tr>
             <td colspan='2' style='background: transparent; border: none; padding-top: 10px; text-align: center;'>
-                <button type='button' data-on-click='openAllTroopsOverlay'>
-                    " . Messages::wrap_emojis("Alle Truppen anzeigen") . "
-                </button>
+                <button type='button' data-on-click='openAllTroopsOverlay'>Alle Truppen anzeigen</button>
             </td>
         </tr>
     </table>
@@ -977,9 +975,20 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                 $remaining_for_this_unit = $current_unit_time;
             }
 
-            $text_build = "In Ausbildung: " . $soldier_goal . "<br>
-                            <span class='js-countdown' data-seconds='$remaining_for_this_unit' data-hide-id='cancel-form' data-timer-cat='$unit_cat'>
-                            " . format_time_for_js($remaining_for_this_unit) . "</span><br> 
+            $vill_cost_per_unit = (int)$soldiers[$i]->get_soldier_villager_cost();
+
+            $text_build = "In Ausbildung: <b id='recruit-goal-$i'>$soldier_goal</b><br>
+                            <span class='js-countdown' 
+                                  id='recruit-countdown-$i'
+                                  data-seconds='$remaining_for_this_unit' 
+                                  data-unit-time='$current_unit_time'
+                                  data-goal='$soldier_goal'
+                                  data-goal-target='recruit-goal-$i'
+                                  data-villager-cost='$vill_cost_per_unit'
+                                  data-produced-soldier-id='$s_id_internal'
+                                  data-hide-id='cancel-form' 
+                                  data-timer-cat='$unit_cat'>
+                                " . format_time_for_js($remaining_for_this_unit) . "</span><br>
                               <form id='cancel-form' action='barracks.php' method='GET'>
                                 <input type='hidden' name='recruit' value='$i'>
                                 <input type='hidden' name='count' value='cancel'>
@@ -1003,8 +1012,19 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $rem = max(0, $total_diff % $upg_unit_time);
             if ($rem == 0) $rem = $upg_unit_time;
 
-            $text_build = "Aufwertung zu </b>$target_name:</b> " . $upgrade_event["soldiergoal"] . "<br>
-            <span class='js-countdown' data-seconds='$rem' data-hide-id='cancel-form-upg' data-timer-cat='$unit_cat'>" . format_time_for_js($rem) . "</span><br>
+            $upg_goal = (int)$upgrade_event["soldiergoal"];
+
+            $text_build = "Aufwertung zu <b>$target_name:</b> <b id='upgrade-goal-$i'>$upg_goal</b><br>
+            <span class='js-countdown' 
+                  id='upgrade-countdown-$i'
+                  data-seconds='$rem' 
+                  data-unit-time='$upg_unit_time'
+                  data-goal='$upg_goal'
+                  data-goal-target='upgrade-goal-$i'
+                  data-produced-soldier-id='$target_id'
+                  data-hide-id='cancel-form-upg' 
+                  data-timer-cat='$unit_cat'>
+                " . format_time_for_js($rem) . "</span><br>
             <form id='cancel-form-upg' action='barracks.php' method='GET'>
                 <input type='hidden' name='recruit' value='$i'>
                 <input type='hidden' name='count' value='cancel'>
@@ -1129,7 +1149,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                 " . $soldiers[$i]->get_soldier_description() . "
                                 " . $capacity_text . "
                                 " . $stock_info . "
-                            </div> (" . $owned_in_garrison . ")
+                            </div> (<span class='js-unit-owned-count' data-soldier-id='$s_id_internal'>" . $owned_in_garrison . "</span>)
                         </b>
                     </div>
                 </div>";

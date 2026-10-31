@@ -129,6 +129,7 @@ const ESTATE_VILLAGER_GROWTH_STEP = 2;
 const ESTATE_VILLAGER_BASE_INC = 10;
 const ESTATE_VILLAGER_BASE_STEP = 5;
 const WATCHTOWER_DETECTION_PER_LEVEL = 2100;
+const WATCHTOWER_PUSH_COOLDOWN = 300;
 const KINGDOM_OVERFLOW_FACTOR = 0.95;
 
 // --- Military, Battle ---
@@ -211,6 +212,9 @@ const SMITHY_ARC_ATK_BONUS = 8;
 const SMITHY_ARC_DEF_BONUS = 6;
 const SMITHY_WEIGHT_REDUCTION = 0.05;
 const SMITHY_SIEGE_BONUS = 0.10;
+const BARRACKS_EXPANSION_CAPACITY_PER_LEVEL = 500;
+const SCHOLARSHIP_RESEARCH_REDUCTION = 0.04;
+const METALLURGY_RESEARCH_REDUCTION = 0.04;
 
 // --- Monster Camps ---
 const MAX_MONSTER_CAMPS = 150;
@@ -348,6 +352,7 @@ const GUILD_BONUS_SUPPORT_SPEED_PER_LVL = 0.03;
 const GUILD_BONUS_MEMBER_LIMIT_PER_LVL = 2;
 const NUM_LAST_GUILD_MINERS = 10;
 const GUILD_STORAGE_LOG_RETENTION_DAYS = 7;
+const GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL = 0.10;
 
 // --- Abandoned Kingdoms ---
 const ABANDONED_MIN_TC_LEVEL = 3;
@@ -441,16 +446,30 @@ const PERFECT_RESOURCE_PLUNDER_RANGE = 150;
 const ARENA_DEFAULT_ELO = 1000;
 const ARENA_ELO_K_FACTOR = 32;                   // Impact of wins/losses on rating
 const ARENA_MAX_COINS = 5;                       // Maximum stackable arena coins (tickets)
-const ARENA_COIN_REGEN_HOURS = 4;                // 1 coin every 4 hours (6 attacks per 24h with optimal usage)
+const ARENA_COIN_REGEN_HOURS = 3;                // 1 coin every 4 hours (6 attacks per 24h with optimal usage)
 const ARENA_ROLL_COUNT = 3;                      // Number of opponents displayed at once
-const ARENA_ROLL_ELO_WINDOW = 120;               // Opponent search range (own Elo +/- X)
+const ARENA_ROLL_ELO_WINDOW = 150;               // Opponent search range (own Elo +/- X)
 const ARENA_ARMY_UNIT_LIMIT = 5000;              // Fixed troop count to distribute freely
 const ARENA_MAX_TECH_POINTS = 30;                // Total points for smith techs (e.g. level 0-10 per category)
 const ARENA_MAX_TECH_LEVEL = 10;                 // Maximum level per individual smith tech
-const ARENA_SEASON_ACTIVE_DAYS = 28;
 const ARENA_MAX_REROLLS_PER_DAY = 3;
 const ARENA_MIN_ELO = 100;
 const ARENA_ELO_LOSS_FACTOR = 0.9;
+const ARENA_OPPONENT_ATTACK_COOLDOWN = 1800;
+const ARENA_HERO_BASE_ATK = 5000;
+const ARENA_HERO_BASE_DEF = 5000;
+const ARENA_HERO_MAX_LEVEL = 20;
+const ARENA_HERO_XP_WIN = 50;
+const ARENA_HERO_XP_DRAW = 35;
+const ARENA_HERO_XP_LOSS = 25;
+const ARENA_HERO_BASE_XP = 60;
+const ARENA_HERO_XP_FACTOR = 1.41;
+const ARENA_HERO_STAT_FACTOR = 1.18;
+const ARENA_HERO_RPS_BASE = 0.05;
+const ARENA_HERO_RPS_FACTOR = 1.22;
+const ARENA_SKILL_MAX_LEVEL = 10;
+const ARENA_SKILL_BASE_XP = 50;
+const ARENA_SKILL_XP_FACTOR = 2.1;
 
 // Allowed soldier IDs
 const ARENA_ALLOWED_SOLDIER_IDS = [
@@ -478,20 +497,6 @@ const ARENA_SEASON_REWARDS = [
     50 => ["coins" => 5, "res" => 22500, "label" => "Top 50"],
     99999 => ["coins" => 2, "res" => 7500, "label" => "Teilnahme"]
 ];
-
-const ARENA_HERO_BASE_ATK = 5000;
-const ARENA_HERO_BASE_DEF = 5000;
-const ARENA_HERO_MAX_LEVEL = 20;
-const ARENA_HERO_XP_WIN = 50;
-const ARENA_HERO_XP_DRAW = 20;
-const ARENA_HERO_BASE_XP = 60;
-const ARENA_HERO_XP_FACTOR = 1.41;
-const ARENA_HERO_STAT_FACTOR = 1.18;
-const ARENA_HERO_RPS_BASE = 0.05;
-const ARENA_HERO_RPS_FACTOR = 1.22;
-const ARENA_SKILL_MAX_LEVEL = 10;
-const ARENA_SKILL_BASE_XP = 50;
-const ARENA_SKILL_XP_FACTOR = 2.1;
 const ARENA_HERO_SKILLS = [
     1 => [
         "id" => 1,
@@ -602,6 +607,7 @@ interface GuildTechTypes
     const int GUILD_TECH_SUPPORT_CAPACITY = 3;
     const int GUILD_TECH_SUPPORT_SPEED = 4;
     const int GUILD_TECH_MEMBER_LIMIT = 5;
+    const int GUILD_TECH_ALLY_TRADE_DISCOUNT = 6;
 }
 
 interface GuildRanks
@@ -700,6 +706,9 @@ interface TechTypes
     const int TECH_TYPE_DOUBLET = 18;
     const int TECH_TYPE_WEIGHT = 19;
     const int TECH_TYPE_SIEGE = 20;
+    const int TECH_TYPE_BARRACKS_EXPANSION = 21;
+    const int TECH_TYPE_SCHOLARSHIP = 22;
+    const int TECH_TYPE_METALLURGY = 23;
 }
 
 interface Soldiers

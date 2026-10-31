@@ -1,6 +1,42 @@
 const countdownRegistry = new Map();
 let masterTimerInterval = null;
 
+function onQueueUnitFinished(element) {
+    const villCost = parseInt(element.dataset.villagerCost, 10) || 0;
+    if (villCost > 0) {
+        document.querySelectorAll("img[src*='icon_villager']").forEach(img => {
+            const container = img.closest('.split-content');
+
+            if (container) {
+                const span = container.querySelector("span");
+
+                if (span && span.innerText.includes("/")) {
+                    const parts = span.innerText.split("/");
+                    const currentVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
+                    const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || 0;
+                    const newVal = Math.max(0, currentVal - villCost);
+
+                    span.innerText = `${newVal.toLocaleString("de-DE")} / ${parts[1].trim()}`;
+
+                    if (maxVal > 0) {
+                        span.className = (newVal >= maxVal) ? "over-limit" : "under-limit";
+                    }
+                }
+            }
+        });
+    }
+
+    const soldierId = element.dataset.producedSoldierId;
+    if (soldierId) {
+        document.querySelectorAll(`.js-unit-owned-count[data-soldier-id='${soldierId}']`).forEach(span => {
+            const current = parseInt(span.innerText.replace(/\D/g, ''), 10) || 0;
+            const updated = current + 1;
+
+            span.innerText = (typeof formatNumJS === "function") ? formatNumJS(updated) : updated.toLocaleString("de-DE");
+        });
+    }
+}
+
 function formatTime(totalSeconds) {
     if (totalSeconds <= 0) return "00:00";
 
@@ -93,6 +129,33 @@ function startMasterTimer() {
             const secLeft = Math.ceil(msLeft / 1000);
 
             if (msLeft <= 0) {
+                const unitTime = parseInt(timer.element.dataset.unitTime, 10) || 0;
+                let goal = parseInt(timer.element.dataset.goal, 10) || 0;
+
+                if (unitTime > 0 && goal > 1) {
+                    anyTimerActive = true;
+                    goal--;
+                    timer.element.dataset.goal = goal.toString();
+
+                    const goalEl = document.getElementById(timer.element.dataset.goalTarget);
+                    if (goalEl) {
+                        goalEl.innerText = goal.toString();
+                    }
+
+                    onQueueUnitFinished(timer.element);
+
+                    timer.endTime = Math.max(now, timer.endTime + (unitTime * 1000));
+                    const newSecLeft = Math.max(1, Math.ceil((timer.endTime - now) / 1000));
+                    timer.lastTickValue = newSecLeft;
+                    timer.element.textContent = formatTime(newSecLeft);
+                    return;
+                }
+
+                // Last unit was finished
+                if (unitTime > 0 && goal === 1) {
+                    onQueueUnitFinished(timer.element);
+                }
+
                 timer.element.textContent = timer.element.dataset.zeroText || (timer.timerType === 0 ? "Fertig!" : "00:00");
 
                 if (timer.element.id === "counter") {

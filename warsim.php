@@ -234,7 +234,10 @@ $view .= '<div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: fl
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">
                 <div class="box-header">Deine Armee</div>
                 <table class="table warsim-table" style="width: 100%;">
-                    <tr><td class="td-center td-gradient">Einheit</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
+                    <tr>
+                        <td class="td-center td-gradient">Einheit</td>
+                        <td class="td-center td-gradient" style="width: 80px;">Anzahl</td>
+                    </tr>';
 
 foreach ($soldiers as $s) {
     $name = $s->get_soldier_name();

@@ -654,28 +654,21 @@ class Conquest
         return $this->enemy_soldiers;
     }
 
-    public function apply_losses_to_stationed_troops(): void
+    public function apply_losses_to_stationed_troops(): array
     {
-        $query = "SELECT st.*, sl.scoregain, u.username AS owner_name 
-              FROM stationed_troops st 
-              JOIN soldier_list sl ON st.soldier_id = sl.id 
-              JOIN users u ON st.owner_id = u.id 
-              WHERE st.target_kingdom_id = ?
-              ORDER BY st.soldier_id, st.id";
+        $query = "SELECT st.*, sl.scoregain, sl.attack, sl.defense, sl.category, u.username AS owner_name 
+                  FROM stationed_troops st 
+                  JOIN soldier_list sl ON st.soldier_id = sl.id 
+                  JOIN users u ON st.owner_id = u.id 
+                  WHERE st.target_kingdom_id = ? 
+                  ORDER BY st.soldier_id, st.id";
         $res = $this->mysqli->execute_query($query, [$this->target_id]);
 
-        $attacker_name = $this->mysqli->execute_query(
-            "SELECT u.username FROM events e JOIN users u ON e.userid = u.id WHERE e.eventid = ?",
-            [$this->event_id]
-        )->fetch_column() ?: "Unbekannt";
-
-        $reports_to_send = [];
-        $usernames = [];
-
+        $supporters_data = [];
         $remaining_losses_per_type = [];
+
         foreach ($this->soldier_types as $id => $s) {
             $tot_loss = (int)($this->initial_soldiers[$id]["enemy_losses"] ?? 0);
-
             $res_own_garrison = (int)($this->mysqli->execute_query(
                 "SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
                 [$this->enemy_kingdom->get_kingdom_id(), $id]
@@ -684,16 +677,13 @@ class Conquest
             $tot_init = (int)($this->initial_soldiers[$id]["initial_enemy_soldiers"] ?? 0);
             $garrison_share = ($tot_init > 0) ? ($res_own_garrison / $tot_init) : 0;
             $garrison_loss = min($res_own_garrison, (int)floor($tot_loss * $garrison_share));
-
             $remaining_losses_per_type[$id] = max(0, $tot_loss - $garrison_loss);
         }
 
         while ($row = $res->fetch_assoc()) {
             $uid = (int)$row["owner_id"];
             $sid = (int)$row["soldier_id"];
-            $usernames[$uid] = $row["owner_name"];
             $initial = (int)$row["soldiercount"];
-
             $tot_init_type = (int)($this->initial_soldiers[$sid]["initial_enemy_soldiers"] ?? 0);
             $tot_loss_type = (int)($this->initial_soldiers[$sid]["enemy_losses"] ?? 0);
 
@@ -701,7 +691,6 @@ class Conquest
             if ($tot_init_type > 0 && $tot_loss_type > 0) {
                 $unit_loss_ratio = $tot_loss_type / $tot_init_type;
                 $calculated_loss = (int)round($initial * $unit_loss_ratio);
-
                 $loss = min($initial, $calculated_loss, $remaining_losses_per_type[$sid]);
                 $remaining_losses_per_type[$sid] = max(0, $remaining_losses_per_type[$sid] - $loss);
             }
@@ -727,57 +716,33 @@ class Conquest
                 Stats::update_player_stat($uid, "units_fallen_pvp", $loss);
             }
 
-            if (!isset($reports_to_send[$uid])) {
-                $reports_to_send[$uid] = [];
+            if (!isset($supporters_data[$uid])) {
+                $supporters_data[$uid] = [
+                    "user_id" => $uid,
+                    "username" => $row["owner_name"],
+                    "units" => []
+                ];
             }
-            $reports_to_send[$uid][] = [
-                "sid" => $sid,
-                "initial" => $initial,
-                "loss" => $loss
-            ];
+
+            if (!isset($supporters_data[$uid]["units"][$sid])) {
+                $supporters_data[$uid]["units"][$sid] = [
+                    "id" => $sid,
+                    "initial" => 0,
+                    "losses" => 0,
+                    "atk" => (int)$row["attack"],
+                    "def" => (int)$row["defense"]
+                ];
+            }
+            
+            $supporters_data[$uid]["units"][$sid]["initial"] += $initial;
+            $supporters_data[$uid]["units"][$sid]["losses"] += $loss;
         }
 
-        foreach ($reports_to_send as $uid => $troop_results) {
-            $this->send_combined_support_report($uid, $usernames[$uid] ?? "Spieler", $troop_results, $attacker_name);
+        foreach ($supporters_data as &$sup) {
+            $sup["units"] = array_values($sup["units"]);
         }
-    }
+        unset($sup);
 
-    private function send_combined_support_report(int $uid, string $u_name, array $troop_results, string $attacker_name): void
-    {
-        $target_k = new Kingdom($this->target_id);
-        $tx = $target_k->get_kingdom_map_x();
-        $ty = $target_k->get_kingdom_map_y();
-
-        $res_atk_k = $this->mysqli->execute_query("
-            SELECT kingdomname, mapx, mapy FROM kingdoms 
-            WHERE id = (SELECT kingdomid FROM events WHERE eventid = ?)
-        ", [$this->event_id]);
-        $atk_k_data = $res_atk_k->fetch_assoc();
-
-        $units_data = [];
-        $total_loss = 0;
-        foreach ($troop_results as $res) {
-            $units_data[] = [
-                "id" => (int)$res["sid"],
-                "initial" => (int)$res["initial"],
-                "losses" => (int)$res["loss"]
-            ];
-            $total_loss += (int)$res["loss"];
-        }
-
-        $support_combat_json = [
-            "template" => "support_combat",
-            "target_name" => $target_k->get_kingdom_name(),
-            "target_x" => $tx,
-            "target_y" => $ty,
-            "attacker_name" => $attacker_name,
-            "atk_kname" => $atk_k_data['kingdomname'] ?? 'Unbekannt',
-            "atk_x" => (int)($atk_k_data['mapx'] ?? 0),
-            "atk_y" => (int)($atk_k_data['mapy'] ?? 0),
-            "total_loss" => $total_loss,
-            "units" => $units_data
-        ];
-
-        Messages::send_server_message($uid, $u_name, MessageCategories::CATEGORY_WAR, $support_combat_json);
+        return $supporters_data;
     }
 }

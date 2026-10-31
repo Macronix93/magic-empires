@@ -220,12 +220,13 @@ if ($result->num_rows > 0) {
         $php_timer_expires = format_time_for_js($remaining);
         $time_str = "<span class='js-countdown' data-seconds='$remaining'>$php_timer_expires</span>";
 
+        $seller_gid = (int)($row["seller_guild_id"] ?? 0);
+        $is_guild_deal = ((int)($row["guild_id"] ?? 0) > 0);
+        $is_ally_deal = ($my_guild_id > 0 && ($seller_gid === $my_guild_id || $is_guild_deal));
+
         if ($is_my_offer) {
             $arrival_time_str = "-";
         } else {
-            $seller_gid = (int)($row["seller_guild_id"] ?? 0);
-            $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
-
             $seconds = $map->get_arrival_time($my_x, $my_y, $map_x, $map_y, -1, null, false, true, false, $is_ally_deal);
             $arrival_time_str = convert_sec_to_str($seconds, true);
         }
@@ -240,7 +241,6 @@ if ($result->num_rows > 0) {
             $btn_class = "btn-accept";
         }
 
-        $is_guild_deal = ((int)($row["guild_id"] ?? 0) > 0);
         $guild_icon = $is_guild_deal
             ? "<img src='images/icons/icon_guild.png' class='ressource-icons' alt='Gilde' title='Gildeninternes Angebot'>"
             : "";
@@ -252,6 +252,15 @@ if ($result->num_rows > 0) {
                             <input type='hidden' name='" . e($param) . "' value='" . e($row["offerid"]) . "'>
                             <input type='submit' class='" . e($btn_class) . "' value=''>
                         </form>";
+
+        $raw_coins = (int)$row["coins"];
+        $display_coins = $raw_coins;
+        if ($is_ally_deal) {
+            $trade_disc_lvl = Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
+            if ($trade_disc_lvl > 0) {
+                $display_coins = max(1, (int)round($raw_coins * (1.0 - ($trade_disc_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL))));
+            }
+        }
 
         $view .= "<tr>
                     <td>
@@ -269,7 +278,7 @@ if ($result->num_rows > 0) {
                     </td>
                     <td class='td-center'>$arrival_time_str</td>
                     <td class='td-center'>$time_str</td>
-                    <td class='td-center'><span style='display: inline-block; white-space: nowrap;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " {$row["coins"]}</span></td>
+                    <td class='td-center'><span style='display: inline-block; white-space: nowrap;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " $display_coins</span></td>
                     <td class='td-center'>$text_build</td>
                 </tr>";
     }
@@ -389,70 +398,59 @@ if ($other_kingdoms_res->num_rows > 0) {
         }
     }
 
-    $is_disabled = ($available_markets_count === 0);
-    $disabled_attr = $is_disabled ? "disabled" : "";
+    if ($available_markets_count > 0) {
+        $init_target = $target_kingdoms_data[$active_target_id] ?? null;
+        $init_time_str = $arrival_times_cache[$active_target_id] ?? "";
+        $init_time_display = !empty($init_time_str) ? "(Dauer: $init_time_str)" : "";
 
-    $init_target = $target_kingdoms_data[$active_target_id] ?? null;
-    $init_time_str = $arrival_times_cache[$active_target_id] ?? "";
-    $init_time_display = !empty($init_time_str) ? "(Dauer: $init_time_str)" : "";
+        $init_header_name = $init_target ? e($init_target["name"]) : "-";
+        $init_food = $init_target ? format_num($init_target["food"] + $init_target["inc_food"]) . " / " . format_num($init_target["maxfood"]) : "-";
+        $init_wood = $init_target ? format_num($init_target["wood"] + $init_target["inc_wood"]) . " / " . format_num($init_target["maxwood"]) : "-";
+        $init_stone = $init_target ? format_num($init_target["stone"] + $init_target["inc_stone"]) . " / " . format_num($init_target["maxstone"]) : "-";
+        $init_gold = $init_target ? format_num($init_target["gold"] + $init_target["inc_gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
 
-    $init_header_name = $init_target ? e($init_target["name"]) : "-";
-    $init_food = $init_target ? format_num($init_target["food"] + $init_target["inc_food"]) . " / " . format_num($init_target["maxfood"]) : "-";
-    $init_wood = $init_target ? format_num($init_target["wood"] + $init_target["inc_wood"]) . " / " . format_num($init_target["maxwood"]) : "-";
-    $init_stone = $init_target ? format_num($init_target["stone"] + $init_target["inc_stone"]) . " / " . format_num($init_target["maxstone"]) : "-";
-    $init_gold = $init_target ? format_num($init_target["gold"] + $init_target["inc_gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
+        $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
+        $view .= '<table class="table internal-transport-table">
+                    <form action="marketplace.php" method="GET">
+                        <input type="hidden" name="send_own" value="1">
+                        <tr>
+                            <td style="width: 30%;">
+                                <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;">' . $init_time_display . '</small></label><br>
+                                <select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>
+                                <div class="mobile-internal-stock-box" id="target-k-stock-box">
+                                    <div class="mobile-stock-header" id="target-k-stock-header">
+                                        Vorräte in <b>' . $init_header_name . '</b>:
+                                    </div>
+                                    <div class="mobile-internal-stock-grid">
+                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">' . $init_food . '</span></div>
+                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">' . $init_wood . '</span></div>
+                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">' . $init_stone . '</span></div>
+                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">' . $init_gold . '</span></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="width: 50%; text-align: center; vertical-align: middle;">
+                                <div class="internal-res-grid">
+                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
+                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" 
+                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" 
+                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
+                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
+                                    <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
+                                    <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
+                                </div>
+                            </td>
+                        </tr>
+                    </form>
+                  </table>';
 
-    $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
-    $view .= '<table class="table internal-transport-table">
-                <form action="marketplace.php" method="GET">
-                    <input type="hidden" name="send_own" value="1">
-                    <tr>
-                        <td style="width: 30%;">
-                            <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;">' . $init_time_display . '</small></label><br>';
-
-    if ($is_disabled) {
-        $view .= '<select name="target_k" id="target_k" class="target-kingdom" disabled>
-                    <option value="">-</option>
-                  </select>
-                  <br><small class="error">Keine Marktplätze verfügbar!</small>';
-    } else {
-        $view .= '<select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>';
-        $view .= '
-                <div class="mobile-internal-stock-box" id="target-k-stock-box">
-                    <div class="mobile-stock-header" id="target-k-stock-header">
-                        Vorräte in <b>' . $init_header_name . '</b>:
-                    </div>
-                    <div class="mobile-internal-stock-grid">
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">' . $init_food . '</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">' . $init_wood . '</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">' . $init_stone . '</span></div>
-                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">' . $init_gold . '</span></div>
-                    </div>
-                </div>';
+        $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "' data-stocks='" . e(json_encode($target_kingdoms_data)) . "'></div>";
     }
-
-    $view .= '</td>
-                <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div class="internal-res-grid">
-                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
-                            placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" 
-                            placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" 
-                            placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                        <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
-                            placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $disabled_attr . '></div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
-                        <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
-                        <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
-                    </div>
-                </td>
-            </tr>
-        </form>
-      </table>';
-
-    $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "' data-stocks='" . e(json_encode($target_kingdoms_data)) . "'></div>";
 }
 
 $storage_info = [
@@ -462,11 +460,13 @@ $storage_info = [
     ResourceTypes::RESOURCE_TYPE_GOLD => ["cur" => $kingdom->get_kingdom_gold(), "max" => $kingdom->get_kingdom_max_gold()],
 ];
 
+$trade_disc_lvl = Guild::get_user_guild_tech_level($user->get_user_id(), GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
 $market_config = [
     "base" => MARKET_BASE_FEE,
     "max_ratio" => MAX_MARKET_RATIO,
     "listing_fee_step" => MARKET_LISTING_FEE_STEP,
     "max_capacity_per_offer" => $max_capacity,
+    "guild_trade_discount" => ($trade_disc_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL),
     "factors" => [
         ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,
         ResourceTypes::RESOURCE_TYPE_WOOD => MARKET_FEE_MULTIPLIER_WOOD,

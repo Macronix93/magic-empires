@@ -273,6 +273,11 @@ document.addEventListener("DOMContentLoaded", function () {
         updateTimeDisplay();
     }
 
+    const guildOnlyBox = document.getElementById("guild_only");
+    if (guildOnlyBox) {
+        guildOnlyBox.addEventListener("change", calculateLiveFee);
+    }
+
     updateDropdowns();
 });
 
@@ -319,6 +324,13 @@ function calculateLiveFee() {
         const feeD = Math.floor(valD * (config.factors[typeD] || 0));
 
         const maxVarFee = Math.max(feeS, feeD);
-        buyerDisplay.innerText = (config.base + maxVarFee).toLocaleString();
+        let buyerFee = (config.base + maxVarFee);
+        const guildOnlyBox = document.getElementById("guild_only");
+
+        if (guildOnlyBox && guildOnlyBox.checked && config.guild_trade_discount > 0) {
+            buyerFee = Math.max(1, Math.round(buyerFee * (1.0 - config.guild_trade_discount)));
+        }
+
+        buyerDisplay.innerText = buyerFee.toLocaleString("de-DE");
     }
 }

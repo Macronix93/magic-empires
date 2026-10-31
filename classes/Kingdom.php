@@ -752,6 +752,8 @@ class Kingdom
             );
         }
 
+        Tech::sort_tech_array($techs);
+
         return $techs;
     }
 
@@ -820,7 +822,10 @@ class Kingdom
         $barracks_lvl = $this->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
         if ($barracks_lvl <= 0) return TROOP_LIMIT_BASE;
 
-        return (int)(TROOP_LIMIT_BASE + TROOP_LIMIT_FACTOR * pow($barracks_lvl, TROOP_LIMIT_EXPONENT));
+        $base_limit = (int)(TROOP_LIMIT_BASE + TROOP_LIMIT_FACTOR * pow($barracks_lvl, TROOP_LIMIT_EXPONENT));
+        $expansion_lvl = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_BARRACKS_EXPANSION);
+
+        return $base_limit + ($expansion_lvl * BARRACKS_EXPANSION_CAPACITY_PER_LEVEL);
     }
 
     public function get_current_troop_count(bool $include_queue = true, bool $include_incoming = false): int
@@ -1151,5 +1156,17 @@ class Kingdom
         return SUPPORT_LIMIT_BASE
             + ($barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS)
             + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+    }
+
+    public function get_university_research_multiplier(): float
+    {
+        $lvl = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_SCHOLARSHIP);
+        return (float)max(0.1, 1.0 - ($lvl * SCHOLARSHIP_RESEARCH_REDUCTION));
+    }
+
+    public function get_smithy_research_multiplier(): float
+    {
+        $lvl = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_METALLURGY);
+        return (float)max(0.1, 1.0 - ($lvl * METALLURGY_RESEARCH_REDUCTION));
     }
 }

@@ -45,7 +45,7 @@ $deleted_ids = [];
 $reaction_updates = [];
 $extra_data = [];
 
-$get_visible_ids = function(string $table, string $extra_where = "", array $extra_params = []) use ($db_instance, $oldest_id): array {
+$get_visible_ids = function (string $table, string $extra_where = "", array $extra_params = []) use ($db_instance, $oldest_id): array {
     $where = "deleted = 0";
     $params = [];
     if (!empty($extra_where)) {
@@ -102,7 +102,7 @@ if ($type === "world") {
     $reaction_updates = Messages::get_batch_reaction_badges("world_chat", $visible_ids, $user);
     $extra_data["worldUnread"] = new Messages($user)->get_unread_world_count();
 
-} elseif ($type === "guild") {
+} else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
         echo json_encode(["error" => "redirect"]);
@@ -146,7 +146,6 @@ if ($type === "world") {
     $visible_ids = $get_visible_ids("guild_chat", "guild_id = ?", [$guild_id]);
     $reaction_updates = Messages::get_batch_reaction_badges("guild_chat", $visible_ids, $user);
     $extra_data["guildUnread"] = new Messages($user)->get_unread_guild_count();
-
 } else {
     $partner_id = (int)($_GET["s"] ?? 0);
     if ($partner_id <= 0) {

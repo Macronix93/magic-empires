@@ -375,7 +375,7 @@ foreach ($user_kingdoms as $k) {
 
     $k_pop_id = "pop_k_preview_" . $kid;
     $k_res_popup = "
-        <div id='{$k_pop_id}_box' class='popupbox popup-right'>
+        <div id='{$k_pop_id}_box' class='popupbox popup-right' style='pointer-events: auto;'>
             <div style='display: flex; justify-content: space-between;'><b>$k_name</b> <small>$k_coords</small></div>
             <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
             <div style='display: flex; justify-content: space-between; gap: 12px; margin-bottom: 2px;'>
@@ -403,6 +403,10 @@ foreach ($user_kingdoms as $k) {
                 <span>Truppenbewegungen:</span>
                 <span style='white-space: nowrap;'><span class='$cmd_class'>$active_commands / $max_commands</span></span>
             </div>
+            " . (!$is_active_k ? "
+            <div class='mobile-only-switch-wrap' style='margin-top: 8px; text-align: center;'>
+                <button type='button' data-on-click='switchKingdomFromPopup' data-id='$kid'>Wechseln</button>
+            </div>" : "") . "
         </div>
     ";
 
@@ -442,6 +446,7 @@ foreach ($user_kingdoms as $k) {
     $col_research = "<div class='td-center'>-</div>";
     if (!empty($events_by_kingdom[$kid]["research"])) {
         $research_items = [];
+
         foreach ($events_by_kingdom[$kid]["research"] as $t_ev) {
             $next_lvl = $t_ev["buildinglevel"] + 1;
             $t_diff = max(0, $t_ev["buildingtime"] - $now);
@@ -458,6 +463,7 @@ foreach ($user_kingdoms as $k) {
                     </div>
                 </div>";
         }
+
         $col_research = "<div class='stack-wrapper'>" . implode("", $research_items) . "</div>";
     }
 
@@ -467,7 +473,7 @@ foreach ($user_kingdoms as $k) {
         $r_diff = max(0, $r_ev["recruittime"] - $now);
         $r_icon = "<img src='images/icons/" . e($r_ev["soldier_icon"]) . ".png' class='ressource-icons' alt=''>";
         $is_upg = ((int)$r_ev["actionid"] === ActionTypes::ACTION_UPGRADE_TROOPS);
-        $badge_title = ($is_upg ? "Aufwertung: " : "") . e($r_ev["soldiername"]);
+        $badge_title = "<b>" . ($is_upg ? "Aufwertung:<br>" : "") . "</b>" . e($r_ev["soldiername"]);
         $pop_id = "pop_rec_" . $r_ev["eventid"];
 
         $upgrade_arrow = $is_upg ? "<img src='images/icons/icon_arrow_up.png' class='badge-arrow-up' alt='▲' title='Aufwertung'>" : "";
@@ -476,7 +482,7 @@ foreach ($user_kingdoms as $k) {
             <div class='col-wrapper'>
                 <div class='unit-badge popup' id='$pop_id'>
                     $r_icon<b>" . fnum($r_ev["soldiergoal"]) . "$upgrade_arrow</b>
-                    <div id='{$pop_id}_box' class='popupbox'><b>$badge_title</b></div>
+                    <div id='{$pop_id}_box' class='popupbox'>$badge_title</div>
                 </div>
                 <div class='timer'>
                     <span class='js-countdown' data-seconds='$r_diff' data-no-reload='true'>" . format_time_for_js($r_diff) . "</span>
@@ -551,8 +557,6 @@ $query = "
         sl.icon AS soldier_icon, 
         sl.soldiername AS s_name,
         k.mapx, k.mapy,
-        k.username AS source_owner_username,
-        k.kingdomname AS source_kingdom_name,
         kt.kingdomname AS target_kingdom_name,
         kt.userid AS target_userid, 
         kt.username AS target_username,
@@ -606,8 +610,6 @@ if ($result && $result->num_rows > 0) {
                 "targetid" => $row["targetid"],
                 "target_userid" => $row["target_userid"],
                 "target_username" => $row["target_username"],
-                "source_kingdom_name" => $row["source_kingdom_name"],
-                "source_owner_username" => $row["source_owner_username"],
                 "target_kingdom_name" => $row["target_kingdom_name"],
                 "mapx" => $row["mapx"],
                 "mapy" => $row["mapy"],
@@ -808,12 +810,15 @@ if (!empty($all_tp_entries)) {
 
             $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
 
-            $target_name_info = "";
-            if ($event_data["targetid"] > 0 && !empty($event_data["target_username"])) {
-                $target_name_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
+            if ($is_target_my_kingdom) {
+                if (!empty($event_data["target_kingdom_name"])) {
+                    $coords_str = e($event_data["target_kingdom_name"]) . "<br><small>$target_coords</small>";
+                }
+            } else if ($event_data["targetid"] > 0 && !empty($event_data["target_username"])) {
+                $coords_str = "$target_coords <small>(" . e($event_data["target_username"]) . ")</small>";
+            } else {
+                $coords_str = "$target_coords";
             }
-
-            $coords_str = "$target_coords" . $target_name_info;
 
             $action_counter = "<span class='js-countdown' 
                                id='$counter_id' 
@@ -831,20 +836,19 @@ if (!empty($all_tp_entries)) {
             $is_pure_scout = $event_data["is_scouting"];
 
             if ($action_id === ActionTypes::ACTION_STATION_TROOPS) {
-                $action_type = "Unterstützung";
-
-                $src_name = e($event_data["source_kingdom_name"]);
                 $tgt_name = e($event_data["target_kingdom_name"] ?? "Unbekannt");
-                $names_str = "$src_name → $tgt_name";
 
-                $player_info = "";
                 if (!$is_me) {
-                    $player_info = " <small>(" . e($event_data["sender_username"]) . ")</small>";
-                } elseif ($event_data["target_userid"] != $user->get_user_id() && $event_data["targetid"] > 0) {
-                    $player_info = " <small>(" . e($event_data["target_username"]) . ")</small>";
+                    $action_type = "Unterstützung<br><small>(von " . e($event_data["sender_username"]) . ")</small>";
+                } else {
+                    $is_target_other_user = ($event_data["target_userid"] != $user->get_user_id() && $event_data["targetid"] > 0);
+
+                    if ($is_target_other_user && !empty($event_data["target_username"])) {
+                        $action_type = "Unterstützung<br><small>(zu " . e($event_data["target_username"]) . ")</small>";
+                    }
                 }
 
-                $coords_str = "$names_str $player_info<br><small>$target_coords</small>";
+                $coords_str = "$tgt_name<br><small>$target_coords</small>";
             } else if ($action_id === ActionTypes::ACTION_RETURN_TROOPS || $action_id === ActionTypes::ACTION_SUPPORT_RETURN) {
                 $action_type = ($action_id === ActionTypes::ACTION_SUPPORT_RETURN) ? "Support-Rückzug" : "Rückkehr";
                 $coords_str = "$target_coords";

@@ -5,11 +5,12 @@ class BattleReportRenderer
     private static ?array $soldier_cache = null;
     private static ?array $monster_cache = null;
 
-    public static function render_vs_grid(array $attacker_units, array $defender_units, string $atk_label = "Deine Truppen", string $def_label = "Gegner"): string
+    public static function render_vs_grid(array  $attacker_units, array $defender_units, string $atk_label = "Deine Truppen",
+                                          string $def_label = "Gegner", int $left_wall_def = 0, int $right_wall_def = 0): string
     {
         // Calculate Power Sums
         $sum_atk_atk = 0;
-        $sum_atk_def = 0;
+        $sum_atk_def = $left_wall_def;
         $atk_cards_html = "";
 
         if (empty($attacker_units)) {
@@ -24,7 +25,7 @@ class BattleReportRenderer
         }
 
         $sum_def_atk = 0;
-        $sum_def_def = 0;
+        $sum_def_def = $right_wall_def;
         $def_cards_html = "";
 
         if (empty($defender_units)) {
@@ -230,7 +231,7 @@ class BattleReportRenderer
         $html .= "<div style='font-size: 1.1em; margin-bottom: 5px;'>" . Messages::wrap_emojis($main_text) . "</div>";
 
         if ($wall_before > 0 || $wall_after > 0) {
-            $wall_icon = get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE);
+            $wall_icon = get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH);
             $destroyed = ($wall_after <= 0) ? " <span class='error'>(Zerstört)</span>" : "";
             $html .= "<div>$wall_icon Mauer: " . fnum($wall_before) . " &rarr; " . fnum($wall_after) . "$destroyed</div>";
         }

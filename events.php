@@ -535,7 +535,7 @@ if (!$active_event) {
                 $status_html = "";
             }
 
-            $base_gold = (int)$rewards['gold'];
+            $base_gold = $rewards["gold"];
             $boosted_gold = (int)round($base_gold * $guild_gold_mult);
 
             if ($g_gold_lvl > 0) {
@@ -564,32 +564,37 @@ if (!$active_event) {
 
     // --- LAST 5 ATTACKS LOG ---
     $res_logs = $db_instance->execute_query("
-        SELECT details, created_at 
-        FROM game_logs 
-        WHERE userid = ? 
-          AND action = 'WORLD_EVENT_ATTACK' 
-          AND JSON_EXTRACT(details, '$.event_id') = ?
-        ORDER BY id DESC LIMIT 5", [$user_id, (int)$event_id]);
+    SELECT details, created_at  
+    FROM game_logs  
+    WHERE userid = ?  
+      AND action = 'WORLD_EVENT_ATTACK'  
+      AND JSON_EXTRACT(details, '$.event_id') = ?
+    ORDER BY id DESC LIMIT 5", [$user_id, (int)$event_id]);
 
     if ($res_logs->num_rows > 0) {
+        $soldier_cache = [];
+        $res_s_all = $db_instance->query("SELECT id, soldiername, icon FROM soldier_list");
+        while ($s_row = $res_s_all->fetch_assoc()) {
+            $soldier_cache[(int)$s_row["id"]] = $s_row;
+        }
+
         $view .= "<div class='title-border'>Deine letzten Treffer</div>";
         $view .= "<table class='table' style='margin-bottom: 20px; font-size: 14px; max-width: 600px;'>";
         $view .= "<colgroup>
-                        <col style='width: 140px;'> <!-- Zeitpunkt -->
-                        <col style='width: auto;'>  <!-- Truppen -->
-                        <col style='width: 140px;'> <!-- Schaden -->
-                    </colgroup>
-                    <tr>
-                        <td class='td-center td-gradient'><b>Zeitpunkt</b></td>
-                        <td class='td-center td-gradient'><b>Truppen</b></td>
-                        <td class='td-center td-gradient'><b>Schaden</b></td>
-                    </tr>";
+            <col style='width: 140px;'>
+            <col style='width: auto;'>
+            <col style='width: 140px;'>
+        </colgroup>
+        <tr>
+            <td class='td-center td-gradient'><b>Zeitpunkt</b></td>
+            <td class='td-center td-gradient'><b>Truppen</b></td>
+            <td class='td-center td-gradient'><b>Schaden</b></td>
+        </tr>";
 
         foreach ($res_logs as $log) {
             $det = json_decode($log["details"], true);
             $dmg = $det["damage_caused"] ?? 0;
             $troops = $det["troops"] ?? [];
-
             $badge_html = "<div class='badge-container' style='display: flex; gap: 3px; justify-content: center; align-items: center; flex-wrap: wrap;'>";
             $b_count = 0;
 
@@ -599,10 +604,14 @@ if (!$active_event) {
                 if ($b_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) $resp_class .= " badge-hide-mobile";
                 if ($b_count > MAX_UNIT_BADGES_PER_ROW_DESKTOP) $resp_class .= " badge-hide-desktop";
 
-                $badge_html .= "<div class='unit-badge $resp_class' title='{$t["name"]}' style='padding: 2px 5px;'>
-                                    <img src='images/icons/{$t["icon"]}.png' style='width: 18px; height: 18px;' alt='{$t["name"]}'>
-                                    <b style='font-size: 11px;'>{$t["count"]}</b>
-                                </div>";
+                $sid = (int)($t["id"] ?? 0);
+                $unit_name = $t["name"] ?? ($soldier_cache[$sid]["soldiername"] ?? "Einheit");
+                $unit_icon = $t["icon"] ?? ($soldier_cache[$sid]["icon"] ?? "icon_error");
+
+                $badge_html .= "<div class='unit-badge $resp_class' title='" . e($unit_name) . "' style='padding: 2px 5px;'>
+                    <img src='images/icons/" . e($unit_icon) . ".png' style='width: 18px; height: 18px;' alt='" . e($unit_name) . "'>
+                    <b style='font-size: 11px;'>{$t["count"]}</b>
+                </div>";
             }
 
             if ($b_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
@@ -612,14 +621,11 @@ if (!$active_event) {
             $badge_html .= "</div>";
 
             $view .= "<tr>
-                        <td style=''>" . date("H:i:s", $log["created_at"]) . " Uhr</td>
-                        <td style='vertical-align:middle;'>$badge_html</td>
-                        <td style='text-align: center; vertical-align: middle;'>
-                            " . fnum($dmg, true) . "
-                        </td>
-                      </tr>";
+                <td>" . date("H:i:s", $log["created_at"]) . " Uhr</td>
+                <td style='vertical-align:middle;'>$badge_html</td>
+                <td style='text-align: center; vertical-align: middle;'> " . fnum($dmg, true) . " </td>
+            </tr>";
         }
-
         $view .= "</table>";
     }
 

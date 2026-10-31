@@ -18,7 +18,7 @@ $user->check_user_login();
     </div>
     <div class="tech-info-box">
         <b style="color: var(--link-color);">2. Dein Champion & Spezialisierungen:</b><br>
-        Ein mächtiger Held führt deine Armee an. Durch Siege und Unentschieden sammelt er Erfahrung und steigert seine
+        Ein mächtiger Held führt deine Armee an. Durch Kämpfe sammelt er Erfahrung und steigert seine
         Kampfkraft.<br>
         Zusätzlich wählst du eine Spezialisierung (Anti-Infanterie, Anti-Kavallerie, Anti-Fernkampf), die mit jedem
         Level einen steigenden Konter-Schaden gewährt.<br><br>
@@ -40,6 +40,12 @@ $user->check_user_login();
             <li><b>Saisonpause:</b> Die letzten 2 Tage des Monats ruhen die Waffen.</li>
             <li><b>Neustart:</b> Am 1. Tag des neuen Monats startet die nächste Saison frisch!</li>
         </ul>
+    </div>
+    <div class="tech-info-box">
+        <b style="color: var(--link-color);">Hinweis zum „Aktualisieren“-Button:</b><br>
+        Der Button <b>„🔄 Aktualisieren“</b> oben rechts lädt lediglich die Seite neu. Er bringt deine ELO-Punkte,
+        regenerierte Arena-Münzen und den Kampf-Log auf den aktuellen Stand (z.&nbsp;B. falls du in der Zwischenzeit
+        angegriffen wurdest). Deine aktuellen Gegner bleiben dabei unverändert.
     </div>
     <?php
     $user_max_tc = Arena::get_player_max_tc($user->get_user_id());

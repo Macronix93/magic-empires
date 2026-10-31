@@ -10,9 +10,14 @@ function switchHofTab(category, tabBtn) {
     if (activeCategory === category) return;
     activeCategory = category;
 
+    const url = new URL(window.location);
+    url.searchParams.set("cat", category);
+    window.history.replaceState({}, '', url);
+
     const allButtons = document.querySelectorAll('#hof-tabs .tablinks');
     allButtons.forEach(tab => tab.classList.remove("active"));
-    if (tabBtn) tabBtn.classList.add("active");
+    const btn = tabBtn || document.querySelector(`#hof-tabs .tablinks[data-category="${category}"]`);
+    if (btn) btn.classList.add("active");
 
     const container = document.getElementById("hof-container");
     const target = document.getElementById("hof_content_" + category);
@@ -26,6 +31,7 @@ function switchHofTab(category, tabBtn) {
             currentVisible.style.opacity = "";
             currentVisible.removeAttribute("data-active");
         }
+
         container.style.minHeight = "";
         target.style.display = "block";
         target.setAttribute("data-active", "true");

@@ -1043,6 +1043,11 @@ class Messages
             case "battle_pvp":
                 $role = $data["role"] ?? "attacker";
                 $is_attacker = ($role === "attacker");
+                $is_supporter = ($role === "supporter");
+                $wall_def = (int)($data["wall_defense"] ?? 0);
+
+                $left_wall_def = $is_attacker ? 0 : $wall_def;
+                $right_wall_def = $is_attacker ? $wall_def : 0;
 
                 $opponent_name = e($data["opponent_name"] ?? "Gegner");
                 $opp_x = (int)($data["opp_x"] ?? 0);
@@ -1059,6 +1064,11 @@ class Messages
                     $sub_title = "Truppen aus: <b>$my_kname</b> ($my_link)";
                     $atk_label = "Deine Truppen";
                     $def_label = "Verteidiger";
+                } else if ($is_supporter) {
+                    $header_title = "Unterstützungskampf: <b>$my_kname</b> ($my_link)";
+                    $sub_title = "Angriff von: <b>$opponent_name</b> aus $opp_link";
+                    $atk_label = "Gesamte Verteidigung";
+                    $def_label = "Angreifer: $opponent_name";
                 } else {
                     $header_title = "Angriff von: <b>$opponent_name</b> ($opp_link)";
                     $sub_title = "Verteidigung von: <b>$my_kname</b> ($my_link)";
@@ -1069,7 +1079,14 @@ class Messages
                 $html = "<div class='battle-report'>";
                 $html .= "<div class='title-border'>$header_title</div>";
                 $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>$sub_title</div>";
-                $html .= BattleReportRenderer::render_vs_grid($data["atk_units"] ?? [], $data["def_units"] ?? [], $atk_label, $def_label);
+                $html .= BattleReportRenderer::render_vs_grid(
+                    $data["atk_units"] ?? [],
+                    $data["def_units"] ?? [],
+                    $atk_label,
+                    $def_label,
+                    $left_wall_def,
+                    $right_wall_def
+                );
 
                 $out = $this->resolve_pvp_outcome($data["outcome"] ?? "repelled", $role);
                 $html .= BattleReportRenderer::render_outcome_box(
@@ -1081,8 +1098,40 @@ class Messages
                     $out["type"] ?? "neutral"
                 );
 
+                if ($is_supporter && !empty($data["my_support_units"])) {
+                    $html .= "<div class='battle-column' style='background: rgba(0, 123, 255, 0.15); border-color: #3498db;'>";
+                    $html .= "<div class='report-section-title' style='border-color: #3498db;'>Deine eingesetzten Hilfstruppen</div>";
+                    $html .= "<div style='display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;'>";
+
+                    foreach ($data["my_support_units"] as $u) {
+                        $html .= BattleReportRenderer::render_unit_card($u);
+                    }
+
+                    $html .= "</div></div>";
+                }
+
+                if (!$is_attacker && !$is_supporter && !empty($data["support_summary"])) {
+                    $html .= "<div class='battle-column' style='background: rgba(0, 123, 255, 0.15); border-color: #3498db;'>";
+                    $html .= "<div class='report-section-title'>Gilden-Unterstützung</div>";
+
+                    foreach ($data["support_summary"] as $s_entry) {
+                        $html .= "";
+                        $html .= "<div class='battle-supporter-name'>Unterstützung von <b>" . e($s_entry["username"]) . "</b>:</div>";
+                        $html .= "<div style='display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start;'>";
+
+                        foreach ($s_entry["units"] as $u) {
+                            $html .= BattleReportRenderer::render_unit_card($u);
+                        }
+
+                        $html .= "</div>";
+                    }
+
+                    $html .= "</div>";
+                }
+
                 if (!empty($data["conquest"])) {
                     $cq = $this->resolve_conquest_data($data["conquest"]);
+
                     if ($cq) {
                         $html .= BattleReportRenderer::render_outcome_box(
                             $cq["title"],

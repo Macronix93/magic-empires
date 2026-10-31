@@ -244,6 +244,17 @@ class Marketplace
         }
 
         $coins_cost = (int)$row["coins"];
+        $seller_gid = (int)($this->db->execute_query("SELECT guildid FROM users WHERE id = ?", [$row["userid"]])->fetch_column() ?? 0);
+        $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
+
+        if ($is_ally_deal) {
+            $discount_lvl = Guild::get_user_guild_tech_level($uid, GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
+
+            if ($discount_lvl > 0) {
+                $coins_cost = max(1, (int)round($coins_cost * (1.0 - ($discount_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL))));
+            }
+        }
+
         if ($this->user->get_user_coins() < $coins_cost) {
             $this->db->rollback();
             return ["success" => false, "error" => "Deine Münzen reichen nicht für das Handelsangebot!"];
@@ -264,8 +275,8 @@ class Marketplace
             $supply = (int)$row["supply"];
             $supply_value = (int)$row["supplyvalue"];
 
-            $seller_gid = (int)($this->db->execute_query("SELECT guildid FROM users WHERE id = ?", [$creator_id])->fetch_column() ?? 0);
-            $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
+//            $seller_gid = (int)($this->db->execute_query("SELECT guildid FROM users WHERE id = ?", [$creator_id])->fetch_column() ?? 0);
+//            $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
 
             $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $kid, null, false, true, false, $is_ally_deal);
             $buyer_arrival_time = $now + $buyer_seconds;

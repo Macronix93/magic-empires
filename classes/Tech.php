@@ -2,7 +2,6 @@
 
 class Tech
 {
-    private object $mysqli;
     private int $tech_id; // ID of the tech
     private int $kingdom_id; // ID of the kingdom that the tech is connected to
     private int $t_level; // Current level of the tech for the kingdom
@@ -17,11 +16,36 @@ class Tech
     private int $t_maxlevel;
     private string $t_description;
     private array $t_dependencies = [];
+    private int $origin_building = BuildingTypes::BUILDING_UNIVERSITY;
+    public const array DISPLAY_ORDER = [
+        // University
+        TechTypes::TECH_TYPE_FOOD_INC,
+        TechTypes::TECH_TYPE_WOOD_INC,
+        TechTypes::TECH_TYPE_STONE_INC,
+        TechTypes::TECH_TYPE_GOLD_INC,
+        TechTypes::TECH_TYPE_STORAGE_INC,
+        TechTypes::TECH_TYPE_ARCHITECTURE,
+        TechTypes::TECH_TYPE_SCHOLARSHIP,
+        TechTypes::TECH_TYPE_BARRACKS_EXPANSION,
+        TechTypes::TECH_TYPE_PLUNDER,
+        TechTypes::TECH_TYPE_CARTOGRAPHY,
+        TechTypes::TECH_TYPE_ARCANE_INTEL,
+        TechTypes::TECH_TYPE_WALL_HP_INC,
+        TechTypes::TECH_TYPE_MAINTENANCE,
+        TechTypes::TECH_TYPE_ANCESTRAL_RITES,
+        TechTypes::TECH_TYPE_IMPERIAL,
 
-    public function __construct()
-    {
-        $this->mysqli = Database::get_instance()->get_connection();
-    }
+        // Smithy
+        TechTypes::TECH_TYPE_BLADES,
+        TechTypes::TECH_TYPE_SHIELDWALL,
+        TechTypes::TECH_TYPE_LANCE_RIDING,
+        TechTypes::TECH_TYPE_CUIRASS,
+        TechTypes::TECH_TYPE_ARROWHEADS,
+        TechTypes::TECH_TYPE_DOUBLET,
+        TechTypes::TECH_TYPE_WEIGHT,
+        TechTypes::TECH_TYPE_METALLURGY,
+        TechTypes::TECH_TYPE_SIEGE
+    ];
 
     public function get_tech_kingdom_id(): int
     {
@@ -113,17 +137,6 @@ class Tech
         ];
     }
 
-    public function get_tech_cost(int $type): int
-    {
-        return match ($type) {
-            ResourceTypes::RESOURCE_TYPE_WOOD => $this->t_woodcost,
-            ResourceTypes::RESOURCE_TYPE_FOOD => $this->t_foodcost,
-            ResourceTypes::RESOURCE_TYPE_STONE => $this->t_stonecost,
-            ResourceTypes::RESOURCE_TYPE_GOLD => $this->t_goldcost,
-            default => 0,
-        };
-    }
-
     public function get_tech_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_tech$this->tech_id.png";
@@ -132,18 +145,6 @@ class Tech
             return "<img src='$icon_path' class='$class' alt='$this->t_name' title='$this->t_name'/>";
         } else {
             return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
-        }
-    }
-
-    public function is_researched(): bool
-    {
-        $query = "SELECT * FROM techs WHERE kingdomid = ? AND techid = ?";
-        $result = $this->mysqli->execute_query($query, [$this->kingdom_id, $this->tech_id]);
-
-        if ($result->num_rows > 0) {
-            return true;
-        } else {
-            return false;
         }
     }
 
@@ -161,6 +162,7 @@ class Tech
         $this->set_tech_mult($row["multiplicator"]);
         $this->set_tech_time($row["timetoresearch"]);
         $this->set_tech_level($row["techlevel"] ?? 0);
+        $this->set_origin_building((int)($row["origin_building"] ?? BuildingTypes::BUILDING_UNIVERSITY));
 
         return $this;
     }
@@ -266,7 +268,12 @@ class Tech
                 2 => 9,
                 default => 10,
             },
-
+            TechTypes::TECH_TYPE_BARRACKS_EXPANSION => match (true) {
+                $target_level <= 2 => 8,
+                $target_level <= 4 => 9,
+                default => 10,
+            },
+            TechTypes::TECH_TYPE_SCHOLARSHIP => min(10, $target_level + 2),
             default => min(10, $target_level),
         };
     }
@@ -279,7 +286,9 @@ class Tech
 
         return match ($tech_id) {
             TechTypes::TECH_TYPE_ARROWHEADS => min(10, $target_level + 1),
-            TechTypes::TECH_TYPE_SHIELDWALL, TechTypes::TECH_TYPE_WEIGHT => min(10, $target_level + 2),
+            TechTypes::TECH_TYPE_SHIELDWALL,
+            TechTypes::TECH_TYPE_WEIGHT,
+            TechTypes::TECH_TYPE_METALLURGY => min(10, $target_level + 2),
             TechTypes::TECH_TYPE_LANCE_RIDING => min(10, $target_level + 3),
             TechTypes::TECH_TYPE_CUIRASS => min(10, $target_level + 6),
             TechTypes::TECH_TYPE_SIEGE => match ($target_level) {
@@ -289,5 +298,31 @@ class Tech
 
             default => min(10, $target_level),
         };
+    }
+
+    public function get_origin_building(): int
+    {
+        return $this->origin_building;
+    }
+
+    public function set_origin_building(int $origin_building): void
+    {
+        $this->origin_building = $origin_building;
+    }
+
+    public static function sort_tech_array(array &$techs): void
+    {
+        uksort($techs, function ($a, $b) {
+            $posA = array_search((int)$a, self::DISPLAY_ORDER, true);
+            $posB = array_search((int)$b, self::DISPLAY_ORDER, true);
+            $posA = ($posA === false) ? 9999 : $posA;
+            $posB = ($posB === false) ? 9999 : $posB;
+
+            if ($posA === $posB) {
+                return $a <=> $b;
+            }
+
+            return $posA <=> $posB;
+        });
     }
 }
