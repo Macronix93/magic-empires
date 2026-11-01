@@ -318,11 +318,18 @@ if ($result->num_rows > 0) {
 }
 
 $other_kingdoms_res = $db_instance->execute_query("
-    SELECT k.id, k.kingdomname, k.mapx, k.mapy, k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,
-           (SELECT buildinglevel FROM buildings WHERE kingdomid = k.id AND buildingid = ?) as mkt_lvl
-    FROM kingdoms k 
-    WHERE k.userid = ? AND k.id != ?
-    ORDER BY created_at, id",
+     SELECT sub.id, sub.kingdomname, sub.mapx, sub.mapy, sub.food, sub.maxfood, sub.wood, sub.maxwood, sub.stone, 
+        sub.maxstone, sub.gold, sub.maxgold, sub.k_pos, sub.mkt_lvl
+    FROM (
+        SELECT 
+            k.id, k.kingdomname, k.mapx, k.mapy, k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,
+            ROW_NUMBER() OVER (ORDER BY k.created_at, k.id) AS k_pos,
+            (SELECT buildinglevel FROM buildings WHERE kingdomid = k.id AND buildingid = ?) AS mkt_lvl
+        FROM kingdoms k
+        WHERE k.userid = ?
+    ) sub
+    WHERE sub.id != ?
+    ORDER BY sub.k_pos",
     [BuildingTypes::BUILDING_MARKETPLACE, $user->get_user_id(), $current_kingdom]
 );
 
@@ -366,6 +373,8 @@ if ($other_kingdoms_res->num_rows > 0) {
 
     foreach ($rows_other as $ok) {
         $ok_id = (int)$ok["id"];
+        $k_pos = $ok["k_pos"];
+
         $seconds = $map->get_arrival_time($my_x, $my_y, $ok["mapx"], $ok["mapy"], $current_kingdom, null, false, true);
         $arrival_times_cache[$ok_id] = convert_sec_to_str($seconds, true);
 
@@ -374,7 +383,7 @@ if ($other_kingdoms_res->num_rows > 0) {
 
         if ($has_market) {
             $available_markets_count++;
-            $options_html .= "<option value='$ok_id' $selected>{$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
+            $options_html .= "<option value='$ok_id' $selected>$k_pos - {$ok["kingdomname"]} ({$ok["mapx"]}:{$ok["mapy"]})</option>";
 
             $inc = $incoming_by_kingdom[$ok_id] ?? [];
             $target_kingdoms_data[$ok_id] = [
@@ -394,7 +403,7 @@ if ($other_kingdoms_res->num_rows > 0) {
                 "inc_gold" => (int)($inc["inc_gold"] ?? 0),
             ];
         } else {
-            $options_html .= "<option value='$ok_id' disabled style='color: #888;'>{$ok["kingdomname"]} (Kein Marktplatz!)</option>";
+            $options_html .= "<option value='$ok_id' disabled style='color: #888;'>$k_pos - {$ok["kingdomname"]} (Kein Marktplatz!)</option>";
         }
     }
 

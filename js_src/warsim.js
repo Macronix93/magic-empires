@@ -31,6 +31,9 @@ const W_CONF = {
     wallMaxNormalDmgPerc: parseFloat(warsimConstEl.dataset.wall_max_normal_dmg_perc),
     pvpDampingThreshold: parseFloat(warsimConstEl.dataset.pvp_damping_threshold),
     pvpDampingMaxRatio: parseFloat(warsimConstEl.dataset.pvp_damping_max_ratio),
+    pvpDampingBaseDiscount: parseFloat(warsimConstEl.dataset.pvp_damping_base_discount),
+    pvpDampingMaxDiscount: parseFloat(warsimConstEl.dataset.pvp_damping_max_discount),
+    pvpDampingSlope: parseFloat(warsimConstEl.dataset.pvp_damping_slope),
     pvpDampingExponent: parseFloat(warsimConstEl.dataset.pvp_damping_exponent),
     rpsTargetFocus: parseFloat(warsimConstEl.dataset.rps_target_focus || 0.7),
     armorWeightExponent: parseFloat(warsimConstEl.dataset.armor_weight_exponent || 0.5)
@@ -586,15 +589,30 @@ function calculateWarOutcome(soldierTypes) {
 
     if (ownOffense.totalRawAtk > 0 && effectiveEnemyCounterDmg > 0) {
         const range = Math.max(0.01, W_CONF.pvpDampingMaxRatio - W_CONF.pvpDampingThreshold);
+        const baseMin = 1.0 - W_CONF.pvpDampingBaseDiscount;
+        const hardMin = 1.0 - W_CONF.pvpDampingMaxDiscount;
+        const slope = W_CONF.pvpDampingSlope;
+
         const ratioDef = effectiveEnemyCounterDmg / ownOffense.totalRawAtk;
         if (ratioDef > W_CONF.pvpDampingThreshold) {
+            let minFactor = baseMin;
+            if (ratioDef > W_CONF.pvpDampingMaxRatio) {
+                minFactor = Math.max(hardMin, baseMin - ((ratioDef - W_CONF.pvpDampingMaxRatio) * slope));
+            }
             const clamped = Math.max(0.0, Math.min(1.0, (ratioDef - W_CONF.pvpDampingThreshold) / range));
-            globalDefLossDamping *= Math.pow(1.0 - clamped, W_CONF.pvpDampingExponent);
+            const rawDamping = Math.pow(1.0 - clamped, W_CONF.pvpDampingExponent);
+            globalDefLossDamping *= Math.max(minFactor, rawDamping);
         }
+
         const ratioAtk = ownOffense.totalRawAtk / effectiveEnemyCounterDmg;
         if (ratioAtk > W_CONF.pvpDampingThreshold) {
+            let minFactor = baseMin;
+            if (ratioAtk > W_CONF.pvpDampingMaxRatio) {
+                minFactor = Math.max(hardMin, baseMin - ((ratioAtk - W_CONF.pvpDampingMaxRatio) * slope));
+            }
             const clamped = Math.max(0.0, Math.min(1.0, (ratioAtk - W_CONF.pvpDampingThreshold) / range));
-            globalAtkLossDamping *= Math.pow(1.0 - clamped, W_CONF.pvpDampingExponent);
+            const rawDamping = Math.pow(1.0 - clamped, W_CONF.pvpDampingExponent);
+            globalAtkLossDamping *= Math.max(minFactor, rawDamping);
         }
     }
 

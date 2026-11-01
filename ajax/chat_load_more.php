@@ -38,10 +38,17 @@ if ($type === "server") {
 
     $html = "";
     foreach ($history as $row) {
+        $share_btn = "";
+
         if (!empty($row["data_json"])) {
             $data = json_decode($row["data_json"], true);
             $data["msg_date"] = (int)$row["date"];
+
             $content = $messages_obj->render_message_template($data);
+
+            if ((int)$row["category"] === MessageCategories::CATEGORY_WAR && Messages::is_report_shareable($data["template"] ?? null)) {
+                $share_btn = Messages::render_share_button((int)$row["id"]);
+            }
         } else {
             $content = $row["message"];
         }

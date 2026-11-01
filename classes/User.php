@@ -337,24 +337,33 @@ class User
         }
     }
 
-    public function clear_last_researched_tech(int $kingdom_id): void
+    public function clear_last_researched_tech(int $kingdom_id, ?int $origin_building = null): void
     {
-        if (isset($_SESSION["last_researched_tech"][$kingdom_id])) {
+        if ($origin_building !== null) {
+            unset($_SESSION["last_researched_tech"][$kingdom_id][$origin_building]);
+        } else {
             unset($_SESSION["last_researched_tech"][$kingdom_id]);
         }
     }
 
-    public function get_last_researched_tech(int $kingdom_id): ?array
+    public function get_last_researched_tech(int $kingdom_id, ?int $origin_building = null): ?array
     {
+        if ($origin_building !== null) {
+            return $_SESSION["last_researched_tech"][$kingdom_id][$origin_building] ?? null;
+        }
         return $_SESSION["last_researched_tech"][$kingdom_id] ?? null;
     }
 
-    public function set_last_researched_tech(int $kingdom_id, string $tech_name, int $tech_level): void
+    public function set_last_researched_tech(int $kingdom_id, string $tech_name, int $tech_level, int $origin_building = BuildingTypes::BUILDING_UNIVERSITY): void
     {
         if (!isset($_SESSION["last_researched_tech"])) {
             $_SESSION["last_researched_tech"] = [];
         }
-        $_SESSION["last_researched_tech"][$kingdom_id] = [
+        if (!isset($_SESSION["last_researched_tech"][$kingdom_id])) {
+            $_SESSION["last_researched_tech"][$kingdom_id] = [];
+        }
+
+        $_SESSION["last_researched_tech"][$kingdom_id][$origin_building] = [
             "techname" => $tech_name,
             "techlevel" => $tech_level
         ];

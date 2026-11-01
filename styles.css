@@ -14,6 +14,7 @@
 
 * {
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent !important;
 }
 
 *:not(html):not(body) {
@@ -465,7 +466,7 @@ button .emoji-fix {
 
 .battle-vs-wrapper {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: space-between;
     gap: 10px;
     position: relative;
@@ -500,10 +501,11 @@ button .emoji-fix {
     display: flex;
     align-items: center;
     justify-content: center;
+    align-self: center;
+    margin: auto 0;
     font-weight: bold;
     color: var(--link-color);
-    font-size: 24px;
-    padding-top: 80px;
+    font-size: 22px;
 }
 
 .battle-unit-card {
@@ -701,6 +703,7 @@ hr {
     position: relative;
     display: flex;
     flex-direction: column;
+    height: 55vh;
     min-height: 450px;
     max-height: 550px;
     overflow-x: hidden;
@@ -1585,16 +1588,31 @@ a {
     color: rgb(240, 240, 240);
 }
 
-a, button, input, select, textarea, [data-on-click], [data-on-submit], .popup, .tab div, .box, .arrow-nav, .legend-item {
-    -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none !important;
+button,
+input[type="submit"],
+input[type="button"],
+.tab div,
+.arrow-nav,
+.mobile-trigger,
+.box span {
     user-select: none;
     -webkit-user-select: none;
 }
 
-input[type="text"], input[type="password"], input[type="email"], textarea, .chat-text, .news-content p, #messages-section {
-    user-select: text !important;
-    -webkit-user-select: text !important;
+a,
+.user-name-link,
+td,
+p,
+span,
+input[type="text"],
+input[type="password"],
+input[type="email"],
+textarea,
+.chat-text,
+.news-content p,
+#messages-section {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 a:focus, a:active, button:focus, button:active, [data-on-click]:focus, [data-on-click]:active {
@@ -2864,6 +2882,19 @@ img[data-on-click] {
     white-space: nowrap;
 }
 
+.userinfo-k-coords {
+    min-width: 52px;
+    text-align: right;
+    display: inline-block;
+}
+
+.userinfo-k-actions button {
+    width: 48px;
+    box-sizing: border-box;
+    text-align: center;
+    padding: 2px 0 !important;
+}
+
 .location-wrapper a {
     flex-shrink: 0;
     text-align: right;
@@ -3538,6 +3569,21 @@ img[data-on-click] {
 }
 
 /* Arena Styles */
+.arena-power-sticky {
+    position: sticky;
+    top: 15px;
+    z-index: 95;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 10px;
+    margin-bottom: 15px;
+    background: rgba(35, 32, 28, 0.98);
+    border: 1px solid var(--border-gold);
+    border-radius: 5px;
+    -webkit-backdrop-filter: blur(6px);
+}
+
 .arena-slider-row {
     display: flex;
     align-items: center;
@@ -3711,6 +3757,11 @@ img[data-on-click] {
     text-align: left;
 }
 
+.shared-report-modal {
+    padding: 5px;
+    margin: 0 auto;
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3738,6 +3789,94 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .shared-report-modal,
+    .shared-report-modal .battle-report,
+    .shared-report-modal .server-bubble {
+        font-size: 13px !important;
+        padding: 0;
+    }
+
+    .shared-report-modal .server-bubble {
+        padding: 6px !important;
+    }
+
+    .shared-report-modal .battle-column {
+        padding: 6px !important;
+        gap: 3px !important;
+    }
+
+    .shared-report-modal .title-border {
+        font-size: 14px !important;
+        line-height: 20px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .shared-report-modal .report-section-title {
+        font-size: 13px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .shared-report-modal .battle-strength {
+        font-size: 12px !important;
+    }
+
+    #support-container .table {
+        width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    #support-container td {
+        padding: 5px 2px !important;
+        font-size: 12px !important;
+        vertical-align: middle;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    .support-outgoing-table col:nth-child(1) {
+        width: 24% !important;
+    }
+
+    .support-outgoing-table col:nth-child(2) {
+        width: 35% !important;
+    }
+
+    .support-outgoing-table col:nth-child(3) {
+        width: 23% !important;
+    }
+
+    .support-outgoing-table col:nth-child(4) {
+        width: 18% !important;
+    }
+
+    #support-container .unit-badge {
+        padding: 2px 3px !important;
+        gap: 2px !important;
+        margin: 1px 0 !important;
+    }
+
+    #support-container .unit-badge img.ressource-icons {
+        width: 13px !important;
+        height: 13px !important;
+    }
+
+    #support-container .unit-badge b {
+        font-size: 9px !important;
+    }
+
+    #support-container small {
+        font-size: 9px !important;
+        line-height: 1.1;
+    }
+
+    #support-container input[type="submit"] {
+        padding: 3px 4px !important;
+        font-size: 8px !important;
+        height: auto !important;
+        width: auto !important;
+        white-space: nowrap;
     }
 
     .hof-arena-stats {
@@ -3807,6 +3946,10 @@ img[data-on-click] {
 
     .all-troops-supporter {
         font-size: 9px;
+    }
+
+    .arena-power-sticky {
+        top: 60px;
     }
 
     .arena-battle-log {
@@ -4792,7 +4935,16 @@ img[data-on-click] {
     }
 
     .userinfo-k-row:has(button) .kingdom-name-break {
-        max-width: 100px !important;
+        max-width: 110px !important;
+    }
+
+    .userinfo-k-coords {
+        min-width: 46px;
+    }
+
+    .userinfo-k-actions button {
+        width: 38px;
+        font-size: 9px !important;
     }
 
     .kingdom-name-break {
@@ -4872,7 +5024,7 @@ img[data-on-click] {
     }
 
     body.logged-in .header {
-        margin-top: 25px;
+        padding-top: 35px;
     }
 
     .header img {
@@ -5093,6 +5245,18 @@ img[data-on-click] {
         font-size: 13px !important;
     }
 
+    .middle-container {
+        padding-bottom: 20px !important;
+        min-width: 0 !important;
+    }
+
+    #messages-section {
+        min-height: 300px;
+        max-height: calc(100dvh - 370px);
+        font-size: 13px;
+        padding: 0 5px 0 0;
+    }
+
     #messages-section.large-height {
         max-height: 70vh !important;
         min-height: 370px;
@@ -5209,6 +5373,8 @@ img[data-on-click] {
 
     html {
         width: 100%;
+        height: 100%;
+        overscroll-behavior-y: none;
     }
 
     html::before {
@@ -5218,7 +5384,10 @@ img[data-on-click] {
 
     body {
         font-size: 16px;
-        padding: 0 0 20px 0;
+        /*padding: 0 0 20px 0;*/
+        min-height: 100dvh !important;
+        padding: 0 !important;
+        overscroll-behavior-y: none;
     }
 
     .ressource-icons,
@@ -5285,13 +5454,6 @@ img[data-on-click] {
 
     #newmessage-section textarea {
         height: 50px;
-    }
-
-    #messages-section {
-        min-height: 300px;
-        max-height: calc(100vh - 450px);
-        font-size: 13px;
-        padding: 0 5px 0 0;
     }
 
     .map-toolbar {

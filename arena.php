@@ -229,10 +229,10 @@ if (!$is_season_active) {
 
     $view .= "<div id='tab_defense' class='js-arena-tab' style='display: " . ($active_tab === "defense" ? "block" : "none") . "; max-width: 650px; margin: 0 auto;'>";
     $view .= "
-        <div class='box-container'>
+        <div class='box-container allow-overflow'>
             <div class='box-header'>Verteidigungsaufstellung</div>
             <div class='box-content box-content-bg' style='padding: 15px;'>
-                <div style='display: flex; justify-content: center; gap: 20px; padding: 10px; margin-bottom: 15px; background: rgba(0,0,0,0.35); border: 1px solid var(--border-gold); border-radius: 5px;'>
+                <div class='arena-power-sticky'>
                     <div style='display: flex; align-items: center; gap: 6px;'>
                         <img src='images/icons/icon_sword.png' class='ressource-icons' alt='ATK'>
                         <span class='js-arena-total-atk'>" . fnum($init_total_atk, true) . "</span>
@@ -380,9 +380,11 @@ if (!$is_season_active) {
         <select name='reward_kingdom_id' style='max-width: 300px;'>
             <option value='0'>Haupt-Königreich (Automatisch)</option>";
 
+    $k_pos = 1;
     foreach ($user_kingdoms as $uk) {
         $sel = ($uk["id"] == $current_reward_kid) ? "selected" : "";
-        $view .= "<option value='{$uk["id"]}' $sel>" . e($uk["kingdomname"]) . " ({$uk["mapx"]}:{$uk["mapy"]})</option>";
+        $view .= "<option value='{$uk["id"]}' $sel>$k_pos - " . e($uk["kingdomname"]) . " ({$uk["mapx"]}:{$uk["mapy"]})</option>";
+        $k_pos++;
     }
 
     $view .= "

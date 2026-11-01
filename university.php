@@ -166,7 +166,7 @@ if (isset($_GET["action"])) {
         $error = "Diese Forschung existiert nicht!";
     }
 }
-$last_researched_tech = $user->get_last_researched_tech($current_kingdom);
+$last_researched_tech = $user->get_last_researched_tech($current_kingdom, BuildingTypes::BUILDING_UNIVERSITY);
 
 if (!empty($last_researched_tech)) {
     $researched_tech_name = $last_researched_tech["techname"];
@@ -174,7 +174,7 @@ if (!empty($last_researched_tech)) {
 
     $flash_box = show_weighted_box("$researched_tech_name (" . $researched_tech_level . " → " . ($researched_tech_level + 1) . ")", "Forschung abgeschlossen:");
 
-    $user->clear_last_researched_tech($current_kingdom);
+    $user->clear_last_researched_tech($current_kingdom, BuildingTypes::BUILDING_UNIVERSITY);
 }
 
 // Calculate and show tech boni

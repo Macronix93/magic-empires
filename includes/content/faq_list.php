@@ -19,7 +19,7 @@
         <li><a href="#faq-keine-dorfbewohner">Warum habe ich keine Dorfbewohner mehr?</a></li>
         <li><a href="#faq-lager-voll">Mein Lager ist voll, was nun?</a></li>
         <li><a href="#faq-ressourcen-karte">Gibt es noch andere Möglichkeiten, um an Ressourcen zu kommen?</a></li>
-        <li><a href="#faq-muenzen">Was fange ich mit Münzen an?</a></li>
+        <li><a href="#faq-muenzen">Wozu dienen Münzen und wie erhalte ich sie?</a></li>
         <li><a href="#faq-feldtypen-ertraege">Wie erfahre ich die Erträge der Feldtypen auf der Karte?</a></li>
         <li><a href="#faq-erzminen">Was sind Erzminen?</a></li>
         <li><a href="#faq-abbau-geschwindigkeit">Wie berechnet sich die Abbau-Geschwindigkeit?</a></li>
@@ -36,6 +36,7 @@
         <li><a href="#faq-truppen-upgrade">Was bringt mir ein Truppen-Upgrade?</a></li>
         <li><a href="#faq-gilde-gruenden">Wie gründe ich eine Gilde?</a></li>
         <li><a href="#faq-gilden-vorteile">Welche Vorteile bietet eine Gilde?</a></li>
+        <li><a href="#faq-gilden-raenge">Welche Gildenränge gibt es und was bedeuten sie?</a></li>
         <li><a href="#faq-gilden-forschungen">Wie funktionieren Gilden-Forschungen?</a></li>
         <li><a href="#faq-gilden-schatzkammer">Was ist die Gilden-Schatzkammer?</a></li>
         <li><a href="#faq-verbuendete-unterstuetzen">Wie kann ich Verbündete unterstützen?</a></li>
@@ -114,7 +115,8 @@
             </tr>
             <tr>
                 <td class="td-gradient" id="faq-gebaeude-stufen"><b>Wieviele Stufen können ausgebaut werden?</b></td>
-                <td>Gebäude können derzeit bis <b>Stufe <?= MAX_BUILDING_LEVEL ?></b> ausgebaut werden. Forschungen in
+                <td>Die meisten Gebäude können bis <b>Stufe <?= MAX_BUILDING_LEVEL ?></b> ausgebaut werden. Forschungen
+                    in
                     der Universität oder der
                     Schmiede haben unterschiedliche Maximalstufen, welche du im Techtree einsehen kannst.
                 </td>
@@ -144,11 +146,18 @@
                 </td>
             </tr>
             <tr>
-                <td class="td-gradient" id="faq-muenzen"><b>Was fange ich mit Münzen an?</b></td>
-                <td>Münzen sind dafür da, bei den Ressourcen-Gebäuden (Mühle, Sägewerk, Steinmine, Goldmine) die
-                    Ressourcen-Erträge
-                    pro Stunde zu erhöhen. Außerdem sind sie Bezahlwerkzeug im Marktplatz (bei Angebotsannahme). Münzen
-                    bekommt man pro Stunde automatisch, können aber auch durch Monstercamps erhalten werden.
+                <td class="td-gradient" id="faq-muenzen"><b>Wozu dienen Münzen und wie erhalte ich sie?</b></td>
+                <td>
+                    Münzen dienen zum Aktivieren von <b>Produktions-Boosts</b> in Rohstoffgebäuden sowie zur Deckung von
+                    <b>Marktplatz-Gebühren</b>.<br><br>
+                    Du erhältst Münzen durch:
+                    <ul style="margin: 5px 0 0; padding-left: 20px;">
+                        <li>Stündlichen automatischen Zuwachs</li>
+                        <li>Das Säubern von Monstercamps</li>
+                        <li>Schadensstufen bei Welt-Events</li>
+                        <li>Das Einlösen freigeschalteter Errungenschaften</li>
+                        <li>Saison-Belohnungen in der Arena</li>
+                    </ul>
                 </td>
             </tr>
             <tr>
@@ -365,6 +374,51 @@
                 <td>Als Gildenmitglied erhältst du Zugriff auf den internen <b>Gilden-Chat</b>, gemeinsame <b>Gildenforschungen</b>
                     (die globale Boni für alle Mitglieder freischalten), eine gemeinsame <b>Schatzkammer</b> sowie die
                     Möglichkeit, Verbündeten <b>militärische Unterstützung</b> ins Dorf zu stellen.
+                </td>
+            </tr>
+            <tr>
+                <td class="td-gradient" style="vertical-align: top;" id="faq-gilden-raenge"><b>Welche Gildenränge gibt
+                        es und was bedeuten sie?</b></td>
+                <td>
+                    Die Gilde besitzt eine 5-stufige Rangordnung mit folgenden Berechtigungen:
+                    <br><br>
+                    <b style="color: var(--link-color);">1. Leader:</b>
+                    <ul style="margin: 4px 0 8px; padding-left: 20px;">
+                        <li>Volle Kontrolle über alle Gilden-Funktionen.</li>
+                        <li>Kann Wappen, Name, Tag, Motto und Mindestpunkte ändern.</li>
+                        <li>Kann jedes Mitglied befördern, degradieren oder kicken.</li>
+                        <li>Kann Forschungsprojekte starten und auch nach begonnenen Spenden abbrechen.</li>
+                        <li>Kann beliebige Chat-Nachrichten im Gilden-Chat löschen und die Gilde übertragen/auflösen.
+                        </li>
+                    </ul>
+                    <b style="color: #ff4840;">2. Ratgeber:</b>
+                    <ul style="margin: 4px 0 8px; padding-left: 20px;">
+                        <li>Rechte Hand der Gildenleitung.</li>
+                        <li>Kann Wappen, Profil und Motto bearbeiten.</li>
+                        <li>Kann Forschungsprojekte markieren (und abbrechen, solange noch keine Spenden getätigt
+                            wurden).
+                        </li>
+                        <li>Kann neue Mitglieder einladen und offene Einladungen zurückziehen.</li>
+                        <li>Kann Ränge unterhalb des Offiziers verwalten und Mitglieder kicken.</li>
+                        <li>Kann fremde Nachrichten im Gilden-Chat moderieren/löschen.</li>
+                    </ul>
+                    <b style="color: #3498db;">3. Diplomat:</b>
+                    <ul style="margin: 4px 0 8px; padding-left: 20px;">
+                        <li>Repräsentiert die Gilde nach außen.</li>
+                        <li>Kann andere Herrscher in die Gilde einladen und eigene Einladungen verwalten.</li>
+                    </ul>
+                    <b style="color: #2ecc71;">4. Anwerber:</b>
+                    <ul style="margin: 4px 0 8px; padding-left: 20px;">
+                        <li>Zuständig für das Anwerben neuer Spieler.</li>
+                        <li>Kann Spieler zur Gilde einladen und eigene Einladungen zurückziehen.</li>
+                    </ul>
+                    <b style="color: #fff;">5. Mitglied:</b>
+                    <ul style="margin: 4px 0 0; padding-left: 20px;">
+                        <li>Standardrang für alle Gildenmitglieder.</li>
+                        <li>Zugriff auf den Gilden-Chat, Teilnahme an Gildenforschungen, Erzminen-Abbau und gegenseitige
+                            Truppenunterstützung.
+                        </li>
+                    </ul>
                 </td>
             </tr>
             <tr>

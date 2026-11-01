@@ -60,7 +60,6 @@ function sendChatMessage(chatType, extraParams = {}) {
 
     isSendingChat = true;
 
-    messageInput.disabled = true;
     if (submitBtn) submitBtn.disabled = true;
 
     const formData = new URLSearchParams();
@@ -107,9 +106,6 @@ function sendChatMessage(chatType, extraParams = {}) {
         .catch(err => console.error("Chat Send Fehler:", err))
         .finally(() => {
             isSendingChat = false;
-
-            messageInput.disabled = false;
-            messageInput.focus();
 
             if (submitBtn) submitBtn.disabled = false;
         });
@@ -406,6 +402,7 @@ function updateChat(chatPartner) {
                     const msgElement = document.getElementById("msg-" + msgId)
                         || document.getElementById("world-msg-" + msgId)
                         || document.getElementById("guild-msg-" + msgId);
+
                     if (msgElement) {
                         const footer = msgElement.querySelector('.chat-reaction-footer');
                         if (footer && !footer.matches(':hover') && !footer.querySelector(':hover')) {
@@ -415,8 +412,13 @@ function updateChat(chatPartner) {
 
                             const currentDiv = footer.cloneNode(true);
                             currentDiv.querySelectorAll('.popupbox').forEach(b => b.remove());
+
                             if (currentDiv.innerHTML.trim() !== tempDiv.innerHTML.trim()) {
                                 footer.innerHTML = data.reactionUpdates[msgId];
+
+                                if (typeof syncFeedbackIcon === "function") {
+                                    syncFeedbackIcon(msgElement);
+                                }
                             }
                         }
                     }
@@ -861,5 +863,12 @@ document.addEventListener("DOMContentLoaded", () => {
             scrollToLatestMessage();
         }
     }
+
+    document.querySelectorAll('#newmessage-section input[type="button"], #newmessage-section input[type="submit"]').forEach(btn => {
+        btn.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+        });
+    });
+
     applyChatPrefill();
 });

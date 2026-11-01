@@ -552,6 +552,8 @@ function sendReaction(type, id, emoji, sourceContainer) {
                 if (chatBubble) {
                     targetContainer.innerHTML = res.html;
 
+                    syncFeedbackIcon(chatBubble, type, id);
+
                     if (isNewEmoji) {
                         setTimeout(() => {
                             const messagesSection = document.getElementById("messages-section");
@@ -1354,6 +1356,38 @@ function updateSidebarBadges(counts) {
         mobileDot.style.display = (total > 0 || hasAlert) ? "block" : "none";
     }
 }
+
+function syncFeedbackIcon(msgElement, type = null, id = null) {
+    if (!msgElement) return;
+    const footer = msgElement.querySelector('.chat-reaction-footer');
+    const btnContainer = msgElement.querySelector('.reaction-container.mode-btn_only');
+    if (!footer || !btnContainer) return;
+
+    const hasBadges = !!footer.querySelector('.reaction-badge');
+    const infoBtn = btnContainer.querySelector("[data-on-click='openReactorList']");
+
+    if (hasBadges && !infoBtn) {
+        const btn = document.createElement("img");
+        btn.src = "images/icons/icon_feedback.png";
+        btn.className = "ressource-icons";
+        btn.style.cursor = "pointer";
+        btn.style.opacity = "0.7";
+        btn.dataset.onClick = "openReactorList";
+        btn.dataset.type = type || btnContainer.dataset.type || "";
+        btn.dataset.id = id || btnContainer.dataset.id || "";
+        btn.title = "Wer hat reagiert?";
+        btn.alt = "";
+        btnContainer.appendChild(btn);
+
+        if (typeof bindActions === "function") {
+            bindActions(btn);
+        }
+    } else if (!hasBadges && infoBtn) {
+        infoBtn.remove();
+    }
+}
+
+window.syncFeedbackIcon = syncFeedbackIcon;
 
 document.addEventListener("pointerdown", (e) => {
     const btn = e.target.closest('div[id^="pop_k_preview_"] button[data-on-click="switchKingdomFromPopup"]');

@@ -101,7 +101,7 @@ if ($user_id) {
                         • " . e($k["kingdomname"]) . "
                     </span>
                     <div class='userinfo-k-actions'>
-                        <a href='#' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "'>$coords_display</a>
+                        <a href='#' class='userinfo-k-coords' data-on-click='mapJump' data-x='" . e($k["mapx"]) . "' data-y='" . e($k["mapy"]) . "'>$coords_display</a>
                         $support_ui
                     </div>
                 </div>";

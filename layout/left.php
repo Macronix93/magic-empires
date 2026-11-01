@@ -19,7 +19,7 @@ if ($current_page === 'messages.php' && ($_GET["action"] ?? '') === 'read' && !e
             "SELECT COUNT(*) FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0 AND deleted = 0",
             [(int)$_GET["s"], $user->get_user_id()]
     )->fetch_column() ?? 0);
-    
+
     $inbox_only_unread = max(0, $inbox_only_unread - $partner_unread);
 }
 if ($current_page === "messages.php" && isset($_GET["worldchat"])) {
@@ -58,7 +58,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             <div class="box<?= ($current_page === 'messages.php' && !isset($_GET["worldchat"])) ? " active" : '' ?>"
                  data-on-click="navigate" data-url="messages.php">
                 <?= get_page_icon("messages.php") ?>
-                <span>Nachrichten</span>
+                Nachrichten
                 <span class="msg-badge js-badge-priv" style="<?= $inbox_only_unread > 0 ? '' : 'display: none;' ?>">
                     <?= $messages->show_messages_indicator($inbox_only_unread) ?>
                 </span>
@@ -66,7 +66,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             <div class="box<?= isset($_GET["worldchat"]) ? " active" : '' ?>"
                  data-on-click="navigate" data-url="messages.php?worldchat">
                 <?= get_page_icon("worldchat") ?>
-                <span>Welt-Chat</span>
+                Welt-Chat
                 <span class="msg-badge js-badge-world" style="<?= $unread_world > 0 ? '' : 'display: none;' ?>">
                     <?= $messages->show_messages_indicator($unread_world) ?>
                 </span>
@@ -112,7 +112,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             <div class="box<?= $current_page === 'achievements.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="achievements.php">
                 <?= get_page_icon("achievements.php") ?>
-                <span>Errungenschaften</span>
+                Errungenschaften
                 <?php if ($unread_achievements > 0): ?>
                     <span class="msg-badge"><?= $messages->show_messages_indicator($unread_achievements) ?></span>
                 <?php endif; ?>
@@ -144,7 +144,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             <div class="box<?= $current_page === 'news.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="news.php">
                 <?= get_page_icon("news.php") ?>
-                <span>Neuigkeiten</span>
+                Neuigkeiten
                 <?php if ($unread_news > 0): ?>
                     <span class="msg-badge"><?= $unread_news ?></span>
                 <?php endif; ?>

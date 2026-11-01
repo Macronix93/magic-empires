@@ -712,14 +712,28 @@ $view .= "
 </div>";
 
 $res_other_k = $db_instance->execute_query(
-    "SELECT k.id, k.kingdomname, k.mapx, k.mapy,
-                (SELECT COUNT(*) FROM events e 
-                 WHERE e.actionid = ? AND e.userid = ? AND e.kingdomid = ? AND e.targetid = k.id
-                ) AS already_sent
-         FROM kingdoms k 
-         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ? AND b.buildinglevel > 0
-         WHERE k.userid = ? AND k.id != ? 
-         ORDER BY k.created_at, k.id",
+    "SELECT 
+                sub.id, 
+                sub.kingdomname, 
+                sub.mapx, 
+                sub.mapy, 
+                sub.k_pos, 
+                sub.already_sent
+            FROM (
+                SELECT 
+                    k.id, 
+                    k.kingdomname, 
+                    k.mapx, 
+                    k.mapy,
+                    ROW_NUMBER() OVER (ORDER BY k.created_at, k.id) AS k_pos,
+                    IFNULL(b.buildinglevel, 0) AS barracks_level,
+                    (SELECT COUNT(*) FROM events e WHERE e.actionid = ? AND e.userid = ? AND e.kingdomid = ? AND e.targetid = k.id) AS already_sent
+                FROM kingdoms k
+                LEFT JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ?
+                WHERE k.userid = ?
+            ) sub
+            WHERE sub.id != ? AND sub.barracks_level > 0
+            ORDER BY sub.k_pos",
     [
         ActionTypes::ACTION_SEND_TROOPS,
         $user->get_user_id(),
@@ -748,6 +762,7 @@ if (!empty($other_kingdoms)) {
 
     foreach ($other_kingdoms as $ok) {
         $ok_id = (int)$ok["id"];
+        $k_pos = $ok["k_pos"];
         $is_sent = ((int)$ok["already_sent"] > 0);
 
         $seconds = $map->get_arrival_time($my_x, $my_y, (int)$ok["mapx"], (int)$ok["mapy"], $current_kingdom, $ok_id);
@@ -761,9 +776,9 @@ if (!empty($other_kingdoms)) {
                 $first_time_str = $time_str;
             }
 
-            $options_html .= "<option value='$ok_id' data-x='{$ok["mapx"]}' data-y='{$ok["mapy"]}' data-time='$time_str' $selected>" . e($ok["kingdomname"]) . " ({$ok["mapx"]}:{$ok["mapy"]})</option>";
+            $options_html .= "<option value='$ok_id' data-x='{$ok["mapx"]}' data-y='{$ok["mapy"]}' data-time='$time_str' $selected>$k_pos - " . e($ok["kingdomname"]) . " ({$ok["mapx"]}:{$ok["mapy"]})</option>";
         } else {
-            $options_html .= "<option value='$ok_id' disabled style='color: #888;' data-time='$time_str'>" . e($ok["kingdomname"]) . " (Truppen unterwegs)</option>";
+            $options_html .= "<option value='$ok_id' disabled style='color: #888;' data-time='$time_str'>$k_pos - " . e($ok["kingdomname"]) . " (Truppen unterwegs)</option>";
         }
     }
 
@@ -1225,11 +1240,11 @@ foreach ($res_in as $row) {
 }
 
 if (!empty($grouped_in)) {
-    $view .= "<table class='table' style='margin-bottom: 30px;'>
+    $view .= "<table class='table support-incoming-table' style='margin-bottom: 30px;'>
                 <colgroup>
-                    <col style='width: 40%;'>
-                    <col style='width: 35%;'>
-                    <col style='width: 25%;'>
+                    <col style='width: 24%;'>  <!-- Soldaten -->
+                    <col style='width: 58%;'>  <!-- Unterstützer -->
+                    <col style='width: 18%;'>  <!-- Aktion -->
                 </colgroup>
                 <tr>
                     <td class='td-gradient td-center'><b>Soldaten</b></td>
@@ -1316,7 +1331,12 @@ foreach ($res_out as $row) {
 
 if (!empty($grouped_out)) {
     $view .= "<table class='table'>
-                <colgroup><col style='width: 40%;'><col style='width: 35%;'><col style='width: 25%;'></colgroup>
+                <colgroup>
+                    <col style='width: 24%;'>  <!-- Soldaten-->
+                    <col style='width: 35%;'>  <!-- Ziel-Königreich & Koordinaten -->
+                    <col style='width: 23%;'>  <!-- Spielername -->
+                    <col style='width: 18%;'>  <!-- Aktion -->
+                </colgroup>
                 <tr>
                     <td class='td-gradient td-center'><b>Soldaten</b></td>
                     <td class='td-gradient td-center'><b>Königreich</b></td>

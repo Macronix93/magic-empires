@@ -3748,7 +3748,11 @@ class EventManager
 
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
-        $this->user->set_last_researched_tech($kingdom_id, $row["buildingname"], $row["buildinglevel"]);
+        $origin_building = ((int)$row["actionid"] === ActionTypes::ACTION_SMITHY_UPGRADE)
+            ? BuildingTypes::BUILDING_SMITHY
+            : BuildingTypes::BUILDING_UNIVERSITY;
+
+        $this->user->set_last_researched_tech($kingdom_id, $row["buildingname"], $row["buildinglevel"], $origin_building);
         $this->update_user_score((int)$score_gain, $this->user);
 
         Achievement::check((int)$row["userid"], [

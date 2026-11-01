@@ -105,3 +105,4 @@ $arena_rewarded = Arena::check_and_process_season_reset();
 if ($arena_rewarded > 0) {
     echo "[" . date("H:i:s") . "] Arena: Saison abgeschlossen! $arena_rewarded Spieler belohnt.\n";
 }
+Arena::check_and_broadcast_season_start();

@@ -190,6 +190,56 @@ class Arena
         return [$change_attacker, $change_defender];
     }
 
+    public static function check_and_broadcast_season_start(): bool
+    {
+        $db = Database::get_instance()->get_connection();
+        $info = self::get_season_time_info();
+
+        if (!$info["is_active"]) {
+            return false;
+        }
+
+        $current_month_key = date('Y-m');
+        $last_started_month = (string)($db->execute_query(
+            "SELECT value FROM system_settings WHERE name = 'arena_season_started_month'"
+        )->fetch_column() ?? '');
+
+        if ($last_started_month !== $current_month_key) {
+            $month_num = (int)date('n');
+            $german_months = [
+                1 => "Januar", 2 => "Februar", 3 => "März", 4 => "April", 5 => "Mai", 6 => "Juni",
+                7 => "Juli", 8 => "August", 9 => "September", 10 => "Oktober", 11 => "November", 12 => "Dezember"
+            ];
+            $month_name = $german_months[$month_num] ?? date('F');
+
+            $payload = [
+                "template" => "arena_season_started",
+                "month_name" => $month_name
+            ];
+
+            $users = Messages::broadcast_server_message(MessageCategories::CATEGORY_EVENT, $payload);
+            foreach ($users as $u) {
+                send_user_push(
+                    (int)$u["id"],
+                    "⚔️ Neue Arena-Saison eröffnet!",
+                    "Die Arena-Saison für $month_name hat begonnen!.",
+                    "events",
+                    "arena.php"
+                );
+            }
+
+            $db->execute_query(
+                "INSERT INTO system_settings (name, value) VALUES ('arena_season_started_month', ?) 
+             ON DUPLICATE KEY UPDATE value = VALUES(value)",
+                [$current_month_key]
+            );
+
+            return true;
+        }
+
+        return false;
+    }
+
     public static function check_and_process_season_reset(bool $force = false, bool $distribute_rewards = true): int
     {
         $db = Database::get_instance()->get_connection();
@@ -578,45 +628,73 @@ class Arena
         }
 
         if ($force_reroll) {
-            $this->db->execute_query("
-                UPDATE arena_players 
+            $this->db->execute_query(" UPDATE arena_players 
                 SET daily_rerolls = daily_rerolls + 1, last_reroll_reset = ? 
-                WHERE user_id = ?
-            ", [time(), $this->user_id]);
+                WHERE user_id = ? ", [time(), $this->user_id]);
         }
 
+        $now = time();
+        $cooldown_threshold = $now - ARENA_OPPONENT_ATTACK_COOLDOWN;
         $my_elo = (int)$player["elo"];
         $min_elo = $my_elo - ARENA_ROLL_ELO_WINDOW;
         $max_elo = $my_elo + ARENA_ROLL_ELO_WINDOW;
 
-        $res = $this->db->execute_query("
-            SELECT ap.user_id FROM arena_players ap 
-            JOIN users u ON ap.user_id = u.id 
+        // Search for players in elo range (without cooldown)
+        $query = "
+            SELECT ap.user_id 
+            FROM arena_players ap
+            JOIN users u ON ap.user_id = u.id
+            LEFT JOIN (
+                SELECT defender_id 
+                FROM arena_battles 
+                WHERE attacker_id = ? AND created_at > ?
+                GROUP BY defender_id
+            ) cd ON ap.user_id = cd.defender_id
             WHERE ap.user_id != ? 
-              AND ap.defense_troops IS NOT NULL 
-              AND u.status = 1 
-              AND u.is_banned = 0 
-              AND ap.elo BETWEEN ? AND ?
-            ORDER BY RAND() LIMIT ?
-        ", [$this->user_id, $min_elo, $max_elo, ARENA_ROLL_COUNT]);
+            AND ap.defense_troops IS NOT NULL 
+            AND u.status = 1 
+            AND u.is_banned = 0 
+            AND ap.elo BETWEEN ? AND ?
+            ORDER BY (cd.defender_id IS NOT NULL), RAND() 
+            LIMIT ?
+        ";
 
+        $res = $this->db->execute_query($query, [
+            $this->user_id,
+            $cooldown_threshold,
+            $this->user_id,
+            $min_elo,
+            $max_elo,
+            ARENA_ROLL_COUNT
+        ]);
         $selected_ids = array_column($res->fetch_all(MYSQLI_ASSOC), "user_id");
 
+        // Fallback, if there aren't enough players within elo range
         if (count($selected_ids) < ARENA_ROLL_COUNT) {
             $needed = ARENA_ROLL_COUNT - count($selected_ids);
             $exclude_ids = array_merge([$this->user_id], $selected_ids);
             $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
 
-            $fallback_res = $this->db->execute_query("
-                SELECT ap.user_id FROM arena_players ap 
-                JOIN users u ON ap.user_id = u.id 
+            $fallback_query = "
+                SELECT ap.user_id 
+                FROM arena_players ap
+                JOIN users u ON ap.user_id = u.id
+                LEFT JOIN (
+                    SELECT defender_id 
+                    FROM arena_battles 
+                    WHERE attacker_id = ? AND created_at > ?
+                    GROUP BY defender_id
+                ) cd ON ap.user_id = cd.defender_id
                 WHERE ap.user_id NOT IN ($placeholders) 
-                  AND ap.defense_troops IS NOT NULL 
-                  AND u.status = 1 
-                  AND u.is_banned = 0 
-                ORDER BY ABS(ap.elo - ?), RAND() LIMIT ?
-            ", array_merge($exclude_ids, [$my_elo, $needed]));
+                AND ap.defense_troops IS NOT NULL 
+                AND u.status = 1 
+                AND u.is_banned = 0 
+                ORDER BY (cd.defender_id IS NOT NULL), ABS(ap.elo - ?), RAND() 
+                LIMIT ?
+            ";
 
+            $fallback_params = array_merge([$this->user_id, $cooldown_threshold], $exclude_ids, [$my_elo, $needed]);
+            $fallback_res = $this->db->execute_query($fallback_query, $fallback_params);
             $fallback_ids = array_column($fallback_res->fetch_all(MYSQLI_ASSOC), "user_id");
             $selected_ids = array_merge($selected_ids, $fallback_ids);
         }

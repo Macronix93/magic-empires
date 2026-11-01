@@ -125,29 +125,42 @@ class CombatEngine
             $wall_counter = $wall_bonus * WALL_COUNTER_DAMAGE_FACTOR;
             foreach ($atk_def_pools as $cat => $cat_def) {
                 if ($total_atk_def > 0 && $cat_def > 0) {
-                    $enemy_offense['incoming'][$cat] += $wall_counter * ($cat_def / $total_atk_def);
+                    $enemy_offense["incoming"][$cat] += $wall_counter * ($cat_def / $total_atk_def);
                 }
             }
         }
 
-        $effective_counter = $enemy_offense['raw_atk'] + $wall_counter;
+        $effective_counter = $enemy_offense["raw_atk"] + $wall_counter;
 
         // Damping
         $damping_atk = 1.0;
         $damping_def = 1.0;
         if ($own_offense["raw_atk"] > 0 && $effective_counter > 0) {
             $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
+            $base_min = 1.0 - (defined("PVP_DAMPING_BASE_DISCOUNT") ? PVP_DAMPING_BASE_DISCOUNT : 0.90);
+            $hard_min = 1.0 - (defined("PVP_DAMPING_MAX_DISCOUNT") ? PVP_DAMPING_MAX_DISCOUNT : 0.95);
+            $slope = defined("PVP_DAMPING_SLOPE") ? PVP_DAMPING_SLOPE : 0.01;
 
             $ratio_def = $effective_counter / $own_offense["raw_atk"];
             if ($ratio_def > PVP_DAMPING_THRESHOLD) {
+                $min_factor = $base_min;
+                if ($ratio_def > PVP_DAMPING_MAX_RATIO) {
+                    $min_factor = max($hard_min, $base_min - (($ratio_def - PVP_DAMPING_MAX_RATIO) * $slope));
+                }
                 $clamped = max(0.0, min(1.0, ($ratio_def - PVP_DAMPING_THRESHOLD) / $range));
-                $damping_def *= pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+                $raw_damping = pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+                $damping_def *= max($min_factor, $raw_damping);
             }
 
             $ratio_atk = $own_offense["raw_atk"] / $effective_counter;
             if ($ratio_atk > PVP_DAMPING_THRESHOLD) {
+                $min_factor = $base_min;
+                if ($ratio_atk > PVP_DAMPING_MAX_RATIO) {
+                    $min_factor = max($hard_min, $base_min - (($ratio_atk - PVP_DAMPING_MAX_RATIO) * $slope));
+                }
                 $clamped = max(0.0, min(1.0, ($ratio_atk - PVP_DAMPING_THRESHOLD) / $range));
-                $damping_atk *= pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+                $raw_damping = pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+                $damping_atk *= max($min_factor, $raw_damping);
             }
         }
 

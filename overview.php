@@ -179,7 +179,7 @@ if (!empty($_SESSION["active_attacks"])) {
     }
     unset($attack);
 
-    $view .= '<div class="title-border error">Feindliche Truppenbewegungen</div>';
+    $view .= '<div class="title-border error" style="border-bottom: 2px double rgb(197, 35, 35);">Feindliche Truppenbewegungen</div>';
     $view .= '<table class="table" style="max-width: 550px">' . $incoming_html . '</table><br>';
 }
 

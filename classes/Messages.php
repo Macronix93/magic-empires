@@ -5,11 +5,56 @@ class Messages
     private object $mysqli;
     private User $user;
     private string $view = "";
+    public const array SHAREABLE_REPORT_TEMPLATES = [
+        "battle_pvp",
+        "battle_monster",
+        "battle_ruin",
+        "mine_battle",
+        "support_combat",
+        "spy_report",
+        "spy_monster_camp",
+        "spy_mine",
+        "spy_ruin",
+        "watchtower_alert"
+    ];
 
     public function __construct(User $user)
     {
         $this->mysqli = Database::get_instance()->get_connection();
         $this->user = $user;
+    }
+
+    public static function is_report_shareable(?string $template): bool
+    {
+        return !empty($template) && in_array($template, self::SHAREABLE_REPORT_TEMPLATES, true);
+    }
+
+    public static function get_report_share_label(array $data): ?string
+    {
+        $template = $data["template"] ?? "";
+
+        return match ($template) {
+            "battle_pvp" => "Kampfbericht vs. " . ($data["opponent_name"] ?? "Gegner"),
+            "battle_monster" => "Kampfbericht: Camp (Lv " . ($data["camp_level"] ?? 1) . ")",
+            "battle_ruin" => "Kampfbericht: " . ($data["ruin_name"] ?? "Ruine"),
+            "mine_battle" => "Kampfbericht: Erzmine",
+            "support_combat" => "Unterstützung vs. " . ($data["attacker_name"] ?? "Gegner"),
+            "spy_report" => "Spionage: " . ($data["target_kname"] ?? "Königreich"),
+            "spy_monster_camp" => "Spionage: Camp (Lv " . ($data["camp_level"] ?? 1) . ")",
+            "spy_mine" => "Spionage: Erzmine",
+            "spy_ruin" => "Spionage: Ruine",
+            "watchtower_alert" => "Wachturm-Meldung",
+            default => null
+        };
+    }
+
+    public static function render_share_button(int $msg_id): string
+    {
+        return "<img src='images/icons/icon_share.png' class='ressource-icons' 
+                        data-on-click='openOverlay' 
+                        data-url='ajax/share_report_modal.php?id=$msg_id' 
+                        data-title='Kampfbericht teilen' data-width='460px' 
+                        title='Kampfbericht teilen' style='cursor: pointer;' alt='Teilen'>";
     }
 
     public static function broadcast_server_message(int $category = MessageCategories::CATEGORY_DEFAULT, ?array $data = null): array
@@ -206,6 +251,7 @@ class Messages
         }
 
         $text = self::parse_chat_coordinates($text);
+        $text = self::parse_chat_reports($text);
 
         return self::wrap_emojis($text);
     }
@@ -256,6 +302,26 @@ class Messages
         }
 
         return $output;
+    }
+
+    public static function parse_chat_reports(string $text): string
+    {
+        $pattern = '/\[report:(\d+):([a-f0-9]{8})(?:\|([^]]+))?]/iu';
+
+        return preg_replace_callback($pattern, function ($m) {
+            $id = (int)$m[1];
+            $hash = $m[2];
+            $label = !empty($m[3]) ? trim($m[3]) : "Kampfbericht";
+            $expected = substr(hash_hmac("sha256", (string)$id, AVATAR_SALT), 0, 8);
+
+            if (!hash_equals($expected, $hash)) {
+                return $m[0];
+            }
+
+            $url = "ajax/report_view.php?id=$id&h=$hash";
+
+            return "<a href='#' data-on-click='openOverlay' data-url='$url' data-title='" . e($label) . "' class='chat-coord-link'>⚔️ " . e($label) . "</a>";
+        }, $text);
     }
 
     public static function filter_chat_message($text): string
@@ -638,11 +704,17 @@ class Messages
 
         $html = "";
         foreach ($rows as $index => $row) {
+            $share_btn = "";
+
             if (!empty($row["data_json"])) {
                 $data = json_decode($row["data_json"], true);
                 $data["msg_date"] = (int)$row["date"];
 
                 $content = $this->render_message_template($data);
+
+                if ((int)$row["category"] === MessageCategories::CATEGORY_WAR && self::is_report_shareable($data["template"] ?? null)) {
+                    $share_btn = self::render_share_button((int)$row["id"]);
+                }
             } else {
                 $content = $row["message"];
             }
@@ -650,11 +722,13 @@ class Messages
             $html .= "<div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
                             <div class='message-border'>
                                 Am " . date("d.m.Y \u\m H:i:s", $row["date"]) . "
-                                <img src='images/icons/icon_delete.png' 
-                                 class='ressource-icons' 
-                                 data-on-click='deleteServerMsg' 
-                                 data-id='{$row["id"]}' 
-                                 style='cursor: pointer;' alt=''>
+                                <span style='display: flex; gap: 8px; align-items: center;'>
+                                    $share_btn
+                                    <img src='images/icons/icon_delete.png' class='ressource-icons'  
+                                            data-on-click='deleteServerMsg'  
+                                            data-id='{$row["id"]}'  
+                                            style='cursor: pointer;' alt=''>
+                                </span>
                             </div>
                             $content
                         </div>";
@@ -698,6 +772,23 @@ class Messages
                         0, 0,
                         "Die Rohstoffe wurden deinem Königreich gutgeschrieben und dein ELO wurde für die nächste Saison angepasst.",
                         "success"
+                    ) . "</div>";
+
+            case "arena_season_started":
+                $month = e($data["month_name"] ?? "diesem Monat");
+                $main_text = "Die Pforten der Arena haben sich wieder geöffnet!<br><br>"
+                    . "Die <b>Saison für $month</b> ist gestartet. Alle Wertungen und Helden wurden zurückgesetzt. "
+                    . "Formiere deine Verteidigungsmacht, trainiere deinen Champion und kämpfe um Ruhm, ELO-Punkte und Saison-Prämien!";
+
+                $sub_text = "
+                <div style='margin-top: 10px; text-align: center;'>
+                    <button type='button' data-on-click='navigate' data-url='arena.php' style='padding: 6px 20px;'>
+                        Zur Arena
+                    </button>
+                </div>";
+
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "⚔️ Neue Arena-Saison gestartet!", $main_text, 0, 0, $sub_text, "success"
                     ) . "</div>";
 
             case "achievement_unlocked":
@@ -1823,15 +1914,34 @@ class Messages
                 if ($intel >= 3 && isset($data["total_units"])) {
                     $total = (int)$data["total_units"];
 
-                    if ($total < 50) $strength_label = "Ein kleiner Trupp";
-                    else if ($total < 200) $strength_label = "Eine ansehnliche Streitmacht";
-                    else if ($total < 1000) $strength_label = "Ein großes Heer";
-                    else                   $strength_label = "Eine gewaltige Armee";
+                    if ($total <= 25) {
+                        $strength_label = "Späh- oder Plündertrupp";
+                        $estimate_text = "unter 25 Einheiten";
+                    } else if ($total <= 150) {
+                        $strength_label = "Kleines Kontingent";
+                        $estimate_text = "ca. 25 – 150 Einheiten";
+                    } else if ($total <= 600) {
+                        $strength_label = "Mittlere Streitmacht";
+                        $estimate_text = "ca. 150 – 600 Einheiten";
+                    } else if ($total <= 1800) {
+                        $strength_label = "Große Streitmacht";
+                        $estimate_text = "ca. 600 – 1.800 Einheiten";
+                    } else if ($total <= 4500) {
+                        $strength_label = "Großes Heer";
+                        $estimate_text = "ca. 1.800 – 4.500 Einheiten";
+                    } else if ($total <= 8500) {
+                        $strength_label = "Gewaltige Streitmacht";
+                        $estimate_text = "ca. 4.500 – 8.500 Einheiten";
+                    } else {
+                        $strength_label = "Verheerende Invasionsarmee";
+                        $estimate_text = "über 8.500 Einheiten";
+                    }
 
-                    $html .= "<div class='report-section-title'>Truppenstärke</div>";
+                    $html .= "<div class='report-section-title'>Geschätzte Truppenstärke</div>";
                     $html .= "<div style='text-align: left;'>";
-                    $html .= "<div style='background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 4px; margin: 0 5px;'>
-                                <b>$strength_label</b> <small style='opacity: 0.8;'>(ca. " . fnum($total) . " " . ($total === 1 ? "Einheit" : "Einheiten") . ")</small></div>";
+                    $html .= "<div style='background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 4px; margin: 0 5px;'> 
+                        <b>$strength_label</b> <small style='opacity: 0.8;'>($estimate_text)</small>
+                      </div>";
                     $html .= "</div>";
                 }
 
@@ -1847,7 +1957,7 @@ class Messages
                     // Level 5: Calculate battle power
                     if ($intel >= 5 && !empty($data["strength"])) {
                         $str = $data["strength"];
-                        $html .= "<div class='report-section-title'>Geschätzte Kampfkraft des Gegners</div>";
+                        $html .= "<div class='report-section-title'>Kampfkraft des Gegners</div>";
                         $html .= "<div class='battle-strength' style='margin: 0 0 10px 0; justify-content: start;'>";
                         $html .= "<span style='gap: 20px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 4px; margin: 0 5px;'>
                                     <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <b>" . fnum($str["atk"]) . "</b></span>
@@ -2632,7 +2742,7 @@ class Messages
                 <div class='loading-spinner'></div>
                 <p>Welt-Chat wird geladen...</p>
             </div>
-            <div id='messages-section' data-chat-type='world' style='opacity: 0; height: 55vh;'>
+            <div id='messages-section' data-chat-type='world' style='opacity: 0;'>
             </div>
         </div>";
 
@@ -2755,7 +2865,7 @@ class Messages
                         <div class='loading-spinner'></div>
                         <p>Gilden-Chat wird geladen...</p>
                     </div>
-                    <div id='messages-section' data-chat-type='guild' style='opacity: 0; height: 55vh;'>
+                    <div id='messages-section' data-chat-type='guild' style='opacity: 0;'>
                     </div>
                 </div>
                 <div id='newmessage-section'>
