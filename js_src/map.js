@@ -43,13 +43,24 @@ const MAP_IDLE_THRESHOLD = 1800000; // 30 minutes inactivity boundary
 
 let gameConfig = {};
 
-const COLORS = {
+const isWinter = document.documentElement.classList.contains("theme-winter");
+const STANDARD_COLORS = {
     1: "#576574", // Gebirge
     2: "#0984e3", // Küste
     3: "#166733", // Wald
     4: "#dca34b", // Wüste
     5: "#78a55a"  // Hochland
 };
+
+const WINTER_COLORS = {
+    1: "#5d738a", // Gebirge
+    2: "#1e5b82", // Küste
+    3: "#1b4337", // Wald
+    4: "#b5a895", // Wüste
+    5: "#d0e0eb"  // Hochland
+};
+
+const COLORS = isWinter ? WINTER_COLORS : STANDARD_COLORS;
 
 registerAction("jumpToHome", (el, e) => {
     if (e) e.stopPropagation();
@@ -86,6 +97,37 @@ function registerMapActivity() {
     window.addEventListener(evt, registerMapActivity, {passive: true});
 });
 
+function createSmartMapImage(filename, onLoadCallback) {
+    const img = new Image();
+    const defaultPath = `images/icons/${filename}`;
+    const winterPath = `images/winter/icons/${filename}`;
+    const isWinter = document.documentElement.classList.contains("theme-winter");
+
+    let finished = false;
+    const onDone = () => {
+        if (!finished) {
+            finished = true;
+            if (onLoadCallback) onLoadCallback(img);
+        }
+    };
+
+    img.onload = onDone;
+
+    if (isWinter) {
+        img.onerror = () => {
+            img.onerror = onDone;
+            img.src = defaultPath;
+        };
+
+        img.src = winterPath;
+    } else {
+        img.onerror = onDone;
+        img.src = defaultPath;
+    }
+
+    return img;
+}
+
 function scheduleNextMapPoll() {
     clearTimeout(mapPollTimeout);
     const isIdle = (Date.now() - lastMapInteraction) >= MAP_IDLE_THRESHOLD;
@@ -108,7 +150,6 @@ function showMapSyncSpinner(show) {
         spinner.style.display = show ? "block" : "none";
     }
 }
-
 
 function buildBiomeMapCache() {
     const grid = {};
@@ -162,28 +203,27 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx = canvas.getContext("2d", {alpha: false});
 
     const iconSources = {
-        house: 'images/icons/icon_house.png',
-        town: 'images/icons/icon_town.png',
-        tower2: 'images/icons/icon_tower2.png',
-        castle: 'images/icons/icon_castle.png',
-        bigCastle: 'images/icons/icon_big_castle.png',
-        gems: 'images/icons/icon_gems.png',
-        fire: 'images/icons/icon_fire.png',
-        monster1: 'images/icons/icon_goblin.png',  // Level 1-3
-        monster2: 'images/icons/icon_golem_small.png',  // Level 4-7
-        monster3: 'images/icons/icon_dragon_small.png',  // Level 8-10
-        ruin: 'images/icons/icon_ruins.png',
-        mine: 'images/icons/icon_mine.png'
+        house: 'icon_house.png',
+        town: 'icon_town.png',
+        tower2: 'icon_tower2.png',
+        castle: 'icon_castle.png',
+        bigCastle: 'icon_big_castle.png',
+        gems: 'icon_gems.png',
+        fire: 'icon_fire.png',
+        monster1: 'icon_goblin.png',        // Level 1-3
+        monster2: 'icon_golem_small.png',   // Level 4-7
+        monster3: 'icon_dragon_small.png',  // Level 8-10
+        ruin: 'icon_ruins.png',
+        mine: 'icon_mine.png'
     };
 
     let loadedCount = 0;
     const totalIcons = Object.keys(iconSources).length;
+
     for (let key in iconSources) {
-        images[key] = new Image();
-        images[key].src = iconSources[key];
-        images[key].onload = () => {
+        images[key] = createSmartMapImage(iconSources[key], () => {
             if (++loadedCount === totalIcons) startMap();
-        };
+        });
     }
 
     function startMap() {
@@ -784,9 +824,7 @@ function draw() {
                 ctx.fillRect(miniX - 1, miniY - 1, miniIconSize + 2, miniIconSize + 2);
 
                 if (!images[myTroopIcon]) {
-                    images[myTroopIcon] = new Image();
-                    images[myTroopIcon].src = `images/icons/${myTroopIcon}.png`;
-                    images[myTroopIcon].onload = () => draw();
+                    images[myTroopIcon] = createSmartMapImage(`${myTroopIcon}.png`, () => draw());
                 }
 
                 if (images[myTroopIcon].complete && images[myTroopIcon].naturalWidth !== 0) {
@@ -803,9 +841,7 @@ function draw() {
             const bossSize = scaledTile * 3;
 
             if (!window.eventMonsterImage) {
-                window.eventMonsterImage = new Image();
-                window.eventMonsterImage.src = `images/icons/${ev.monster_icon}.png`;
-                window.eventMonsterImage.onload = () => draw();
+                window.eventMonsterImage = createSmartMapImage(`${ev.monster_icon}.png`, () => draw());
             }
 
             if (window.eventMonsterImage.complete) {
@@ -1705,6 +1741,123 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
             if (callback) callback();
         });
 }
+
+(function initMapKeyboardControls() {
+    const activeKeys = new Set();
+    let wasdAnimationId = null;
+
+    // Normal speed and sprint speed
+    const BASE_PAN_SPEED = 10;
+    const SHIFT_PAN_SPEED = 28;
+
+    function isInputActive() {
+        const active = document.activeElement;
+        if (!active) return false;
+
+        const isInputField = active.tagName === "INPUT" ||
+            active.tagName === "TEXTAREA" ||
+            active.tagName === "SELECT" ||
+            active.isContentEditable;
+        const isModalOpen = document.body.classList.contains("modal-open") ||
+            document.getElementById("info-box-overlay") !== null;
+
+        return isInputField || isModalOpen;
+    }
+
+    function wasdLoop() {
+        if (activeKeys.size === 0) {
+            wasdAnimationId = null;
+            return;
+        }
+
+        const isShift = activeKeys.has("ShiftLeft") ||
+            activeKeys.has("ShiftRight") ||
+            activeKeys.has("Shift");
+        const speed = isShift ? SHIFT_PAN_SPEED : BASE_PAN_SPEED;
+
+        let dx = 0;
+        let dy = 0;
+
+        if (activeKeys.has("KeyW") || activeKeys.has("ArrowUp")) dy += speed;
+        if (activeKeys.has("KeyS") || activeKeys.has("ArrowDown")) dy -= speed;
+        if (activeKeys.has("KeyA") || activeKeys.has("ArrowLeft")) dx += speed;
+        if (activeKeys.has("KeyD") || activeKeys.has("ArrowRight")) dx -= speed;
+
+        if (dx !== 0 || dy !== 0) {
+            cancelAnimationFrame(momentumID);
+            cancelAnimationFrame(panAnimationID);
+            isAutoPanning = false;
+
+            const popupBox = document.getElementById("field-popup-box");
+            if (popupBox && popupBox.style.display !== "none") {
+                popupBox.style.display = "none";
+                selectedX = null;
+                selectedY = null;
+            }
+
+            currentTranslateX += dx;
+            currentTranslateY += dy;
+            clampMapPosition();
+            draw();
+        }
+
+        wasdAnimationId = requestAnimationFrame(wasdLoop);
+    }
+
+    window.addEventListener("keydown", (e) => {
+        if (isInputActive()) return;
+
+        if (e.code === "Space") {
+            e.preventDefault();
+
+            if (!e.repeat && gameConfig && gameConfig.currentKingdom) {
+                selectedX = null;
+                selectedY = null;
+
+                jumpTo(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y);
+            }
+            return;
+        }
+
+        const monitoredKeys = [
+            "KeyW", "KeyA", "KeyS", "KeyD",
+            "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+            "ShiftLeft", "ShiftRight"
+        ];
+
+        if (monitoredKeys.includes(e.code) || e.key === "Shift") {
+            if (e.code.startsWith("Arrow")) {
+                e.preventDefault();
+            }
+
+            activeKeys.add(e.code);
+            if (e.shiftKey) activeKeys.add("Shift");
+
+            if (!wasdAnimationId) {
+                wasdAnimationId = requestAnimationFrame(wasdLoop);
+            }
+        }
+    });
+
+    window.addEventListener("keyup", (e) => {
+        activeKeys.delete(e.code);
+
+        if (!e.shiftKey) {
+            activeKeys.delete("Shift");
+            activeKeys.delete("ShiftLeft");
+            activeKeys.delete("ShiftRight");
+        }
+    });
+
+    window.addEventListener("blur", () => {
+        activeKeys.clear();
+
+        if (wasdAnimationId) {
+            cancelAnimationFrame(wasdAnimationId);
+            wasdAnimationId = null;
+        }
+    });
+})();
 
 window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemyReady) {
     if (!newKingdom) return;

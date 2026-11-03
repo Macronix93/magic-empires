@@ -1,8 +1,6 @@
 <?php
-if (IS_DEV) {
-    $js_folder = "js_src/";
-} else {
-    $js_folder = "js/";
+if (!isset($js_folder)) {
+    $js_folder = (defined("IS_DEV") && IS_DEV) ? "js_src/" : "js/";
 }
 
 $js_suffix = ".js";
@@ -61,14 +59,19 @@ if ($user->is_logged_in()) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE-edge">
-    <meta name="viewport" content="width=device-width, initial-scale:1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
     <link rel="stylesheet" type="text/css"
           href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>">
+    <?php if (WINTER_THEME_ACTIVE): ?>
+        <link rel="stylesheet" type="text/css"
+              href="themes/winter.css?v=<?= file_exists("winter.css") ? filemtime("winter.css") : 1 ?>">
+        <script type="text/javascript" src="<?= $js_folder ?>snow.js" defer></script>
+    <?php endif; ?>
     <title>
         <?php
         if (IS_DEV) {

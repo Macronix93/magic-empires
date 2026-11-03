@@ -65,7 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <?php include_once("layout/head.php"); ?>
 <body>
 <?php include_once("layout/banner.html"); ?>
@@ -86,7 +86,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
                 </tr>
             </table>
             <input type="submit" name="request_reset" value="Link anfordern"
-                   style="width:125px; height:50px; margin-bottom: 15px;"/>
+                   style="width: 125px; margin-bottom: 15px;"/>
             <hr>
             <i>Du kennst dein Passwort wieder? <a href="index.php"><b>Zum Login</b></a>.</i>
         </fieldset>

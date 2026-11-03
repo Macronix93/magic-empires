@@ -25,8 +25,51 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit;
     }
 
-    $hash = substr(hash_hmac('sha256', (string)$msg_id, AVATAR_SALT), 0, 8);
-    $preset_msg = "[report:$msg_id:$hash|$label]";
+    // Fallback for older messages
+    if (($data["template"] ?? "") === "battle_pvp") {
+        if (empty($data["attacker_name"]) || empty($data["defender_name"])) {
+            if (($data["role"] ?? "") === "attacker") {
+                $data["attacker_name"] = $user->get_user_name();
+                $data["defender_name"] = $data["opponent_name"] ?? "Verteidiger";
+            } else {
+                $data["defender_name"] = $user->get_user_name();
+                $data["attacker_name"] = $data["opponent_name"] ?? "Angreifer";
+            }
+        }
+    }
+
+    $now = time();
+    $expires_at = $now + (SHARED_REPORT_RETENTION_DAYS * 86400);
+
+    // Check if the report was already shared
+    $res_shared = $db_instance->execute_query(
+            "SELECT id FROM shared_battle_reports WHERE original_message_id = ? AND shared_by_user_id = ? AND expires_at > ?",
+            [$msg_id, $uid, $now]
+    );
+    $existing = $res_shared->fetch_assoc();
+
+    if ($existing) {
+        $shared_id = (int)$existing["id"];
+
+        // Increase expiry
+        $db_instance->execute_query(
+                "UPDATE shared_battle_reports SET expires_at = ? WHERE id = ?",
+                [$expires_at, $shared_id]
+        );
+    } else {
+        $report_type = $data["template"] ?? "battle";
+        $data_json = json_encode($data, JSON_UNESCAPED_UNICODE);
+
+        $db_instance->execute_query(
+                "INSERT INTO shared_battle_reports (shared_by_user_id, original_message_id, report_type, data_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+                [$uid, $msg_id, $report_type, $data_json, $now, $expires_at]
+        );
+
+        $shared_id = (int)$db_instance->insert_id;
+    }
+
+    $hash = substr(hash_hmac('sha256', (string)$shared_id, AVATAR_SALT), 0, 8);
+    $preset_msg = "[report:$shared_id:$hash|$label]";
     $my_gid = $user->get_user_guild_id();
     ?>
     <div style="padding: 10px; text-align: left; max-width: 440px; margin: 0 auto;">

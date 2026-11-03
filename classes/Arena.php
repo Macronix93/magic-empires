@@ -618,19 +618,13 @@ class Arena
     {
         $player = $this->get_player_data();
         if (!$player) return [];
+        $current_ids = array_map("intval", $player["current_opponents"] ?? []);
 
-        $current_ids = $player["current_opponents"] ?? [];
         if (!$force_reroll && !empty($current_ids)) {
             $opponents = $this->fetch_opponents_by_ids($current_ids);
             if (count($opponents) === count($current_ids)) {
                 return $opponents;
             }
-        }
-
-        if ($force_reroll) {
-            $this->db->execute_query(" UPDATE arena_players 
-                SET daily_rerolls = daily_rerolls + 1, last_reroll_reset = ? 
-                WHERE user_id = ? ", [time(), $this->user_id]);
         }
 
         $now = time();
@@ -639,69 +633,83 @@ class Arena
         $min_elo = $my_elo - ARENA_ROLL_ELO_WINDOW;
         $max_elo = $my_elo + ARENA_ROLL_ELO_WINDOW;
 
-        // Search for players in elo range (without cooldown)
+        $exclude_ids = array_values(array_unique(array_merge([$this->user_id], $force_reroll ? $current_ids : [])));
+        $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+
         $query = "
-            SELECT ap.user_id 
+            SELECT ap.user_id
             FROM arena_players ap
             JOIN users u ON ap.user_id = u.id
             LEFT JOIN (
-                SELECT defender_id 
-                FROM arena_battles 
+                SELECT defender_id
+                FROM arena_battles
                 WHERE attacker_id = ? AND created_at > ?
                 GROUP BY defender_id
             ) cd ON ap.user_id = cd.defender_id
-            WHERE ap.user_id != ? 
-            AND ap.defense_troops IS NOT NULL 
-            AND u.status = 1 
-            AND u.is_banned = 0 
-            AND ap.elo BETWEEN ? AND ?
-            ORDER BY (cd.defender_id IS NOT NULL), RAND() 
+            WHERE ap.user_id NOT IN ($placeholders)
+              AND ap.defense_troops IS NOT NULL
+              AND u.status = 1
+              AND u.is_banned = 0
+              AND ap.elo BETWEEN ? AND ?
+            ORDER BY (cd.defender_id IS NOT NULL), RAND()
             LIMIT ?
         ";
-
-        $res = $this->db->execute_query($query, [
-            $this->user_id,
-            $cooldown_threshold,
-            $this->user_id,
-            $min_elo,
-            $max_elo,
-            ARENA_ROLL_COUNT
-        ]);
+        $params = array_merge([$this->user_id, $cooldown_threshold], $exclude_ids, [$min_elo, $max_elo, ARENA_ROLL_COUNT]);
+        $res = $this->db->execute_query($query, $params);
         $selected_ids = array_column($res->fetch_all(MYSQLI_ASSOC), "user_id");
 
-        // Fallback, if there aren't enough players within elo range
         if (count($selected_ids) < ARENA_ROLL_COUNT) {
             $needed = ARENA_ROLL_COUNT - count($selected_ids);
-            $exclude_ids = array_merge([$this->user_id], $selected_ids);
-            $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+            $fallback_exclude = array_values(array_unique(array_merge($exclude_ids, $selected_ids)));
+            $fallback_placeholders = implode(',', array_fill(0, count($fallback_exclude), '?'));
 
             $fallback_query = "
-                SELECT ap.user_id 
+                SELECT ap.user_id
                 FROM arena_players ap
                 JOIN users u ON ap.user_id = u.id
                 LEFT JOIN (
-                    SELECT defender_id 
-                    FROM arena_battles 
+                    SELECT defender_id
+                    FROM arena_battles
                     WHERE attacker_id = ? AND created_at > ?
                     GROUP BY defender_id
                 ) cd ON ap.user_id = cd.defender_id
-                WHERE ap.user_id NOT IN ($placeholders) 
-                AND ap.defense_troops IS NOT NULL 
-                AND u.status = 1 
-                AND u.is_banned = 0 
-                ORDER BY (cd.defender_id IS NOT NULL), ABS(ap.elo - ?), RAND() 
+                WHERE ap.user_id NOT IN ($fallback_placeholders)
+                  AND ap.defense_troops IS NOT NULL
+                  AND u.status = 1
+                  AND u.is_banned = 0
+                ORDER BY (cd.defender_id IS NOT NULL), ABS(ap.elo - ?), RAND()
                 LIMIT ?
             ";
-
-            $fallback_params = array_merge([$this->user_id, $cooldown_threshold], $exclude_ids, [$my_elo, $needed]);
+            $fallback_params = array_merge([$this->user_id, $cooldown_threshold], $fallback_exclude, [$my_elo, $needed]);
             $fallback_res = $this->db->execute_query($fallback_query, $fallback_params);
             $fallback_ids = array_column($fallback_res->fetch_all(MYSQLI_ASSOC), "user_id");
             $selected_ids = array_merge($selected_ids, $fallback_ids);
         }
 
+        if (count($selected_ids) < ARENA_ROLL_COUNT && !empty($current_ids)) {
+            $needed = ARENA_ROLL_COUNT - count($selected_ids);
+            $remaining_candidates = array_values(array_diff($current_ids, $selected_ids));
+            shuffle($remaining_candidates);
+            $selected_ids = array_merge($selected_ids, array_slice($remaining_candidates, 0, $needed));
+        }
+
+        $old_sorted = $current_ids;
+        $new_sorted = $selected_ids;
+        sort($old_sorted);
+        sort($new_sorted);
+        $has_actually_changed = ($old_sorted !== $new_sorted);
+
+        if ($force_reroll && $has_actually_changed) {
+            $this->db->execute_query("
+                UPDATE arena_players
+                SET daily_rerolls = daily_rerolls + 1, last_reroll_reset = ?
+                WHERE user_id = ?
+            ", [time(), $this->user_id]);
+        }
+
         $this->db->execute_query("
-            UPDATE arena_players 
-            SET current_opponents = ? 
+            UPDATE arena_players
+            SET current_opponents = ?
             WHERE user_id = ?
         ", [json_encode($selected_ids), $this->user_id]);
 
@@ -815,7 +823,7 @@ class Arena
             "s_id" => (int)$def_skill["id"]
         ];
 
-        $combat_result = CombatEngine::calculate_pvp($atk_prepared, $def_prepared);
+        $combat_result = CombatEngine::calculate_pvp($atk_prepared, $def_prepared, 0, ARENA_ARMOR_EXPONENT);
 
         // Get winner
         $winner_id = 0;
@@ -1114,12 +1122,12 @@ class Arena
 
     private function prepare_combat_units(array $troops, array $techs, array $soldier_meta): array
     {
-        $inf_a = (int)($techs[TechTypes::TECH_TYPE_BLADES] ?? 0) * SMITHY_INF_ATK_BONUS;
-        $inf_d = (int)($techs[TechTypes::TECH_TYPE_SHIELDWALL] ?? 0) * SMITHY_INF_DEF_BONUS;
-        $cav_a = (int)($techs[TechTypes::TECH_TYPE_LANCE_RIDING] ?? 0) * SMITHY_CAV_ATK_BONUS;
-        $cav_d = (int)($techs[TechTypes::TECH_TYPE_CUIRASS] ?? 0) * SMITHY_CAV_DEF_BONUS;
-        $arc_a = (int)($techs[TechTypes::TECH_TYPE_ARROWHEADS] ?? 0) * SMITHY_ARC_ATK_BONUS;
-        $arc_d = (int)($techs[TechTypes::TECH_TYPE_DOUBLET] ?? 0) * SMITHY_ARC_DEF_BONUS;
+        $inf_a = (int)($techs[TechTypes::TECH_TYPE_BLADES] ?? 0) * ARENA_SMITHY_INF_ATK;
+        $inf_d = (int)($techs[TechTypes::TECH_TYPE_SHIELDWALL] ?? 0) * ARENA_SMITHY_INF_DEF;
+        $cav_a = (int)($techs[TechTypes::TECH_TYPE_LANCE_RIDING] ?? 0) * ARENA_SMITHY_CAV_ATK;
+        $cav_d = (int)($techs[TechTypes::TECH_TYPE_CUIRASS] ?? 0) * ARENA_SMITHY_CAV_DEF;
+        $arc_a = (int)($techs[TechTypes::TECH_TYPE_ARROWHEADS] ?? 0) * ARENA_SMITHY_ARC_ATK;
+        $arc_d = (int)($techs[TechTypes::TECH_TYPE_DOUBLET] ?? 0) * ARENA_SMITHY_ARC_DEF;
 
         $prepared = [];
         foreach ($troops as $id => $count) {
@@ -1439,5 +1447,31 @@ class Arena
             [$skill_id, $this->user_id]
         );
         return true;
+    }
+
+    public function has_more_opponents(array $current_opponents): bool
+    {
+        $current_ids = [];
+        foreach ($current_opponents as $opp) {
+            if (is_array($opp) && isset($opp["user_id"])) {
+                $current_ids[] = (int)$opp["user_id"];
+            } elseif (is_numeric($opp)) {
+                $current_ids[] = (int)$opp;
+            }
+        }
+        $exclude_ids = array_values(array_unique(array_merge([$this->user_id], $current_ids)));
+        $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
+
+        $res = $this->db->execute_query("
+            SELECT COUNT(*)
+            FROM arena_players ap
+            JOIN users u ON ap.user_id = u.id
+            WHERE ap.user_id NOT IN ($placeholders)
+              AND ap.defense_troops IS NOT NULL
+              AND u.status = 1
+              AND u.is_banned = 0
+        ", $exclude_ids);
+
+        return ((int)$res->fetch_column()) > 0;
     }
 }

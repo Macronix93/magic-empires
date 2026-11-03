@@ -46,8 +46,6 @@ if (!$user->is_logged_in()) {
 
 $messages = new Messages($user);
 
-$js_folder = IS_DEV ? "js_src/" : "js/";
-
 $main_js = $js_folder . "main.js";
 $timer_js = $js_folder . "timer.js";
 $chat_js = $js_folder . "chat.js";

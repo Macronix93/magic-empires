@@ -51,15 +51,29 @@ switch ($action) {
             exit;
         }
 
+        $player = $arena->get_player_data();
+        $current_ids = $player["current_opponents"] ?? [];
+        if (!$arena->has_more_opponents($current_ids)) {
+            echo json_encode([
+                "success" => false,
+                "error" => "Es sind aktuell keine weiteren Gegner in der Arena verfügbar.",
+                "has_more_opponents" => false,
+                "rerolls_left" => $rerolls_left
+            ]);
+            exit;
+        }
+
         $opponents = $arena->get_or_roll_opponents(true);
         $new_rerolls_left = $arena->get_rerolls_left();
+        $has_more = $arena->has_more_opponents($opponents);
         $html = Arena::render_opponents_html($opponents, $arena->get_player_data(), $uid);
 
         echo json_encode([
             "success" => true,
             "html" => $html,
             "rerolls_left" => $new_rerolls_left,
-            "max_rerolls" => ARENA_MAX_REROLLS_PER_DAY
+            "max_rerolls" => ARENA_MAX_REROLLS_PER_DAY,
+            "has_more_opponents" => $has_more
         ]);
         break;
     case "attack":

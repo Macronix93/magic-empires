@@ -11,25 +11,26 @@ class Database
      */
     private function __construct()
     {
-        $max_retries = 2;
+        $max_retries = 3;
         $attempt = 0;
         $connected = false;
+        $port = (int)(getenv("PORT") ?: 3306);
 
         while ($attempt < $max_retries && !$connected) {
             $attempt++;
             try {
                 $this->_connection = new mysqli(
-                    getenv("HOST"),
+                    getenv("HOST") ?: "127.0.0.1",
                     getenv("USER"),
                     getenv("PASSWORD"),
                     getenv("DATABASE"),
-                    getenv("PORT")
+                    $port
                 );
 
                 $connected = true;
             } catch (mysqli_sql_exception $e) {
                 if ($attempt < $max_retries) {
-                    usleep(250000);
+                    usleep(400000);
                     continue;
                 }
 
@@ -44,7 +45,7 @@ class Database
                         $post_info = " | POST-Keys: ($keys)";
                     }
 
-                    $target = (getenv("HOST") ?: "127.0.0.1") . ":" . (getenv("PORT") ?: 3306);
+                    $target = (getenv("HOST") ?: "127.0.0.1") . ":" . $port;
 
                     $details = sprintf(
                         "DB-Verbindungsfehler nach %d Versuchen zu [%s]! Aufruf: [%s %s%s]%s | Fehler (%d): %s",

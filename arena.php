@@ -148,23 +148,26 @@ if (!$is_season_active) {
 
     // TAB 1: BATTLE
     $rerolls_left = $arena->get_rerolls_left();
-    $reroll_disabled = ($rerolls_left <= 0) ? "disabled" : "";
+    $has_more_opponents = $arena->has_more_opponents($opponents);
+    $reroll_disabled = ($rerolls_left <= 0 || !$has_more_opponents) ? "disabled" : "";
+    $reroll_btn_text = !$has_more_opponents
+        ? "Keine neuen Gegner"
+        : "Neue Gegner suchen (<span id='arena-rerolls-counter'>$rerolls_left / " . ARENA_MAX_REROLLS_PER_DAY . "</span>)";
 
     $view .= "<div id='tab_battle' class='js-arena-tab' style='display: " . ($active_tab === "battle" ? "block" : "none") . "; max-width: 650px; margin: 0 auto;'>";
 
     if ($is_participating) {
-        $view .= "
-            <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>
-                <span class='arena-choose-enemy-text'>Wähle einen Kontrahenten:</span>
-                <div>
-                    <button type='button' data-on-click='rerollArenaOpponents' $reroll_disabled style='padding: 4px 10px;'>
-                        Neue Gegner suchen (<span id='arena-rerolls-counter'>$rerolls_left / " . ARENA_MAX_REROLLS_PER_DAY . "</span>)
-                    </button>
-                </div>
-            </div>
-            <div id='arena-opponents-container' style='display: flex; flex-direction: column; gap: 7px;'>
-                " . Arena::render_opponents_html($opponents, $player_data, $uid) . "
-            </div>";
+        $view .= " <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;'>
+                    <span class='arena-choose-enemy-text'>Wähle einen Kontrahenten:</span>
+                        <div>
+                            <button type='button' id='btn-reroll-opponents' data-on-click='rerollArenaOpponents' $reroll_disabled style='padding: 4px 10px;'>
+                                $reroll_btn_text
+                            </button>
+                        </div>
+                    </div>
+                    <div id='arena-opponents-container' style='display: flex; flex-direction: column; gap: 7px;'>
+                        " . Arena::render_opponents_html($opponents, $player_data, $uid) . "
+                    </div>";
     }
     $view .= "</div>";
 
@@ -184,16 +187,24 @@ if (!$is_season_active) {
 
     $tech_bonuses = [0 => ["atk" => 0, "def" => 0], 1 => ["atk" => 0, "def" => 0], 2 => ["atk" => 0, "def" => 0]];
     $tech_map = [
-        TechTypes::TECH_TYPE_BLADES => [0, "atk", SMITHY_INF_ATK_BONUS],
-        TechTypes::TECH_TYPE_SHIELDWALL => [0, "def", SMITHY_INF_DEF_BONUS],
-        TechTypes::TECH_TYPE_LANCE_RIDING => [1, "atk", SMITHY_CAV_ATK_BONUS],
-        TechTypes::TECH_TYPE_CUIRASS => [1, "def", SMITHY_CAV_DEF_BONUS],
-        TechTypes::TECH_TYPE_ARROWHEADS => [2, "atk", SMITHY_ARC_ATK_BONUS],
-        TechTypes::TECH_TYPE_DOUBLET => [2, "def", SMITHY_ARC_DEF_BONUS]
+        TechTypes::TECH_TYPE_BLADES => [0, "atk", ARENA_SMITHY_INF_ATK],
+        TechTypes::TECH_TYPE_SHIELDWALL => [0, "def", ARENA_SMITHY_INF_DEF],
+        TechTypes::TECH_TYPE_LANCE_RIDING => [1, "atk", ARENA_SMITHY_CAV_ATK],
+        TechTypes::TECH_TYPE_CUIRASS => [1, "def", ARENA_SMITHY_CAV_DEF],
+        TechTypes::TECH_TYPE_ARROWHEADS => [2, "atk", ARENA_SMITHY_ARC_ATK],
+        TechTypes::TECH_TYPE_DOUBLET => [2, "def", ARENA_SMITHY_ARC_DEF]
     ];
+
+    $tech_boni_js = [];
     foreach ($tech_map as $t_id => $t_info) {
         $lvl = (int)($current_def_techs[$t_id] ?? 0);
         $tech_bonuses[$t_info[0]][$t_info[1]] += $lvl * $t_info[2];
+
+        $tech_boni_js[$t_id] = [
+            "cat" => $t_info[0],
+            "type" => $t_info[1],
+            "val" => $t_info[2]
+        ];
     }
 
     $init_total_atk = 0;
@@ -577,6 +588,7 @@ if (!$is_season_active) {
                  data-max-techs='" . ARENA_MAX_TECH_POINTS . "' 
                  data-defense-troops='" . e(json_encode($current_def_troops)) . "' 
                  data-defense-techs='" . e(json_encode($current_def_techs)) . "'
+                 data-tech-boni='" . e(json_encode($tech_boni_js)) . "' 
                  data-reward-kingdom-id='$current_reward_kid'
                  style='display:none;'></div>";
 }

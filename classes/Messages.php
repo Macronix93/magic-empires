@@ -1135,8 +1135,9 @@ class Messages
                 $role = $data["role"] ?? "attacker";
                 $is_attacker = ($role === "attacker");
                 $is_supporter = ($role === "supporter");
-                $wall_def = (int)($data["wall_defense"] ?? 0);
+                $is_shared = !empty($data["is_shared_view"]);
 
+                $wall_def = (int)($data["wall_defense"] ?? 0);
                 $left_wall_def = $is_attacker ? 0 : $wall_def;
                 $right_wall_def = $is_attacker ? $wall_def : 0;
 
@@ -1149,22 +1150,40 @@ class Messages
                 $opp_link = "<a href='map.php?startx=$opp_x&starty=$opp_y' data-on-click='mapJump' data-x='$opp_x' data-y='$opp_y'>$opp_x:$opp_y</a>";
                 $my_link = "<a href='map.php?startx=$my_x&starty=$my_y' data-on-click='mapJump' data-x='$my_x' data-y='$my_y'>$my_x:$my_y</a>";
                 $my_kname = e($data["my_kname"] ?? "Königreich");
+                $opponent_kname = e($data["opponent_kname"] ?? "Königreich");
 
-                if ($is_attacker) {
-                    $header_title = "Kampfbericht: <b>$opponent_name</b> ($opp_link)";
-                    $sub_title = "Truppen aus: <b>$my_kname</b> ($my_link)";
-                    $atk_label = "Deine Truppen";
-                    $def_label = "Verteidiger";
-                } else if ($is_supporter) {
-                    $header_title = "Unterstützungskampf: <b>$my_kname</b> ($my_link)";
-                    $sub_title = "Angriff von: <b>$opponent_name</b> aus $opp_link";
-                    $atk_label = "Gesamte Verteidigung";
-                    $def_label = "Angreifer: $opponent_name";
+                $atk_name = e($data["attacker_name"] ?? ($is_attacker ? "Angreifer" : $opponent_name));
+                $def_name = e($data["defender_name"] ?? ($is_attacker ? $opponent_name : "Verteidiger"));
+
+                if ($is_shared) {
+                    $header_title = "Kampfbericht: <b>$atk_name</b> vs. <b>$def_name</b>";
+
+                    if ($is_attacker) {
+                        $sub_title = "Schlachtfeld: <b>$opponent_kname</b> ($opp_link)";
+                        $atk_label = "Angreifer ($atk_name)";
+                        $def_label = "Verteidiger ($def_name)";
+                    } else {
+                        $sub_title = "Schlachtfeld: <b>$my_kname</b> ($my_link)";
+                        $atk_label = "Verteidiger ($def_name)";
+                        $def_label = "Angreifer ($atk_name)";
+                    }
                 } else {
-                    $header_title = "Angriff von: <b>$opponent_name</b> ($opp_link)";
-                    $sub_title = "Verteidigung von: <b>$my_kname</b> ($my_link)";
-                    $atk_label = "Deine Verteidigung";
-                    $def_label = "Angreifer";
+                    if ($is_attacker) {
+                        $header_title = "Kampfbericht: <b>$opponent_name</b> ($opp_link)";
+                        $sub_title = "Truppen aus: <b>$my_kname</b> ($my_link)";
+                        $atk_label = "Deine Truppen";
+                        $def_label = "Verteidiger";
+                    } else if ($is_supporter) {
+                        $header_title = "Unterstützungskampf: <b>$my_kname</b> ($my_link)";
+                        $sub_title = "Angriff von: <b>$opponent_name</b> aus $opp_link";
+                        $atk_label = "Gesamte Verteidigung";
+                        $def_label = "Angreifer: $opponent_name";
+                    } else {
+                        $header_title = "Angriff von: <b>$opponent_name</b> ($opp_link)";
+                        $sub_title = "Verteidigung von: <b>$my_kname</b> ($my_link)";
+                        $atk_label = "Deine Verteidigung";
+                        $def_label = "Angreifer";
+                    }
                 }
 
                 $html = "<div class='battle-report'>";
@@ -1179,7 +1198,41 @@ class Messages
                     $right_wall_def
                 );
 
-                $out = $this->resolve_pvp_outcome($data["outcome"] ?? "repelled", $role);
+                if ($is_shared) {
+                    $raw_outcome = $data["outcome"] ?? "repelled";
+                    if ($raw_outcome === "victory") {
+                        $out = [
+                            "title" => "Sieg für Angreifer ($atk_name)",
+                            "main_text" => "Die Truppen von <b>$atk_name</b> haben die Verteidigung durchbrochen.",
+                            "sub_text" => "",
+                            "type" => "neutral"
+                        ];
+                    } else if ($raw_outcome === "total_defeat") {
+                        $out = [
+                            "title" => "Sieg für Verteidiger ($def_name)",
+                            "main_text" => "Die Truppen von <b>$atk_name</b> wurden vollständig vernichtet.",
+                            "sub_text" => "",
+                            "type" => "neutral"
+                        ];
+                    } else if ($raw_outcome === "unhindered") {
+                        $out = [
+                            "title" => "Ungehinderter Vorstoß ($atk_name)",
+                            "main_text" => "Es waren keine Truppen zur Gegenwehr anwesend.",
+                            "sub_text" => "",
+                            "type" => "neutral"
+                        ];
+                    } else {
+                        $out = [
+                            "title" => "Sieg für Verteidiger ($def_name)",
+                            "main_text" => "Die Truppen von <b>$def_name</b> haben dem Angriff standgehalten.",
+                            "sub_text" => "",
+                            "type" => "neutral"
+                        ];
+                    }
+                } else {
+                    $out = $this->resolve_pvp_outcome($data["outcome"] ?? "repelled", $role);
+                }
+
                 $html .= BattleReportRenderer::render_outcome_box(
                     $out["title"],
                     $out["main_text"],
@@ -1206,7 +1259,6 @@ class Messages
                     $html .= "<div class='report-section-title'>Gilden-Unterstützung</div>";
 
                     foreach ($data["support_summary"] as $s_entry) {
-                        $html .= "";
                         $html .= "<div class='battle-supporter-name'>Unterstützung von <b>" . e($s_entry["username"]) . "</b>:</div>";
                         $html .= "<div style='display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start;'>";
 
@@ -1221,22 +1273,38 @@ class Messages
                 }
 
                 if (!empty($data["conquest"])) {
-                    $cq = $this->resolve_conquest_data($data["conquest"]);
+                    if ($is_shared) {
+                        $cq_raw = $data["conquest"];
 
-                    if ($cq) {
-                        $html .= BattleReportRenderer::render_outcome_box(
-                            $cq["title"],
-                            $cq["main_text"],
-                            0, 0,
-                            $cq["sub_text"] ?? "",
-                            $cq["type"]
-                        );
+                        if ($cq_raw === "conquered_attacker" || $cq_raw === "conquered_defender" || $cq_raw === "conquered_defender_wiped") {
+                            $html .= BattleReportRenderer::render_outcome_box(
+                                "Königreich erobert",
+                                "Das Königreich wurde erfolgreich von <b>$atk_name</b> eingenommen."
+                            );
+                        } else if ($cq_raw === "failed_attacker") {
+                            $html .= BattleReportRenderer::render_outcome_box(
+                                "Eroberungsversuch gescheitert",
+                                "Der Versuch von <b>$atk_name</b>, das Königreich einzunehmen, schlug fehl."
+                            );
+                        }
+                    } else {
+                        $cq = $this->resolve_conquest_data($data["conquest"]);
+
+                        if ($cq) {
+                            $html .= BattleReportRenderer::render_outcome_box(
+                                $cq["title"],
+                                $cq["main_text"],
+                                0, 0,
+                                $cq["sub_text"] ?? "",
+                                $cq["type"]
+                            );
+                        }
                     }
                 }
 
                 if (!empty($data["loot"])) {
-                    $loot_title = $is_attacker ? "Erbeutete Ressourcen" : "Gestohlene Ressourcen";
-                    $color = $is_attacker ? "passed" : "error";
+                    $loot_title = $is_shared ? "Erbeutete Ressourcen ($atk_name)" : ($is_attacker ? "Erbeutete Ressourcen" : "Gestohlene Ressourcen");
+                    $color = $is_shared ? "passed" : ($is_attacker ? "passed" : "error");
                     $html .= BattleReportRenderer::render_resource_box($data["loot"], $loot_title, $color);
                 }
 

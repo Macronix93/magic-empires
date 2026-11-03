@@ -100,6 +100,13 @@ if ($deleted_events > 0) {
     echo "[" . date("H:i:s") . "] Cleanup: $deleted_events alte Welt-Events aus der Datenbank entfernt.\n";
 }
 
+// Shared Battle Reports Cleanup
+$db->execute_query("DELETE FROM shared_battle_reports WHERE expires_at < ?", [$now]);
+$deleted_shared = $db->affected_rows;
+if ($deleted_shared > 0) {
+    echo "[" . date("H:i:s") . "] Shared-Reports-Cleanup: $deleted_shared abgelaufene Berichte gelöscht.\n";
+}
+
 // Arena rewards
 $arena_rewarded = Arena::check_and_process_season_reset();
 if ($arena_rewarded > 0) {

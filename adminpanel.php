@@ -101,7 +101,8 @@ if (!$user->is_admin()) {
             "arena_battles",
             "arena_hero_skills",
             "arena_players",
-            "arena_season_history"
+            "arena_season_history",
+            "shared_battle_reports"
         ];
 
         foreach ($tables_to_clear as $t) {
@@ -250,6 +251,20 @@ if (!$user->is_admin()) {
         $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON ($reason)" : "OFF"));
 
         change_location("adminpanel.php");
+        exit;
+    }
+
+    if (isset($_POST["toggle_winter_theme"])) {
+        $new_val = (WINTER_THEME_ACTIVE ? "0" : "1");
+        $db_instance->execute_query(
+            "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'",
+            [$new_val]
+        );
+
+        $logger->admin("WINTER THEME geändert auf: " . ($new_val == "1" ? "ON" : "OFF"));
+
+        $_SESSION["admin_flash_msg"] = "Winter-Theme wurde <b>" . ($new_val == "1" ? "aktiviert" : "deaktiviert") . "</b>!";
+        change_location("adminpanel.php?tab=system");
         exit;
     }
 
@@ -705,18 +720,35 @@ if (!$user->is_admin()) {
     // Show Server Settings
     $m_status = MAINTENANCE_MODE ? "<span class='error'>AKTIV</span>" : "<span class='passed'>Inaktiv</span>";
     $m_button = MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren";
+    $w_status = WINTER_THEME_ACTIVE ? "<span class='passed' style='font-weight: bold;'>AKTIV</span>" : "<span class='error'>Inaktiv</span>";
+    $w_button = WINTER_THEME_ACTIVE ? "Deaktivieren" : "Aktivieren";
 
     $settings_list = "<div class='box-container' style='margin-bottom: 20px;'>
-                    <div class='box-header'>System-Steuerung</div>
-                        <div class='box-content box-content-bg' style='padding: 15px;'>
-                            <b>Wartungsmodus:</b> $m_status 
-                            <form method='POST' id='maint_form' style='display:inline; margin-left: 20px;'>
-                                <input type='hidden' name='toggle_maintenance' value='1'>
-                                <input type='hidden' name='maintenance_reason' id='maint_reason_input' value=''>
-                                <input type='button' data-on-click='confirmMaintenance' value='" . (MAINTENANCE_MODE ? 'Deaktivieren' : 'Aktivieren') . "'>
-                            </form>
+        <div class='box-header'>System-Steuerung</div>
+            <div class='box-content box-content-bg' style='padding: 15px;'>
+                <div style='display: flex; flex-direction: column; width: 100%; max-width: 450px; margin: 0 auto; gap: 10px;'>
+                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                        <div>
+                            <b>Wartungsmodus:</b> $m_status
                         </div>
-                    </div>";
+                        <form method='POST' id='maint_form' style='margin: 0;'>
+                            <input type='hidden' name='toggle_maintenance' value='1'>
+                            <input type='hidden' name='maintenance_reason' id='maint_reason_input' value=''>
+                            <input type='button' data-on-click='confirmMaintenance' value='" . (MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren") . "'>
+                        </form>
+                    </div>
+                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                        <div>
+                            <b>Winter-Theme & Schnee:</b> $w_status
+                        </div>
+                        <form method='POST' style='margin: 0;'>
+                            <input type='hidden' name='toggle_winter_theme' value='1'>
+                            <input type='submit' value='$w_button'>
+                        </form>
+                    </div>
+                </div>
+            </div>
+    </div>";
     $settings_list .= "<div class='box-container' style='margin-top: 20px;'>
                     <div class='box-header'>Karten-Wartung</div>
                     <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>

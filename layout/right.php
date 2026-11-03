@@ -170,6 +170,15 @@
 
                 echo "</div></div>";
             }
+            $vill_boost = $active_boosts[ResourceTypes::RESOURCE_TYPE_VILLAGER]["amount"] ?? 0;
+            $vill_ticks_left = $active_boosts[ResourceTypes::RESOURCE_TYPE_VILLAGER]["ticks"] ?? 0;
+            $has_vill_boost = ($vill_boost > 0);
+            $base_vill_prod = $kingdom->get_kingdom_villager_per_hour();
+            $total_vill_prod = $base_vill_prod + $vill_boost;
+
+            $vill_prod_class = $has_vill_boost ? "popup passed" : "";
+            $side_prefix = $side_prefix ?? '';
+            $vill_prod_id = $side_prefix . "boost_info_villager";
             ?>
             <div class='split-content'>
                 <div>
@@ -179,7 +188,17 @@
                         <?= fnum($kingdom->get_kingdom_villager()) ?> / <?= fnum($kingdom->get_kingdom_max_villager()) ?>
                     </span>
                 </div>
-                (<?= fnum($kingdom->get_kingdom_villager_per_hour()) ?>/h)
+                <div class='<?= $vill_prod_class ?>' id='<?= $vill_prod_id ?>'>
+                    (<?= fnum($total_vill_prod) ?>/h)
+                    <?php if ($has_vill_boost): ?>
+                        <div id='<?= $vill_prod_id ?>_box' class='popupbox'>
+                            <b>Aktive Boosts:</b><br>
+                            Basis & Gebäude: <?= fnum($base_vill_prod) ?>/h<br>
+                            <span class='passed'>Gebäude-Boost: +<?= fnum($vill_boost) ?>/h</span>
+                            <small>(Noch <?= $vill_ticks_left ?> Erträge)</small>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
             <div class="split-content">
                 <div>

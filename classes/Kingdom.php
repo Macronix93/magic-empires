@@ -1169,4 +1169,16 @@ class Kingdom
         $lvl = $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_METALLURGY);
         return (float)max(0.1, 1.0 - ($lvl * METALLURGY_RESEARCH_REDUCTION));
     }
+
+    public function get_watchtower_detection_window(): int
+    {
+        $lvl = $this->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
+        if ($lvl <= 0) return 0;
+
+        $base = $lvl * WATCHTOWER_DETECTION_PER_LEVEL;
+        $boosts = $this->get_active_boosts(ResourceTypes::RESOURCE_TYPE_WATCHTOWER);
+        $boost_sec = $boosts[ResourceTypes::RESOURCE_TYPE_WATCHTOWER]["amount"] ?? 0;
+
+        return $base + $boost_sec;
+    }
 }

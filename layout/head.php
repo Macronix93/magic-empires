@@ -5,6 +5,11 @@
     <link href="images/favicon.ico" id="icon" rel="icon" type="image/x-icon">
     <link href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>" rel="stylesheet"
           type="text/css">
+    <?php if (WINTER_THEME_ACTIVE): ?>
+        <link rel="stylesheet" type="text/css"
+              href="themes/winter.css?v=<?= file_exists("winter.css") ? filemtime("winter.css") : 1 ?>">
+        <script type="text/javascript" src="<?= $js_folder ?>snow.js" defer></script>
+    <?php endif; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">

@@ -1,39 +1,41 @@
 <?php
 
-class ResourceBuilding {
+class ResourceBuilding
+{
     private const array CONFIG = [
         BuildingTypes::BUILDING_MILL => [
-            "res_type"  => ResourceTypes::RESOURCE_TYPE_FOOD,
-            "rate_col"  => "foodrate",
+            "res_type" => ResourceTypes::RESOURCE_TYPE_FOOD,
+            "rate_col" => "foodrate",
             "base_gain" => BASE_FOOD_GAIN,
-            "label"     => "Nahrungsertrag",
-            "file"      => "mill.php"
+            "label" => "Nahrungsertrag",
+            "file" => "mill.php"
         ],
         BuildingTypes::BUILDING_SAWMILL => [
-            "res_type"  => ResourceTypes::RESOURCE_TYPE_WOOD,
-            "rate_col"  => "woodrate",
+            "res_type" => ResourceTypes::RESOURCE_TYPE_WOOD,
+            "rate_col" => "woodrate",
             "base_gain" => BASE_WOOD_GAIN,
-            "label"     => "Holzertrag",
-            "file"      => "sawmill.php"
+            "label" => "Holzertrag",
+            "file" => "sawmill.php"
         ],
         BuildingTypes::BUILDING_STONEMINE => [
-            "res_type"  => ResourceTypes::RESOURCE_TYPE_STONE,
-            "rate_col"  => "stonerate",
+            "res_type" => ResourceTypes::RESOURCE_TYPE_STONE,
+            "rate_col" => "stonerate",
             "base_gain" => BASE_STONE_GAIN,
-            "label"     => "Steinertrag",
-            "file"      => "stonemine.php"
+            "label" => "Steinertrag",
+            "file" => "stonemine.php"
         ],
         BuildingTypes::BUILDING_GOLDMINE => [
-            "res_type"  => ResourceTypes::RESOURCE_TYPE_GOLD,
-            "rate_col"  => "goldrate",
+            "res_type" => ResourceTypes::RESOURCE_TYPE_GOLD,
+            "rate_col" => "goldrate",
             "base_gain" => BASE_GOLD_GAIN,
-            "label"     => "Goldertrag",
-            "file"      => "goldmine.php"
+            "label" => "Goldertrag",
+            "file" => "goldmine.php"
         ],
     ];
 
-    public static function handle(User $user, int $building_type): void {
-        global $db_instance, $error, $view, $title, $header, $script_files;
+    public static function handle(User $user, int $building_type): void
+    {
+        global $db_instance, $error, $view, $title, $header, $script_files, $js_folder;
 
         if (!isset(self::CONFIG[$building_type])) {
             change_location("overview.php");
@@ -100,10 +102,10 @@ class ResourceBuilding {
         $field_rate = (float)($ft_res["fieldrate"] ?? 1.0);
 
         $base_rate = match ($res_type) {
-            ResourceTypes::RESOURCE_TYPE_FOOD  => $kingdom->get_base_food_rate(),
-            ResourceTypes::RESOURCE_TYPE_WOOD  => $kingdom->get_base_wood_rate(),
+            ResourceTypes::RESOURCE_TYPE_FOOD => $kingdom->get_base_food_rate(),
+            ResourceTypes::RESOURCE_TYPE_WOOD => $kingdom->get_base_wood_rate(),
             ResourceTypes::RESOURCE_TYPE_STONE => $kingdom->get_base_stone_rate(),
-            ResourceTypes::RESOURCE_TYPE_GOLD  => $kingdom->get_base_gold_rate(),
+            ResourceTypes::RESOURCE_TYPE_GOLD => $kingdom->get_base_gold_rate(),
             default => 0
         };
 
@@ -120,9 +122,9 @@ class ResourceBuilding {
         </div> ";
 
         if ($ticks_left > 0) {
-            $view .= "<p style='margin-bottom: 0;'>Ertragsboost aktiv!<br>Verbleibende Erträge: <span style='font-weight: bold;'>$ticks_left</span></p>";
+            $view .= "<p class='res-building-boost-text' style='margin-bottom: 0;'>Ertragsboost aktiv!<br>Verbleibende Erträge: <span style='font-weight: bold;'>$ticks_left</span></p>";
         } else {
-            $view .= "<p>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
+            $view .= "<p class='res-building-boost-text'>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
             $view .= "<form method='POST'>
                 <button type='submit' name='activate_boost' class='boost-button' $disabled>
                     Boost aktivieren für $cost_display_html

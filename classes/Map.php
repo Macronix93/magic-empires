@@ -102,6 +102,18 @@ class Map
 
     public function get_field_type_color(int $field_type): string
     {
+        $is_winter = defined("WINTER_THEME_ACTIVE") && WINTER_THEME_ACTIVE;
+
+        if ($is_winter) {
+            return match ($field_type) {
+                1 => "#5d738a", // Gebirge
+                2 => "#1e5b82", // Küste
+                3 => "#1b4337", // Wald
+                4 => "#b5a895", // Wüste
+                default => "#d0e0eb", // Hochland
+            };
+        }
+
         return match ($field_type) {
             1 => "#576574",
             2 => "#0984e3",

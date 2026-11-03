@@ -328,7 +328,7 @@ $res_online = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE last
 $count_online = $res_online->fetch_row()[0];
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <?php include_once("layout/head.php"); ?>
 <body>
 <div class="header img">

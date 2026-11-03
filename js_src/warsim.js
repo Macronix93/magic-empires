@@ -674,19 +674,17 @@ function calculateWarOutcome(soldierTypes) {
         const wallAbsorption = lvl * (W_CONF.wallAbsorptionPerLevel * W_CONF.wallAbsorptionMult);
         const damageDiff = ownOffense.totalRawAtk - totalEnemyDef;
         let effectiveDamage = Math.max(0, damageDiff - wallAbsorption);
-
         let normalTroopWallDmg = effectiveDamage * (W_CONF.wallEffDmgFactor * W_CONF.wallNormalDmgFactor);
         const maxNormalDmgCap = maxHp * W_CONF.wallMaxNormalDmgPerc;
         normalTroopWallDmg = Math.min(normalTroopWallDmg, maxNormalDmgCap);
 
         const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
+        const siegeMultiplier = 1.0 + (siegeLvl * W_CONF.siegeBonus);
+
         const ramCount = parseInt(document.getElementById("Rammbock_own")?.value) || 0;
+        const ramDamage = ramCount * W_CONF.ramFlat;
 
-        let ramDamage = (ramCount * W_CONF.ramFlat);
-        const ramBonus = Math.min(W_CONF.ramLimit, ramCount * W_CONF.ramFactor);
-        const multiplier = 1 + (siegeLvl * W_CONF.siegeBonus) + ramBonus;
-        let totalWallDmg = (normalTroopWallDmg + ramDamage) * multiplier;
-
+        let totalWallDmg = (normalTroopWallDmg + ramDamage) * siegeMultiplier;
         currentSimWallHp = Math.max(0, currentSimWallHp - Math.round(totalWallDmg));
     } else {
         currentSimWallHp = 0;

@@ -4,6 +4,18 @@
 </div>
 <div class="credits-scroll-box">
     <ul class="credits-list">
+        <li><a href="https://www.flaticon.com/free-icons/santa-claus" title="santa claus icons">Santa claus icons
+                created by Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/winter" title="winter icons">Winter icons created by Magnific -
+                Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/christmas" title="christmas icons">Christmas icons created by
+                Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/castle-tower" title="castle tower icons">Castle tower icons
+                created by Zulfa Mahendra - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/architecture-and-city" title="architecture and city icons">Architecture
+                and city icons created by Magnific - Flaticon</a></li>
+        <li><a href="https://www.flaticon.com/free-icons/castle-tower" title="castle tower icons">Castle tower icons
+                created by Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/foundry" title="foundry icons">Foundry icons created by
                 Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/parchment" title="parchment icons">Parchment icons created by

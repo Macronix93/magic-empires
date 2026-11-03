@@ -255,6 +255,24 @@ echo '<div id="field-info" style="' . ($use_map_popup ? "display: none;" : "marg
 $map->render_field_info();
 echo '</div>';
 
+// Key Shortcut Info
+echo '<div class="map-key-legend">
+    <div class="map-key-item">
+        <kbd class="key-badge">W</kbd><kbd class="key-badge">A</kbd><kbd class="key-badge">S</kbd><kbd class="key-badge">D</kbd>
+        <span>Bewegen</span>
+    </div>
+    <div class="legend-divider show"></div>
+    <div class="map-key-item">
+        <kbd class="key-badge">Shift</kbd>
+        <span>+ Schneller</span>
+    </div>
+    <div class="legend-divider show"></div>
+    <div class="map-key-item">
+        <kbd class="key-badge">Leertaste</kbd>
+        <span>Home</span>
+    </div>
+</div>';
+
 $view = ob_get_clean();
 
 /*

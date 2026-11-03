@@ -758,12 +758,13 @@ class User
         FROM events e
         JOIN kingdoms k ON e.targetid = k.id
         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
+        LEFT JOIN kingdom_boosts kb_wt ON k.id = kb_wt.kingdomid AND kb_wt.resource_type = " . ResourceTypes::RESOURCE_TYPE_WATCHTOWER . " AND kb_wt.ticks_remaining > 0
         WHERE k.userid = ? 
           AND e.userid != k.userid
           AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
           AND e.is_processing = 0
           AND e.arrivaltime > ?
-          AND e.arrivaltime <= (? + (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . "))
+          AND e.arrivaltime <= (? + (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ") + IFNULL(kb_wt.boost_amount, 0))
           AND EXISTS (
               SELECT 1 FROM sent_troops st 
               WHERE st.eventid = e.eventid 

@@ -399,7 +399,7 @@
                             wurden).
                         </li>
                         <li>Kann neue Mitglieder einladen und offene Einladungen zurückziehen.</li>
-                        <li>Kann Ränge unterhalb des Offiziers verwalten und Mitglieder kicken.</li>
+                        <li>Kann Ränge unterhalb des Ratgebers verwalten und Mitglieder kicken.</li>
                         <li>Kann fremde Nachrichten im Gilden-Chat moderieren/löschen.</li>
                     </ul>
                     <b style="color: #3498db;">3. Diplomat:</b>

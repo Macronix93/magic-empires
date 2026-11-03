@@ -1,0 +1,168 @@
+/* ========================================================
+   MAGIC EMPIRES - WINTER THEME OVERRIDES
+   ======================================================== */
+
+html.theme-winter {
+    /* Frostiges Farbschema */
+    --box-content-color: rgba(22, 32, 45, 0.95);
+    --table-color: rgb(32, 45, 60);
+    --box-selected: rgb(45, 75, 105);
+    /*--link-color: rgb(130, 205, 255);*/
+    --box-header: rgb(16, 26, 38);
+    --sender-bubble: rgb(38, 54, 72);
+    --receiver-bubble: rgb(28, 65, 85);
+    --border-gold: rgb(90, 155, 210);
+}
+
+/* 1. Winter-Hintergrund für die gesamte Spielwelt */
+html.theme-winter::before {
+    background: url("images/winter/background.jpg") no-repeat center center !important;
+    background-size: 100% 100% !important;
+}
+
+@media screen and (max-width: 600px) {
+    html.theme-winter::before {
+        background-size: cover !important;
+        background-position: 35% 65% !important;
+    }
+}
+
+/* 2. Landing-Hero-Hintergrund (Startseite) */
+html.theme-winter .landing-hero {
+    background: linear-gradient(rgba(10, 20, 35, 0.65), rgba(10, 20, 35, 0.65)),
+    url("images/landing_bg.jpg") center !important;
+    background-size: cover !important;
+    border-color: var(--border-gold) !important;
+}
+
+/* 3. Frostige Header */
+html.theme-winter .box-header {
+    background: linear-gradient(180deg, #2b455e 0%, #152433 100%) !important;
+    border-bottom: 2px solid var(--border-gold) !important;
+    color: var(--link-color) !important;
+}
+
+html.theme-winter .big-box-header {
+    border-bottom: 2px solid var(--border-gold) !important;
+    color: var(--link-color) !important;
+}
+
+/* 4. Tabellen-Köpfe */
+html.theme-winter .td-gradient {
+    background: linear-gradient(180deg, #283e54 0%, #1a2938 100%) !important;
+}
+
+/* 5. Buttons im frostigen Look */
+html.theme-winter input[type=submit]:not(:disabled),
+html.theme-winter input[type=button]:not(:disabled),
+html.theme-winter button:not(:disabled) {
+    background: linear-gradient(0deg, #16324a 0%, #25527a 100%) !important;
+}
+
+/* Hover-Effekt ebenfalls nur für aktive Buttons */
+html.theme-winter input[type=submit]:not(:disabled):hover,
+html.theme-winter input[type=button]:not(:disabled):hover,
+html.theme-winter button:not(:disabled):hover {
+    background: #2e6698 !important;
+    border-color: var(--link-color) !important;
+    box-shadow: 0 0 10px rgba(130, 205, 255, 0.4);
+}
+
+/* Gefahren-Buttons (Löschen, Abbruch) rot belassen */
+html.theme-winter .btn-delete,
+html.theme-winter input.btn-delete,
+html.theme-winter .box-content-bg-danger button {
+    background: linear-gradient(0deg, #4b140a 0%, #781e14 39%) !important;
+    border-color: rgba(0, 0, 0, 0.63) !important;
+}
+
+/* 6. Textauswahl */
+html.theme-winter ::selection {
+    background-color: #2b628f;
+    color: #ffffff;
+}
+
+html.theme-winter .header.img img {
+    content: url("images/winter/header.png");
+}
+
+/* ========================================================
+   RESTLICHE BRAUNTÖNE ELEMINIEREN (WINTER-OVERLAYS & UI)
+   ======================================================== */
+
+/* 1. Box-Content Hintergrund (vorher braun rgb(54, 46, 38)) */
+html.theme-winter .box-content-bg {
+    background-color: rgb(24, 35, 48) !important;
+}
+
+/* 2. Select-Dropdowns (Verlauf & Eisblaues Pfeil-Symbol) */
+html.theme-winter select {
+    background-color: var(--table-color) !important;
+    border-color: var(--border-gold) !important;
+    color: rgb(235, 245, 255) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2382cdff' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, #2b455e 0%, #152433 100%) !important;
+}
+
+/* 3. Overlay Modal (Popup-Fenster & Header) */
+html.theme-winter .overlay-modal {
+    background-color: rgba(20, 30, 42, 0.98) !important;
+    border-color: var(--box-selected) !important;
+}
+
+html.theme-winter .overlay-header {
+    background: linear-gradient(180deg, #2b455e 0%, #152433 100%) !important;
+    border-bottom: 2px solid var(--border-gold) !important;
+    color: var(--link-color) !important;
+}
+
+/* 4. Textfelder & Eingaben (vorher braun #2a2622) */
+html.theme-winter input[type=text],
+html.theme-winter input[type=password],
+html.theme-winter input[type=email],
+html.theme-winter textarea,
+html.theme-winter .box-content form input[type="text"],
+html.theme-winter .box-content form textarea {
+    background-color: #14202d !important;
+    border-color: #0b141d !important;
+    color: rgb(235, 245, 255) !important;
+}
+
+/* 5. Tooltips / Schwebende Info-Boxen (vorher braun verlaufend) */
+html.theme-winter .popupbox {
+    background: linear-gradient(135deg, #1b2c3d 0%, #0d1620 100%) !important;
+    border-color: var(--border-gold) !important;
+    color: rgb(230, 240, 255) !important;
+}
+
+/* 6. Bestätigungs-Dialoge (Ja/Nein Popups) */
+html.theme-winter .info-box-overlay {
+    background-color: rgb(18, 28, 38) !important;
+    border-color: var(--border-gold) !important;
+}
+
+/* 7. Mobile Navigations-Leiste oben (Pfeile, Trigger, Anzeige) */
+html.theme-winter .mobile-trigger,
+html.theme-winter .mobile-nav-arrow,
+html.theme-winter .mobile-kingdom-display {
+    background: linear-gradient(180deg, #2b455e 0%, #152433 100%) !important;
+    border-color: var(--border-gold) !important;
+}
+
+/* 8. Nachrichten-Buttons (Inbox Navigation) */
+html.theme-winter .msg-button {
+    background: linear-gradient(180deg, #1e3347 0%, #101c27 100%) !important;
+    border-color: var(--box-header) !important;
+    border-bottom-color: var(--border-gold) !important;
+}
+
+html.theme-winter .msg-button:hover {
+    background: linear-gradient(180deg, #2b455e 0%, #152433 100%) !important;
+    border-color: var(--border-gold) !important;
+}
+
+/* 9. Arena Sticky Power Bar */
+html.theme-winter .arena-power-sticky {
+    background: rgba(18, 28, 38, 0.98) !important;
+    border-color: var(--border-gold) !important;
+}

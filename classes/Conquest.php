@@ -86,33 +86,35 @@ class Conquest
     public function calculate_wall_damage(): int
     {
         $current_wall_hp = $this->enemy_kingdom->get_wall_hp();
+
+        if ($current_wall_hp <= 0) {
+            return 0;
+        }
+
         $wall_level = $this->enemy_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
         $max_wall_hp = $this->enemy_kingdom->get_wall_max_hp();
 
         $wall_absorption = $wall_level * (WALL_ABSORPTION_PER_LEVEL * WALL_ABSORPTION_MULTIPLIER);
         $damage_diff = $this->accumulated_damage - $this->enemy_def_without_wall;
-
         $effective_damage = max(0, $damage_diff - $wall_absorption);
-
         $normal_troop_wall_dmg = $effective_damage * (WALL_EFFECTIVE_DMG_FACTOR * WALL_NORMAL_TROOP_DAMAGE_FACTOR);
-
         $max_normal_dmg_cap = $max_wall_hp * WALL_MAX_NORMAL_DAMAGE_PERCENT;
         $normal_troop_wall_dmg = min($normal_troop_wall_dmg, $max_normal_dmg_cap);
 
         $ram_count = (int)($this->soldiers[Soldiers::SOLDIER_RAM]["initial"] ?? 0);
-        $ram_damage = ($ram_count * RAM_FLAT_DAMAGE);
-        $ram_bonus = min(RAM_WALL_DAMAGE_LIMIT, $ram_count * RAM_WALL_DAMAGE_FACTOR);
+        $ram_damage = $ram_count * RAM_FLAT_DAMAGE;
 
         $res_atk = $this->mysqli->execute_query("SELECT kingdomid FROM events WHERE eventid = ?", [$this->event_id]);
-        $attacker_kingdom_id = $res_atk->fetch_column();
+        $attacker_kingdom_id = (int)$res_atk->fetch_column();
 
-        $res_siege = $this->mysqli->execute_query("SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
-            [$attacker_kingdom_id, TechTypes::TECH_TYPE_SIEGE]);
-        $siege_lvl = ($res_siege->num_rows > 0) ? $res_siege->fetch_column() : 0;
+        $res_siege = $this->mysqli->execute_query(
+            "SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+            [$attacker_kingdom_id, TechTypes::TECH_TYPE_SIEGE]
+        );
+        $siege_lvl = ($res_siege->num_rows > 0) ? (int)$res_siege->fetch_column() : 0;
+        $siege_multiplier = 1.0 + ($siege_lvl * SMITHY_SIEGE_BONUS);
 
-        $multiplier = 1 + ($siege_lvl * SMITHY_SIEGE_BONUS) + $ram_bonus;
-
-        $total_wall_dmg = ($normal_troop_wall_dmg + $ram_damage) * $multiplier;
+        $total_wall_dmg = ($normal_troop_wall_dmg + $ram_damage) * $siege_multiplier;
         $final_damage = (int)round($total_wall_dmg);
 
         return max(0, $current_wall_hp - $final_damage);
@@ -733,7 +735,7 @@ class Conquest
                     "def" => (int)$row["defense"]
                 ];
             }
-            
+
             $supporters_data[$uid]["units"][$sid]["initial"] += $initial;
             $supporters_data[$uid]["units"][$sid]["losses"] += $loss;
         }

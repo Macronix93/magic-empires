@@ -5,7 +5,9 @@ const TITLE_INTERVAL = 2000;
 let isKingdomSwitching = false;
 let flashTimeout = null;
 let activeHoverPopup = null;
+const KINGDOM_SWITCH_COOLDOWN = 800;
 const UPDATE_MSG_BADGES_INTERVAL = 60000;
+const UPDATE_MSG_BADGES_LAST_FETCH = 30000;
 
 registerAction("switchKingdomFromPopup", (el, e) => {
     if (e) {
@@ -886,6 +888,7 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
 
     const closeAndCleanup = () => {
         document.removeEventListener("keydown", handleKeyDown);
+
         if (infoBoxBg.parentNode) infoBoxBg.remove();
         if (infoBoxOverlay.parentNode) infoBoxOverlay.remove();
     };
@@ -1418,7 +1421,10 @@ document.addEventListener("pointerdown", (e) => {
 }, true);
 
 if (document.body.classList.contains("logged-in")) {
-    setInterval(() => {
+    let lastBadgeFetch = Date.now();
+
+    const fetchBadges = () => {
+        lastBadgeFetch = Date.now();
         fetch("ajax/badge_counts.php", {
             headers: {"X-Requested-With": "XMLHttpRequest"}
         })
@@ -1426,5 +1432,61 @@ if (document.body.classList.contains("logged-in")) {
             .then(counts => updateSidebarBadges(counts))
             .catch(() => {
             });
+    };
+
+    setInterval(() => {
+        if (!document.hidden) {
+            fetchBadges();
+        }
     }, UPDATE_MSG_BADGES_INTERVAL);
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && (Date.now() - lastBadgeFetch >= UPDATE_MSG_BADGES_LAST_FETCH)) {
+            fetchBadges();
+        }
+    });
 }
+
+document.addEventListener("keydown", (e) => {
+    const active = document.activeElement;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable || active.tagName === "SELECT")) {
+        return;
+    }
+
+    if (document.body.classList.contains("modal-open") || document.getElementById("info-box-overlay")) {
+        return;
+    }
+
+    const select = document.getElementById("choosekingdom");
+    if (!select || select.options.length <= 1) {
+        return;
+    }
+
+    const isModifier = e.ctrlKey || e.metaKey;
+
+    const isLeft = (e.key === "y" || e.key === "Y" || e.key === "ArrowLeft");
+    const isRight = (e.key === "x" || e.key === "X" || e.key === "ArrowRight");
+
+    if (isModifier && (isLeft || isRight)) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const now = Date.now();
+        const lastSwitch = parseInt(sessionStorage.getItem("last_kingdom_switch") || "0", 10);
+
+        if (now - lastSwitch < KINGDOM_SWITCH_COOLDOWN) {
+            return;
+        }
+        sessionStorage.setItem("last_kingdom_switch", now);
+
+        if (isKingdomSwitching || typeof switchKingdom !== "function") {
+            return;
+        }
+
+        if (isLeft) {
+            switchKingdom(-1);
+        } else {
+            switchKingdom(1);
+        }
+    }
+});

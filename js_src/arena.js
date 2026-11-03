@@ -162,12 +162,28 @@ registerAction("rerollArenaOpponents", (btn) => {
                 if (container) {
                     container.innerHTML = data.html;
                 }
-                btn.disabled = (data.rerolls_left <= 0);
-                btn.innerHTML = `Neue Gegner suchen (<span id='arena-rerolls-counter'>${data.rerolls_left} / ${data.max_rerolls}</span>)`;
+                if (!data.has_more_opponents) {
+                    btn.disabled = true;
+                    btn.innerText = "Keine neuen Gegner";
+                } else {
+                    btn.disabled = (data.rerolls_left <= 0);
+                    btn.innerHTML = `Neue Gegner suchen (<span id='arena-rerolls-counter'>${data.rerolls_left} / ${data.max_rerolls}</span>)`;
+                }
+                if (typeof initAutomaticCountdowns === "function") {
+                    initAutomaticCountdowns();
+                }
             } else {
                 displayArenaError(data.error || "Fehler beim Suchen.");
-                btn.disabled = false;
-                btn.innerHTML = `Neue Gegner suchen (<span id='arena-rerolls-counter'>${currentCounterText}</span>)`;
+                if (data.has_more_opponents === false) {
+                    btn.disabled = true;
+                    btn.innerText = "Keine neuen Gegner";
+                } else if (data.rerolls_left !== undefined && data.rerolls_left <= 0) {
+                    btn.disabled = true;
+                    btn.innerHTML = `Neue Gegner suchen (<span id='arena-rerolls-counter'>0 / ${data.max_rerolls || 3}</span>)`;
+                } else {
+                    btn.disabled = false;
+                    btn.innerHTML = `Neue Gegner suchen (<span id='arena-rerolls-counter'>${currentCounterText}</span>)`;
+                }
             }
         })
         .catch(() => {
@@ -356,14 +372,24 @@ registerAction("selectHeroSkill", (btn, e) => {
         });
 });
 
-const TECH_BONI = {
-    13: {cat: 0, type: "atk", val: 6}, // Blades (Inf ATK)
-    14: {cat: 0, type: "def", val: 8}, // Shieldwall (Inf DEF)
-    15: {cat: 1, type: "atk", val: 9}, // Lance Riding (Cav ATK)
-    16: {cat: 1, type: "def", val: 9}, // Cuirass (Cav DEF)
-    17: {cat: 2, type: "atk", val: 8}, // Arrowheads (Arc ATK)
-    18: {cat: 2, type: "def", val: 6}  // Doublet (Arc DEF)
-};
+function getArenaTechBoni() {
+    const cfg = document.getElementById("arena-config");
+    if (cfg && cfg.dataset.techBoni) {
+        try {
+            return JSON.parse(cfg.dataset.techBoni);
+        } catch (e) {
+            displayArenaError("Fehler beim Parsen der Arena-Tech-Boni:" + e);
+        }
+    }
+    return {
+        13: {cat: 0, type: "atk", val: 8},
+        14: {cat: 0, type: "def", val: 8},
+        15: {cat: 1, type: "atk", val: 8},
+        16: {cat: 1, type: "def", val: 8},
+        17: {cat: 2, type: "atk", val: 8},
+        18: {cat: 2, type: "def", val: 8}
+    };
+}
 
 function resetDefenseFormToSaved() {
     const form = document.getElementById("arena-defense-form");
@@ -429,7 +455,9 @@ function initArenaForm(form) {
         });
 
         const bonuses = {0: {atk: 0, def: 0}, 1: {atk: 0, def: 0}, 2: {atk: 0, def: 0}};
-        for (let [tid, info] of Object.entries(TECH_BONI)) {
+        const techBoni = getArenaTechBoni();
+
+        for (let [tid, info] of Object.entries(techBoni)) {
             const lvl = techLvl[tid] || 0;
             bonuses[info.cat][info.type] += lvl * info.val;
         }

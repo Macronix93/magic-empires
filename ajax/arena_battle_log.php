@@ -77,7 +77,6 @@ foreach (($def_data["troops"] ?? []) as $u) {
     ];
 }
 
-// Eigene Einheiten IMMER links anzeigen
 if ($is_defender) {
     $left_cards = $def_cards;
     $left_label = "Deine Verteidigung";

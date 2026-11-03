@@ -12,34 +12,47 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit;
     }
 
+    $current_uid = $user->get_user_id();
+
     $res = $db_instance->execute_query(
-            "SELECT data_json, message, category, date FROM server_messages WHERE id = ? AND category = ?",
-            [$id, MessageCategories::CATEGORY_WAR]
+            "SELECT shared_by_user_id, data_json, created_at FROM shared_battle_reports WHERE id = ? AND expires_at > ?",
+            [$id, time()]
     );
     $row = $res->fetch_assoc();
 
-    if (!$row) {
-        echo show_error_box("Dieser Kampfbericht existiert nicht mehr.");
-        exit;
-    }
+    if ($row) {
+        $data = json_decode($row["data_json"] ?? "{}", true);
+        $date = (int)$row["created_at"];
+        $is_owner = ($current_uid === (int)$row["shared_by_user_id"]);
+    } else {
+        $res_legacy = $db_instance->execute_query(
+                "SELECT receiverid, data_json, message, date FROM server_messages WHERE id = ? AND category = ?",
+                [$id, MessageCategories::CATEGORY_WAR]
+        );
+        $row_legacy = $res_legacy->fetch_assoc();
 
-    $messages = new Messages($user);
-    if (!empty($row["data_json"])) {
-        $data = json_decode($row["data_json"], true);
-        
-        if (!Messages::is_report_shareable($data["template"] ?? null)) {
-            echo show_error_box("Dieser Bericht kann nicht angezeigt werden.");
+        if (!$row_legacy) {
+            echo show_error_box("Dieser geteilte Kampfbericht existiert nicht mehr.");
             exit;
         }
 
-        $data["msg_date"] = (int)$row["date"];
+        $data = json_decode($row_legacy["data_json"] ?? "{}", true);
+        $date = (int)$row_legacy["date"];
+        $is_owner = ($current_uid === (int)$row_legacy["receiverid"]);
+    }
+
+    $messages = new Messages($user);
+
+    if (!empty($data)) {
+        $data["msg_date"] = $date;
+        $data["is_shared_view"] = !$is_owner;
 
         $content = $messages->render_message_template($data);
     } else {
-        $content = $row["message"];
+        $content = $row_legacy["message"] ?? "Bericht nicht lesbar.";
     }
 
-    $date_str = date("d.m.Y \u\m H:i:s", (int)$row["date"]);
+    $date_str = date("d.m.Y H:i:s", $date);
     ?>
     <div id="modal-title-data" data-title="Geteilter Kampfbericht" data-width="850px" style="display: none;"></div>
     <div class="shared-report-modal">

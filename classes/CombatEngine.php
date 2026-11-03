@@ -2,7 +2,7 @@
 
 class CombatEngine
 {
-    public static function calculate_pvp(array $attackers, array $defenders, int $wall_bonus = 0): array
+    public static function calculate_pvp(array $attackers, array $defenders, int $wall_bonus = 0, ?float $armor_exp = null): array
     {
         $total_atk_units = 0;
         $total_def_units = 0;
@@ -191,7 +191,7 @@ class CombatEngine
         // Armor Modificator
         $avg_atk_def = $total_atk_def / $total_atk_units;
         $avg_def_def = $total_def_def / $total_def_units;
-        $exp = defined("ARMOR_WEIGHT_EXPONENT") ? ARMOR_WEIGHT_EXPONENT : 0.50;
+        $exp = ($armor_exp !== null) ? $armor_exp : ARMOR_WEIGHT_EXPONENT;
 
         [$atk_losses, $total_atk_losses] = self::calculate_unit_losses($attackers, $atk_cat_ratios, $avg_atk_def, $exp);
         [$def_losses, $total_def_losses] = self::calculate_unit_losses($defenders, $def_cat_ratios, $avg_def_def, $exp);

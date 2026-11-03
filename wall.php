@@ -68,12 +68,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
 /*
  * HTML Content Part
  */
-$view .= "<div style='margin: 0 auto 15px; width: 350px;'>
+$view .= "<div class='res-building-content'>
             <div class='split-content'><b>Verteidigung (aktuell):</b> $bonus_defense_text</div>
             $next_level_text
           </div>
 ";
-$view .= "<div style='display: flex; flex-direction: column; gap: 15px; align-items: center;'>
+$view .= "<div style='display: flex; flex-direction: column; gap: 15px; align-items: center; margin-top: 15px;'>
             <div style='width: 100%; max-width: 400px;'>
                 <div style='display: flex; align-items: center; gap: 10px; font-size: 14px; margin-bottom: 5px;'>
                     <span><img src='images/icons/icon_health.png' class='ressource-icons' alt='Haltbarkeit'></span>

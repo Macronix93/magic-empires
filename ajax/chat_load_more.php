@@ -58,11 +58,14 @@ if ($type === "server") {
         <div class='server-bubble' data-category='{$row["category"]}' id='msg-{$row["id"]}'>
             <div class='message-border'>
                 Am $date_str
-                <img src='images/icons/icon_delete.png' 
-                     class='ressource-icons' 
-                     data-on-click='deleteServerMsg' 
-                     data-id='{$row["id"]}' 
-                     style='cursor: pointer;' alt=''>
+                <span style='display: flex; gap: 8px; align-items: center;'>
+                    $share_btn
+                    <img src='images/icons/icon_delete.png' 
+                        class='ressource-icons' 
+                        data-on-click='deleteServerMsg' 
+                        data-id='{$row["id"]}' 
+                        style='cursor: pointer;' alt=''>
+                </span>
             </div>
             $content
         </div>";

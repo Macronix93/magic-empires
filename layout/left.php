@@ -105,9 +105,10 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <span class="msg-badge js-badge-arena" style="<?= $unread_arena > 0 ? '' : 'display: none;' ?>">
                     <?= $messages->show_messages_indicator($unread_arena) ?>
                 </span>
-                <span class="msg-badge golden-badge js-badge-arena-coins"
+                <span class="js-badge-arena-coins"
                       title="Arena-Münzen verfügbar!"
-                      style="<?= ($unread_arena <= 0 && $arena_has_coins) ? '' : 'display: none;' ?> font-size: 16px;">!</span>
+                      style="<?= ($unread_arena <= 0 && $arena_has_coins) ? '' : 'display: none;' ?> font-size: 16px;"><img
+                            src="images/icons/icon_coin_arena.png" class="ressource-icons" alt="Arena-Münzen"></span>
             </div>
             <div class="box<?= $current_page === 'achievements.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="achievements.php">

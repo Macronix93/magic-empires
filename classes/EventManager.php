@@ -118,31 +118,41 @@ class EventManager
             );
 
             if ($this->mysqli->affected_rows === 1) {
-                try {
-                    $this->mysqli->begin_transaction();
+                $max_retries = 3;
 
-                    $this->handle_event($row);
+                for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
+                    try {
+                        $this->mysqli->begin_transaction();
+                        $this->handle_event($row);
+                        $this->mysqli->commit();
+                        break;
+                    } catch (Throwable $t) {
+                        $this->mysqli->rollback();
 
-                    $this->mysqli->commit();
-                } catch (Throwable $t) {
-                    $this->mysqli->rollback();
-                    $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+                        // Check if it's a concurrency or deadlock error
+                        $error_code = ($t instanceof mysqli_sql_exception) ? $t->getCode() : 0;
+                        $is_lock_conflict = in_array($error_code, [1213, 1205, 1020])
+                            || str_contains($t->getMessage(), "Deadlock")
+                            || str_contains($t->getMessage(), "try restarting transaction")
+                            || str_contains($t->getMessage(), "Record has changed");
 
-                    $action_name = $this->get_action_name((int)$row["actionid"]);
-                    $event_data = json_encode($row, JSON_UNESCAPED_UNICODE);
+                        // If there is a lock conflict, and we still have retries: sleep & retry
+                        if ($is_lock_conflict && $attempt < $max_retries) {
+                            usleep(mt_rand(30000, 50000)); // wait 30-50ms
+                            continue;
+                        }
 
-                    $error_msg = sprintf(
-                        "Event ID %d crashed: Action: %s (ID: %d) | User: %d | Kingdom: %d | Error: %s | Data: %s",
-                        $row["eventid"],
-                        $action_name,
-                        $row["actionid"],
-                        $row["userid"],
-                        $row["kingdomid"],
-                        $t->getMessage(),
-                        $event_data
-                    );
+                        // Real code error OR after 3 failed retries: logging & cancel
+                        $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+                        $action_name = $this->get_action_name((int)$row["actionid"]);
+                        $event_data = json_encode($row, JSON_UNESCAPED_UNICODE);
 
-                    Logger::get_instance()->error($error_msg);
+                        Logger::get_instance()->error(sprintf(
+                            "Event ID %d crashed (Versuch %d/%d): Action: %s | User: %d | Error (%d): %s | Data: %s",
+                            $row["eventid"], $attempt, $max_retries, $action_name, $row["userid"], $error_code, $t->getMessage(), $event_data
+                        ));
+                        break;
+                    }
                 }
             }
         }
@@ -3127,6 +3137,8 @@ class EventManager
         $attacker_json = [
             "template" => "battle_pvp",
             "role" => "attacker",
+            "attacker_name" => $attacker_name,
+            "defender_name" => $enemy_user_name,
             "opponent_name" => $enemy_user_name,
             "opponent_kname" => $enemy_kingdom->get_kingdom_name(),
             "opp_x" => (int)$row["targetx"],
@@ -3148,6 +3160,8 @@ class EventManager
         $defender_json = [
             "template" => "battle_pvp",
             "role" => "defender",
+            "attacker_name" => $attacker_name,
+            "defender_name" => $enemy_user_name,
             "opponent_name" => $attacker_name,
             "opponent_kname" => $home_kingdom->get_kingdom_name(),
             "opp_x" => $home_kingdom->get_kingdom_map_x(),
@@ -3407,8 +3421,7 @@ class EventManager
 
         $query = "
             SELECT e.eventid, e.arrivaltime, e.targetid, e.kingdomid AS source_id,
-                   k.userid, k.username, k.kingdomname, k.last_watchtower_push,
-                   b.buildinglevel AS wt_level
+                   k.userid, k.username, k.kingdomname, k.last_watchtower_push
             FROM events e
             JOIN kingdoms k ON e.targetid = k.id
             JOIN buildings b ON k.id = b.kingdomid 
@@ -3430,9 +3443,7 @@ class EventManager
 
         foreach ($results as $row) {
             $target_kingdom = new Kingdom($row["targetid"]);
-            $wt_level = (int)$row["wt_level"];
-
-            $visibility_window = $wt_level * WATCHTOWER_DETECTION_PER_LEVEL;
+            $visibility_window = $target_kingdom->get_watchtower_detection_window();
             $detection_time = $row["arrivaltime"] - $visibility_window;
 
             if ($current_time >= $detection_time) {
@@ -3782,12 +3793,13 @@ class EventManager
     private function update_user_score(int $add, User $target_user): void
     {
         if ($add == 0) return;
+        $uid = $target_user->get_user_id();
 
-        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?",
-            [$add, $target_user->get_user_id()]);
+        $this->mysqli->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$add, $uid]);
 
         if ($add > 0) {
-            Achievement::check($target_user->get_user_id(), AchievementTypes::ACHIEVEMENT_SCORE);
+            Achievement::check($uid, AchievementTypes::ACHIEVEMENT_SCORE);
         }
     }
 
