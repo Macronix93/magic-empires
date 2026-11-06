@@ -3,6 +3,10 @@ require_once("../includes/core.php");
 
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
     change_location("overview.php");
+}
+
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
     exit;
 }
 
@@ -13,7 +17,7 @@ if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
 
 $uid = $user->get_user_id();
 $arena = new Arena($uid);
-$action = $_POST["action"] ?? $_GET["action"] ?? "";
+$action = $_POST["action"] ?? "";
 
 switch ($action) {
     case "save_defense":

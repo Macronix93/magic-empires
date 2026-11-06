@@ -1,8 +1,10 @@
 <?php
 require_once("../includes/core.php");
+
+$user->check_user_login();
+
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
     change_location("arena.php");
-    exit;
 }
 
 $uid = $user->get_user_id();

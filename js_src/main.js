@@ -124,7 +124,7 @@ registerAction("showTutorialModal", () => {
                 overlay.querySelectorAll('[data-on-click]').forEach(bindActions);
             }
         })
-        .catch(err => console.error("Fehler beim Laden des Tutorials:", err));
+        .catch(err => showGameError("Fehler beim Laden des Tutorials:" + err));
 });
 registerAction("closeTutorial", (el) => {
     const overlay = document.getElementById("tutorial-overlay");
@@ -137,6 +137,7 @@ registerAction("closeTutorial", (el) => {
 });
 registerAction("finishTutorial", (el) => {
     fetch("ajax/tutorial_done.php", {
+        method: "POST",
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.json())
@@ -314,13 +315,12 @@ registerAction("toggleShareTarget", (el) => {
 });
 registerAction("submitShareCoords", (form, e) => {
     if (e) e.preventDefault();
-
     const submitBtn = document.getElementById("btn-share-submit");
     const errorBox = document.getElementById("share-coords-error");
     if (submitBtn) submitBtn.disabled = true;
 
     const formData = new FormData(form);
-    const messageText = form.querySelector('input[name="message"]')?.value || "";
+    const fallbackMessage = form.querySelector('input[name="message"]')?.value || "";
 
     fetch("ajax/share_coords_send.php", {
         method: "POST",
@@ -330,8 +330,9 @@ registerAction("submitShareCoords", (form, e) => {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                if (messageText) {
-                    sessionStorage.setItem("me_chat_prefill", messageText);
+                const textToPrefill = data.message || fallbackMessage;
+                if (textToPrefill) {
+                    sessionStorage.setItem("me_chat_prefill", textToPrefill);
                 }
 
                 closeOverlay();
@@ -344,6 +345,7 @@ registerAction("submitShareCoords", (form, e) => {
                     errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>${data.error || "Fehler beim Senden"}</span></div>`;
                     errorBox.style.display = "block";
                 }
+
                 if (submitBtn) submitBtn.disabled = false;
             }
         })
@@ -352,6 +354,7 @@ registerAction("submitShareCoords", (form, e) => {
                 errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>Netzwerkfehler.</span></div>`;
                 errorBox.style.display = "block";
             }
+
             if (submitBtn) submitBtn.disabled = false;
         });
 });
@@ -535,7 +538,7 @@ function switchKingdomById(kingdomId) {
                 }
             }
         })
-        .catch(err => console.error("Kingdom-Switch Fehler:", err))
+        .catch(err => showGameError("Kingdom-Switch Fehler:" + err))
         .finally(() => {
             isKingdomSwitching = false;
         });
@@ -1458,6 +1461,107 @@ function syncFeedbackIcon(msgElement, type = null, id = null) {
 }
 
 window.syncFeedbackIcon = syncFeedbackIcon;
+
+function showGameMessage(message, type = "error") {
+    if (!message) return;
+
+    const iconMap = {
+        passed: "icon_checked.png",
+        error: "icon_error.png",
+        warning: "icon_warning.png"
+    };
+    const icon = iconMap[type] || "icon_error.png";
+    const boxHtml = `
+        <div class="info-box event-${type}">
+            <img src="images/icons/${icon}" alt="${type}">
+            <span>${message}</span>
+        </div>`;
+
+    const modalBody = document.querySelector(".overlay-modal:not([style*='display: none']) .overlay-body, #overlay-content-body");
+    if (modalBody && modalBody.offsetParent !== null) {
+        const oldMsg = modalBody.querySelector(".info-box");
+        if (oldMsg) oldMsg.remove();
+
+        modalBody.insertAdjacentHTML("afterbegin", boxHtml);
+        modalBody.scrollTo({top: 0, behavior: "smooth"});
+        return;
+    }
+
+    // 2. Priorität: Arena Inline-Duellansicht
+    const arenaInline = document.getElementById("arena-attack-inline-container");
+    if (arenaInline && arenaInline.style.display !== "none") {
+        const oldMsg = arenaInline.querySelector(".info-box");
+        if (oldMsg) oldMsg.remove();
+
+        arenaInline.insertAdjacentHTML("afterbegin", boxHtml);
+        window.scrollTo({top: 0, behavior: "smooth"});
+        return;
+    }
+
+    const mapContainer = document.getElementById("map-container");
+    if (mapContainer) {
+        const existing = document.getElementById("map-flash-message");
+        if (existing) existing.remove();
+
+        const box = document.createElement("div");
+        box.id = "map-flash-message";
+        box.className = `info-box event-${type}`;
+        box.innerHTML = `<img src="images/icons/${icon}" alt="${type}"><span>${message}</span>`;
+
+        const isPassed = (type === "passed");
+        box.style.backgroundColor = isPassed ? "rgba(22, 82, 38, 0.92)" : "rgba(90, 22, 22, 0.92)";
+        box.style.borderColor = isPassed ? "rgba(42, 120, 60, 0.65)" : "rgba(140, 35, 35, 0.65)";
+        box.style.whiteSpace = isPassed ? "nowrap" : "normal";
+
+        mapContainer.appendChild(box);
+        setTimeout(() => {
+            box.style.opacity = "0";
+            setTimeout(() => box.remove(), 500);
+        }, isPassed ? 3000 : 4000);
+        return;
+    }
+
+    const flashContainer = document.getElementById("middle-flash-container");
+    if (flashContainer) {
+        const box = document.createElement("div");
+        box.className = `info-box event-${type}`;
+        box.innerHTML = `<img src="images/icons/${icon}" alt="${type}"><span>${message}</span>`;
+        flashContainer.appendChild(box);
+
+        const dismiss = () => {
+            if (box.classList.contains("fade-out")) return;
+            box.classList.add("fade-out");
+            box.addEventListener("animationend", () => box.remove(), {once: true});
+        };
+        setTimeout(dismiss, 4000);
+
+        box.addEventListener("click", dismiss);
+        return;
+    }
+
+    // Fallback: big-box-content
+    const bigBoxContent = document.querySelector(".big-box-content");
+    if (bigBoxContent) {
+        const oldMsg = bigBoxContent.querySelector(".event-error, .event-passed, .event-warning");
+        if (oldMsg) oldMsg.remove();
+
+        bigBoxContent.insertAdjacentHTML("afterbegin", boxHtml);
+        window.scrollTo({top: 0, behavior: "smooth"});
+    }
+}
+
+window.showGameMessage = showGameMessage;
+window.showGameError = (msg) => showGameMessage(msg, "error");
+window.showGameSuccess = (msg) => showGameMessage(msg, "passed");
+window.showGameWarning = (msg) => showGameMessage(msg, "warning");
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content
+        || document.querySelector('input[name="csrf_token"]')?.value
+        || "";
+}
+
+window.getCsrfToken = getCsrfToken;
 
 document.addEventListener("pointerdown", (e) => {
     const btn = e.target.closest('div[id^="pop_k_preview_"] button[data-on-click="switchKingdomFromPopup"]');

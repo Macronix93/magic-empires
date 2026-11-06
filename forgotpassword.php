@@ -4,7 +4,6 @@ require_once("includes/core.php");
 
 if ($user->is_logged_in()) {
     change_location("overview.php");
-    exit;
 }
 
 $error = "";

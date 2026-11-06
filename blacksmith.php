@@ -99,7 +99,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                                 $kingdom_research_id = $tech_id;
 
                                 change_location("blacksmith.php");
-                                exit;
                             }
                         }
                     }
@@ -121,7 +120,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     $kingdom->give_kingdom_gold($cost_gold);
 
                     change_location("blacksmith.php");
-                    exit;
                 } else {
                     $error = "Du forschst gerade nichts!";
                 }

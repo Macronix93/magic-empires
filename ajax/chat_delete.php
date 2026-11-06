@@ -3,6 +3,10 @@ require_once("../includes/core.php");
 
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
     change_location("messages.php");
+}
+
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
     exit;
 }
 
@@ -13,7 +17,7 @@ if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
 
 $u_id = $user->get_user_id();
 $is_admin = $user->is_admin();
-$type = $_GET["type"] ?? "private";
+$type = $_POST["type"] ?? "private";
 
 $allowed_types = ["private", "world", "guild", "server"];
 if (!in_array($type, $allowed_types, true)) {
@@ -21,11 +25,15 @@ if (!in_array($type, $allowed_types, true)) {
     exit;
 }
 
+$msg_id = (int)($_POST["m_id"] ?? 0);
+
 if ($type === "server") {
     // Delete ALL server messages
-    if (isset($_GET["delete_all"]) || isset($_GET["all"])) {
-        $category = (int)($_GET["category"] ?? -1);
-        $max_id = (int)($_GET["max_id"] ?? 0);
+    $is_delete_all = isset($_POST["delete_all"]) || isset($_POST["all"]);
+
+    if ($is_delete_all) {
+        $category = (int)($_POST["category"] ?? -1);
+        $max_id = (int)($_POST["max_id"] ?? 0);
 
         if ($max_id > 0) {
             if ($category === -1) {
@@ -40,12 +48,12 @@ if ($type === "server") {
                 );
             }
         }
+
         echo json_encode(["success" => true]);
         exit;
     }
 
     // Delete ONE server message
-    $msg_id = (int)($_GET["m_id"] ?? 0);
     $res = $db_instance->execute_query("SELECT receiverid FROM server_messages WHERE id = ?", [$msg_id]);
     $row = $res->fetch_assoc();
 
@@ -60,11 +68,10 @@ if ($type === "server") {
     }
 
     $db_instance->execute_query("DELETE FROM server_messages WHERE id = ?", [$msg_id]);
+
     echo json_encode(["success" => true, "id" => $msg_id]);
     exit;
 }
-
-$msg_id = (int)($_GET["m_id"] ?? 0);
 
 if ($msg_id <= 0) {
     echo json_encode(["success" => false, "error" => "Ungültige Nachrichten-ID"]);

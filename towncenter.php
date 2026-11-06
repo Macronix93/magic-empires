@@ -93,7 +93,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                                 $kingdom_building_id = $build_id;
 
                                 change_location("towncenter.php");
-                                exit;
                             }
                         }
                     }
@@ -125,7 +124,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     ], $current_kingdom);
 
                     change_location("towncenter.php");
-                    exit;
                 } else {
                     $error = "Du baust gerade nichts!";
                 }

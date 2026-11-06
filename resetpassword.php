@@ -3,13 +3,11 @@ require_once("includes/core.php");
 
 if ($user->is_logged_in()) {
     change_location("overview.php");
-    exit;
 }
 
 $token = $_GET["token"] ?? "";
 if (empty($token)) {
     change_location("index.php");
-    exit;
 }
 
 $error = "";

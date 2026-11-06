@@ -3,7 +3,6 @@ require_once("includes/core.php");
 
 if (!MAINTENANCE_MODE) {
     change_location("overview.php");
-    exit;
 }
 
 $reason = !empty(MAINTENANCE_REASON) ? e(MAINTENANCE_REASON) : "Wartungsarbeiten & Updates";

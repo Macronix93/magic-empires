@@ -37,57 +37,63 @@ $process_content = function ($raw) {
 };
 
 if ($is_admin) {
-    if (isset($_POST["edit_news"])) {
-        $news_id = (int)$_POST["news_id"];
-        $raw_title = trim($_POST["title"] ?? "");
-        $raw_content = trim($_POST["content"] ?? "");
-
-        if (empty($raw_title) || empty($raw_content)) {
-            $error = "Bitte alle Felder ausfüllen!";
-        } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-            $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
-        } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-            $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
+    if ($_SERVER["REQUEST_METHOD"] === "POST") {
+        if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+            $error = "Ungültiger Sicherheits-Token!";
         } else {
-            $title = e($raw_title);
-            $content = $process_content($raw_content);
+            if (isset($_POST["edit_news"])) {
+                $news_id = (int)$_POST["news_id"];
+                $raw_title = trim($_POST["title"] ?? "");
+                $raw_content = trim($_POST["content"] ?? "");
 
-            $db_instance->execute_query(
-                "UPDATE news SET title = ?, content = ?, date = ? WHERE id = ?",
-                [$title, $content, time(), $news_id]
-            );
+                if (empty($raw_title) || empty($raw_content)) {
+                    $error = "Bitte alle Felder ausfüllen!";
+                } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
+                    $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
+                } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
+                    $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
+                } else {
+                    $title = e($raw_title);
+                    $content = $process_content($raw_content);
 
-            $flash_box = show_passed_box("News-Beitrag aktualisiert!");
+                    $db_instance->execute_query(
+                        "UPDATE news SET title = ?, content = ?, date = ? WHERE id = ?",
+                        [$title, $content, time(), $news_id]
+                    );
+
+                    $flash_box = show_passed_box("News-Beitrag aktualisiert!");
+                }
+            }
+
+            if (isset($_POST["post_news"])) {
+                $raw_title = trim($_POST["title"] ?? "");
+                $raw_content = trim($_POST["content"] ?? "");
+
+                if (empty($raw_title) || empty($raw_content)) {
+                    $error = "Bitte alle Felder ausfüllen!";
+                } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
+                    $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
+                } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
+                    $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
+                } else {
+                    $title = e($raw_title);
+                    $content = $process_content($raw_content);
+
+                    $db_instance->execute_query(
+                        "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
+                        [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
+                    );
+                    $flash_box = show_passed_box("Neuigkeit veröffentlicht!");
+                }
+            }
+
+            if (isset($_POST["delete_news"])) {
+                $news_id = (int)$_POST["news_id"];
+                $db_instance->execute_query("DELETE FROM news WHERE id = ?", [$news_id]);
+
+                $flash_box = show_passed_box("Eintrag gelöscht.");
+            }
         }
-    }
-
-    if (isset($_POST["post_news"])) {
-        $raw_title = trim($_POST["title"] ?? "");
-        $raw_content = trim($_POST["content"] ?? "");
-
-        if (empty($raw_title) || empty($raw_content)) {
-            $error = "Bitte alle Felder ausfüllen!";
-        } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-            $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
-        } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-            $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
-        } else {
-            $title = e($raw_title);
-            $content = $process_content($raw_content);
-
-            $db_instance->execute_query(
-                "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
-                [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
-            );
-            $flash_box = show_passed_box("Neuigkeit veröffentlicht!");
-        }
-    }
-
-    if (isset($_GET["delete"])) {
-        $news_id = (int)$_GET["delete"];
-        $db_instance->execute_query("DELETE FROM news WHERE id = ?", [$news_id]);
-
-        $flash_box = show_passed_box("Eintrag gelöscht.");
     }
 }
 
@@ -114,6 +120,7 @@ if ($is_admin) {
         <div class='box-header'>Neuigkeit verfassen</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             <form method='POST' action='news.php'>
+                " . csrf_input() . "
                 <input type='text' maxlength='" . MAX_NEWS_TITLE_LENGTH . "' name='title' placeholder='Titel' style='width: 100%; margin-bottom: 10px;' required><br>
                 <textarea id='new-news-content' name='content' maxlength='" . MAX_NEWS_CONTENT_LENGTH . "'  placeholder='Inhalt...' rows='10' style='width: 100%; margin-bottom: 10px;' required></textarea><br>
                 <div style='display: flex; justify-content: center; align-items: center; gap: 10px;'>

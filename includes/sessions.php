@@ -18,7 +18,6 @@ if (!$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
                 setcookie("me_remember", '', time() - 3600, '/');
 
                 change_location("index.php?vacation_locked=1");
-                exit;
             }
 
             $user->login_user($row["userid"]);
@@ -28,8 +27,7 @@ if (!$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
 
             $_SESSION["lastactivity"] = time();
 
-            header("Location: " . $_SERVER["REQUEST_URI"]);
-            exit;
+            change_location($_SERVER["REQUEST_URI"]);
         } else {
             setcookie("me_remember", '', time() - 3600, '/');
         }
@@ -47,7 +45,6 @@ if ($user->is_logged_in()) {
         }
         if (basename($_SERVER["PHP_SELF"]) !== "maintenance.php") {
             change_location("maintenance.php");
-            exit;
         }
         return;
     }
@@ -72,9 +69,10 @@ if ($user->is_logged_in()) {
     if ($user_status && (int)$user_status["is_banned"] === 1) {
         $reason = $user_status["ban_reason"] ?? "Dein Account wurde gesperrt.";
 
+        setcookie("me_remember", '', time() - 3600, '/');
+
         session_destroy();
         change_location("index.php?banned=" . urlencode($reason));
-        exit;
     }
 
     // Safety check: is the current IP banned?
@@ -86,9 +84,10 @@ if ($user->is_logged_in()) {
         $ip_ban_row = $res_ip_ban->fetch_assoc();
         $reason = $ip_ban_row["ban_reason"] ?? "Sicherheitsbann (Gesperrte IP-Adresse)";
 
+        setcookie("me_remember", '', time() - 3600, '/');
+
         session_destroy();
         change_location("index.php?banned=" . urlencode($reason));
-        exit;
     }
 
     // Kingdom doesn't exist anymore
@@ -99,7 +98,6 @@ if ($user->is_logged_in()) {
 
         if (basename($_SERVER["PHP_SELF"]) !== "overview.php") {
             change_location(basename($_SERVER["PHP_SELF"]));
-            exit;
         }
     }
 
@@ -119,7 +117,6 @@ if ($user->is_logged_in()) {
 
                 setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
                 change_location("index.php?logout=session&v=" . $token);
-                exit;
             }
         }
     } else {

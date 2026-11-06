@@ -40,7 +40,15 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             echo "<div style='width: 100%; padding: 0 12px; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
                 <div style='overflow: hidden; white-space: nowrap;' id='username'>";
             echo e($user->get_user_name());
-            echo "</div><a href='index.php?logout'><img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout' title='Logout'/></a></div>";
+            echo "</div>
+                    <form method='POST' action='index.php' style='margin: 0; display: inline;'>
+                        " . csrf_input() . "
+                        <input type='hidden' name='logout' value='1'>
+                        <button type='submit' style='background: none; border: none; padding: 0; cursor:pointer;' title='Logout'>
+                            <img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout'/>
+                        </button>
+                    </form>
+                  </div>";
             ?>
         </div>
         <div class="box-content">

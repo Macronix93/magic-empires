@@ -12,64 +12,64 @@ $lab_level = $building->get_building_level();
 $alchemy = new Alchemy();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (isset($_POST["start_transmutation"])) {
-        $from_res = (int)$_POST["from_res"];
-        $to_res = (int)$_POST["to_res"];
-        $amount = (int)str_replace(['.', ','], '', $_POST["amount"] ?? "0");
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
+    } else {
+        if (isset($_POST["start_transmutation"])) {
+            $from_res = (int)$_POST["from_res"];
+            $to_res = (int)$_POST["to_res"];
+            $amount = (int)str_replace(['.', ','], '', $_POST["amount"] ?? "0");
 
-        if ($amount <= 0) {
-            $error = "Bitte gib eine Menge größer als 0 an.";
-        } else {
-            $err = $alchemy->start_transmutation($current_kingdom, $from_res, $to_res, $amount, $lab_level, $kingdom);
+            if ($amount <= 0) {
+                $error = "Bitte gib eine Menge größer als 0 an.";
+            } else {
+                $err = $alchemy->start_transmutation($current_kingdom, $from_res, $to_res, $amount, $lab_level, $kingdom);
+
+                if ($err) {
+                    $error = $err;
+                } else {
+                    $_SESSION["game_success"] = "Die Umwandlung wurde erfolgreich gestartet!";
+
+                    change_location("alchemylab.php");
+                }
+            }
+        }
+
+        if (isset($_POST["claim_output"])) {
+            $err = $alchemy->claim($current_kingdom, $lab_level, $kingdom);
 
             if ($err) {
                 $error = $err;
             } else {
-                $_SESSION["game_success"] = "Die Umwandlung wurde erfolgreich gestartet!";
+                $_SESSION["game_success"] = "Umgewandelte Ressourcen erfolgreich ins Lager transferiert!";
 
                 change_location("alchemylab.php");
-                exit;
             }
         }
-    }
 
-    if (isset($_POST["claim_output"])) {
-        $err = $alchemy->claim($current_kingdom, $lab_level, $kingdom);
+        if (isset($_POST["top_up_input"])) {
+            $amount = (int)str_replace(['.', ','], '', $_POST["top_up_amount"] ?? "0");
+            $err = $alchemy->top_up($current_kingdom, $amount, $lab_level, $kingdom);
 
-        if ($err) {
-            $error = $err;
-        } else {
-            $_SESSION["game_success"] = "Umgewandelte Ressourcen erfolgreich ins Lager transferiert!";
+            if ($err) {
+                $error = $err;
+            } else {
+                $_SESSION["game_success"] = "Ressourcen erfolgreich in den Kessel nachgelegt!";
 
-            change_location("alchemylab.php");
-            exit;
+                change_location("alchemylab.php");
+            }
         }
-    }
 
-    if (isset($_POST["top_up_input"])) {
-        $amount = (int)str_replace(['.', ','], '', $_POST["top_up_amount"] ?? "0");
-        $err = $alchemy->top_up($current_kingdom, $amount, $lab_level, $kingdom);
+        if (isset($_POST["cancel_transmutation"])) {
+            $err = $alchemy->cancel($current_kingdom, $lab_level, $kingdom);
 
-        if ($err) {
-            $error = $err;
-        } else {
-            $_SESSION["game_success"] = "Ressourcen erfolgreich in den Kessel nachgelegt!";
+            if ($err) {
+                $error = $err;
+            } else {
+                $_SESSION["game_success"] = "Prozess abgebrochen. Verbleibende Rohstoffe wurden zurückerstattet.";
 
-            change_location("alchemylab.php");
-            exit;
-        }
-    }
-
-    if (isset($_POST["cancel_transmutation"])) {
-        $err = $alchemy->cancel($current_kingdom, $lab_level, $kingdom);
-
-        if ($err) {
-            $error = $err;
-        } else {
-            $_SESSION["game_success"] = "Prozess abgebrochen. Verbleibende Rohstoffe wurden zurückerstattet.";
-
-            change_location("alchemylab.php");
-            exit;
+                change_location("alchemylab.php");
+            }
         }
     }
 }
@@ -186,6 +186,7 @@ if ($has_active_process) {
                     <div><span class='passed'>" . get_resource_icon($out_res) . " <b id='live-claim-val'>" . fnum($ready_to_claim) . "</b></span>$buffer_display</div>
                 </div>
                 <form method='POST' style='margin-top: 10px; text-align: center;'>
+                    " . csrf_input() . "
                     <button type='submit' name='claim_output' id='btn-claim' " . ($ready_to_claim <= 0 ? "disabled" : "") . ">
                         Ressourcen einsammeln
                     </button>
@@ -198,6 +199,7 @@ if ($has_active_process) {
             <hr style='margin-top: 20px;'>
             <h4 style='margin-top: 20px;'>Rohstoffe nachfüllen</h4>
             <form method='POST'>
+                " . csrf_input() . "
                 <div style='display: flex; gap: 5px; justify-content: center; align-items: center; max-width: 340px; margin: 0 auto;'>
                     " . get_resource_icon($in_res) . "
                     <input type='text' name='top_up_amount' id='top_up_amount' placeholder='0' inputmode='numeric' pattern='[0-9]*' class='js-numeric-input' style='width: 70px;' $is_top_up_disabled>
@@ -210,6 +212,7 @@ if ($has_active_process) {
     if ($in_amt > 0) {
         $view .= "
             <form method='POST' id='form-cancel-alchemy' style='margin-top: 20px;'>
+                " . csrf_input() . "
                 <input type='hidden' name='cancel_transmutation' value='1'>
                 <button type='button' data-on-click='confirmCancelAlchemy'>
                     Umwandlung abbrechen & Kessel leeren
@@ -235,6 +238,7 @@ if ($has_active_process) {
     <div class='box-container' style='max-width: 450px; margin: 0 auto;'>
         <div class='box-header'>Neue Umwandlung starten</div>
         <form method='POST' class='box-content box-content-bg' style='padding: 20px;'>
+            " . csrf_input() . "
             <table class='table' style='width: 100%; border: none; margin-bottom: 15px;'>
                 <tr>
                     <td style='width: 55%;'>Ausgangs-Rohstoff:</td>

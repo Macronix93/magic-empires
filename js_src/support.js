@@ -1,13 +1,14 @@
 registerAction("confirmDeleteTicket", (el) => {
     showConfirmationDialog("Soll dieses Ticket wirklich unwiderruflich gelöscht werden?",
         "Ja", "Abbrechen", () => {
-            window.location.href = "support.php?delete=" + el.dataset.id;
+            submitSupportPostAction(el.dataset.id, "delete_ticket");
         });
 });
+
 registerAction("confirmCloseTicket", (el) => {
     showConfirmationDialog("Möchtest du das Ticket als erledigt markieren und schließen?",
         "Ja, schließen", "Abbrechen", () => {
-            window.location.href = "support.php?close=" + el.dataset.id;
+            submitSupportPostAction(el.dataset.id, "close_ticket");
         });
 });
 registerAction("switchSupportTab", (el) => {
@@ -25,6 +26,33 @@ registerAction("switchSupportTab", (el) => {
     url.searchParams.set("tab", tabName);
     window.history.replaceState({}, '', url);
 });
+
+function submitSupportPostAction(tid, actionName) {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "support.php";
+
+    const tidInput = document.createElement("input");
+    tidInput.type = "hidden";
+    tidInput.name = "tid";
+    tidInput.value = tid;
+    form.appendChild(tidInput);
+
+    const actInput = document.createElement("input");
+    actInput.type = "hidden";
+    actInput.name = actionName;
+    actInput.value = "1";
+    form.appendChild(actInput);
+
+    const tokenInput = document.createElement("input");
+    tokenInput.type = "hidden";
+    tokenInput.name = "csrf_token";
+    tokenInput.value = getCsrfToken();
+    form.appendChild(tokenInput);
+
+    document.body.appendChild(form);
+    form.submit();
+}
 
 function scrollSupportToBottom() {
     const messageSection = document.getElementById("messages-section");

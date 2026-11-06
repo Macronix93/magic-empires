@@ -239,7 +239,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $_SESSION["support_success"] = "Die Truppen befinden sich nun auf dem Rückmarsch.";
 
                 change_location("barracks.php?cat=" . SoldierTypes::SOLDIER_TYPE_SUPPORT);
-                exit;
             } else {
                 $db_instance->rollback();
 
@@ -280,7 +279,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     ], $current_kingdom);
 
                     change_location("barracks.php?cat=$active_cat");
-                    exit;
                 } else {
                     $db_instance->rollback();
                     $error = "Ausbildung ist bereits abgeschlossen oder wurde abgebrochen!";
@@ -317,7 +315,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $db_instance->commit();
 
                     change_location("barracks.php?cat=$active_cat");
-                    exit;
                 } else {
                     $db_instance->rollback();
                     $error = "Upgrade ist bereits abgeschlossen oder wurde abgebrochen!";
@@ -413,7 +410,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                     ], $current_kingdom);
 
                                 change_location("barracks.php?cat=$active_cat");
-                                exit;
                             } else {
                                 $error = "Nicht genügend Ressourcen!";
                             }
@@ -459,7 +455,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $kingdom->give_kingdom_wood(-$total_wood);
 
                             change_location("barracks.php?cat=$active_cat");
-                            exit;
                         }
                     }
                 }

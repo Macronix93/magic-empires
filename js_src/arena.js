@@ -80,8 +80,7 @@ registerAction("openArenaAttackInline", (btn) => {
             }
         })
         .catch(err => {
-            console.error("Fehler beim Laden des Duells:", err);
-            displayArenaError("Fehler beim Laden des Duells.");
+            showGameError("Fehler beim Laden des Duells: " + err);
         })
         .finally(() => {
             btn.disabled = false;
@@ -164,8 +163,13 @@ registerAction("rerollArenaOpponents", (btn) => {
     const currentCounterText = counterEl ? counterEl.innerText : "";
     btn.innerHTML = `Suche... (<span id='arena-rerolls-counter'>${currentCounterText}</span>)`;
 
-    fetch("ajax/arena_actions.php?action=reroll_opponents", {
-        headers: {"X-Requested-With": "XMLHttpRequest"}
+    fetch("ajax/arena_actions.php", {
+        method: "POST",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "action=reroll_opponents"
     })
         .then(r => r.json())
         .then(data => {
@@ -185,7 +189,8 @@ registerAction("rerollArenaOpponents", (btn) => {
                     initAutomaticCountdowns();
                 }
             } else {
-                displayArenaError(data.error || "Fehler beim Suchen.");
+                showGameError(data.error || "Fehler beim Suchen.");
+
                 if (data.has_more_opponents === false) {
                     btn.disabled = true;
                     btn.innerText = "Keine neuen Gegner";
@@ -241,7 +246,7 @@ registerAction("saveArenaDefense", (form, e) => {
             if (data.success) {
                 window.location.href = "arena.php?tab=defense";
             } else {
-                displayArenaError(data.error || "Fehler beim Speichern.");
+                showGameError(data.error || "Fehler beim Speichern.");
                 if (btn) btn.disabled = false;
             }
         });
@@ -323,7 +328,7 @@ registerAction("executeArenaAttack", (form, e) => {
                     window.location.reload();
                 }
             } else {
-                displayArenaError(data.error || "Fehler beim Ausführen des Kampfes.");
+                showGameError(data.error || "Fehler beim Ausführen des Kampfes.");
 
                 if (btn) {
                     btn.disabled = false;
@@ -332,7 +337,7 @@ registerAction("executeArenaAttack", (form, e) => {
             }
         })
         .catch(() => {
-            displayArenaError("Netzwerkfehler beim Kampf.");
+            showGameError("Netzwerkfehler beim Kampf.");
 
             if (btn) {
                 btn.disabled = false;
@@ -383,12 +388,12 @@ registerAction("selectHeroSkill", (btn, e) => {
             if (data.success) {
                 updateHeroSkillUI(skillId);
             } else {
-                displayArenaError(data.error || "Fehler beim Wechseln der Fähigkeit.");
+                showGameError(data.error || "Fehler beim Wechseln der Fähigkeit.");
                 btn.disabled = false;
             }
         })
         .catch(() => {
-            displayArenaError("Netzwerkfehler beim Wechseln der Fähigkeit.");
+            showGameError("Netzwerkfehler beim Wechseln der Fähigkeit.");
             btn.disabled = false;
         });
 });
@@ -428,7 +433,7 @@ function getArenaTechBoni() {
         try {
             return JSON.parse(cfg.dataset.techBoni);
         } catch (e) {
-            displayArenaError("Fehler beim Parsen der Arena-Tech-Boni:" + e);
+            showGameError("Fehler beim Parsen der Arena-Tech-Boni:" + e);
         }
     }
     return {
@@ -470,7 +475,7 @@ function resetDefenseFormToSaved() {
 
         initArenaForm(form);
     } catch (e) {
-        console.error("Fehler beim Zurücksetzen der Verteidigung:", e);
+        showGameError("Fehler beim Zurücksetzen der Verteidigung:" + e);
     }
 }
 
@@ -720,46 +725,6 @@ function initArenaForm(form) {
     updateTroopsCounter();
     updateTechsCounter();
     updateLivePower();
-}
-
-function displayArenaError(message) {
-    const errorHtml = `
-        <div class="info-box event-error">
-            <img src="images/icons/icon_error.png" alt="Fehler">
-            <span>${message}</span>
-        </div>`;
-
-    const modalBody = document.getElementById("overlay-content-body");
-    if (modalBody && modalBody.offsetParent !== null) {
-        const oldError = modalBody.querySelector('.event-error');
-        if (oldError) oldError.remove();
-
-        modalBody.insertAdjacentHTML("afterbegin", errorHtml);
-        modalBody.scrollTo({top: 0, behavior: "smooth"});
-    } else {
-        const inlineContainer = document.getElementById("arena-attack-inline-container");
-        if (inlineContainer && inlineContainer.style.display !== "none") {
-            const oldError = inlineContainer.querySelector('.event-error');
-            if (oldError) oldError.remove();
-
-            inlineContainer.insertAdjacentHTML("afterbegin", errorHtml);
-
-            window.scrollTo({top: 0, behavior: "smooth"});
-            return;
-        }
-
-        const flash = document.getElementById("middle-flash-container");
-        if (flash) {
-            const old = flash.querySelector('.event-error');
-            if (old) old.remove();
-
-            flash.insertAdjacentHTML("afterbegin", errorHtml);
-            window.scrollTo({top: 0, behavior: "smooth"});
-        } else {
-            showConfirmationDialog(message, "Ok", "", () => {
-            });
-        }
-    }
 }
 
 const arenaModalObserver = new MutationObserver((mutations) => {

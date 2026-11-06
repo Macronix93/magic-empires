@@ -31,7 +31,7 @@ registerAction("switchSuggestionTab", (el) => {
                 setup();
             }
         })
-        .catch(err => console.error("Fehler beim Tab-Wechsel:", err));
+        .catch(err => showGameError("Fehler beim Tab-Wechsel:" + err));
 });
 registerAction("voteSuggestion", (el) => {
     const sugId = el.dataset.id;
@@ -81,16 +81,42 @@ registerAction("voteSuggestion", (el) => {
                 }
             }
         })
-        .catch(err => console.error("Vote-Fehler:", err));
+        .catch(err => showGameError("Vote-Fehler:" + err));
 });
 registerAction("confirmDeleteSuggestion", (el) => {
     const sugId = el.dataset.id;
+
     showConfirmationDialog(
         "Möchtest du diesen Vorschlag wirklich unwiderruflich löschen?",
         "Ja, löschen",
         "Abbrechen",
         () => {
-            window.location.href = "suggestions.php?delete=" + sugId;
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = "suggestions.php";
+
+            const idInput = document.createElement("input");
+            idInput.type = "hidden";
+            idInput.name = "suggestion_id";
+            idInput.value = sugId;
+            form.appendChild(idInput);
+
+            const actInput = document.createElement("input");
+            actInput.type = "hidden";
+            actInput.name = "delete_suggestion";
+            actInput.value = "1";
+            form.appendChild(actInput);
+
+            const token = document.querySelector('input[name="csrf_token"]')?.value || "";
+            if (token) {
+                const tokenInput = document.createElement("input");
+                tokenInput.type = "hidden";
+                tokenInput.name = "csrf_token";
+                tokenInput.value = getCsrfToken();
+                form.appendChild(tokenInput);
+            }
+            document.body.appendChild(form);
+            form.submit();
         }
     );
 });
@@ -109,6 +135,7 @@ registerAction("editSuggestionInline", (el, event) => {
 
     const formHtml = `
         <form method="POST" class="js-edit-suggestion-form" style="width: 100%; text-align: left; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px;">
+            <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
             <input type="hidden" name="suggestion_id" value="${sugId}">
             <input type="hidden" name="edit_suggestion" value="1">
             
@@ -146,10 +173,18 @@ registerAction("openSuggestionComments", (el) => {
 registerAction("deleteSuggestionComment", (el) => {
     const sugId = el.dataset.sugid;
     const commentId = el.dataset.id;
-
     showConfirmationDialog("Möchtest du diesen Kommentar wirklich löschen?", "Ja", "Nein", () => {
-        fetch(`ajax/suggestion_comments.php?id=${sugId}&delete_comment=${commentId}`, {
-            headers: {"X-Requested-With": "XMLHttpRequest"}
+        const formData = new URLSearchParams();
+        formData.append("delete_comment", "1");
+        formData.append("comment_id", commentId);
+
+        fetch(`ajax/suggestion_comments.php?id=${sugId}`, {
+            method: "POST",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: formData.toString()
         })
             .then(r => r.text())
             .then(html => {

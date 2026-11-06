@@ -15,6 +15,7 @@ class Messages
         "spy_monster_camp",
         "spy_mine",
         "spy_ruin",
+        "spy_resource_tile",
         "watchtower_alert"
     ];
 
@@ -43,6 +44,7 @@ class Messages
             "spy_monster_camp" => "Spionage: Camp (Lv " . ($data["camp_level"] ?? 1) . ")",
             "spy_mine" => "Spionage: Erzmine",
             "spy_ruin" => "Spionage: Ruine",
+            "spy_resource_tile" => "Spionage: Vorratslager",
             "watchtower_alert" => "Wachturm-Meldung",
             default => null
         };
@@ -590,6 +592,13 @@ class Messages
                     <div class='msg-back-button-container'>
                         <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
                     </div>
+        ";
+        $this->view .= "
+            <form id='form-delete-conversation' method='POST' action='messages.php' style='display: none;'>
+                " . csrf_input() . "
+                <input type='hidden' name='delete_conversation' value='1'>
+                <input type='hidden' name='partner_id' id='delete-partner-id' value=''>
+            </form>
         ";
 
         if ($result->num_rows == 0) {
@@ -2636,13 +2645,6 @@ class Messages
               AND deleted = 0";
 
         return (int)$this->mysqli->execute_query($query, [$guild_id, $uid, $uid])->fetch_row()[0];
-    }
-
-    public function delete_marked_messages(int $sender_id): void
-    {
-        $this->mysqli->execute_query("DELETE FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (receiverid = ? AND senderid = ?)) AND deleted = 1",
-            [$this->user->get_user_id(), $sender_id, $sender_id, $this->user->get_user_id()]
-        );
     }
 
     public function show_messages_with_chatpartner(int $sender_id, string $chat_partner): string

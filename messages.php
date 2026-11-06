@@ -5,72 +5,149 @@ $user->check_user_login();
 $messages = new Messages($user);
 
 // Starting a new conversation (or insert message in existing conversation)
-if (isset($_POST["sendpm"])) {
-    $raw_receiver = trim($_POST["receiver"] ?? "");
-    $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_receiver);
 
-    $raw_text = $_POST["text"] ?? "";
-    $cleaned_text = preg_replace([
-        '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-        '/[ \t]+/u',
-        '/^[ \t]+/m',
-        '/[ \t]+$/m'
-    ], ['', ' ', '', ''], $raw_text);
-    $cleaned_text = trim($cleaned_text);
-
-    $text_only = preg_replace('/\[\/?quote.*?]/i', '', $cleaned_text);
-    $line_breaks_count = substr_count($cleaned_text, "\n");
-    $length = mb_strlen($cleaned_text, "UTF-8");
-
-    if (empty($receiver_name)) {
-        $error = "Bitte einen Empfänger angeben!";
-    } else if (empty($cleaned_text) || empty(trim($text_only))) {
-        $error = "Bitte eine Nachricht eingeben!";
-    } else if ($length > MAX_MESSAGE_LENGTH) {
-        $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
-    } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
-        $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $sender_id = $user->get_user_id();
-        $sender_name = $user->get_user_name();
+        if (isset($_POST["sendpm"])) {
+            $raw_receiver = trim($_POST["receiver"] ?? "");
+            $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_receiver);
 
-        if (is_numeric($receiver_name)) {
-            $result = $db_instance->execute_query("SELECT id, username FROM users WHERE id = ?", [(int)$receiver_name]);
-        } else {
-            $result = $db_instance->execute_query("SELECT id, username FROM users WHERE username = ?", [$receiver_name]);
-        }
+            $raw_text = $_POST["text"] ?? "";
+            $cleaned_text = preg_replace([
+                '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
+                '/[ \t]+/u',
+                '/^[ \t]+/m',
+                '/[ \t]+$/m'
+            ], ['', ' ', '', ''], $raw_text);
+            $cleaned_text = trim($cleaned_text);
 
-        if ($result->num_rows == 0) {
-            $error = "Dieser Spieler existiert nicht!";
-        } else {
-            $receiver_data = $result->fetch_assoc();
-            $receiver_id = (int)$receiver_data["id"];
-            $receiver_username = $receiver_data["username"];
+            $text_only = preg_replace('/\[\/?quote.*?]/i', '', $cleaned_text);
+            $line_breaks_count = substr_count($cleaned_text, "\n");
+            $length = mb_strlen($cleaned_text, "UTF-8");
 
-            if ($receiver_id === $sender_id) {
-                $error = "Du kannst dir selbst keine Nachricht schicken!";
+            if (empty($receiver_name)) {
+                $error = "Bitte einen Empfänger angeben!";
+            } else if (empty($cleaned_text) || empty(trim($text_only))) {
+                $error = "Bitte eine Nachricht eingeben!";
+            } else if ($length > MAX_MESSAGE_LENGTH) {
+                $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
+            } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
+                $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
             } else {
-                $current_time = time();
-                $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
-                $message_count = $_SESSION["message_count"] ?? 0;
+                $sender_id = $user->get_user_id();
+                $sender_name = $user->get_user_name();
 
-                if ($current_time > $message_timeframe_end) {
-                    $_SESSION["message_count"] = 0;
-                    $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-                    $message_count = 0;
+                if (is_numeric($receiver_name)) {
+                    $result = $db_instance->execute_query("SELECT id, username FROM users WHERE id = ?", [(int)$receiver_name]);
+                } else {
+                    $result = $db_instance->execute_query("SELECT id, username FROM users WHERE username = ?", [$receiver_name]);
                 }
 
-                // Rate-Limit Check
-                if ($message_count >= MAX_MESSAGES_RATELIMIT) {
-                    $remaining_time_in_seconds = $message_timeframe_end - $current_time;
-                    $error = "Du schickst zu viele Nachrichten! Warte bitte: " . $remaining_time_in_seconds . " Sek.";
+                if ($result->num_rows == 0) {
+                    $error = "Dieser Spieler existiert nicht!";
                 } else {
-                    $_SESSION["message_count"] = ++$message_count;
+                    $receiver_data = $result->fetch_assoc();
+                    $receiver_id = (int)$receiver_data["id"];
+                    $receiver_username = $receiver_data["username"];
 
-                    $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_username, $current_time, $cleaned_text);
+                    if ($receiver_id === $sender_id) {
+                        $error = "Du kannst dir selbst keine Nachricht schicken!";
+                    } else {
+                        $current_time = time();
+                        $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
+                        $message_count = $_SESSION["message_count"] ?? 0;
 
-                    change_location("messages.php?action=read&s=$receiver_id");
-                    exit;
+                        if ($current_time > $message_timeframe_end) {
+                            $_SESSION["message_count"] = 0;
+                            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+                            $message_count = 0;
+                        }
+
+                        // Rate-Limit Check
+                        if ($message_count >= MAX_MESSAGES_RATELIMIT) {
+                            $remaining_time_in_seconds = $message_timeframe_end - $current_time;
+                            $error = "Du schickst zu viele Nachrichten! Warte bitte: " . $remaining_time_in_seconds . " Sek.";
+                        } else {
+                            $_SESSION["message_count"] = ++$message_count;
+
+                            $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_username, $current_time, $cleaned_text);
+
+                            change_location("messages.php?action=read&s=$receiver_id");
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isset($_POST["delete_conversation"])) {
+            $chat_partner_id = (int)($_POST["partner_id"] ?? 0);
+            $user_id = $user->get_user_id();
+
+            if (empty($chat_partner_id)) {
+                change_location("messages.php?privmsgs");
+            } else {
+                $res_p = $db_instance->execute_query("SELECT username, ip FROM users WHERE id = ?", [$chat_partner_id]);
+                $partner_data = $res_p->fetch_assoc();
+                $partner_name = $partner_data["username"] ?? "Unbekannt";
+                $partner_ip = $partner_data["ip"] ?? "0.0.0.0";
+
+                $res_me = $db_instance->execute_query("SELECT username, ip FROM users WHERE id = ?", [$user_id]);
+                $me_data = $res_me->fetch_assoc();
+                $my_name = $me_data["username"];
+                $my_ip = $me_data["ip"] ?? "0.0.0.0";
+
+                $query_msgs = "SELECT sender, date, message FROM messages 
+                   WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?) 
+                   ORDER BY date";
+                $res_msgs = $db_instance->execute_query($query_msgs, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
+
+                if ($res_msgs->num_rows == 0) {
+                    $error = "Du hast keine Konversation mit diesem Nutzer!";
+                    $view = $messages->show_private_inbox();
+                } else {
+                    $log_dir = __DIR__ . "/logs/chat_backups/";
+
+                    if (!is_dir($log_dir)) {
+                        mkdir($log_dir, 0755, true);
+                    }
+
+                    $filename = "chat_log_{$user_id}_vs_{$chat_partner_id}_" . date("Y-m-d_H-i-s") . ".log";
+
+                    $log_text = "=== CHAT BACKUP (Geloescht am " . date("d.m.Y H:i:s") . ") ===\n";
+                    $log_text .= "Loeschender User: $my_name (ID: $user_id | IP: $my_ip)\n";
+                    $log_text .= "Chat-Partner:    $partner_name (ID: $chat_partner_id | IP: $partner_ip)\n";
+                    $log_text .= "--------------------------------------------------\n\n";
+
+                    foreach ($res_msgs as $m) {
+                        $msg_date = date("d.m.Y H:i:s", $m["date"]);
+
+                        $clean_msg = str_replace(["<br>", "<br />"], "\n", $m["message"]);
+                        $clean_msg = strip_tags($clean_msg);
+                        $clean_msg = trim($clean_msg);
+
+                        if ($clean_msg !== "") {
+                            $log_text .= "[$msg_date] {$m["sender"]}: $clean_msg\n";
+                        }
+                    }
+
+                    file_put_contents($log_dir . $filename, $log_text);
+
+                    if ($partner_data) {
+                        $notice_json = [
+                            "template" => "chat_conversation_ended",
+                            "user_name" => $my_name
+                        ];
+                        Messages::send_server_message($chat_partner_id, $partner_name, MessageCategories::CATEGORY_DEFAULT, $notice_json);
+                    }
+
+                    $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
+                    $db_instance->execute_query($query, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
+
+                    $_SESSION["game_success"] = "Die Konversation wurde erfolgreich gelöscht.";
+
+                    change_location("messages.php?privmsgs");
                 }
             }
         }
@@ -93,6 +170,7 @@ if (isset($_GET["action"])) {
             $view .= "<form id='newmessage'
                               action='messages.php?action=new'
                               method='POST'>
+                              " . csrf_input() . "
                             <input type='hidden' name='sendpm' value='1'>
                             <table class='table'>
                                 <tr>
@@ -151,9 +229,6 @@ if (isset($_GET["action"])) {
                     $error = "Du hast keine Konversation mit diesem Nutzer!";
                     $view = $messages->show_private_inbox();
                 } else {
-                    // Delete messages that are marked for deletion
-                    $messages->delete_marked_messages($sender_id);
-
                     $view .= "<div class='info-box event-error' style='display: none;'></div>";
                     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php?privmsgs'>Zurück</button>
                             <h3 style='width: 100%; margin: 0;'>
@@ -172,98 +247,32 @@ if (isset($_GET["action"])) {
 
                     $view .= "
                             <div id='newmessage-section'>
-                                <form name=\"newmessage\"
+                                <form name='newmessage'
                                       id='newmessage'
-                                      action=\"messages.php?action=read&s=" . $sender_id . "\"
-                                      method=\"POST\">
-                                        <input type=\"hidden\" name=\"receiver\" value=\"" . $sender_id . "\">
-                                        <textarea id=\"message-input\" 
-                                              name=\"text\" 
-                                              rows=\"3\"
-                                              maxlength=\"" . MAX_MESSAGE_LENGTH . "\"
-                                              style=\"resize: vertical; margin-right: 10px;\">" . (isset($_POST["text"]) ? e($_POST["text"]) : '') . "</textarea>
-                                        <div class=\"emoji-picker-container\">
-                                        <div id=\"emoji-menu\" class=\"emoji-menu\">";
+                                      action='messages.php?action=read&s=" . $sender_id . "'
+                                      method='POST'>
+                                        " . csrf_input() . "
+                                        <input type='hidden' name='receiver' value='" . $sender_id . "'>
+                                        <textarea id='message-input' 
+                                              name='text' 
+                                              rows='3'
+                                              maxlength='" . MAX_MESSAGE_LENGTH . "'
+                                              style='resize: vertical; margin-right: 10px;'>" . (isset($_POST["text"]) ? e($_POST["text"]) : '') . "</textarea>
+                                        <div class='emoji-picker-container'>
+                                        <div id='emoji-menu' class='emoji-menu'>";
 
                     foreach (Messages::get_chat_emojis() as $emoji) {
-                        $view .= "<span data-on-click=\"pickEmoji\">$emoji</span>";
+                        $view .= "<span data-on-click='pickEmoji'>$emoji</span>";
                     }
 
                     $view .= "</div>
-                                            <button type=\"button\" class=\"emoji-trigger\" data-on-click=\"toggleEmojis\" title=\"Emoji einfügen\">🙂</button>
+                                            <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
                                         </div>
-                                        <input type=\"submit\" name=\"sendpm\" value=\"Absenden\n[ENTER]\"/>
+                                        <input type='submit' name='sendpm' value='Absenden\n[ENTER]'/>
                                 </form>
                             </div>
                     ";
                 }
-            }
-        }
-    } else if ($_GET["action"] == "delete") {
-        $chat_partner_id = (int)$_GET["s"];
-        $user_id = $user->get_user_id();
-
-        if (empty($chat_partner_id)) {
-            change_location("messages.php?privmsgs");
-        } else {
-            $res_p = $db_instance->execute_query("SELECT username, ip FROM users WHERE id = ?", [$chat_partner_id]);
-            $partner_data = $res_p->fetch_assoc();
-            $partner_name = $partner_data["username"] ?? "Unbekannt";
-            $partner_ip = $partner_data["ip"] ?? "0.0.0.0";
-
-            $res_me = $db_instance->execute_query("SELECT username, ip FROM users WHERE id = ?", [$user_id]);
-            $me_data = $res_me->fetch_assoc();
-            $my_name = $me_data["username"];
-            $my_ip = $me_data["ip"] ?? "0.0.0.0";
-
-            $query_msgs = "SELECT sender, date, message FROM messages 
-                   WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?) 
-                   ORDER BY date";
-            $res_msgs = $db_instance->execute_query($query_msgs, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
-
-            if ($res_msgs->num_rows == 0) {
-                $error = "Du hast keine Konversation mit diesem Nutzer!";
-                $view = $messages->show_private_inbox();
-            } else {
-                $log_dir = __DIR__ . "/logs/chat_backups/";
-
-                if (!is_dir($log_dir)) {
-                    mkdir($log_dir, 0755, true);
-                }
-
-                $filename = "chat_log_{$user_id}_vs_{$chat_partner_id}_" . date("Y-m-d_H-i-s") . ".log";
-
-                $log_text = "=== CHAT BACKUP (Geloescht am " . date("d.m.Y H:i:s") . ") ===\n";
-                $log_text .= "Loeschender User: $my_name (ID: $user_id | IP: $my_ip)\n";
-                $log_text .= "Chat-Partner:    $partner_name (ID: $chat_partner_id | IP: $partner_ip)\n";
-                $log_text .= "--------------------------------------------------\n\n";
-
-                foreach ($res_msgs as $m) {
-                    $msg_date = date("d.m.Y H:i:s", $m["date"]);
-
-                    $clean_msg = str_replace(["<br>", "<br />"], "\n", $m["message"]);
-                    $clean_msg = strip_tags($clean_msg);
-                    $clean_msg = trim($clean_msg);
-
-                    if ($clean_msg !== "") {
-                        $log_text .= "[$msg_date] {$m["sender"]}: $clean_msg\n";
-                    }
-                }
-
-                file_put_contents($log_dir . $filename, $log_text);
-
-                if ($partner_data) {
-                    $notice_json = [
-                        "template" => "chat_conversation_ended",
-                        "user_name" => $my_name
-                    ];
-                    Messages::send_server_message($chat_partner_id, $partner_name, MessageCategories::CATEGORY_DEFAULT, $notice_json);
-                }
-
-                $query = "DELETE FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
-                $db_instance->execute_query($query, [$chat_partner_id, $user_id, $user_id, $chat_partner_id]);
-
-                change_location("messages.php?privmsgs");
             }
         }
     } else {

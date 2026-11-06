@@ -100,6 +100,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         if ($is_me) {
             $action_cell = "
             <form method='POST' action='map.php' style='margin: 0;'>
+                " . csrf_input() . "
                 <input type='hidden' name='recall_mine_troops' value='1'>
                 <input type='hidden' name='mine_x' value='$x'>
                 <input type='hidden' name='mine_y' value='$y'>

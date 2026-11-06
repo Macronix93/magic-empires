@@ -77,7 +77,7 @@ function loadHofTab(category, callback) {
             }
         })
         .catch(err => {
-            console.error("Hall of Fame Fehler:", err);
+            showGameError("Hall of Fame Fehler:" + err);
             callback("<div class='info-box event-error' style='margin-top: 20px;'><span>Netzwerkfehler beim Laden der Rangliste.</span></div>");
         });
 }

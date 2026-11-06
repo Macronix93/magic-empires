@@ -21,50 +21,68 @@ $my_y = $kingdom->get_kingdom_map_y();
 $my_guild_id = $user->get_user_guild_id();
 $in_guild = ($my_guild_id > 0);
 
-if (isset($_GET["accept"])) {
-    $res = $market->accept_offer((int)$_GET["accept"], $map);
-
-    if (!$res["success"]) {
-        $error = $res["error"];
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $flash_box = show_passed_box("Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $res["arrival_str"]);
+        $action = $_POST["action"] ?? "";
 
-        $daily_trades_count++;
-    }
-}
+        if ($action === "accept_offer") {
+            $offer_id = (int)($_POST["offer_id"] ?? 0);
 
-if (isset($_GET["delete"])) {
-    $err = $market->cancel_offer((int)$_GET["delete"]);
+            $res = $market->accept_offer($offer_id, $map);
+            if (!$res["success"]) {
+                $error = $res["error"];
+            } else {
+                $_SESSION["game_success"] = "Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $res["arrival_str"];
 
-    if ($err) {
-        $error = $err;
-    } else {
-        $flash_box = show_passed_box("Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.");
+                change_location("marketplace.php");
+            }
+        }
 
-        $daily_trades_count = max(0, $daily_trades_count - 1);
-    }
-}
+        if ($action === "delete_offer") {
+            $offer_id = (int)($_POST["offer_id"] ?? 0);
 
-if (isset($_GET["sv"]) && isset($_GET["dv"]) && $_GET["sv"] !== "" && $_GET["dv"] !== "") {
-    $is_guild_only = !empty($_GET["guild_only"]) && $in_guild;
-    $err = $market->create_offer((int)$_GET["s"], (int)$_GET["sv"], (int)$_GET["d"], (int)$_GET["dv"], $is_guild_only);
+            $err = $market->cancel_offer($offer_id);
+            if ($err) {
+                $error = $err;
+            } else {
+                $_SESSION["game_success"] = "Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.";
 
-    if ($err) {
-        $error = $err;
-    } else {
-        $daily_trades_count++;
-    }
-}
+                change_location("marketplace.php");
+            }
+        }
 
-if (isset($_GET["send_own"])) {
-    $res = $market->send_internal_transport((int)($_GET["target_k"] ?? 0), $_GET["am"] ?? [], $map);
+        if ($action === "create_offer") {
+            $sv = (int)str_replace(['.', ','], '', $_POST["sv"] ?? "0");
+            $dv = (int)str_replace(['.', ','], '', $_POST["dv"] ?? "0");
+            $s = (int)($_POST["s"] ?? 0);
+            $d = (int)($_POST["d"] ?? 0);
+            $is_guild_only = !empty($_POST["guild_only"]) && $in_guild;
 
-    if (!$res["success"]) {
-        $error = $res["error"];
-    } else {
-        $flash_box = show_passed_box("Transport nach <b>" . e($res["target_name"]) . "</b> gestartet!<br>Ankunft in " . $res["arrival_str"]);
+            $err = $market->create_offer($s, $sv, $d, $dv, $is_guild_only);
+            if ($err) {
+                $error = $err;
+            } else {
+                $_SESSION["game_success"] = "Handelsangebot erfolgreich eingestellt!";
 
-        $daily_trades_count++;
+                change_location("marketplace.php");
+            }
+        }
+
+        if ($action === "send_internal") {
+            $target_k = (int)($_POST["target_k"] ?? 0);
+            $amounts = $_POST["am"] ?? [];
+
+            $res = $market->send_internal_transport($target_k, $amounts, $map);
+            if (!$res["success"]) {
+                $error = $res["error"];
+            } else {
+                $_SESSION["game_success"] = "Transport nach <b>" . e($res["target_name"]) . "</b> gestartet!<br>Ankunft in " . $res["arrival_str"];
+
+                change_location("marketplace.php");
+            }
+        }
     }
 }
 
@@ -92,11 +110,13 @@ $view .= "<div class='info-box' style='background-color: rgba(212, 175, 55, 0.1)
     </span>
 </div>";
 
-$view .= '<form action="marketplace.php" method="GET" 
+$view .= '<form action="marketplace.php" method="POST" 
       data-on-submit="checkMarket" 
       data-type-field="d" 
       data-amount-field="dv"
       data-is-listing="true">
+      ' . csrf_input() . '
+    <input type="hidden" name="action" value="create_offer">
     <table class="table marketplace-form-table" style="margin-bottom: 15px; width: 100%;">
     <tr>
         <td>
@@ -233,10 +253,10 @@ if ($result->num_rows > 0) {
         }
 
         if ($is_my_offer) {
-            $param = "delete";
+            $action_type = "delete_offer";
             $btn_class = "btn-delete";
         } else {
-            $param = "accept";
+            $action_type = "accept_offer";
             $btn_class = "btn-accept";
         }
 
@@ -247,11 +267,13 @@ if ($result->num_rows > 0) {
         $seller_user = new User((int)$row["userid"], $row["username"]);
         $player_display = $seller_user->render_user(popup_id: "mkt_user_" . $row["offerid"]);
 
-        $text_build = "<form action='marketplace.php' method='GET' 
+        $text_build = "<form action='marketplace.php' method='POST' 
                             data-on-submit='checkMarket' 
                             data-res-type='" . (int)$row["supply"] . "' 
                             data-amount='" . (int)$row["supplyvalue"] . "'>
-                            <input type='hidden' name='" . e($param) . "' value='" . e($row["offerid"]) . "'>
+                            " . csrf_input() . "
+                            <input type='hidden' name='action' value='" . e($action_type) . "'>
+                            <input type='hidden' name='offer_id' value='" . e($row["offerid"]) . "'>
                             <input type='submit' class='" . e($btn_class) . "' value=''>
                         </form>";
 
@@ -418,44 +440,41 @@ if ($other_kingdoms_res->num_rows > 0) {
         $init_gold = $init_target ? format_num($init_target["gold"] + $init_target["inc_gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
 
         $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
-        $view .= '<table class="table internal-transport-table" style="width: 100%;">
-                    <form action="marketplace.php" method="GET">
-                        <input type="hidden" name="send_own" value="1">
-                        <tr>
-                            <td style="width: 30%;">
-                                <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;">' . $init_time_display . '</small></label><br>
-                                <select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>
-                                <div class="mobile-internal-stock-box" id="target-k-stock-box">
-                                    <div class="mobile-stock-header" id="target-k-stock-header">
-                                        Vorräte in <b>' . $init_header_name . '</b>:
-                                    </div>
-                                    <div class="mobile-internal-stock-grid">
-                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">' . $init_food . '</span></div>
-                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">' . $init_wood . '</span></div>
-                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">' . $init_stone . '</span></div>
-                                        <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">' . $init_gold . '</span></div>
-                                    </div>
+        $view .= '<form action="marketplace.php" method="POST" id="form-internal-transport" data-on-submit="checkInternalTransport">
+                    ' . csrf_input() . '
+                    <input type="hidden" name="action" value="send_internal">
+                    <table class="table internal-transport-table" style="width: 100%;">
+                    <tr>
+                        <td style="width: 30%;">
+                            <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;">' . $init_time_display . '</small></label><br>
+                            <select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>
+                            <div class="mobile-internal-stock-box" id="target-k-stock-box">
+                                <div class="mobile-stock-header" id="target-k-stock-header">
+                                    Vorräte in <b>' . $init_header_name . '</b>:
                                 </div>
-                            </td>
-                            <td style="width: 50%; text-align: center; vertical-align: middle;">
-                                <div class="internal-res-grid">
-                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" 
-                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
-                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" 
-                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
-                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" 
-                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
-                                    <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" 
-                                        placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div class="mobile-internal-stock-grid">
+                                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <span id="target-stock-food">' . $init_food . '</span></div>
+                                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <span id="target-stock-wood">' . $init_wood . '</span></div>
+                                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <span id="target-stock-stone">' . $init_stone . '</span></div>
+                                    <div class="mobile-stock-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <span id="target-stock-gold">' . $init_gold . '</span></div>
                                 </div>
-                                <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
-                                    <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
-                                    <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
-                                </div>
-                            </td>
-                        </tr>
-                    </form>
-                  </table>';
+                            </div>
+                        </td>
+                        <td style="width: 50%; text-align: center; vertical-align: middle;">
+                            <div class="internal-res-grid">
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
+                                <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
+                                <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
+                            </div>
+                        </td>
+                    </tr>
+                    </table>
+                    </form>';
 
         $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "' data-stocks='" . e(json_encode($target_kingdoms_data)) . "'></div>";
     }

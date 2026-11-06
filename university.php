@@ -143,7 +143,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                                     $kingdom_research_id = $tech_id;
 
                                     change_location("university.php");
-                                    exit;
                                 }
                             }
                         }
@@ -166,7 +165,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     $kingdom->give_kingdom_gold($cost_gold);
 
                     change_location("university.php");
-                    exit;
                 } else {
                     $error = "Du forschst gerade nichts!";
                 }

@@ -32,8 +32,8 @@ if (!isset($_SESSION["csrf_token"])) {
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Validate CSRF token
-    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $error = "Ungültiger Token!";
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
         if (isset($_POST['submit_avatar'])) {
             if (isset($_FILES['image'])) {
@@ -98,7 +98,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                         $_SESSION["game_success"] = "Nutzerbild wurde erfolgreich hochgeladen!";
 
                                         change_location("settings.php?tab=profile");
-                                        exit;
                                     } else {
                                         $error = "Fehler beim Hochladen der Datei auf den Server!";
                                     }
@@ -167,7 +166,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $_SESSION["game_success"] = "Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.";
 
                             change_location("settings.php?tab=account");
-                            exit;
                         }
                     }
                 }
@@ -200,7 +198,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $_SESSION["game_success"] = "Passwort erfolgreich geändert!";
 
                 change_location("settings.php?tab=account");
-                exit;
             }
         }
 
@@ -252,7 +249,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                 $_SESSION["game_success"] = "Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.";
 
                                 change_location("settings.php?tab=account");
-                                exit;
                             }
                         }
                     }
@@ -297,7 +293,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $_SESSION["game_success"] = "Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!";
 
                 change_location("settings.php?tab=game");
-                exit;
             }
         }
 
@@ -314,7 +309,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $_SESSION["game_success"] = "IP-Sharing Partner wurde entfernt.";
 
                 change_location("settings.php?tab=game");
-                exit;
             } else {
                 $partner_res = $db_instance->execute_query(
                     "SELECT id, username FROM users WHERE username = ? LIMIT 1",
@@ -340,7 +334,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $_SESSION["game_success"] = "Partner '" . e($partner_data['username']) . "' wurde erfolgreich hinterlegt.";
 
                     change_location("settings.php?tab=game");
-                    exit;
                 }
             }
         }
@@ -383,7 +376,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $_SESSION["game_success"] = "Anzeige-Einstellungen erfolgreich gespeichert.";
 
             change_location("settings.php?tab=game");
-            exit;
         }
 
         // Activate Vacation Mode
@@ -419,7 +411,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     session_destroy();
 
                     change_location("index.php?vacation_locked=1");
-                    exit;
                 }
             }
         }
@@ -428,10 +419,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (isset($_POST['delete_all_push_devices'])) {
             $db_instance->execute_query("DELETE FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
 
-            $_SESSION["admin_flash_msg"] = "Alle registrierten Push-Geräte wurden erfolgreich abgemeldet.";
+            $_SESSION["game_success"] = "Alle registrierten Push-Geräte wurden erfolgreich abgemeldet.";
 
             change_location("settings.php?tab=account");
-            exit;
         }
 
         if (isset($_POST['save_push_settings'])) {
@@ -454,10 +444,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     events = VALUES(events)
             ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages, $p_events]);
 
-            $_SESSION["admin_flash_msg"] = "Push-Einstellungen erfolgreich gespeichert.";
+            $_SESSION["game_success"] = "Push-Einstellungen erfolgreich gespeichert.";
 
             change_location("settings.php?tab=account");
-            exit;
         }
 
         // Delete Account
@@ -531,7 +520,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     session_destroy();
 
                     change_location("index.php?logout=deleted&v=" . $token);
-                    exit;
                 } catch (Throwable $e) {
                     $db_instance->rollback();
 
@@ -572,7 +560,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
 
             change_location("settings.php?tab=profile");
-            exit;
         }
     }
 }

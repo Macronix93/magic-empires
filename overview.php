@@ -39,99 +39,106 @@ if (!empty($_SESSION["active_supports"])) {
     }
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])) {
-    $x = (int)($_POST["mine_x"] ?? 0);
-    $y = (int)($_POST["mine_y"] ?? 0);
 
-    if ($kingdom->recall_mine_troops($x, $y)) {
-        $_SESSION["game_success"] = "Deine Schürfer treten mit der Beute den Rückweg an!";
-    }
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
+    } else {
+        if (isset($_POST["recall_mine_troops"])) {
+            $x = (int)($_POST["mine_x"] ?? 0);
+            $y = (int)($_POST["mine_y"] ?? 0);
 
-    change_location("overview.php");
-    exit;
-}
+            if ($kingdom->recall_mine_troops($x, $y)) {
+                $_SESSION["game_success"] = "Deine Schürfer treten mit der Beute den Rückweg an!";
+            }
 
-// Fetch all sent troops events from the user
-if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])) {
-    $event_id = (int)$_GET["eid"];
+            change_location("overview.php");
+        }
 
-    $db_instance->begin_transaction();
+        if (isset($_POST["cancel_event"])) {
+            $event_id = (int)($_POST["eid"] ?? 0);
 
-    $result = $db_instance->execute_query(
-        "SELECT * FROM events WHERE eventid = ? AND userid = ? FOR UPDATE",
-        [$event_id, $user->get_user_id()]
-    );
+            $db_instance->begin_transaction();
 
-    if ($result && $result->num_rows > 0) {
-        $event = $result->fetch_assoc();
+            $result = $db_instance->execute_query(
+                "SELECT * FROM events WHERE eventid = ? AND userid = ? FOR UPDATE",
+                [$event_id, $user->get_user_id()]
+            );
 
-        if ($event["is_processing"] > 0) {
-            $db_instance->rollback();
-            $error = "Truppen sind bereits am Ziel angekommen oder in ein Gefecht verwickelt!";
-        } else if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
-            $total_duration = $event["arrivaltime"] - $event["buildingtime"];
-            $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
-            $new_arrival_time = $now + $already_marched;
+            if ($result && $result->num_rows > 0) {
+                $event = $result->fetch_assoc();
 
-            $db_instance->execute_query(
-                "UPDATE events SET 
+                if ($event["is_processing"] > 0) {
+                    $db_instance->rollback();
+                    $error = "Truppen sind bereits am Ziel angekommen oder in ein Gefecht verwickelt!";
+                } else if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
+                    $total_duration = $event["arrivaltime"] - $event["buildingtime"];
+                    $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
+                    $new_arrival_time = $now + $already_marched;
+
+                    $db_instance->execute_query(
+                        "UPDATE events SET 
                     actionid = ?, 
                     arrivaltime = ?, 
                     loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0,
                     is_processing = 0
                  WHERE eventid = ? AND is_processing = 0",
-                [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
-            );
+                        [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
+                    );
 
-            if ($db_instance->affected_rows === 1) {
-                $db_instance->commit();
+                    if ($db_instance->affected_rows === 1) {
+                        $db_instance->commit();
 
-                $logger->log_game("COMBAT", "ATTACK_RECALL", [
-                    "event_id" => $event_id,
-                    "target_x" => $event["targetx"],
-                    "target_y" => $event["targety"]
-                ], $event["kingdomid"]);
+                        $logger->log_game("COMBAT", "ATTACK_RECALL", [
+                            "event_id" => $event_id,
+                            "target_x" => $event["targetx"],
+                            "target_y" => $event["targety"]
+                        ], $event["kingdomid"]);
 
-                change_location("overview.php");
-                exit;
-            } else {
-                $db_instance->rollback();
-                $error = "Truppen konnten nicht zurückgerufen werden (bereits am Ziel angekommen).";
-            }
-        } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == TransportTypes::TRANSPORT_TYPE_INTERNAL) {
-            $total_duration = $event["arrivaltime"] - $event["buildingtime"];
-            $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
-            $new_arrival_time = $now + $already_marched;
+                        $_SESSION["game_success"] = "Der Marschbefehl wurde abgebrochen. Deine Truppen treten den Rückmarsch an!";
 
-            $db_instance->execute_query(
-                "UPDATE events SET actionid = ?, kingdomid = ?, targetid = ?, arrivaltime = ?, buildingname = ? 
+                        change_location("overview.php");
+                    } else {
+                        $db_instance->rollback();
+                        $error = "Truppen konnten nicht zurückgerufen werden (bereits am Ziel angekommen).";
+                    }
+                } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == TransportTypes::TRANSPORT_TYPE_INTERNAL) {
+                    $total_duration = $event["arrivaltime"] - $event["buildingtime"];
+                    $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
+                    $new_arrival_time = $now + $already_marched;
+
+                    $db_instance->execute_query(
+                        "UPDATE events SET actionid = ?, kingdomid = ?, targetid = ?, arrivaltime = ?, buildingname = ? 
                  WHERE eventid = ? AND is_processing = 0",
-                [
-                    ActionTypes::ACTION_RETURN_RESOURCES,
-                    $event["targetid"],
-                    $event["kingdomid"],
-                    $new_arrival_time,
-                    TransportTypes::TRANSPORT_TYPE_TRADE_RETURN,
-                    $event_id
-                ]
-            );
+                        [
+                            ActionTypes::ACTION_RETURN_RESOURCES,
+                            $event["targetid"],
+                            $event["kingdomid"],
+                            $new_arrival_time,
+                            TransportTypes::TRANSPORT_TYPE_TRADE_RETURN,
+                            $event_id
+                        ]
+                    );
 
-            if ($db_instance->affected_rows === 1) {
-                $db_instance->commit();
+                    if ($db_instance->affected_rows === 1) {
+                        $db_instance->commit();
 
-                change_location("overview.php");
-                exit;
+                        $_SESSION["game_success"] = "Der Warentransport wurde abgebrochen. Die Karawane kehrt mit den Rohstoffen um!";
+
+                        change_location("overview.php");
+                    } else {
+                        $db_instance->rollback();
+                        $error = "Warenlieferung ist bereits eingetroffen!";
+                    }
+                } else {
+                    $db_instance->rollback();
+                    $error = "Diese Aktion kann nicht abgebrochen werden!";
+                }
             } else {
                 $db_instance->rollback();
-                $error = "Warenlieferung ist bereits eingetroffen!";
+                $error = "Diese Aktion ist ungültig!";
             }
-        } else {
-            $db_instance->rollback();
-            $error = "Diese Aktion kann nicht abgebrochen werden!";
         }
-    } else {
-        $db_instance->rollback();
-        $error = "Diese Aktion ist ungültig!";
     }
 }
 
@@ -850,6 +857,7 @@ if (!empty($all_tp_entries)) {
                     </small>
                     <div class='delete-btn'>
                         <form action='overview.php' method='POST' style='display: inline;'>
+                            " . csrf_input() . "
                             <input type='hidden' name='recall_mine_troops' value='1'>
                             <input type='hidden' name='mine_x' value='$mx'>
                             <input type='hidden' name='mine_y' value='$my'>
@@ -890,11 +898,12 @@ if (!empty($all_tp_entries)) {
                                data-no-reload='true'>" . format_time_for_js($difference_time) . "</span>";
 
             if ($is_me && !$is_return && ((int)($event_data["is_processing"] ?? 0) === 0)) {
-                $action_button = "<form action='overview.php' method='GET' style='display: inline;'>
-                            <input type='hidden' name='action' value='cancel'>
-                            <input type='hidden' name='eid' value='" . $event_id . "'>
-                            <input type='submit' value='' class='btn-delete' title='Abbrechen'>
-                        </form>";
+                $action_button = "<form action='overview.php' method='POST' style='display: inline;'>
+                                    " . csrf_input() . "
+                                    <input type='hidden' name='cancel_event' value='1'>
+                                    <input type='hidden' name='eid' value='" . $event_id . "'>
+                                    <input type='submit' value='' class='btn-delete' title='Abbrechen'>
+                                </form>";
             }
 
             $is_pure_scout = $event_data["is_scouting"];
@@ -1121,10 +1130,11 @@ if ($result_trades && $result_trades->num_rows > 0) {
 
         if ($is_cancelable) {
             $view .= "<div class='delete-btn'>
-                        <form action='overview.php' method='GET' style='display: inline;'>
-                            <input type='hidden' name='action' value='cancel'>
+                        <form action='overview.php' method='POST' style='display: inline;'>
+                            " . csrf_input() . "
+                            <input type='hidden' name='cancel_event' value='1'>
                             <input type='hidden' name='eid' value='$event_id'>
-                            <input type='submit' value='' class='btn-delete'>
+                            <input type='submit' value='' class='btn-delete' title='Abbrechen'>
                         </form>
                       </div>";
         }

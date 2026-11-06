@@ -12,15 +12,17 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     unset($_SESSION["captcha_passed"]);
 }
 
-if (isset($_GET["banned"])) {
-    $error = "Du wurdest soeben gebannt! Grund: " . e($_GET["banned"]);
-}
-
 $success = "";
 $error = "";
 $warning = "";
 $mode = $_GET["action"] ?? "login";
 $now = time();
+
+if (isset($_GET["banned"])) {
+    $ban_reason = trim($_GET["banned"] ?? "");
+    $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
+    $error = "Dein Account wurde gesperrt!" . $reason_text;
+}
 
 // ACCOUNT ACTIVATION
 if (!empty($_GET["key"])) {
@@ -74,15 +76,18 @@ if (!empty($_GET["key"])) {
 }
 
 // LOGOUT
-if (isset($_GET["logout"])) {
+$is_post_logout = ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["logout"]) && verify_csrf_token($_POST["csrf_token"] ?? null));
+$is_get_logout = isset($_GET["logout"]);
+
+if ($is_post_logout || $is_get_logout) {
     $mode = "login";
-    $logout_type = $_GET["logout"];
+    $logout_type = $_GET["logout"] ?? "";
 
     $url_hash = $_GET["v"] ?? "";
     $cookie_hash = $_COOKIE["logout_verify"] ?? "";
 
     $is_system_logout = (!empty($url_hash) && $url_hash === $cookie_hash);
-    $is_manual_logout = (empty($logout_type) && $user->is_logged_in());
+    $is_manual_logout = ($is_post_logout || (empty($logout_type) && $user->is_logged_in()));
 
     if ($is_system_logout) {
         if ($logout_type === "inactive") {
@@ -121,13 +126,11 @@ if (isset($_GET["logout"])) {
     setcookie("logout_verify", "", $now - 3600, "/");
 
     if (empty($success) && empty($warning)) {
-        header("Location: index.php");
-        exit;
+        change_location("index.php");
     }
 } else {
     if ($user->is_logged_in()) {
         change_location("overview.php");
-        exit;
     }
 }
 
@@ -151,15 +154,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     if ($row["vacation_until"] > $now) {
                         $date_str = date("d.m.Y \u\m H:i", $row["vacation_until"]);
 
-                        $error .= "Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.<br>Ein Login ist bis dahin gesperrt!";
+                        $error .= "Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.<br />Ein Login ist bis dahin gesperrt!";
                     } else {
                         $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$row["id"]]);
                     }
                 }
 
                 if (empty($error)) {
-                    if ($row["is_banned"] == 1) {
-                        $error .= "Dein Account wurde gesperrt!<br>Grund: " . e($row["ban_reason"]);
+                    if ($row["is_banned"]) {
+                        $ban_reason = trim($row["ban_reason"] ?? "");
+                        $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
+                        $error .= "Dein Account wurde gesperrt!" . $reason_text;
                     } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
                         $warning = $maintenance_text;
                     } else {
@@ -181,7 +186,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             }
 
                             change_location("overview.php");
-                            exit;
                         }
                     }
                 }
@@ -637,7 +641,7 @@ $count_online = $res_online->fetch_row()[0];
             }
         }
 
-        <?php if ($_SERVER["REQUEST_METHOD"] === "POST" && (!empty($error) || !empty($warning))): ?>
+        <?php if (!empty($error) || !empty($warning)): ?>
         if (window.innerWidth <= 600 && modal) {
             modal.classList.add("open");
         }

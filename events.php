@@ -21,7 +21,13 @@ $res_any_barracks = $db_instance->execute_query(
 );
 $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
 
-if ($active_event) {
+if ($active_event && $_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
+
+        change_location("events.php");
+    }
+
     if (isset($_POST["set_reward_kingdom"])) {
         $chosen_kid = (int)($_POST["reward_kingdom_id"] ?? 0);
 
@@ -33,8 +39,8 @@ if ($active_event) {
             ", [$active_event["id"], $user_id]);
 
             $_SESSION["game_success"] = "Beute-Ziel auf 'Automatisch' gesetzt!";
+
             change_location("events.php");
-            exit;
         } else {
             $check_k = $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?", [$chosen_kid, $user_id]);
 
@@ -46,8 +52,8 @@ if ($active_event) {
                 ", [$active_event["id"], $user_id, $chosen_kid]);
 
                 $_SESSION["game_success"] = "Beute-Zielkönigreich erfolgreich festgelegt!";
+
                 change_location("events.php");
-                exit;
             }
         }
     }
@@ -149,7 +155,6 @@ if ($active_event) {
                     $_SESSION["game_success"] = "Massenmobilisierung erfolgreich! Eine riesige Armee formiert sich.";
 
                     change_location("events.php");
-                    exit;
                 } catch (Exception $e) {
                     $db_instance->rollback();
 
@@ -312,6 +317,7 @@ if (!$active_event) {
                         </button>
                         <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
                         <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
+                            " . csrf_input() . "
                             <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
                                 " . Messages::wrap_emojis("⚔️ Massenmobilisierung") . "
                             </button>
@@ -443,6 +449,7 @@ if (!$active_event) {
         if (count($user_all_k) > 1) {
             $view .= "
             <form method='POST' style='display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;'>
+                " . csrf_input() . "
                 <span><b>Beute-Ziel:</b></span>
                 <div style='display: flex; gap: 6px; align-items: center;'>
                     <select name='reward_kingdom_id' style='max-width: 220px; font-size: 12px;'>

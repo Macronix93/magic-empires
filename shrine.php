@@ -6,44 +6,52 @@ $current_kingdom = $result['current_kingdom'];
 $kingdom = $result['kingdom'];
 $building = $result['building'];
 
-if (isset($_POST["choose_align"])) {
-    $choice = (int)$_POST["choose_align"];
-
-    $res_check = $db_instance->execute_query("SELECT required_level FROM shrine_alignments WHERE id = ?", [$choice]);
-    $req_lvl = (int)$res_check->fetch_column();
-
-    if ($building->get_building_level() < $req_lvl) {
-        $error = "Dein Schrein hat eine zu niedrige Stufe für diese Gesinnung!";
-    } else if ($kingdom->get_kingdom_gold() < SHRINE_CHANGE_COST) {
-        $error = "Du hast nicht genug Gold für das Opferritual!";
-    } else if ($choice == $kingdom->get_kingdom_alignment() && $choice != AlignmentTypes::ALIGN_NONE) {
-        $error = "Diese Gesinnung ist bereits aktiv!";
-    } else if ($choice == AlignmentTypes::ALIGN_NONE && $kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_NONE) {
-        $error = "Derzeit ist keine Gesinnung aktiv!";
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $db_instance->execute_query("UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?", [$choice, SHRINE_CHANGE_COST, $current_kingdom]);
-        $logger->log_game("ECONOMY", "SHRINE_ALIGNMENT_CHANGE", ["alignment" => $choice], $current_kingdom);
+        if (isset($_POST["choose_align"])) {
+            $choice = (int)$_POST["choose_align"];
 
-        // Recalculate old per-hour values
-        $kingdom->set_kingdom_alignment($choice);
-        $kingdom->recalculate_production();
+            $res_check = $db_instance->execute_query("SELECT required_level FROM shrine_alignments WHERE id = ?", [$choice]);
+            $req_lvl = (int)$res_check->fetch_column();
 
-        Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SHRINE_ALIGNMENT);
+            if ($building->get_building_level() < $req_lvl) {
+                $error = "Dein Schrein hat eine zu niedrige Stufe für diese Gesinnung!";
+            } else if ($kingdom->get_kingdom_gold() < SHRINE_CHANGE_COST) {
+                $error = "Du hast nicht genug Gold für das Opferritual!";
+            } else if ($choice == $kingdom->get_kingdom_alignment() && $choice != AlignmentTypes::ALIGN_NONE) {
+                $error = "Diese Gesinnung ist bereits aktiv!";
+            } else if ($choice == AlignmentTypes::ALIGN_NONE && $kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_NONE) {
+                $error = "Derzeit ist keine Gesinnung aktiv!";
+            } else {
+                $db_instance->execute_query("UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?", [$choice, SHRINE_CHANGE_COST, $current_kingdom]);
+                $logger->log_game("ECONOMY", "SHRINE_ALIGNMENT_CHANGE", ["alignment" => $choice], $current_kingdom);
 
-        change_location("shrine.php");
-        exit;
+                // Recalculate old per-hour values
+                $kingdom->set_kingdom_alignment($choice);
+                $kingdom->recalculate_production();
+
+                Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SHRINE_ALIGNMENT);
+
+                $_SESSION["game_success"] = "Das Opferritual war erfolgreich! Die Gesinnung ist nun aktiv.";
+
+                change_location("shrine.php");
+            }
+        }
+
+        if (isset($_POST["reset_align"])) {
+            $db_instance->execute_query("UPDATE kingdoms SET alignment = 0 WHERE id = ?", [$current_kingdom]);
+
+            // Recalculate old per-hour values
+            $kingdom->set_kingdom_alignment(0);
+            $kingdom->recalculate_production();
+
+            $_SESSION["game_success"] = "Die Gesinnung wurde abgelegt. Deine Produktion ist wieder neutral.";
+
+            change_location("shrine.php");
+        }
     }
-}
-
-if (isset($_POST["reset_align"])) {
-    $db_instance->execute_query("UPDATE kingdoms SET alignment = 0 WHERE id = ?", [$current_kingdom]);
-
-    // Recalculate old per-hour values
-    $kingdom->set_kingdom_alignment(0);
-    $kingdom->recalculate_production();
-
-    change_location("shrine.php");
-    exit;
 }
 
 /*
@@ -63,6 +71,7 @@ $disabled = $current_align == AlignmentTypes::ALIGN_NONE;
 $view .= "
     <div style='text-align: center; margin-bottom: 20px;'>
         <form method='POST'>
+            " . csrf_input() . "
             <input type='hidden' name='reset_align' value='1'>
             <button type='submit' " . ($disabled ? "disabled" : "") . ">Gesinnung ablegen</button>
         </form>
@@ -81,6 +90,7 @@ while ($data = $res_aligns->fetch_assoc()) {
             <span class='passed'>+$display_bonus% {$data["bonus_text"]}</span><br>
             <span class='error'>-$display_malus% {$data["malus_text"]}</span><br><br>
             <form method='POST'>
+                " . csrf_input() . "
                 <input type='hidden' name='choose_align' value='{$data['id']}'>
                 <button type='submit' " . ($current_align == $data["id"] ? "disabled" : "") . ">
                     " . ($current_align == $data["id"] ? "Bereits gewählt" : "Dienen") . "

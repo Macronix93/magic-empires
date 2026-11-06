@@ -8,6 +8,7 @@ require_once("../includes/core.php");
 $db = Database::get_instance()->get_connection();
 
 $now = time();
+
 $activity_threshold = $now - INACTIVITY_DELAY;
 
 $res = $db->execute_query(
@@ -76,14 +77,6 @@ if ($deleted_count > 0) {
     echo "[" . date("H:i:s") . "] Support-Cleanup: $deleted_count alte Tickets gelöscht.\n";
 }
 
-// Guild Storage Logs Cleanup
-$guild_log_limit = $now - (GUILD_STORAGE_LOG_RETENTION_DAYS * 86400);
-$db->execute_query("DELETE FROM guild_storage_logs WHERE created_at < ?", [$guild_log_limit]);
-$guild_logs_deleted = $db->affected_rows;
-if ($guild_logs_deleted > 0) {
-    echo "[" . date("H:i:s") . "] Gilden-Einlagerungs-Cleanup: $guild_logs_deleted alte Einträge gelöscht.\n";
-}
-
 // Abandoned Kingdoms Cleanup
 $db->execute_query("DELETE FROM abandoned_kingdoms WHERE expires_at < ?", [$now]);
 $db->execute_query("UPDATE map SET kingdomid = " . MapFieldTypes::MAP_FIELD_EMPTY . " WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM . " 
@@ -98,6 +91,14 @@ $we_logic = new WorldEvent();
 $deleted_events = $we_logic->cleanup_old_events();
 if ($deleted_events > 0) {
     echo "[" . date("H:i:s") . "] Cleanup: $deleted_events alte Welt-Events aus der Datenbank entfernt.\n";
+}
+
+// Delete unactived accounts after 2 days
+$two_days_ago = $now - 172800;
+$db->execute_query("DELETE FROM users WHERE status = 0 AND registerdate < ?", [$two_days_ago]);
+$unactivated_deleted = $db->affected_rows;
+if ($unactivated_deleted > 0) {
+    echo "[" . date("H:i:s") . "] $unactivated_deleted nicht aktivierte Accounts bereinigt.\n";
 }
 
 // Shared Battle Reports Cleanup

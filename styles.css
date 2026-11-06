@@ -241,7 +241,7 @@ input[type="checkbox"] {
 
 .copyright-wrapper {
     text-align: center;
-    margin: 5px 0 10px 0;
+    margin: 5px 0 0;
     padding: 0 10px;
 }
 
@@ -3101,12 +3101,11 @@ img[data-on-click] {
 }
 
 .marketplace-player {
-    width: 30%;
+    width: 27%;
 }
 
 .marketplace-offer {
-
-    width: 20%;
+    width: 23%;
 }
 
 .marketplace-arrival {

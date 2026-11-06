@@ -212,8 +212,8 @@ registerAction("submitSendTroopsForm", (form, e) => {
                     </div>
                 `);
                     baseModalBody.scrollTo({top: 0, behavior: "smooth"});
-                } else if (typeof showMapFlashMessage === "function") {
-                    showMapFlashMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
+                } else {
+                    showGameMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
                 }
 
                 if (typeof gameConfig !== "undefined" && gameConfig.currentKingdom) {
@@ -240,7 +240,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
                         modalBody.scrollTo({top: 0, behavior: "smooth"});
                     }
                 } else {
-                    console.log(data.error || "Fehler beim Absenden.");
+                    showGameError(data.error || "Fehler beim Absenden.");
                 }
 
                 if (submitBtn) {
@@ -250,7 +250,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
             }
         })
         .catch(err => {
-            console.error("Fehler beim Truppenversand:", err);
+            showGameError("Fehler beim Truppenversand: " + err);
 
             if (errorContainer) {
                 errorContainer.innerHTML = `<div class="info-box event-error" style="margin-bottom: 15px;"><img src="images/icons/icon_error.png" alt="Fehler"><span>Netzwerkfehler beim Senden der Truppen.</span></div>`;
@@ -263,53 +263,6 @@ registerAction("submitSendTroopsForm", (form, e) => {
             }
         });
 });
-
-function showMapFlashMessage(message, type = "passed") {
-    const mapContainer = document.getElementById("map-container");
-    const bigBoxContent = document.querySelector(".big-box-content");
-
-    if (!mapContainer && bigBoxContent) {
-        const existing = bigBoxContent.querySelector(".event-error, .event-passed");
-        if (existing) existing.remove();
-
-        const icon = (type === "passed") ? "icon_checked.png" : "icon_error.png";
-        bigBoxContent.insertAdjacentHTML("afterbegin", `
-            <div class="info-box event-${type}" style="margin-bottom: 15px;">
-                <img src="images/icons/${icon}" alt="Status">
-                <span>${message}</span>
-            </div>
-        `);
-        window.scrollTo({top: 0, behavior: "smooth"});
-        return;
-    }
-
-    const targetContainer = mapContainer || document.body;
-    const existing = document.getElementById("map-flash-message");
-    if (existing) existing.remove();
-
-    const isPassed = (type === "passed");
-    const icon = isPassed ? "icon_checked.png" : "icon_error.png";
-    const box = document.createElement("div");
-    box.id = "map-flash-message";
-    box.className = `info-box event-${type}`;
-    box.innerHTML = `<img src="images/icons/${icon}" alt="Status"><span>${message}</span>`;
-
-    const bgColor = isPassed ? "rgba(22, 82, 38, 0.92)" : "rgba(90, 22, 22, 0.92)";
-    const borderColor = isPassed ? "rgba(42, 120, 60, 0.65)" : "rgba(140, 35, 35, 0.65)";
-    box.style.backgroundColor = bgColor;
-    box.style.borderColor = borderColor;
-    box.style.whiteSpace = isPassed ? "nowrap" : "normal";
-
-    targetContainer.appendChild(box);
-
-    const displayTime = isPassed ? 3000 : 4000;
-    setTimeout(() => {
-        box.style.opacity = "0";
-        setTimeout(() => {
-            if (box.parentNode) box.remove();
-        }, 500);
-    }, displayTime);
-}
 
 function updateTroopSummary() {
     const inputs = document.querySelectorAll(".js-unit-input");

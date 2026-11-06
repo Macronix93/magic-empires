@@ -12,7 +12,6 @@ registerAction("checkMarket", (form, event) => {
     event.preventDefault();
 
     const isListing = form.dataset.isListing === "true";
-
     let resType, amountToReceive;
 
     if (isListing) {
@@ -75,6 +74,64 @@ registerAction("checkMarket", (form, event) => {
         }
     }
 });
+registerAction("checkInternalTransport", (form, event) => {
+    const arrivalDataEl = document.getElementById("internal-arrival-data");
+    const targetSelect = document.getElementById("target_k");
+    if (!arrivalDataEl || !targetSelect) return;
+
+    const targetStocks = JSON.parse(arrivalDataEl.dataset.stocks || "{}");
+    const selectedId = targetSelect.value;
+    const tData = targetStocks[selectedId];
+    if (!tData) return;
+
+    const resNames = {
+        food: "Nahrung",
+        wood: "Holz",
+        stone: "Stein",
+        gold: "Gold"
+    };
+
+    const resKeys = [
+        {key: "food", index: 0},
+        {key: "wood", index: 1},
+        {key: "stone", index: 2},
+        {key: "gold", index: 3}
+    ];
+
+    const overflows = [];
+    resKeys.forEach(item => {
+        const input = form.querySelector(`input[name="am[${item.index}]"]`);
+        const entered = parseInt(input?.value, 10) || 0;
+        if (entered <= 0) return;
+
+        const curStock = tData[item.key] || 0;
+        const inFlight = tData["inc_" + item.key] || 0;
+        const maxStock = tData["max" + item.key] || 0;
+        const totalProjected = curStock + inFlight + entered;
+
+        if (totalProjected > maxStock) {
+            const diff = totalProjected - maxStock;
+            overflows.push(`• ${resNames[item.key]}: ca. ${diff.toLocaleString("de-DE")} Einheiten zu viel`);
+        }
+    });
+
+    if (overflows.length > 0) {
+        event.preventDefault();
+        const warningText = `⚠️ LAGER-ÜBERLAUF IN ${tData.name.toUpperCase()}:\n\n` +
+            `Bei Eintreffen der Karawane wird die Lagerkapazität überschritten:\n` +
+            overflows.join("\n") +
+            `\n\nÜberschüssige Ressourcen verfallen bei Ankunft!\nMöchtest du den Transport trotzdem starten?`;
+
+        showConfirmationDialog(
+            warningText,
+            "Trotzdem senden",
+            "Abbrechen",
+            () => {
+                form.submit();
+            }
+        );
+    }
+});
 
 function getOverflowWarning(resType, amount) {
     const storageData = window.curKingdomStorage;
@@ -102,12 +159,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const internalInputs = document.querySelectorAll(".js-internal-res-input");
     const sumDisplay = document.getElementById("internal-sum-display");
     const internalSubmit = document.getElementById("internal-submit");
-
     const inputs = [
         document.getElementById("sv"),
         document.getElementById("dv")
     ];
-
     const resKeys = [
         {key: "food", index: 0, elId: "target-stock-food"},
         {key: "wood", index: 1, elId: "target-stock-wood"},

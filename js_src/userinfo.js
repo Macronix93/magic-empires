@@ -266,8 +266,9 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
             if (isJson) {
                 return response.json().then(data => {
                     closeOverlay(targetModal);
-                    if (data.error && typeof showMapFlashMessage === "function") {
-                        showMapFlashMessage(data.error, "error");
+
+                    if (data.error) {
+                        showGameMessage(data.error, "error");
                     }
                 });
             }
@@ -333,7 +334,8 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
         })
         .catch(err => {
             if (err.name !== 'AbortError') {
-                console.error("Overlay Fehler:", err);
+                showGameError("Overlay Fehler:" + err);
+
                 if (content) {
                     content.innerHTML = '<div class="info-box event-error" style="margin: 10px;"><span>Fehler beim Laden.</span></div>';
                     content.style.opacity = "1";

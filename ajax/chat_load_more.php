@@ -3,7 +3,6 @@ require_once("../includes/core.php");
 
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
     change_location("messages.php");
-    exit;
 }
 
 if (!$user->is_logged_in() || $user->get_user_id() <= 0) {

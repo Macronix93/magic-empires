@@ -26,29 +26,33 @@ $ticks_left = $this_boost["ticks"] ?? 0;
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . convert_sec_to_str($boost_amount, false, false) . ")</span>" : "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
-    if ($level < BOOST_MIN_BUILDING_LEVEL) {
-        $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
-    } else if ($ticks_left == 0) {
-        if ($user->get_user_coins() >= $boost_cost) {
-            $user->give_user_coins(-$boost_cost);
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
+    } else {
+        if ($level < BOOST_MIN_BUILDING_LEVEL) {
+            $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
+        } else if ($ticks_left == 0) {
+            if ($user->get_user_coins() >= $boost_cost) {
+                $user->give_user_coins(-$boost_cost);
 
-            $db_instance->execute_query(
-                "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
+                $db_instance->execute_query(
+                    "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
                  VALUES (?, ?, ?, ?) 
                  ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
-                [$current_kingdom, ResourceTypes::RESOURCE_TYPE_WATCHTOWER, $boost_duration_ticks, $boost_seconds]
-            );
+                    [$current_kingdom, ResourceTypes::RESOURCE_TYPE_WATCHTOWER, $boost_duration_ticks, $boost_seconds]
+                );
 
-            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+                Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
 
-            $_SESSION["game_success"] = "Sichtweitenboost erfolgreich aktiviert!";
-            change_location("watchtower.php");
-            exit;
+                $_SESSION["game_success"] = "Sichtweitenboost erfolgreich aktiviert!";
+
+                change_location("watchtower.php");
+            } else {
+                $error = "Zu wenig Münzen!";
+            }
         } else {
-            $error = "Zu wenig Münzen!";
+            $error = "Der Boost ist bereits aktiv!";
         }
-    } else {
-        $error = "Der Boost ist bereits aktiv!";
     }
 }
 
@@ -85,10 +89,11 @@ if ($level >= BOOST_MIN_BUILDING_LEVEL) {
 
         $view .= "<p class='res-building-boost-text'>Ein Boost erhöht die Sichtweite für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>+$boost_perc_display%</b> (+" . convert_sec_to_str($boost_seconds, false, false) . ").</p>";
         $view .= "<form method='POST'>
-            <button type='submit' name='activate_boost' class='boost-button' $disabled>
-                Boost aktivieren für $cost_display_html
-            </button>
-        </form>";
+                    " . csrf_input() . "
+                    <button type='submit' name='activate_boost' class='boost-button' $disabled>
+                        Boost aktivieren für $cost_display_html
+                    </button>
+                </form>";
     }
 } else {
     $view .= "<p class='res-building-boost-text'><i>Sichtweitenboost ab $building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " verfügbar.</i></p>";

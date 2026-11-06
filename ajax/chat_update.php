@@ -3,7 +3,6 @@ require_once("../includes/core.php");
 
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
     change_location("messages.php");
-    exit;
 }
 
 if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
@@ -11,7 +10,7 @@ if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
     exit;
 }
 
-$type = $_GET["type"] ?? "private";
+$type = $_POST["type"] ?? $_GET["type"] ?? "private";
 $allowed_types = ["private", "world", "guild"];
 if (!in_array($type, $allowed_types, true)) {
     echo json_encode(["error" => "Ungültiger Chat-Typ"]);
@@ -22,7 +21,7 @@ $u_id = $user->get_user_id();
 $last_id = (int)($_GET["last_id"] ?? 0);
 $oldest_id = (int)($_GET["oldest_id"] ?? 0);
 
-if ($type === "guild" && isset($_GET["mark_all_read"])) {
+if ($type === "guild" && (isset($_POST["mark_all_read"]) || isset($_GET["mark_all_read"]))) {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id > 0) {
         $max_msg = (int)($db_instance->execute_query(

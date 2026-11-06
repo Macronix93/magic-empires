@@ -80,7 +80,7 @@ registerAction("togglePushNotifications", async (el) => {
             }
         }
     } catch (err) {
-        console.error('Push Toggle Fehler:', err);
+        showGameError('Push Toggle Fehler:' + err);
         alert('Vorgang fehlgeschlagen: ' + err.message);
         el.disabled = false;
     }
@@ -178,7 +178,7 @@ async function initPushStatus() {
             localStorage.setItem('me_push_endpoint', sub.endpoint);
         }
     } catch (e) {
-        console.error("Fehler bei Status-Prüfung:", e);
+        showGameError("Fehler bei Status-Prüfung:" + e);
     }
 }
 

@@ -27,10 +27,22 @@ registerAction("confirmDeleteAllServer", (el) => {
 
     showConfirmationDialog(
         `Möchtest du wirklich ${catText} unwiderruflich löschen?`,
-        "Ja", "Abbrechen",
+        "Ja",
+        "Abbrechen",
         () => {
-            fetch(`ajax/chat_delete.php?type=server&delete_all=1&category=${encodeURIComponent(category)}&max_id=${maxId}`, {
-                headers: {"X-Requested-With": "XMLHttpRequest"}
+            const formData = new URLSearchParams();
+            formData.append("type", "server");
+            formData.append("delete_all", "1");
+            formData.append("category", category);
+            formData.append("max_id", maxId);
+
+            fetch("ajax/chat_delete.php", {
+                method: "POST",
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: formData.toString()
             })
                 .then(r => r.json())
                 .then(data => {
@@ -103,7 +115,7 @@ function sendChatMessage(chatType, extraParams = {}) {
                 scrollDown(true);
             }
         })
-        .catch(err => console.error("Chat Send Fehler:", err))
+        .catch(err => showGameError("Chat Send Fehler:" + err))
         .finally(() => {
             isSendingChat = false;
 
@@ -163,7 +175,7 @@ function loadOlderChatMessages(type, partnerId = null) {
             finishLoading(btn);
         })
         .catch(err => {
-            console.error("Fehler beim Laden älterer Nachrichten:", err);
+            showGameError("Fehler beim Laden älterer Nachrichten:" + err);
 
             isFetchingOlder = false;
 
@@ -457,7 +469,7 @@ function updateChat(chatPartner) {
         })
         .catch(error => {
             isUpdatingChat = false;
-            console.error("Chat Update Error:", error);
+            showGameError("Chat Update Error:" + error);
         });
 }
 
@@ -484,9 +496,17 @@ function removeChatBubble(bubbleID) {
 }
 
 function deleteChatMessage(messageID, type = "private") {
-    fetch(`ajax/chat_delete.php?m_id=${messageID}&type=${type}`, {
-        method: "GET",
-        headers: {"X-Requested-With": "XMLHttpRequest"}
+    const formData = new URLSearchParams();
+    formData.append("m_id", messageID);
+    formData.append("type", type);
+
+    fetch("ajax/chat_delete.php", {
+        method: "POST",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: formData.toString()
     })
         .then(r => r.json())
         .then(response => {
@@ -496,13 +516,21 @@ function deleteChatMessage(messageID, type = "private") {
                 removeChatBubble(messageID);
             }
         })
-        .catch(err => console.error("Error:", err));
+        .catch(err => showGameError("Error:" + err));
 }
 
 function deleteServerMessage(messageID) {
-    fetch(`ajax/chat_delete.php?type=server&m_id=${messageID}`, {
-        method: "GET",
-        headers: {"X-Requested-With": "XMLHttpRequest"}
+    const formData = new URLSearchParams();
+    formData.append("type", "server");
+    formData.append("m_id", messageID);
+
+    fetch("ajax/chat_delete.php", {
+        method: "POST",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: formData.toString()
     })
         .then(r => r.json())
         .then(response => {
@@ -519,20 +547,18 @@ function deleteServerMessage(messageID) {
                 const messageSection = document.getElementById("messages-section");
                 const remainingBubbles = messageSection ? messageSection.querySelectorAll(".server-bubble").length : 0;
                 const btn = document.getElementById("load-more-server-btn");
+
                 if (remainingBubbles === 0 && btn) {
                     btn.remove();
-
                     canLoadMore = false;
                 }
-
                 checkServerMessagesEmpty();
-
                 if (remainingBubbles > 0) {
                     checkScrollPosition();
                 }
             }
         })
-        .catch(err => console.error("Error:", err));
+        .catch(err => showGameError("Error:" + err));
 }
 
 function removeEmptyPlaceholder() {
@@ -565,7 +591,16 @@ function conversationDeletionDialog(chatPartnerID, chatPartner) {
         "Willst du die Konversation mit " + chatPartner + " wirklich löschen?",
         "Ja", "Nein",
         () => {
-            window.location.href = "messages.php?action=delete&s=" + chatPartnerID;
+            const form = document.getElementById("form-delete-conversation");
+            const idInput = document.getElementById("delete-partner-id");
+
+            if (form && idInput) {
+                idInput.value = chatPartnerID;
+
+                form.submit();
+            } else {
+                window.location.href = "messages.php?privmsgs";
+            }
         }
     );
 }
@@ -661,7 +696,7 @@ function initializeChat() {
                         if (isMobile) {
                             return;
                         }
-                        
+
                         e.preventDefault();
                         if (chatType === "world" || chatType === "guild") {
                             sendChatMessage(chatType);
@@ -692,7 +727,7 @@ function initializeChat() {
 
             applyChatPrefill();
         })
-        .catch(err => console.error("Chat Init Fehler:", err));
+        .catch(err => showGameError("Chat Init Fehler:" + err));
 }
 
 function filterServerMessages(element) {

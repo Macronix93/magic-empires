@@ -21,29 +21,33 @@ $boost_duration_ticks = $level + BASE_BOOST_DURATION;
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . fnum($boost_amount) . ")</span>" : "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
-    if ($level < BOOST_MIN_BUILDING_LEVEL) {
-        $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
-    } else if ($ticks_left == 0) {
-        if ($user->get_user_coins() >= $boost_cost) {
-            $user->give_user_coins(-$boost_cost);
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
+    } else {
+        if ($level < BOOST_MIN_BUILDING_LEVEL) {
+            $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
+        } else if ($ticks_left == 0) {
+            if ($user->get_user_coins() >= $boost_cost) {
+                $user->give_user_coins(-$boost_cost);
 
-            $db_instance->execute_query(
-                "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
+                $db_instance->execute_query(
+                    "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
                  VALUES (?, ?, ?, ?) 
                  ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
-                [$current_kingdom, ResourceTypes::RESOURCE_TYPE_VILLAGER, $boost_duration_ticks, $boost_villager_amount]
-            );
+                    [$current_kingdom, ResourceTypes::RESOURCE_TYPE_VILLAGER, $boost_duration_ticks, $boost_villager_amount]
+                );
 
-            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+                Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
 
-            $_SESSION["game_success"] = "Dorfbewohner-Boost erfolgreich aktiviert!";
-            change_location("manor.php");
-            exit;
+                $_SESSION["game_success"] = "Dorfbewohner-Boost erfolgreich aktiviert!";
+
+                change_location("manor.php");
+            } else {
+                $error = "Zu wenig Münzen!";
+            }
         } else {
-            $error = "Zu wenig Münzen!";
+            $error = "Der Boost ist bereits aktiv!";
         }
-    } else {
-        $error = "Der Boost ist bereits aktiv!";
     }
 }
 
@@ -83,10 +87,11 @@ if ($level >= BOOST_MIN_BUILDING_LEVEL) {
 
         $view .= "<p class='res-building-boost-text'>Ein Boost erhöht den Zuwachs für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>+" . $boost_villager_amount . " Dorfbewohner</b>.</p>";
         $view .= "<form method='POST'>
-            <button type='submit' name='activate_boost' class='boost-button' $disabled>
-                Boost aktivieren für $cost_display_html
-            </button>
-        </form>";
+                    " . csrf_input() . "
+                    <button type='submit' name='activate_boost' class='boost-button' $disabled>
+                        Boost aktivieren für $cost_display_html
+                    </button>
+                </form>";
     }
 } else {
     $view .= "<p class='res-building-boost-text'><i>Dorfbewohner-Boost ab $building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " verfügbar.</i></p>";

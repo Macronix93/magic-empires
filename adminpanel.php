@@ -31,94 +31,98 @@ if (!$user->is_admin()) {
         $active_tab = 'system';
     }
 
-    if (isset($_POST["reset_arena_season"])) {
-        $rewarded_count = Arena::check_and_process_season_reset(true, false);
-
-        $logger->admin("Arena Saison manuell beendet & neugestartet von " . $user->get_user_name() . " ($rewarded_count Spieler belohnt)");
-        $_SESSION["admin_flash_msg"] = "Arena-Saison erfolgreich beendet & direkt neu gestartet! <b>{$rewarded_count}</b> Spieler wurden belohnt.";
-
-        change_location("adminpanel.php?tab=system");
-        exit;
-    }
-
-    if (isset($_POST["sync_forum_accounts"])) {
-        $result = PhpBBBridge::sync_all_missing_forum_users();
-        $msg = "Foren-Sync abgeschlossen: <b>{$result['created']}</b> neu angelegt, <b>{$result['skipped']}</b> existierten bereits.";
-
-        if (!empty($result['errors'])) {
-            $msg .= "<br><span class='error'>" . implode("<br>", $result['errors']) . "</span>";
+    if ($_SERVER["REQUEST_METHOD"] === "POST") {
+        if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+            $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
+            
+            change_location("adminpanel.php");
         }
 
-        $logger->admin("Forum User Sync durchgeführt: {$result['created']} neu erstellt.");
-        $_SESSION["admin_flash_msg"] = $msg;
+        if (isset($_POST["reset_arena_season"])) {
+            $rewarded_count = Arena::check_and_process_season_reset(true, false);
 
-        change_location("adminpanel.php?tab=system");
-        exit;
-    }
+            $logger->admin("Arena Saison manuell beendet & neugestartet von " . $user->get_user_name() . " ($rewarded_count Spieler belohnt)");
+            $_SESSION["game_success"] = "Arena-Saison erfolgreich beendet & direkt neu gestartet! <b>{$rewarded_count}</b> Spieler wurden belohnt.";
 
-    if (isset($_POST["reset_fixed_march"])) {
-        $_POST["fixed_seconds"] = "0";
-        $_POST["update_fixed_march"] = "1";
-    }
-
-    if (isset($_POST["update_fixed_march"])) {
-        $seconds = max(0, min(86400, (int)$_POST["fixed_seconds"]));
-
-        $db_instance->execute_query(
-            "UPDATE system_settings SET value = ? WHERE name = 'debug_fixed_march_seconds'",
-            [(string)$seconds]
-        );
-
-        $logger->admin("Marschzeit gesetzt auf: " . ($seconds > 0 ? "{$seconds}s (Fest)" : "Deaktiviert (Normal)"));
-        $_SESSION["admin_flash_msg"] = ($seconds > 0) ? "Feste Marschzeit auf <b>{$seconds} Sekunden</b> gesetzt!" : "Marschzeit deaktiviert. Es gelten wieder normale Entfernungszeiten.";
-
-        change_location("adminpanel.php?tab=system");
-        exit;
-    }
-
-    if (isset($_POST["reset_round"])) {
-        $logger->admin("ROUND RESET STARTED by Admin " . $user->get_user_name() . " (ID " . $user->get_user_id() . ")");
-
-        // Set maintenance mode
-        $db_instance->execute_query("UPDATE system_settings SET value = '1' WHERE name = 'maintenance_mode'");
-
-        // Clear tables (Order is important dude to foreign keys)
-        $tables_to_clear = [
-            "marketplace",
-            "events",
-            "mine_stationed_troops",
-            "mines",
-            "monster_camps",
-            "abandoned_kingdoms",
-            "resource_tiles_data",
-            "kingdoms",
-            "guilds",
-            "world_events",
-            "server_messages",
-            "player_stats",
-            "reactions",
-            "kingdom_alchemy",
-            "arena_battles",
-            "arena_hero_skills",
-            "arena_players",
-            "arena_season_history",
-            "shared_battle_reports"
-        ];
-
-        foreach ($tables_to_clear as $t) {
-            $db_instance->query("DELETE FROM $t");
-            $db_instance->query("ALTER TABLE $t AUTO_INCREMENT = 1");
+            change_location("adminpanel.php?tab=system");
         }
 
-        // Reset global counters
-        $db_instance->execute_query("
+        if (isset($_POST["sync_forum_accounts"])) {
+            $result = PhpBBBridge::sync_all_missing_forum_users();
+
+            if (!empty($result['errors'])) {
+                $_SESSION["game_error"] = "Fehler beim Foren-Sync:<br>" . implode("<br>", $result['errors']);
+            } else {
+                $_SESSION["game_success"] = "Foren-Sync abgeschlossen: <b>{$result['created']}</b> neu angelegt, <b>{$result['skipped']}</b> existierten bereits.";
+            }
+
+            $logger->admin("Forum User Sync durchgeführt: {$result['created']} neu erstellt.");
+
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["reset_fixed_march"])) {
+            $_POST["fixed_seconds"] = "0";
+            $_POST["update_fixed_march"] = "1";
+        }
+
+        if (isset($_POST["update_fixed_march"])) {
+            $seconds = max(0, min(86400, (int)$_POST["fixed_seconds"]));
+
+            $db_instance->execute_query(
+                "UPDATE system_settings SET value = ? WHERE name = 'debug_fixed_march_seconds'",
+                [(string)$seconds]
+            );
+
+            $logger->admin("Marschzeit gesetzt auf: " . ($seconds > 0 ? "{$seconds}s (Fest)" : "Deaktiviert (Normal)"));
+            $_SESSION["game_success"] = ($seconds > 0) ? "Feste Marschzeit auf <b>{$seconds} Sekunden</b> gesetzt!" : "Marschzeit deaktiviert. Es gelten wieder normale Entfernungszeiten.";
+
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["reset_round"])) {
+            $logger->admin("ROUND RESET STARTED by Admin " . $user->get_user_name() . " (ID " . $user->get_user_id() . ")");
+
+            // Set maintenance mode
+            $db_instance->execute_query("UPDATE system_settings SET value = '1' WHERE name = 'maintenance_mode'");
+
+            // Clear tables (Order is important dude to foreign keys)
+            $tables_to_clear = [
+                "marketplace",
+                "events",
+                "mine_stationed_troops",
+                "mines",
+                "monster_camps",
+                "abandoned_kingdoms",
+                "resource_tiles_data",
+                "kingdoms",
+                "guilds",
+                "world_events",
+                "server_messages",
+                "player_stats",
+                "reactions",
+                "kingdom_alchemy",
+                "arena_battles",
+                "arena_hero_skills",
+                "arena_players",
+                "arena_season_history",
+                "shared_battle_reports"
+            ];
+
+            foreach ($tables_to_clear as $t) {
+                $db_instance->query("DELETE FROM $t");
+                $db_instance->query("ALTER TABLE $t AUTO_INCREMENT = 1");
+            }
+
+            // Reset global counters
+            $db_instance->execute_query("
             UPDATE system_settings 
             SET value = '0' 
             WHERE name IN ('total_fallen_soldiers', 'total_slain_monsters', 'total_battles', 'total_trades')
         ");
 
-        // Reset Users
-        $db_instance->execute_query("
+            // Reset Users
+            $db_instance->execute_query("
             UPDATE users SET 
                 score = ?, 
                 ranking_points = ?, 
@@ -134,277 +138,307 @@ if (!$user->is_admin()) {
                 last_guild_chat_id = 0
         ", [STARTING_SCORE, STARTING_SCORE]);
 
-        // Generate a new random map
-        $spawner = new MapSpawner($db_instance);
-        $spawner->generate_base_map();
+            // Generate a new random map
+            $spawner = new MapSpawner($db_instance);
+            $spawner->generate_base_map();
 
-        // Create new kingdom for every registered and activated user
-        $res_users = $db_instance->query("SELECT id, username FROM users WHERE status = 1");
-        $kingdom_manager = new Kingdom();
+            // Create new kingdom for every registered and activated user
+            $res_users = $db_instance->query("SELECT id, username FROM users WHERE status = 1");
+            $kingdom_manager = new Kingdom();
 
-        while ($u = $res_users->fetch_assoc()) {
-            $new_k_id = $kingdom_manager->create_kingdom($u["id"], $u["username"]);
+            while ($u = $res_users->fetch_assoc()) {
+                $new_k_id = $kingdom_manager->create_kingdom($u["id"], $u["username"]);
 
-            if ($new_k_id) {
-                $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $u["id"]]);
+                if ($new_k_id) {
+                    $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $u["id"]]);
 
-                // Send server message to every user
-                $reset_json = [
-                    "template" => "round_reset"
-                ];
-                Messages::send_server_message((int)$u["id"], $u["username"], MessageCategories::CATEGORY_DEFAULT, $reset_json);
-            }
-        }
-
-        // Create initial resource tiles for map
-        $fields = $db_instance->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [MAX_RESOURCE_TILES]);
-
-        if ($fields->num_rows > 0) {
-            $insert_values = [];
-            $update_coords = [];
-
-            foreach ($fields as $f) {
-                $x = (int)$f["mapx"];
-                $y = (int)$f["mapy"];
-
-                $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
-                $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
-                $active_keys = [];
-
-                foreach ($res_values as $key => $val) {
-                    if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
+                    // Send server message to every user
+                    $reset_json = [
+                        "template" => "round_reset"
+                    ];
+                    Messages::send_server_message((int)$u["id"], $u["username"], MessageCategories::CATEGORY_DEFAULT, $reset_json);
                 }
+            }
 
-                if (empty($active_keys)) $active_keys[] = array_rand($res_values);
+            // Create initial resource tiles for map
+            $fields = $db_instance->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [MAX_RESOURCE_TILES]);
 
-                $temp_total = $total;
-                $count_keys = count($active_keys);
+            if ($fields->num_rows > 0) {
+                $insert_values = [];
+                $update_coords = [];
 
-                for ($i = 0; $i < $count_keys; $i++) {
-                    $key = $active_keys[$i];
-                    if ($i == $count_keys - 1) {
-                        $res_values[$key] = $temp_total;
-                    } else {
-                        $share = mt_rand(10, 80) / 100;
-                        $val = (int)($temp_total * $share);
-                        $res_values[$key] = $val;
-                        $temp_total -= $val;
+                foreach ($fields as $f) {
+                    $x = (int)$f["mapx"];
+                    $y = (int)$f["mapy"];
+
+                    $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
+                    $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
+                    $active_keys = [];
+
+                    foreach ($res_values as $key => $val) {
+                        if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
                     }
+
+                    if (empty($active_keys)) $active_keys[] = array_rand($res_values);
+
+                    $temp_total = $total;
+                    $count_keys = count($active_keys);
+
+                    for ($i = 0; $i < $count_keys; $i++) {
+                        $key = $active_keys[$i];
+                        if ($i == $count_keys - 1) {
+                            $res_values[$key] = $temp_total;
+                        } else {
+                            $share = mt_rand(10, 80) / 100;
+                            $val = (int)($temp_total * $share);
+                            $res_values[$key] = $val;
+                            $temp_total -= $val;
+                        }
+                    }
+
+                    $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]})";
+                    $update_coords[] = "(mapx = $x AND mapy = $y)";
                 }
 
-                $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]})";
-                $update_coords[] = "(mapx = $x AND mapy = $y)";
+                if (!empty($insert_values)) {
+                    $sql_insert = "INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold) VALUES " . implode(', ', $insert_values);
+                    $db_instance->query($sql_insert);
+                }
+
+                if (!empty($update_coords)) {
+                    $sql_update = "UPDATE map SET kingdomid = -2 WHERE " . implode(' OR ', $update_coords);
+                    $db_instance->query($sql_update);
+                }
             }
 
-            if (!empty($insert_values)) {
-                $sql_insert = "INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold) VALUES " . implode(', ', $insert_values);
-                $db_instance->query($sql_insert);
+            // Remove maintenance mode
+            $db_instance->execute_query("UPDATE system_settings SET value = '0' WHERE name = 'maintenance_mode'");
+
+            $_SESSION["game_success"] = "Runden-Reset erfolgreich durchgeführt! Alle Spieler haben ein neues Königreich erhalten.";
+
+            change_location("adminpanel.php");
+        }
+
+        if (isset($_POST["spawn_map_entities"])) {
+            $spawn_type = $_POST["spawn_type"];
+            $spawner = new MapSpawner($db_instance);
+            $report = [];
+
+            if ($spawn_type === "all" || $spawn_type === "resources") {
+                $count = $spawner->spawn_resources(true);
+                $report[] = $count > 0 ? "$count Ressourcenfelder generiert." : "Ressourcenlimit bereits erreicht.";
+            }
+            if ($spawn_type === "all" || $spawn_type === "monsters") {
+                $count = $spawner->spawn_monster_camps(true);
+                $report[] = $count > 0 ? "$count Monstercamps balance-optimiert generiert." : "Monsterlimit bereits erreicht.";
+            }
+            if ($spawn_type === "all" || $spawn_type === "mines") {
+                $count = $spawner->spawn_mines(true);
+                $report[] = $count > 0 ? "$count Erzminen generiert (Voll: " . MAX_MINES . ")." : "Minenlimit bereits erreicht.";
             }
 
-            if (!empty($update_coords)) {
-                $sql_update = "UPDATE map SET kingdomid = -2 WHERE " . implode(' OR ', $update_coords);
-                $db_instance->query($sql_update);
+            $logger->admin("MANUAL MAP SPAWN: $spawn_type");
+
+            $_SESSION["game_success"] = implode("<br>", $report);
+
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["toggle_maintenance"])) {
+            $new_val = (MAINTENANCE_MODE ? "0" : "1");
+            $reason = $_POST["maintenance_reason"] ?? "Geplante Wartungsarbeiten";
+
+            $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$new_val]);
+            $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_reason'", [$reason]);
+            $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON ($reason)" : "OFF"));
+
+            change_location("adminpanel.php");
+        }
+
+        if (isset($_POST["toggle_winter_theme"])) {
+            $new_val = (WINTER_THEME_ACTIVE ? "0" : "1");
+            $db_instance->execute_query(
+                "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'",
+                [$new_val]
+            );
+
+            $logger->admin("WINTER THEME geändert auf: " . ($new_val == "1" ? "ON" : "OFF"));
+
+            $_SESSION["game_success"] = "Winter-Theme wurde <b>" . ($new_val == "1" ? "aktiviert" : "deaktiviert") . "</b>!";
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["toggle_ban"])) {
+            $uid = (int)($_POST["user_id"] ?? 0);
+            $ban_status = (int)($_POST["ban_status"] ?? 0);
+
+            if ($ban_status === 1) {
+                $reason = trim($_POST["reason"] ?? "Verstoß gegen die Regeln");
+
+                $db_instance->execute_query("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", [$reason, $uid]);
+                $logger->admin("BANNED USER ID $uid. Reason: $reason");
+
+                $_SESSION["game_success"] = "Benutzer ID $uid wurde gebannt!";
+            } else {
+                $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", [$uid]);
+                $logger->admin("UNBANNED USER ID $uid");
+
+                $_SESSION["game_success"] = "Benutzer ID $uid wurde entsperrt!";
+            }
+
+            change_location("adminpanel.php?userid=" . $uid . "&tab=users");
+        }
+
+        if (isset($_POST["delete_log"])) {
+            $log_id = (int)($_POST["log_id"] ?? 0);
+            $page = (int)($_POST["logpage"] ?? 1);
+
+            $db_instance->execute_query("DELETE FROM game_logs WHERE id = ?", [$log_id]);
+            $logger->admin("Deleted log entry ID $log_id");
+
+            $_SESSION["game_success"] = "Log-Eintrag wurde gelöscht!";
+
+            change_location("adminpanel.php?tab=gamelogs&logpage=" . $page);
+        }
+
+        if (isset($_POST["delete_event"])) {
+            $event_id = (int)($_POST["event_id"] ?? 0);
+            $target_uid = (int)($_POST["user_id"] ?? 0);
+
+            $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $logger->admin("Deleted event ID $event_id");
+
+            $_SESSION["game_success"] = "Event wurde manuell abgebrochen/gelöscht!";
+
+            $redir = ($target_uid > 0) ? "?userid=" . $target_uid . "&tab=users" : "?tab=users";
+            change_location("adminpanel.php" . $redir);
+        }
+
+        if (isset($_POST["clear_log"]) && isset($_POST["log_to_clear"])) {
+            $f = $_POST["log_to_clear"];
+            $allowed_files = ["admin.log", "error.log", "security.log"];
+
+            if (in_array($f, $allowed_files) && $user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN) {
+                file_put_contents(__DIR__ . "/logs/" . $f, "");
+
+                $logger->admin("Log-Datei $f wurde über das Adminpanel geleert.");
+
+                $_SESSION["game_success"] = "Datei $f wurde erfolgreich geleert.";
+            }
+
+            change_location("adminpanel.php?tab=logs");
+        }
+
+        if (isset($_POST["delete_user"])) {
+            $user_id = (int)($_POST["user_id"] ?? 0);
+
+            // Check if user id was found and get all kingdoms for updating the map
+            $query = "
+                SELECT users.username, kingdoms.id AS kingdomid
+                FROM users
+                LEFT JOIN kingdoms ON users.id = kingdoms.userid
+                WHERE users.id = ?
+            ";
+            $result = $db_instance->execute_query($query, [$user_id]);
+
+            if ($result && $result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                $username = $row["username"];
+
+                // Check if user was in a guild and leader
+                $guild_manager = new Guild($user);
+                $guild_manager->handle_leader_deletion($user_id);
+
+                Kingdom::convert_user_kingdoms_to_ruins($user_id);
+                User::delete_user_avatar_files($user_id);
+                PhpBBBridge::delete_forum_user($username);
+
+                // Delete the user
+                $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
+
+                $em = new EventManager($user);
+                $em->process_orphaned_support();
+
+                $logger->admin("DELETED USER: $username (ID: $user_id)");
+
+                $flash_box = show_passed_box("Benutzer erfolgreich gelöscht!");
+            } else {
+                $error .= "Der Benutzer existiert nicht!";
             }
         }
 
-        // Remove maintenance mode
-        $db_instance->execute_query("UPDATE system_settings SET value = '0' WHERE name = 'maintenance_mode'");
+        if (isset($_POST["field"])) {
+            $field = $_POST["field"];
+            $old_value = $_POST["old_value"];
+            $new_value = $_POST["new_value"];
+            $user_id = $_POST["user_id"];
 
-        $_SESSION["admin_flash_msg"] = "Runden-Reset erfolgreich durchgeführt! Alle Spieler haben ein neues Königreich erhalten.";
+            $result = false;
 
-        change_location("adminpanel.php");
-        exit;
-    }
+            if ($field == "avatar") {
+                $old_filename = basename($old_value);
+                $new_filename = basename($new_value);
 
-    if (isset($_POST["spawn_map_entities"])) {
-        $spawn_type = $_POST["spawn_type"];
-        $spawner = new MapSpawner($db_instance);
-        $report = [];
+                $file_path = UPLOADS_FILE_PATH . $old_filename;
+                $new_file_path = UPLOADS_FILE_PATH . $new_filename;
 
-        if ($spawn_type === "all" || $spawn_type === "resources") {
-            $count = $spawner->spawn_resources(true);
-            $report[] = $count > 0 ? "$count Ressourcenfelder generiert." : "Ressourcenlimit bereits erreicht.";
-        }
-        if ($spawn_type === "all" || $spawn_type === "monsters") {
-            $count = $spawner->spawn_monster_camps(true);
-            $report[] = $count > 0 ? "$count Monstercamps balance-optimiert generiert." : "Monsterlimit bereits erreicht.";
-        }
-        if ($spawn_type === "all" || $spawn_type === "mines") {
-            $count = $spawner->spawn_mines(true);
-            $report[] = $count > 0 ? "$count Erzminen generiert (Voll: " . MAX_MINES . ")." : "Minenlimit bereits erreicht.";
-        }
-
-        $logger->admin("MANUAL MAP SPAWN: $spawn_type");
-
-        $_SESSION["admin_flash_msg"] = implode("<br>", $report);
-
-        change_location("adminpanel.php?tab=system");
-        exit;
-    }
-
-    if (isset($_POST["toggle_maintenance"])) {
-        $new_val = (MAINTENANCE_MODE ? "0" : "1");
-        $reason = $_POST["maintenance_reason"] ?? "Geplante Wartungsarbeiten";
-
-        $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$new_val]);
-        $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_reason'", [$reason]);
-        $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON ($reason)" : "OFF"));
-
-        change_location("adminpanel.php");
-        exit;
-    }
-
-    if (isset($_POST["toggle_winter_theme"])) {
-        $new_val = (WINTER_THEME_ACTIVE ? "0" : "1");
-        $db_instance->execute_query(
-            "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'",
-            [$new_val]
-        );
-
-        $logger->admin("WINTER THEME geändert auf: " . ($new_val == "1" ? "ON" : "OFF"));
-
-        $_SESSION["admin_flash_msg"] = "Winter-Theme wurde <b>" . ($new_val == "1" ? "aktiviert" : "deaktiviert") . "</b>!";
-        change_location("adminpanel.php?tab=system");
-        exit;
-    }
-
-    if (isset($_GET["banuser"]) || isset($_GET["unbanuser"])) {
-        $uid = (int)($_GET["banuser"] ?? $_GET["unbanuser"]);
-
-        if (isset($_GET["banuser"])) {
-            $uid = (int)$_GET["banuser"];
-            $reason = $_GET["reason"] ?? "Verstoß gegen die Regeln";
-
-            $db_instance->execute_query("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", [$reason, $uid]);
-            $logger->admin("BANNED USER ID $uid. Reason: $reason");
-
-            $_SESSION["admin_flash_msg"] = "Benutzer ID $uid wurde gebannt!";
-        } else if (isset($_GET["unbanuser"])) {
-            $uid = (int)$_GET["unbanuser"];
-
-            $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", [$uid]);
-            $logger->admin("UNBANNED USER ID $uid");
-
-            $_SESSION["admin_flash_msg"] = "Benutzer ID $uid wurde entsperrt!";
-        }
-
-        change_location("adminpanel.php?userid=" . $uid);
-        exit;
-    }
-
-    if (isset($_GET["deletelog"])) {
-        $log_id = (int)$_GET["deletelog"];
-        $page = (int)($_GET["logpage"] ?? 1);
-
-        $db_instance->execute_query("DELETE FROM game_logs WHERE id = ?", [$log_id]);
-        $logger->admin("Deleted log entry ID $log_id");
-
-        $_SESSION["admin_flash_msg"] = "Log-Eintrag wurde gelöscht!";
-
-        change_location("adminpanel.php?tab=gamelogs&logpage=" . $page);
-        exit;
-    }
-
-    if (isset($_GET["deleteevent"])) {
-        $event_id = (int)$_GET["deleteevent"];
-        $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
-        $logger->admin("Deleted event ID $event_id");
-
-        $_SESSION["admin_flash_msg"] = "Event wurde manuell abgebrochen/gelöscht!";
-
-        $redir = isset($_GET["userid"]) ? "?userid=" . (int)$_GET["userid"] : "";
-
-        change_location("adminpanel.php" . $redir);
-        exit;
-    }
-
-    if (isset($_POST["clear_log"]) && isset($_POST["log_to_clear"])) {
-        $f = $_POST["log_to_clear"];
-        $allowed_files = ["admin.log", "error.log", "security.log"];
-
-        if (in_array($f, $allowed_files) && $user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN) {
-            file_put_contents(__DIR__ . "/logs/" . $f, "");
-
-            $logger->admin("Log-Datei $f wurde über das Adminpanel geleert.");
-
-            $_SESSION["admin_flash_msg"] = "Datei $f wurde erfolgreich geleert.";
-        }
-        change_location("adminpanel.php?tab=logs");
-        exit;
-    }
-
-    if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["field"])) {
-        $field = $_POST["field"];
-        $old_value = $_POST["old_value"];
-        $new_value = $_POST["new_value"];
-        $user_id = $_POST["user_id"];
-
-        $result = false;
-
-        if ($field == "avatar") {
-            $old_filename = basename($old_value);
-            $new_filename = basename($new_value);
-
-            $file_path = UPLOADS_FILE_PATH . $old_filename;
-            $new_file_path = UPLOADS_FILE_PATH . $new_filename;
-
-            if (!empty($old_filename) && file_exists($file_path)) {
-                if (rename($file_path, $new_file_path)) {
+                if (!empty($old_filename) && file_exists($file_path)) {
+                    if (rename($file_path, $new_file_path)) {
+                        $result = true;
+                    } else {
+                        $error = "Fehler beim Umbenennen der Datei!";
+                    }
+                } else if (file_exists($new_file_path)) {
                     $result = true;
                 } else {
-                    $error = "Fehler beim Umbenennen der Datei!";
+                    $error = "Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!";
                 }
-            } else if (file_exists($new_file_path)) {
-                $result = true;
             } else {
-                $error = "Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!";
-            }
-        } else {
-            $allowed_editable_fields = [
-                "username", "email", "status", "adminlevel", "score",
-                "coins", "mainkingdom", "guildid", "password", "avatar",
-                "is_banned", "ban_reason", "gender", "active_title_id",
-                "is_vacation", "vacation_until", "linked_user_id",
-                "msgcount", "lastsentmsgend", "daily_trades_count"
-            ];
+                $allowed_editable_fields = [
+                    "username", "email", "status", "adminlevel", "score",
+                    "coins", "mainkingdom", "guildid", "password", "avatar",
+                    "is_banned", "ban_reason", "gender", "active_title_id",
+                    "is_vacation", "vacation_until", "linked_user_id",
+                    "msgcount", "lastsentmsgend", "daily_trades_count"
+                ];
 
-            if (!in_array($field, $allowed_editable_fields, true)) {
-                $error = "Ungültiges oder geschütztes Feld!";
-            } else {
-                if ($field === "password") {
-                    $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
-
-                    $result = $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_value_db, $user_id]);
-                    $target_uname = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
-
-                    if ($target_uname) {
-                        PhpBBBridge::update_password($target_uname, $new_value_db);
-                    }
-                } else if ($field === "score") {
-                    $score_val = (int)$new_value;
-
-                    $result = $db_instance->execute_query("UPDATE users SET score = ?, ranking_points = ? WHERE id = ?", [$score_val, $score_val, $user_id]);
-                } else if ($field === "is_vacation" && (int)$new_value === 0) {
-                    $result = $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$user_id]);
-                } else if ($field === "linked_user_id" && (empty($new_value) || (int)$new_value <= 0)) {
-                    $result = $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$user_id]);
+                if (!in_array($field, $allowed_editable_fields, true)) {
+                    $error = "Ungültiges oder geschütztes Feld!";
                 } else {
-                    $result = $db_instance->execute_query("UPDATE users SET `$field` = ? WHERE id = ?", [$new_value, $user_id]);
+                    if ($field === "password") {
+                        $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
+
+                        $result = $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_value_db, $user_id]);
+                        $target_uname = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
+
+                        if ($target_uname) {
+                            PhpBBBridge::update_password($target_uname, $new_value_db);
+                        }
+                    } else if ($field === "score") {
+                        $score_val = (int)$new_value;
+
+                        $result = $db_instance->execute_query("UPDATE users SET score = ?, ranking_points = ? WHERE id = ?", [$score_val, $score_val, $user_id]);
+                    } else if ($field === "is_vacation" && (int)$new_value === 0) {
+                        $result = $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$user_id]);
+                    } else if ($field === "linked_user_id" && (empty($new_value) || (int)$new_value <= 0)) {
+                        $result = $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$user_id]);
+                    } else {
+                        $result = $db_instance->execute_query("UPDATE users SET `$field` = ? WHERE id = ?", [$new_value, $user_id]);
+                    }
                 }
             }
-        }
 
-        if ($result) {
-            $log_display = ($field === "password") ? "***" : $new_value;
-            $logger->admin("Edited field '$field' from '$old_value' to '$log_display' for user ID $user_id.");
+            if ($result) {
+                $log_display = ($field === "password") ? "***" : $new_value;
+                $logger->admin("Edited field '$field' from '$old_value' to '$log_display' for user ID $user_id.");
 
-            $_SESSION["admin_flash_msg"] = "Daten erfolgreich aktualisiert! Feld: $field";
+                $_SESSION["game_success"] = "Daten erfolgreich aktualisiert! Feld: $field";
 
-            change_location("adminpanel.php?userid=$user_id&tab=users");
-            exit;
-        } else {
-            if (empty($view)) {
-                $error = "Fehler beim Aktualisieren! Feld: $field";
+                change_location("adminpanel.php?userid=$user_id&tab=users");
+            } else {
+                if (empty($view)) {
+                    $error = "Fehler beim Aktualisieren! Feld: $field";
+                }
             }
         }
     }
@@ -702,42 +736,6 @@ if (!$user->is_admin()) {
                 }
             }
         }
-    } else if (isset($_GET["deleteuser"])) {
-        $user_id = (int)$_GET["deleteuser"];
-
-        // Check if user id was found and get all kingdoms for updating the map
-        $query = "
-            SELECT users.username, kingdoms.id AS kingdomid
-            FROM users
-            LEFT JOIN kingdoms ON users.id = kingdoms.userid
-            WHERE users.id = ?
-        ";
-        $result = $db_instance->execute_query($query, [$user_id]);
-
-        if ($result && $result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $username = $row["username"];
-
-            // Check if user was in a guild and leader
-            $guild_manager = new Guild($user);
-            $guild_manager->handle_leader_deletion($user_id);
-
-            Kingdom::convert_user_kingdoms_to_ruins($user_id);
-            User::delete_user_avatar_files($user_id);
-            PhpBBBridge::delete_forum_user($username);
-
-            // Delete the user
-            $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
-
-            $em = new EventManager($user);
-            $em->process_orphaned_support();
-
-            $logger->admin("DELETED USER: $username (ID: $user_id)");
-
-            $flash_box = show_passed_box("Benutzer erfolgreich gelöscht!");
-        } else {
-            $error .= "Der Benutzer existiert nicht!";
-        }
     }
 
     // Show Server Settings
@@ -755,6 +753,7 @@ if (!$user->is_admin()) {
                             <b>Wartungsmodus:</b> $m_status
                         </div>
                         <form method='POST' id='maint_form' style='margin: 0;'>
+                            " . csrf_input() . "
                             <input type='hidden' name='toggle_maintenance' value='1'>
                             <input type='hidden' name='maintenance_reason' id='maint_reason_input' value=''>
                             <input type='button' data-on-click='confirmMaintenance' value='" . (MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren") . "'>
@@ -765,6 +764,7 @@ if (!$user->is_admin()) {
                             <b>Winter-Theme & Schnee:</b> $w_status
                         </div>
                         <form method='POST' style='margin: 0;'>
+                            " . csrf_input() . "
                             <input type='hidden' name='toggle_winter_theme' value='1'>
                             <input type='submit' value='$w_button'>
                         </form>
@@ -777,6 +777,7 @@ if (!$user->is_admin()) {
                     <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
                         <p style='margin-top: 0;'>Manuelle Generierung von Objekten auf freien Feldern.</p>
                         <form method='POST' style='display: flex; gap: 10px; justify-content: center;'>
+                            " . csrf_input() . "
                             <select name='spawn_type' style='width: 200px;'>
                                 <option value='all'>Alles füllen</option>
                                 <option value='resources'>Nur Ressourcen</option>
@@ -800,6 +801,7 @@ if (!$user->is_admin()) {
              <span>Status: $status_badge</span>
              <p style='opacity: 0.8;'>Überschreibt alle Marschgeschwindigkeiten mit einer festen Sekundenzahl.<br>Trage <b>0</b> ein, um die normale Berechnung zu aktivieren.</p>
              <form method='POST' style='display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;'>
+                " . csrf_input() . "
                  <label for='fixed_seconds'>Dauer (Sekunden):</label>
                  <input type='text' inputmode='numeric' pattern='[0-9]*' name='fixed_seconds' id='fixed_seconds'  value='$current_fixed'  style='width: 60px;' required>
                  <input type='submit' name='update_fixed_march' value='Speichern'>
@@ -813,6 +815,7 @@ if (!$user->is_admin()) {
         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
             <p style='margin-top: 0;'>Erstellt fehlende Benutzerkonten im phpBB-Forum nach.</p>
             <form method='POST'>
+                " . csrf_input() . "
                 <input type='submit' name='sync_forum_accounts' value='Fehlende Foren-User synchronisieren'>
             </form>
         </div>
@@ -823,6 +826,7 @@ if (!$user->is_admin()) {
         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
             <p style='margin-top: 0;'>Schüttet sofort alle Saison-Belohnungen an die Spieler aus, setzt Wertungen/Tickets zurück und startet direkt die neue Saison.</p>
             <form method='POST'>
+                " . csrf_input() . "
                 <input type='submit' name='reset_arena_season' value='Arena Saison-Reset jetzt durchführen' onclick='return confirm(\"Bist du sicher? Alle Belohnungen werden ausgeschüttet und eine neue Saison gestartet!\");'>
             </form>
         </div>
@@ -832,6 +836,7 @@ if (!$user->is_admin()) {
                         <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
                             <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
                             <form method='POST'>
+                                " . csrf_input() . "
                                 <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
                                 <input type='hidden' name='reset_round' id='hidden_reset_submit'>
                             </form>
@@ -849,8 +854,8 @@ if (!$user->is_admin()) {
                     <div class='box-header' style='font-size: 14px;'>$f</div>
                     <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
                         <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' data-width='1050px' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
-                        
                         <form method='POST' id='form-clear-$f'>
+                            " . csrf_input() . "
                             <input type='hidden' name='log_to_clear' value='$f'>
                             <input type='hidden' name='clear_log' value='1'>
                             <input type='button' 

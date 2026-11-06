@@ -11,6 +11,7 @@ let mapCache = null;
 let panAnimationID = null;
 let costGrid = {};
 let isAutoPanning = false;
+let burningKingdoms = [];
 
 let velocityX = 0;
 let velocityY = 0;
@@ -96,6 +97,28 @@ function registerMapActivity() {
 ["mousemove", "mousedown", "keydown", "touchstart", "wheel"].forEach(evt => {
     window.addEventListener(evt, registerMapActivity, {passive: true});
 });
+
+function hasBurningKingdomInView() {
+    if (!burningKingdoms || burningKingdoms.length === 0 || zoom < 0.4) return false;
+
+    const filterPlayers = document.getElementById("filter-players")?.checked ?? true;
+    if (!filterPlayers) return false;
+
+    const scaledTile = BASE_TILE_SIZE * zoom;
+    const viewW = viewport.offsetWidth;
+    const viewH = viewport.offsetHeight;
+
+    for (let i = 0; i < burningKingdoms.length; i++) {
+        const tile = burningKingdoms[i];
+        const posX = (tile[0] - 1) * scaledTile + currentTranslateX;
+        const posY = (tile[1] - 1) * scaledTile + currentTranslateY;
+        
+        if (posX + scaledTile >= 0 && posX <= viewW && posY + scaledTile >= 0 && posY <= viewH) {
+            return true;
+        }
+    }
+    return false;
+}
 
 function createSmartMapImage(filename, onLoadCallback) {
     const img = new Image();
@@ -270,7 +293,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     });
                 } catch (e) {
-                    console.error("Filter-Restore-Fehler:", e);
+                    showGameError("Filter-Restore-Fehler:" + e);
                 }
 
                 sessionStorage.removeItem("me_map_temp_filters");
@@ -286,6 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 mapData = data.map_data;
                 window.activeEventInfo = data.event_info;
                 mapCache = null;
+                burningKingdoms = mapData.filter(t => t[3] > 0 && t[5] === 1);
 
                 if (gameConfig.useAutoTiling) {
                     buildBiomeMapCache();
@@ -313,12 +337,24 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     }
                 } else {
-                    // selectedX = null;
-                    // selectedY = null;
-
                     draw();
                 }
             });
+
+        let lastAnimFrame = 0;
+
+        function runMapAnimationLoop(time) {
+            if (!document.hidden && hasBurningKingdomInView()) {
+                if (time - lastAnimFrame >= 40) {
+                    lastAnimFrame = time;
+
+                    draw();
+                }
+            }
+            requestAnimationFrame(runMapAnimationLoop);
+        }
+
+        requestAnimationFrame(runMapAnimationLoop);
     }
 
     // Events
@@ -790,26 +826,63 @@ function draw() {
                 ctx.drawImage(img, posX, posY, scaledTile, scaledTile);
 
                 if (isBurning === 1) {
+                    // ctx.drawImage(
+                    //     images.fire,
+                    //     posX + scaledTile * 0.32,
+                    //     posY - scaledTile * 0.08,
+                    //     scaledTile * 0.58,
+                    //     scaledTile * 0.58
+                    // );
+                    // ctx.drawImage(
+                    //     images.fire,
+                    //     posX + scaledTile * 0.02,
+                    //     posY + scaledTile * 0.4,
+                    //     scaledTile * 0.45,
+                    //     scaledTile * 0.45
+                    // );
+                    // ctx.drawImage(
+                    //     images.fire,
+                    //     posX + scaledTile * 0.66,
+                    //     posY + scaledTile * 0.6,
+                    //     scaledTile * 0.3,
+                    //     scaledTile * 0.3
+                    // );
+                    const animTime = performance.now() * 0.004;
+                    const tilePhase = (x * 7 + y * 13);
+
+                    const swayTop = Math.sin(animTime * 1.6 + tilePhase) * (scaledTile * 0.04);
+                    const heightFlickerTop = 1.0 + Math.sin(animTime * 3.0 + tilePhase) * 0.06;
+                    const sizeTop = scaledTile * 0.58;
+
                     ctx.drawImage(
                         images.fire,
-                        posX + scaledTile * 0.32,
-                        posY - scaledTile * 0.08,
-                        scaledTile * 0.58,
-                        scaledTile * 0.58
+                        posX + scaledTile * 0.32 + swayTop,
+                        posY - scaledTile * 0.08 - (sizeTop * (heightFlickerTop - 1.0)),
+                        sizeTop,
+                        sizeTop * heightFlickerTop
                     );
+
+                    const swayLeft = Math.cos(animTime * 1.9 + tilePhase + 1.2) * (scaledTile * 0.035);
+                    const heightFlickerLeft = 1.0 + Math.cos(animTime * 2.7 + tilePhase) * 0.05;
+                    const sizeLeft = scaledTile * 0.45;
+
                     ctx.drawImage(
                         images.fire,
-                        posX + scaledTile * 0.02,
-                        posY + scaledTile * 0.4,
-                        scaledTile * 0.45,
-                        scaledTile * 0.45
+                        posX + scaledTile * 0.02 + swayLeft,
+                        posY + scaledTile * 0.4 - (sizeLeft * (heightFlickerLeft - 1.0)),
+                        sizeLeft,
+                        sizeLeft * heightFlickerLeft
                     );
+
+                    const swayRight = Math.sin(animTime * 2.2 + tilePhase + 2.5) * (scaledTile * 0.03);
+                    const sizeRight = scaledTile * 0.3;
+
                     ctx.drawImage(
                         images.fire,
-                        posX + scaledTile * 0.66,
+                        posX + scaledTile * 0.66 + swayRight,
                         posY + scaledTile * 0.6,
-                        scaledTile * 0.3,
-                        scaledTile * 0.3
+                        sizeRight,
+                        sizeRight
                     );
                 }
             }
@@ -1711,6 +1784,7 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
         .then(data => {
             mapData = data.map_data;
             window.activeEventInfo = data.event_info;
+            burningKingdoms = mapData.filter(t => t[3] > 0 && t[5] === 1);
 
             draw();
 
@@ -1729,7 +1803,7 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
                 }
             }
         })
-        .catch(err => console.error("Stiller Map-Sync fehlgeschlagen:", err))
+        .catch(err => showGameError("Stiller Map-Sync fehlgeschlagen:" + err))
         .finally(() => {
             showMapSyncSpinner(false);
 

@@ -2,6 +2,7 @@
     <meta charset="UTF-8">
     <meta content="IE-edge" http-equiv="X-UA-Compatible">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="csrf-token" content="<?= get_csrf_token() ?>">
     <link href="images/favicon.ico" id="icon" rel="icon" type="image/x-icon">
     <link href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>" rel="stylesheet"
           type="text/css">

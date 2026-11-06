@@ -126,7 +126,7 @@ function executeClaim(btn, achId, reward) {
                     }
                 }
 
-                displayAchievementToast(`Belohnung von +${reward} Münzen erfolgreich abgeholt!`, "passed");
+                showGameSuccess(`Belohnung von +${reward} Münzen erfolgreich abgeholt!`);
             } else {
                 btn.style.display = "";
                 btn.disabled = false;
@@ -135,7 +135,7 @@ function executeClaim(btn, achId, reward) {
                     amountText.textContent = originalAmountText;
                 }
 
-                displayAchievementToast(data.error || "Diese Belohnung konnte nicht abgeholt werden.", "error");
+                showGameError(data.error || "Diese Belohnung konnte nicht abgeholt werden.");
             }
         })
         .catch(() => {
@@ -146,30 +146,6 @@ function executeClaim(btn, achId, reward) {
                 amountText.textContent = originalAmountText;
             }
 
-            displayAchievementToast("Netzwerkfehler beim Abholen der Belohnung. Bitte erneut versuchen.", "error");
+            showGameError("Netzwerkfehler beim Abholen der Belohnung. Bitte erneut versuchen.");
         });
-}
-
-function displayAchievementToast(message, type = "passed") {
-    const flashContainer = document.getElementById("middle-flash-container");
-    if (!flashContainer) return;
-
-    flashContainer.querySelectorAll(".info-box").forEach(el => el.remove());
-
-    const icon = (type === "passed") ? "icon_checked.png" : "icon_error.png";
-    const box = document.createElement("div");
-    box.className = `info-box event-${type}`;
-    box.innerHTML = `<img src="images/icons/${icon}" alt=""><span>${message}</span>`;
-
-    flashContainer.appendChild(box);
-
-    const dismiss = () => {
-        if (box.classList.contains("fade-out")) return;
-
-        box.classList.add("fade-out");
-        box.addEventListener("animationend", () => box.remove(), {once: true});
-    };
-
-    setTimeout(dismiss, 4000);
-    box.addEventListener("click", dismiss);
 }

@@ -92,6 +92,7 @@ class User
      */
     public function login_user(int $user_id): void
     {
+        session_regenerate_id(true);
         $timestamp = time();
 
         $this->user_id = $user_id;
@@ -155,7 +156,6 @@ class User
 
         session_destroy();
         change_location("index.php?logout=session");
-        exit;
     }
 
     public function get_user_id(): int
@@ -669,7 +669,6 @@ class User
         // Check if building is built
         if ($building == null) {
             change_location("towncenter.php");
-            exit;
         }
 
         return [
@@ -689,7 +688,6 @@ class User
     {
         if (!($this->is_logged_in())) {
             change_location("index.php");
-            exit;
         }
     }
 

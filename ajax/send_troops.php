@@ -11,7 +11,6 @@ if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQ
     $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
 
     change_location("map.php?startx=$x&starty=$y");
-    exit;
 }
 
 #[NoReturn]
@@ -223,6 +222,10 @@ if ($expires_at > 0) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        exit_send_troops_error("Ungültiger Sicherheits-Token!");
+    }
+
     if ($barracks_level <= 0) {
         $error = "Befehl verweigert: Du besitzt keine Kaserne!";
     } else {
@@ -932,6 +935,7 @@ if ($barracks_level > 0) {
         }
 
         $view .= '<form action="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . '>
+                        ' . csrf_input() . '
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
                             <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen</div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>

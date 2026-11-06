@@ -64,6 +64,7 @@ if ($user->is_logged_in()) {
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE-edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= get_csrf_token() ?>">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
     <link rel="stylesheet" type="text/css"
           href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>">
@@ -135,16 +136,14 @@ if ($user->is_logged_in()) {
     <div class="middle-container">
         <div id="middle-flash-container" class="middle-flash-container">
             <?php
-            $success_msg = $_SESSION["game_success"] ?? $_SESSION["admin_flash_msg"] ?? $_SESSION["guild_success"] ?? $_SESSION["support_success"] ?? null;
-            if ($success_msg) {
-                echo show_passed_box($success_msg);
-                unset($_SESSION["game_success"], $_SESSION["admin_flash_msg"], $_SESSION["guild_success"], $_SESSION["support_success"]);
+            if (!empty($_SESSION["game_success"])) {
+                echo show_passed_box($_SESSION["game_success"]);
+                unset($_SESSION["game_success"]);
             }
 
-            $error_msg = $_SESSION["game_error"] ?? $_SESSION["guild_error"] ?? null;
-            if ($error_msg) {
-                echo show_error_box($error_msg);
-                unset($_SESSION["game_error"], $_SESSION["guild_error"]);
+            if (!empty($_SESSION["game_error"])) {
+                echo show_error_box($_SESSION["game_error"]);
+                unset($_SESSION["game_error"]);
             }
 
             if (!empty($flash_box)) {

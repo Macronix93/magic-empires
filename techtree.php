@@ -3,7 +3,6 @@ require_once("includes/core.php");
 
 if (!($user->is_logged_in())) {
     change_location("index.php");
-    exit;
 }
 
 Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SECRET_TECHTREE);

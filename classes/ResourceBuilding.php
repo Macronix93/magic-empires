@@ -37,7 +37,6 @@ class ResourceBuilding
     {
         if (!isset(self::CONFIG[$building_type])) {
             change_location("overview.php");
-            exit;
         }
 
         $db_instance = Database::get_instance()->get_connection();
@@ -67,27 +66,32 @@ class ResourceBuilding
         $boost_duration_ticks = $lvl + BASE_BOOST_DURATION;
 
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
-            if ($ticks_left == 0) {
-                if ($user->get_user_coins() >= $boost_cost) {
-                    $user->give_user_coins(-$boost_cost);
-                    $hourly_boost = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
+            if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+                $error = "Ungültiger Sicherheits-Token!";
+            } else {
+                if ($ticks_left == 0) {
+                    if ($user->get_user_coins() >= $boost_cost) {
+                        $user->give_user_coins(-$boost_cost);
+                        $hourly_boost = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
 
-                    $db_instance->execute_query(
-                        "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
+                        $db_instance->execute_query(
+                            "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
                          VALUES (?, ?, ?, ?) 
                          ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
-                        [$current_kingdom, $res_type, $boost_duration_ticks, $hourly_boost]
-                    );
+                            [$current_kingdom, $res_type, $boost_duration_ticks, $hourly_boost]
+                        );
 
-                    Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+                        Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
 
-                    change_location($page_file);
-                    exit;
+                        $_SESSION["game_success"] = "Ertrags-Boost erfolgreich aktiviert!";
+
+                        change_location($page_file);
+                    } else {
+                        $error = "Zu wenig Münzen!";
+                    }
                 } else {
-                    $error = "Zu wenig Münzen!";
+                    $error = "Der Boost ist bereits aktiv!";
                 }
-            } else {
-                $error = "Der Boost ist bereits aktiv!";
             }
         }
 
@@ -131,10 +135,11 @@ class ResourceBuilding
         } else {
             $view .= "<p class='res-building-boost-text'>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
             $view .= "<form method='POST'>
-                <button type='submit' name='activate_boost' class='boost-button' $disabled>
-                    Boost aktivieren für $cost_display_html
-                </button>
-            </form>";
+                        " . csrf_input() . "
+                        <button type='submit' name='activate_boost' class='boost-button' $disabled>
+                            Boost aktivieren für $cost_display_html
+                        </button>
+                    </form>";
         }
 
         /*

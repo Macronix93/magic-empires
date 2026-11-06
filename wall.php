@@ -33,35 +33,39 @@ if ($wall_level < MAX_BUILDING_LEVEL) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
-    $step_percent = (int)$_POST["repair_percent"];
-
-    if ($step_percent === 100) {
-        $hp_to_repair = $hp_difference;
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $hp_to_repair = (int)($wall_max_hp * ($step_percent / 100));
-    }
+        $step_percent = (int)$_POST["repair_percent"];
 
-    $actual_repair = min($hp_to_repair, $hp_difference);
-    $repair_cost = (int)round($actual_repair * BASE_WALL_REPAIR_COST * $maintenance_mult);
+        if ($step_percent === 100) {
+            $hp_to_repair = $hp_difference;
+        } else {
+            $hp_to_repair = (int)($wall_max_hp * ($step_percent / 100));
+        }
 
-    if ($actual_repair <= 0) {
-        $error = "Die Mauer ist bereits vollständig repariert!";
-    } else if ($kingdom_stone < $repair_cost) {
-        $error = "Nicht genügend Stein vorhanden!";
-    } else {
-        $kingdom->give_kingdom_stone(-$repair_cost);
-        $new_hp = $wall_hp + $actual_repair;
-        $kingdom->set_wall_hp($new_hp);
+        $actual_repair = min($hp_to_repair, $hp_difference);
+        $repair_cost = (int)round($actual_repair * BASE_WALL_REPAIR_COST * $maintenance_mult);
 
-        $logger->log_game("ECONOMY", "WALL_REPAIR", [
-            "hp_gained" => $actual_repair,
-            "cost_stone" => $repair_cost,
-            "percent_step" => $step_percent
-        ], $current_kingdom);
+        if ($actual_repair <= 0) {
+            $error = "Die Mauer ist bereits vollständig repariert!";
+        } else if ($kingdom_stone < $repair_cost) {
+            $error = "Nicht genügend Stein vorhanden!";
+        } else {
+            $kingdom->give_kingdom_stone(-$repair_cost);
+            $new_hp = $wall_hp + $actual_repair;
+            $kingdom->set_wall_hp($new_hp);
 
-        $_SESSION["game_success"] = "Die Mauer wurde um " . fnum($actual_repair) . " HP repariert.";
-        change_location("wall.php");
-        exit;
+            $logger->log_game("ECONOMY", "WALL_REPAIR", [
+                "hp_gained" => $actual_repair,
+                "cost_stone" => $repair_cost,
+                "percent_step" => $step_percent
+            ], $current_kingdom);
+
+            $_SESSION["game_success"] = "Die Mauer wurde um " . fnum($actual_repair) . " HP repariert.";
+
+            change_location("wall.php");
+        }
     }
 }
 
@@ -107,6 +111,7 @@ foreach ($steps as $percent => $label) {
 
     $view .= "
         <form method='POST' style='width: 100%;'>
+            " . csrf_input() . "
             <input type='hidden' name='repair_step' value='1'>
             <input type='hidden' name='repair_percent' value='$percent'>
             <button type='submit' style='width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px;' $disabled>

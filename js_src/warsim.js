@@ -871,7 +871,7 @@ function checkMonsterImport() {
 
         saveWarsimState();
     } catch (e) {
-        console.error("Fehler beim Monster-Import:", e);
+        showGameError("Fehler beim Monster-Import:" + e);
     }
 }
 

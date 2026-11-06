@@ -34,305 +34,305 @@ if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
 
 $is_invite_only = isset($_POST["g_invite_only"]) && $_POST["g_invite_only"] == "1";
 
-if (isset($_POST["create_guild"]) && $my_guild_id === -1) {
-    if ($is_invite_only) {
-        $min_score = -1;
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $min_score = (int)($_POST["g_min_score"] ?? 0);
-        if ($min_score < 0) {
-            $error = "Die Mindestpunktzahl darf nicht negativ sein!";
-        }
-    }
-
-    if (empty($error)) {
-        $res = $guild_logic->create_guild($_POST["g_name"] ?? "", $_POST["g_tag"] ?? "", $_POST["g_motto"] ?? "", $min_score);
-
-        if ($res === null) {
-            $_SESSION["guild_success"] = "Gilde erfolgreich gegründet!";
-
-            change_location("guild.php");
-            exit;
-        } else {
-            $error = $res;
-        }
-    }
-}
-
-if ($my_guild_id !== -1) {
-    if (isset($_POST["save_avatar"]) || isset($_POST["save_identity"]) || isset($_POST["save_profile"])) {
-        if ($my_perms["can_edit_settings"]) {
-            $error = null;
-
-            if (isset($_POST["save_avatar"])) {
-                if (!empty($_FILES["guild_avatar"]["name"])) {
-                    $error = $guild_logic->update_avatar($_FILES["guild_avatar"]);
-                } else {
-                    $error = "Bitte wähle ein Bild aus.";
-                }
-            }
-
-            if (isset($_POST["save_identity"])) {
-                $error = $guild_logic->update_settings(
-                    $_POST["g_name"] ?? "",
-                    $_POST["g_tag"] ?? "",
-                    $guild_logic->get_motto(),
-                    $guild_logic->get_min_score()
-                );
-            }
-
-            if (isset($_POST["save_profile"])) {
+        if ($my_guild_id === -1) {
+            if (isset($_POST["create_guild"])) {
                 if ($is_invite_only) {
                     $min_score = -1;
                 } else {
                     $min_score = (int)($_POST["g_min_score"] ?? 0);
+
                     if ($min_score < 0) {
                         $error = "Die Mindestpunktzahl darf nicht negativ sein!";
                     }
                 }
 
                 if (empty($error)) {
-                    $error = $guild_logic->update_settings(
-                        $guild_logic->get_name(),
-                        $guild_logic->get_tag(),
-                        $_POST["g_motto"] ?? "",
-                        $min_score
-                    );
-                }
-            }
+                    $res = $guild_logic->create_guild($_POST["g_name"] ?? "", $_POST["g_tag"] ?? "", $_POST["g_motto"] ?? "", $min_score);
 
-            if ($error === null) {
-                $_SESSION["guild_success"] = "Änderungen erfolgreich gespeichert.";
+                    if ($res === null) {
+                        $_SESSION["game_success"] = "Gilde erfolgreich gegründet!";
 
-                change_location("guild.php?tab=general");
-                exit;
-            }
-        } else {
-            $error = "Du hast keine Berechtigung, die Einstellungen zu ändern.";
-        }
-    }
-
-    if (isset($_GET["mark_project"])) {
-        if ($my_perms["can_edit_settings"]) {
-            if ($guild_logic->is_researching()) {
-                $error = "Es läuft bereits eine Forschung. Erst nach Abschluss kann ein neues Projekt markiert werden.";
-            } else {
-                $tid = (int)$_GET["mark_project"];
-                $existing_project = $guild_logic->get_active_project();
-
-                if ($existing_project) {
-                    if ($existing_project["tech_id"] != $tid) {
-                        $_SESSION["guild_error"] = "Es ist bereits ein Projekt aktiv (" . e($existing_project["name"]) . "). Bitte brich dieses erst ab.";
-                    }
-
-                    change_location("guild.php?tab=research");
-                    exit;
-                }
-
-                $t_res = $db_instance->execute_query("SELECT * FROM guild_tech_list WHERE id = ?", [$tid]);
-                $tech_raw = $t_res->fetch_assoc();
-                $cur_lvl = $guild_logic->get_tech_level($tid);
-                $costs = $guild_logic->calculate_tech_costs($tech_raw, $cur_lvl);
-
-                $special_res_keys = [
-                    "coal" => "Kohle",
-                    "iron" => "Eisen",
-                    "sapphire" => "Saphir",
-                    "diamond" => "Diamant"
-                ];
-                $missing = false;
-
-                foreach ($special_res_keys as $key => $label) {
-                    $req = $costs[$key] ?? 0;
-                    $cur = $guild_logic->get_storage_amount($key);
-
-                    if ($req > $cur) {
-                        $missing = true;
-                    }
-                }
-
-                if ($missing) {
-                    $_SESSION["guild_error"] = "Nicht genügend Spezialressourcen in der Schatzkammer!";
-
-                    change_location("guild.php?tab=research");
-                    exit;
-                }
-
-                $db_instance->begin_transaction();
-                try {
-                    foreach ($special_res_keys as $key => $label) {
-                        if (($costs[$key] ?? 0) > 0) {
-                            $guild_logic->modify_storage_resource($key, -$costs[$key]);
-                        }
-                    }
-
-                    $guild_logic->set_active_project($tid);
-                    $db_instance->commit();
-
-                    $guild_logic->notify_guild("guild_project_started", ["tech" => $tech_raw["name"], "by" => $user->get_user_name()]);
-
-                    $_SESSION["guild_success"] = "Neues Gilden-Projekt wurde markiert!";
-                } catch (Exception $e) {
-                    $db_instance->rollback();
-
-                    $_SESSION["guild_error"] = "Fehler beim Starten des Projekts.";
-                }
-            }
-        }
-
-        change_location("guild.php?tab=research");
-        exit;
-    }
-
-    if (isset($_POST["contribute_project"])) {
-        $db_instance->begin_transaction();
-
-        $project_res = $db_instance->execute_query("
-        SELECT gp.*, gtl.name, gtl.icon, gtl.multiplicator, 
-               gtl.food_cost, gtl.wood_cost, gtl.stone_cost, gtl.gold_cost,
-               gtl.coal_cost, gtl.iron_cost, gtl.sapphire_cost, gtl.diamond_cost,
-               gtl.base_time
-        FROM guild_projects gp
-        JOIN guild_tech_list gtl ON gp.tech_id = gtl.id
-        WHERE gp.guild_id = ? FOR UPDATE",
-            [$my_guild_id]
-        );
-
-        $project = $project_res->fetch_assoc();
-
-        if (!$project) {
-            $error = "Es ist kein Projekt markiert oder es wurde schon fertiggestellt.";
-            $db_instance->rollback();
-        } else {
-            $input_amounts = [
-                max(0, (int)($_POST["am"][0] ?? 0)), // Food
-                max(0, (int)($_POST["am"][1] ?? 0)), // Wood
-                max(0, (int)($_POST["am"][2] ?? 0)), // Stone
-                max(0, (int)($_POST["am"][3] ?? 0))  // Gold
-            ];
-
-            if (array_sum($input_amounts) <= 0) {
-                $error = "Bitte gib eine Menge an.";
-                $db_instance->rollback();
-            } else {
-                $cur_lvl = $guild_logic->get_tech_level($project["tech_id"]);
-                $costs = $guild_logic->calculate_tech_costs($project, $cur_lvl);
-
-                $final_amounts = [
-                    min($input_amounts[0], max(0, $costs["food"] - $project["current_food"])),
-                    min($input_amounts[1], max(0, $costs["wood"] - $project["current_wood"])),
-                    min($input_amounts[2], max(0, $costs["stone"] - $project["current_stone"])),
-                    min($input_amounts[3], max(0, $costs["gold"] - $project["current_gold"]))
-                ];
-
-                $actual_total_to_take = array_sum($final_amounts);
-
-                if ($actual_total_to_take <= 0) {
-                    $error = "Diese Ressourcen werden für das aktuelle Projekt nicht mehr benötigt.";
-                    $db_instance->rollback();
-                } else if ($final_amounts[0] > $k->get_kingdom_food() ||
-                    $final_amounts[1] > $k->get_kingdom_wood() ||
-                    $final_amounts[2] > $k->get_kingdom_stone() ||
-                    $final_amounts[3] > $k->get_kingdom_gold()) {
-                    $error = "Du hast nicht genügend Ressourcen für diesen Beitrag!";
-                    $db_instance->rollback();
-                } else {
-                    $k->give_kingdom_food(-$final_amounts[0]);
-                    $k->give_kingdom_wood(-$final_amounts[1]);
-                    $k->give_kingdom_stone(-$final_amounts[2]);
-                    $k->give_kingdom_gold(-$final_amounts[3]);
-
-                    $guild_logic->add_contribution($user->get_user_id(), $final_amounts);
-
-                    $p_check = $db_instance->execute_query("SELECT * FROM guild_projects WHERE guild_id = ?", [$my_guild_id])->fetch_assoc();
-
-                    if ($p_check["current_food"] >= $costs["food"] && $p_check["current_wood"] >= $costs["wood"] &&
-                        $p_check["current_stone"] >= $costs["stone"] && $p_check["current_gold"] >= $costs["gold"]) {
-
-                        $finish = time() + $costs["time"];
-
-                        $db_instance->execute_query(
-                            "INSERT INTO events (actionid, userid, guild_id, buildingid, buildingname, buildingtime, buildinglevel) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            [ActionTypes::ACTION_RESEARCH_TECH, $user->get_user_id(), $my_guild_id, $p_check["tech_id"], $project["name"], $finish, $cur_lvl]
-                        );
-
-                        $db_instance->execute_query("DELETE FROM guild_projects WHERE guild_id = ?", [$my_guild_id]);
-
-                        $target_level = $cur_lvl + 1;
-
-                        $guild_logic->notify_guild(
-                            "guild_research_started",
-                            [
-                                "tech" => $project["name"],
-                                "level" => $target_level,
-                                "by" => $user->get_user_name()
-                            ],
-                            [$user->get_user_id()]
-                        );
-
-                        $_SESSION["guild_success"] = "Projekt abgeschlossen! Die Forschung wurde gestartet.";
+                        change_location("guild.php");
                     } else {
-                        if (array_sum($input_amounts) > $actual_total_to_take) {
-                            $_SESSION["guild_success"] = "Beitrag eingezahlt! Es wurde nur ein Teil deiner Ressourcen benötigt.";
+                        $error = $res;
+                    }
+                }
+            }
+        } else {
+            if (isset($_POST["save_avatar"]) || isset($_POST["save_identity"]) || isset($_POST["save_profile"])) {
+                if ($my_perms["can_edit_settings"]) {
+                    $error = null;
+
+                    if (isset($_POST["save_avatar"])) {
+                        if (!empty($_FILES["guild_avatar"]["name"])) {
+                            $error = $guild_logic->update_avatar($_FILES["guild_avatar"]);
                         } else {
-                            $_SESSION["guild_success"] = "Dein Beitrag wurde erfolgreich eingezahlt!";
+                            $error = "Bitte wähle ein Bild aus.";
                         }
                     }
 
-                    $db_instance->commit();
+                    if (isset($_POST["save_identity"])) {
+                        $error = $guild_logic->update_settings(
+                            $_POST["g_name"] ?? "",
+                            $_POST["g_tag"] ?? "",
+                            $guild_logic->get_motto(),
+                            $guild_logic->get_min_score()
+                        );
+                    }
 
-                    change_location("guild.php?tab=research");
-                    exit;
+                    if (isset($_POST["save_profile"])) {
+                        if ($is_invite_only) {
+                            $min_score = -1;
+                        } else {
+                            $min_score = (int)($_POST["g_min_score"] ?? 0);
+                            if ($min_score < 0) {
+                                $error = "Die Mindestpunktzahl darf nicht negativ sein!";
+                            }
+                        }
+
+                        if (empty($error)) {
+                            $error = $guild_logic->update_settings(
+                                $guild_logic->get_name(),
+                                $guild_logic->get_tag(),
+                                $_POST["g_motto"] ?? "",
+                                $min_score
+                            );
+                        }
+                    }
+
+                    if ($error === null) {
+                        $_SESSION["game_success"] = "Änderungen erfolgreich gespeichert.";
+
+                        change_location("guild.php?tab=settings");
+                    }
+                } else {
+                    $error = "Du hast keine Berechtigung, die Einstellungen zu ändern.";
                 }
             }
-        }
-    }
 
-    if (isset($_GET["cancel_project"])) {
-        $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
-
-        $project = $guild_logic->get_active_project();
-
-        if ($project) {
-            $total_donated = (int)$project["current_food"] + (int)$project["current_wood"] + (int)$project["current_stone"] + (int)$project["current_gold"];
-            $can_cancel = false;
-
-            if ($total_donated === 0) {
+            if (isset($_POST["mark_project"])) {
                 if ($my_perms["can_edit_settings"]) {
-                    $can_cancel = true;
-                } else {
-                    $error = "Du hast keine Berechtigung, dieses Projekt abzubrechen.";
+                    if ($guild_logic->is_researching()) {
+                        $error = "Es läuft bereits eine Forschung. Erst nach Abschluss kann ein neues Projekt markiert werden.";
+                    } else {
+                        $tid = (int)$_POST["mark_project"];
+                        $existing_project = $guild_logic->get_active_project();
+
+                        if ($existing_project) {
+                            if ($existing_project["tech_id"] != $tid) {
+                                $_SESSION["game_error"] = "Es ist bereits ein Projekt aktiv (" . e($existing_project["name"]) . "). Bitte brich dieses erst ab.";
+                            }
+
+                            change_location("guild.php?tab=research");
+                        }
+
+                        $t_res = $db_instance->execute_query("SELECT * FROM guild_tech_list WHERE id = ?", [$tid]);
+                        $tech_raw = $t_res->fetch_assoc();
+                        $cur_lvl = $guild_logic->get_tech_level($tid);
+                        $costs = $guild_logic->calculate_tech_costs($tech_raw, $cur_lvl);
+
+                        $special_res_keys = [
+                            "coal" => "Kohle",
+                            "iron" => "Eisen",
+                            "sapphire" => "Saphir",
+                            "diamond" => "Diamant"
+                        ];
+                        $missing = false;
+
+                        foreach ($special_res_keys as $key => $label) {
+                            $req = $costs[$key] ?? 0;
+                            $cur = $guild_logic->get_storage_amount($key);
+
+                            if ($req > $cur) {
+                                $missing = true;
+                            }
+                        }
+
+                        if ($missing) {
+                            $_SESSION["game_error"] = "Nicht genügend Spezialressourcen in der Schatzkammer!";
+
+                            change_location("guild.php?tab=research");
+                        }
+
+                        $db_instance->begin_transaction();
+                        try {
+                            foreach ($special_res_keys as $key => $label) {
+                                if (($costs[$key] ?? 0) > 0) {
+                                    $guild_logic->modify_storage_resource($key, -$costs[$key]);
+                                }
+                            }
+
+                            $guild_logic->set_active_project($tid);
+                            $db_instance->commit();
+
+                            $guild_logic->notify_guild("guild_project_started", ["tech" => $tech_raw["name"], "by" => $user->get_user_name()]);
+
+                            $_SESSION["game_success"] = "Neues Gilden-Projekt wurde markiert!";
+                        } catch (Exception $e) {
+                            $db_instance->rollback();
+
+                            $_SESSION["game_error"] = "Fehler beim Starten des Projekts.";
+                        }
+                    }
                 }
-            } else {
-                if ($my_perms["is_founder"]) {
-                    $can_cancel = true;
-                } else {
-                    $error = "Da bereits Ressourcen gespendet wurden, kann das Projekt nur noch vom Gilden-Leader abgebrochen werden!";
-                }
+
+                change_location("guild.php?tab=research");
             }
 
-            if ($can_cancel) {
+            if (isset($_POST["contribute_project"])) {
                 $db_instance->begin_transaction();
 
-                try {
-                    $guild_logic->cancel_active_project();
+                $project_res = $db_instance->execute_query("
+                    SELECT gp.*, gtl.name, gtl.icon, gtl.multiplicator, 
+                           gtl.food_cost, gtl.wood_cost, gtl.stone_cost, gtl.gold_cost,
+                           gtl.coal_cost, gtl.iron_cost, gtl.sapphire_cost, gtl.diamond_cost,
+                           gtl.base_time
+                    FROM guild_projects gp
+                    JOIN guild_tech_list gtl ON gp.tech_id = gtl.id
+                    WHERE gp.guild_id = ? FOR UPDATE",
+                    [$my_guild_id]
+                );
 
-                    $db_instance->commit();
+                $project = $project_res->fetch_assoc();
 
-                    $_SESSION["guild_success"] = "Das Gilden-Projekt wurde erfolgreich abgebrochen." . ($total_donated > 0 ? " Es erfolgte kein Refund der Spenden." : "");
-
-                    $guild_logic->notify_guild("guild_project_cancelled", [
-                        "by" => $user->get_user_name()
-                    ]);
-                } catch (Exception $e) {
+                if (!$project) {
+                    $error = "Es ist kein Projekt markiert oder es wurde schon fertiggestellt.";
                     $db_instance->rollback();
+                } else {
+                    $input_amounts = [
+                        max(0, (int)($_POST["am"][0] ?? 0)), // Food
+                        max(0, (int)($_POST["am"][1] ?? 0)), // Wood
+                        max(0, (int)($_POST["am"][2] ?? 0)), // Stone
+                        max(0, (int)($_POST["am"][3] ?? 0))  // Gold
+                    ];
 
-                    $error = "Fehler beim Abbrechen: " . $e->getMessage();
+                    if (array_sum($input_amounts) <= 0) {
+                        $error = "Bitte gib eine Menge an.";
+                        $db_instance->rollback();
+                    } else {
+                        $cur_lvl = $guild_logic->get_tech_level($project["tech_id"]);
+                        $costs = $guild_logic->calculate_tech_costs($project, $cur_lvl);
+
+                        $final_amounts = [
+                            min($input_amounts[0], max(0, $costs["food"] - $project["current_food"])),
+                            min($input_amounts[1], max(0, $costs["wood"] - $project["current_wood"])),
+                            min($input_amounts[2], max(0, $costs["stone"] - $project["current_stone"])),
+                            min($input_amounts[3], max(0, $costs["gold"] - $project["current_gold"]))
+                        ];
+
+                        $actual_total_to_take = array_sum($final_amounts);
+
+                        if ($actual_total_to_take <= 0) {
+                            $error = "Diese Ressourcen werden für das aktuelle Projekt nicht mehr benötigt.";
+                            $db_instance->rollback();
+                        } else if ($final_amounts[0] > $k->get_kingdom_food() ||
+                            $final_amounts[1] > $k->get_kingdom_wood() ||
+                            $final_amounts[2] > $k->get_kingdom_stone() ||
+                            $final_amounts[3] > $k->get_kingdom_gold()) {
+                            $error = "Du hast nicht genügend Ressourcen für diesen Beitrag!";
+                            $db_instance->rollback();
+                        } else {
+                            $k->give_kingdom_food(-$final_amounts[0]);
+                            $k->give_kingdom_wood(-$final_amounts[1]);
+                            $k->give_kingdom_stone(-$final_amounts[2]);
+                            $k->give_kingdom_gold(-$final_amounts[3]);
+
+                            $guild_logic->add_contribution($user->get_user_id(), $final_amounts);
+
+                            $p_check = $db_instance->execute_query("SELECT * FROM guild_projects WHERE guild_id = ?", [$my_guild_id])->fetch_assoc();
+
+                            if ($p_check["current_food"] >= $costs["food"] && $p_check["current_wood"] >= $costs["wood"] &&
+                                $p_check["current_stone"] >= $costs["stone"] && $p_check["current_gold"] >= $costs["gold"]) {
+
+                                $finish = time() + $costs["time"];
+
+                                $db_instance->execute_query(
+                                    "INSERT INTO events (actionid, userid, guild_id, buildingid, buildingname, buildingtime, buildinglevel) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                    [ActionTypes::ACTION_RESEARCH_TECH, $user->get_user_id(), $my_guild_id, $p_check["tech_id"], $project["name"], $finish, $cur_lvl]
+                                );
+
+                                $db_instance->execute_query("DELETE FROM guild_projects WHERE guild_id = ?", [$my_guild_id]);
+
+                                $target_level = $cur_lvl + 1;
+
+                                $guild_logic->notify_guild(
+                                    "guild_research_started",
+                                    [
+                                        "tech" => $project["name"],
+                                        "level" => $target_level,
+                                        "by" => $user->get_user_name()
+                                    ],
+                                    [$user->get_user_id()]
+                                );
+
+                                $_SESSION["game_success"] = "Projekt abgeschlossen! Die Forschung wurde gestartet.";
+                            } else {
+                                if (array_sum($input_amounts) > $actual_total_to_take) {
+                                    $_SESSION["game_success"] = "Beitrag eingezahlt! Es wurde nur ein Teil deiner Ressourcen benötigt.";
+                                } else {
+                                    $_SESSION["game_success"] = "Dein Beitrag wurde erfolgreich eingezahlt!";
+                                }
+                            }
+
+                            $db_instance->commit();
+
+                            change_location("guild.php?tab=research");
+                        }
+                    }
                 }
             }
-        }
 
-        change_location("guild.php?tab=research");
-        exit;
+            if (isset($_POST["cancel_project"])) {
+                $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
+
+                $project = $guild_logic->get_active_project();
+
+                if ($project) {
+                    $total_donated = (int)$project["current_food"] + (int)$project["current_wood"] + (int)$project["current_stone"] + (int)$project["current_gold"];
+                    $can_cancel = false;
+
+                    if ($total_donated === 0) {
+                        if ($my_perms["can_edit_settings"]) {
+                            $can_cancel = true;
+                        } else {
+                            $error = "Du hast keine Berechtigung, dieses Projekt abzubrechen.";
+                        }
+                    } else {
+                        if ($my_perms["is_founder"]) {
+                            $can_cancel = true;
+                        } else {
+                            $error = "Da bereits Ressourcen gespendet wurden, kann das Projekt nur noch vom Gilden-Leader abgebrochen werden!";
+                        }
+                    }
+
+                    if ($can_cancel) {
+                        $db_instance->begin_transaction();
+
+                        try {
+                            $guild_logic->cancel_active_project();
+
+                            $db_instance->commit();
+
+                            $_SESSION["game_success"] = "Das Gilden-Projekt wurde erfolgreich abgebrochen." . ($total_donated > 0 ? " Es erfolgte kein Refund der Spenden." : "");
+
+                            $guild_logic->notify_guild("guild_project_cancelled", [
+                                "by" => $user->get_user_name()
+                            ]);
+                        } catch (Exception $e) {
+                            $db_instance->rollback();
+
+                            $error = "Fehler beim Abbrechen: " . $e->getMessage();
+                        }
+                    }
+                }
+
+                change_location("guild.php?tab=research");
+            }
+        }
     }
 }
 
@@ -438,6 +438,7 @@ if ($my_guild_id === -1) {
         $view .= "<br><hr><br><div class='box-container' style='max-width: 650px; margin: 0 auto;'>
             <div class='box-header'>Eigene Gilde gründen</div>
             <form method='POST' class='box-content box-content-bg' style='padding: 15px;'>
+                " . csrf_input() . "
                 <table class='table'>
                     <tr>
                         <td>Gilden-Name:</td>
@@ -671,6 +672,7 @@ if ($my_guild_id === -1) {
         <div class='box-header'>Gilden-Wappen</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST' enctype='multipart/form-data'>" : "") . "
+                " . csrf_input() . "
                 <div style='text-align: center;'>
                     <img src='" . $guild_logic->get_avatar() . "' 
                          style='width: 64px; height: 64px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);' alt='Wappen'>
@@ -691,6 +693,7 @@ if ($my_guild_id === -1) {
         <div class='box-header'>Gilden-Identität</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST'>" : "") . "
+                " . csrf_input() . "
                 <table class='table'>
                     <tr>
                         <td>Gilden-Name:</td>
@@ -734,6 +737,7 @@ if ($my_guild_id === -1) {
         <div class='box-header'>Öffentliches Profil</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST'>" : "") . "
+                " . csrf_input() . "
                 <table class='table'>
                     <tr>
                         <td>Gilden-Motto:</td>
@@ -1140,6 +1144,7 @@ if ($my_guild_id === -1) {
                 <hr>
                 <h4 style='margin: 15px 0 10px 0;'>Projekt unterstützen</h4>
                 <form method='POST'>
+                    " . csrf_input() . "
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 300px; margin: 0 auto;'>
                         $donate_html
                     </div>
@@ -1351,17 +1356,23 @@ if ($my_guild_id === -1) {
 
             if ($show_cancel_btn) {
                 $action_btn .= "<br><div style='margin-top: 5px;'>
-                    <button data-on-click='confirmCancelProject' data-donated='$total_donated'>
-                       Abbrechen
-                    </button>
-                </div>";
+                                <form method='POST' action='guild.php?tab=research' style='margin: 0;'>
+                                    " . csrf_input() . "
+                                    <input type='hidden' name='cancel_project' value='1'>
+                                    <button type='button' data-on-click='confirmCancelProject' data-donated='$total_donated'>
+                                        Abbrechen
+                                    </button>
+                                </form>
+                            </div>";
             }
         } else if ($my_perms["can_edit_settings"]) {
             $disabled = ($project || !$has_special_resources) ? " disabled" : "";
 
-            $action_btn = "<a href='guild.php?tab=research&mark_project={$t["id"]}'>
-                        <button type='button'$disabled>Markieren</button>
-                      </a>";
+            $action_btn = "<form method='POST' action='guild.php?tab=research' style='margin: 0;'>
+                            " . csrf_input() . "
+                            <input type='hidden' name='mark_project' value='{$t["id"]}'>
+                            <button type='submit'$disabled>Markieren</button>
+                        </form>";
         } else {
             $action_btn = "-";
         }

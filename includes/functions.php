@@ -85,6 +85,7 @@ function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_se
     return !empty($trimmed) ? $trimmed : "0s";
 }
 
+#[NoReturn]
 function change_location(string $url, int $seconds = 0): void
 {
     $is_absolute = str_starts_with($url, "https://") || str_starts_with($url, "//");
@@ -103,6 +104,7 @@ function change_location(string $url, int $seconds = 0): void
     } else {
         header("refresh:$seconds; url=$full_url");
     }
+    exit;
 }
 
 function show_passed_box(string $info_text, bool $display = true): string

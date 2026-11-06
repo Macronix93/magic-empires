@@ -15,7 +15,10 @@ registerAction("userDeletionDialog", (el) => {
         "Ja",
         "Nein",
         () => {
-            window.location.href = "adminpanel.php?deleteuser=" + uid;
+            submitAdminPost({
+                delete_user: "1",
+                user_id: uid
+            });
         }
     );
 });
@@ -27,16 +30,25 @@ registerAction("banUserDialog", (el) => {
     if (isBanned) {
         showConfirmationDialog(
             `Willst du ${name} wirklich entbannen?`,
-            "Ja", "Abbrechen",
+            "Ja",
+            "Abbrechen",
             () => {
-                window.location.href = `adminpanel.php?userid=${uid}&unbanuser=${uid}`;
+                submitAdminPost({
+                    toggle_ban: "1",
+                    user_id: uid,
+                    ban_status: "0"
+                });
             }
         );
     } else {
         const reason = prompt(`Grund für den Bann von ${name}:`, "Verstoß gegen die Regeln");
-
         if (reason !== null) {
-            window.location.href = `adminpanel.php?userid=${uid}&banuser=${uid}&reason=${encodeURIComponent(reason)}`;
+            submitAdminPost({
+                toggle_ban: "1",
+                user_id: uid,
+                ban_status: "1",
+                reason: reason
+            });
         }
     }
 });
@@ -48,7 +60,30 @@ registerAction("confirmDeleteNews", (el) => {
         "Ja, löschen",
         "Abbrechen",
         () => {
-            window.location.href = "news.php?delete=" + newsId;
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = "news.php";
+
+            const idInput = document.createElement("input");
+            idInput.type = "hidden";
+            idInput.name = "news_id";
+            idInput.value = newsId;
+            form.appendChild(idInput);
+
+            const actionInput = document.createElement("input");
+            actionInput.type = "hidden";
+            actionInput.name = "delete_news";
+            actionInput.value = "1";
+            form.appendChild(actionInput);
+
+            const tokenInput = document.createElement("input");
+            tokenInput.type = "hidden";
+            tokenInput.name = "csrf_token";
+            tokenInput.value = getCsrfToken();
+            form.appendChild(tokenInput);
+
+            document.body.appendChild(form);
+            form.submit();
         }
     );
 });
@@ -61,7 +96,11 @@ registerAction("confirmDeleteLog", (el) => {
         "Ja, löschen",
         "Abbrechen",
         () => {
-            window.location.href = `adminpanel.php?deletelog=${logId}&logpage=${page}&tab=gamelogs`;
+            submitAdminPost({
+                delete_log: "1",
+                log_id: logId,
+                logpage: page
+            });
         }
     );
 });
@@ -74,7 +113,11 @@ registerAction("confirmDeleteEvent", (el) => {
         "Ja, abbrechen",
         "Nein",
         () => {
-            window.location.href = `adminpanel.php?deleteevent=${eventId}&userid=${userId}`;
+            submitAdminPost({
+                delete_event: "1",
+                event_id: eventId,
+                user_id: userId
+            });
         }
     );
 });
@@ -174,6 +217,34 @@ if (window.location.href.indexOf("adminpanel.php") > -1) {
     });
 }
 
+function submitAdminPost(params) {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "adminpanel.php";
+
+    for (const [key, val] of Object.entries(params)) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = val;
+
+        form.appendChild(input);
+    }
+
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    if (token) {
+        const tokenInput = document.createElement("input");
+        tokenInput.type = "hidden";
+        tokenInput.name = "csrf_token";
+        tokenInput.value = token;
+
+        form.appendChild(tokenInput);
+    }
+
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function editField(userID, fieldID, currentValue, formattedValue) {
     const td = document.getElementById("td_" + fieldID);
 
@@ -206,6 +277,12 @@ function editField(userID, fieldID, currentValue, formattedValue) {
     hiddenCurrentValue.type = "hidden";
     hiddenCurrentValue.name = "old_value";
     hiddenCurrentValue.value = currentValue;
+
+    const hiddenToken = document.createElement("input");
+    hiddenToken.type = "hidden";
+    hiddenToken.name = "csrf_token";
+    hiddenToken.value = getCsrfToken();
+    form.appendChild(hiddenToken);
 
     form.appendChild(hiddenField);
     form.appendChild(hiddenUserID);
