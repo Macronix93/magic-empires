@@ -15,7 +15,6 @@ require_once("includes/core.php");
 // Fetch all buildings and their dependencies
 $techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_UNIVERSITY);
 $buildings = $kingdom->fetch_all_kingdom_buildings();
-$tech_id = (empty($_GET["tid"]) ? 0 : (int)$_GET["tid"]);
 
 $kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
 $kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
@@ -36,134 +35,147 @@ $imp_data = $db_instance->execute_query("
 $global_imp_level = (int)($imp_data["imp_level"] ?? 0);
 $curr_founded = (int)($imp_data["founded_count"] ?? 1);
 
-if (isset($_GET["action"])) {
-    if (isset($techs[$tech_id])) {
-        $tech_level = $techs[$tech_id]->get_tech_level();
-        $tech_max_level = $techs[$tech_id]->get_tech_max_level();
-        $costs = $techs[$tech_id]->calculate_tech_cost();
-        $cost_wood = $costs["cost_wood"];
-        $cost_food = $costs["cost_food"];
-        $cost_stone = $costs["cost_stone"];
-        $cost_gold = $costs["cost_gold"];
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
+    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        $error = "Ungültiger Sicherheits-Token!";
+    } else {
+        $tech_id = (int)($_POST["tid"] ?? 0);
+        $action = $_POST["action"];
 
-        // The action that was set is "research"
-        if ($_GET["action"] == "research") {
-            if ($tech_level >= $tech_max_level) {
-                $error = "Die Forschung ist schon maximal erforscht!";
-            } else {
-                if ($tech_id == TechTypes::TECH_TYPE_IMPERIAL) {
-                    $max_imp_lvl = max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
-                    if ($current_kingdom != $user->get_main_kingdom()) {
-                        $error = "Die Imperium-Forschung kann nur in deinem Hauptkönigreich durchgeführt werden!";
-                    } else if ($tech_level >= $max_imp_lvl) {
-                        $error = "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungen ist bereits erreicht!";
+        if (isset($techs[$tech_id])) {
+            $tech_level = $techs[$tech_id]->get_tech_level();
+            $tech_max_level = $techs[$tech_id]->get_tech_max_level();
+            $costs = $techs[$tech_id]->calculate_tech_cost();
+            $cost_wood = $costs["cost_wood"];
+            $cost_food = $costs["cost_food"];
+            $cost_stone = $costs["cost_stone"];
+            $cost_gold = $costs["cost_gold"];
+
+            // The action that was set is "research"
+            if ($action == "research") {
+                if ($tech_level >= $tech_max_level) {
+                    $error = "Die Forschung ist schon maximal erforscht!";
+                } else {
+                    if ($tech_id == TechTypes::TECH_TYPE_IMPERIAL) {
+                        $max_imp_lvl = max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
+                        if ($current_kingdom != $user->get_main_kingdom()) {
+                            $error = "Die Imperium-Forschung kann nur in deinem Hauptkönigreich durchgeführt werden!";
+                        } else if ($tech_level >= $max_imp_lvl) {
+                            $error = "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungen ist bereits erreicht!";
+                        }
                     }
-                }
 
-                if (empty($error)) {
-                    if ($kingdom_is_researching) {
-                        $error = "Du forschst bereits!";
-                    } else {
-                        $target_level = $tech_level + 1;
-                        $current_uni_lvl = $buildings[BuildingTypes::BUILDING_UNIVERSITY]->get_building_level();
-                        $required_uni_lvl = Tech::get_required_university_level($tech_id, $target_level);
+                    if (empty($error)) {
+                        if ($kingdom_is_researching) {
+                            $error = "Du forschst bereits!";
+                        } else {
+                            $target_level = $tech_level + 1;
+                            $current_uni_lvl = $buildings[BuildingTypes::BUILDING_UNIVERSITY]->get_building_level();
+                            $required_uni_lvl = Tech::get_required_university_level($tech_id, $target_level);
 
-                        if ($current_uni_lvl < $required_uni_lvl) {
-                            $error = "Für Stufe $target_level benötigst du Universität Stufe $required_uni_lvl!";
-                        }
-
-                        if ($tech_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
-                            $required_wt_lvl = $target_level + 1;
-                            $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
-
-                            if ($current_wt_lvl < $required_wt_lvl) {
-                                $error .= "Für Stufe $target_level benötigst du Wachturm Stufe $required_wt_lvl!<br>";
+                            if ($current_uni_lvl < $required_uni_lvl) {
+                                $error = "Für Stufe $target_level benötigst du Universität Stufe $required_uni_lvl!";
                             }
-                        }
 
-                        if ($tech_id == TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
-                            $required_barracks_lvl = ($target_level >= 3) ? 10 : 9;
-                            $current_barracks_lvl = $buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level();
+                            if ($tech_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
+                                $required_wt_lvl = $target_level + 1;
+                                $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
 
-                            if ($current_barracks_lvl < $required_barracks_lvl) {
-                                $error .= "Für Stufe $target_level benötigst du Kaserne Stufe $required_barracks_lvl!<br>";
+                                if ($current_wt_lvl < $required_wt_lvl) {
+                                    $error .= "Für Stufe $target_level benötigst du Wachturm Stufe $required_wt_lvl!<br>";
+                                }
                             }
-                        }
 
-                        $tech_dependencies = $techs[$tech_id]->get_tech_dependencies();
+                            if ($tech_id == TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
+                                $required_barracks_lvl = ($target_level >= 3) ? 10 : 9;
+                                $current_barracks_lvl = $buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level();
 
-                        foreach ($tech_dependencies as $dependency) {
-                            // Check BUILDING Dependency
-                            if (isset($dependency["dependencyid"]) && (int)$dependency["dependencyid"] >= 0) {
-                                $building_level_needed = $dependency["dependencylevel"];
-                                $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
+                                if ($current_barracks_lvl < $required_barracks_lvl) {
+                                    $error .= "Für Stufe $target_level benötigst du Kaserne Stufe $required_barracks_lvl!<br>";
+                                }
+                            }
 
-                                if ($building_level_needed > $building_level_current) {
-                                    $error .= $techs[$tech_id]->get_tech_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe 
+                            $tech_dependencies = $techs[$tech_id]->get_tech_dependencies();
+
+                            foreach ($tech_dependencies as $dependency) {
+                                // Check BUILDING Dependency
+                                if (isset($dependency["dependencyid"]) && (int)$dependency["dependencyid"] >= 0) {
+                                    $building_level_needed = $dependency["dependencylevel"];
+                                    $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
+
+                                    if ($building_level_needed > $building_level_current) {
+                                        $error .= $techs[$tech_id]->get_tech_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe 
                                 " . $building_level_needed . " voraus!<br />";
+                                    }
                                 }
-                            }
 
-                            // Check TECH Dependency
-                            if (isset($dependency["techdepid"]) && (int)$dependency["techdepid"] >= 0) {
-                                $tech_level_needed = $dependency["techdeplevel"];
-                                $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
+                                // Check TECH Dependency
+                                if (isset($dependency["techdepid"]) && (int)$dependency["techdepid"] >= 0) {
+                                    $tech_level_needed = $dependency["techdeplevel"];
+                                    $tech_level_current = $techs[$dependency["techdepid"]]->get_tech_level();
 
-                                if ($tech_level_needed > $tech_level_current) {
-                                    $error .= $techs[$tech_id]->get_tech_name() . " setzt " . $techs[$dependency["techdepid"]]->get_tech_name() . " Stufe 
+                                    if ($tech_level_needed > $tech_level_current) {
+                                        $error .= $techs[$tech_id]->get_tech_name() . " setzt " . $techs[$dependency["techdepid"]]->get_tech_name() . " Stufe 
                                 " . $tech_level_needed . " voraus!<br />";
+                                    }
                                 }
                             }
-                        }
 
-                        // Dependency check passed - research/upgrade tech!
-                        if (empty($error)) {
-                            if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
-                                $error = "Nicht genügend Ressourcen!";
-                            } else {
-                                $uni_mult = $kingdom->get_university_research_multiplier();
-                                $base_sec = (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
-                                $tech_time = time() + (int)round($base_sec * $uni_mult);
+                            // Dependency check passed - research/upgrade tech!
+                            if (empty($error)) {
+                                if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
+                                    $error = "Nicht genügend Ressourcen!";
+                                } else {
+                                    $uni_mult = $kingdom->get_university_research_multiplier();
+                                    $base_sec = (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
+                                    $tech_time = time() + (int)round($base_sec * $uni_mult);
 
-                                // Subtract research costs from kingdom resources
-                                $kingdom->give_kingdom_wood(-$cost_wood);
-                                $kingdom->give_kingdom_food(-$cost_food);
-                                $kingdom->give_kingdom_stone(-$cost_stone);
-                                $kingdom->give_kingdom_gold(-$cost_gold);
+                                    // Subtract research costs from kingdom resources
+                                    $kingdom->give_kingdom_wood(-$cost_wood);
+                                    $kingdom->give_kingdom_food(-$cost_food);
+                                    $kingdom->give_kingdom_stone(-$cost_stone);
+                                    $kingdom->give_kingdom_gold(-$cost_gold);
 
-                                $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                    [ActionTypes::ACTION_RESEARCH_TECH, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $techs[$tech_id]->get_tech_level(), $techs[$tech_id]->get_tech_name()]);
+                                    $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                        [ActionTypes::ACTION_RESEARCH_TECH, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $techs[$tech_id]->get_tech_level(), $techs[$tech_id]->get_tech_name()]);
 
-                                $kingdom_is_researching = true;
-                                $kingdom_research_id = $tech_id;
+                                    $kingdom_is_researching = true;
+                                    $kingdom_research_id = $tech_id;
+
+                                    change_location("university.php");
+                                    exit;
+                                }
                             }
                         }
                     }
                 }
-            }
-        } else if ($_GET["action"] == "cancel") { // The action that was set is "cancel research"
-            if ($kingdom_is_researching) {
-                $db_instance->execute_query(
-                    "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
-                    [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_RESEARCH_TECH]
-                );
+            } else if ($action == "cancel") { // The action that was set is "cancel research"
+                if ($kingdom_is_researching) {
+                    $db_instance->execute_query(
+                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
+                        [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_RESEARCH_TECH]
+                    );
 
-                $kingdom_is_researching = false;
-                $kingdom_research_id = -1;
+                    $kingdom_is_researching = false;
+                    $kingdom_research_id = -1;
 
-                // Refund the player
-                $kingdom->give_kingdom_wood($cost_wood);
-                $kingdom->give_kingdom_food($cost_food);
-                $kingdom->give_kingdom_stone($cost_stone);
-                $kingdom->give_kingdom_gold($cost_gold);
+                    // Refund the player
+                    $kingdom->give_kingdom_wood($cost_wood);
+                    $kingdom->give_kingdom_food($cost_food);
+                    $kingdom->give_kingdom_stone($cost_stone);
+                    $kingdom->give_kingdom_gold($cost_gold);
+
+                    change_location("university.php");
+                    exit;
+                } else {
+                    $error = "Du forschst gerade nichts!";
+                }
             } else {
-                $error = "Du forschst gerade nichts!";
+                $error = "Diese Aktion existiert nicht!";
             }
         } else {
-            $error = "Diese Aktion existiert nicht!";
+            $error = "Diese Forschung existiert nicht!";
         }
-    } else {
-        $error = "Diese Forschung existiert nicht!";
     }
 }
 $last_researched_tech = $user->get_last_researched_tech($current_kingdom, BuildingTypes::BUILDING_UNIVERSITY);
@@ -277,7 +289,7 @@ $kingdom_food = $kingdom->get_kingdom_food();
 $kingdom_stone = $kingdom->get_kingdom_stone();
 $kingdom_gold = $kingdom->get_kingdom_gold();
 
-$view .= '<table class="table">
+$view .= '<table class="table building-table">
             <colgroup>
                 <col class="col-description">
                 <col class="col-action">
@@ -361,7 +373,8 @@ foreach ($techs as $i => $tech) {
                 $text_build = "Forschungszeit:<br><span class='js-countdown' 
                                        data-seconds='$difference_time' 
                                        data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span><br>
-                              <form id='cancel-form' action='university.php' method='GET'>
+                              <form id='cancel-form' action='university.php' method='POST'>
+                                " . csrf_input() . "
                                 <input type='hidden' name='action' value='cancel'>
                                 <input type='hidden' name='tid' value='" . $i . "'>
                                 <input type='submit' value='Abbruch' style='margin-top: 5px;'>
@@ -410,10 +423,11 @@ foreach ($techs as $i => $tech) {
                 $disabled = $res_disabled ? "disabled" : "";
 
                 $btn_text = ($level > 0 ? "Upgrade" : "Forschen");
-                $text_build = "<form action='university.php' method='GET'>
-                                <input type='hidden' name='action' value='research'>
-                                <input type='hidden' name='tid' value='" . $i . "'>
-                                <input type='submit' value='" . $btn_text . "' $disabled>
+                $text_build = "<form action='university.php' method='POST'>
+                                    " . csrf_input() . "
+                                    <input type='hidden' name='action' value='research'>
+                                    <input type='hidden' name='tid' value='" . $i . "'>
+                                    <input type='submit' value='" . $btn_text . "' $disabled>
                                 </form>";
             }
         }

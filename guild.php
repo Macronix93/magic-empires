@@ -21,7 +21,7 @@ if (isset($_GET["minepage"])) {
 if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
     $active_tab = $_GET["tab"];
 
-    setcookie("me_guild_tab", $active_tab, time() + 31536000, "/", "", false, false);
+    setcookie("me_guild_tab", $active_tab, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
 } else if ($is_external_nav && !isset($_GET["minepage"])) {
     $active_tab = "chat";
 } else {
@@ -952,26 +952,26 @@ if ($my_guild_id === -1) {
             $troop_badges = "<div style='display: flex; flex-wrap: wrap; gap: 3px; justify-content: center;'>";
             if (!empty($grouped_troops[$mine_id])) {
                 foreach ($grouped_troops[$mine_id] as $tr) {
-                    $s_id = (int)$tr["soldier_id"];
-                    $p_id = "pop_guild_mine_{$mine_id}_$s_id";
-                    $troop_badges .= "
-                    <div class='unit-badge popup' id='$p_id' title='{$tr["soldiername"]}' style='padding: 2px 5px;'> 
-                        <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''> <b>{$tr["soldiercount"]}</b> 
-                        <div id='{$p_id}_box' class='popupbox' style='text-align: left; min-width: 150px;'> 
-                            <b>Geschürfte Ressourcen:</b><br>$loot_popup_content 
-                        </div> 
-                    </div>";
+                    $troop_badges .= " <div class='unit-badge' title='{$tr["soldiername"]}' style='padding: 2px 5px;'>
+                                        <img src='images/icons/{$tr["icon"]}.png' class='ressource-icons' alt=''> <b>{$tr["soldiercount"]}</b>
+                                    </div>";
                 }
             }
             $troop_badges .= "</div>";
 
+            $pop_g_mine_td_id = "pop_g_mine_td_" . $mine_id;
             $view .= "<tr>
                 <td class='td-center'>
                     <b>Stufe $mine_lvl</b><br>
                     <small>($c_link)</small>
                 </td>
                 <td class='td-center'>$members_html</td>
-                <td class='td-center'>$troop_badges</td>
+                <td class='td-center popup' id='$pop_g_mine_td_id'>
+                    $troop_badges
+                    <div id='{$pop_g_mine_td_id}_box' class='popupbox' style='text-align: left; min-width: 150px;'>
+                        <b>Geschürfte Ressourcen:</b><br>$loot_popup_content
+                    </div>
+                </td>
                 <td class='td-center'>
                     <span><b class='js-mine-progress' data-work-done='$work_done' data-work-total='$work_total' data-rate='$rate'>$percent_display %</b></span>
                     <div class='tick-progress-bg mining-progress'>

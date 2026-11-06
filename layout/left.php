@@ -4,7 +4,6 @@ $messages = new Messages($user);
 
 $unreads = $user->get_unread_counts();
 
-$unread_total = $unreads["total"];
 $unread_news = $unreads["news"];
 $unread_world = $unreads["world"];
 $unread_guild = $unreads["guild"];
@@ -147,7 +146,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <?= get_page_icon("news.php") ?>
                 Neuigkeiten
                 <?php if ($unread_news > 0): ?>
-                    <span class="msg-badge"><?= $unread_news ?></span>
+                    <span class="msg-badge"><?= $messages->show_messages_indicator($unread_news) ?></span>
                 <?php endif; ?>
             </div>
             <div class="box" data-on-click="navigate" data-url="forum.php">

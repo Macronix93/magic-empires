@@ -35,12 +35,14 @@ class ResourceBuilding
 
     public static function handle(User $user, int $building_type): void
     {
-        global $db_instance, $error, $view, $title, $header, $script_files, $js_folder;
-
         if (!isset(self::CONFIG[$building_type])) {
             change_location("overview.php");
             exit;
         }
+
+        $db_instance = Database::get_instance()->get_connection();
+        $error = "";
+        $view = "";
 
         $cfg = self::CONFIG[$building_type];
         $res_type = $cfg["res_type"];
@@ -69,13 +71,16 @@ class ResourceBuilding
                 if ($user->get_user_coins() >= $boost_cost) {
                     $user->give_user_coins(-$boost_cost);
                     $hourly_boost = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
+
                     $db_instance->execute_query(
                         "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
                          VALUES (?, ?, ?, ?) 
                          ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
                         [$current_kingdom, $res_type, $boost_duration_ticks, $hourly_boost]
                     );
+
                     Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+
                     change_location($page_file);
                     exit;
                 } else {
@@ -97,10 +102,11 @@ class ResourceBuilding
             SELECT ft.$rate_col AS fieldrate 
             FROM map m 
             JOIN field_types ft ON m.fieldtype = ft.fieldid 
-            WHERE m.kingdomid = ?", [$current_kingdom]);
+            WHERE m.kingdomid = ?",
+            [$current_kingdom]
+        );
         $ft_res = $res_ft->fetch_assoc();
         $field_rate = (float)($ft_res["fieldrate"] ?? 1.0);
-
         $base_rate = match ($res_type) {
             ResourceTypes::RESOURCE_TYPE_FOOD => $kingdom->get_base_food_rate(),
             ResourceTypes::RESOURCE_TYPE_WOOD => $kingdom->get_base_wood_rate(),
@@ -108,7 +114,6 @@ class ResourceBuilding
             ResourceTypes::RESOURCE_TYPE_GOLD => $kingdom->get_base_gold_rate(),
             default => 0
         };
-
         $boost_value = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
         $next_level_text = "";
         if ($lvl < MAX_BUILDING_LEVEL) {

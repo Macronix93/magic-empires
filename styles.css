@@ -40,7 +40,7 @@ html::before {
     top: 0;
     left: 0;
     width: 100vw;
-    height: 100vh;
+    height: 100lvh;
     z-index: -1;
     background: url("images/background.jpg") no-repeat center center;
     background-size: 100% 100%;
@@ -544,10 +544,12 @@ button .emoji-fix {
 
 .loss-red {
     color: #ff4d4d;
+    font-size: 15px;
 }
 
 .loss-gray {
     color: #8f9296;
+    font-size: 15px;
     font-style: italic;
 }
 
@@ -855,8 +857,14 @@ hr {
 #newmessage-section form {
     display: flex;
     flex-direction: row;
+    align-items: center;
     padding: 5px;
     margin-top: 15px;
+}
+
+#newmessage-section input,
+#newmessage-section button.emoji-trigger {
+    height: 65px;
 }
 
 #new-message-line {
@@ -988,7 +996,7 @@ option {
 textarea {
     width: 100%;
     resize: vertical;
-    min-height: 30px;
+    min-height: 65px;
     max-height: 200px;
 }
 
@@ -1072,13 +1080,62 @@ button {
     border: 2px solid rgba(0, 0, 0, 0.63);
     border-radius: 3px;
     padding: 5px;
+    -webkit-tap-highlight-color: transparent !important;
 }
 
-input[type=submit]:hover,
-input[type=button]:hover,
-button:hover {
-    background: #96281e;
-    border-color: var(--link-color);
+input[type=submit]:focus,
+input[type=button]:focus,
+button:focus {
+    outline: none !important;
+}
+
+input[type=submit]:focus-visible,
+input[type=button]:focus-visible,
+button:focus-visible {
+    outline: none !important;
+    border-color: var(--link-color) !important;
+}
+
+input[type=submit]:not(:disabled):active,
+input[type=button]:not(:disabled):active,
+button:not(:disabled):active {
+    background: linear-gradient(180deg, #3d1209 0%, #5e1910 100%) !important;
+    border-top-width: 3px !important;
+    border-bottom-width: 1px !important;
+    box-shadow: inset 0 0.1em 0.25em rgba(0, 0, 0, 0.3) !important;
+    transition: none !important;
+}
+
+@media (hover: none) {
+    input[type=submit]:focus,
+    input[type=button]:focus,
+    button:focus {
+        border-color: rgba(0, 0, 0, 0.63) !important;
+    }
+}
+
+@media (hover: hover) and (pointer: fine) {
+    input[type=submit]:hover,
+    input[type=button]:hover,
+    button:hover {
+        background: #96281e;
+        /*border-color: var(--link-color) !important;*/
+    }
+
+    input[type=submit]:not(:disabled):active,
+    input[type=button]:not(:disabled):active,
+    button:not(:disabled):active {
+        background: #6e1a10 !important;
+        /*border-color: var(--link-color) !important;*/
+    }
+}
+
+button,
+input[type=submit],
+input[type=button],
+a,
+[data-on-click] {
+    touch-action: manipulation;
 }
 
 input[type=submit]:disabled,
@@ -1161,12 +1218,12 @@ select:-webkit-autofill:focus {
     align-items: center;
     gap: 3px;
     white-space: nowrap;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .guild-donation-table .ressource-icons {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
 }
 
 .guild-donation-table-name {
@@ -1810,11 +1867,6 @@ tr:first-child td.td-gradient {
     height: 24px;
 }
 
-.item-icons {
-    width: 48px;
-    height: 48px;
-}
-
 .buildable-icons {
     width: 30px;
     height: 30px;
@@ -2186,6 +2238,17 @@ tr:first-child td.td-gradient {
     min-width: unset !important;
     padding: 0 10px !important;
     text-transform: uppercase !important;
+}
+
+#field-info .tick-progress-bg {
+    height: 8px;
+}
+
+.map-mine-progression {
+    display: flex;
+    justify-content: space-between;
+    font-size: 17px;
+    margin-bottom: 3px;
 }
 
 .map-popup-close-btn {
@@ -2565,6 +2628,7 @@ body.modal-open footer {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     scrollbar-width: thin;
+    scrollbar-gutter: stable;
 }
 
 .overlay-body::-webkit-scrollbar {
@@ -3027,33 +3091,49 @@ img[data-on-click] {
     width: 100%;
 }
 
+.marketplace-dropdown {
+    max-width: 140px;
+}
+
 .trade-arrow {
     font-weight: bold;
     flex-shrink: 0;
 }
 
-.marketplace-table colgroup col:nth-child(1) {
-    width: 22% !important;
+.marketplace-player {
+    width: 30%;
 }
 
-.marketplace-table colgroup col:nth-child(2) {
-    width: 32% !important;
+.marketplace-offer {
+
+    width: 20%;
 }
 
-.marketplace-table colgroup col:nth-child(3) {
-    width: 15% !important;
+.marketplace-arrival {
+    width: 20%;
 }
 
-.marketplace-table colgroup col:nth-child(4) {
-    width: 15% !important;
+.marketplace-end {
+    width: 20%;
 }
 
-.marketplace-table colgroup col:nth-child(5) {
-    width: 16% !important;
+.marketplace-fee {
+    width: 15%;
+}
+
+.marketplace-action {
+    width: 5%;
 }
 
 .header-stack {
     font-weight: bold;
+}
+
+.player-info-stack {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
 
 .news-footer-wrap {
@@ -3568,6 +3648,16 @@ img[data-on-click] {
     width: 6px;
 }
 
+.userinfo-table {
+    width: 100% !important;
+
+}
+
+.overlay-body.userinfo-overlay,
+.overlay-body:has(.userinfo-table) {
+    scrollbar-gutter: auto !important;
+}
+
 .btn-comments.has-new-comments {
     border-color: var(--link-color) !important;
     background-color: rgba(165, 124, 0, 0.3) !important;
@@ -3599,6 +3689,15 @@ img[data-on-click] {
 
 .ach-reward {
     width: 110px;
+}
+
+.show-ach-userinfo,
+.guild-invitation-button {
+    width: 75px;
+}
+
+.active-title-dropdown {
+    max-width: 210px;
 }
 
 .item-needed {
@@ -3793,7 +3892,7 @@ img[data-on-click] {
 }
 
 .battle-supporter-name {
-    font-size: 1.1em;
+    font-size: 1.0em;
     color: var(--link-color);
     margin-bottom: 7px;
     text-align: left;
@@ -3804,12 +3903,55 @@ img[data-on-click] {
     margin: 0 auto;
 }
 
-.watchtower-content {
-    width: 260px;
+.mobile-hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 22px;
+    height: 16px;
+    pointer-events: none;
 }
 
-.watchtower-content.has-boost {
-    width: 390px;
+.mobile-hamburger span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background-color: var(--link-color);
+    border-radius: 2px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.mobile-trigger-castle {
+    width: 28px;
+    height: 28px;
+    display: block;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+.overview-max {
+    font-size: 14px;
+}
+
+.report-sub-text {
+    font-style: italic;
+    opacity: 0.9;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 5px;
+    font-size: 17px;
+}
+
+.report-main-text {
+    font-size: 19px;
+    margin-bottom: 5px;
+}
+
+.battle-report-troops-origin {
+    text-align: center;
+    font-size: 13px;
+    margin-top: -8px;
+    margin-bottom: 4px;
+    opacity: 0.8;
 }
 
 /* Landscape Modus */
@@ -3841,8 +3983,69 @@ img[data-on-click] {
         --map-viewport-height: 350px;
     }
 
-    .watchtower-content {
-        width: 220px !important;
+    .active-title-dropdown {
+        font-size: 13px;
+        max-width: 180px;
+    }
+
+    .vacation-dropdown {
+        font-size: 12px;
+    }
+
+    .battle-report-troops-origin {
+        margin-top: -12px;
+        font-size: 10px;
+    }
+
+    .report-sub-text {
+        font-size: 12px;
+    }
+
+    .report-main-text {
+        font-size: 13px;
+    }
+
+    .overview-max {
+        font-size: 11px;
+    }
+
+    input[type=submit],
+    input[type=button],
+    button {
+        transition: box-shadow 0.01s ease, background 0.01s ease;
+    }
+
+    input[type=submit]:not(:disabled):active,
+    input[type=button]:not(:disabled):active,
+    button:not(:disabled):active {
+        background: linear-gradient(180deg, #52160d 0%, #6e1a10 100%) !important;
+        border-top-width: 2px !important;
+        border-bottom-width: 2px !important;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+        -webkit-appearance: none;
+        transition: box-shadow 0.01s ease, background 0.01s ease !important;
+    }
+
+    .target-kingdom {
+        width: 220px;
+        font-size: 13px;
+    }
+
+    .arena-description {
+        font-size: 14px;
+    }
+
+    .show-ach-userinfo,
+    .guild-invitation-button {
+        font-size: 10px !important;
+        height: 24px;
+        width: 50px;
+        padding: 0;
+    }
+
+    .loss-red,
+    .loss-gray {
+        font-size: 10px;
     }
 
     .watchtower-content.has-boost {
@@ -4388,6 +4591,10 @@ img[data-on-click] {
         height: 11px;
     }
 
+    .storage-next-level-text {
+        width: 360px !important;
+    }
+
     .res-building-content {
         width: 300px;
         font-size: 14px;
@@ -4508,6 +4715,10 @@ img[data-on-click] {
     }
 
     /* Floating Map Info Popup SMARTPHONE */
+    .map-mine-progression {
+        font-size: 10px;
+    }
+
     .map-floating-popup {
         min-width: 260px !important;
         max-width: 350px !important;
@@ -4516,26 +4727,29 @@ img[data-on-click] {
     }
 
     .map-floating-popup .title-border {
-        font-size: 14px !important;
+        font-size: 13px !important;
         line-height: 20px !important;
         margin: 6px auto 6px auto !important;
         letter-spacing: 1px !important;
     }
 
     .map-floating-popup td {
-        font-size: 13px !important;
+        font-size: 12px !important;
         padding: 4px 8px !important;
-        line-height: 1.2 !important;
+    }
+
+    .map-floating-popup .tick-progress-bg {
+        height: 4px;
     }
 
     .map-floating-popup .td-mapinfo {
-        font-size: 13px !important;
+        font-size: 12px !important;
         padding: 4px 8px !important;
         width: 40% !important;
     }
 
     .map-floating-popup .td-mapinfo + td {
-        font-size: 13px !important;
+        font-size: 12px !important;
         padding: 4px 8px !important;
     }
 
@@ -4546,7 +4760,7 @@ img[data-on-click] {
 
     .map-floating-popup button {
         padding: 4px 10px !important;
-        font-size: 12px !important;
+        font-size: 11px !important;
     }
 
     .map-floating-popup .map-popup-close-btn {
@@ -4563,12 +4777,6 @@ img[data-on-click] {
     }
 
     /*************************************/
-    .battle-report div[style*="margin-top: -12px"] {
-        margin-top: -3px !important;
-        margin-bottom: 12px !important;
-        font-size: 11px !important;
-    }
-
     .guild-members-table {
         width: 100% !important;
     }
@@ -4849,11 +5057,6 @@ img[data-on-click] {
         font-size: 14px;
     }
 
-    #message-input {
-        height: 70px !important;
-        resize: none;
-    }
-
     .send-selection-table colgroup col:nth-child(2) {
         width: 100px !important;
     }
@@ -4932,8 +5135,6 @@ img[data-on-click] {
 
     .market-submit-wrap {
         flex-direction: column;
-        gap: 8px;
-        margin-top: 5px;
     }
 
     .marketplace-table {
@@ -4950,14 +5151,14 @@ img[data-on-click] {
         display: flex;
         flex-direction: column;
         align-items: center;
-        line-height: 1.1;
     }
 
     .marketplace-table .player-info-stack {
-        display: flex;
-        flex-direction: column;
-        line-height: 1.1;
-        text-align: center;
+        padding-left: 5px;
+    }
+
+    .marketplace-table .image-and-user {
+        gap: 5px;
     }
 
     .marketplace-table .trade-item-stack {
@@ -5224,7 +5425,8 @@ img[data-on-click] {
         table-layout: fixed;
     }
 
-    #recruitment-table .ressource-icons {
+    #recruitment-table .ressource-icons,
+    .building-table .ressource-icons {
         width: 16px;
         height: 16px;
     }
@@ -5250,7 +5452,8 @@ img[data-on-click] {
     }
 
     .js-upgrade-select,
-    .js-barracks-send-select {
+    .js-barracks-send-select,
+    .marketplace-dropdown {
         height: 25px;
         font-size: 11px;
         padding: 3px 22px 3px 6px;
@@ -5408,7 +5611,7 @@ img[data-on-click] {
     }
 
     .battle-column {
-        gap: 2px;
+        gap: 4px;
     }
 
     .battle-strength {
@@ -5419,7 +5622,7 @@ img[data-on-click] {
 
     .report-section-title {
         font-size: 15px;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
     }
 
     .server-bubble {
@@ -5447,6 +5650,7 @@ img[data-on-click] {
     }
 
     html::before {
+        /*height: 100lvh;*/
         background-size: cover;
         background-position: 35% 65%;
     }
@@ -5460,7 +5664,6 @@ img[data-on-click] {
 
     .ressource-icons,
     .menu-icons,
-    .item-icons,
     .buildable-icons,
     .info-box img {
         width: 20px;
@@ -5473,8 +5676,9 @@ img[data-on-click] {
     }
 
     textarea {
-        min-height: 26px;
+        min-height: 25px;
         font-size: 13px !important;
+        resize: none !important;
     }
 
     button,
@@ -5520,8 +5724,9 @@ img[data-on-click] {
         text-overflow: ellipsis;
     }
 
-    #newmessage-section textarea {
-        height: 50px;
+    #newmessage-section input,
+    #newmessage-section button.emoji-trigger {
+        height: 53px;
     }
 
     .map-toolbar {

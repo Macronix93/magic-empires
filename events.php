@@ -86,7 +86,7 @@ if ($active_event) {
         if (empty($_SESSION["game_error"])) {
             // Get all available troops from every kingdom of the user and exclude specific ones
             $exclude_specials = isset($_POST["exclude_specials"]);
-            setcookie("me_mass_exclude_specials", $exclude_specials ? "1" : "0", time() + 31536000, "/", "", false, false);
+            setcookie("me_mass_exclude_specials", $exclude_specials ? "1" : "0", time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
             $_COOKIE["me_mass_exclude_specials"] = $exclude_specials ? "1" : "0";
 
             $excluded_units = [
@@ -257,9 +257,8 @@ if (!$active_event) {
 
     $user_damage = $user_participation["total_damage"] ?? 0;
     $user_attempts = $user_participation["attempts_used"] ?? 0;
-    $top_kingdom_id = $user_participation["top_kingdom_id"] ?? 0;
 
-    $target_url = "ajax/send_troops.php?x=50&y=50";
+    $target_url = "ajax/send_troops.php?x=" . WORLD_EVENT_CENTER_X . "&y=" . WORLD_EVENT_CENTER_Y;
     $pool = $world_event_manager->get_monster_pool();
     $monster = $pool[$active_event["monster_index"]];
 
@@ -375,12 +374,8 @@ if (!$active_event) {
                             <div style='width: $bar_width%; height: 100%; background: linear-gradient(90deg, #a62121, #ff4d4d); transition: width 0.5s ease;'></div>
                         </div>
                     </div>";
-        }
-
-        if ($is_boss_dead) {
-            $view .= "<p style='margin-bottom: 30px;'>Die dunkle Präsenz wurde vertrieben.<br>Alle Teilnehmer erhalten nach Ablauf ihre Belohnung!</p>";
         } else {
-            $view .= "<p style='margin-bottom: 30px;'>Schicke deine Truppen zum Zentrum der Karte, um den Boss gemeinsam zu besiegen!</p>";
+            $view .= "<p style='margin-bottom: 30px;'>Die dunkle Präsenz wurde vertrieben.<br>Alle Teilnehmer erhalten nach Ablauf ihre Belohnung!</p>";
         }
 
         // Rewards Box
@@ -407,11 +402,11 @@ if (!$active_event) {
                 <div style='background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 13px;'>
                     <div style='display: flex; gap: 15px; margin-top: 5px;'>
                         <div style='flex: 1;'>
-                            <span class='passed'><b>Standard Pool:</b></span><br>
+                            <span style='color: var(--link-color)'><b>Standard Pool:</b></span><br>
                             Miliz bis Elfenschützen. Die Menge skaliert an deinem Königreich-Schnitt.
                         </div>
                         <div style='flex: 1;'>
-                            <span style='color: gold;'><b>Spezial Pool:</b></span><br>
+                            <span style='color: var(--link-color)'><b>Spezial Pool:</b></span><br>
                             Eroberer, Rammen, Räuber, Diebe oder Späher. Die Menge skaliert an deinem höchsten Dorfzentrum.
                         </div>
                     </div>

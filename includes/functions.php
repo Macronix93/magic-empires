@@ -87,13 +87,11 @@ function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_se
 
 function change_location(string $url, int $seconds = 0): void
 {
-    $is_absolute = str_starts_with($url, "http://")
-            || str_starts_with($url, "https://")
-            || str_starts_with($url, "//");
+    $is_absolute = str_starts_with($url, "https://") || str_starts_with($url, "//");
 
     if ($is_absolute) {
         $full_url = $url;
-    } elseif (defined("BASE_URL") && BASE_URL !== "/" && str_starts_with($url, BASE_URL)) {
+    } else if (defined("BASE_URL") && BASE_URL !== "/" && str_starts_with($url, BASE_URL)) {
         $full_url = $url;
     } else {
         $base = defined("BASE_URL") ? rtrim(BASE_URL, "/") : "";
@@ -730,6 +728,10 @@ function is_name_monotonous($name): bool
 
 function check_ip_proxy($ip): array|null
 {
+    if (IS_DEV) {
+        return null;
+    }
+
     $api_url = "https://proxycheck.io/v2/" . $ip . "?vpn=1&asn=1";
     $context = stream_context_create(["http" => ["timeout" => 2]]);
     $response = @file_get_contents($api_url, false, $context);
@@ -893,4 +895,22 @@ function get_page_icon(string $key, string $css_class = "menu-icons", string $al
 {
     $src = PAGE_ICONS[$key] ?? "images/icons/icon_error.png";
     return "<img src='$src' class='$css_class' alt='" . e($alt ?: $key) . "'/>";
+}
+
+function get_csrf_token(): string
+{
+    if (empty($_SESSION["csrf_token"])) {
+        $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION["csrf_token"];
+}
+
+function verify_csrf_token(?string $token): bool
+{
+    return !empty($token) && !empty($_SESSION["csrf_token"]) && hash_equals($_SESSION["csrf_token"], $token);
+}
+
+function csrf_input(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . e(get_csrf_token()) . '">';
 }

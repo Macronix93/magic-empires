@@ -16,8 +16,6 @@ const W_CONF = {
     wallAbsorptionPerLevel: parseInt(warsimConstEl.dataset.wall_absorption_per_lvl),
     wallEffDmgFactor: parseFloat(warsimConstEl.dataset.wall_eff_dmg_factor),
     siegeBonus: parseFloat(warsimConstEl.dataset.siege_bonus),
-    ramFactor: parseFloat(warsimConstEl.dataset.ram_factor),
-    ramLimit: parseFloat(warsimConstEl.dataset.ram_limit),
     ramFlat: parseFloat(warsimConstEl.dataset.ram_flat),
     maxLvl: parseInt(warsimConstEl.dataset.max_lvl),
     rpsBonus: parseFloat(warsimConstEl.dataset.rps_bonus),
@@ -528,27 +526,36 @@ function calculateWarOutcome(soldierTypes) {
         let sharedDmg = 0;
         let totalRawAtk = 0;
 
-        const focusShare = W_CONF.rpsTargetFocus;        // z.B. 0.70
-        const defaultShare = 1.0 - focusShare;           // z.B. 0.30
+        const focusShare = W_CONF.rpsTargetFocus;
+        const defaultShare = 1.0 - focusShare;
+
+        const remainingDef = {};
+        for (let c in defPools) {
+            remainingDef[c] = defPools[c] * W_CONF.lethalityPvp;
+        }
 
         for (let k in attackerUnits) {
             const u = attackerUnits[k];
             if (u.count <= 0) continue;
+
             const unitAtkSum = u.count * u.atk;
             totalRawAtk += unitAtkSum;
-
             const targetCat = getPreferredTargetCat(u.cat);
+
             if (targetCat !== -1 && hasCategoryUnits(defenderUnits, targetCat)) {
                 const targetDamageWithBonus = unitAtkSum * focusShare * (1.0 + W_CONF.rpsBonus);
+                const currCap = remainingDef[targetCat] || 0;
 
-                // Overkill-Spillover
-                const maxDefCapacity = defPools[targetCat] * W_CONF.lethalityPvp;
-                if (targetDamageWithBonus > maxDefCapacity && maxDefCapacity > 0) {
-                    const excess = targetDamageWithBonus - maxDefCapacity;
-                    targetedDmg[targetCat] += maxDefCapacity;
+                if (targetDamageWithBonus > currCap && currCap > 0) {
+                    const excess = targetDamageWithBonus - currCap;
+                    targetedDmg[targetCat] += currCap;
+                    remainingDef[targetCat] = 0;
                     sharedDmg += (excess / (1.0 + W_CONF.rpsBonus)) + (unitAtkSum * defaultShare);
+                } else if (currCap <= 0) {
+                    sharedDmg += (targetDamageWithBonus / (1.0 + W_CONF.rpsBonus)) + (unitAtkSum * defaultShare);
                 } else {
                     targetedDmg[targetCat] += targetDamageWithBonus;
+                    remainingDef[targetCat] -= targetDamageWithBonus;
                     sharedDmg += unitAtkSum * defaultShare;
                 }
             } else {
@@ -559,6 +566,7 @@ function calculateWarOutcome(soldierTypes) {
         const finalIncomingDmg = {0: 0, 1: 0, 2: 0, 3: 0};
         for (let cat in defPools) {
             finalIncomingDmg[cat] = targetedDmg[cat];
+
             if (totalDef > 0 && defPools[cat] > 0) {
                 finalIncomingDmg[cat] += sharedDmg * (defPools[cat] / totalDef);
             }

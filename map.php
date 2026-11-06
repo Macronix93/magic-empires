@@ -176,13 +176,7 @@ if (is_numeric($get_x) && is_numeric($get_y)) {
     }
 }
 
-if ($coords_valid) {
-    $result = $db_instance->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$x, $y]);
-} else {
-    if ($get_x !== null || $get_y !== null) {
-        $_SESSION["game_error"] = "Ungültige Koordinaten aufgerufen!";
-    }
-
+if (!$coords_valid) {
     $field_id = $user->get_current_kingdom();
     $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$field_id]);
     $row = $result->fetch_assoc();

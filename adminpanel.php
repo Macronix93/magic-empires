@@ -20,7 +20,7 @@ if (!$user->is_admin()) {
     if ($active_tab === null) {
         if (isset($_GET['userid'])) {
             $active_tab = 'users';
-        } elseif (isset($_GET['logpage'])) {
+        } else if (isset($_GET['logpage'])) {
             $active_tab = 'gamelogs';
         } else {
             $active_tab = $_COOKIE['me_admin_tab'] ?? 'system';
@@ -360,13 +360,38 @@ if (!$user->is_admin()) {
                 $error = "Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!";
             }
         } else {
-            if ($field == "password") {
-                $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
-            } else {
-                $new_value_db = $new_value;
-            }
+            $allowed_editable_fields = [
+                "username", "email", "status", "adminlevel", "score",
+                "coins", "mainkingdom", "guildid", "password", "avatar",
+                "is_banned", "ban_reason", "gender", "active_title_id",
+                "is_vacation", "vacation_until", "linked_user_id",
+                "msgcount", "lastsentmsgend", "daily_trades_count"
+            ];
 
-            $result = $db_instance->execute_query("UPDATE users SET $field = ? WHERE id = ?", [$new_value_db, $user_id]);
+            if (!in_array($field, $allowed_editable_fields, true)) {
+                $error = "Ungültiges oder geschütztes Feld!";
+            } else {
+                if ($field === "password") {
+                    $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
+
+                    $result = $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_value_db, $user_id]);
+                    $target_uname = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
+
+                    if ($target_uname) {
+                        PhpBBBridge::update_password($target_uname, $new_value_db);
+                    }
+                } else if ($field === "score") {
+                    $score_val = (int)$new_value;
+
+                    $result = $db_instance->execute_query("UPDATE users SET score = ?, ranking_points = ? WHERE id = ?", [$score_val, $score_val, $user_id]);
+                } else if ($field === "is_vacation" && (int)$new_value === 0) {
+                    $result = $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$user_id]);
+                } else if ($field === "linked_user_id" && (empty($new_value) || (int)$new_value <= 0)) {
+                    $result = $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$user_id]);
+                } else {
+                    $result = $db_instance->execute_query("UPDATE users SET `$field` = ? WHERE id = ?", [$new_value, $user_id]);
+                }
+            }
         }
 
         if ($result) {
@@ -421,25 +446,33 @@ if (!$user->is_admin()) {
                     $adm_user = new User($row["id"], $row["username"]);
 
                     $user_info = [
-                        'Name' => ['field' => 'username', 'value' => $row['username']],
-                        'Bann-Status' => ['field' => 'is_banned', 'value' => $row['is_banned']],
-                        'Bann-Grund' => ['field' => 'ban_reason', 'value' => $row['ban_reason']],
-                        'Passwort' => ['field' => 'password', 'value' => "Passwort"],
-                        'Avatar' => ['field' => 'avatar', 'value' => $adm_user->get_avatar()],
-                        'Account-Status' => ['field' => 'status', 'value' => $row['status']],
-                        'IP' => ['field' => 'ip', 'value' => $row['ip']],
-                        'Admin-Level' => ['field' => 'adminlevel', 'value' => $row['adminlevel']],
-                        'Registriert am' => ['field' => 'registerdate', 'value' => $row['registerdate']],
-                        'E-Mail' => ['field' => 'email', 'value' => $row['email']],
-                        'Letzter Login' => ['field' => 'lastlogin', 'value' => $row['lastlogin']],
-                        'Letzte Aktivität' => ['field' => 'lastactivity', 'value' => $row['lastactivity']],
-                        'Rang um 0 Uhr' => ['field' => 'lastrank', 'value' => $row['lastrank']],
-                        'Punkte' => ['field' => 'score', 'value' => $row['score']],
-                        'Haupt-Königreich' => ['field' => 'mainkingdom', 'value' => $row['mainkingdom']],
-                        'Gilde' => ['field' => 'guildid', 'value' => $row['guildid']],
-                        'Münzen' => ['field' => 'coins', 'value' => $row['coins']],
-                        'Nachrichten-Zähler' => ['field' => 'msgcount', 'value' => $row['msgcount']],
-                        'Rate-Limit Ende' => ['field' => 'lastsentmsgend', 'value' => $row['lastsentmsgend']]
+                        'Name' => ['field' => 'username', 'value' => $row['username'], 'editable' => true],
+                        'Geschlecht' => ['field' => 'gender', 'value' => $row['gender'] ?? 'm', 'editable' => true],
+                        'Titel-ID' => ['field' => 'active_title_id', 'value' => $row['active_title_id'] ?? 0, 'editable' => true],
+                        'Bann-Status' => ['field' => 'is_banned', 'value' => $row['is_banned'], 'editable' => true],
+                        'Bann-Grund' => ['field' => 'ban_reason', 'value' => $row['ban_reason'], 'editable' => true],
+                        'Passwort' => ['field' => 'password', 'value' => "Passwort", 'editable' => true],
+                        'Avatar' => ['field' => 'avatar', 'value' => $adm_user->get_avatar(), 'editable' => true],
+                        'Account-Status' => ['field' => 'status', 'value' => $row['status'], 'editable' => true],
+                        'Admin-Level' => ['field' => 'adminlevel', 'value' => $row['adminlevel'], 'editable' => true],
+                        'E-Mail' => ['field' => 'email', 'value' => $row['email'], 'editable' => true],
+                        'Punkte' => ['field' => 'score', 'value' => $row['score'], 'editable' => true],
+                        'Münzen' => ['field' => 'coins', 'value' => $row['coins'], 'editable' => true],
+                        'Haupt-Königreich' => ['field' => 'mainkingdom', 'value' => $row['mainkingdom'], 'editable' => true],
+                        'Gilde-ID' => ['field' => 'guildid', 'value' => $row['guildid'], 'editable' => true],
+                        'Urlaubs-Status' => ['field' => 'is_vacation', 'value' => $row['is_vacation'] ?? 0, 'editable' => true],
+                        'Urlaub bis' => ['field' => 'vacation_until', 'value' => $row['vacation_until'] ?? 0, 'editable' => true],
+                        'Partner-ID' => ['field' => 'linked_user_id', 'value' => $row['linked_user_id'] ?? '', 'editable' => true],
+                        'Handels-Zähler' => ['field' => 'daily_trades_count', 'value' => $row['daily_trades_count'] ?? 0, 'editable' => true],
+                        'Nachrichten-Zähler' => ['field' => 'msgcount', 'value' => $row['msgcount'], 'editable' => true],
+                        'Rate-Limit Ende' => ['field' => 'lastsentmsgend', 'value' => $row['lastsentmsgend'], 'editable' => true],
+                        // REINE ANZEIGEFELDER (Nicht editierbar):
+                        'IP' => ['field' => 'ip', 'value' => $row['ip'], 'editable' => false],
+                        'Device-ID' => ['field' => 'device_id', 'value' => $row['device_id'] ?? '-', 'editable' => false],
+                        'Registriert am' => ['field' => 'registerdate', 'value' => $row['registerdate'], 'editable' => false],
+                        'Letzter Login' => ['field' => 'lastlogin', 'value' => $row['lastlogin'], 'editable' => false],
+                        'Letzte Aktivität' => ['field' => 'lastactivity', 'value' => $row['lastactivity'], 'editable' => false],
+                        'Rang um 0 Uhr' => ['field' => 'lastrank', 'value' => $row['lastrank'], 'editable' => false]
                     ];
                 }
 
@@ -469,53 +502,47 @@ if (!$user->is_admin()) {
             foreach ($user_info as $label => $data) {
                 $field_id = $data["field"];
                 $raw_value = $data["value"];
+                $is_editable = $data["editable"] ?? true;
                 $display_value = "";
 
                 if ($label === "Avatar") {
                     $display_value = '<img class="user-image" src="' . e($raw_value) . '" alt="Nutzerbild">';
-                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Rate-Limit Ende"])) {
-                    $display_value = date("d.m.Y", $raw_value) . ' um ' . date("H:i:s", $raw_value);
+                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Rate-Limit Ende", "Urlaub bis"])) {
+                    $display_value = ((int)$raw_value > 0) ? date("d.m.Y H:i:s", (int)$raw_value) : "-";
                 } else if ($label === "Punkte") {
                     $display_value = fnum($raw_value);
                 } else {
-                    $display_value = e($raw_value);
+                    $display_value = e((string)$raw_value);
                 }
 
                 if ($label === "Name") {
                     $display_value .= ' [ID: ' . $user_id . ']';
                 }
 
-                $user_info_html .= '<tr>
-                            <td style="width: 30%;">' . $label . ':</td>
-                            <td id="td_' . $field_id . '">' . $display_value . '</td>
-                            <td class="td-center" style="border-bottom: 1px solid var(--box-header);">
-                                <a href="#" 
-                                   data-on-click="editUserField" 
-                                   data-userid="' . e($user_id) . '" 
-                                   data-fieldid="' . e($field_id) . '" 
-                                   data-raw="' . e($raw_value) . '" 
-                                   data-formatted="' . e($display_value) . '">
-                                    <img src="images/icons/icon_edit.png" class="ressource-icons" alt="Editieren">
-                                </a>'
-                    . ($label === "Name" ? '
-                            <a href="#" 
-                               data-on-click="banUserDialog" 
-                               data-userid="' . e($user_id) . '" 
-                               data-username="' . e($row["username"]) . '"
-                               data-status="' . e($row["is_banned"]) . '">
-                                <img src="images/icons/' . ($row["is_banned"] ? 'icon_checked.png' : 'icon_error.png') . '" class="ressource-icons" alt="Bannen" title="Sperren/Entsperren">
-                            </a>
-                            <a href="#" 
-                               data-on-click="userDeletionDialog" 
-                               data-userid="' . e($user_id) . '" 
-                               data-username="' . e($row["username"]) . '">
-                                <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen" >
-                            </a>'
-                        : '') . '
-                        </td>
-                      </tr>';
-            }
+                $edit_action = '';
+                if ($is_editable) {
+                    $edit_action = ' <a href="#" data-on-click="editUserField" 
+                                                    data-userid="' . e($user_id) . '" 
+                                                    data-fieldid="' . e($field_id) . '" 
+                                                    data-raw="' . e((string)$raw_value) . '" 
+                                                    data-formatted="' . e($display_value) . '">
+                                        <img src="images/icons/icon_edit.png" class="ressource-icons" alt="Editieren">
+                                    </a>';
+                }
 
+                $user_info_html .= '<tr>
+                    <td style="width: 30%;">' . $label . ':</td>
+                    <td id="td_' . $field_id . '">' . $display_value . '</td>
+                    <td class="td-center" style="border-bottom: 1px solid var(--box-header);">' . $edit_action . ($label === "Name" ? '
+                        <a href="#" data-on-click="banUserDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '" data-status="' . e($row["is_banned"]) . '">
+                            <img src="images/icons/' . ($row["is_banned"] ? 'icon_checked.png' : 'icon_error.png') . '" class="ressource-icons" alt="Bannen" title="Sperren/Entsperren">
+                        </a>
+                        <a href="#" data-on-click="userDeletionDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '">
+                            <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen">
+                        </a>' : '') . '
+                    </td>
+                </tr>';
+            }
             $user_info_html .= '</table>';
 
             // --- MULTI-ACCOUNT CHECK ---
@@ -560,7 +587,7 @@ if (!$user->is_admin()) {
 
                     if ($consider_linked && $back_linked) {
                         $link_status = ' <b class="passed">[Gegenseitig angemeldet]</b>';
-                    } elseif ($consider_linked || $back_linked) {
+                    } else if ($consider_linked || $back_linked) {
                         $link_status = ' <b class="event-warning">[Einseitig angemeldet!]</b>';
                     } else {
                         $link_status = ' <b class="error">[NICHT ANGEMELDET!]</b>';
@@ -691,20 +718,16 @@ if (!$user->is_admin()) {
             $row = $result->fetch_assoc();
             $username = $row["username"];
 
-            // Remove users avatar(s)
-            User::delete_user_avatar_files($user_id);
-
             // Check if user was in a guild and leader
             $guild_manager = new Guild($user);
             $guild_manager->handle_leader_deletion($user_id);
 
-            // Convert users kingdoms to abandoned kingdoms
             Kingdom::convert_user_kingdoms_to_ruins($user_id);
+            User::delete_user_avatar_files($user_id);
+            PhpBBBridge::delete_forum_user($username);
 
             // Delete the user
             $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
-
-            PhpBBBridge::delete_forum_user($username);
 
             $em = new EventManager($user);
             $em->process_orphaned_support();
@@ -903,7 +926,7 @@ if (!$user->is_admin()) {
 
     $game_logs_table .= "<div id='logs' class='title-border'>Game Logs</div>";
 
-    $rows_per_page_logs = 20;
+    $rows_per_page_logs = ADMIN_LOGS_PER_PAGE;
     $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
 
     // Get total number of logs

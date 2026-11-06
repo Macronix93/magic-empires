@@ -741,7 +741,7 @@ class Arena
         return $opponents;
     }
 
-    public function attack_opponent(int $defender_id, array $attack_troops, array $attack_techs): array
+    public function attack_opponent(int $defender_id, array $attack_troops, array $attack_techs, ?int $skill_id = null): array
     {
         if (!$this->is_participating()) {
             return ["success" => false, "error" => "Du musst zuerst eine eigene Verteidigung aufstellen!"];
@@ -783,10 +783,14 @@ class Arena
         $atk_prepared = $this->prepare_combat_units($attack_troops, $attack_techs, $soldier_meta);
         $def_prepared = $this->prepare_combat_units($defender["defense_troops"], $defender["defense_techs"], $soldier_meta);
 
+        $attack_skill_id = ($skill_id !== null && isset(ARENA_HERO_SKILLS[$skill_id]))
+            ? $skill_id
+            : (int)($attacker["active_hero_skill_id"] ?? 1);
+
         // Load Hero
         $atk_data = $this->get_hero_full_data();
         $atk_hero = $atk_data["hero"];
-        $atk_skill = $atk_data["active_skill"];
+        $atk_skill = $atk_data["skills"][$attack_skill_id] ?? $atk_data["active_skill"];
 
         $def_arena = new Arena($defender_id);
         $def_data = $def_arena->get_hero_full_data();
@@ -964,29 +968,12 @@ class Arena
 
             $battle_details = [
                 "attacker" => [
-                    "id" => $this->user_id,
-                    "name" => $attacker["username"],
-                    "elo_before" => (int)$attacker["elo"],
-                    "elo_after" => $new_atk_elo,
-                    "elo_change" => $atk_elo_change,
                     "troops" => $strip_troops($atk_prepared),
                     "losses" => $combat_result["attacker_losses"]
                 ],
                 "defender" => [
-                    "id" => $defender_id,
-                    "name" => $defender["username"],
-                    "elo_before" => (int)$defender["elo"],
-                    "elo_after" => $new_def_elo,
-                    "elo_change" => $def_elo_change,
                     "troops" => $strip_troops($def_prepared),
                     "losses" => $combat_result["defender_losses"]
-                ],
-                "combat" => [
-                    "winner_id" => $winner_id,
-                    "total_atk_units" => $combat_result["total_atk_units"],
-                    "total_def_units" => $combat_result["total_def_units"],
-                    "total_atk_losses" => $combat_result["total_atk_losses"],
-                    "total_def_losses" => $combat_result["total_def_losses"]
                 ]
             ];
 
@@ -1043,7 +1030,7 @@ class Arena
                 $atk_cards,
                 $def_cards,
                 "Deine Angreifer",
-                "Verteidigung: " . e($defender["username"])
+                e($defender["username"])
             );
 
             $is_won = ($winner_id === $this->user_id);

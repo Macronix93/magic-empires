@@ -7,8 +7,10 @@
           type="text/css">
     <?php if (WINTER_THEME_ACTIVE): ?>
         <link rel="stylesheet" type="text/css"
-              href="themes/winter.css?v=<?= file_exists("winter.css") ? filemtime("winter.css") : 1 ?>">
+              href="themes/winter.css?v=<?= file_exists("themes/winter.css") ? filemtime("themes/winter.css") : 1 ?>">
+    <?php if (($_COOKIE["me_show_snow"] ?? "1") === "1"): ?>
         <script type="text/javascript" src="<?= $js_folder ?>snow.js" defer></script>
+    <?php endif; ?>
     <?php endif; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

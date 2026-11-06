@@ -28,6 +28,7 @@ if ($type === "guild" && isset($_GET["mark_all_read"])) {
         $max_msg = (int)($db_instance->execute_query(
             "SELECT MAX(id) FROM guild_chat WHERE guild_id = ?", [$guild_id]
         )->fetch_row()[0] ?? 0);
+
         if ($max_msg > 0) {
             $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$max_msg, $u_id]);
         }
@@ -48,6 +49,7 @@ $extra_data = [];
 $get_visible_ids = function (string $table, string $extra_where = "", array $extra_params = []) use ($db_instance, $oldest_id): array {
     $where = "deleted = 0";
     $params = [];
+
     if (!empty($extra_where)) {
         $where .= " AND ($extra_where)";
         $params = $extra_params;
@@ -59,6 +61,7 @@ $get_visible_ids = function (string $table, string $extra_where = "", array $ext
     } else {
         $sql = "SELECT id FROM $table WHERE $where ORDER BY id DESC LIMIT 30";
     }
+
     $res = $db_instance->execute_query($sql, $params);
     return array_column($res->fetch_all(MYSQLI_ASSOC), "id");
 };

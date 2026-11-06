@@ -97,7 +97,7 @@ $view .= '<form action="marketplace.php" method="GET"
       data-type-field="d" 
       data-amount-field="dv"
       data-is-listing="true">
-    <table class="table marketplace-form-table" style="margin-bottom: 15px;">
+    <table class="table marketplace-form-table" style="margin-bottom: 15px; width: 100%;">
     <tr>
         <td>
             <label for="sv">Ich biete:</label>
@@ -109,7 +109,7 @@ $view .= '<form action="marketplace.php" method="GET"
                    maxlength="6"
                    inputmode="numeric" pattern="[0-9]*" placeholder="0">
             <label>
-                <select name="s" id="s">
+                <select name="s" id="s" class="marketplace-dropdown">
                     <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '">Holz</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
@@ -127,7 +127,7 @@ $view .= '<form action="marketplace.php" method="GET"
                    maxlength="6"
                    inputmode="numeric" pattern="[0-9]*" placeholder="0">
             <label>
-                <select name="d" id="d">
+                <select name="d" id="d" class="marketplace-dropdown">
                     <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '" selected>Holz</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
@@ -176,19 +176,20 @@ $query = "
     WHERE (m.guild_id = 0 OR (m.guild_id > 0 AND m.guild_id = ?))
     ORDER BY m.offerid DESC LIMIT ?, ?
 ";
+
 /** @var mysqli_result $result */
 $result = $db_instance->execute_query($query, [$my_guild_id, $offset, $rows_per_page]);
 
 if ($result->num_rows > 0) {
     $view .= "<div class='title-border'>Aktuelle Handelsangebote</div>";
-    $view .= '<table class="table marketplace-table">
+    $view .= '<table class="table marketplace-table" style="width: 100%;">
                 <colgroup>
-                    <col style="width: 30%;"> <!-- Spieler -->
-                    <col style="width: 20%;"> <!-- Bietet/Benötigt -->
-                    <col style="width: 20%;"> <!-- Ankunft -->
-                    <col style="width: 20%;"> <!-- Endet in -->
-                    <col style="width: 15%;"> <!-- Gebühr -->
-                    <col style="width: 5%;">  <!-- Aktion -->
+                    <col class="marketplace-player"> <!-- Spieler -->
+                    <col class="marketplace-offer"> <!-- Bietet/Benötigt -->
+                    <col class="marketplace-arrival"> <!-- Ankunft -->
+                    <col class="marketplace-end"> <!-- Endet in -->
+                    <col class="marketplace-fee"> <!-- Gebühr -->
+                    <col class="marketplace-action">  <!-- Aktion -->
                 </colgroup>
                 <tr>
                     <td class="td-center td-gradient">
@@ -231,8 +232,6 @@ if ($result->num_rows > 0) {
             $arrival_time_str = convert_sec_to_str($seconds, true);
         }
 
-        $kingdom_coords = "$map_x:$map_y";
-
         if ($is_my_offer) {
             $param = "delete";
             $btn_class = "btn-delete";
@@ -244,6 +243,9 @@ if ($result->num_rows > 0) {
         $guild_icon = $is_guild_deal
             ? "<img src='images/icons/icon_guild.png' class='ressource-icons' alt='Gilde' title='Gildeninternes Angebot'>"
             : "";
+
+        $seller_user = new User((int)$row["userid"], $row["username"]);
+        $player_display = $seller_user->render_user(popup_id: "mkt_user_" . $row["offerid"]);
 
         $text_build = "<form action='marketplace.php' method='GET' 
                             data-on-submit='checkMarket' 
@@ -264,10 +266,7 @@ if ($result->num_rows > 0) {
 
         $view .= "<tr>
                     <td>
-                        <div class='player-info-stack'>
-                            <span class='p-name'>$guild_icon {$row["username"]}</span>
-                            <span class='p-coords'>(<a href='#' data-on-click='mapJump' data-x='" . e($map_x) . "' data-y='" . e($map_y) . "'><small>$kingdom_coords</small></a>)</span>
-                        </div>
+                        <div class='player-info-stack'>$guild_icon $player_display</div>
                     </td>
                     <td class='td-center'>
                         <div class='trade-item-stack'>
@@ -419,7 +418,7 @@ if ($other_kingdoms_res->num_rows > 0) {
         $init_gold = $init_target ? format_num($init_target["gold"] + $init_target["inc_gold"]) . " / " . format_num($init_target["maxgold"]) : "-";
 
         $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
-        $view .= '<table class="table internal-transport-table">
+        $view .= '<table class="table internal-transport-table" style="width: 100%;">
                     <form action="marketplace.php" method="GET">
                         <input type="hidden" name="send_own" value="1">
                         <tr>

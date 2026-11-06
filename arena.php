@@ -302,7 +302,8 @@ if (!$is_season_active) {
         $active_border = $is_active ? "border: 2px solid var(--link-color); background: rgba(212, 175, 55, 0.15);" : "border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);";
 
         $view .= "
-        <div style='padding: 8px 12px; border-radius: 4px; $active_border display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer;' 
+        <div class='arena-skill-card' style='padding: 8px 12px; border-radius: 4px; $active_border display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer;' 
+                    data-skill-id='{$s["id"]}'
                     data-on-click='openSkillProgressionModal' 
                     data-id='{$s["id"]}' 
                     data-name='" . e($s["name"]) . "' >
@@ -320,7 +321,7 @@ if (!$is_season_active) {
                     </span>
                 </div>
             </div>
-            <div style='min-width: 60px;'>
+            <div class='arena-skill-btn-wrap' style='min-width: 60px;'>
                 " . ($is_active ? "<b class='passed' style='font-size: 12px;'>Aktiv</b>" : "<button type='button' data-on-click='selectHeroSkill' data-id='{$s["id"]}' style='padding: 3px 8px; font-size: 11px;'>Wählen</button>") . "
             </div>
         </div>";

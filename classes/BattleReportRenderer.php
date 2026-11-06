@@ -228,7 +228,7 @@ class BattleReportRenderer
 
         $html = "<div class='battle-column' style='background: {$style["bg"]}; border-color: {$style["border"]};'>";
         $html .= "<div class='report-section-title' style='border-color: {$style["border"]};'>" . Messages::wrap_emojis($title) . "</div>";
-        $html .= "<div style='font-size: 1.1em; margin-bottom: 5px;'>" . Messages::wrap_emojis($main_text) . "</div>";
+        $html .= "<div class='report-main-text'>" . Messages::wrap_emojis($main_text) . "</div>";
 
         if ($wall_before > 0 || $wall_after > 0) {
             $wall_icon = get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH);
@@ -249,7 +249,7 @@ class BattleReportRenderer
         }
 
         if (!empty($sub_text)) {
-            $html .= "<div style='font-style: italic; opacity: 0.9; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;'>$sub_text</div>";
+            $html .= "<div class='report-sub-text'>$sub_text</div>";
         }
 
         $html .= "</div>";

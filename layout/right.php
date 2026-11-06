@@ -255,7 +255,7 @@
                 if ($is_alchemy) {
                     if ($sidebar_data["alchemy_status"] === "ready") {
                         echo "<span class='msg-badge' style='font-size: 16px;'>!</span>";
-                    } elseif ($sidebar_data["alchemy_status"] === "running") {
+                    } else if ($sidebar_data["alchemy_status"] === "running") {
                         echo "<span class='msg-badge golden-badge'>...</span>";
                     }
                 }

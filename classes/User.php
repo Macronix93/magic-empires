@@ -480,7 +480,7 @@ class User
             (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) AS world,
             $guild_subquery AS guild,
             $support_subquery AS support,
-            (SELECT COUNT(*) FROM news WHERE id > u.last_news_read) AS news,
+            (SELECT COUNT(*) FROM news WHERE date > u.last_news_read) AS news,
             $suggestions_subquery AS suggestions,
             (SELECT COUNT(*) FROM arena_battles ab 
              JOIN arena_players ap ON ap.user_id = u.id 

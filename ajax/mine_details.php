@@ -33,14 +33,14 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     }
 
     $query = "
-        SELECT mst.user_id, mst.kingdom_id, u.username, k.kingdomname, k.mapx, k.mapy,
-               SUM(mst.soldiercount) AS total_soldiers,
-               (mst.user_id = ?) AS is_me
-        FROM mine_stationed_troops mst
-        JOIN users u ON mst.user_id = u.id
-        JOIN kingdoms k ON mst.kingdom_id = k.id
-        WHERE mst.mine_id = ?
-        GROUP BY mst.user_id, mst.kingdom_id, u.username, k.kingdomname, k.mapx, k.mapy
+        SELECT mst.user_id, mst.kingdom_id, u.username, k.kingdomname, k.mapx, k.mapy, 
+               SUM(mst.soldiercount) AS total_soldiers, 
+               (mst.user_id = ?) AS is_me 
+        FROM mine_stationed_troops mst 
+        JOIN users u ON mst.user_id = u.id 
+        JOIN kingdoms k ON mst.kingdom_id = k.id 
+        WHERE mst.mine_id = ? 
+        GROUP BY mst.user_id, mst.kingdom_id, u.username, k.kingdomname, k.mapx, k.mapy 
         ORDER BY is_me DESC, u.username, k.kingdomname
     ";
     $res_miners = $db_instance->execute_query($query, [$uid, $mine_id])->fetch_all(MYSQLI_ASSOC);
@@ -50,70 +50,75 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         exit;
     }
 
+    $res_all_troops = $db_instance->execute_query("
+        SELECT mst.user_id, mst.kingdom_id, sl.soldiername, sl.icon, SUM(mst.soldiercount) as count 
+        FROM mine_stationed_troops mst 
+        JOIN soldier_list sl ON mst.soldier_id = sl.id 
+        WHERE mst.mine_id = ? 
+        GROUP BY mst.user_id, mst.kingdom_id, sl.id, sl.soldiername, sl.icon
+    ", [$mine_id]);
+
+    $troops_by_miner = [];
+    while ($t = $res_all_troops->fetch_assoc()) {
+        $key = $t["user_id"] . "_" . $t["kingdom_id"];
+        $troops_by_miner[$key][] = $t;
+    }
+
     echo "<h3 class='title-border' style='margin-top: 0;'>Besatzung der Mine</h3>";
     echo "<table class='table' style='width: 100%; margin-bottom: 20px;'>
-            <colgroup>
-                <col style='width: 30%;'>
-                <col style='width: 30%;'>
-                <col style='width: auto;'>
-                <col style='width: 110px;'>
-            </colgroup>
-            <tr>
-                <td class='td-gradient td-center'><b>Spieler</b></td>
-                <td class='td-gradient td-center'><b>Königreich</b></td>
-                <td class='td-gradient td-center'><b>Truppen</b></td>
-                <td class='td-gradient td-center'><b>Aktion</b></td>
-            </tr>";
+    <colgroup>
+        <col style='width: 30%;'>
+        <col style='width: 30%;'>
+        <col style='width: auto;'>
+        <col style='width: 110px;'>
+    </colgroup>
+    <tr>
+        <td class='td-gradient td-center'><b>Spieler</b></td>
+        <td class='td-gradient td-center'><b>Königreich</b></td>
+        <td class='td-gradient td-center'><b>Truppen</b></td>
+        <td class='td-gradient td-center'><b>Aktion</b></td>
+    </tr>";
 
     foreach ($res_miners as $m) {
         $is_me = (bool)$m["is_me"];
         $m_user = new User((int)$m["user_id"], $m["username"]);
         $c_link = "<a href='map.php?startx={$m["mapx"]}&starty={$m["mapy"]}' data-on-click='mapJump' data-x='{$m["mapx"]}' data-y='{$m["mapy"]}'>{$m["mapx"]}:{$m["mapy"]}</a>";
 
-        $res_troops = $db_instance->execute_query("
-            SELECT sl.soldiername, sl.icon, SUM(mst.soldiercount) as count
-            FROM mine_stationed_troops mst
-            JOIN soldier_list sl ON mst.soldier_id = sl.id
-            WHERE mst.mine_id = ? AND mst.user_id = ? AND mst.kingdom_id = ?
-            GROUP BY sl.id, sl.soldiername, sl.icon
-        ", [$mine_id, $m["user_id"], $m["kingdom_id"]]);
+        $miner_key = $m["user_id"] . "_" . $m["kingdom_id"];
+        $miner_troops = $troops_by_miner[$miner_key] ?? [];
 
         $troop_badges = "<div style='display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;'>";
-        while ($t = $res_troops->fetch_assoc()) {
+        foreach ($miner_troops as $t) {
             $troop_badges .= "
-                <div class='unit-badge' title='{$t["soldiername"]}' style='padding: 2px 5px;'>
-                    <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
-                    <b>{$t["count"]}</b>
-                </div>";
+            <div class='unit-badge' title='{$t["soldiername"]}' style='padding: 2px 5px;'>
+                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''> <b>{$t["count"]}</b>
+            </div>";
         }
         $troop_badges .= "</div>";
 
         $action_cell = "-";
         if ($is_me) {
             $action_cell = "
-                <form method='POST' action='map.php' style='margin: 0;'>
-                    <input type='hidden' name='recall_mine_troops' value='1'>
-                    <input type='hidden' name='mine_x' value='$x'>
-                    <input type='hidden' name='mine_y' value='$y'>
-                    <input type='hidden' name='kingdom_id' value='{$m["kingdom_id"]}'>
-                    <button type='submit' class='btn-delete'>
-                        Heimrufen
-                    </button>
-                </form>";
+            <form method='POST' action='map.php' style='margin: 0;'>
+                <input type='hidden' name='recall_mine_troops' value='1'>
+                <input type='hidden' name='mine_x' value='$x'>
+                <input type='hidden' name='mine_y' value='$y'>
+                <input type='hidden' name='kingdom_id' value='{$m["kingdom_id"]}'>
+                <button type='submit' class='btn-delete'> Heimrufen </button>
+            </form>";
         }
 
         $row_style = $is_me ? "style='background: rgba(212, 175, 55, 0.1);'" : "";
-
         echo "<tr $row_style>
-                <td class='td-center'>" . $m_user->render_user() . "</td>
-                <td class='td-center'>
-                    <b>" . e($m["kingdomname"]) . "</b> <small>($c_link)</small>
-                </td>
-                <td class='td-center'>$troop_badges</td>
-                <td class='td-center'>$action_cell</td>
-              </tr>";
+            <td class='td-center'>" . $m_user->render_user() . "</td>
+            <td class='td-center'>
+                <b>" . e($m["kingdomname"]) . "</b>
+                <small>($c_link)</small>
+            </td>
+            <td class='td-center'>$troop_badges</td>
+            <td class='td-center'>$action_cell</td>
+        </tr>";
     }
-
     echo "</table>";
 } else {
     change_location("map.php");

@@ -40,7 +40,8 @@ $view .= '<table class="table">
             <b>Voraussetzungen</b></td>
     </tr>';
 
-for ($i = 0; $i < count($buildings); $i++) {
+$building_count = count($buildings);
+for ($i = 0; $i < $building_count; $i++) {
     $is_embassy = ($i === BuildingTypes::BUILDING_EMBASSY);
     $target_buildings = $is_embassy ? $main_buildings : $buildings;
 

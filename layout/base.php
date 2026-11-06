@@ -69,8 +69,10 @@ if ($user->is_logged_in()) {
           href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>">
     <?php if (WINTER_THEME_ACTIVE): ?>
         <link rel="stylesheet" type="text/css"
-              href="themes/winter.css?v=<?= file_exists("winter.css") ? filemtime("winter.css") : 1 ?>">
+              href="themes/winter.css?v=<?= file_exists("themes/winter.css") ? filemtime("themes/winter.css") : 1 ?>">
+    <?php if (($_COOKIE["me_show_snow"] ?? "1") === "1"): ?>
         <script type="text/javascript" src="<?= $js_folder ?>snow.js" defer></script>
+    <?php endif; ?>
     <?php endif; ?>
     <title>
         <?php
@@ -175,7 +177,11 @@ if ($user->is_logged_in()) {
     </div>
 </div>
 <div id="nav-left-trigger" class="mobile-trigger">
-    <p>&#9776;</p>
+    <div class="mobile-hamburger">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
     <?php if ($user->is_logged_in()):
         $has_mobile_alert = (!empty($show_attack_alert) || !empty($show_support_alert));
         ?>
@@ -228,7 +234,7 @@ if ($user->is_logged_in()) {
     </div>
 <?php endif; ?>
 <div id="nav-right-trigger" class="mobile-trigger">
-    <p><?= Messages::wrap_emojis("🏰") ?></p>
+    <img src="images/icons/icon_castle_nav.png" class="mobile-trigger-castle" alt="Königreich">
     <?php if ($user->is_logged_in()): $right_has_alert = ($sidebar_data["alchemy_status"] === "ready"); ?>
         <span class="nav-notification-dot" id="mobile-right-nav-dot"
               style="<?= $right_has_alert ? '' : 'display: none;' ?>">
@@ -244,7 +250,7 @@ if ($user->is_logged_in()) {
 <div id="onpage-overlay" class="overlay-modal" style="display: none;">
     <div id="overlay-handle" class="overlay-header">
         <span id="overlay-title"></span>
-        <button data-on-click="closeOverlay" class="overlay-close-btn">&times;</button>
+        <button data-on-click="closeOverlay" class="overlay-close-btn" tabindex="-1">&times;</button>
     </div>
     <div id="overlay-content-body" class="overlay-body">
         <div class="spinner"></div>

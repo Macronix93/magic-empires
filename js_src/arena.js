@@ -1,5 +1,17 @@
 let previousArenaHeaderHtml = null;
 
+registerAction("changeArenaAttackSkill", (select) => {
+    const opt = select.selectedOptions[0];
+    if (!opt) return;
+
+    const bonus = opt.dataset.bonus;
+    const targetName = opt.dataset.target;
+
+    const display = document.getElementById("arena-skill-bonus-display");
+    if (display) {
+        display.innerHTML = `<b>+${bonus}%</b> vs. ${targetName}`;
+    }
+});
 registerAction("openArenaAttackInline", (btn) => {
     const oppId = btn.dataset.id;
     const oppName = btn.dataset.name;
@@ -262,10 +274,14 @@ registerAction("executeArenaAttack", (form, e) => {
     });
 
     const defId = form.querySelector('input[name="defender_id"]').value;
+    const skillId = form.querySelector('select[name="skill_id"]')?.value;
 
     const formData = new URLSearchParams();
     formData.append("action", "attack");
     formData.append("defender_id", defId);
+    if (skillId) {
+        formData.append("skill_id", skillId);
+    }
     formData.append("troops", JSON.stringify(troops));
     formData.append("techs", JSON.stringify(techs));
 
@@ -349,6 +365,7 @@ registerAction("selectHeroSkill", (btn, e) => {
 
     const skillId = btn.dataset.id;
     btn.disabled = true;
+
     const formData = new URLSearchParams();
     formData.append("action", "select_skill");
     formData.append("skill_id", skillId);
@@ -364,13 +381,46 @@ registerAction("selectHeroSkill", (btn, e) => {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                window.location.reload();
+                updateHeroSkillUI(skillId);
             } else {
                 displayArenaError(data.error || "Fehler beim Wechseln der Fähigkeit.");
                 btn.disabled = false;
             }
+        })
+        .catch(() => {
+            displayArenaError("Netzwerkfehler beim Wechseln der Fähigkeit.");
+            btn.disabled = false;
         });
 });
+
+function updateHeroSkillUI(selectedSkillId) {
+    const selectedIdStr = String(selectedSkillId);
+
+    document.querySelectorAll(".arena-skill-card").forEach(card => {
+        const cardSkillId = String(card.dataset.skillId || card.dataset.id);
+        const btnWrap = card.querySelector(".arena-skill-btn-wrap") || card.lastElementChild;
+
+        if (cardSkillId === selectedIdStr) {
+            card.style.border = "2px solid var(--link-color)";
+            card.style.background = "rgba(212, 175, 55, 0.15)";
+
+            if (btnWrap) {
+                btnWrap.innerHTML = "<b class='passed' style='font-size: 12px;'>Aktiv</b>";
+            }
+        } else {
+            card.style.border = "1px solid rgba(255,255,255,0.1)";
+            card.style.background = "rgba(0,0,0,0.2)";
+
+            if (btnWrap) {
+                btnWrap.innerHTML = `<button type='button' data-on-click='selectHeroSkill' data-id='${cardSkillId}' style='padding: 3px 8px; font-size: 11px;'>Wählen</button>`;
+
+                if (typeof bindActions === "function") {
+                    btnWrap.querySelectorAll('[data-on-click]').forEach(bindActions);
+                }
+            }
+        }
+    });
+}
 
 function getArenaTechBoni() {
     const cfg = document.getElementById("arena-config");

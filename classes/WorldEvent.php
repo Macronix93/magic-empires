@@ -82,12 +82,9 @@ class WorldEvent
             [$event_type, $now, $end_time, $total_hp, $total_hp, $monster_index]
         );
 
-        $pool = $this->get_monster_pool();
-        $monster = $pool[$monster_index];
-
         Logger::get_instance()->log_game("ADMIN", "WORLD_EVENT_SPAWN", [
             "type" => $event_type,
-            "monster_name" => $monster["name"],
+            "monster_index" => $monster_index,
             "total_hp" => $total_hp,
             "server_power" => $server_power
         ]);
@@ -374,7 +371,7 @@ class WorldEvent
                     $count = WORLD_EVENT_HP_MAX_CONQUEROR;
 
                     $conquerors_given++;
-                } elseif ($roll <= (WORLD_EVENT_HP_CHANCE_CONQUEROR + WORLD_EVENT_HP_CHANCE_RAM) && $rams_given < WORLD_EVENT_HP_MAX_RAM) {
+                } else if ($roll <= (WORLD_EVENT_HP_CHANCE_CONQUEROR + WORLD_EVENT_HP_CHANCE_RAM) && $rams_given < WORLD_EVENT_HP_MAX_RAM) {
                     // RAM
                     $sid = Soldiers::SOLDIER_RAM;
                     $count = WORLD_EVENT_HP_MAX_RAM;

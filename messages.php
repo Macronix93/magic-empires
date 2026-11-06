@@ -274,9 +274,6 @@ if (isset($_GET["action"])) {
 if (isset($_GET["worldchat"])) {
     $view .= $messages->show_world_chat();
 
-//    $max_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
-//    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$max_id, $user->get_user_id()]);
-
     $inbox_header = "Welt-Chat";
 } else if (isset($_GET["servermsgs"])) {
     $res_max_id = $db_instance->execute_query(

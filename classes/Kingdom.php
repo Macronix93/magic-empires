@@ -676,13 +676,14 @@ class Kingdom
         foreach ($result as $row) {
             $building_id = (int)$row["id"];
             $building = new Building();
-            $buildings = $building->create_building($building, $row, $buildings, $building_id);
-            $buildings[$building_id]->set_building_kingdom_id($this->kingdom_id);
+            $building->fill_from_row($row, $building_id, $this->kingdom_id);
+            $buildings[$building_id] = $building;
         }
 
         $res_deps = $this->mysqli->execute_query("SELECT buildingid, dependencyid, dependencylevel FROM building_deps");
         while ($d = $res_deps->fetch_assoc()) {
             $bid = (int)$d["buildingid"];
+
             if (isset($buildings[$bid])) {
                 $buildings[$bid]->add_building_dependency((int)$d["dependencyid"], (int)$d["dependencylevel"]);
             }
@@ -1040,16 +1041,6 @@ class Kingdom
             "max" => $max_commands,
             "is_full" => ($occupied >= $max_commands)
         ];
-    }
-
-    public static function apply_villager_cap(int $kingdom_id): void
-    {
-        if ($kingdom_id <= 0) return;
-
-        Database::get_instance()->get_connection()->execute_query(
-            "UPDATE kingdoms SET villager = maxvillager WHERE id = ? AND villager > maxvillager",
-            [$kingdom_id]
-        );
     }
 
     public static function convert_user_kingdoms_to_ruins(int $user_id): void

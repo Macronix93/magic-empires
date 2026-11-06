@@ -135,16 +135,12 @@ if (isset($_GET["action"]) && $_GET["action"] == "cancel" && isset($_GET["eid"])
     }
 }
 
-$map = new Map($user);
-
 $limit = OVERVIEW_PAGESIZE_DEFAULT;
 if (isset($_COOKIE["me_overview_pagesize"]) && is_numeric($_COOKIE["me_overview_pagesize"])) {
     $limit = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, (int)$_COOKIE["me_overview_pagesize"]));
 }
 
 // -- INCOMING ENEMIES OVERVIEW ---
-$incoming_data = $_SESSION["active_attacks"] ?? [];
-
 if (!empty($_SESSION["active_attacks"])) {
     $incoming_html = "";
 
@@ -285,12 +281,81 @@ $view .= "<table class='table overview-table'>
         <td class='td-center td-gradient'><b>Ausbildung</b></td>
     </tr>";
 
+$max_building_levels = [];
+$res_bl = $db_instance->query("SELECT id FROM building_list");
+while ($bl = $res_bl->fetch_assoc()) {
+    $bid = (int)$bl["id"];
+    $max_building_levels[$bid] = Building::get_max_building_level($bid);
+}
+
+$max_tech_levels = [];
+$res_tl = $db_instance->query("SELECT id, maxlevel FROM tech_list");
+while ($tl = $res_tl->fetch_assoc()) {
+    $tid = (int)$tl["id"];
+    $max_tech_levels[$tid] = ($tid === TechTypes::TECH_TYPE_IMPERIAL)
+        ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
+        : (int)$tl["maxlevel"];
+}
+
+$user_b_res = $db_instance->execute_query("
+    SELECT b.kingdomid, b.buildingid, b.buildinglevel 
+    FROM buildings b
+    JOIN kingdoms k ON b.kingdomid = k.id
+    WHERE k.userid = ?
+", [$uid]);
+
+$kingdom_buildings = [];
+while ($rb = $user_b_res->fetch_assoc()) {
+    $kingdom_buildings[(int)$rb["kingdomid"]][(int)$rb["buildingid"]] = (int)$rb["buildinglevel"];
+}
+
+$user_t_res = $db_instance->execute_query("
+    SELECT t.kingdomid, t.techid, t.techlevel 
+    FROM techs t
+    JOIN kingdoms k ON t.kingdomid = k.id
+    WHERE k.userid = ?
+", [$uid]);
+
+$kingdom_techs = [];
+while ($rt = $user_t_res->fetch_assoc()) {
+    $kingdom_techs[(int)$rt["kingdomid"]][(int)$rt["techid"]] = (int)$rt["techlevel"];
+}
+
+$main_kingdom_id = $user->get_main_kingdom();
+
 foreach ($user_kingdoms as $k) {
     $kid = (int)$k["id"];
+    $is_main = ($kid === $main_kingdom_id);
     $k_name = e($k["kingdomname"]);
     $k_coords = e($k["mapx"] . ":" . $k["mapy"]);
     $is_active_k = ($count_kp > 1 && $kid === $active_k_id);
     $row_style = $is_active_k ? "style='background: rgba(212, 175, 55, 0.08);'" : "";
+
+    $is_b_max = true;
+    foreach ($max_building_levels as $bid => $target_lvl) {
+        if ($bid === BuildingTypes::BUILDING_EMBASSY && !$is_main) {
+            continue;
+        }
+
+        $current_lvl = $kingdom_buildings[$kid][$bid] ?? 0;
+        if ($current_lvl < $target_lvl) {
+            $is_b_max = false;
+            break;
+        }
+    }
+
+    $is_t_max = true;
+    foreach ($max_tech_levels as $tid => $target_lvl) {
+        if ($tid === TechTypes::TECH_TYPE_IMPERIAL && !$is_main) {
+            continue;
+        }
+
+        $current_lvl = $kingdom_techs[$kid][$tid] ?? 0;
+        if ($current_lvl < $target_lvl) {
+            $is_t_max = false;
+            break;
+        }
+    }
 
     $storage_warnings = [];
     $storage_is_full = false;
@@ -307,7 +372,7 @@ foreach ($user_kingdoms as $k) {
         if ($rc["cur"] >= $rc["max"]) {
             $storage_is_full = true;
             $storage_warnings[] = get_resource_icon($rc["icon"]) . " <span class='error'>" . fnum($rc["cur"]) . " / " . fnum($rc["max"]) . "</span>";
-        } elseif ($rc["prod"] > 0 && ($rc["cur"] + $rc["prod"] >= $rc["max"] || $rc["cur"] >= $rc["max"] * KINGDOM_OVERFLOW_FACTOR)) {
+        } else if ($rc["prod"] > 0 && ($rc["cur"] + $rc["prod"] >= $rc["max"] || $rc["cur"] >= $rc["max"] * KINGDOM_OVERFLOW_FACTOR)) {
             $storage_is_warning = true;
             $storage_warnings[] = get_resource_icon($rc["icon"]) . " <span class='warning'>" . fnum($rc["cur"]) . " / " . fnum($rc["max"]) . "</span>";
         }
@@ -322,7 +387,7 @@ foreach ($user_kingdoms as $k) {
     $vill_warnings = "";
     if ($vill_is_full) {
         $vill_warnings = get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " <span class='error'>" . fnum($vill_cur) . " / " . fnum($vill_max) . "</span>";
-    } elseif ($vill_is_warning) {
+    } else if ($vill_is_warning) {
         $vill_warnings = get_resource_icon(ResourceTypes::RESOURCE_TYPE_VILLAGER) . " <span class='warning'>" . fnum($vill_cur) . " / " . fnum($vill_max) . "</span>";
     }
 
@@ -424,7 +489,7 @@ foreach ($user_kingdoms as $k) {
             $indicators_html
         </div>";
 
-    $col_build = "<div class='td-center'>-</div>";
+    $col_build = "<div class='td-center'>" . ($is_b_max ? "<b class='overview-max'>MAX</b>" : "-") . "</div>";
     if (isset($events_by_kingdom[$kid]["build"])) {
         $b_ev = $events_by_kingdom[$kid]["build"];
         $next_lvl = $b_ev["buildinglevel"] + 1;
@@ -443,7 +508,7 @@ foreach ($user_kingdoms as $k) {
             </div>";
     }
 
-    $col_research = "<div class='td-center'>-</div>";
+    $col_research = "<div class='td-center'>" . ($is_t_max ? "<b class='passed overview-max'>MAX</b>" : "-") . "</div>";
     if (!empty($events_by_kingdom[$kid]["research"])) {
         $research_items = [];
 
@@ -762,22 +827,21 @@ if (!empty($all_tp_entries)) {
 
             $badge_html = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
             foreach ($mine_data["troops"] as $t) {
-                $s_id = (int)$t["soldier_id"];
-                $p_id = "pop_mine_loot_{$mid}_$s_id";
-
-                $badge_html .= "<div class='unit-badge popup' id='$p_id'>
-                                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
-                                <b>" . fnum($t["soldiercount"]) . "</b>
-                                <div id='{$p_id}_box' class='popupbox' style='text-align: left; min-width: 130px;'>
-                                    <b>Geschürfte Ressourcen:</b><br>$loot_popup_content
-                                </div>
-                            </div>";
+                $badge_html .= "<div class='unit-badge' title='" . e($t["soldiername"]) . "'>
+                                    <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''> <b>" . fnum($t["soldiercount"]) . "</b>
+                                </div>";
             }
             $badge_html .= "</div>";
 
+            $pop_cell_id = "pop_mine_td_" . $mid;
             $view .= "<tr>
                 <td class='td-center'><span style='color: #E6C15A;'>Minen-Abbau</span></td>
-                <td class='td-center'>$badge_html</td>
+                <td class='td-center popup' id='$pop_cell_id'>
+                    $badge_html
+                    <div id='{$pop_cell_id}_box' class='popupbox' style='text-align: left; min-width: 150px;'>
+                        <b>Geschürfte Ressourcen:</b><br>$loot_popup_content
+                    </div>
+                </td>
                 <td class='td-center'>$m_coords</td>
                 <td class='td-center td-timer-cell' style='position: relative;'>
                     <span class='js-countdown' data-seconds='$rem_sec' data-no-reload='true'>" . format_time_for_js($rem_sec) . "</span><br>
@@ -876,34 +940,8 @@ if (!empty($all_tp_entries)) {
             $soldiers_str = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
             foreach ($event_data["soldiers"] as $soldier) {
                 $badge_count++;
-
-                $s_id = (int)$soldier["soldierid"];
                 $soldier_name = e($soldier["name"]);
                 $icon_path = "images/icons/" . e($soldier["icon"]) . ".png";
-
-                $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0 || $event_data["loot_gold"] > 0 || ($event_data["loot_coal"] ?? 0) > 0
-                    || ($event_data["loot_iron"] ?? 0) > 0 || ($event_data["loot_sapphire"] ?? 0) > 0 || ($event_data["loot_diamond"] ?? 0) > 0);
-
-                $popup_class = "";
-                $popup_content = "";
-
-                if ($action_id == ActionTypes::ACTION_RETURN_TROOPS && $has_loot) {
-                    $popup_class = " popup";
-                    $p_id = "loot_" . $event_id . "_" . $soldier["soldierid"];
-
-                    $popup_content = "<div id='{$p_id}_box' class='popupbox' style='text-align: left;'>";
-                    $popup_content .= "<b>Beute:</b><br><div style='display: flex; gap: 4px; margin-top: 5px;'>";
-                    if ($event_data["loot_food"] > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($event_data["loot_food"]) . "</div>";
-                    if ($event_data["loot_wood"] > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($event_data["loot_wood"]) . "</div>";
-                    if ($event_data["loot_stone"] > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($event_data["loot_stone"]) . "</div>";
-                    if ($event_data["loot_gold"] > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($event_data["loot_gold"]) . "</div>";
-                    if ($event_data["loot_coins"] > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . fnum($event_data["loot_coins"]) . "</div>";
-                    if (($event_data["loot_coal"] ?? 0) > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " " . fnum($event_data["loot_coal"]) . "</div>";
-                    if (($event_data["loot_iron"] ?? 0) > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " " . fnum($event_data["loot_iron"]) . "</div>";
-                    if (($event_data["loot_sapphire"] ?? 0) > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " " . fnum($event_data["loot_sapphire"]) . "</div>";
-                    if (($event_data["loot_diamond"] ?? 0) > 0) $popup_content .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " " . fnum($event_data["loot_diamond"]) . "</div>";
-                    $popup_content .= "</div></div>";
-                }
 
                 $responsive_class = "";
                 if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
@@ -913,29 +951,47 @@ if (!empty($all_tp_entries)) {
                     $responsive_class .= " badge-hide-desktop";
                 }
 
-                $soldiers_str .= "<div class='unit-badge$popup_class $responsive_class' id='" . ($has_loot ? $p_id : "") . "' title='" . (empty($popup_class) ? $soldier_name : "") . "'>";
-                $soldiers_str .= "<img src='$icon_path' class='ressource-icons' alt='$soldier_name'>
-                                <b>" . fnum($soldier["soldiercount"]) . "</b>
-                                $popup_content
-                            </div>";
+                $soldiers_str .= "<div class='unit-badge $responsive_class' title='$soldier_name'>";
+                $soldiers_str .= "<img src='$icon_path' class='ressource-icons' alt='$soldier_name'> <b>" . fnum($soldier["soldiercount"]) . "</b></div>";
             }
-
             if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
                 $btn_extra = ($badge_count <= MAX_UNIT_BADGES_PER_ROW_DESKTOP) ? " hide-toggle-desktop" : "";
                 $soldiers_str .= "<span data-on-click='toggleBadges' class='badge-toggle$btn_extra' style='cursor: pointer; font-weight: bold; padding: 5px;'> (...)</span>";
             }
             $soldiers_str .= "</div>";
 
-            $view .= "<tr>
-                <td class='td-center'>$action_type</td>
-                <td class='td-center'>$soldiers_str</td>
-                <td class='td-center'>$coords_str</td>";
+            $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0
+                || $event_data["loot_gold"] > 0 || ($event_data["loot_coal"] ?? 0) > 0 || ($event_data["loot_iron"] ?? 0) > 0
+                || ($event_data["loot_sapphire"] ?? 0) > 0 || ($event_data["loot_diamond"] ?? 0) > 0);
+            $cell_pop_attr = "class='td-center'";
+            $cell_pop_box = "";
+
+            if ($action_id == ActionTypes::ACTION_RETURN_TROOPS && $has_loot) {
+                $pop_loot_td_id = "pop_loot_td_" . $event_id;
+                $cell_pop_attr = "class='td-center popup' id='$pop_loot_td_id'";
+                $cell_pop_box = "<div id='{$pop_loot_td_id}_box' class='popupbox' style='text-align: left;'>";
+                $cell_pop_box .= "<b>Beute:</b><br><div style='display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap;'>";
+
+                if ($event_data["loot_food"] > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($event_data["loot_food"]) . "</div>";
+                if ($event_data["loot_wood"] > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($event_data["loot_wood"]) . "</div>";
+                if ($event_data["loot_stone"] > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($event_data["loot_stone"]) . "</div>";
+                if ($event_data["loot_gold"] > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($event_data["loot_gold"]) . "</div>";
+                if ($event_data["loot_coins"] > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . " " . fnum($event_data["loot_coins"]) . "</div>";
+                if (($event_data["loot_coal"] ?? 0) > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " " . fnum($event_data["loot_coal"]) . "</div>";
+                if (($event_data["loot_iron"] ?? 0) > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " " . fnum($event_data["loot_iron"]) . "</div>";
+                if (($event_data["loot_sapphire"] ?? 0) > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " " . fnum($event_data["loot_sapphire"]) . "</div>";
+                if (($event_data["loot_diamond"] ?? 0) > 0) $cell_pop_box .= "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " " . fnum($event_data["loot_diamond"]) . "</div>";
+
+                $cell_pop_box .= "</div></div>";
+            }
+
+            $view .= "<tr> <td class='td-center'>$action_type</td> <td $cell_pop_attr>$soldiers_str $cell_pop_box</td> <td class='td-center'>$coords_str</td>";
             $view .= "<td class='td-center td-timer-cell' style='position: relative;'>$action_counter";
 
             if ($action_button !== "") {
                 $view .= "<div class='delete-btn'>
-                $action_button
-              </div>";
+                            $action_button
+                          </div>";
             }
             $view .= "</tr>";
         }

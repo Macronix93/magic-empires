@@ -53,13 +53,8 @@ if ($is_admin) {
             $content = $process_content($raw_content);
 
             $db_instance->execute_query(
-                "UPDATE news SET title = ?, content = ? WHERE id = ?",
-                [$title, $content, $news_id]
-            );
-
-            $db_instance->execute_query(
-                "UPDATE news SET id = (SELECT m FROM (SELECT MAX(id) + 1 AS m FROM news) t) WHERE id = ?",
-                [$news_id]
+                "UPDATE news SET title = ?, content = ?, date = ? WHERE id = ?",
+                [$title, $content, time(), $news_id]
             );
 
             $flash_box = show_passed_box("News-Beitrag aktualisiert!");
@@ -104,15 +99,12 @@ $total_pages = ceil($num_rows / $rows_per_page);
 $offset = ($current_page - 1) * $rows_per_page;
 
 // Load News
-$result = $db_instance->execute_query(
-    "SELECT * FROM news ORDER BY id DESC LIMIT ?, ?",
-    [$offset, $rows_per_page]
-);
+$result = $db_instance->execute_query("SELECT * FROM news ORDER BY date DESC LIMIT ?, ?", [$offset, $rows_per_page]);
 
 // Set Read Status
 if ($user->is_logged_in()) {
-    $latest_news_id = $db_instance->execute_query("SELECT MAX(id) FROM news")->fetch_row()[0] ?? 0;
-    $db_instance->execute_query("UPDATE users SET last_news_read = ? WHERE id = ?", [$latest_news_id, $user->get_user_id()]);
+    $latest_news_date = (int)($db_instance->execute_query("SELECT MAX(date) FROM news")->fetch_row()[0] ?? 0);
+    $db_instance->execute_query("UPDATE users SET last_news_read = ? WHERE id = ?", [$latest_news_date, $user->get_user_id()]);
 }
 
 // Build View

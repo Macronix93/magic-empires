@@ -85,7 +85,9 @@ switch ($action) {
         $defender_id = (int)($_POST["defender_id"] ?? 0);
         $troops = json_decode($_POST["troops"] ?? "{}", true);
         $techs = json_decode($_POST["techs"] ?? "{}", true);
-        $result = $arena->attack_opponent($defender_id, $troops, $techs);
+        $skill_id = isset($_POST["skill_id"]) ? (int)$_POST["skill_id"] : null;
+
+        $result = $arena->attack_opponent($defender_id, $troops, $techs, $skill_id);
 
         echo json_encode($result);
         break;

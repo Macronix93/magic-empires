@@ -188,7 +188,7 @@ class Messages
 
         $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($sender_name) . "</a>";
 
-        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' style='cursor: pointer; margin-left: 5px;' " .
+        $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' style='cursor: pointer;' " .
             "data-on-click='quoteMessage' data-author='" . e($sender_name) . "' data-text='" . e($raw_message) . "' title='Nachricht zitieren' alt=''>";
 
         $can_delete = $is_me || $is_admin;
@@ -900,7 +900,7 @@ class Messages
                 $loot = $data["loot"] ?? [];
                 $units = $data["units"] ?? [];
 
-                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; justify-content: center;'>";
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; justify-content: center;'>";
                 foreach ($units as $t) {
                     $units_html .= BattleReportRenderer::render_unit_card($t);
                 }
@@ -928,7 +928,7 @@ class Messages
 
                 $html = "<div class='battle-report'>";
                 $html .= "<div class='title-border'>Kampfbericht: Monstercamp ($c_link)</div>";
-                $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 6px; opacity: 0.8;'>Truppen aus: <b>$home_name</b> ($h_link)</div>";
+                $html .= "<div class='battle-report-troops-origin'>Truppen aus: <b>$home_name</b> ($h_link)</div>";
                 $html .= BattleReportRenderer::render_vs_grid($data["atk_units"] ?? [], $data["def_units"] ?? [], "Deine Truppen", "Monsterhorde (Lv $camp_lvl)");
 
                 $out = $data["outcome"] ?? "defeat";
@@ -1188,7 +1188,7 @@ class Messages
 
                 $html = "<div class='battle-report'>";
                 $html .= "<div class='title-border'>$header_title</div>";
-                $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>$sub_title</div>";
+                $html .= "<div class='battle-report-troops-origin'>$sub_title</div>";
                 $html .= BattleReportRenderer::render_vs_grid(
                     $data["atk_units"] ?? [],
                     $data["def_units"] ?? [],
@@ -1310,7 +1310,7 @@ class Messages
 
                 if (!empty($data["scout_intel"])) {
                     $html .= "<div class='battle-column' style='margin-top: 10px;'>";
-                    $html .= "<div class='title-border'>Spionagebericht</div>";
+                    $html .= "<div class='title-border'>Spionage:</div>";
                     $html .= BattleReportRenderer::render_scout_intel($data["scout_intel"]);
                     $html .= "</div>";
                 }
@@ -1332,11 +1332,11 @@ class Messages
                 $atk_losses = (int)($data["atk_losses"] ?? 0);
 
                 $html = "<div class='battle-report'>";
-                $html .= "<div class='battle-column'>";
-                $html .= "<div class='title-border'>Spionagebericht: <b>$opp_name</b> ($c_link)</div>";
-                $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_kname</b> ($h_link)</div>";
+                $html .= "<div class='title-border'>Spionage: <b>$opp_name</b> ($c_link)</div>";
+                $html .= "<div class='battle-report-troops-origin'>Späher aus: <b>$home_kname</b> ($h_link)</div>";
 
                 if (!empty($data["success"]) && !empty($data["intel"])) {
+                    $html .= "<div class='battle-column'>";
                     $html .= BattleReportRenderer::render_scout_intel($data["intel"]);
                     $html .= "</div>";
                     $html .= BattleReportRenderer::render_own_scout_status($atk_scouts, $atk_losses);
@@ -1440,11 +1440,12 @@ class Messages
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
                 $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
 
-                $html = "<div class='battle-report'><div class='battle-column'>";
+                $html = "<div class='battle-report'>";
+                $html .= "<div class='title-border'>Spionage: Vorratslager ($c_link)</div>";
+                $html .= "<div class='battle-report-troops-origin'>Späher aus: <b>$home_name</b> ($h_link)</div>";
+                $html .= "<div class='battle-column'>";
 
                 if ($is_success) {
-                    $html .= "<div class='title-border'>Spionage: Vorratslager ($c_link)</div>";
-                    $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
                     $html .= "<div class='report-section-title'>Gefundene Vorräte</div>";
                     $html .= BattleReportRenderer::render_scout_resource_bar($data["resources"] ?? []);
 
@@ -1456,8 +1457,6 @@ class Messages
                         );
                     }
                 } else {
-                    $html .= "<div class='title-border'>Mission gescheitert ($c_link)</div>";
-                    $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
                     $html .= BattleReportRenderer::render_outcome_box(
                         "Totalverlust",
                         "Dein Späher ist auf dem Weg zum Lager spurlos verschwunden. Wir haben keine Informationen erhalten.",
@@ -1483,9 +1482,10 @@ class Messages
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
                 $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
 
-                $html = "<div class='battle-report'><div class='battle-column'>";
+                $html = "<div class='battle-report'>";
                 $html .= "<div class='title-border'>Spionage: Monstercamp ($c_link)</div>";
-                $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 6px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
+                $html .= "<div class='battle-report-troops-origin'>Späher aus: <b>$home_name</b> ($h_link)</div>";
+                $html .= "<div class='battle-column'>";
 
                 if ($is_success) {
                     $html .= "<div class='report-section-title'>Gesichtete Kreaturen (Stufe $camp_lvl)</div>";
@@ -1543,12 +1543,12 @@ class Messages
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
                 $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
 
-                $html = "<div class='battle-report'><div class='battle-column'>";
+                $html = "<div class='battle-report'>";
+                $html .= "<div class='title-border'>Spionage: Erzmine (Stufe $mine_lvl) ($c_link)</div>";
+                $html .= "<div class='battle-report-troops-origin'>Späher aus: <b>$home_name</b> ($h_link)</div>";
+                $html .= "<div class='battle-column'>";
 
                 if ($is_success) {
-                    $html .= "<div class='title-border'>Spionagebericht: Erzmine (Stufe $mine_lvl) ($c_link)</div>";
-                    $html .= "<div style='text-align: center; font-size: 13px; margin-top: -12px; margin-bottom: 8px; opacity: 0.8;'>Späher aus: <b>$home_name</b> ($h_link)</div>";
-
                     $res_std = $data["res_standard"] ?? [];
                     $html .= "<div class='report-section-title'>Verbleibende Rohstoffe</div>";
                     if (array_sum($res_std) > 0) {
@@ -1578,7 +1578,7 @@ class Messages
 
                         $html .= "</div>";
                     } else {
-                        $html .= "<div style='text-align: center; padding: 5px; opacity: 0.8;'><i>Die Mine ist aktuell unbesetzt.</i></div>";
+                        $html .= "<div style='text-align: center; opacity: 0.8; margin-bottom: 8px;'><i>Die Mine ist aktuell unbesetzt.</i></div>";
                     }
 
                     if ($losses > 0) {
@@ -2705,7 +2705,7 @@ class Messages
 
             $delete_icon = ($is_me || $is_admin) ? "<img src='images/icons/icon_delete.png' class='ressource-icons' alt='Löschen' data-on-click='deleteChatMsg' data-id='" . e($row["id"]) . "' style='cursor: pointer;'>" : "";
             $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
-                     style='cursor: pointer; margin-left: 5px;'
+                     style='cursor: pointer;'
                      data-on-click='quoteMessage'
                      data-author='" . e($row["sender"]) . "'
                      data-text='" . e($row["message"]) . "'
@@ -2876,7 +2876,7 @@ class Messages
                                                             data-on-click='deleteWorldChatMsg' data-id='{$row["id"]}' style='cursor: pointer;'>" : "";
 
                 $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons'
-                     style='cursor: pointer; margin-left: 5px;'
+                     style='cursor: pointer;'
                      data-on-click='quoteMessage'
                      data-author='" . e($row["username"]) . "'
                      data-text='" . e($row["message"]) . "'

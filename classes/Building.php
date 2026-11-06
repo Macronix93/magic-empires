@@ -152,22 +152,20 @@ class Building
         }
     }
 
-    public function create_building(Building $building, array $row, array $buildings, mixed $building_id): array
+    public function fill_from_row(array $row, int $building_id, int $kingdom_id): void
     {
-        $building->set_building_id($building_id);
-        $building->set_building_name($row["buildingname"]);
-        $building->set_building_score($row["buildingscore"]);
-        $building->set_building_wood_cost($row["woodcost"]);
-        $building->set_building_food_cost($row["foodcost"]);
-        $building->set_building_stone_cost($row["stonecost"]);
-        $building->set_building_gold_cost($row["goldcost"]);
-        $building->set_building_mult($row["multiplicator"]);
-        $building->set_building_time($row["timetobuild"]);
-        $building->set_building_level($row["buildinglevel"] ?? 0);
-        $building->set_building_description($row["description"]);
-
-        $buildings[$building_id] = $building;
-        return $buildings;
+        $this->building_id = $building_id;
+        $this->kingdom_id = $kingdom_id;
+        $this->b_name = $row["buildingname"];
+        $this->b_score = (int)$row["buildingscore"];
+        $this->b_woodcost = (int)$row["woodcost"];
+        $this->b_foodcost = (int)$row["foodcost"];
+        $this->b_stonecost = (int)$row["stonecost"];
+        $this->b_goldcost = (int)$row["goldcost"];
+        $this->b_mult = (float)$row["multiplicator"];
+        $this->b_time = (int)$row["timetobuild"];
+        $this->b_level = (int)($row["buildinglevel"] ?? 0);
+        $this->b_description = $row["description"] ?? "";
     }
 
     public function set_building_name(string $name): void

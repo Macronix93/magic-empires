@@ -165,47 +165,78 @@ class Achievement
     private static function check_balanced_army(int $user_id): bool
     {
         $db = Database::get_instance()->get_connection();
-        $res_k = $db->execute_query("SELECT id FROM kingdoms WHERE userid = ?", [$user_id]);
+
+        $sql_kingdoms = "
+            SELECT 
+                k.id, 
+                k.alignment,
+                IFNULL(t_inf.techlevel, 0) AS inf_lvl,
+                IFNULL(t_cav.techlevel, 0) AS cav_lvl,
+                IFNULL(t_arc.techlevel, 0) AS arc_lvl,
+                IFNULL(t_shrine.techlevel, 0) AS rites_lvl,
+                IFNULL(b_shrine.buildinglevel, 0) AS shrine_lvl,
+                sa.base_bonus
+            FROM kingdoms k
+            LEFT JOIN techs t_inf ON k.id = t_inf.kingdomid AND t_inf.techid = " . TechTypes::TECH_TYPE_BLADES . "
+            LEFT JOIN techs t_cav ON k.id = t_cav.kingdomid AND t_cav.techid = " . TechTypes::TECH_TYPE_LANCE_RIDING . "
+            LEFT JOIN techs t_arc ON k.id = t_arc.kingdomid AND t_arc.techid = " . TechTypes::TECH_TYPE_ARROWHEADS . "
+            LEFT JOIN techs t_shrine ON k.id = t_shrine.kingdomid AND t_shrine.techid = " . TechTypes::TECH_TYPE_ANCESTRAL_RITES . "
+            LEFT JOIN buildings b_shrine ON k.id = b_shrine.kingdomid AND b_shrine.buildingid = " . BuildingTypes::BUILDING_SHRINE . "
+            LEFT JOIN shrine_alignments sa ON k.alignment = sa.id
+            WHERE k.userid = ?
+        ";
+        $kingdoms = $db->execute_query($sql_kingdoms, [$user_id])->fetch_all(MYSQLI_ASSOC);
+        if (empty($kingdoms)) return false;
+
+        $kid_list = array_column($kingdoms, "id");
+        $placeholders = implode(',', array_fill(0, count($kid_list), '?'));
 
         $inf = SoldierTypes::SOLDIER_TYPE_INFANTRY;
         $cav = SoldierTypes::SOLDIER_TYPE_CAVALRY;
         $arc = SoldierTypes::SOLDIER_TYPE_ARCHERS;
 
-        while ($k_row = $res_k->fetch_assoc()) {
-            $kid = (int)$k_row["id"];
-            $kingdom = new Kingdom($kid);
+        $sql_troops = "
+            SELECT s.kingdomid, s.soldiercount, sl.attack, sl.category 
+            FROM soldiers s 
+            JOIN soldier_list sl ON s.soldierid = sl.id 
+            WHERE s.kingdomid IN ($placeholders) 
+              AND s.soldiercount > 0 
+              AND sl.category IN (?, ?, ?)
+        ";
+        $params = array_merge($kid_list, [$inf, $cav, $arc]);
+        $res_troops = $db->execute_query($sql_troops, $params);
 
-            $inf_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);
-            $cav_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING);
-            $arc_atk_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS);
+        $troops_by_kingdom = [];
+        while ($t = $res_troops->fetch_assoc()) {
+            $troops_by_kingdom[(int)$t["kingdomid"]][] = $t;
+        }
 
-            $shrine_atk_mult = 1.0;
-            if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-                $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
+        foreach ($kingdoms as $k) {
+            $kid = (int)$k["id"];
+            $troops = $troops_by_kingdom[$kid] ?? [];
+            if (empty($troops)) continue;
+
+            $shrine_mult = 1.0;
+            if ((int)$k["alignment"] === AlignmentTypes::ALIGN_WAR && (int)$k["shrine_lvl"] > 0) {
+                $base_bonus = (float)($k["base_bonus"] ?? SHRINE_WAR_DEFAULT_BONUS);
+                $shrine_mult += ($base_bonus + ((int)$k["rites_lvl"] * SHRINE_TECH_STEP));
             }
-
-            $res_troops = $db->execute_query("
-                SELECT s.soldiercount, sl.attack, sl.category
-                FROM soldiers s
-                JOIN soldier_list sl ON s.soldierid = sl.id
-                WHERE s.kingdomid = ? AND s.soldiercount > 0 AND sl.category IN (?, ?, ?)
-            ", [$kid, $inf, $cav, $arc]);
 
             $cat_counts = [$inf => 0, $cav => 0, $arc => 0];
             $cat_atk = [$inf => 0, $cav => 0, $arc => 0];
 
-            while ($t = $res_troops->fetch_assoc()) {
+            foreach ($troops as $t) {
                 $cat = (int)$t["category"];
                 $cnt = (int)$t["soldiercount"];
 
                 $b_atk = match ($cat) {
-                    SoldierTypes::SOLDIER_TYPE_INFANTRY => $inf_atk_lvl * SMITHY_INF_ATK_BONUS,
-                    SoldierTypes::SOLDIER_TYPE_CAVALRY => $cav_atk_lvl * SMITHY_CAV_ATK_BONUS,
-                    SoldierTypes::SOLDIER_TYPE_ARCHERS => $arc_atk_lvl * SMITHY_ARC_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_INFANTRY => (int)$k["inf_lvl"] * SMITHY_INF_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_CAVALRY => (int)$k["cav_lvl"] * SMITHY_CAV_ATK_BONUS,
+                    SoldierTypes::SOLDIER_TYPE_ARCHERS => (int)$k["arc_lvl"] * SMITHY_ARC_ATK_BONUS,
                     default => 0
                 };
 
-                $unit_atk = (int)round(($t["attack"] * $shrine_atk_mult) + $b_atk);
+                $unit_atk = (int)round(($t["attack"] * $shrine_mult) + $b_atk);
                 $cat_counts[$cat] += $cnt;
                 $cat_atk[$cat] += ($cnt * $unit_atk);
             }
@@ -264,9 +295,7 @@ class Achievement
         );
 
         Logger::get_instance()->log_game("ACHIEVEMENT", "UNLOCKED", [
-            "achievement_id" => $ach_id,
-            "code" => $ach["code"] ?? "",
-            "title" => $display_title
+            "achievement_id" => $ach_id
         ]);
 
         return true;

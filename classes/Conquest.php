@@ -233,9 +233,9 @@ class Conquest
             $cat = $soldier["category"];
 
             $prefix = match ($cat) {
-                0 => "inf_",
-                1 => "cav_",
-                2 => "arc_",
+                SoldierTypes::SOLDIER_TYPE_INFANTRY => "inf_",
+                SoldierTypes::SOLDIER_TYPE_CAVALRY => "cav_",
+                SoldierTypes::SOLDIER_TYPE_ARCHERS => "arc_",
                 default => null
             };
 
@@ -482,7 +482,7 @@ class Conquest
         return mt_rand(0, 100) <= $success_rate;
     }
 
-    public function has_noob_protection(int $attacker_score, int $defender_score): bool
+    public static function has_noob_protection(int $attacker_score, int $defender_score): bool
     {
         if (NOOB_PROTECTION_MULT <= 0) {
             return false;
@@ -500,8 +500,7 @@ class Conquest
 
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["initial_my_soldiers"] > 0) {
-                $name = $this->soldier_types[$id]["soldiername"];
-                $details[$name] = (int)$data["initial_my_soldiers"];
+                $details[$id] = (int)$data["initial_my_soldiers"];
             }
         }
 
@@ -514,8 +513,7 @@ class Conquest
 
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["initial_enemy_soldiers"] > 0) {
-                $name = $this->soldier_types[$id]["soldiername"];
-                $details[$name] = (int)$data["initial_enemy_soldiers"];
+                $details[$id] = (int)$data["initial_enemy_soldiers"];
             }
         }
 
@@ -528,8 +526,7 @@ class Conquest
 
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["my_losses"] > 0) {
-                $name = $this->soldier_types[$id]["soldiername"];
-                $details[$name] = (int)$data["my_losses"];
+                $details[$id] = (int)$data["my_losses"];
             }
         }
 
@@ -542,8 +539,7 @@ class Conquest
 
         foreach ($this->initial_soldiers as $id => $data) {
             if ($data["enemy_losses"] > 0) {
-                $name = $this->soldier_types[$id]["soldiername"];
-                $details[$name] = (int)$data["enemy_losses"];
+                $details[$id] = (int)$data["enemy_losses"];
             }
         }
 

@@ -33,7 +33,7 @@ if (!empty($_GET["key"])) {
         $username = $user_data["username"];
 
         if (!$user_data["status"]) {
-            $max_news_id = $db_instance->query("SELECT MAX(id) FROM news")->fetch_row()[0] ?? 0;
+            $max_news_id = $db_instance->query("SELECT MAX(date) FROM news")->fetch_row()[0] ?? 0;
             $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
             $max_sug_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
             $max_comm_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);

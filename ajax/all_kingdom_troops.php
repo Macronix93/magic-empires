@@ -310,7 +310,12 @@ foreach ($kingdoms as $k) {
     $global_power["total_smithy_atk"] += $stat["total_smithy_atk"];
     $global_power["total_smithy_def"] += $stat["total_smithy_def"];
     $global_power["total_shrine_atk"] += $stat["total_shrine_atk"];
-    for ($c = 0; $c <= 3; $c++) {
+
+    foreach ([
+                     SoldierTypes::SOLDIER_TYPE_INFANTRY,
+                     SoldierTypes::SOLDIER_TYPE_CAVALRY,
+                     SoldierTypes::SOLDIER_TYPE_ARCHERS,
+                     SoldierTypes::SOLDIER_TYPE_SPECIAL] as $c) {
         $global_power["cat_atk"][$c] += $stat["cat_atk"][$c];
         $global_power["cat_def"][$c] += $stat["cat_def"][$c];
     }
@@ -335,19 +340,25 @@ $render_power_stat = function (string $type, int $total, int $pure_base, int $sm
             . $render_split_row("Schützen", $cat_vals[SoldierTypes::SOLDIER_TYPE_ARCHERS])
             . $render_split_row("Spezial", $cat_vals[SoldierTypes::SOLDIER_TYPE_SPECIAL]);
 
-    return "
-    <span class='popup $val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
-        $icon <span>" . fnum($total, false, true) . "</span>
-        <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 220px;'>
-            <b>$title</b>
-            <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base, true) . "</span></div>
-            " . ($smithy_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($smithy_bonus, true) . "</span></div>" : "") . "
-            " . ($shrine_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($shrine_bonus, true) . "</span></div>" : "") . "
-            <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
-            <b>Gattungen:</b>
-            $cat_rows
-        </div>
-    </span>";
+
+    if ($total <= 0) {
+        return "<span class='$val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
+                " . $icon . "<span>" . fnum($total, false, true) . "</span></span>";
+    } else {
+        return "
+        <span class='popup $val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
+            $icon <span>" . fnum($total, false, true) . "</span>
+            <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 220px;'>
+                <b>$title</b>
+                <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base, true) . "</span></div>
+                " . ($smithy_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($smithy_bonus, true) . "</span></div>" : "") . "
+                " . ($shrine_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($shrine_bonus, true) . "</span></div>" : "") . "
+                <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+                <b>Gattungen:</b>
+                $cat_rows
+            </div>
+        </span>";
+    }
 };
 
 $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capacity_all) ? "error" : "passed";

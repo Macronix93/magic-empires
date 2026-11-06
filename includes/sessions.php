@@ -140,9 +140,6 @@ if ($user->is_logged_in()) {
                 // Process all events for the user
                 $user->process_user_events();
 
-                // Update villager count after events were processed (villager cap)
-                //Kingdom::apply_villager_cap($user->get_current_kingdom());
-
                 $_SESSION["active_attacks"] = $user->check_for_incoming_attacks();
                 $_SESSION["active_supports"] = $user->check_for_incoming_support();
             }

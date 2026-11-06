@@ -25,6 +25,7 @@ $techs = $res_tech->fetch_all(MYSQLI_ASSOC);
 $hero_info = $arena->get_hero_full_data();
 $h_data = $hero_info["hero"];
 $active_skill = $hero_info["active_skill"];
+$all_skills = $hero_info["skills"];
 
 $prefill_troops = $player_data["defense_troops"] ?? [];
 $prefill_techs = $player_data["defense_techs"] ?? [];
@@ -70,11 +71,25 @@ $prefill_techs = $player_data["defense_techs"] ?? [];
                     </div>
                 </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px;">
-                <span style="opacity: 0.8;">Spezialisierung:</span>
-                <div style="background: rgba(212, 175, 55, 0.15); border: 1px solid var(--link-color); border-radius: 3px; padding: 2px 8px;">
-                    <b><?= e($active_skill["name"]) ?></b> &nbsp;|&nbsp;
-                    <span class="passed"><b>+<?= round($active_skill["rps_bonus"] * 100, 1) ?>%</b> vs. <?= e($active_skill["target_name"]) ?></span>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px;">
+                <label for="arena_attack_skill" style="font-size: 13px; opacity: 0.9; margin: 0; font-weight: bold;">Spezialisierung:</label>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <select name="skill_id" id="arena_attack_skill" data-on-change="changeArenaAttackSkill"
+                            style="font-size: 12px; padding: 4px 26px 4px 8px;">
+                        <?php foreach ($all_skills as $sid => $s):
+                            $selected = ($sid === (int)$active_skill["id"]) ? "selected" : "";
+                            $rps_perc = fdec(round($s["rps_bonus"] * 100, 1));
+                            ?>
+                            <option value="<?= $sid ?>" <?= $selected ?> data-bonus="<?= $rps_perc ?>"
+                                    data-target="<?= e($s["target_name"]) ?>">
+                                <?= e($s["name"]) ?> (Lv. <?= $s["level"] ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span id="arena-skill-bonus-display" class="passed"
+                          style="font-size: 12px; font-weight: bold; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-gold); border-radius: 3px; padding: 3px 8px; white-space: nowrap;">
+                    +<?= fdec(round($active_skill["rps_bonus"] * 100, 1)) ?>% vs. <?= e($active_skill["target_name"]) ?>
+                </span>
                 </div>
             </div>
         </div>

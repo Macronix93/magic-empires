@@ -5,7 +5,7 @@ $user->check_user_login();
 <div id="modal-title-data" data-title="Arena – Anleitung & Belohnungen" data-width="650px" style="display: none;"></div>
 <div style="padding: 10px; max-width: 600px; margin: 0 auto; text-align: left; line-height: 1.5;">
     <h3 class="title-border" style="margin-top: 0;">Die Arena von Magic Empires</h3>
-    <p>
+    <p class="arena-description">
         In der Arena treten die besten Herrscher in taktischen Duellen gegeneinander an.
         Hier zählt einzig deine militärische Zusammenstellung und Taktik – <b>deine echten Truppen im Dorf werden dabei
             nicht angetastet</b> (alle Verluste sind rein fiktiv).
@@ -14,7 +14,12 @@ $user->check_user_login();
         <b style="color: var(--link-color);">1. Deine Armee:</b><br>
         Jeder Herrscher verteilt exakt <b><?= fnum(ARENA_ARMY_UNIT_LIMIT) ?> Truppen</b> und bis zu
         <b><?= ARENA_MAX_TECH_POINTS ?> Schmiede-Punkte</b>. Deine Aufstellung dient gleichzeitig als passive
-        Verteidigung gegen Angreifer.
+        Verteidigung gegen Angreifer.<br><br><i style="opacity: 0.8;">Hinweis zu den Schmiede-Attributen: In der
+            Arena
+            sind die Boni für alle Gattungen (Infanterie, Kavallerie, Fernkampf) standardisiert – jede Stufe gewährt
+            einheitlich <b>+<?= ARENA_SMITHY_INF_ATK ?> Angriff</b> bzw. <b>+<?= ARENA_SMITHY_INF_DEF ?>
+                Verteidigung</b>
+            pro Einheit.</i>
     </div>
     <div class="tech-info-box">
         <b style="color: var(--link-color);">2. Dein Champion & Spezialisierungen:</b><br>

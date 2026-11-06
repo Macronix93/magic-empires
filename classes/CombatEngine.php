@@ -71,12 +71,22 @@ class CombatEngine
             $total_raw_atk = 0;
             $global_focus_share = RPS_TARGET_FOCUS;
 
+            usort($units, function ($a, $b) {
+                $a_is_hero = !empty($a["h_lvl"]) || (isset($a["id"]) && str_starts_with((string)$a["id"], "hero"));
+                $b_is_hero = !empty($b["h_lvl"]) || (isset($b["id"]) && str_starts_with((string)$b["id"], "hero"));
+                return $b_is_hero <=> $a_is_hero;
+            });
+
+            $remaining_def_capacity = array_map(function ($cat_def) {
+                return $cat_def * LETHALITY_PVP;
+            }, $enemy_def_pools);
+
             foreach ($units as $u) {
                 $cnt = (int)$u["count"];
                 if ($cnt <= 0) continue;
+
                 $u_atk_sum = $cnt * (int)$u["atk"];
                 $total_raw_atk += $u_atk_sum;
-
                 $target_cat = isset($u["target_cat"]) ? (int)$u["target_cat"] : $get_target_cat((int)$u["category"]);
                 $unit_rps_bonus = isset($u["rps_bonus"]) ? (float)$u["rps_bonus"] : RPS_BONUS;
                 $focus_share = isset($u["target_focus"]) ? (float)$u["target_focus"] : $global_focus_share;
@@ -84,14 +94,18 @@ class CombatEngine
 
                 if ($target_cat !== -1 && !empty($enemy_has_cat[$target_cat])) {
                     $target_dmg = $u_atk_sum * $focus_share * (1.0 + $unit_rps_bonus);
-                    $max_capacity = ($enemy_def_pools[$target_cat] ?? 0) * LETHALITY_PVP;
+                    $curr_capacity = $remaining_def_capacity[$target_cat] ?? 0;
 
-                    if ($target_dmg > $max_capacity && $max_capacity > 0) {
-                        $excess = $target_dmg - $max_capacity;
-                        $targeted_dmg[$target_cat] += $max_capacity;
+                    if ($target_dmg > $curr_capacity && $curr_capacity > 0) {
+                        $excess = $target_dmg - $curr_capacity;
+                        $targeted_dmg[$target_cat] += $curr_capacity;
+                        $remaining_def_capacity[$target_cat] = 0;
                         $shared_dmg += ($excess / (1.0 + $unit_rps_bonus)) + ($u_atk_sum * $default_share);
+                    } else if ($curr_capacity <= 0) {
+                        $shared_dmg += ($target_dmg / (1.0 + $unit_rps_bonus)) + ($u_atk_sum * $default_share);
                     } else {
                         $targeted_dmg[$target_cat] += $target_dmg;
+                        $remaining_def_capacity[$target_cat] -= $target_dmg;
                         $shared_dmg += ($u_atk_sum * $default_share);
                     }
                 } else {

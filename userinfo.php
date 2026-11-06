@@ -33,7 +33,7 @@ if ($user_id) {
         return;
     }
 
-    echo '<div id="modal-title-data" data-width="580px" style="display: none;"></div>';
+    echo '<div id="modal-title-data" data-width="600px" style="display: none;"></div>';
 
     // Check, if a conversation already exists with that user
     $res_conv = $db_instance->execute_query("
@@ -141,7 +141,7 @@ if ($user_id) {
     $map = new Map($user);
     $minimap_html = $map->render_minimap($x, $y);
     ?>
-    <table class="table" style="width: fit-content;">
+    <table class="table userinfo-table" style="width: fit-content;">
         <tr>
             <td><b>Spieler</b></td>
             <td>
@@ -218,8 +218,8 @@ if ($user_id) {
                     <button type="button"
                             data-on-click="openOverlay"
                             data-url="ajax/achievement_unlockers.php?userid=<?= $user_id ?>"
-                            data-title="Errungenschaften">
-                        Ansehen
+                            data-title="Errungenschaften"
+                            class="show-ach-userinfo">Ansehen
                     </button>
                 </div>
             </td>
@@ -246,9 +246,8 @@ if ($user_id) {
             if ($my_guild_id !== -1 && $my_perms["can_invite"] && $row["guildid"] == -1 && $user_id != $user->get_user_id()) {
                 echo "<button data-on-click='inviteToGuildDialog' 
                                 data-userid='$user_id' 
-                                data-username='" . e($user_name) . "'>
-                            Einladen
-                        </button>
+                                data-username='" . e($user_name) . "'
+                                class='guild-invitation-button'>Einladen</button>
                     </td>
                   </tr>";
             }

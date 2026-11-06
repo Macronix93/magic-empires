@@ -9,7 +9,7 @@ $we_logic = new WorldEvent();
 $today_day = (int)date('w'); // 0 (Sunday) to 6 (Saturday)
 $today_start = strtotime("today midnight");
 
-if ($today_day !== 2 && $today_day !== 5) {
+if (!in_array($today_day, WORLD_EVENT_DAYS, true)) {
     die("[" . date("H:i:s") . "] Abbruch: Heute ist kein geplanter Event-Tag (Di/Fr).\n");
 }
 

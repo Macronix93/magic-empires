@@ -16,17 +16,17 @@ $user_data = $res_user->fetch_assoc();
 $now = time();
 
 $allowed_tabs = ["profile", "game", "account"];
-$active_tab = $_POST['tab'] ?? $_GET['tab'] ?? 'profile';
+$active_tab = $_POST["tab"] ?? $_GET["tab"] ?? "profile";
 if (!in_array($active_tab, $allowed_tabs)) {
-    $active_tab = 'profile';
+    $active_tab = "profile";
 }
 
 // Generate a random token
-if (!isset($_SESSION['csrf_token'])) {
+if (!isset($_SESSION["csrf_token"])) {
     try {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
     } catch (Throwable $e) {
-        $_SESSION['csrf_token'] = md5(uniqid(mt_rand(), true));
+        $_SESSION["csrf_token"] = md5(uniqid(mt_rand(), true));
     }
 }
 
@@ -88,14 +88,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                     if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
                                         $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [$now, $uid]);
 
-                                        $flash_box = show_passed_box("Nutzerbild wurde erfolgreich hochgeladen!");
-
                                         $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
                                             "filename" => $file_name,
                                             "extension" => $file_ext,
                                             "mime" => $mime_type,
                                             "size" => $file_size
                                         ]);
+
+                                        $_SESSION["game_success"] = "Nutzerbild wurde erfolgreich hochgeladen!";
+
+                                        change_location("settings.php?tab=profile");
+                                        exit;
                                     } else {
                                         $error = "Fehler beim Hochladen der Datei auf den Server!";
                                     }
@@ -159,9 +162,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $old_name = $user->get_user_name();
                             PhpBBBridge::update_username($old_name, $new_name);
 
-                            $flash_box = show_passed_box("Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.");
-
                             $logger->log_game("ACCOUNT", "USERNAME_CHANGE", ["new_name" => $new_name]);
+
+                            $_SESSION["game_success"] = "Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.";
+
+                            change_location("settings.php?tab=account");
+                            exit;
                         }
                     }
                 }
@@ -189,9 +195,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 PhpBBBridge::update_password($user->get_user_name(), $new_hash);
 
-                $flash_box = show_passed_box("Passwort erfolgreich geändert!");
-
                 $logger->log_game("ACCOUNT", "PASSWORD_CHANGE");
+
+                $_SESSION["game_success"] = "Passwort erfolgreich geändert!";
+
+                change_location("settings.php?tab=account");
+                exit;
             }
         }
 
@@ -238,8 +247,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                                 PhpBBBridge::update_email($user->get_user_name(), $new_email);
 
-                                $flash_box = show_passed_box("Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.");
                                 $logger->log_game("ACCOUNT", "EMAIL_CHANGE", ["new_email" => $new_email]);
+
+                                $_SESSION["game_success"] = "Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.";
+
+                                change_location("settings.php?tab=account");
+                                exit;
                             }
                         }
                     }
@@ -281,7 +294,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 Achievement::unlock($uid, AchievementTypes::ACHIEVEMENT_SECRET_RENAME);
 
-                $flash_box = show_passed_box("Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!");
+                $_SESSION["game_success"] = "Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!";
+
+                change_location("settings.php?tab=game");
+                exit;
             }
         }
 
@@ -292,10 +308,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if (empty($partner_input)) {
                 $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$uid]);
 
-                $flash_box = show_passed_box("IP-Sharing Partner wurde entfernt.");
-
                 $user_data['linked_user_id'] = null;
                 $user_data['partner_name'] = null;
+
+                $_SESSION["game_success"] = "IP-Sharing Partner wurde entfernt.";
+
+                change_location("settings.php?tab=game");
+                exit;
             } else {
                 $partner_res = $db_instance->execute_query(
                     "SELECT id, username FROM users WHERE username = ? LIMIT 1",
@@ -305,7 +324,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 if (!$partner_data) {
                     $error = "Ein Spieler mit dem Namen '" . e($partner_input) . "' existiert nicht!";
-                } elseif ((int)$partner_data['id'] === $uid) {
+                } else if ((int)$partner_data['id'] === $uid) {
                     $error = "Du kannst dich nicht selbst als Partner eintragen!";
                 } else {
                     $partner_id = (int)$partner_data['id'];
@@ -315,10 +334,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         [$partner_id, $uid]
                     );
 
-                    $flash_box = show_passed_box("Partner '" . e($partner_data['username']) . "' wurde erfolgreich hinterlegt.");
-
                     $user_data['linked_user_id'] = $partner_id;
                     $user_data['partner_name'] = $partner_data['username'];
+
+                    $_SESSION["game_success"] = "Partner '" . e($partner_data['username']) . "' wurde erfolgreich hinterlegt.";
+
+                    change_location("settings.php?tab=game");
+                    exit;
                 }
             }
         }
@@ -337,19 +359,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $list_view = isset($_POST["use_list_view"]) ? "1" : "0";
             $map_popup = isset($_POST["use_map_popup"]) ? "1" : "0";
             $filter_val = isset($_POST["chat_filter"]) ? 1 : 0;
+            $autofocus_troops = isset($_POST["autofocus_troops"]) ? "1" : "0";
 
             $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
             $_SESSION["chat_filter"] = $filter_val;
 
-            setcookie("me_overview_pagesize", (string)$pagesize, $now + 31536000, "/", "", false, false);
-            setcookie("me_list_view", $list_view, $now + 31536000, "/", "", false, false);
-            setcookie("me_map_popup", $map_popup, $now + 31536000, "/", "", false, false);
+            setcookie("me_overview_pagesize", (string)$pagesize, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+            setcookie("me_list_view", $list_view, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+            setcookie("me_map_popup", $map_popup, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+            setcookie("me_autofocus_troops", $autofocus_troops, $now + 31536000, "/", "", false, false);
 
             $_COOKIE["me_overview_pagesize"] = (string)$pagesize;
             $_COOKIE["me_list_view"] = $list_view;
             $_COOKIE["me_map_popup"] = $map_popup;
+            $_COOKIE["me_autofocus_troops"] = $autofocus_troops;
 
-            $flash_box = show_passed_box("Anzeige-Einstellungen erfolgreich gespeichert.");
+            if (WINTER_THEME_ACTIVE) {
+                $show_snow = isset($_POST["show_snow"]) ? "1" : "0";
+                setcookie("me_show_snow", $show_snow, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+                $_COOKIE["me_show_snow"] = $show_snow;
+            }
+
+            $_SESSION["game_success"] = "Anzeige-Einstellungen erfolgreich gespeichert.";
+
+            change_location("settings.php?tab=game");
+            exit;
         }
 
         // Activate Vacation Mode
@@ -421,6 +455,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages, $p_events]);
 
             $_SESSION["admin_flash_msg"] = "Push-Einstellungen erfolgreich gespeichert.";
+
             change_location("settings.php?tab=account");
             exit;
         }
@@ -439,16 +474,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $error = "Bestätigungswort falsch.";
             } else {
                 $deleted_username = $u_data['username'];
-
                 $block_until = $now + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
-                $db_instance->execute_query("
+
+                $db_instance->begin_transaction();
+                try {
+                    $db_instance->execute_query("
                         INSERT INTO blocked_emails (email, blocked_until) 
                          VALUES (?, ?) 
                          ON DUPLICATE KEY UPDATE blocked_until = VALUES(blocked_until)",
-                    [$u_data["email"], $block_until]
-                );
+                        [$u_data["email"], $block_until]
+                    );
 
-                $db_instance->execute_query("
+                    $db_instance->execute_query("
                     UPDATE events SET 
                         actionid = ?, 
                         arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - buildingtime),
@@ -457,7 +494,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     WHERE targetid IN (SELECT id FROM kingdoms WHERE userid = ?) 
                       AND actionid = ?", [ActionTypes::ACTION_RETURN_TROOPS, $uid, ActionTypes::ACTION_SEND_TROOPS]);
 
-                $db_instance->execute_query("
+                    $db_instance->execute_query("
                     UPDATE events e
                     JOIN kingdoms k_source ON e.targetid = k_source.id
                     SET 
@@ -473,27 +510,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                       AND e.userid != ?
                       AND e.actionid = ?", [ActionTypes::ACTION_RETURN_RESOURCES, $uid, $uid, ActionTypes::ACTION_RECEIVE_RESOURCES]);
 
-                $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $deleted_username, "email" => $u_data['email']]);
+                    $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $deleted_username, "email" => $u_data['email']]);
 
-                // Check if user was in a guild and leader
-                $guild_manager = new Guild($user, $user->get_user_guild_id());
-                $guild_manager->handle_leader_deletion($uid);
+                    // Check if user was in a guild and leader
+                    $guild_manager = new Guild($user, $user->get_user_guild_id());
+                    $guild_manager->handle_leader_deletion($uid);
 
-                Kingdom::convert_user_kingdoms_to_ruins($uid);
-                User::delete_user_avatar_files($uid);
-                PhpBBBridge::delete_forum_user($deleted_username);
+                    Kingdom::convert_user_kingdoms_to_ruins($uid);
+                    User::delete_user_avatar_files($uid);
+                    PhpBBBridge::delete_forum_user($deleted_username);
 
-                $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
+                    $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
 
-                $em = new EventManager($user);
-                $em->process_orphaned_support();
+                    $em = new EventManager($user);
+                    $em->process_orphaned_support();
 
-                $token = bin2hex(random_bytes(16));
+                    $token = bin2hex(random_bytes(16));
 
-                setcookie("logout_verify", $token, $now + 30, "/", "", false, true);
-                session_destroy();
-                change_location("index.php?logout=deleted&v=" . $token);
-                exit;
+                    setcookie("logout_verify", $token, $now + 30, "/", "", false, true);
+                    session_destroy();
+
+                    change_location("index.php?logout=deleted&v=" . $token);
+                    exit;
+                } catch (Throwable $e) {
+                    $db_instance->rollback();
+
+                    $logger->error("Fehler beim Löschen des Accounts ID $uid: " . $e->getMessage());
+                    $error = "Ein Datenbankfehler ist aufgetreten. Der Account konnte nicht sicher gelöscht werden.";
+                }
             }
         }
 
@@ -522,17 +566,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             );
 
             if ($valid_title_id === 0) {
-                $flash_box = show_passed_box("Einstellungen gespeichert: Es wird kein Titel angezeigt.");
+                $_SESSION["game_success"] = "Einstellungen gespeichert: Es wird kein Titel angezeigt.";
             } else {
-                $flash_box = show_passed_box("Anrede und Titel erfolgreich aktualisiert!");
+                $_SESSION["game_success"] = "Anrede und Titel erfolgreich aktualisiert!";
             }
-        }
-    }
 
-    try {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    } catch (Throwable $e) {
-        $_SESSION['csrf_token'] = md5(uniqid(mt_rand(), true));
+            change_location("settings.php?tab=profile");
+            exit;
+        }
     }
 }
 
@@ -590,7 +631,7 @@ $view .= '
                 </label>
             </div>
             <div style="display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;">
-                <select name="active_title_id" style="min-width: 220px;">
+                <select name="active_title_id" class="active-title-dropdown">
                     ' . $title_options . '
                 </select>
                 <input type="submit" value="Speichern">
@@ -612,8 +653,8 @@ $view .= '
         <form action="settings.php" method="POST" enctype="multipart/form-data" id="avatar-upload-form">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <input type="hidden" name="submit_avatar" value="1">
-            <p>Neues Benutzerbild hochladen (Max. ' . MAX_UPLOAD_FILE_SIZE . ' KB):</p>
-            <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif" required><br><br>
+            <p>Neues Profilbild hochladen (Max. ' . MAX_UPLOAD_FILE_SIZE . ' KB):</p>
+            <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif" required>
             <input type="submit" id="btn-submit-avatar" value="Bild hochladen">
         </form>
         <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
@@ -630,7 +671,18 @@ $cur_pagesize = (int)($_COOKIE["me_overview_pagesize"] ?? OVERVIEW_PAGESIZE_DEFA
 $cur_pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $cur_pagesize));
 $cur_list_view = ((int)($_COOKIE["me_list_view"] ?? 0) === 1);
 $cur_map_popup = ((int)($_COOKIE["me_map_popup"] ?? 1) === 1);
-$current_filter = ($_SESSION["chat_filter"] ?? 1);
+$cur_filter = ($_SESSION["chat_filter"] ?? 1);
+$cur_show_snow = (($_COOKIE["me_show_snow"] ?? "1") === "1");
+$cur_autofocus_troops = (($_COOKIE["me_autofocus_troops"] ?? "0") === "1");
+
+$snow_checkbox_html = "";
+if (WINTER_THEME_ACTIVE) {
+    $snow_checkbox_html = '
+        <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+            <input type="checkbox" name="show_snow" value="1" style="width: auto;" ' . ($cur_show_snow ? "checked" : "") . '>
+            <span>Schnee-Effekt aktivieren<br><small style="opacity: 0.7;">(Schneefall-Animation des Winter-Themes)</small></span>
+        </label>';
+}
 
 $view .= '
 <div class="box-container">
@@ -671,9 +723,14 @@ $view .= '
                             <span>Schwebendes Info-Popup auf der Karte anzeigen<br><small style="opacity: 0.7;">(Wenn deaktiviert, wird die Info als feste Tabelle unter der Karte gerendert)</small></span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-                            <input type="checkbox" name="chat_filter" value="1" style="width: auto;" ' . ($current_filter ? "checked" : "") . '>
+                            <input type="checkbox" name="autofocus_troops" value="1" style="width: auto;" ' . ($cur_autofocus_troops ? "checked" : "") . '>
+                            <span>Eingabefokus beim Truppenversand automatisch setzen<br><small style="opacity: 0.7;">(Setzt den Cursor auf dem PC beim Öffnen direkt in das erste Einheitenfeld)</small></span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                            <input type="checkbox" name="chat_filter" value="1" style="width: auto;" ' . ($cur_filter ? "checked" : "") . '>
                             <span>Schimpfwort-Filter in privaten Nachrichten und Chats aktivieren</span>
                         </label>
+                        ' . $snow_checkbox_html . '
                     </td>
                 </tr>
             </table><br>
@@ -692,7 +749,7 @@ $view .= '
         <form method="POST">
             <input type="hidden" name="tab" value="game">
             <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
-            <p>Aktueller Name: <b>' . e($current_k_name) . '</b></p>
+            <p style="margin-top: 0;">Aktueller Name: <b>' . e($current_k_name) . '</b></p>
             <input type="text" name="new_kingdom_name" maxlength="25" placeholder="Neuer Name..." required style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="rename_kingdom" value="Namen speichern">
         </form>
@@ -926,7 +983,7 @@ $view .= '<div class="box-container" style="border-color: var(--border-gold); ma
                 <tr>
                     <td style="width: 45%;">Dauer:</td>
                     <td>
-                        <select name="vacation_days" ' . (!$can_vac ? "disabled" : '') . ' style="width: 100%;">
+                        <select name="vacation_days" ' . (!$can_vac ? "disabled" : '') . ' class="vacation-dropdown" style="width: 100%;">
                             <option value="2">2 Tage (Minimum)</option>
                             <option value="3">3 Tage</option>
                             <option value="5">5 Tage</option>

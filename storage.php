@@ -20,7 +20,7 @@ if ($level < MAX_BUILDING_LEVEL) {
     $next_display_percent = fdec($next_level * STORAGE_SECURE_PERCENT_STEP * 100);
 
     $next_level_text = "
-        <div class='split-content' style='margin: 10px auto; width: fit-content; gap: 5px;'>
+        <div class='split-content' style='margin: 10px;'>
             <div><b>Nächste Stufe:</b></div>
             <div class='passed'>" . fnum($next_max) . " Kapazität ($next_display_percent% geschützt)</div>
         </div>";
@@ -48,7 +48,7 @@ $view .= "<div class='storage-listing' style='margin: auto;'>
             <div>von " . fnum($kingdom->get_kingdom_max_gold()) . "</div>
         </div>
 </div>";
-$view .= $next_level_text;
+$view .= "<div class='res-building-content storage-next-level-text'>$next_level_text</div>";
 $view .= "
     <div class='info-box event-passed' style='margin-top: 20px; flex-direction: column; padding: 15px; max-width: 550px;'>
         <span style='font-weight: bold; font-size: 22px;'>🛡️ Sichere Ressourcen</span>

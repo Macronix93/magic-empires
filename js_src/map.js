@@ -675,7 +675,7 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , , myTroopIcon, enemyGuildId, , mineInfo] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , myTroopIcon, enemyGuildId, , mineInfo] = tile;
 
             if (kid === -1) return;
 
@@ -854,23 +854,24 @@ function draw() {
         const scaledTile = BASE_TILE_SIZE * zoom;
         const isEventSelection = (selectedX >= 49 && selectedX <= 51 && selectedY >= 49 && selectedY <= 51);
 
+        const selLineWidth = zoom >= 0.75 ? 3 : (zoom >= 0.4 ? 2 : 1);
+        const offset = (selLineWidth - 1) / 2;
+        const sizeDiff = selLineWidth - 1;
+
+        ctx.strokeStyle = "#f62222";
+        ctx.lineWidth = selLineWidth;
+
         if (isEventSelection) {
             const sPosX = (49 - 1) * scaledTile + currentTranslateX;
             const sPosY = (49 - 1) * scaledTile + currentTranslateY;
             const sSize = scaledTile * 3;
 
-            ctx.strokeStyle = "#f62222";
-            ctx.lineWidth = 3;
-            ctx.strokeRect(sPosX + 1, sPosY + 1, sSize - 2, sSize - 2);
+            ctx.strokeRect(sPosX + offset, sPosY + offset, sSize - sizeDiff, sSize - sizeDiff);
         } else {
-
             const sPosX = (selectedX - 1) * scaledTile + currentTranslateX;
             const sPosY = (selectedY - 1) * scaledTile + currentTranslateY;
 
-            ctx.strokeStyle = "#f62222";
-            ctx.lineWidth = 3;
-
-            ctx.strokeRect(sPosX + 1, sPosY + 1, scaledTile - 2, scaledTile - 2);
+            ctx.strokeRect(sPosX + offset, sPosY + offset, scaledTile - sizeDiff, scaledTile - sizeDiff);
         }
     }
 
@@ -1030,7 +1031,9 @@ function selectField(x, y, shouldCenter = false) {
     const tile = mapData.find(t => t[0] === x && t[1] === y);
     if (!tile) return;
 
-    const [tx, ty, , kid, level, , m_lvl, owner, kname, score, ownerId, fieldName, expiresAt, , enemyGuildId, hasOutgoing] = tile;
+    const [tx, ty, fieldtype, kid, level, , m_lvl, owner, kname, score, ownerId, expiresAt, , enemyGuildId, hasOutgoing] = tile;
+    const BIOME_NAMES = {1: "Gebirge", 2: "Küste", 3: "Wald", 4: "Wüste", 5: "Hochland"};
+    const fieldName = BIOME_NAMES[fieldtype] || "Unbekannt";
 
     const pathResult = calculatePathLocal(gameConfig.currentKingdom.x, gameConfig.currentKingdom.y, tx, ty);
     currentPath = pathResult.path;
@@ -1194,7 +1197,7 @@ function selectField(x, y, shouldCenter = false) {
         const isMyGuild = (myGid > 0 && enemyGuildId === myGid);
         const isMineFree = (ownerId === 0 && enemyGuildId === -1);
 
-        const mInfo = tile[16] || {};
+        const mInfo = tile[15] || {};
         const wDone = mInfo.w_done || 0;
         const wTotal = mInfo.w_total || 1;
         const curTroops = mInfo.cur_troops || 0;
@@ -1234,11 +1237,11 @@ function selectField(x, y, shouldCenter = false) {
         const showProgress = (myTroops > 0 || (isMyGuild && curTroops > 0));
         if (showProgress) {
             html += `<tr><td class="td-mapinfo"><b>Abbau-Fortschritt</b></td><td>
-                        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px;">
+                        <div class="map-mine-progression">
                             <span>${percent}%</span>
                             ${timerRow}
                         </div>
-                        <div class="tick-progress-bg" style="height: 8px;">
+                        <div class="tick-progress-bg">
                             <div class="tick-progress-fill" style="width: ${percent}%;"></div>
                         </div>
                      </td></tr>`;
@@ -1259,12 +1262,12 @@ function selectField(x, y, shouldCenter = false) {
             }
         }
 
-        let btnHtml;
+        let buttons = [];
 
         if (!hasOutgoing && isCommandLimitReached) {
-            btnHtml = `<small class="error">${cmdLimitMsg}</small>`;
+            buttons.push(`<small class="error">${cmdLimitMsg}</small>`);
         } else if (scoutCount === 0 && otherTroopsCount === 0) {
-            btnHtml = `<small class="error">Truppen zum Abbauen benötigt</small>`;
+            buttons.push(`<small class="error">Truppen zum Abbauen benötigt</small>`);
         } else {
             const isFull = (curTroops >= maxTroops && isFriendly);
 
@@ -1288,24 +1291,16 @@ function selectField(x, y, shouldCenter = false) {
                 mineBtnTitle = "title='Die Mine ist vollständig besetzt'";
             }
 
-            btnHtml = `<button data-on-click="openOverlay" data-url="${actionUrl}" ${mineBtnDisabled} ${mineBtnTitle}>${isFull ? "Mine ist voll" : actionBtnText}</button>`;
+            buttons.push(`<button type="button" data-on-click="openOverlay" data-url="${actionUrl}" ${mineBtnDisabled} ${mineBtnTitle}>${isFull ? "Mine ist voll" : actionBtnText}</button>`);
         }
 
         const isGuildOrOwnMine = (isMyGuild || myTroops > 0);
-
         if (isGuildOrOwnMine && curTroops > 0) {
-            btnHtml += `
-            <div style="margin-top: 8px;">
-                <button type="button" 
-                        data-on-click="openOverlay" 
-                        data-url="ajax/mine_details.php?x=${tx}&y=${ty}" 
-                        data-title="Minen-Besatzung">
-                    Minen-Besatzung ansehen
-                </button>
-            </div>`;
+            buttons.push(`<button type="button" data-on-click="openOverlay" data-url="ajax/mine_details.php?x=${tx}&y=${ty}" data-title="Minen-Besatzung">Minen-Besatzung</button>`);
         }
 
-        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">${btnHtml}</td></tr>`;
+        const btnContainer = `<div style="display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap;">${buttons.join("")}</div>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">${btnContainer}</td></tr>`;
         html += `</td></tr></table>`;
     } else if (kid === -999) {
         // --- EVENT CENTER
@@ -1379,7 +1374,7 @@ function selectField(x, y, shouldCenter = false) {
         const scoreIcon = `<img src="../images/icons/icon_score.png" class="ressource-icons" alt="">`;
         const ownerDisplay = `<a href="#" data-on-click="openOverlay" data-url="userinfo.php?userid=${ownerId}" data-title="Spieler-Info">${owner}</a>`;
 
-        html += `<div class="title-border">Königreich-Info</div>`;
+        html += `<div class="title-border">Königreich-Info (${fieldName})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Königreich</b></td><td>${kname}</td></tr>`;

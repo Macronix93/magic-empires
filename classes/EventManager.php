@@ -749,7 +749,10 @@ class EventManager
 
                     $units_data = [];
                     foreach ($incoming_troops as $u) {
-                        $units_data[] = ["id" => (int)$u["soldierid"], "count" => (int)$u["soldiercount"]];
+                        $units_data[] = [
+                            "id" => (int)$u["soldierid"],
+                            "count" => (int)$u["soldiercount"]
+                        ];
                     }
 
                     $full_json = [
@@ -1599,10 +1602,8 @@ class EventManager
         foreach ($res_units as $m) {
             $enemy_monsters[$m["monster_id"]] = [
                 "count" => (int)$m["count"],
-                "name" => $m["monster_name"],
                 "atk" => (int)$m["attack"],
                 "def" => (int)$m["defense"],
-                "icon" => $m["icon"]
             ];
         }
 
@@ -1728,10 +1729,10 @@ class EventManager
             if ($cat === SoldierTypes::SOLDIER_TYPE_INFANTRY) {
                 $b_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS;
                 $b_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS;
-            } elseif ($cat === SoldierTypes::SOLDIER_TYPE_CAVALRY) {
+            } else if ($cat === SoldierTypes::SOLDIER_TYPE_CAVALRY) {
                 $b_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS;
                 $b_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS;
-            } elseif ($cat === SoldierTypes::SOLDIER_TYPE_ARCHERS) {
+            } else if ($cat === SoldierTypes::SOLDIER_TYPE_ARCHERS) {
                 $b_atk = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS;
                 $b_def = $home_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS;
             }
@@ -2146,11 +2147,8 @@ class EventManager
         }
 
         $troops_sent_details = [];
-        $soldier_types = $conquest->get_soldier_types();
-
         foreach ($combat["report_attacker_units"] as $u) {
-            $name = $soldier_types[$u["id"]]["soldiername"] ?? ("ID " . $u["id"]);
-            $troops_sent_details[$name] = $u["initial"];
+            $troops_sent_details[(int)$u["id"]] = (int)$u["initial"];
         }
 
         Logger::get_instance()->log_game("COMBAT", "MONSTER_BATTLE", [
@@ -3774,8 +3772,7 @@ class EventManager
 
         Logger::get_instance()->log_game("ECONOMY", "RESEARCH_FINISH", [
             "tech_id" => $tech_id,
-            "tech_name" => $row["buildingname"],
-            "level" => $row["buildinglevel"] + 1
+            "level" => (int)$row["buildinglevel"] + 1
         ], $kingdom_id);
 
         // Send push msg
@@ -3839,8 +3836,8 @@ class EventManager
         $this->apply_building_effects($row["buildingid"], $row["buildinglevel"], $row["kingdomid"]);
 
         Logger::get_instance()->log_game("ECONOMY", "BUILDING_UPGRADE", [
-            "building" => $row["buildingname"],
-            "level" => $row["buildinglevel"] + 1
+            "building_id" => (int)$row["buildingid"],
+            "level" => (int)$row["buildinglevel"] + 1
         ], $row["kingdomid"]);
 
         // Send push msg
@@ -4338,7 +4335,12 @@ class EventManager
         $res_from = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$from_id]);
         $source_score = $res_from->fetch_assoc()["scoregain"];
 
-        $unit_time = $target_data["requiredtime"];
+        $kingdom = new Kingdom($kingdom_id);
+        $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
+        $smithy_multiplier = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
+        $unit_time = (int)round($target_data["requiredtime"] * $smithy_multiplier);
+        if ($unit_time < 1) $unit_time = 1;
+
         $s_name = $target_data["soldiername"];
         $target_score = $target_data["scoregain"];
 

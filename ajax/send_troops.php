@@ -32,6 +32,8 @@ $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) 
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
 $send_title = "Erobern";
 
+$is_founding = ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY);
+
 $warning_box = "";
 
 if ($target_x > MAX_X || $target_x < 1 || $target_y > MAX_Y || $target_y < 1) {
@@ -113,7 +115,7 @@ if ($is_ally) {
             exit_send_troops_error("Dieser Spieler befindet sich im Urlaubsmodus und kann weder angegriffen noch ausspioniert werden!");
         }
 
-        $is_noob_protected = new Conquest()->has_noob_protection($user->get_user_score(), $enemy_score);
+        $is_noob_protected = Conquest::has_noob_protection($user->get_user_score(), $enemy_score);
         $only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id > 0 && $enemy_user_id != $user->get_user_id());
     }
 }
@@ -257,6 +259,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 if ($soldier_count > ($kingdom_soldiers[$soldier_id] ?? 0)) {
                     $error = "Du hast zu wenig Soldaten vom Typ " . $soldiers[$soldier_id]->get_soldier_name() . "!";
+                    break;
+                }
+
+                if ($is_founding && $soldier_id !== Soldiers::SOLDIER_SETTLER_WAGON) {
+                    $error = "Für eine Neugründung können ausschließlich Gründungskarren entsendet werden!";
                     break;
                 }
             }
@@ -478,7 +485,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     // Update local count
                     $kingdom_soldiers[$soldier_id] -= $soldier_count;
-                    $log_troops[$soldiers[$soldier_id]->get_soldier_name()] = $soldier_count;
+                    $log_troops[$soldier_id] = $soldier_count;
                 }
             }
 
@@ -857,12 +864,12 @@ foreach ($soldiers as $soldier_id => $s_obj) {
 }
 
 $only_scouts_allowed = (!$is_ally && $is_noob_protected);
+$settler_wagon_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
 $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
-if (($only_scouts_allowed && $scout_count > 0) || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
-    $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
-} else if ($first_active_cat === -1 && ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY
-        || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"]))) {
+if (($only_scouts_allowed && $scout_count > 0) || $is_founding || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE ||
+    ($first_active_cat === -1 && ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY
+            || in_array($_GET["mode"] ?? '', ["plunder", "spy", "scout"])))) {
     $first_active_cat = SoldierTypes::SOLDIER_TYPE_SPECIAL;
 }
 
@@ -878,7 +885,11 @@ if ($first_active_cat === -1 || ($category_counts[$first_active_cat] ?? 0) <= 0)
 $show_all_checked = (($_COOKIE["me_list_view"] ?? "0") === "1");
 
 if ($barracks_level > 0) {
-    if ($only_scouts_allowed && $scout_count <= 0) {
+    if ($is_founding && $settler_wagon_count <= 0) {
+        $view .= "<div style='margin-top: 20px;'>"
+            . show_warning_box("Du besitzt in diesem Königreich keinen Gründungskarren, um dieses Land zu besiedeln.")
+            . "</div>";
+    } else if ($only_scouts_allowed && $scout_count <= 0) {
         $view .= "<div style='margin-top: 20px;'>" .
             show_warning_box("Du besitzt in diesem Königreich keine Späher, um auszuspionieren.") .
             "</div>";
@@ -945,6 +956,15 @@ if ($barracks_level > 0) {
                 continue;
             }
 
+            if ($is_founding) {
+                if ($id === SoldierTypes::SOLDIER_TYPE_SPECIAL) {
+                    $view .= "<div class='tablinks active' data-on-click='filterSendTroops' data-category='$id'>$name</div>";
+                } else {
+                    $view .= "<div class='tablinks tab-disabled' title='Für Neugründungen können nur Gründungskarren entsendet werden'>$name</div>";
+                }
+                continue;
+            }
+
             if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && $id == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
                 if (($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0) <= 0) {
                     $view .= "<div class='tablinks tab-disabled' title='Keine Späher verfügbar'>$name</div>";
@@ -984,6 +1004,10 @@ if ($barracks_level > 0) {
 
         foreach ($soldiers as $soldier_id => $s_obj) {
             $soldier_id = $s_obj->get_soldier_id();
+
+            if ($is_founding && $soldier_id !== Soldiers::SOLDIER_SETTLER_WAGON) {
+                continue;
+            }
 
             if ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) {
                 continue;
@@ -1041,7 +1065,13 @@ if ($barracks_level > 0) {
 
             $row_style = ($show_all_checked || $unit_cat === $first_active_cat) ? "" : "display: none;";
 
-            $is_input_disabled = ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) ? "disabled" : "";
+            if ($is_founding && $soldier_id !== Soldiers::SOLDIER_SETTLER_WAGON) {
+                $is_input_disabled = "disabled";
+            } else if ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) {
+                $is_input_disabled = "disabled";
+            } else {
+                $is_input_disabled = "";
+            }
 
             $view .= "<tr class='unit-row' data-unit-category='$unit_cat' style='$row_style'>
                                 <td>
@@ -1080,14 +1110,16 @@ if ($barracks_level > 0) {
                                                value='Max.' 
                                                data-on-click='fillMaxAndRefresh' 
                                                data-target='sol_$soldier_id' 
-                                               data-value='$owned_count'>
+                                               data-value='$owned_count'
+                                               tabindex='-1'>
                                         <input type='button'
                                                $is_input_disabled
                                                value='X' 
                                                title='Feld leeren'
                                                data-on-click='resetUnitAndRefresh' 
                                                data-target='sol_$soldier_id'
-                                               style='width: 32px;'>       
+                                               style='width: 32px;'
+                                               tabindex='-1'>       
                                     </div>
                                 </td>
                               </tr>";

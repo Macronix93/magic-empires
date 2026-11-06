@@ -657,6 +657,11 @@ function initializeChat() {
             if (messageInput) {
                 messageInput.addEventListener("keydown", e => {
                     if (e.key === "Enter" && !e.shiftKey) {
+                        const isMobile = window.innerWidth <= 600 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+                        if (isMobile) {
+                            return;
+                        }
+                        
                         e.preventDefault();
                         if (chatType === "world" || chatType === "guild") {
                             sendChatMessage(chatType);

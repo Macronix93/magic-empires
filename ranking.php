@@ -79,7 +79,6 @@ $view .= '<table class="table ranking-table">
 
 $pos = $offset_players + 1;
 
-$conquest_helper = new Conquest();
 $my_score = $user->get_user_score();
 $my_uid = $user->get_user_id();
 $my_guild_id = $user->get_user_guild_id();
@@ -93,7 +92,7 @@ foreach ($players_res as $row) {
 
     $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $is_same_guild = ($my_guild_id > 0 && $my_guild_id === (int)$user_guild_id);
-    $is_attackable = !$conquest_helper->has_noob_protection($my_score, $user_score) && $my_uid !== (int)$user_id && !$is_same_guild;
+    $is_attackable = !Conquest::has_noob_protection($my_score, $user_score) && $my_uid !== (int)$user_id && !$is_same_guild;
     $is_me = ($my_uid === (int)$user_id);
 
     if ($is_same_guild || $is_me) {

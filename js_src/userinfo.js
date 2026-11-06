@@ -21,6 +21,59 @@ registerAction("mapJump", (el) => {
     }
 });
 
+function getModalFocusableElements(modal) {
+    if (!modal) return [];
+
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
+        'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    return Array.from(modal.querySelectorAll(selector)).filter(el => {
+        if (el.disabled) return false;
+        if (el.getAttribute("tabindex") === "-1" || el.classList.contains("overlay-close-btn")) return false;
+
+        const rect = el.getBoundingClientRect();
+
+        if (rect.width === 0 && rect.height === 0) return false;
+        const style = window.getComputedStyle(el);
+
+        return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== '0';
+    });
+}
+
+function getTopmostOpenModal() {
+    const modals = Array.from(document.querySelectorAll('.overlay-modal'));
+    const openModals = modals.filter(m => {
+        const style = window.getComputedStyle(m);
+        return style.display !== "none" && style.visibility !== "hidden";
+    });
+
+    return openModals.length > 0 ? openModals[openModals.length - 1] : null;
+}
+
+function setModalInitialFocus(modal) {
+    if (!modal) return;
+
+    modal.setAttribute("tabindex", "-1");
+    modal.style.outline = "none";
+
+    const isTouch = window.innerWidth <= 600 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    const currentUrl = modal.dataset.currentUrl || "";
+    const isSendTroopsModal = currentUrl.includes("send_troops.php") || modal.querySelector("#send-troops-form") !== null;
+    const isAutoFocusEnabled = document.cookie.includes("me_autofocus_troops=1");
+
+    if (!isTouch && isSendTroopsModal && isAutoFocusEnabled) {
+        const firstTroopInput = modal.querySelector(".js-unit-input:not([disabled])");
+
+        if (firstTroopInput && firstTroopInput.offsetParent !== null) {
+            firstTroopInput.focus();
+            firstTroopInput.select();
+            return;
+        }
+    }
+
+    modal.focus();
+}
+
 function getScriptPath(urlStr) {
     if (!urlStr) return "";
 
@@ -167,7 +220,7 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
             targetModal.innerHTML = `
                 <div class="overlay-header">
                     <span class="overlay-title" id="overlay-title-stack-${depth}"></span>
-                    <button type="button" class="overlay-close-btn" data-on-click="closeOverlay">&times;</button>
+                    <button type="button" class="overlay-close-btn" data-on-click="closeOverlay" tabindex="-1">&times;</button>
                 </div>
                 <div class="overlay-body" id="overlay-content-body-stack-${depth}"></div>
             `;
@@ -263,6 +316,10 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                 if (typeof setup === "function") {
                     setup();
                 }
+
+                setTimeout(() => {
+                    setModalInitialFocus(targetModal);
+                }, 50);
 
                 if (isAlreadyOpen) {
                     setTimeout(() => {
@@ -370,11 +427,38 @@ function reloadOverlay() {
 }
 
 document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-        const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
+    const topModal = getTopmostOpenModal();
+    if (!topModal) return;
 
-        if (openModals.length > 0) {
-            closeOverlay(openModals[openModals.length - 1]);
+    if (e.key === "Escape") {
+        e.preventDefault();
+        closeOverlay(topModal);
+        return;
+    }
+
+    if (e.key === "Tab") {
+        const focusables = getModalFocusableElements(topModal);
+
+        if (focusables.length === 0) {
+            e.preventDefault();
+            topModal.focus();
+            return;
+        }
+
+        const firstEl = focusables[0];
+        const lastEl = focusables[focusables.length - 1];
+        const currentActive = document.activeElement;
+
+        if (e.shiftKey) {
+            if (currentActive === firstEl || !topModal.contains(currentActive)) {
+                e.preventDefault();
+                lastEl.focus();
+            }
+        } else {
+            if (currentActive === lastEl || !topModal.contains(currentActive)) {
+                e.preventDefault();
+                firstEl.focus();
+            }
         }
     }
 });

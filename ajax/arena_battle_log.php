@@ -86,7 +86,7 @@ if ($is_defender) {
     $left_cards = $atk_cards;
     $left_label = $is_attacker ? "Deine Angreifer" : "Angreifer: " . e($battle["attacker_name"]);
     $right_cards = $def_cards;
-    $right_label = "Verteidigung: " . e($battle["defender_name"]);
+    $right_label = e($battle["defender_name"]);
 }
 
 $grid_html = BattleReportRenderer::render_vs_grid($left_cards, $right_cards, $left_label, $right_label);

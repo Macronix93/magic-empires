@@ -432,6 +432,58 @@ observer.observe(document.body, {
     attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
 });
 
+function updateSidebarAndHeaderDOM(data) {
+    if (!data || !data.sidebar_html) return;
+
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = data.sidebar_html;
+
+    document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
+        const newKingdomInfo = tempDiv.querySelector("#kingdom-info");
+        const currentKingdomInfo = container.querySelector("#kingdom-info");
+        if (newKingdomInfo && currentKingdomInfo) {
+            currentKingdomInfo.innerHTML = newKingdomInfo.innerHTML;
+        }
+
+        const newBuildings = tempDiv.querySelector("#kingdom-buildings");
+        const currentBuildings = container.querySelector("#kingdom-buildings");
+        if (newBuildings && currentBuildings) {
+            currentBuildings.innerHTML = newBuildings.innerHTML;
+        }
+
+        const newSelect = tempDiv.querySelector("#choosekingdom");
+        const currentSelect = container.querySelector("#choosekingdom");
+        if (newSelect && currentSelect) {
+            currentSelect.value = newSelect.value;
+        }
+
+        container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
+    });
+
+    const select = document.getElementById("choosekingdom");
+    if (select && data.kingdom) select.value = data.kingdom.id;
+
+    const mobTitle = document.querySelector(".mobile-kingdom-title");
+    if (mobTitle && data.kingdom) {
+        const items = document.querySelectorAll(".mobile-kingdom-dropdown-item");
+        let pos = 1;
+
+        items.forEach((it, idx) => {
+            if (parseInt(it.dataset.id) === parseInt(data.kingdom.id)) {
+                pos = idx + 1;
+                it.classList.add("active");
+            } else {
+                it.classList.remove("active");
+            }
+        });
+        mobTitle.innerHTML = `${pos} - ${data.kingdom.name} <span style="font-size: 10px; opacity: 0.7;">▾</span>`;
+    }
+
+    if (typeof setup === "function") {
+        setup();
+    }
+}
+
 function switchKingdomById(kingdomId) {
     if (isKingdomSwitching) return;
     isKingdomSwitching = true;
@@ -455,7 +507,22 @@ function switchKingdomById(kingdomId) {
                     return;
                 }
 
-                const keepParamsPages = ["messages.php", "ranking.php", "support.php"];
+                if (filename === "messages.php" || filename === "chat_embed.php") {
+                    updateSidebarAndHeaderDOM(data);
+                    return;
+                }
+
+                if (filename === "guild.php") {
+                    const chatTab = document.getElementById("guild_tab_chat");
+                    const isChatActive = chatTab && window.getComputedStyle(chatTab).display !== "none";
+
+                    if (isChatActive) {
+                        updateSidebarAndHeaderDOM(data);
+                        return;
+                    }
+                }
+
+                const keepParamsPages = ["messages.php", "ranking.php", "support.php", "guild.php", "arena.php"];
                 if (filename === "barracks.php") {
                     const cat = currentUrl.searchParams.get("cat");
                     window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;

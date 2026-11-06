@@ -1,6 +1,9 @@
 <?php
 require_once("../includes/core.php");
 
+$user->check_user_login();
+session_write_close();
+
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $uid = $user->get_user_id();
 
@@ -15,7 +18,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     $now = time();
 
-    $query = "SELECT m.mapx, m.mapy, m.fieldtype, ft.fieldname,
+    $query = "SELECT m.mapx, m.mapy, m.fieldtype,
               CASE 
                 WHEN m.kingdomid = " . MapFieldTypes::MAP_FIELD_RESOURCE_TILE . " AND (r.mapx IS NULL OR r.expires_at < $now) THEN " . MapFieldTypes::MAP_FIELD_EMPTY . "
                 WHEN m.kingdomid = " . MapFieldTypes::MAP_FIELD_MONSTER_CAMP . " AND (mc.mapx IS NULL OR mc.expires_at < $now) THEN " . MapFieldTypes::MAP_FIELD_EMPTY . "
@@ -147,7 +150,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $row["kingdomname"] ?? "",
             (int)($row["score"] ?? 0),
             (int)($row["owner_id"] ?? 0),
-            $row["fieldname"] ?? "",
             (int)($row["expires_at"] ?? 0),
             $troop_icon_display,
             (int)($row["guildid"] ?? -1),
