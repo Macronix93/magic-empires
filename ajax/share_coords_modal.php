@@ -3,7 +3,6 @@ require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
     $user->check_user_login();
-
     $x = (int)($_GET["x"] ?? 0);
     $y = (int)($_GET["y"] ?? 0);
 
@@ -59,6 +58,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
         <form id="form-share-coords" method="POST" action="ajax/share_coords_send.php"
               data-on-submit="submitShareCoords">
+            <?= csrf_input() ?>
             <input type="hidden" name="x" value="<?= $x ?>">
             <input type="hidden" name="y" value="<?= $y ?>">
             <input type="hidden" name="message" value="<?= e($preset_msg) ?>">

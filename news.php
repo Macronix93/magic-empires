@@ -38,7 +38,7 @@ $process_content = function ($raw) {
 
 if ($is_admin) {
     if ($_SERVER["REQUEST_METHOD"] === "POST") {
-        if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        if (!verify_csrf_token()) {
             $error = "Ungültiger Sicherheits-Token!";
         } else {
             if (isset($_POST["edit_news"])) {

@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/core.php");
+
 $user->check_user_login();
 ?>
 <div id="modal-title-data" data-title="Arena – Anleitung & Belohnungen" data-width="650px" style="display: none;"></div>

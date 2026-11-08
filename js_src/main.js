@@ -9,6 +9,22 @@ const KINGDOM_SWITCH_COOLDOWN = 800;
 const UPDATE_MSG_BADGES_INTERVAL = 60000;
 const UPDATE_MSG_BADGES_LAST_FETCH = 30000;
 
+registerAction("closeAdventModal", (el) => {
+    const targetUrl = el?.getAttribute("href") && el.getAttribute("href") !== "#"
+        ? el.getAttribute("href") : null;
+
+    fetch("ajax/advent_intro_done.php", {
+        method: "POST",
+        headers: {"X-Requested-With": "XMLHttpRequest"}
+    }).then(() => {
+        const overlay = document.getElementById("advent-overlay");
+        if (overlay) overlay.remove();
+
+        if (targetUrl) {
+            window.location.href = targetUrl;
+        }
+    });
+});
 registerAction("switchKingdomFromPopup", (el, e) => {
     if (e) {
         e.preventDefault();
@@ -136,6 +152,9 @@ registerAction("closeTutorial", (el) => {
     }
 });
 registerAction("finishTutorial", (el) => {
+    const targetUrl = el.getAttribute("href")
+    && el.getAttribute("href") !== "#" ? el.getAttribute("href") : (el.dataset.url || null);
+
     fetch("ajax/tutorial_done.php", {
         method: "POST",
         headers: {"X-Requested-With": "XMLHttpRequest"}
@@ -143,15 +162,34 @@ registerAction("finishTutorial", (el) => {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                const targetUrl = el.dataset.url
-                    || (el.getAttribute("href")
-                    && el.getAttribute("href") !== "#" ? el.getAttribute("href") : null);
-
                 if (targetUrl) {
                     window.location.href = targetUrl;
                 } else {
-                    const overlay = document.getElementById("tutorial-overlay");
-                    if (overlay) overlay.remove();
+                    const tutorialOverlay = document.getElementById("tutorial-overlay");
+                    if (tutorialOverlay) tutorialOverlay.remove();
+
+                    if (data.show_advent) {
+                        const renderModal = (html) => {
+                            if (html && html.trim() !== "") {
+                                document.body.insertAdjacentHTML("beforeend", html);
+
+                                const adventOverlay = document.getElementById("advent-overlay");
+                                if (adventOverlay) {
+                                    adventOverlay.querySelectorAll('[data-on-click]').forEach(bindActions);
+                                }
+                            }
+                        };
+
+                        if (data.advent_html) {
+                            renderModal(data.advent_html);
+                        } else {
+                            fetch("ajax/advent_modal.php", {
+                                headers: {"X-Requested-With": "XMLHttpRequest"}
+                            })
+                                .then(r => r.text())
+                                .then(renderModal);
+                        }
+                    }
                 }
             }
         });
@@ -1282,9 +1320,9 @@ window.addEventListener("DOMContentLoaded", function () {
         }, delayMs);
     }
 
-    setTimeout(() => {
+    requestAnimationFrame(() => {
         document.body.classList.remove("preload");
-    }, 100);
+    });
 });
 
 function toggleMobileElements(hide) {
@@ -1555,14 +1593,6 @@ window.showGameError = (msg) => showGameMessage(msg, "error");
 window.showGameSuccess = (msg) => showGameMessage(msg, "passed");
 window.showGameWarning = (msg) => showGameMessage(msg, "warning");
 
-function getCsrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.content
-        || document.querySelector('input[name="csrf_token"]')?.value
-        || "";
-}
-
-window.getCsrfToken = getCsrfToken;
-
 document.addEventListener("pointerdown", (e) => {
     const btn = e.target.closest('div[id^="pop_k_preview_"] button[data-on-click="switchKingdomFromPopup"]');
     if (btn) {
@@ -1661,3 +1691,43 @@ document.addEventListener("keydown", (e) => {
         }
     }
 });
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content
+        || document.querySelector('input[name="csrf_token"]')?.value
+        || "";
+}
+
+window.getCsrfToken = getCsrfToken;
+
+const originalFetch = window.fetch;
+window.fetch = function (url, options = {}) {
+    options = options || {};
+    const method = (options.method || "GET").toUpperCase();
+
+    if (method !== "GET") {
+        const token = getCsrfToken();
+
+        if (token) {
+            options.headers = options.headers || {};
+            if (options.headers instanceof Headers) {
+                if (!options.headers.has("X-CSRF-TOKEN")) options.headers.set("X-CSRF-TOKEN", token);
+            } else if (typeof options.headers === "object") {
+                options.headers["X-CSRF-TOKEN"] = options.headers["X-CSRF-TOKEN"] || token;
+            }
+
+            if (options.body instanceof FormData) {
+                if (!options.body.has("csrf_token")) {
+                    options.body.append("csrf_token", token);
+                }
+            } else if (options.body instanceof URLSearchParams) {
+                if (!options.body.has("csrf_token")) {
+                    options.body.append("csrf_token", token);
+                }
+            } else if (typeof options.body === "string" && options.body.includes("=") && !options.body.includes("csrf_token=")) {
+                options.body += (options.body.length > 0 ? "&" : "") + "csrf_token=" + encodeURIComponent(token);
+            }
+        }
+    }
+    return originalFetch.call(this, url, options);
+};

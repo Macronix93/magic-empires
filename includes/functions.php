@@ -686,13 +686,12 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
         }
 
         foreach ($web_push->flush() as $report) {
-            if (!$report->isSuccess() && $report->isSubscriptionExpired()) {
-                Logger::get_instance()->error("WebPush Fehler für User $user_id: " . $report->getReason());
-
-                $db_instance->execute_query(
-                        "DELETE FROM user_push_subscriptions WHERE endpoint = ?",
-                        [$report->getEndpoint()]
-                );
+            if (!$report->isSuccess()) {
+                if ($report->isSubscriptionExpired()) {
+                    $db_instance->execute_query("DELETE FROM user_push_subscriptions WHERE endpoint = ?", [$report->getEndpoint()]);
+                } else {
+                    Logger::get_instance()->error("WebPush Fehler für User $user_id: " . $report->getReason());
+                }
             }
         }
 
@@ -907,9 +906,17 @@ function get_csrf_token(): string
     return $_SESSION["csrf_token"];
 }
 
-function verify_csrf_token(?string $token): bool
+function verify_csrf_token(?string $token = null): bool
 {
-    return !empty($token) && !empty($_SESSION["csrf_token"]) && hash_equals($_SESSION["csrf_token"], $token);
+    if ($token === null) {
+        $token = $_POST["csrf_token"] ?? $_SERVER["HTTP_X_CSRF_TOKEN"] ?? null;
+
+        if ($token === null && function_exists("getallheaders")) {
+            $headers = array_change_key_case(getallheaders());
+            $token = $headers["x-csrf-token"] ?? null;
+        }
+    }
+    return !empty($token) && !empty($_SESSION["csrf_token"]) && hash_equals($_SESSION["csrf_token"], (string)$token);
 }
 
 function csrf_input(): string

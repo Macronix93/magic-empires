@@ -66,7 +66,7 @@ class ResourceBuilding
         $boost_duration_ticks = $lvl + BASE_BOOST_DURATION;
 
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
-            if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+            if (!verify_csrf_token()) {
                 $error = "Ungültiger Sicherheits-Token!";
             } else {
                 if ($ticks_left == 0) {

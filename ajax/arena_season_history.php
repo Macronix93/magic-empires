@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/core.php");
+
 $user->check_user_login();
 
 $db = Database::get_instance()->get_connection();

@@ -3,6 +3,7 @@ let mapData = [];
 let images = {};
 let isDragging = false;
 let wasDragged = false;
+let dragDrawPending = false;
 let startX, startY;
 let currentTranslateX = 0;
 let currentTranslateY = 0;
@@ -112,7 +113,7 @@ function hasBurningKingdomInView() {
         const tile = burningKingdoms[i];
         const posX = (tile[0] - 1) * scaledTile + currentTranslateX;
         const posY = (tile[1] - 1) * scaledTile + currentTranslateY;
-        
+
         if (posX + scaledTile >= 0 && posX <= viewW && posY + scaledTile >= 0 && posY <= viewH) {
             return true;
         }
@@ -237,7 +238,8 @@ document.addEventListener("DOMContentLoaded", () => {
         monster2: 'icon_golem_small.png',   // Level 4-7
         monster3: 'icon_dragon_small.png',  // Level 8-10
         ruin: 'icon_ruins.png',
-        mine: 'icon_mine.png'
+        mine: 'icon_mine.png',
+        gift: 'icon_gift.png'
     };
 
     let loadedCount = 0;
@@ -711,14 +713,38 @@ function draw() {
 
     if (showIcons) {
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , myTroopIcon, enemyGuildId, , mineInfo] = tile;
+            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , myTroopIcon, enemyGuildId, , mineInfo, giftDay] = tile;
 
-            if (kid === -1) return;
+            if (kid === -1 && giftDay === 0) return;
 
             const posX = (x - 1) * scaledTile + currentTranslateX;
             const posY = (y - 1) * scaledTile + currentTranslateY;
 
             if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
+
+            if (giftDay > 0) {
+                ctx.drawImage(images.gift, posX + scaledTile * 0.15, posY + scaledTile * 0.15, scaledTile * 0.7, scaledTile * 0.7);
+
+                if (scaledTile >= 12) {
+                    const badgeW = Math.round(scaledTile * 0.34);
+                    const badgeH = Math.round(scaledTile * 0.26);
+                    const bX = posX + scaledTile - badgeW - (scaledTile * 0.04);
+                    const bY = posY + (scaledTile * 0.04);
+
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+                    ctx.strokeStyle = "#d4af37";
+                    ctx.lineWidth = Math.max(0.5, zoom);
+                    ctx.fillRect(bX, bY, badgeW, badgeH);
+                    ctx.strokeRect(bX, bY, badgeW, badgeH);
+
+                    const fontSize = Math.max(7, Math.round(badgeH * 0.75));
+                    ctx.fillStyle = "#d4af37";
+                    ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(giftDay, bX + (badgeW / 2), bY + (badgeH / 2));
+                }
+            }
 
             const filterPlayers = document.getElementById("filter-players").checked;
             const filterResources = document.getElementById("filter-resources").checked;
@@ -826,28 +852,7 @@ function draw() {
                 ctx.drawImage(img, posX, posY, scaledTile, scaledTile);
 
                 if (isBurning === 1) {
-                    // ctx.drawImage(
-                    //     images.fire,
-                    //     posX + scaledTile * 0.32,
-                    //     posY - scaledTile * 0.08,
-                    //     scaledTile * 0.58,
-                    //     scaledTile * 0.58
-                    // );
-                    // ctx.drawImage(
-                    //     images.fire,
-                    //     posX + scaledTile * 0.02,
-                    //     posY + scaledTile * 0.4,
-                    //     scaledTile * 0.45,
-                    //     scaledTile * 0.45
-                    // );
-                    // ctx.drawImage(
-                    //     images.fire,
-                    //     posX + scaledTile * 0.66,
-                    //     posY + scaledTile * 0.6,
-                    //     scaledTile * 0.3,
-                    //     scaledTile * 0.3
-                    // );
-                    const animTime = performance.now() * 0.004;
+                    const animTime = (zoom >= 0.4) ? (performance.now() * 0.004) : 0;
                     const tilePhase = (x * 7 + y * 13);
 
                     const swayTop = Math.sin(animTime * 1.6 + tilePhase) * (scaledTile * 0.04);
@@ -988,6 +993,9 @@ function applyMomentum() {
 }
 
 function dragStart(e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    if (e.cancelable) e.preventDefault();
+
     if (isAutoPanning) {
         cancelAnimationFrame(panAnimationID);
         isAutoPanning = false;
@@ -1038,7 +1046,16 @@ function dragMove(e) {
     lastMoveTime = now;
 
     clampMapPosition();
-    draw();
+
+    if (!dragDrawPending) {
+        dragDrawPending = true;
+
+        requestAnimationFrame(() => {
+            draw();
+
+            dragDrawPending = false;
+        });
+    }
 }
 
 function dragEnd(e) {
@@ -1142,7 +1159,25 @@ function selectField(x, y, shouldCenter = false) {
         </td>
     </tr>`;
 
-    if (kid === -1) {
+    const giftDay = tile[16] || 0;
+    if (giftDay > 0) {
+        const travelGift = Math.round(baseTravelTime * (gameConfig.constants.ADVENT_TRAVEL_BOOST || 0.15));
+
+        html += `<div class="title-border">Advents-Geschenk (Tag ${giftDay})</div>`;
+        html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
+        html += `${coordsRowHtml}`;
+        html += `<tr><td class="td-mapinfo"><b>Belohnung</b></td><td>Rohstoffe, ${giftDay} ${giftDay === 1 ? "Münze" : "Münzen"} & Truppen-Chance</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(travelGift)} <small style="color: #0BDA51;">(Eilbote)</small></td></tr>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
+
+        if (isCommandLimitReached) {
+            html += `<small class="error">${cmdLimitMsg}</small>`;
+        } else {
+            html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}&mode=gift&day=${giftDay}" ${btnDisabled}>Geschenk bergen</button>`;
+        }
+
+        html += `</td></tr></table>`;
+    } else if (kid === -1) {
         // --- EMPTY FIELD
         html += `<div class="title-border">${fieldName}</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;

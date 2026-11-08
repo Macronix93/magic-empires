@@ -1,12 +1,11 @@
 <?php
 require_once("../includes/core.php");
 
-$user->check_user_login();
-
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
     change_location("arena.php");
 }
 
+$user->check_user_login();
 $uid = $user->get_user_id();
 $arena = new Arena($uid);
 $player_data = $arena->get_player_data();

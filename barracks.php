@@ -137,7 +137,7 @@ if ($active_cat === SoldierTypes::SOLDIER_TYPE_SUPPORT && !$show_support_feature
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $action = $_POST["action"] ?? "";
@@ -231,7 +231,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     "units" => $units_data
                 ];
 
-                Messages::send_server_message($recipient_id, $recipient_name, MessageCategories::CATEGORY_WAR, $support_json);
+                Messages::send_server_message($recipient_id, $recipient_name, MessageCategories::CATEGORY_GUILD, $support_json);
 
                 $db_instance->execute_query("DELETE FROM stationed_troops WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?", [$owner_id, $source_id, $target_id]);
                 $db_instance->commit();

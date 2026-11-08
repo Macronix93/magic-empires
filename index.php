@@ -19,7 +19,7 @@ $mode = $_GET["action"] ?? "login";
 $now = time();
 
 if (isset($_GET["banned"])) {
-    $ban_reason = trim($_GET["banned"] ?? "");
+    $ban_reason = trim($_GET["banned"]);
     $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
     $error = "Dein Account wurde gesperrt!" . $reason_text;
 }
@@ -63,6 +63,10 @@ if (!empty($_GET["key"])) {
                     PhpBBBridge::create_forum_user($username, $user_data["email"], $user_data["password"]);
                 }
 
+                if (AdventCalendar::is_active()) {
+                    AdventCalendar::ensure_user_gifts($user_id);
+                }
+
                 $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
             } else {
                 $error = "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de";
@@ -76,7 +80,7 @@ if (!empty($_GET["key"])) {
 }
 
 // LOGOUT
-$is_post_logout = ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["logout"]) && verify_csrf_token($_POST["csrf_token"] ?? null));
+$is_post_logout = ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["logout"]) && verify_csrf_token());
 $is_get_logout = isset($_GET["logout"]);
 
 if ($is_post_logout || $is_get_logout) {
@@ -110,7 +114,9 @@ if ($is_post_logout || $is_get_logout) {
 
             $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ? AND token_hash = ?", [(int)$uid, $token_hash]);
 
+            setcookie("me_remember", '', time() - 3600, '/', '', true, true);
             setcookie("me_remember", '', time() - 3600, '/');
+            unset($_COOKIE["me_remember"]);
         }
 
         // DB Cleanup
@@ -119,6 +125,15 @@ if ($is_post_logout || $is_get_logout) {
 
         // Stop Session safely
         $_SESSION = [];
+
+        if (ini_get("session.use_cookies")) {
+            $params = session_get_cookie_params();
+
+            setcookie(session_name(), '', time() - 42000,
+                    $params["path"], $params["domain"],
+                    $params["secure"], $params["httponly"]
+            );
+        }
 
         session_destroy();
     }
@@ -203,8 +218,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $query_check = "
             SELECT 
-                (SELECT COUNT(*) FROM users WHERE status = 1) AS active_players,
-                (SELECT 1 FROM users WHERE ip = ? AND is_banned = 1 LIMIT 1) AS is_ip_banned
+            (SELECT COUNT(*) FROM users WHERE status = 1) AS active_players,
+            (SELECT 1 FROM banned_ips WHERE ip = ? LIMIT 1) AS is_ip_banned
         ";
         $res_check = $db_instance->execute_query($query_check, [$current_ip]);
         $check_data = $res_check->fetch_assoc();

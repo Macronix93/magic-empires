@@ -5,11 +5,7 @@ if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH
     change_location("messages.php");
 }
 
-if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
-    echo json_encode(["count" => 0, "hasMore" => false, "html" => ""]);
-    exit;
-}
-
+$user->check_user_login();
 $oldest_id = (int)($_GET["oldest_id"] ?? 0);
 $u_id = $user->get_user_id();
 
@@ -45,7 +41,9 @@ if ($type === "server") {
 
             $content = $messages_obj->render_message_template($data);
 
-            if ((int)$row["category"] === MessageCategories::CATEGORY_WAR && Messages::is_report_shareable($data["template"] ?? null)) {
+            $is_combat_cat = in_array((int)$row["category"], [MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE], true);
+
+            if ($is_combat_cat && Messages::is_report_shareable($data["template"] ?? null)) {
                 $share_btn = Messages::render_share_button((int)$row["id"]);
             }
         } else {

@@ -161,9 +161,20 @@ class EventManager
     public function process_mines(?int $user_id = null): void
     {
         $now = time();
-
         $mine_id_filter = null;
+
         if ($user_id !== null && $user_id > 0) {
+            $has_mine_activity = $this->mysqli->execute_query("
+                SELECT 1 FROM mine_stationed_troops WHERE user_id = ?
+                UNION ALL
+                SELECT 1 FROM events WHERE userid = ? AND targetid = " . MapFieldTypes::MAP_FIELD_MINE . " AND actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+                LIMIT 1
+            ", [$user_id, $user_id])->fetch_column();
+
+            if (!$has_mine_activity) {
+                return;
+            }
+
             $gid = (int)$this->mysqli->execute_query("SELECT guildid FROM users WHERE id = ?", [$user_id])->fetch_column();
 
             $filter_sql = "
@@ -455,7 +466,7 @@ class EventManager
                         "home_name" => $inc["kingdomname"],
                         "units" => $units_data
                     ];
-                    Messages::send_server_message($incoming_uid, $inc["username"], MessageCategories::CATEGORY_WAR, $mine_turnback_json);
+                    Messages::send_server_message($incoming_uid, $inc["username"], MessageCategories::CATEGORY_PVP, $mine_turnback_json);
 
                     send_user_push(
                         $incoming_uid,
@@ -527,9 +538,14 @@ class EventManager
                 $target_lost_json = [
                     "template" => "target_lost"
                 ];
-                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $target_lost_json);
+                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $target_lost_json);
                 return;
             }
+        }
+
+        if ($target_id === MapFieldTypes::MAP_FIELD_GIFT) {
+            $this->handle_gift_collection($row);
+            return;
         }
 
         if ($target_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
@@ -623,7 +639,7 @@ class EventManager
                         "event_title" => $event_title,
                         "units" => array_values($report_units)
                     ];
-                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $event_json);
+                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVE, $event_json);
                 } else {
                     // Successful Attack
                     Logger::get_instance()->log_game("COMBAT", "WORLD_EVENT_ATTACK", [
@@ -641,7 +657,7 @@ class EventManager
                     "event_title" => "Event-Bericht",
                     "units" => []
                 ];
-                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $no_event_json);
+                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVE, $no_event_json);
             }
 
             $duration = $world_event_manager->get_current_duration();
@@ -674,7 +690,7 @@ class EventManager
                     "sub_text" => "Deine Einheiten haben unverrichteter Dinge den Rückmarsch angetreten.",
                     "result_type" => "neutral"
                 ];
-                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $empty_mine_json);
+                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $empty_mine_json);
 
                 $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
@@ -765,7 +781,7 @@ class EventManager
                         "units" => $units_data
                     ];
 
-                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $full_json);
+                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $full_json);
 
                     send_user_push(
                         $attacker_id,
@@ -874,7 +890,7 @@ class EventManager
                         "units" => $stationed_units
                     ];
 
-                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $started_json);
+                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $started_json);
                 } else {
                     $return_batch = [];
                     foreach ($troops_to_return as $tr) {
@@ -909,7 +925,7 @@ class EventManager
                         "returned_units" => $returned_units
                     ];
 
-                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $partial_json);
+                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $partial_json);
                 }
 
                 return;
@@ -933,7 +949,7 @@ class EventManager
                         "target_y" => $ty
                     ];
 
-                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $noob_mine_json);
+                    Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $noob_mine_json);
                     return;
                 }
             }
@@ -1111,7 +1127,7 @@ class EventManager
                         "def_units" => $def_cards,
                         "atk_units" => $atk_cards
                     ];
-                    Messages::send_server_message($dg["user_id"], $dg["username"], MessageCategories::CATEGORY_WAR, $def_json);
+                    Messages::send_server_message($dg["user_id"], $dg["username"], MessageCategories::CATEGORY_PVP, $def_json);
 
                     send_user_push(
                         (int)$dg["user_id"],
@@ -1152,7 +1168,7 @@ class EventManager
                     "atk_units" => $atk_cards,
                     "def_units" => $def_cards
                 ];
-                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $atk_json);
+                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $atk_json);
 
                 Logger::get_instance()->log_game("COMBAT", "MINE_OVERTAKEN", [
                     "mine_id" => $mine_id,
@@ -1174,7 +1190,7 @@ class EventManager
                     "atk_units" => $atk_cards,
                     "def_units" => $def_cards
                 ];
-                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $atk_json);
+                Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $atk_json);
 
                 $def_uids = array_unique(array_column($defenders, "user_id"));
                 foreach ($def_uids as $duid) {
@@ -1192,7 +1208,7 @@ class EventManager
                         "def_units" => $def_cards,
                         "atk_units" => $atk_cards
                     ];
-                    Messages::send_server_message($duid, $dname, MessageCategories::CATEGORY_WAR, $def_json);
+                    Messages::send_server_message($duid, $dname, MessageCategories::CATEGORY_PVP, $def_json);
 
                     send_user_push(
                         (int)$duid,
@@ -1283,7 +1299,7 @@ class EventManager
                 "units" => $stationed_units
             ];
 
-            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $reinforce_json);
+            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $reinforce_json);
         } else {
             $this->process_battle($row, $conquest, $home_kingdom, $enemy_kingdom, $attacker_user_obj, $return_time);
         }
@@ -1305,7 +1321,7 @@ class EventManager
                 "target_x" => $tx,
                 "target_y" => $ty
             ];
-            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $empty_mine_json);
+            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $empty_mine_json);
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
@@ -1435,7 +1451,7 @@ class EventManager
             "defenders" => $defender_cards
         ];
 
-        Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $attacker_json);
+        Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $attacker_json);
 
         $attacker_gid = $attacker_user->get_user_guild_id();
         $is_friendly_mine = ($attacker_id === (int)($mine["claimed_user_id"] ?? 0))
@@ -1463,7 +1479,7 @@ class EventManager
                     continue;
                 }
 
-                Messages::send_server_message($duid, $dinfo["username"], MessageCategories::CATEGORY_WAR, $defender_json);
+                Messages::send_server_message($duid, $dinfo["username"], MessageCategories::CATEGORY_PVP, $defender_json);
             }
         }
 
@@ -1555,7 +1571,7 @@ class EventManager
             "monsters" => $monster_units
         ];
 
-        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $spy_json);
+        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $spy_json);
 
         if ($survivors > 0) {
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
@@ -1585,7 +1601,7 @@ class EventManager
                 "target_x" => $tx,
                 "target_y" => $ty
             ];
-            Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $decayed_json);
+            Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $decayed_json);
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
@@ -1684,7 +1700,7 @@ class EventManager
             "loot" => $loot_display
         ];
 
-        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $ruin_json);
+        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $ruin_json);
 
         if ($combat["total_score_loss"] > 0) {
             $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
@@ -1849,7 +1865,7 @@ class EventManager
                 "sub_text" => "Es gibt hier nichts mehr zu sehen. Die Späher kehren heim.",
                 "result_type" => "neutral"
             ];
-            Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $cleared_json);
+            Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $cleared_json);
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
@@ -1936,7 +1952,7 @@ class EventManager
             ]
         ];
 
-        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $spy_json);
+        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $spy_json);
 
         if ($survivors > 0) {
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
@@ -1968,7 +1984,7 @@ class EventManager
                 "target_y" => $ty
             ];
 
-            Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $cleared_json);
+            Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $cleared_json);
 
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
@@ -2123,7 +2139,7 @@ class EventManager
             "loot" => $loot_display
         ];
 
-        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $battle_json);
+        Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $battle_json);
 
         if ($combat["total_score_loss"] > 0) {
             $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
@@ -2220,7 +2236,7 @@ class EventManager
             ]
         ];
 
-        Messages::send_server_message($u_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $spy_json);
+        Messages::send_server_message($u_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $spy_json);
 
         if ($survivors > 0) {
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
@@ -2256,7 +2272,7 @@ class EventManager
         $tile = $res_data->fetch_assoc();
 
         if (!$tile || (time() > $tile["expires_at"] && $tile["expires_at"] > 0)) {
-            Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+            Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, [
                 "template" => "plunder_already_empty"
             ]);
 
@@ -2420,7 +2436,7 @@ class EventManager
                 "was_emptied" => $is_empty
             ];
 
-            Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, $plunder_json);
+            Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $plunder_json);
 
             // If we could take everything (or the field is now empty), we remove the field
             if ($is_empty) {
@@ -2449,7 +2465,7 @@ class EventManager
                 $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
             }
         } else {
-            Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+            Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, [
                 "template" => "plunder_no_raiders"
             ]);
 
@@ -2524,7 +2540,7 @@ class EventManager
                 "units" => $units_data
             ];
 
-            Messages::send_server_message($user_id, $inc["username"], MessageCategories::CATEGORY_WAR, $turnback_json);
+            Messages::send_server_message($user_id, $inc["username"], MessageCategories::CATEGORY_PVE, $turnback_json);
 
             send_user_push(
                 $user_id,
@@ -2554,7 +2570,7 @@ class EventManager
         $field_name = $check_field["fieldname"] ?? "Unbekannt";
 
         if (!$check_field || (int)$check_field["kingdomid"] !== MapFieldTypes::MAP_FIELD_EMPTY) {
-            Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+            Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_DEFAULT, [
                 "template" => "settle_result",
                 "status" => "blocked",
                 "target_x" => $target_x,
@@ -2576,7 +2592,7 @@ class EventManager
         $limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
 
         if ($current_count >= $limit) {
-            Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+            Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_DEFAULT, [
                 "template" => "settle_result",
                 "status" => "limit_reached",
                 "target_x" => $target_x,
@@ -2625,7 +2641,7 @@ class EventManager
 
                     $founded_name = $new_kingdom_obj->get_kingdom_name();
 
-                    Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+                    Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_DEFAULT, [
                         "template" => "settle_result",
                         "status" => "success",
                         "founded_name" => $founded_name,
@@ -2641,13 +2657,13 @@ class EventManager
                         "y" => $target_y
                     ], $new_kingdom_id);
                 } else {
-                    Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+                    Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_DEFAULT, [
                         "template" => "settle_result",
                         "status" => "creation_error"
                     ]);
                 }
             } else {
-                Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+                Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_DEFAULT, [
                     "template" => "settle_result",
                     "status" => "failed_roll",
                     "chance" => (int)($chance * 100),
@@ -2663,7 +2679,7 @@ class EventManager
                 ], $row["kingdomid"]);
             }
         } else {
-            Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_WAR, [
+            Messages::send_server_message($uid, $attacker_user->get_user_name(), MessageCategories::CATEGORY_DEFAULT, [
                 "template" => "settle_result",
                 "status" => "no_settlers",
                 "target_x" => $target_x,
@@ -2796,8 +2812,8 @@ class EventManager
             "all_eliminated" => ($atk_losses >= $atk_scouts)
         ];
 
-        Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $attacker_json);
-        Messages::send_server_message($enemy_owner_id, $enemy_owner_name, MessageCategories::CATEGORY_WAR, $defender_json);
+        Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $attacker_json);
+        Messages::send_server_message($enemy_owner_id, $enemy_owner_name, MessageCategories::CATEGORY_PVP, $defender_json);
 
         send_user_push(
             $enemy_owner_id,
@@ -2922,7 +2938,7 @@ class EventManager
             $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
 
-            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, [
+            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, [
                 "template" => "noob_protection"
             ]);
             return;
@@ -2950,7 +2966,7 @@ class EventManager
                 "target_x" => (int)$row["targetx"],
                 "target_y" => (int)$row["targety"]
             ];
-            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $atk_notice);
+            Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $atk_notice);
             return;
         }
 
@@ -3179,8 +3195,8 @@ class EventManager
         ];
 
         // Send server messages to both sides
-        Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_WAR, $attacker_json);
-        Messages::send_server_message($enemy_user_id, $enemy_user_name, MessageCategories::CATEGORY_WAR, $defender_json);
+        Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $attacker_json);
+        Messages::send_server_message($enemy_user_id, $enemy_user_name, MessageCategories::CATEGORY_PVP, $defender_json);
 
         // Send whole battle report to all supporters
         foreach ($supporters_data as $sup_uid => $sup_info) {
@@ -3203,7 +3219,7 @@ class EventManager
                 "conquest" => $conquest_code_defender,
                 "my_support_units" => $sup_info["units"]
             ];
-            Messages::send_server_message($sup_uid, $sup_info["username"], MessageCategories::CATEGORY_WAR, $supporter_json);
+            Messages::send_server_message($sup_uid, $sup_info["username"], MessageCategories::CATEGORY_PVP, $supporter_json);
 
             send_user_push(
                 $sup_uid,
@@ -3522,7 +3538,7 @@ class EventManager
                     "strength" => $strength_data
                 ];
 
-                Messages::send_server_message((int)$row["userid"], $row["username"], MessageCategories::CATEGORY_WAR, $wt_json);
+                Messages::send_server_message((int)$row["userid"], $row["username"], MessageCategories::CATEGORY_PVP, $wt_json);
 
                 $kid = (int)$row["targetid"];
                 if (!isset($push_queue[$kid])) {
@@ -4020,7 +4036,7 @@ class EventManager
                     "main_k_name" => $main_k_name
                 ];
 
-                Messages::send_server_message($owner_id, $u_name, MessageCategories::CATEGORY_WAR, $redirect_json);
+                Messages::send_server_message($owner_id, $u_name, MessageCategories::CATEGORY_DEFAULT, $redirect_json);
 
                 Logger::get_instance()->log_game("COMBAT", "TROOP_REDIRECTED", ["from" => $home_id, "to" => $main_k_id], $main_k_id);
             } else {
@@ -4054,6 +4070,8 @@ class EventManager
                 $field_name = "Vorratslager";
             } else if ($row["targetid"] == MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
                 $field_name = "Ruine";
+            } else if ($row["targetid"] == MapFieldTypes::MAP_FIELD_GIFT) {
+                $field_name = "Advents-Geschenk";
             } else {
                 $field_name = $map_info["fieldname"] ?? "Unbekannt";
             }
@@ -4184,7 +4202,7 @@ class EventManager
         }
 
         if ($should_send_message) {
-            Messages::send_server_message($owner_id, $u_name, MessageCategories::CATEGORY_WAR, $return_json);
+            Messages::send_server_message($owner_id, $u_name, MessageCategories::CATEGORY_DEFAULT, $return_json);
         }
 
         // Send push message
@@ -4479,7 +4497,7 @@ class EventManager
             "target_name" => $long_text
         ];
 
-        Messages::send_server_message((int)$row["userid"], $s_name, MessageCategories::CATEGORY_WAR, $turn_back_json);
+        Messages::send_server_message((int)$row["userid"], $s_name, MessageCategories::CATEGORY_GUILD, $turn_back_json);
     }
 
     private function get_action_name(int $id): string
@@ -4599,12 +4617,107 @@ class EventManager
                 "units" => $units_data
             ];
 
-            Messages::send_server_message($owner_id, $owner_name, MessageCategories::CATEGORY_WAR, $orphaned_json);
+            Messages::send_server_message($owner_id, $owner_name, MessageCategories::CATEGORY_GUILD, $orphaned_json);
 
             Logger::get_instance()->log_game("COMBAT", "SUPPORT_ORPHANED_RETURN", [
                 "source_kingdom" => $source_id,
                 "message" => "Truppen wurden wegen Zielverlust sofort gutgeschrieben"
             ], $source_id);
         }
+    }
+
+    private function handle_gift_collection(array $row): void
+    {
+        $user_id = (int)$row["userid"];
+        $event_id = (int)$row["eventid"];
+        $tx = (int)$row["targetx"];
+        $ty = (int)$row["targety"];
+        $home_kid = (int)$row["kingdomid"];
+        $home_k = new Kingdom($home_kid);
+        $return_time = max(30, (int)($row["arrivaltime"] - $row["buildingtime"]));
+
+        $gift_res = $this->mysqli->execute_query(
+            "SELECT * FROM advent_calendar_gifts WHERE user_id = ? AND mapx = ? AND mapy = ? AND is_collected = 0 FOR UPDATE",
+            [$user_id, $tx, $ty]
+        );
+        $gift = $gift_res->fetch_assoc();
+
+        if (!$gift) {
+            $this->mysqli->execute_query(
+                "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
+            );
+            return;
+        }
+
+        $day = (int)$gift["day"];
+        $this->mysqli->execute_query(
+            "UPDATE advent_calendar_gifts SET is_collected = 1, collected_at = ? WHERE id = ?",
+            [time(), $gift["id"]]
+        );
+
+        $cal = new AdventCalendar();
+        $loot = $cal->generate_gift_loot($user_id, $day);
+
+        // TODO: Batch insert
+        if (!empty($loot["troops"])) {
+            foreach ($loot["troops"] as $t) {
+                $this->mysqli->execute_query(
+                    "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
+                     SELECT ?, id, soldiername, ? FROM soldier_list WHERE id = ? 
+                     ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)",
+                    [$home_kid, $t["count"], $t["id"]]
+                );
+
+                $res_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$t["id"]])->fetch_column();
+                $score_add = ((int)$res_score) * $t["count"];
+                if ($score_add > 0) {
+                    $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score_add, $user_id]);
+                }
+            }
+        }
+
+        $res = $loot["resources"];
+        $this->mysqli->execute_query(
+            "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, loot_coins = ?, buildingname = ?, is_processing = 0 WHERE eventid = ?",
+            [
+                ActionTypes::ACTION_RETURN_TROOPS,
+                time() + $return_time,
+                $res[ResourceTypes::RESOURCE_TYPE_FOOD],
+                $res[ResourceTypes::RESOURCE_TYPE_WOOD],
+                $res[ResourceTypes::RESOURCE_TYPE_STONE],
+                $res[ResourceTypes::RESOURCE_TYPE_GOLD],
+                $loot["coins"],
+                "Advents-Geschenk (Tag $day)",
+                $event_id
+            ]
+        );
+
+        $advent_json = [
+            "template" => "advent_gift_collected",
+            "day" => $day,
+            "target_x" => $tx,
+            "target_y" => $ty,
+            "home_name" => $home_k->get_kingdom_name(),
+            "coins" => $loot["coins"],
+            "resources" => $loot["resources"],
+            "troops" => $loot["troops"]
+        ];
+        Messages::send_server_message($user_id, $this->user->get_user_name(), MessageCategories::CATEGORY_EVENT, $advent_json);
+
+        send_user_push(
+            $user_id,
+            "🎁 Geschenk geborgen!",
+            "Dein Bote hat das Advents-Geschenk von Tag $day geborgen und kehrt mit reicher Beute heim!",
+            "troops",
+            "overview.php"
+        );
+
+        Logger::get_instance()->log_game("EVENT", "ADVENT_GIFT_COLLECTED", [
+            "day" => $day,
+            "coords" => "$tx:$ty",
+            "coins" => $loot["coins"],
+            "troops" => $loot["troops"]
+        ], $home_kid);
     }
 }

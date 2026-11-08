@@ -83,14 +83,19 @@ registerAction("fillMaxAndRefresh", (el) => {
         const form = document.getElementById("send-troops-form");
         let valToSet = maxValue;
 
-        const quotaLimit = form?.dataset.mineLimit !== undefined
-            ? parseInt(form.dataset.mineLimit)
-            : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
+        if (form && form.dataset.isGift === "true") {
+            document.querySelectorAll(".js-unit-input").forEach(inp => inp.value = "");
+            valToSet = 1;
+        } else {
+            const quotaLimit = form?.dataset.mineLimit !== undefined
+                ? parseInt(form.dataset.mineLimit)
+                : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
 
-        if (quotaLimit !== null) {
-            const otherUnits = getSelectedTroopCountExcept(input);
-            const allowed = Math.max(0, quotaLimit - otherUnits);
-            valToSet = Math.min(valToSet, allowed);
+            if (quotaLimit !== null) {
+                const otherUnits = getSelectedTroopCountExcept(input);
+                const allowed = Math.max(0, quotaLimit - otherUnits);
+                valToSet = Math.min(valToSet, allowed);
+            }
         }
 
         input.value = valToSet > 0 ? valToSet : "";
@@ -119,11 +124,12 @@ registerAction("clearAllTroops", () => {
 });
 registerAction("selectAllTroops", () => {
     const form = document.getElementById("send-troops-form");
+    const isGift = form && form.dataset.isGift === "true";
     const quotaLimit = form?.dataset.mineLimit !== undefined
         ? parseInt(form.dataset.mineLimit)
         : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
 
-    let remainingQuota = quotaLimit !== null ? quotaLimit : Infinity;
+    let remainingQuota = isGift ? 1 : (quotaLimit !== null ? quotaLimit : Infinity);
 
     const isMine = form && form.dataset.isMine === "true";
     const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
@@ -143,6 +149,7 @@ registerAction("selectAllTroops", () => {
             input.value = "";
             return;
         }
+
         const max = parseInt(input.dataset.max) || 0;
         if (max > 0 && remainingQuota > 0) {
             const take = Math.min(max, remainingQuota);
@@ -159,6 +166,7 @@ registerAction("selectAllTroops", () => {
 });
 registerAction("submitSendTroopsForm", (form, e) => {
     if (e) e.preventDefault();
+    if (form.dataset.submitting === "true") return;
 
     const submitBtn = form.querySelector('input[type="submit"]');
     if (submitBtn) {
@@ -166,6 +174,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
         submitBtn.dataset.originalVal = submitBtn.value;
         submitBtn.value = "Wird entsendet...";
     }
+    form.dataset.submitting = "true";
 
     const errorContainer = document.getElementById("sendtroops-ajax-error");
     if (errorContainer) {
@@ -176,7 +185,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
     const formData = new FormData(form);
     formData.append("from_page", window.location.pathname);
 
-    const targetUrl = form.getAttribute("action") || window.location.href;
+    const targetUrl = form.dataset.ajaxUrl || "ajax/send_troops.php";
 
     fetch(targetUrl, {
         method: "POST",
@@ -185,6 +194,8 @@ registerAction("submitSendTroopsForm", (form, e) => {
     })
         .then(r => r.json())
         .then(data => {
+            delete form.dataset.submitting;
+
             if (data.success) {
                 closeOverlay(form);
 
@@ -250,12 +261,9 @@ registerAction("submitSendTroopsForm", (form, e) => {
             }
         })
         .catch(err => {
-            showGameError("Fehler beim Truppenversand: " + err);
+            delete form.dataset.submitting;
 
-            if (errorContainer) {
-                errorContainer.innerHTML = `<div class="info-box event-error" style="margin-bottom: 15px;"><img src="images/icons/icon_error.png" alt="Fehler"><span>Netzwerkfehler beim Senden der Truppen.</span></div>`;
-                errorContainer.style.display = "block";
-            }
+            showGameError("Fehler beim Truppenversand: " + err);
 
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -471,9 +479,15 @@ function updateTroopSummary() {
 
     if (actionButtons) {
         actionButtons.style.display = "flex";
+
         const submitBtn = actionButtons.querySelector('input[type="submit"]');
         if (submitBtn) {
             let disabled = (totalUnits <= 0);
+
+            const isGift = form && form.dataset.isGift === "true";
+            if (isGift && totalUnits !== 1) {
+                disabled = true;
+            }
 
             if (hasMineLimit && totalUnits > mineLimit) {
                 disabled = true;
@@ -513,6 +527,18 @@ function formatMineDuration(totalSeconds) {
 document.addEventListener("input", (e) => {
     if (e.target.classList.contains("js-unit-input")) {
         const form = e.target.closest("#send-troops-form");
+
+        if (form && form.dataset.isGift === "true") {
+            let rawVal = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+            if (rawVal > 1) {
+                e.target.value = 1;
+            }
+
+            document.querySelectorAll(".js-unit-input").forEach(inp => {
+                if (inp !== e.target) inp.value = "";
+            });
+        }
+
         const quotaLimit = form?.dataset.mineLimit !== undefined
             ? parseInt(form.dataset.mineLimit)
             : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);

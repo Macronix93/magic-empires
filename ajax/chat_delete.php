@@ -10,11 +10,12 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     exit;
 }
 
-if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
-    echo json_encode(["success" => false, "error" => "Nicht eingeloggt"]);
+if (!verify_csrf_token()) {
+    echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
     exit;
 }
 
+$user->check_user_login();
 $u_id = $user->get_user_id();
 $is_admin = $user->is_admin();
 $type = $_POST["type"] ?? "private";

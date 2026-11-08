@@ -223,4 +223,19 @@ class Building
         $this->kingdom_id = $id;
     }
 
+    public static function get_user_max_building_avg(int $user_id): float
+    {
+        $db = Database::get_instance()->get_connection();
+        $query = "
+            SELECT AVG(max_level) as total_avg
+            FROM (
+                SELECT MAX(buildinglevel) as max_level
+                FROM buildings 
+                WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?)
+                GROUP BY buildingid
+            ) as max_buildings";
+
+        $res = $db->execute_query($query, [$user_id]);
+        return (float)($res->fetch_column() ?? 1.0);
+    }
 }

@@ -296,10 +296,6 @@ function scrollToLatestMessage() {
     if (isServerInbox) {
         let target = newMessageLine.offsetTop - parentContainer.clientHeight + newMessageLine.clientHeight;
         parentContainer.scrollTop = target + 10;
-
-        if (window.innerWidth <= 600) {
-            parentContainer.scrollIntoView({behavior: "smooth", block: "center"});
-        }
     } else {
         parentContainer.scrollTop = newMessageLine.offsetTop - 10;
     }

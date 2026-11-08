@@ -7,8 +7,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
     $uid = $user->get_user_id();
 
     $res = $db_instance->execute_query(
-            "SELECT id, data_json FROM server_messages WHERE id = ? AND receiverid = ? AND category = ?",
-            [$msg_id, $uid, MessageCategories::CATEGORY_WAR]
+            "SELECT id, data_json FROM server_messages WHERE id = ? AND receiverid = ? AND category IN (?, ?)",
+            [$msg_id, $uid, MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE]
     );
     $row = $res->fetch_assoc();
 
@@ -30,13 +30,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         <div style="text-align: center; margin-bottom: 15px;">
             <span style="font-size: 16px; color: var(--link-color);"><b>⚔️ <?= e($label) ?></b></span>
         </div>
-
         <div id="share-coords-error" style="display: none; margin-bottom: 10px;"></div>
-
         <form id="form-share-coords" method="POST" action="ajax/share_coords_send.php"
               data-on-submit="submitShareCoords">
+            <?= csrf_input() ?>
             <input type="hidden" name="report_msg_id" value="<?= $msg_id ?>">
-
             <label style="display: block; margin-bottom: 6px;"><b>Wo teilen?</b></label>
             <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; font-size: 14px;">
                 <label style="display: flex; align-items: center; gap: 6px;">
@@ -54,7 +52,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     <span>Privatnachricht</span>
                 </label>
             </div>
-
             <div id="share-recipient-wrap" style="display: none; margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 4px; font-size: 14px;"><b>Empfänger
                         (Spielername):</b></label>
@@ -70,7 +67,6 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
                     </button>
                 </div>
             </div>
-
             <div style="display: flex; justify-content: center; gap: 10px;">
                 <input type="submit" id="btn-share-submit" value="In Chat einfügen" style="padding: 6px 25px;">
                 <button type="button" data-on-click="closeOverlay">Abbrechen</button>

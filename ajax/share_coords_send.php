@@ -2,7 +2,18 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
+        exit;
+    }
+
+    if (!verify_csrf_token()) {
+        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+        exit;
+    }
+
     $user->check_user_login();
+
     $uid = $user->get_user_id();
 
     $target = $_POST["share_target"] ?? "world";
@@ -12,8 +23,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
 
     if ($report_msg_id > 0) {
         $res = $db_instance->execute_query(
-            "SELECT data_json FROM server_messages WHERE id = ? AND receiverid = ? AND category = ?",
-            [$report_msg_id, $uid, MessageCategories::CATEGORY_WAR]
+            "SELECT data_json FROM server_messages WHERE id = ? AND receiverid = ? AND category IN (?, ?)",
+            [$report_msg_id, $uid, MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE]
         );
         $row = $res->fetch_assoc();
         if ($row) {

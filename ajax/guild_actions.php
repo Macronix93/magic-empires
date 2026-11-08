@@ -2,16 +2,17 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    if (!$user->is_logged_in()) {
-        echo json_encode(["success" => false, "error" => "Nicht autorisiert"]);
-        exit;
-    }
-
     if ($_SERVER["REQUEST_METHOD"] !== "POST") {
         echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
         exit;
     }
 
+    if (!verify_csrf_token()) {
+        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+        exit;
+    }
+
+    $user->check_user_login();
     $action = $_POST["action"] ?? '';
     $guild_logic = new Guild($user);
     $response = ["success" => false];

@@ -21,7 +21,7 @@ $post_title = e($_POST["title"] ?? "");
 $post_content = e($_POST["content"] ?? "");
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if (isset($_POST["submit_suggestion"])) {
@@ -98,7 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 if ($is_admin) {
     if ($_SERVER["REQUEST_METHOD"] === "POST") {
-        if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        if (!verify_csrf_token()) {
             $error = "Ungültiger Sicherheits-Token!";
         } else {
             if (isset($_POST["admin_update_status"])) {

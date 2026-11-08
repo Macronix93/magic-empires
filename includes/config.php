@@ -308,7 +308,10 @@ const WORLD_EVENT_DAMAGE_TIERS = [
     10000000 => ["coins" => 3, "gold" => 8000],
     20000000 => ["coins" => 2, "gold" => 9000],
     30000000 => ["coins" => 1, "gold" => 10000],
-    40000000 => ["coins" => 1, "gold" => 11000]
+    40000000 => ["coins" => 1, "gold" => 11000],
+    80000000 => ["coins" => 1, "gold" => 13000],
+    120000000 => ["coins" => 1, "gold" => 15000],
+    150000000 => ["coins" => 1, "gold" => 17000],
 ];
 // HP-Boss Resources
 const WORLD_EVENT_HP_RES_BASE = 5000;            // Base resources per average building level
@@ -545,6 +548,23 @@ const ARENA_HERO_SKILLS = [
     ]
 ];
 
+// --- Advent Calendar ---
+const ADVENT_CALENDAR_TRAVEL_BOOST = 0.025;
+const ADVENT_CALENDAR_MAX_UNITS = 1;
+const ADVENT_CALENDAR_TOTAL_DAYS = 24;
+const ADVENT_CALENDAR_CURVE_EXPONENT = 1.26;
+const ADVENT_CALENDAR_CURVE_MULTIPLIER = 300;
+const ADVENT_CALENDAR_BASE_RES_START = 300;
+const ADVENT_CALENDAR_DAY_RES_INCREMENT = 80;
+const ADVENT_CALENDAR_DAY_24_MULTIPLIER = 2.2;
+const ADVENT_CALENDAR_RES_MIN_VARIANCE = 90;
+const ADVENT_CALENDAR_RES_MAX_VARIANCE = 110;
+const ADVENT_CALENDAR_BASE_TROOP_CHANCE = 25;
+const ADVENT_CALENDAR_TROOP_CHANCE_INCREMENT = 2;
+const ADVENT_CALENDAR_TROOP_CHANCE_DAY_24 = 90;
+const ADVENT_CALENDAR_BUILDING_FACTOR_COEFF = 0.5;
+const ADVENT_CALENDAR_MIN_BUILDING_FACTOR = 0.5;
+
 
 /*
  * Interfaces
@@ -607,6 +627,7 @@ interface MapFieldTypes
     const int MAP_FIELD_MONSTER_CAMP = -3;
     const int MAP_FIELD_ABANDONED_KINGDOM = -4;
     const int MAP_FIELD_MINE = -5;
+    const int MAP_FIELD_GIFT = -6;
     const int MAP_FIELD_WORLD_EVENT = -999;
 }
 
@@ -775,16 +796,18 @@ class AchievementCategories
 class MessageCategories
 {
     const int CATEGORY_DEFAULT = 0;
-    const int CATEGORY_WAR = 1;
+    const int CATEGORY_PVP = 1;
     const int CATEGORY_TRADE = 2;
     const int CATEGORY_EVENT = 3;
     const int CATEGORY_GUILD = 4;
+    const int CATEGORY_PVE = 5;
 
     public static function get_labels(): array
     {
         return [
             self::CATEGORY_DEFAULT => "Allgemein",
-            self::CATEGORY_WAR => "Militärisch",
+            self::CATEGORY_PVP => "PvP",
+            self::CATEGORY_PVE => "PvE",
             self::CATEGORY_TRADE => "Handel",
             self::CATEGORY_EVENT => "Event",
             self::CATEGORY_GUILD => "Gilde"

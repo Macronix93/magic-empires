@@ -22,7 +22,7 @@ $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
 $kingdom_building_id = $kingdom_is_building ? $kingdom->get_kingdom_building_id() : -1;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $build_id = (int)($_POST["bid"] ?? 0);

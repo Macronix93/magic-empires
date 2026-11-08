@@ -2,6 +2,7 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    $user->check_user_login();
     $type = $_GET["type"] ?? "private";
     $messages = new Messages($user);
     $chat_data = ["html" => "", "last_id" => 0];

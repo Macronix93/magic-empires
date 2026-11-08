@@ -25,54 +25,54 @@ function get_support_error($text): ?string
 }
 
 // --- ACTIONS ---
-if (isset($_POST["open_ticket"]) && !$support->has_active_ticket($uid)) {
-    $raw_subject = trim($_POST["subject"] ?? "");
-    $raw_text = $_POST["text"] ?? "";
-
-    $sub_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject);
-    $sub_clean = trim($sub_clean);
-    $text_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text);
-    $text_clean = trim($text_clean);
-
-    $val_error = get_support_error($raw_text);
-
-    if (empty($raw_subject)) {
-        $error = "Bitte einen Betreff angeben!";
-    } else if ($val_error) {
-        $error = $val_error;
-    } else {
-        // Rate Limit Check
-        $current_time = time();
-
-        if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
-            $_SESSION["message_count"] = 0;
-            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-        }
-
-        if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
-            $error = "Du schickst zu viele Nachrichten! Bitte warte kurz.";
-        } else if (empty($sub_clean) || mb_strlen($sub_clean) < 3) {
-            $error = "Bitte einen gültigen Betreff angeben!";
-        } else if (empty($text_clean) || mb_strlen($text_clean) < 10) {
-            $error = "Deine Nachricht ist zu kurz!";
-        } else if (mb_strlen($raw_subject) > MAX_SUPPORT_TICKET_SUBJECT_LENGTH) {
-            $error = "Der Betreff ist zu lang (max. " . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . " Zeichen)!";
-        } else {
-            $sub = e(mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH));
-            $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
-
-            $_SESSION["message_count"]++;
-            $support->create_ticket($sub, $msg);
-
-            change_location("support.php");
-        }
-    }
-}
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
+        if (isset($_POST["open_ticket"]) && !$support->has_active_ticket($uid)) {
+            $raw_subject = trim($_POST["subject"] ?? "");
+            $raw_text = $_POST["text"] ?? "";
+
+            $sub_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject);
+            $sub_clean = trim($sub_clean);
+            $text_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text);
+            $text_clean = trim($text_clean);
+
+            $val_error = get_support_error($raw_text);
+
+            if (empty($raw_subject)) {
+                $error = "Bitte einen Betreff angeben!";
+            } else if ($val_error) {
+                $error = $val_error;
+            } else {
+                // Rate Limit Check
+                $current_time = time();
+
+                if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
+                    $_SESSION["message_count"] = 0;
+                    $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+                }
+
+                if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
+                    $error = "Du schickst zu viele Nachrichten! Bitte warte kurz.";
+                } else if (empty($sub_clean) || mb_strlen($sub_clean) < 3) {
+                    $error = "Bitte einen gültigen Betreff angeben!";
+                } else if (empty($text_clean) || mb_strlen($text_clean) < 10) {
+                    $error = "Deine Nachricht ist zu kurz!";
+                } else if (mb_strlen($raw_subject) > MAX_SUPPORT_TICKET_SUBJECT_LENGTH) {
+                    $error = "Der Betreff ist zu lang (max. " . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . " Zeichen)!";
+                } else {
+                    $sub = e(mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH));
+                    $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
+
+                    $_SESSION["message_count"]++;
+                    $support->create_ticket($sub, $msg);
+
+                    change_location("support.php");
+                }
+            }
+        }
+
         if (isset($_POST["close_ticket"]) && is_numeric($_POST["tid"])) {
             $tid = (int)$_POST["tid"];
             $res = $db_instance->execute_query("SELECT userid FROM support_tickets WHERE id = ?", [$tid]);

@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/core.php");
+
 $user->check_user_login();
 
 $target_uid = (int)($_GET["userid"] ?? 0);

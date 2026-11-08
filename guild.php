@@ -35,7 +35,7 @@ if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
 $is_invite_only = isset($_POST["g_invite_only"]) && $_POST["g_invite_only"] == "1";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if ($my_guild_id === -1) {
@@ -500,10 +500,6 @@ if ($my_guild_id === -1) {
         $research_badge_html = " <img src='images/icons/icon_hammer.png' class='ressource-icons guild-research-icon' title='Projekt aktiv' alt='Projekt aktiv'>";
     }
 
-    $view .= "<div class='msg-back-button-container'>
-                <button class='btn-delete' data-on-click='confirmLeaveGuild' data-cooldown='$cooldown_time'>Gilde verlassen</button>
-            </div>";
-
     $view .= "<div class='tab'>
         <div class='tablinks " . ($active_tab == "chat" ? "active" : '') . "' data-on-click='switchGuildTab' data-tab='chat'>
             Chat <span class='msg-badge' id='badge-guild-tab' style='$unread_badge_style margin-left: 0;'>$unread_badge_text</span>
@@ -521,6 +517,9 @@ if ($my_guild_id === -1) {
     $view .= "</div>";
 
     $view .= "<div id='guild_tab_general' class='js-guild-tab' style='display: " . ($active_tab == "general" ? "block" : "none") . ";'>";
+    $view .= "<div class='msg-back-button-container'>
+                <button class='btn-delete' data-on-click='confirmLeaveGuild' data-cooldown='$cooldown_time'>Gilde verlassen</button>
+            </div>";
     $view .= "<img src='" . $guild_logic->get_avatar() . "' class='guild-avatar' alt='Wappen'>";
     $view .= "<h2 style='margin-top: 0;'>[" . e($guild_info["tag"]) . "] " . e($guild_info["name"]) . "</h2>";
 

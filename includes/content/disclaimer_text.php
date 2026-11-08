@@ -4,6 +4,8 @@
 </div>
 <div class="credits-scroll-box">
     <ul class="credits-list">
+        <li><a href="https://www.flaticon.com/free-icons/gift" title="gift icons">Gift icons created by Magnific -
+                Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/santa-claus" title="santa claus icons">Santa claus icons
                 created by Magnific - Flaticon</a></li>
         <li><a href="https://www.flaticon.com/free-icons/winter" title="winter icons">Winter icons created by Magnific -

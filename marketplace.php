@@ -22,7 +22,7 @@ $my_guild_id = $user->get_user_guild_id();
 $in_guild = ($my_guild_id > 0);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $action = $_POST["action"] ?? "";

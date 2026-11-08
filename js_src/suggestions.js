@@ -107,14 +107,12 @@ registerAction("confirmDeleteSuggestion", (el) => {
             actInput.value = "1";
             form.appendChild(actInput);
 
-            const token = document.querySelector('input[name="csrf_token"]')?.value || "";
-            if (token) {
-                const tokenInput = document.createElement("input");
-                tokenInput.type = "hidden";
-                tokenInput.name = "csrf_token";
-                tokenInput.value = getCsrfToken();
-                form.appendChild(tokenInput);
-            }
+            const tokenInput = document.createElement("input");
+            tokenInput.type = "hidden";
+            tokenInput.name = "csrf_token";
+            tokenInput.value = getCsrfToken();
+            form.appendChild(tokenInput);
+
             document.body.appendChild(form);
             form.submit();
         }

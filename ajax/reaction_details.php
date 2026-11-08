@@ -1,9 +1,8 @@
 <?php
 require_once("../includes/core.php");
 
-$user->check_user_login();
-
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    $user->check_user_login();
     $type = $_GET["type"] ?? '';
     $id = (int)($_GET["id"] ?? 0);
 

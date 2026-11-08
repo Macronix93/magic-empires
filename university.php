@@ -36,7 +36,7 @@ $global_imp_level = (int)($imp_data["imp_level"] ?? 0);
 $curr_founded = (int)($imp_data["founded_count"] ?? 1);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $tech_id = (int)($_POST["tid"] ?? 0);

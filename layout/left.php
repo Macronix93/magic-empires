@@ -44,7 +44,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                     <form method='POST' action='index.php' style='margin: 0; display: inline;'>
                         " . csrf_input() . "
                         <input type='hidden' name='logout' value='1'>
-                        <button type='submit' style='background: none; border: none; padding: 0; cursor:pointer;' title='Logout'>
+                        <button type='submit' class='btn-logout' title='Logout'>
                             <img src='images/icons/icon_logout.png' class='ressource-icons' alt='Logout'/>
                         </button>
                     </form>

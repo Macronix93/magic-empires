@@ -118,7 +118,17 @@ while ($s_row = $settings_res->fetch_assoc()) {
 define("MAINTENANCE_MODE", ($sys_settings["maintenance_mode"] ?? '0') === '1');
 define("MAINTENANCE_REASON", $sys_settings["maintenance_reason"] ?? "Wartungsarbeiten");
 define("DEBUG_FIXED_MARCH_SECONDS", (int)($sys_settings["debug_fixed_march_seconds"] ?? 0));
-define("WINTER_THEME_ACTIVE", ($sys_settings["winter_theme"] ?? '0') === '1');
+
+$server_winter = ($sys_settings["winter_theme"] ?? '0') === '1';
+$disable_special = (($_COOKIE["me_disable_special_theme"] ?? "0") === "1") || (($_COOKIE["me_theme_pref"] ?? "") === "default");
+
+if ($disable_special) {
+    $active_winter = false;
+} else {
+    $active_winter = $server_winter;
+}
+
+define("WINTER_THEME_ACTIVE", $active_winter);
 
 // Create User instance
 $user = new User($_SESSION["userid"] ?? -1, "", $_SESSION["kingdomid"] ?? -1);

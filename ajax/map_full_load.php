@@ -1,10 +1,10 @@
 <?php
 require_once("../includes/core.php");
 
-$user->check_user_login();
 session_write_close();
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    $user->check_user_login();
     $uid = $user->get_user_id();
 
     $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $uid . ".json";
@@ -47,7 +47,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             IFNULL(mst_agg.current_mine_troops, 0) AS current_mine_troops,
             IFNULL(mst_agg.current_mine_atk, 0) AS current_mine_atk,
             IFNULL(mst_agg.my_mine_troops, 0) AS my_mine_troops,
-            mst_agg.my_mine_troop_icon
+            mst_agg.my_mine_troop_icon,
+            IFNULL(ag.day, 0) AS gift_day
           FROM map m 
           JOIN field_types ft ON m.fieldtype = ft.fieldid
           LEFT JOIN kingdoms k ON m.kingdomid = k.id
@@ -60,6 +61,7 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
           LEFT JOIN abandoned_kingdoms ak ON m.mapx = ak.mapx AND m.mapy = ak.mapy
           LEFT JOIN mines mn ON m.mapx = mn.mapx AND m.mapy = mn.mapy
           LEFT JOIN users u_mn ON mn.claimed_user_id = u_mn.id
+          LEFT JOIN advent_calendar_gifts ag ON m.mapx = ag.mapx AND m.mapy = ag.mapy AND ag.user_id = ? AND ag.is_collected = 0
           LEFT JOIN (
               SELECT 
                   mst.mine_id,
@@ -102,11 +104,12 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
           ORDER BY m.mapy, m.mapx";
 
     $result = $db_instance->execute_query($query, [
-        $uid,                  // has_outgoing_event k.userid check
+        $uid,   // has_outgoing_event k.userid check
+        $uid,   // ag.user_id (advent_calendar_gifts)
         $uid,   // mst_agg my_mine_troops
         $uid,   // mst_agg my_mine_troop_icon CASE
         $uid,   // mst_agg my_mine_troop_icon ORDER BY
-        $uid                   // e_mov e.userid
+        $uid    // e_mov e.userid
     ]);
 
     $map_data = [];
@@ -154,7 +157,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
             $troop_icon_display,
             (int)($row["guildid"] ?? -1),
             (int)($row["has_outgoing_event"] ?? 0),
-            $mine_info
+            $mine_info,
+            (int)($row["gift_day"] ?? 0)
         ];
     }
 

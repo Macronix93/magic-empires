@@ -171,7 +171,9 @@ class Map
 
             $modified_time *= (CARAVAN_SPEED_FACTOR * $caravan_speed_mult);
         } else {
-            if ($actual_target_id === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
+            if ($actual_target_id === MapFieldTypes::MAP_FIELD_GIFT) {
+                $modified_time *= ADVENT_CALENDAR_TRAVEL_BOOST;
+            } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_WORLD_EVENT) {
                 $we = new WorldEvent();
                 $modified_time = $we->get_current_duration();
             } else if ($actual_target_id === MapFieldTypes::MAP_FIELD_MINE) {

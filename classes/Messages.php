@@ -220,11 +220,20 @@ class Messages
         $formatted_text = self::format_chat_message($raw_message);
         $date_str = date(DATE_FORMAT_CHAT, $timestamp);
 
+        $pop_id = "chat_av_" . $chat_type . "_" . $msg_id . "_" . mt_rand(100, 999);
+        $avatar_html = "
+        <div class='avatar-container popup' id='$pop_id'>
+            <img class='user-image' src='" . e($avatar_url) . "' alt=''>
+            <div id='{$pop_id}_box' class='popupbox avatar-popup'>
+                <img src='" . e($avatar_url) . "' style='width: 80px; height: 80px; border-radius: 5px;' alt=''>
+            </div>
+        </div>";
+
         return "
         <div class='$bubble_class' id='$dom_id'>
             <div class='message-border'>
                 <span class='msg-header-left'>
-                    <img class='user-image' src='" . e($avatar_url) . "' alt=''>
+                    $avatar_html
                     <span>$sender_display <small class='msg-date'>$date_str</small></span>
                 </span>
                 <span style='display: flex; gap: 5px; align-items: center;'>
@@ -375,7 +384,7 @@ class Messages
 
     public static function wrap_emojis($text): array|string|null
     {
-        $emoji_pattern = '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
+        $emoji_pattern = '/[0-9#*]\x{FE0F}?\x{20E3}|[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
 
         return preg_replace($emoji_pattern, '<span class="emoji-fix">$0</span>', $text);
     }
@@ -468,7 +477,8 @@ class Messages
             '👍', '👎', '👌', '🤌', '✌️', '🤞', '🤟', '🤘', '🤙', '👊', '👋', '👏', '🙏', '💪', '👃', '🤝', '🫡', '❓', '❗',
             '⚔️', '🛡️', '🏰', '🏯', '🏹', '🐎', '🔥', '💣', '🧱', '⚒️', '📜', '🗺️', '👑', '🏆', '💎',
             '💰', '🪙', '🍞', '🥩', '🌲', '🪵', '🪨', '🧂', '⛏️', '⚖️', '📦', '🛒', '📈', '📉', '👀', '🦆',
-            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗'
+            '✨', '⭐', '🌟', '💥', '🎈', '🎉', '🎊', '🎁', '✅', '❌', '⚠️', '🚩', '🏴', '🍺', '🍻', '🆗',
+            '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢',
         ];
     }
 
@@ -721,7 +731,9 @@ class Messages
 
                 $content = $this->render_message_template($data);
 
-                if ((int)$row["category"] === MessageCategories::CATEGORY_WAR && self::is_report_shareable($data["template"] ?? null)) {
+                $is_combat_cat = in_array((int)$row["category"], [MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE], true);
+
+                if ($is_combat_cat && self::is_report_shareable($data["template"] ?? null)) {
                     $share_btn = self::render_share_button((int)$row["id"]);
                 }
             } else {
@@ -762,6 +774,44 @@ class Messages
         $type = $data["template"] ?? $data["type"] ?? "text";
 
         switch ($type) {
+            case "advent_gift_collected":
+                $day = (int)($data["day"] ?? 1);
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $home_name = e($data["home_name"] ?? "Königreich");
+                $coins = (int)($data["coins"] ?? $day);
+                $res = $data["resources"] ?? [];
+                $troops = $data["troops"] ?? [];
+
+                $main_text = "Dein Bote hat das <b>Advents-Geschenk von Tag $day</b> bei $c_link erfolgreich geborgen!";
+
+                $loot_display = [
+                    ResourceTypes::RESOURCE_TYPE_COINS => $coins,
+                    ResourceTypes::RESOURCE_TYPE_FOOD => $res[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0,
+                    ResourceTypes::RESOURCE_TYPE_WOOD => $res[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0,
+                    ResourceTypes::RESOURCE_TYPE_STONE => $res[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0,
+                    ResourceTypes::RESOURCE_TYPE_GOLD => $res[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0,
+                ];
+
+                if (!empty($troops)) {
+                    $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; justify-content: center;'>";
+                    foreach ($troops as $t) {
+                        $units_html .= BattleReportRenderer::render_unit_card($t, 0, 0, "", true);
+                    }
+                    $units_html .= "</div>";
+                    $main_text .= $units_html;
+                }
+
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "🎁 Advents-Geschenk geborgen",
+                        $main_text,
+                        0, 0,
+                        "Die Rohstoffe und Münzen befinden sich mit deinem Boten auf dem Rückmarsch nach $home_name.",
+                        "success",
+                        $loot_display
+                    ) . "</div>";
+
             case "arena_season_reward":
                 $rank = (int)($data["rank"] ?? 1);
                 $elo = (int)($data["elo"] ?? 1000);
@@ -2215,7 +2265,7 @@ class Messages
                             0, 0, "Die Truppen kehren unversehrt heim.", "error"
                         );
                     } else { // defended
-                        $html .= BattleReportRenderer::render_vs_grid($def_units, $atk_units, "Deine Minen-Truppen", "Abgewehrt ($attacker)");
+                        $html .= BattleReportRenderer::render_vs_grid($def_units, $atk_units, "Deine Minen-Truppen", $attacker);
                         $html .= BattleReportRenderer::render_outcome_box(
                             "Mine verteidigt!",
                             "Ein Übernahmeversuch von <b>$attacker</b> bei $c_link wurde erfolgreich abgewehrt. Der Abbau geht ungehindert weiter!",
@@ -2724,10 +2774,19 @@ class Messages
                     $html .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y \u\m H:i:s", $date) . "</div>";
                 }
 
+                $pop_id = "chat_av_p_" . $message_id . "_" . mt_rand(100, 999);
+                $partner_avatar_html = "
+                <div class='avatar-container popup' id='$pop_id'>
+                    <img class='user-image' src='$chat_partner_image' alt=''>
+                    <div id='{$pop_id}_box' class='popupbox avatar-popup'>
+                        <img src='$chat_partner_image' style='width: 80px; height: 80px; border-radius: 5px;' alt=''>
+                    </div>
+                </div>";
+
                 $html .= "<div class='sender-bubble' id='msg-" . $message_id . "'>
                             <div class='message-border'>
                                 <span class='msg-header-left'>
-                                    <img class='user-image' src='$chat_partner_image' alt=''>
+                                    $partner_avatar_html
                                     <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
@@ -2742,10 +2801,19 @@ class Messages
                             </div>
                         </div>";
             } else {
+                $my_pop_id = "chat_av_m_" . $message_id . "_" . mt_rand(100, 999);
+                $my_avatar_html = "
+                <div class='avatar-container popup' id='$my_pop_id'>
+                    <img class='user-image' src='$my_chat_image' alt=''>
+                    <div id='{$my_pop_id}_box' class='popupbox avatar-popup'>
+                        <img src='$my_chat_image' style='width: 80px; height: 80px; border-radius: 5px;' alt=''>
+                    </div>
+                </div>";
+
                 $html .= "<div class='receiver-bubble' id='msg-" . $message_id . "'>
                             <div class='message-border'>
                                 <span class='msg-header-left'>
-                                    <img class='user-image' src='$my_chat_image' alt=''>
+                                    $my_avatar_html
                                     <span>Du <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $date) . "</small></span>
                                 </span>
                                 <span style='display: flex; gap: 5px; align-items: center;'>
@@ -2891,10 +2959,19 @@ class Messages
 
                 $sender_link = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $row["userid"] . "' data-title='Spieler-Info'>" . e($row["username"]) . "</a>";
 
+                $pop_id = "chat_av_" . $row["id"] . "_" . mt_rand(100, 999);
+                $avatar_html = "
+                <div class='avatar-container popup' id='$pop_id'>
+                    <img class='user-image' src='$avatar' alt=''>
+                    <div id='{$pop_id}_box' class='popupbox avatar-popup'>
+                        <img src='$avatar' style='width: 80px; height: 80px; border-radius: 5px;' alt=''>
+                    </div>
+                </div>";
+
                 $html .= "<div class='$class' id='world-msg-{$row["id"]}'>
                     <div class='message-border'>
                         <span class='msg-header-left'>
-                            <img class='user-image' src='$avatar' alt=''>
+                            $avatar_html
                             <span>$sender_link <small class='msg-date'>" . date(DATE_FORMAT_CHAT, $row["date"]) . "</small></span>
                         </span>
                         <span style='display: flex; gap: 5px; align-items: center;'>

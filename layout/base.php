@@ -56,37 +56,27 @@ if ($user->is_logged_in()) {
 
     $show_attack_alert = ($atk_count > 0);
     $show_support_alert = ($sup_count > 0);
+
+    if (AdventCalendar::should_show_intro($user->get_user_id())) {
+        echo AdventCalendar::render_intro_modal();
+    }
 }
 ?>
 <!DOCTYPE html>
 <html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE-edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="<?= get_csrf_token() ?>">
-    <link rel="icon" type="image/x-icon" href="images/favicon.ico" id="icon">
-    <link rel="stylesheet" type="text/css"
-          href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>">
-    <?php if (WINTER_THEME_ACTIVE): ?>
-        <link rel="stylesheet" type="text/css"
-              href="themes/winter.css?v=<?= file_exists("themes/winter.css") ? filemtime("themes/winter.css") : 1 ?>">
-    <?php if (($_COOKIE["me_show_snow"] ?? "1") === "1"): ?>
-        <script type="text/javascript" src="<?= $js_folder ?>snow.js" defer></script>
-    <?php endif; ?>
-    <?php endif; ?>
+    <?php include("layout/head_meta.php"); ?>
+
     <title>
         <?php
         if (IS_DEV) {
             echo "[LOKAL]" . (!empty($title) ? " - $title" : "");
         } else {
-            echo((!empty($title)) ? "Magic Empires - $title" : "Magic Empires");
+            echo (!empty($title)) ? "Magic Empires - $title" : "Magic Empires";
         }
         ?>
     </title>
-    <noscript>
-        <meta http-equiv="refresh" content="0;url=nojs.php">
-    </noscript>
+
     <?php
     $main_js_path = $js_folder . $js_main_file;
     $main_v = file_exists($main_js_path) ? filemtime($main_js_path) : time();

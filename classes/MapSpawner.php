@@ -59,11 +59,12 @@ class MapSpawner
             WHERE m.kingdomid = ? 
             AND NOT EXISTS (
                 SELECT 1 FROM events e 
-                WHERE e.actionid = ? 
-                AND e.targetid = ? 
-                AND e.targetx = m.mapx 
-                AND e.targety = m.mapy
-            ) 
+                WHERE e.actionid = ? AND e.targetid = ? AND e.targetx = m.mapx AND e.targety = m.mapy
+            )
+            AND NOT EXISTS ( 
+                SELECT 1 FROM advent_calendar_gifts ag 
+                WHERE ag.mapx = m.mapx AND ag.mapy = m.mapy AND ag.is_collected = 0
+            )
             ORDER BY RAND() LIMIT ?
         ";
         $fields = $this->db->execute_query($query_free_res,
@@ -197,7 +198,11 @@ class MapSpawner
             AND NOT EXISTS (
                 SELECT 1 FROM events e 
                 WHERE e.actionid = ? AND e.targetid = ? AND e.targetx = m.mapx AND e.targety = m.mapy
-            ) 
+            )
+            AND NOT EXISTS ( 
+                SELECT 1 FROM advent_calendar_gifts ag 
+                WHERE ag.mapx = m.mapx AND ag.mapy = m.mapy AND ag.is_collected = 0
+            )
             ORDER BY RAND() LIMIT ?
         ", [MapFieldTypes::MAP_FIELD_EMPTY, ActionTypes::ACTION_SEND_TROOPS, MapFieldTypes::MAP_FIELD_EMPTY, $limit]);
 
@@ -354,11 +359,12 @@ class MapSpawner
             WHERE m.kingdomid = ? 
             AND NOT EXISTS (
                 SELECT 1 FROM events e 
-                WHERE e.actionid = ? 
-                AND e.targetid = ? 
-                AND e.targetx = m.mapx 
-                AND e.targety = m.mapy
+                WHERE e.actionid = ? AND e.targetid = ? AND e.targetx = m.mapx AND e.targety = m.mapy
             ) 
+            AND NOT EXISTS ( 
+                SELECT 1 FROM advent_calendar_gifts ag 
+                WHERE ag.mapx = m.mapx AND ag.mapy = m.mapy AND ag.is_collected = 0
+            )
             ORDER BY RAND() LIMIT ?
         ";
         $free_fields = $this->db->execute_query($query_free_camps,

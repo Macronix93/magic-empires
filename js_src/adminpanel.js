@@ -1,3 +1,35 @@
+registerAction("banIpDialog", (el) => {
+    const uid = el.dataset.userid;
+    const ip = el.dataset.ip;
+    const shouldBan = el.dataset.status === "1";
+
+    if (shouldBan) {
+        const reason = prompt(`Grund für die Sperrung der IP ${ip}:`, "Verstoß gegen die Regeln");
+        if (reason !== null) {
+            submitAdminPost({
+                toggle_ip_ban: "1",
+                user_id: uid,
+                ip: ip,
+                ip_ban_status: "1",
+                reason: reason
+            });
+        }
+    } else {
+        showConfirmationDialog(
+            `Möchtest du die IP ${ip} wirklich wieder entsperren?`,
+            "Ja, entsperren",
+            "Abbrechen",
+            () => {
+                submitAdminPost({
+                    toggle_ip_ban: "1",
+                    user_id: uid,
+                    ip: ip,
+                    ip_ban_status: "0"
+                });
+            }
+        );
+    }
+});
 registerAction("editUserField", (el) => {
     editField(
         el.dataset.userid,
@@ -187,6 +219,29 @@ registerAction("switchAdminTab", (el) => {
 
     window.history.replaceState({}, '', url);
 });
+registerAction("spawnTestAdventGifts", () => {
+    submitAdminPost({spawn_test_advent_gifts: "1"});
+});
+registerAction("confirmStartAdvent", () => {
+    showConfirmationDialog(
+        "Möchtest du den Adventskalender für alle Spieler starten? Tag 1 wird sofort an alle aktiven Spieler verteilt und die Benachrichtigung aktiviert.",
+        "Ja, starten",
+        "Abbrechen",
+        () => {
+            submitAdminPost({start_advent_calendar: "1"});
+        }
+    );
+});
+registerAction("confirmStopAdvent", () => {
+    showConfirmationDialog(
+        "Möchtest du den Adventskalender wirklich stoppen und alle noch ungesammelten Geschenke entfernen?",
+        "Ja, stoppen",
+        "Abbrechen",
+        () => {
+            submitAdminPost({stop_advent_calendar: "1"});
+        }
+    );
+});
 
 if (window.location.href.indexOf("adminpanel.php") > -1) {
     if ("scrollRestoration" in history) {
@@ -231,15 +286,11 @@ function submitAdminPost(params) {
         form.appendChild(input);
     }
 
-    const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
-    if (token) {
-        const tokenInput = document.createElement("input");
-        tokenInput.type = "hidden";
-        tokenInput.name = "csrf_token";
-        tokenInput.value = token;
-
-        form.appendChild(tokenInput);
-    }
+    const tokenInput = document.createElement("input");
+    tokenInput.type = "hidden";
+    tokenInput.name = "csrf_token";
+    tokenInput.value = getCsrfToken();
+    form.appendChild(tokenInput);
 
     document.body.appendChild(form);
     form.submit();

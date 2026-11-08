@@ -178,7 +178,9 @@ class User
     ): string
     {
         $avatar = $this->get_avatar();
-        $pop_id = $popup_id ?? "av_pop_" . $this->user_id;
+        static $avatar_render_counter = 0;
+        $avatar_render_counter++;
+        $pop_id = $popup_id ? ($popup_id . "_" . $avatar_render_counter) : ("av_pop_" . $this->user_id . "_" . $avatar_render_counter . "_" . mt_rand(100, 999));
         $now = time();
 
         if ($show_last_activity && $status_color === null) {
@@ -687,6 +689,20 @@ class User
     public function check_user_login(): void
     {
         if (!($this->is_logged_in())) {
+            $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
+
+            if ($is_ajax) {
+                http_response_code(401);
+                header("Content-Type: application/json; charset=utf-8");
+
+                echo json_encode([
+                    "success" => false,
+                    "error" => "Deine Session ist abgelaufen. Bitte lade die Seite neu.",
+                    "redirect" => "index.php?logout=session"
+                ]);
+                exit;
+            }
+
             change_location("index.php");
         }
     }
@@ -752,11 +768,13 @@ class User
 
         // Attack on kingdoms and mines
         $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id
+        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id, 
+               IFNULL(t_intel.techlevel, 0) AS intel_level
         FROM events e
         JOIN kingdoms k ON e.targetid = k.id
         JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
         LEFT JOIN kingdom_boosts kb_wt ON k.id = kb_wt.kingdomid AND kb_wt.resource_type = " . ResourceTypes::RESOURCE_TYPE_WATCHTOWER . " AND kb_wt.ticks_remaining > 0
+        LEFT JOIN techs t_intel ON k.id = t_intel.kingdomid AND t_intel.techid = " . TechTypes::TECH_TYPE_ARCANE_INTEL . "
         WHERE k.userid = ? 
           AND e.userid != k.userid
           AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
@@ -771,7 +789,8 @@ class User
 
         UNION ALL
 
-        SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id
+        SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, 
+               " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id, 1 AS intel_level
         FROM events e
         JOIN mines mn ON e.targetx = mn.mapx AND e.targety = mn.mapy
         JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
@@ -798,15 +817,14 @@ class User
         $all_attacks = $result->fetch_all(MYSQLI_ASSOC);
 
         $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
+
         foreach ($all_attacks as &$attack) {
             if ((int)$attack["kingdom_id"] > 0) {
-                $target_k = new Kingdom((int)$attack["kingdom_id"]);
-                $intel_level = $target_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARCANE_INTEL);
-
-                if ($intel_level < 1) {
+                if ((int)$attack["intel_level"] < 1) {
                     $attack["arrivaltime"] = 0;
                 }
             }
+
             $attack["is_new"] = !in_array($attack["eventid"], $ack_ids);
         }
 

@@ -33,7 +33,7 @@ if ($wall_level < MAX_BUILDING_LEVEL) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $step_percent = (int)$_POST["repair_percent"];

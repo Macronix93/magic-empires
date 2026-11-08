@@ -5,10 +5,7 @@ if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH
     change_location("messages.php");
 }
 
-if (!$user->is_logged_in() || $user->get_user_id() <= 0) {
-    echo json_encode(["error" => "redirect", "chatPartner" => "privmsgs"]);
-    exit;
-}
+$user->check_user_login();
 
 $type = $_POST["type"] ?? $_GET["type"] ?? "private";
 $allowed_types = ["private", "world", "guild"];
@@ -21,8 +18,14 @@ $u_id = $user->get_user_id();
 $last_id = (int)($_GET["last_id"] ?? 0);
 $oldest_id = (int)($_GET["oldest_id"] ?? 0);
 
-if ($type === "guild" && (isset($_POST["mark_all_read"]) || isset($_GET["mark_all_read"]))) {
+if ($type === "guild" && isset($_POST["mark_all_read"])) {
+    if (!verify_csrf_token()) {
+        echo json_encode(["error" => "Ungültiger Sicherheits-Token"]);
+        exit;
+    }
+
     $guild_id = $user->get_user_guild_id();
+
     if ($guild_id > 0) {
         $max_msg = (int)($db_instance->execute_query(
             "SELECT MAX(id) FROM guild_chat WHERE guild_id = ?", [$guild_id]
@@ -32,6 +35,7 @@ if ($type === "guild" && (isset($_POST["mark_all_read"]) || isset($_GET["mark_al
             $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$max_msg, $u_id]);
         }
     }
+
     echo json_encode(["success" => true]);
     exit;
 }

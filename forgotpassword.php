@@ -10,30 +10,33 @@ $error = "";
 $success = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
-    $email = make_secure($_POST["email"] ?? "");
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Bitte eine gültige E-Mail-Adresse eingeben.";
+    if (!verify_csrf_token()) {
+        $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $result = $db_instance->execute_query("SELECT id, username FROM users WHERE email = ? LIMIT 1", [$email]);
+        $email = make_secure($_POST["email"] ?? "");
 
-        if ($result && $result->num_rows > 0) {
-            $row = $result->fetch_assoc();
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = "Bitte eine gültige E-Mail-Adresse eingeben.";
+        } else {
+            $result = $db_instance->execute_query("SELECT id, username FROM users WHERE email = ? LIMIT 1", [$email]);
 
-            try {
-                $token = bin2hex(random_bytes(32));
-            } catch (Throwable $e) {
-                $token = bin2hex(openssl_random_pseudo_bytes(32));
-            }
+            if ($result && $result->num_rows > 0) {
+                $row = $result->fetch_assoc();
 
-            $expires = time() + 3600;
+                try {
+                    $token = bin2hex(random_bytes(32));
+                } catch (Throwable $e) {
+                    $token = bin2hex(openssl_random_pseudo_bytes(32));
+                }
 
-            $db_instance->execute_query("UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?", [$token, $expires, $row["id"]]);
+                $expires = time() + 3600;
 
-            $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "resetpassword.php?token=" . $token;
+                $db_instance->execute_query("UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?", [$token, $expires, $row["id"]]);
 
-            $subject = "Magic Empires - Passwort zurücksetzen";
-            $message = "
+                $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "resetpassword.php?token=" . $token;
+
+                $subject = "Magic Empires - Passwort zurücksetzen";
+                $message = "
                 <h2 style='color: #d4af37; text-align: center; margin-top: 0;'>Passwort vergessen?</h2>
                 <p>Werte/r <b>" . e($row["username"]) . "</b>,</p>
                 <p>uns erreichte eine Anfrage, das Passwort für Euren Zugang zu Magic Empires zurückzusetzen.</p>
@@ -52,13 +55,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
                 <p style='font-size: 13px; opacity: 0.7;'>Hinweis: Dieser Link ist für 1 Stunde gültig. Falls Ihr diese Anfrage nicht gestellt habt, könnt Ihr diese E-Mail ignorieren.</p>
             ";
 
-            if (send_mail($email, $subject, $message)) {
-                $success = "Ein Link zum Zurücksetzen wurde an deine E-Mail gesendet.";
+                if (send_mail($email, $subject, $message)) {
+                    $success = "Ein Link zum Zurücksetzen wurde an deine E-Mail gesendet.";
+                } else {
+                    $error = "Mail konnte nicht gesendet werden. Support kontaktieren.";
+                }
             } else {
-                $error = "Mail konnte nicht gesendet werden. Support kontaktieren.";
+                $success = "Falls diese E-Mail existiert, wurde ein Link gesendet.";
             }
-        } else {
-            $success = "Falls diese E-Mail existiert, wurde ein Link gesendet.";
         }
     }
 }
@@ -71,6 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 
 <div class="form">
     <form class="login-register" method="POST" action="forgotpassword.php">
+        <?= csrf_input() ?>
         <fieldset>
             <legend><b>Passwort vergessen</b></legend>
             <?php

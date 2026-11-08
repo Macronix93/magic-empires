@@ -12,7 +12,7 @@ $lab_level = $building->get_building_level();
 $alchemy = new Alchemy();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if (isset($_POST["start_transmutation"])) {
@@ -139,6 +139,9 @@ if ($has_active_process) {
         <div class='box-content box-content-bg' style='padding: 15px;'>";
 
     if ($in_res !== -1) {
+        $initial_progress = ($capacity > 0) ? min(100, max(0, (($capacity - $in_amt) / $capacity) * 100)) : 0;
+        $initial_progress_str = fdec($initial_progress, 1);
+
         $view .= "
             <div style='display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 1.2em; margin-bottom: 15px;'>
                 <span>" . get_resource_icon($in_res) . " <b>$res_names[$in_res]</b></span>
@@ -152,11 +155,12 @@ if ($has_active_process) {
             </div>
             
             <div class='tick-progress-bg' style='height: 8px; margin-bottom: 12px;'>
-                <div class='tick-progress-fill' id='alchemy-live-bar' style='width: 0;'></div>
+                <div class='tick-progress-fill' id='alchemy-live-bar' style='width: $initial_progress_str%;'></div>
             </div>";
 
         $has_remainder = ($usable_input > 0 && ($in_amt % $step) > 0);
         $zero_text = $has_remainder ? "Zu wenig im Kessel" : "Kessel leer";
+        $initial_timer_text = format_time_for_js($rem_time_sec);
 
         $view .= "
             <div class='split-content' style='margin-bottom: 10px;'>
@@ -167,7 +171,7 @@ if ($has_active_process) {
                 : ($is_insufficient_input
                 ? "Zu wenig im Kessel"
                 : ($usable_input > 0
-                    ? "<span class='js-countdown' id='alchemy-countdown' data-seconds='$rem_time_sec' data-no-reload='true' data-zero-text='$zero_text'>-</span>"
+                    ? "<span class='js-countdown' id='alchemy-countdown' data-seconds='$rem_time_sec' data-no-reload='true' data-zero-text='$zero_text'>$initial_timer_text</span>"
                     : "<span class='passed'>Kessel leer</span>"
                 )
             )

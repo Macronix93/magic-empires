@@ -26,8 +26,8 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
         $is_owner = ($current_uid === (int)$row["shared_by_user_id"]);
     } else {
         $res_legacy = $db_instance->execute_query(
-                "SELECT receiverid, data_json, message, date FROM server_messages WHERE id = ? AND category = ?",
-                [$id, MessageCategories::CATEGORY_WAR]
+                "SELECT receiverid, data_json, message, date FROM server_messages WHERE id = ? AND category IN (?, ?)",
+                [$id, MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE]
         );
         $row_legacy = $res_legacy->fetch_assoc();
 

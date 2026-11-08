@@ -2,6 +2,16 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
+        exit;
+    }
+
+    if (!verify_csrf_token()) {
+        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+        exit;
+    }
+
     $user->check_user_login();
     $uid = $user->get_user_id();
     $ach_id = (int)($_POST["id"] ?? 0);

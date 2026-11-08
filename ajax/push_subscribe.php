@@ -1,6 +1,11 @@
 <?php
 require_once("../includes/core.php");
 
+if (!verify_csrf_token()) {
+    echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+    exit;
+}
+
 $user->check_user_login();
 
 $raw = file_get_contents("php://input");

@@ -14,7 +14,8 @@ class Database
         $max_retries = 3;
         $attempt = 0;
         $connected = false;
-        $port = (int)(getenv("PORT") ?: 3306);
+        $env_port = $_ENV["PORT"] ?? $_SERVER["PORT"] ?? getenv("PORT");
+        $port = !empty($env_port) ? (int)$env_port : 34156;
 
         while ($attempt < $max_retries && !$connected) {
             $attempt++;

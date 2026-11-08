@@ -80,10 +80,10 @@ if ($is_defender) {
     $left_cards = $def_cards;
     $left_label = "Deine Verteidigung";
     $right_cards = $atk_cards;
-    $right_label = "Angreifer: " . e($battle["attacker_name"]);
+    $right_label = e($battle["attacker_name"]);
 } else {
     $left_cards = $atk_cards;
-    $left_label = $is_attacker ? "Deine Angreifer" : "Angreifer: " . e($battle["attacker_name"]);
+    $left_label = $is_attacker ? "Deine Angreifer" : e($battle["attacker_name"]);
     $right_cards = $def_cards;
     $right_label = e($battle["defender_name"]);
 }

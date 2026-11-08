@@ -1,6 +1,8 @@
 <?php
 // Cookie/Remember Me Check
-if (!$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
+$is_logging_out = isset($_POST["logout"]);
+
+if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
     if (str_contains($_COOKIE["me_remember"], ':')) {
         list($uid, $token) = explode(':', $_COOKIE["me_remember"], 2);
         $uid = (int)$uid;
@@ -40,12 +42,14 @@ if ($user->is_logged_in()) {
     $user->check_session_id();
 
     if (MAINTENANCE_MODE && !$user->is_admin()) {
-        if (basename($_SERVER["PHP_SELF"]) === "index.php" && isset($_GET["logout"])) {
+        if (basename($_SERVER["PHP_SELF"]) === "index.php" && $is_logging_out) {
             return;
         }
+
         if (basename($_SERVER["PHP_SELF"]) !== "maintenance.php") {
             change_location("maintenance.php");
         }
+
         return;
     }
 
@@ -77,16 +81,16 @@ if ($user->is_logged_in()) {
 
     // Safety check: is the current IP banned?
     $res_ip_ban = $db_instance->execute_query(
-        "SELECT ban_reason FROM users WHERE ip = ? AND is_banned = 1 LIMIT 1",
+        "SELECT reason FROM banned_ips WHERE ip = ? LIMIT 1",
         [$current_ip]
     );
     if ($res_ip_ban && $res_ip_ban->num_rows > 0) {
         $ip_ban_row = $res_ip_ban->fetch_assoc();
-        $reason = $ip_ban_row["ban_reason"] ?? "Sicherheitsbann (Gesperrte IP-Adresse)";
+        $reason = $ip_ban_row["reason"] ?? "Deine IP-Adresse wurde gesperrt.";
 
         setcookie("me_remember", '', time() - 3600, '/');
-
         session_destroy();
+
         change_location("index.php?banned=" . urlencode($reason));
     }
 
@@ -136,6 +140,17 @@ if ($user->is_logged_in()) {
 
                 // Process all events for the user
                 $user->process_user_events();
+
+                // Spawn advent calendar gifts
+                if (AdventCalendar::is_active()) {
+                    $today_str = date("Y-m-d");
+
+                    if (($_SESSION["last_advent_check"] ?? "") !== $today_str) {
+                        AdventCalendar::ensure_user_gifts($current_uid);
+
+                        $_SESSION["last_advent_check"] = $today_str;
+                    }
+                }
 
                 $_SESSION["active_attacks"] = $user->check_for_incoming_attacks();
                 $_SESSION["active_supports"] = $user->check_for_incoming_support();

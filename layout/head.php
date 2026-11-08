@@ -1,24 +1,7 @@
 <head>
-    <meta charset="UTF-8">
-    <meta content="IE-edge" http-equiv="X-UA-Compatible">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <meta name="csrf-token" content="<?= get_csrf_token() ?>">
-    <link href="images/favicon.ico" id="icon" rel="icon" type="image/x-icon">
-    <link href="styles.css?v=<?= file_exists("styles.css") ? filemtime("styles.css") : 1 ?>" rel="stylesheet"
-          type="text/css">
-    <?php if (WINTER_THEME_ACTIVE): ?>
-        <link rel="stylesheet" type="text/css"
-              href="themes/winter.css?v=<?= file_exists("themes/winter.css") ? filemtime("themes/winter.css") : 1 ?>">
-    <?php if (($_COOKIE["me_show_snow"] ?? "1") === "1"): ?>
-        <script type="text/javascript" src="<?= $js_folder ?>snow.js" defer></script>
-    <?php endif; ?>
-    <?php endif; ?>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
-    <title>Magic Empires</title>
-    <noscript>
-        <meta http-equiv="refresh" content="0;url=nojs.php">
-    </noscript>
+    <?php include("layout/head_meta.php"); ?>
+
+    <title><?= !empty($title) ? "Magic Empires - " . e($title) : "Magic Empires" ?></title>
+
     <script src="https://www.google.com/recaptcha/api.js"></script>
 </head>

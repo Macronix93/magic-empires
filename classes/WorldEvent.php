@@ -311,21 +311,6 @@ class WorldEvent
         return $this->mysqli->affected_rows;
     }
 
-    public function get_user_max_building_avg(int $user_id): float
-    {
-        $query = "
-        SELECT AVG(max_level) as total_avg
-        FROM (
-            SELECT MAX(buildinglevel) as max_level
-            FROM buildings 
-            WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?)
-            GROUP BY buildingid
-        ) as max_buildings";
-
-        $res = $this->mysqli->execute_query($query, [$user_id]);
-        return (float)($res->fetch_column() ?? 1.0);
-    }
-
     public function get_max_tc_level(int $user_id): int
     {
         $res = $this->mysqli->execute_query("
@@ -339,7 +324,7 @@ class WorldEvent
     public function generate_hp_boss_loot(int $user_id): array
     {
         $tc_lvl = $this->get_max_tc_level($user_id);
-        $avg_lvl = $this->get_user_max_building_avg($user_id);
+        $avg_lvl = Building::get_user_max_building_avg($user_id);
 
         // Calc resources
         $base_res = WORLD_EVENT_HP_RES_BASE * $avg_lvl;

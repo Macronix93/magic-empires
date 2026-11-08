@@ -25,16 +25,20 @@ if ($result && $result->num_rows > 0) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $token_valid) {
-    $new_plain_password = generate_safe_password(8);
-    $new_hash = password_hash($new_plain_password, PASSWORD_BCRYPT);
+    if (!verify_csrf_token()) {
+        $error = "Ungültiger Sicherheits-Token!";
+    } else {
+        $new_plain_password = generate_safe_password(8);
+        $new_hash = password_hash($new_plain_password, PASSWORD_BCRYPT);
 
-    $db_instance->execute_query("UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
+        $db_instance->execute_query("UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
 
-    PhpBBBridge::update_password($user_data["username"] ?? "", $new_hash);
+        PhpBBBridge::update_password($user_data["username"] ?? "", $new_hash);
 
-    $success = "Dein neues Passwort lautet: <br><br><b style='font-size: 24px; color: var(--link-color); border: 1px dashed; padding: 5px;'>$new_plain_password</b><br><br>Bitte notiere es dir sofort und logge dich damit ein!";
+        $success = "Dein neues Passwort lautet: <br><br><b style='font-size: 24px; color: var(--link-color); border: 1px dashed; padding: 5px;'>$new_plain_password</b><br><br>Bitte notiere es dir sofort und logge dich damit ein!";
 
-    $token_valid = false;
+        $token_valid = false;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -45,6 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
 
 <div class="form">
     <form class="login-register" method="POST" action="resetpassword.php?token=<?= e($token) ?>">
+        <?= csrf_input() ?>
         <fieldset>
             <legend><b>Passwort zurücksetzen</b></legend>
             <?php

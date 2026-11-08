@@ -4,6 +4,17 @@ require_once("../includes/core.php");
 session_write_close();
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
+        exit;
+    }
+
+    if (!verify_csrf_token()) {
+        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+        exit;
+    }
+
+    $user->check_user_login();
     $type = $_POST["type"] ?? '';
     $id = (int)($_POST["id"] ?? 0);
     $emoji = $_POST["emoji"] ?? '';

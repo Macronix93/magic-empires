@@ -685,7 +685,7 @@ hr {
 }
 
 .chat-quote {
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.2);
     padding: 8px 12px;
     border-radius: 3px;
     color: #ccc;
@@ -3953,6 +3953,56 @@ img[data-on-click] {
     opacity: 0.8;
 }
 
+.map-floating-popup td.td-mapinfo[colspan],
+#field-info td.td-mapinfo[colspan] {
+    height: 46px !important;
+}
+
+.advent-calendar-gift {
+    width: 64px;
+    height: 64px;
+}
+
+button.btn-logout,
+button.btn-logout:hover,
+button.btn-logout:focus,
+button.btn-logout:active,
+button.btn-logout:not(:disabled):active {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    outline: none !important;
+    cursor: pointer;
+}
+
+@supports (-webkit-touch-callout: none) or (font: -apple-system-body) {
+    .js-countdown,
+    .tick-timer,
+    #login-counter,
+    input,
+    textarea,
+    button,
+    select,
+    option {
+        font-family: "Baskerville", "Times New Roman", Times, serif;
+        font-variant-numeric: tabular-nums lining-nums;
+        font-feature-settings: "tnum" 1, "lnum" 1;
+    }
+
+    @media screen and (max-width: 600px) {
+        .send-selection-table .js-unit-input {
+            font-size: 16px !important;
+            width: 60px !important;
+            height: 30px !important;
+            transform: scale(0.8);
+            transform-origin: center center;
+            margin: 0 -6px !important;
+            box-sizing: border-box;
+        }
+    }
+}
+
 /* Landscape Modus */
 @media screen and (max-height: 500px) and (orientation: landscape) {
     #messages-section {
@@ -3980,6 +4030,16 @@ img[data-on-click] {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .advent-calendar-gift {
+        width: 32px;
+        height: 32px;
+    }
+
+    .map-floating-popup td.td-mapinfo[colspan],
+    #field-info td.td-mapinfo[colspan] {
+        height: 35px !important;
     }
 
     .active-title-dropdown {
@@ -5529,8 +5589,12 @@ img[data-on-click] {
     }
 
     #messages-section.large-height {
-        max-height: 70vh !important;
-        min-height: 370px;
+        max-height: calc(100dvh - 325px) !important;
+        min-height: 180px !important;
+    }
+
+    .big-box-content:has(#messages-section.large-height) {
+        padding-bottom: 8px !important;
     }
 
     .unit-badge {

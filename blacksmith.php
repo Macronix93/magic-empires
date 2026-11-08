@@ -21,7 +21,7 @@ $kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
 $kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $tech_id = (int)($_POST["tid"] ?? 0);

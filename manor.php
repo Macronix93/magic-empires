@@ -21,7 +21,7 @@ $boost_duration_ticks = $level + BASE_BOOST_DURATION;
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . fnum($boost_amount) . ")</span>" : "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if ($level < BOOST_MIN_BUILDING_LEVEL) {

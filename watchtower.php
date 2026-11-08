@@ -26,7 +26,7 @@ $ticks_left = $this_boost["ticks"] ?? 0;
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . convert_sec_to_str($boost_amount, false, false) . ")</span>" : "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if ($level < BOOST_MIN_BUILDING_LEVEL) {

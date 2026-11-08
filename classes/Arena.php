@@ -879,6 +879,7 @@ class Arena
                     losses = losses + ?, 
                     draws = draws + ?, 
                     season_battles = season_battles + 1,
+                    current_opponents = NULL,
                     updated_at = ?
                 WHERE user_id = ?
             ", [$new_coins, $new_update_time, $new_atk_elo, $atk_win_inc, $atk_loss_inc, $atk_draw_inc, $now, $this->user_id]);

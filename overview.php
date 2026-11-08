@@ -41,7 +41,7 @@ if (!empty($_SESSION["active_supports"])) {
 
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if (isset($_POST["recall_mine_troops"])) {
@@ -936,6 +936,8 @@ if (!empty($all_tp_entries)) {
                     $action_type = $is_pure_scout ? "Spionage" : "Ruine";
                 } else if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_MINE) {
                     $action_type = $is_pure_scout ? "Spionage" : "Mine";
+                } else if ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_GIFT) {
+                    $action_type = "Geschenk";
                 } else if ($is_target_my_kingdom) {
                     $action_type = "Stationieren";
                 } else {

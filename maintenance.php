@@ -28,11 +28,11 @@ $reason = !empty(MAINTENANCE_REASON) ? e(MAINTENANCE_REASON) : "Wartungsarbeiten
         <p style="font-size: 14px; opacity: 0.8;">
             Dein Account bleibt eingeloggt. Diese Seite aktualisiert sich automatisch alle 30 Sekunden.
         </p>
-        <a href="index.php?logout">
-            <button type="button" style="padding: 8px 25px;">
-                Ausloggen
-            </button>
-        </a>
+        <form method="POST" action="index.php" style="margin: 0; display: inline;">
+            <?= csrf_input() ?>
+            <input type="hidden" name="logout" value="1">
+            <button type="submit" style="padding: 8px 25px;">Ausloggen</button>
+        </form>
     </div>
 </div>
 </body>

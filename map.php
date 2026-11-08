@@ -136,13 +136,14 @@ $js_config = [
         "PLAYER_KINGDOM_SCOUT_BOOST" => PLAYER_KINGDOM_SCOUT_BOOST,
         "GUILD_SUPPORT_TRAVEL_BOOST" => GUILD_SUPPORT_TRAVEL_BOOST,
         "GUILD_BONUS_SUPPORT_SPEED_PER_LVL" => GUILD_BONUS_SUPPORT_SPEED_PER_LVL,
-        "MINE_TRAVEL_BOOST" => MINE_TRAVEL_BOOST
+        "MINE_TRAVEL_BOOST" => MINE_TRAVEL_BOOST,
+        "ADVENT_TRAVEL_BOOST" => ADVENT_CALENDAR_TRAVEL_BOOST
     ]
 ];
 
 // --- RECALL TROOPS FROM MINES ---
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])) {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         $x = (int)($_POST["mine_x"] ?? 0);

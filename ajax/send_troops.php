@@ -4,8 +4,6 @@ use JetBrains\PhpStorm\NoReturn;
 
 require_once("../includes/core.php");
 
-$user->check_user_login();
-
 if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
     $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
     $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
@@ -13,9 +11,20 @@ if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQ
     change_location("map.php?startx=$x&starty=$y");
 }
 
+$user->check_user_login();
+
 #[NoReturn]
 function exit_send_troops_error(string $message): void
 {
+    if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
+        $_SESSION["game_error"] = $message;
+
+        $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
+        $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
+
+        change_location("map.php?startx=$x&starty=$y");
+    }
+
     header("Content-Type: application/json; charset=utf-8");
     echo json_encode(["success" => false, "error" => $message]);
     exit;
@@ -29,9 +38,23 @@ $map = new Map($user);
 $target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : 1;
 $target_y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? intval($_GET["y"]) : 1;
 $kingdom_id = $map->get_field_kingdom_id($target_x, $target_y);
-$send_title = "Erobern";
 
-$is_founding = ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY);
+$res_gift = $db_instance->execute_query(
+    "SELECT id, day FROM advent_calendar_gifts WHERE user_id = ? AND mapx = ? AND mapy = ? AND is_collected = 0 LIMIT 1",
+    [$user->get_user_id(), $target_x, $target_y]
+)->fetch_assoc();
+
+$is_gift = ($res_gift !== null || ($_GET["mode"] ?? '') === "gift");
+$gift_day = $res_gift ? (int)$res_gift["day"] : (int)($_GET["day"] ?? 1);
+
+if ($is_gift) {
+    $kingdom_id = MapFieldTypes::MAP_FIELD_GIFT;
+    $send_title = "Advents-Geschenk bergen";
+    $is_founding = false;
+} else {
+    $send_title = "Erobern";
+    $is_founding = ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY);
+}
 
 $warning_box = "";
 
@@ -222,7 +245,7 @@ if ($expires_at > 0) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         exit_send_troops_error("Ungültiger Sicherheits-Token!");
     }
 
@@ -340,6 +363,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $error = "Du musst mindestens einen Soldaten auswählen!";
         } else if ($total_occupied_commands >= $max_commands) {
             $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
+        } else if ($is_gift && $total_units_in_request > ADVENT_CALENDAR_MAX_UNITS) {
+            $error = "Zu einem Geschenk kann maximal eine Einheit entsandt werden!";
         } else if ($kingdom_id == MapFieldTypes::MAP_FIELD_EMPTY && $settler_wagon_count > 0 && ($current_settled_count + $ongoing_foundations) >= $max_allowed_slots) {
             if ($max_allowed_slots >= GLOBAL_SETTLEMENT_MAX) {
                 $error = "Das absolute Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Dörfern ist erreicht!";
@@ -811,7 +836,16 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
                       <td>' . convert_sec_to_str($arrival_time) . '</td>
                   </tr>
               ';
-
+} else if ($is_gift) {
+    $view .= '<div class="title-border">Advents-Geschenk (Tag ' . $gift_day . ')</div>
+    <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
+        <tr><td class="td-mapinfo"><b>Koordinaten</b></td><td>' . $target_x . ':' . $target_y . '</td></tr>
+        <tr><td class="td-mapinfo"><b>Inhalt</b></td><td>Rohstoffe, ' . $gift_day . ' ' . ($gift_day === 1 ? "Münze" : "Münzen") . ' & Truppen-Chance</td></tr>
+        <tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>' . convert_sec_to_str($arrival_time) . ' <small style="color: #0BDA51;">(Eilbote)</small></td></tr>
+        <tr><td colspan="2" style="font-size: 13px; opacity: 0.8; text-align: center; padding: 10px;">
+            <i>Entsende 1 beliebige Einheit als Boten, um das Geschenk zu bergen.</i>
+        </td></tr>
+    </table>';
 } else {
     if ($kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
         $send_title = $is_spying ? "Vorratslager spionieren" : "Vorratslager plündern";
@@ -833,6 +867,7 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
                                       </tr>
                                 ';
 }
+
 $view .= "</table>";
 
 $category_counts = [
@@ -899,7 +934,9 @@ if ($barracks_level > 0) {
     } else if ($total_units_available > 0) {
         $button_label = "Truppen schicken";
 
-        if ($is_ally) {
+        if ($is_gift) {
+            $button_label = "Geschenk bergen";
+        } else if ($is_ally) {
             $button_label = "Unterstützung senden";
         } else if ($enemy_user_id == $user->get_user_id()) {
             $button_label = "Einheiten stationieren";
@@ -934,8 +971,11 @@ if ($barracks_level > 0) {
                                 data-support-max="' . $total_support_limit . '"';
         }
 
-        $view .= '<form action="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . '" method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . '>
-                        ' . csrf_input() . '
+        $gift_attrs = $is_gift ? ' data-is-gift="true" data-max-units="1"' : '';
+        $ajax_query_extra = $is_gift ? "&mode=gift&day=$gift_day" : "";
+
+        $view .= '<form action="javascript:void(0);" data-ajax-url="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . $ajax_query_extra . '" 
+                        method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . $gift_attrs . '> ' . csrf_input() . '
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
                             <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen</div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>

@@ -2,7 +2,9 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest") {
-    if ($user->is_logged_in()) {
+    if ($_SERVER["REQUEST_METHOD"] === "POST" && verify_csrf_token()) {
+        $user->check_user_login();
+
         $opened_at = $_SESSION["faq_opened_at"] ?? 0;
         $now = time();
         $required_seconds = ACHIEVEMENT_FAQ_OPEN_TIME;

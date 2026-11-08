@@ -22,7 +22,7 @@ $res_any_barracks = $db_instance->execute_query(
 $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
 
 if ($active_event && $_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
 
         change_location("events.php");
@@ -334,7 +334,7 @@ if (!$active_event) {
 
     if ($event_type === "BOSS_HP") {
         // --- BOSS HP LOGIC ---
-        $avg_lvl = $world_event_manager->get_user_max_building_avg($user_id);
+        $avg_lvl = Building::get_user_max_building_avg($user_id);
         $max_tc = $world_event_manager->get_max_tc_level($user_id);
 
         $num_slots = ($max_tc >= WORLD_EVENT_HP_SLOT_HIGH_TC) ? 3 : ($max_tc >= WORLD_EVENT_HP_SLOT_MID_TC ? 2 : WORLD_EVENT_HP_SLOT_LOW);

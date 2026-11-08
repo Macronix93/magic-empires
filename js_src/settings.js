@@ -243,4 +243,15 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
     }
+
+    const disableThemeCheckbox = document.getElementById("disable_special_theme_checkbox");
+    if (disableThemeCheckbox) {
+        disableThemeCheckbox.addEventListener("change", function () {
+            const snowWrap = document.getElementById("snow_setting_wrap");
+
+            if (snowWrap) {
+                snowWrap.style.display = this.checked ? "none" : "block";
+            }
+        });
+    }
 });

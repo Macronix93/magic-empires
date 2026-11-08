@@ -1,8 +1,12 @@
 <?php
 require_once("../includes/core.php");
 
-$user->check_user_login();
+if ($_SERVER["REQUEST_METHOD"] === "POST" && !verify_csrf_token()) {
+    echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+    exit;
+}
 
+$user->check_user_login();
 $uid = $user->get_user_id();
 $sug_id = (int)($_GET["id"] ?? 0);
 if ($sug_id <= 0) die("Ungültige ID");
@@ -210,6 +214,7 @@ $comments = $db_instance->execute_query(
     <?php endif; ?>
 
     <form id="form-suggestion-comment" method="POST" data-on-submit="submitSuggestionComment" style="margin-top: 10px;">
+        <?= csrf_input() ?>
         <input type="hidden" name="suggestion_id" value="<?= $sug_id ?>">
         <input type="hidden" name="cpage" value="<?= $current_page ?>">
 

@@ -32,10 +32,63 @@ if (!$user->is_admin()) {
     }
 
     if ($_SERVER["REQUEST_METHOD"] === "POST") {
-        if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+        if (!verify_csrf_token()) {
             $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
-            
+
             change_location("adminpanel.php");
+        }
+
+        if (isset($_POST["start_advent_calendar"])) {
+            $cal = new AdventCalendar();
+            $spawned = $cal->start_for_all_users();
+
+            $logger->admin("Adventskalender gestartet von " . $user->get_user_name() . " ($spawned Geschenke für Tag 1 verteilt)");
+
+            $_SESSION["game_success"] = "Adventskalender für die nächsten 24 Tage gestartet! Tag 1 wurde an <b>$spawned</b> Spieler verteilt.";
+
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["spawn_test_advent_gifts"])) {
+            $cal = new AdventCalendar();
+            $spawned = $cal->spawn_all_test_gifts($user->get_user_id());
+
+            $logger->admin("Admin Test-Geschenke (Tag 1 bis 24) gespawnt für " . $user->get_user_name());
+
+            $_SESSION["game_success"] = "Erfolg: Es wurden <b>$spawned Test-Geschenke (Tag 1 bis 24)</b> exklusiv für deinen Account auf der Karte verteilt!";
+
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["spawn_test_advent_user"])) {
+            $tname = trim($_POST["test_username"] ?? "");
+
+            $target_u = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$tname])->fetch_assoc();
+
+            if ($target_u) {
+                $t_id = (int)$target_u["id"];
+                $cal = new AdventCalendar();
+                $spawned = $cal->spawn_all_test_gifts($t_id);
+
+                $db_instance->execute_query("UPDATE users SET advent_intro_seen = 0 WHERE id = ?", [$t_id]);
+
+                $_SESSION["game_success"] = "Erfolg: <b>$spawned Test-Geschenke</b> für User <b>" . e($tname) . "</b> gespawnt und Modal-Intro aktiviert!";
+            } else {
+                $_SESSION["game_error"] = "Spieler '$tname' wurde nicht gefunden.";
+            }
+
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["stop_advent_calendar"])) {
+            $cal = new AdventCalendar();
+            $cal->stop();
+
+            $logger->admin("Adventskalender beendet von " . $user->get_user_name());
+
+            $_SESSION["game_success"] = "Adventskalender wurde beendet und alle Geschenke entfernt.";
+
+            change_location("adminpanel.php?tab=system");
         }
 
         if (isset($_POST["reset_arena_season"])) {
@@ -106,7 +159,8 @@ if (!$user->is_admin()) {
                 "arena_hero_skills",
                 "arena_players",
                 "arena_season_history",
-                "shared_battle_reports"
+                "shared_battle_reports",
+                "advent_calendar_gifts"
             ];
 
             foreach ($tables_to_clear as $t) {
@@ -256,15 +310,17 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["toggle_winter_theme"])) {
-            $new_val = (WINTER_THEME_ACTIVE ? "0" : "1");
+            $curr_server_val = ($sys_settings["winter_theme"] ?? '0') === '1';
+            $new_val = ($curr_server_val ? "0" : "1");
+
             $db_instance->execute_query(
-                "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'",
-                [$new_val]
+                "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'", [$new_val]
             );
 
             $logger->admin("WINTER THEME geändert auf: " . ($new_val == "1" ? "ON" : "OFF"));
 
             $_SESSION["game_success"] = "Winter-Theme wurde <b>" . ($new_val == "1" ? "aktiviert" : "deaktiviert") . "</b>!";
+
             change_location("adminpanel.php?tab=system");
         }
 
@@ -287,6 +343,37 @@ if (!$user->is_admin()) {
             }
 
             change_location("adminpanel.php?userid=" . $uid . "&tab=users");
+        }
+
+        if (isset($_POST["toggle_ip_ban"])) {
+            $target_ip = trim($_POST["ip"] ?? "");
+            $ban_status = (int)($_POST["ip_ban_status"] ?? 0);
+            $target_uid = (int)($_POST["user_id"] ?? 0);
+
+            if (filter_var($target_ip, FILTER_VALIDATE_IP)) {
+                if ($ban_status === 1) {
+                    $reason = trim($_POST["reason"] ?? "Verstoß gegen die Regeln");
+
+                    $db_instance->execute_query(
+                        "INSERT INTO banned_ips (ip, reason, banned_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason)",
+                        [$target_ip, $reason, time()]
+                    );
+
+                    $logger->admin("BANNED IP $target_ip. Reason: $reason");
+
+                    $_SESSION["game_success"] = "Die IP <b>$target_ip</b> wurde gesperrt!";
+                } else {
+                    $db_instance->execute_query("DELETE FROM banned_ips WHERE ip = ?", [$target_ip]);
+
+                    $logger->admin("UNBANNED IP $target_ip");
+
+                    $_SESSION["game_success"] = "Die IP <b>$target_ip</b> wurde entsperrt!";
+                }
+            } else {
+                $_SESSION["game_error"] = "Ungültige IP-Adresse!";
+            }
+
+            change_location("adminpanel.php?userid=" . $target_uid . "&tab=users");
         }
 
         if (isset($_POST["delete_log"])) {
@@ -564,18 +651,43 @@ if (!$user->is_admin()) {
                                     </a>';
                 }
 
+                $ip_action = '';
+                if ($label === "IP" && !empty($raw_value)) {
+                    $is_ip_banned = (bool)$db_instance->execute_query(
+                        "SELECT 1 FROM banned_ips WHERE ip = ? LIMIT 1",
+                        [$raw_value]
+                    )->fetch_column();
+
+                    $display_value .= $is_ip_banned
+                        ? " <b class='error'>[GESPERRT]</b>"
+                        : " <span class='passed'>[Aktiv]</span>";
+
+                    $ip_icon = $is_ip_banned ? 'icon_checked.png' : 'icon_error.png';
+                    $ip_title = $is_ip_banned ? 'IP entsperren' : 'IP sperren';
+                    $ip_status_flag = $is_ip_banned ? '0' : '1';
+
+                    $ip_action = ' <a href="#" data-on-click="banIpDialog" data-userid="' . e($user_id) . '" data-ip="' . e($raw_value) . '" data-status="' . $ip_status_flag . '">
+                                    <img src="images/icons/' . $ip_icon . '" class="ressource-icons" alt="IP Ban" title="' . $ip_title . '">
+                                </a>';
+                }
+
                 $user_info_html .= '<tr>
-                    <td style="width: 30%;">' . $label . ':</td>
-                    <td id="td_' . $field_id . '">' . $display_value . '</td>
-                    <td class="td-center" style="border-bottom: 1px solid var(--box-header);">' . $edit_action . ($label === "Name" ? '
-                        <a href="#" data-on-click="banUserDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '" data-status="' . e($row["is_banned"]) . '">
-                            <img src="images/icons/' . ($row["is_banned"] ? 'icon_checked.png' : 'icon_error.png') . '" class="ressource-icons" alt="Bannen" title="Sperren/Entsperren">
-                        </a>
-                        <a href="#" data-on-click="userDeletionDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '">
-                            <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen">
-                        </a>' : '') . '
-                    </td>
-                </tr>';
+                                    <td style="width: 30%;">' . $label . ':</td>
+                                    <td id="td_' . $field_id . '">' . $display_value . '</td>
+                                    <td class="td-center" style="border-bottom: 1px solid var(--box-header);">'
+                    . $edit_action
+                    . ($label === "Name" ? ' <a href="#" 
+                                                    data-on-click="banUserDialog" 
+                                                    data-userid="' . e($user_id) . '" 
+                                                    data-username="' . e($row["username"]) . '" 
+                                                    data-status="' . e($row["is_banned"]) . '">
+                        <img src="images/icons/' . ($row["is_banned"] ? 'icon_checked.png' : 'icon_error.png') . '" class="ressource-icons" alt="Bannen" title="Account sperren/entsperren">
+                    </a> <a href="#" data-on-click="userDeletionDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '">
+                        <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen">
+                    </a>' : '')
+                    . $ip_action . '
+                                    </td>
+                                </tr>';
             }
             $user_info_html .= '</table>';
 
@@ -741,8 +853,8 @@ if (!$user->is_admin()) {
     // Show Server Settings
     $m_status = MAINTENANCE_MODE ? "<span class='error'>AKTIV</span>" : "<span class='passed'>Inaktiv</span>";
     $m_button = MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren";
-    $w_status = WINTER_THEME_ACTIVE ? "<span class='passed' style='font-weight: bold;'>AKTIV</span>" : "<span class='error'>Inaktiv</span>";
-    $w_button = WINTER_THEME_ACTIVE ? "Deaktivieren" : "Aktivieren";
+    $w_status = $server_winter ? "<span class='passed' style='font-weight: bold;'>AKTIV</span>" : "<span class='error'>Inaktiv</span>";
+    $w_button = $server_winter ? "Deaktivieren" : "Aktivieren";
 
     $settings_list = "<div class='box-container' style='margin-bottom: 20px;'>
         <div class='box-header'>System-Steuerung</div>
@@ -824,24 +936,57 @@ if (!$user->is_admin()) {
     <div class='box-container' style='margin-top: 20px;'>
         <div class='box-header'>Arena-Steuerung</div>
         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
-            <p style='margin-top: 0;'>Schüttet sofort alle Saison-Belohnungen an die Spieler aus, setzt Wertungen/Tickets zurück und startet direkt die neue Saison.</p>
+            <p style='margin-top: 0;'>Setzt alle Arena-Wertungen und Helden zurück.</p>
             <form method='POST'>
                 " . csrf_input() . "
                 <input type='submit' name='reset_arena_season' value='Arena Saison-Reset jetzt durchführen' onclick='return confirm(\"Bist du sicher? Alle Belohnungen werden ausgeschüttet und eine neue Saison gestartet!\");'>
             </form>
         </div>
     </div>";
-    $settings_list .= "<div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
-                        <div class='box-header' style='background: #a62121; color: white; border-bottom: #340202 2px solid;'>Welt-Reset</div>
-                        <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
-                            <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
-                            <form method='POST'>
-                                " . csrf_input() . "
-                                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
-                                <input type='hidden' name='reset_round' id='hidden_reset_submit'>
-                            </form>
-                        </div>
-                    </div>";
+
+    $cal_active = AdventCalendar::is_active();
+    $cal_status = $cal_active
+        ? "<span class='passed' style='font-weight:bold;'>AKTIV (Tag " . AdventCalendar::get_current_day() . " von 24)</span>"
+        : "<span class='error'>Inaktiv</span>";
+    $settings_list .= "
+    <div class='box-container' style='margin-top: 20px;'>
+        <div class='box-header'>Adventskalender-Steuerung (Testmodus)</div>
+        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+            <p style='margin-top: 0;'>Status: $cal_status</p>
+            <div style='display: flex; gap: 10px; flex-direction: column; justify-content: center; flex-wrap: wrap; align-items: center;'>
+                <form method='POST'>
+                    " . csrf_input() . "
+                    <input type='submit' name='spawn_test_advent_gifts' value='24 Test-Geschenke für MICH'>
+                </form>
+                <form method='POST' style='display:flex; gap:5px; align-items:center;'>
+                    " . csrf_input() . "
+                    <input type='text' name='test_username' placeholder='Test-User Name...' style='width: 140px;' required>
+                    <input type='submit' name='spawn_test_advent_user' value='Für Test-User'>
+                </form>
+                " . (!$cal_active ? "
+                <form method='POST'>
+                    " . csrf_input() . "
+                    <input type='button' data-on-click='confirmStartAdvent' value='🎄 Für alle starten (24 Tage)'>
+                </form>" : "
+                <form method='POST'>
+                    " . csrf_input() . "
+                    <input type='button' data-on-click='confirmStopAdvent' value='Kalender stoppen & leeren' class='btn-delete'>
+                </form>") . "
+            </div>
+        </div>
+    </div>";
+    $settings_list .= "
+    <div class='box-container' style='margin-top: 20px; border-color: #a62121;'>
+        <div class='box-header' style='background: #a62121; color: white; border-bottom: #340202 2px solid;'>Welt-Reset</div>
+        <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
+            <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
+            <form method='POST'>
+                " . csrf_input() . "
+                <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
+                <input type='hidden' name='reset_round' id='hidden_reset_submit'>
+            </form>
+        </div>
+    </div>";
 
     $system_log_section .= "<div class='title-border'>System-Logfiles (.log)</div>";
     $system_log_section .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";

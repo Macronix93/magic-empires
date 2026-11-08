@@ -21,18 +21,9 @@ if (!in_array($active_tab, $allowed_tabs)) {
     $active_tab = "profile";
 }
 
-// Generate a random token
-if (!isset($_SESSION["csrf_token"])) {
-    try {
-        $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
-    } catch (Throwable $e) {
-        $_SESSION["csrf_token"] = md5(uniqid(mt_rand(), true));
-    }
-}
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Validate CSRF token
-    if (!verify_csrf_token($_POST["csrf_token"] ?? null)) {
+    if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if (isset($_POST['submit_avatar'])) {
@@ -367,10 +358,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $_COOKIE["me_map_popup"] = $map_popup;
             $_COOKIE["me_autofocus_troops"] = $autofocus_troops;
 
-            if (WINTER_THEME_ACTIVE) {
-                $show_snow = isset($_POST["show_snow"]) ? "1" : "0";
-                setcookie("me_show_snow", $show_snow, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-                $_COOKIE["me_show_snow"] = $show_snow;
+            if ($server_winter) {
+                $disable_special = isset($_POST["disable_special_theme"]) ? "1" : "0";
+                setcookie("me_disable_special_theme", $disable_special, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+                $_COOKIE["me_disable_special_theme"] = $disable_special;
+
+                $theme_pref = ($disable_special === "1") ? "default" : "auto";
+                setcookie("me_theme_pref", $theme_pref, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+                $_COOKIE["me_theme_pref"] = $theme_pref;
+
+                if ($disable_special !== "1") {
+                    $show_snow = isset($_POST["show_snow"]) ? "1" : "0";
+                    setcookie("me_show_snow", $show_snow, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+                    $_COOKIE["me_show_snow"] = $show_snow;
+                }
             }
 
             $_SESSION["game_success"] = "Anzeige-Einstellungen erfolgreich gespeichert.";
@@ -564,8 +565,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 
-$csrf_token = $_SESSION['csrf_token'];
-
 
 /*
  * HTML Section
@@ -607,7 +606,7 @@ $view .= '
     <div class="box-header">Anrede & Titel</div>
     <div class="box-content box-content-bg" style="padding: 15px;">
         <form method="POST">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            ' . csrf_input() . '
             <input type="hidden" name="save_salutation_and_title" value="1">
             <div style="display: flex; gap: 20px; justify-content: center; align-items: center; margin-bottom: 15px;">
                 <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
@@ -638,7 +637,7 @@ $view .= '
                  style="width: 60px; height: 60px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);">
         </div>
         <form action="settings.php" method="POST" enctype="multipart/form-data" id="avatar-upload-form">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
+            ' . csrf_input() . '
             <input type="hidden" name="submit_avatar" value="1">
             <p>Neues Profilbild hochladen (Max. ' . MAX_UPLOAD_FILE_SIZE . ' KB):</p>
             <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif" required>
@@ -661,14 +660,24 @@ $cur_map_popup = ((int)($_COOKIE["me_map_popup"] ?? 1) === 1);
 $cur_filter = ($_SESSION["chat_filter"] ?? 1);
 $cur_show_snow = (($_COOKIE["me_show_snow"] ?? "1") === "1");
 $cur_autofocus_troops = (($_COOKIE["me_autofocus_troops"] ?? "0") === "1");
+$cur_disable_special = (($_COOKIE["me_disable_special_theme"] ?? "0") === "1") || (($cur_theme_pref ?? "") === "default");
 
-$snow_checkbox_html = "";
-if (WINTER_THEME_ACTIVE) {
-    $snow_checkbox_html = '
+$special_theme_html = "";
+if ($server_winter) {
+    $special_theme_html .= '
         <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-            <input type="checkbox" name="show_snow" value="1" style="width: auto;" ' . ($cur_show_snow ? "checked" : "") . '>
-            <span>Schnee-Effekt aktivieren<br><small style="opacity: 0.7;">(Schneefall-Animation des Winter-Themes)</small></span>
+            <input type="checkbox" name="disable_special_theme" id="disable_special_theme_checkbox" value="1" style="width: auto;" ' . ($cur_disable_special ? "checked" : "") . '>
+            <span>Event-Design deaktivieren<br><small style="opacity: 0.7;">(Klassisches Design nutzen, anstatt des aktiven Winter-Themes)</small></span>
         </label>';
+
+    $snow_wrap_style = $cur_disable_special ? 'style="display: none;"' : '';
+    $special_theme_html .= '
+        <div id="snow_setting_wrap" ' . $snow_wrap_style . '>
+            <label style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                <input type="checkbox" name="show_snow" value="1" style="width: auto;" ' . ($cur_show_snow ? "checked" : "") . '>
+                <span>Schnee-Effekt aktivieren<br><small style="opacity: 0.7;">(Schneefall-Animation des Winter-Themes)</small></span>
+            </label>
+        </div>';
 }
 
 $view .= '
@@ -676,8 +685,8 @@ $view .= '
     <div class="box-header">Ansicht & Anzeige</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="game">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr>
                     <td>Einträge pro Seite (Übersicht):</td>
@@ -717,7 +726,7 @@ $view .= '
                             <input type="checkbox" name="chat_filter" value="1" style="width: auto;" ' . ($cur_filter ? "checked" : "") . '>
                             <span>Schimpfwort-Filter in privaten Nachrichten und Chats aktivieren</span>
                         </label>
-                        ' . $snow_checkbox_html . '
+                        ' . $special_theme_html . '
                     </td>
                 </tr>
             </table><br>
@@ -734,8 +743,8 @@ $view .= '
     <div class="box-header">Aktuelles Königreich umbenennen</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="game">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <p style="margin-top: 0;">Aktueller Name: <b>' . e($current_k_name) . '</b></p>
             <input type="text" name="new_kingdom_name" maxlength="25" placeholder="Neuer Name..." required style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="rename_kingdom" value="Namen speichern">
@@ -759,8 +768,8 @@ $view .= '
         <p style="margin-top:0;">' . $current_partner_text . '</p>
         <p>Spielst du mit jemandem aus dem gleichen Haushalt? Gib hier den Namen an, um Sperren zu vermeiden:</p>
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="game">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <input type="text" name="partner_name" value="' . e($current_partner_name) . '" placeholder="Name des Mitspielers..." style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="update_sharing" value="Partner speichern">
         </form>
@@ -805,8 +814,8 @@ $view .= '
     <div class="box-header">Benutzernamen ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="16" required></td></tr>
                 <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_name" required></td></tr>
@@ -824,8 +833,8 @@ $view .= '
     <div class="box-header">Passwort ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Aktuelles Passwort:</td><td><input type="password" name="old_pw" required></td></tr>
                 <tr><td>Neues Passwort:</td><td><input type="password" name="new_pw" required></td></tr>
@@ -841,8 +850,8 @@ $view .= '
     <div class="box-header">E-Mail Adresse ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Neue E-Mail:</td><td><input type="email" name="new_email" required></td></tr>
                 <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_email" required></td></tr>
@@ -889,8 +898,8 @@ $view .= '
 
         <h4 style="margin: 0 0 10px 0;">Benachrichtigungs-Arten anpassen:</h4>
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" name="push_combat" value="1" ' . ($val_combat ? "checked" : "") . '>
@@ -928,8 +937,8 @@ $view .= '
 if ($push_devices_count > 0) {
     $view .= '
             <form method="POST" style="margin-top: 8px;">
+                ' . csrf_input() . '
                 <input type="hidden" name="tab" value="account">
-                <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
                 <input type="submit" 
                        name="delete_all_push_devices" 
                        value="Alle registrierten Geräte entfernen" 
@@ -964,8 +973,8 @@ $view .= '<div class="box-container" style="border-color: var(--border-gold); ma
                 <span style="font-size: 13px;"><b>Nicht möglich:</b><br>' . implode("<br>", $vac_checks) . '</span>
             </div>' : '') . '
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr>
                     <td style="width: 45%;">Dauer:</td>
@@ -997,8 +1006,8 @@ $view .= '
     <div class="box-content box-content-bg-danger" style="padding: 10px;">
         <p class="error"><b>Vorsicht:</b> Das Löschen deines Accounts kann nicht rückgängig gemacht werden!</p>
         <form method="POST">
+            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
-            <input type="hidden" name="csrf_token" value="' . $csrf_token . '">
             <table class="table" style="width: 100%;">
                 <tr><td>Passwort zur Bestätigung:</td><td><input type="password" name="confirm_pw_delete" required></td></tr>
                 <tr><td>Tippe das Wort <b>LOESCHEN</b>:</td><td><input type="text" name="confirm_word" required></td></tr>
@@ -1009,7 +1018,6 @@ $view .= '
 </div>';
 
 $view .= "</div>";
-
 $view .= '</div>';
 
 include("layout/base.php");

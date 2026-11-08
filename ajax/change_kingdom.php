@@ -2,7 +2,19 @@
 require_once("../includes/core.php");
 
 if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
+        exit;
+    }
+
+    if (!verify_csrf_token()) {
+        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
+        exit;
+    }
+
+    $user->check_user_login();
     $chosen = $_POST["choosekingdom"] ?? null;
+
     if (isset($chosen) && is_numeric($chosen)) {
         $chosen = (int)$chosen;
         $res = $db_instance->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$chosen]);
