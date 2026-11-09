@@ -1,21 +1,6 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
-    change_location("messages.php");
-}
-
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
-    exit;
-}
-
-if (!verify_csrf_token()) {
-    echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
-    exit;
-}
-
-$user->check_user_login();
 $u_id = $user->get_user_id();
 $is_admin = $user->is_admin();
 $type = $_POST["type"] ?? "private";

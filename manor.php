@@ -11,12 +11,11 @@ $level = $building->get_building_level();
 $boost_villager_amount = ($level >= BOOST_ESTATE_HIGH_BUILDING_LEVEL)
     ? BOOST_ESTATE_VILLAGER_HIGH_AMOUNT
     : BOOST_ESTATE_VILLAGER_BASE_AMOUNT;
+$boost_cost = Building::calculate_boost_cost($level);
+$this_boost = $kingdom->get_active_boost(ResourceTypes::RESOURCE_TYPE_VILLAGER);
+$boost_amount = $this_boost["amount"];
+$ticks_left = $this_boost["ticks"];
 
-$boost_cost = BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $level - 1);
-$active_boosts = $kingdom->get_active_boosts(ResourceTypes::RESOURCE_TYPE_VILLAGER);
-$this_boost = $active_boosts[ResourceTypes::RESOURCE_TYPE_VILLAGER] ?? null;
-$boost_amount = $this_boost["amount"] ?? 0;
-$ticks_left = $this_boost["ticks"] ?? 0;
 $boost_duration_ticks = $level + BASE_BOOST_DURATION;
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . fnum($boost_amount) . ")</span>" : "";
 
@@ -87,7 +86,6 @@ if ($level >= BOOST_MIN_BUILDING_LEVEL) {
 
         $view .= "<p class='res-building-boost-text'>Ein Boost erhöht den Zuwachs für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>+" . $boost_villager_amount . " Dorfbewohner</b>.</p>";
         $view .= "<form method='POST'>
-                    " . csrf_input() . "
                     <button type='submit' name='activate_boost' class='boost-button' $disabled>
                         Boost aktivieren für $cost_display_html
                     </button>

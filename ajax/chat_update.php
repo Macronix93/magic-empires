@@ -1,11 +1,5 @@
 <?php
-require_once("../includes/core.php");
-
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
-    change_location("messages.php");
-}
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 
 $type = $_POST["type"] ?? $_GET["type"] ?? "private";
 $allowed_types = ["private", "world", "guild"];

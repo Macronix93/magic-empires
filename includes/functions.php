@@ -755,14 +755,14 @@ function check_ip_proxy($ip): array|null
     return null;
 }
 
-function format_time_for_js(int $totalSeconds): string
+function format_time_for_js(int $total_seconds): string
 {
-    if ($totalSeconds <= 0) return "00:00";
+    if ($total_seconds <= 0) return "00:00";
 
-    $days = floor($totalSeconds / 86400);
-    $hours = floor(($totalSeconds % 86400) / 3600);
-    $minutes = floor(($totalSeconds % 3600) / 60);
-    $seconds = $totalSeconds % 60;
+    $days = floor($total_seconds / 86400);
+    $hours = floor(($total_seconds % 86400) / 3600);
+    $minutes = floor(($total_seconds % 3600) / 60);
+    $seconds = $total_seconds % 60;
 
     $h_display = str_pad($hours, 2, '0', STR_PAD_LEFT);
     $m_display = str_pad($minutes, 2, '0', STR_PAD_LEFT);
@@ -922,4 +922,56 @@ function verify_csrf_token(?string $token = null): bool
 function csrf_input(): string
 {
     return '<input type="hidden" name="csrf_token" value="' . e(get_csrf_token()) . '">';
+}
+
+function auto_inject_csrf_token(string $buffer): string
+{
+    if (empty($buffer) || stripos($buffer, '<form') === false) {
+        return $buffer;
+    }
+
+    return preg_replace_callback('/<form\b[^>]*>/i', function ($matches) {
+        $form_tag = $matches[0];
+
+        if (!preg_match('/\bmethod\s*=\s*["\']?post["\']?/i', $form_tag)) {
+            return $form_tag;
+        }
+
+        return $form_tag . "\n" . csrf_input();
+    }, $buffer);
+}
+
+function render_loot_items(array $resources): array
+{
+    $items = [];
+
+    foreach ($resources as $type => $amount) {
+        $amt = (int)$amount;
+
+        if ($amt > 0) {
+            $items[] = "<div class='loot-item'>" . get_resource_icon($type) . " <span>" . fnum($amt) . "</span></div>";
+        }
+    }
+
+    return $items;
+}
+
+function render_cost_legend(array $costs, Kingdom $kingdom): string
+{
+    $res_map = [
+            ResourceTypes::RESOURCE_TYPE_FOOD => ["cost" => $costs["cost_food"] ?? 0, "current" => $kingdom->get_kingdom_food()],
+            ResourceTypes::RESOURCE_TYPE_WOOD => ["cost" => $costs["cost_wood"] ?? 0, "current" => $kingdom->get_kingdom_wood()],
+            ResourceTypes::RESOURCE_TYPE_STONE => ["cost" => $costs["cost_stone"] ?? 0, "current" => $kingdom->get_kingdom_stone()],
+            ResourceTypes::RESOURCE_TYPE_GOLD => ["cost" => $costs["cost_gold"] ?? 0, "current" => $kingdom->get_kingdom_gold()]
+    ];
+    $html = "";
+
+    foreach ($res_map as $type => $data) {
+        if ($data["cost"] > 0) {
+            $text = get_resource_text($data["cost"], $data["current"]);
+            $html .= "<div class='legend-item'>" . get_resource_icon($type) . " " . $text . "</div>";
+        }
+    }
+
+    return $html;
 }

@@ -833,6 +833,16 @@ class SoldierTypes
             self::SOLDIER_TYPE_SUPPORT => "Unterstützung"
         ];
     }
+
+    public static function get_empty_category_map(int|float $default = 0): array
+    {
+        return [
+            self::SOLDIER_TYPE_INFANTRY => $default,
+            self::SOLDIER_TYPE_CAVALRY => $default,
+            self::SOLDIER_TYPE_ARCHERS => $default,
+            self::SOLDIER_TYPE_SPECIAL => $default
+        ];
+    }
 }
 
 /*

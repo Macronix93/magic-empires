@@ -740,9 +740,9 @@ class Guild
 
     public function delete_invite_msg($db, $uid): void
     {
-        if (isset($_GET["msg_id"])) {
-            $msg_id = (int)$_GET["msg_id"];
+        $msg_id = (int)($_POST["msg_id"] ?? $_GET["msg_id"] ?? 0);
 
+        if ($msg_id > 0) {
             $db->execute_query("DELETE FROM server_messages WHERE id = ? AND receiverid = ?", [$msg_id, $uid]);
         }
     }

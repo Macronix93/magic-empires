@@ -502,18 +502,8 @@ $pure_base_atk = 0;
 $pure_base_def = 0;
 $total_smithy_atk = 0;
 $total_shrine_atk = 0;
-$cat_atk = [
-    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-];
-$cat_def = [
-    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-];
+$cat_atk = SoldierTypes::get_empty_category_map();
+$cat_def = SoldierTypes::get_empty_category_map();
 
 foreach ($result_combined as $row) {
     $soldier_id = (int)$row["soldierid"];
@@ -1007,7 +997,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                   data-timer-cat='$unit_cat'>
                                 " . format_time_for_js($remaining_for_this_unit) . "</span><br>
                               <form id='cancel-form' action='barracks.php' method='POST'>
-                                    " . csrf_input() . "
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='recruit' value='$i'>
                                     <input type='hidden' name='cat' value='$unit_cat'>
@@ -1044,7 +1033,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                   data-timer-cat='$unit_cat'>
                 " . format_time_for_js($rem) . "</span><br>
             <form id='cancel-form-upg' action='barracks.php' method='POST'>
-                " . csrf_input() . "
                 <input type='hidden' name='action' value='cancel'>
                 <input type='hidden' name='recruit' value='$i'>
                 <input type='hidden' name='cat' value='$unit_cat'>
@@ -1094,7 +1082,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         }
 
         $text_build = "<form action='barracks.php' method='POST' style='display: flex; flex-direction: column; gap: 5px; align-items: center;'>
-                        " . csrf_input() . "
                         <input type='hidden' name='action' value='train'>
                         <input type='hidden' name='recruit' value='$i'>
                         <input type='hidden' name='cat' value='$unit_cat'>
@@ -1279,7 +1266,6 @@ if (!empty($grouped_in)) {
                 </td>
                 <td class='td-center'>
                     <form method='POST'>
-                        " . csrf_input() . "
                         <input type='hidden' name='action' value='return_support_stack'>
                         <input type='hidden' name='return_support_stack' value='1'>
                         <input type='hidden' name='target_id' value='{$data["target_id"]}'>
@@ -1380,7 +1366,6 @@ if (!empty($grouped_out)) {
                     </td>
                     <td class='td-center'>
                         <form method='POST'>
-                            " . csrf_input() . "
                             <input type='hidden' name='action' value='return_support_stack'>
                             <input type='hidden' name='return_support_stack' value='1'>
                             <input type='hidden' name='target_id' value='{$data["target_id"]}'>

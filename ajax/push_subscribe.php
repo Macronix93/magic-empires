@@ -1,12 +1,5 @@
 <?php
-require_once("../includes/core.php");
-
-if (!verify_csrf_token()) {
-    echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
-    exit;
-}
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 
 $raw = file_get_contents("php://input");
 $data = json_decode($raw, true);

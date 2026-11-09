@@ -239,7 +239,6 @@ $view .= "
 <div class='box-container' style='max-width: 650px; margin: 0 auto 25px auto;'>
     <div class='box-header'>Neuen Vorschlag einreichen</div>
     <form method='POST' id='new-suggestion-form' data-cooldown='" . ($is_on_cooldown ? "true" : "false") . "' class='box-content box-content-bg' style='padding: 15px;'>
-        " . csrf_input() . "
         <input type='text' name='title' id='new-sug-title' placeholder='Kurzer, aussagekräftiger Titel...' value='$post_title' 
                 minlength='" . SUGGESTION_TITLE_MIN_LENGTH . "' maxlength='" . SUGGESTION_TITLE_MAX_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>
         <textarea name='content' id='new-sug-content' rows='5' placeholder='Beschreibe deine Idee möglichst genau...' 
@@ -357,7 +356,6 @@ while ($row = $suggestions->fetch_assoc()) {
             <hr style='margin: 12px 0 8px 0; border: 0; border-top: 1px dashed rgba(255,255,255,0.1);'>
             <div style='width: 100%;'>
                 <form method='POST' style='display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; width: 100%;'>
-                    " . csrf_input() . "
                     <input type='hidden' name='suggestion_id' value='$sug_id'>
                     <input type='hidden' name='admin_update_status' value='1'>
                     <select name='status' style='font-size: 12px; padding: 2px 20px 2px 4px;'>

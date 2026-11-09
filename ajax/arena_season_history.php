@@ -1,7 +1,5 @@
 <?php
-require_once("../includes/core.php");
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 
 $db = Database::get_instance()->get_connection();
 
@@ -11,7 +9,7 @@ $german_months = [
         9 => "September", 10 => "Oktober", 11 => "November", 12 => "Dezember"
 ];
 
-// Alle vorhandenen Monate ermitteln
+// Get all available months
 $months_res = $db->query("SELECT DISTINCT season_month FROM arena_season_history ORDER BY season_month DESC");
 $available_months = array_column($months_res->fetch_all(MYSQLI_ASSOC), "season_month");
 

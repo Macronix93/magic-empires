@@ -1,7 +1,5 @@
 <?php
-require_once("../includes/core.php");
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 
 $target_uid = (int)($_GET["userid"] ?? 0);
 if ($target_uid <= 0) {

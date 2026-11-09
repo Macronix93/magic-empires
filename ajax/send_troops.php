@@ -2,16 +2,7 @@
 
 use JetBrains\PhpStorm\NoReturn;
 
-require_once("../includes/core.php");
-
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
-    $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
-    $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
-
-    change_location("map.php?startx=$x&starty=$y");
-}
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 
 #[NoReturn]
 function exit_send_troops_error(string $message): void
@@ -870,12 +861,7 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
 
 $view .= "</table>";
 
-$category_counts = [
-    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-];
+$category_counts = SoldierTypes::get_empty_category_map();
 
 $total_units_available = 0;
 
@@ -975,7 +961,7 @@ if ($barracks_level > 0) {
         $ajax_query_extra = $is_gift ? "&mode=gift&day=$gift_day" : "";
 
         $view .= '<form action="javascript:void(0);" data-ajax-url="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . $ajax_query_extra . '" 
-                        method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . $gift_attrs . '> ' . csrf_input() . '
+                        method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . $gift_attrs . '>
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
                             <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen</div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>

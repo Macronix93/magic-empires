@@ -317,7 +317,6 @@ if (!$active_event) {
                         </button>
                         <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
                         <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
-                            " . csrf_input() . "
                             <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
                                 " . Messages::wrap_emojis("⚔️ Massenmobilisierung") . "
                             </button>
@@ -449,7 +448,6 @@ if (!$active_event) {
         if (count($user_all_k) > 1) {
             $view .= "
             <form method='POST' style='display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;'>
-                " . csrf_input() . "
                 <span><b>Beute-Ziel:</b></span>
                 <div style='display: flex; gap: 6px; align-items: center;'>
                     <select name='reward_kingdom_id' style='max-width: 220px; font-size: 12px;'>

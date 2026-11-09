@@ -111,7 +111,6 @@ foreach ($steps as $percent => $label) {
 
     $view .= "
         <form method='POST' style='width: 100%;'>
-            " . csrf_input() . "
             <input type='hidden' name='repair_step' value='1'>
             <input type='hidden' name='repair_percent' value='$percent'>
             <button type='submit' style='width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px;' $disabled>

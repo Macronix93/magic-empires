@@ -75,7 +75,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
 
 <div class="form">
     <form class="login-register" method="POST" action="forgotpassword.php">
-        <?= csrf_input() ?>
         <fieldset>
             <legend><b>Passwort vergessen</b></legend>
             <?php

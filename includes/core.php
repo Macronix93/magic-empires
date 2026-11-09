@@ -135,6 +135,8 @@ $user = new User($_SESSION["userid"] ?? -1, "", $_SESSION["kingdomid"] ?? -1);
 
 if (!$is_cli) {
     require_once("sessions.php");
+    
+    ob_start("auto_inject_csrf_token");
 }
 
 $error = "";

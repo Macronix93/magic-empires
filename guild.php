@@ -438,7 +438,6 @@ if ($my_guild_id === -1) {
         $view .= "<br><hr><br><div class='box-container' style='max-width: 650px; margin: 0 auto;'>
             <div class='box-header'>Eigene Gilde gründen</div>
             <form method='POST' class='box-content box-content-bg' style='padding: 15px;'>
-                " . csrf_input() . "
                 <table class='table'>
                     <tr>
                         <td>Gilden-Name:</td>
@@ -671,7 +670,6 @@ if ($my_guild_id === -1) {
         <div class='box-header'>Gilden-Wappen</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST' enctype='multipart/form-data'>" : "") . "
-                " . csrf_input() . "
                 <div style='text-align: center;'>
                     <img src='" . $guild_logic->get_avatar() . "' 
                          style='width: 64px; height: 64px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);' alt='Wappen'>
@@ -692,7 +690,6 @@ if ($my_guild_id === -1) {
         <div class='box-header'>Gilden-Identität</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST'>" : "") . "
-                " . csrf_input() . "
                 <table class='table'>
                     <tr>
                         <td>Gilden-Name:</td>
@@ -736,7 +733,6 @@ if ($my_guild_id === -1) {
         <div class='box-header'>Öffentliches Profil</div>
         <div class='box-content box-content-bg' style='padding: 15px;'>
             " . ($can_edit ? "<form method='POST'>" : "") . "
-                " . csrf_input() . "
                 <table class='table'>
                     <tr>
                         <td>Gilden-Motto:</td>
@@ -927,13 +923,14 @@ if ($my_guild_id === -1) {
             $loot_sapphire = (int)floor($am["sapphire"] * $mined_ratio);
             $loot_diamond = (int)floor($am["diamond"] * $mined_ratio);
 
-            $loot_items = [];
-            if ($loot_stone > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " <span>" . fnum($loot_stone) . "</span></div>";
-            if ($loot_gold > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " <span>" . fnum($loot_gold) . "</span></div>";
-            if ($loot_coal > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COAL) . " <span>" . fnum($loot_coal) . "</span></div>";
-            if ($loot_iron > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_IRON) . " <span>" . fnum($loot_iron) . "</span></div>";
-            if ($loot_sapphire > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_SAPPHIRE) . " <span>" . fnum($loot_sapphire) . "</span></div>";
-            if ($loot_diamond > 0) $loot_items[] = "<div class='loot-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DIAMOND) . " <span>" . fnum($loot_diamond) . "</span></div>";
+            $loot_items = render_loot_items([
+                ResourceTypes::RESOURCE_TYPE_STONE => $loot_stone,
+                ResourceTypes::RESOURCE_TYPE_GOLD => $loot_gold,
+                ResourceTypes::RESOURCE_TYPE_COAL => $loot_coal,
+                ResourceTypes::RESOURCE_TYPE_IRON => $loot_iron,
+                ResourceTypes::RESOURCE_TYPE_SAPPHIRE => $loot_sapphire,
+                ResourceTypes::RESOURCE_TYPE_DIAMOND => $loot_diamond
+            ]);
 
             $loot_popup_content = !empty($loot_items) ? "<div style='display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap;'>" .
                 implode("", $loot_items) . "</div>" : "<div style='margin-top: 5px; opacity: 0.8;'><i>Noch keine Erze abgebaut.</i></div>";
@@ -1143,7 +1140,6 @@ if ($my_guild_id === -1) {
                 <hr>
                 <h4 style='margin: 15px 0 10px 0;'>Projekt unterstützen</h4>
                 <form method='POST'>
-                    " . csrf_input() . "
                     <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 300px; margin: 0 auto;'>
                         $donate_html
                     </div>
@@ -1356,7 +1352,6 @@ if ($my_guild_id === -1) {
             if ($show_cancel_btn) {
                 $action_btn .= "<br><div style='margin-top: 5px;'>
                                 <form method='POST' action='guild.php?tab=research' style='margin: 0;'>
-                                    " . csrf_input() . "
                                     <input type='hidden' name='cancel_project' value='1'>
                                     <button type='button' data-on-click='confirmCancelProject' data-donated='$total_donated'>
                                         Abbrechen
@@ -1368,7 +1363,6 @@ if ($my_guild_id === -1) {
             $disabled = ($project || !$has_special_resources) ? " disabled" : "";
 
             $action_btn = "<form method='POST' action='guild.php?tab=research' style='margin: 0;'>
-                            " . csrf_input() . "
                             <input type='hidden' name='mark_project' value='{$t["id"]}'>
                             <button type='submit'$disabled>Markieren</button>
                         </form>";

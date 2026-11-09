@@ -71,7 +71,6 @@ $disabled = $current_align == AlignmentTypes::ALIGN_NONE;
 $view .= "
     <div style='text-align: center; margin-bottom: 20px;'>
         <form method='POST'>
-            " . csrf_input() . "
             <input type='hidden' name='reset_align' value='1'>
             <button type='submit' " . ($disabled ? "disabled" : "") . ">Gesinnung ablegen</button>
         </form>
@@ -90,7 +89,6 @@ while ($data = $res_aligns->fetch_assoc()) {
             <span class='passed'>+$display_bonus% {$data["bonus_text"]}</span><br>
             <span class='error'>-$display_malus% {$data["malus_text"]}</span><br><br>
             <form method='POST'>
-                " . csrf_input() . "
                 <input type='hidden' name='choose_align' value='{$data['id']}'>
                 <button type='submit' " . ($current_align == $data["id"] ? "disabled" : "") . ">
                     " . ($current_align == $data["id"] ? "Bereits gewählt" : "Dienen") . "

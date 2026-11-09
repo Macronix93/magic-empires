@@ -1100,9 +1100,10 @@ input[type=submit]:not(:disabled):active,
 input[type=button]:not(:disabled):active,
 button:not(:disabled):active {
     background: linear-gradient(180deg, #3d1209 0%, #5e1910 100%) !important;
-    border-top-width: 3px !important;
-    border-bottom-width: 1px !important;
-    box-shadow: inset 0 0.1em 0.25em rgba(0, 0, 0, 0.3) !important;
+    border-top-width: 2px !important;
+    border-bottom-width: 2px !important;
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5) !important;
     transition: none !important;
 }
 
@@ -3692,7 +3693,7 @@ img[data-on-click] {
 
 .show-ach-userinfo,
 .guild-invitation-button {
-    width: 75px;
+    width: 80px;
 }
 
 .active-title-dropdown {

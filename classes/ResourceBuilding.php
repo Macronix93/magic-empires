@@ -57,11 +57,11 @@ class ResourceBuilding
         $kingdom = $result['kingdom'];
         $lvl = $building->get_building_level();
 
-        $boost_cost = BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $lvl - 1);
-        $active_boosts = $kingdom->get_active_boosts($res_type);
-        $this_boost = $active_boosts[$res_type] ?? null;
-        $boost_amount = $this_boost["amount"] ?? 0;
-        $ticks_left = $this_boost["ticks"] ?? 0;
+        $boost_cost = $building->calculate_boost_cost($lvl);
+        $this_boost = $kingdom->get_active_boost($res_type);
+        $boost_amount = $this_boost["amount"];
+        $ticks_left = $this_boost["ticks"];
+
         $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . fnum($boost_amount) . ")</span>" : "";
         $boost_duration_ticks = $lvl + BASE_BOOST_DURATION;
 
@@ -135,7 +135,6 @@ class ResourceBuilding
         } else {
             $view .= "<p class='res-building-boost-text'>Ein Boost erhöht den Basis-Ertrag für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>" . fnum($boost_value) . "</b>.</p>";
             $view .= "<form method='POST'>
-                        " . csrf_input() . "
                         <button type='submit' name='activate_boost' class='boost-button' $disabled>
                             Boost aktivieren für $cost_display_html
                         </button>

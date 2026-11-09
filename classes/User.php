@@ -678,6 +678,7 @@ class User
             "building" => $building,
             "building_name" => $building->get_building_name(),
             "kingdom" => $kingdom,
+            "level" => $building->get_building_level(),
             "k_wood" => $kingdom->get_kingdom_wood(),
             "k_food" => $kingdom->get_kingdom_food(),
             "k_stone" => $kingdom->get_kingdom_stone(),
@@ -768,50 +769,51 @@ class User
 
         // Attack on kingdoms and mines
         $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id, 
-               IFNULL(t_intel.techlevel, 0) AS intel_level
-        FROM events e
-        JOIN kingdoms k ON e.targetid = k.id
-        JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
-        LEFT JOIN kingdom_boosts kb_wt ON k.id = kb_wt.kingdomid AND kb_wt.resource_type = " . ResourceTypes::RESOURCE_TYPE_WATCHTOWER . " AND kb_wt.ticks_remaining > 0
-        LEFT JOIN techs t_intel ON k.id = t_intel.kingdomid AND t_intel.techid = " . TechTypes::TECH_TYPE_ARCANE_INTEL . "
-        WHERE k.userid = ? 
-          AND e.userid != k.userid
-          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
-          AND e.is_processing = 0
-          AND e.arrivaltime > ?
-          AND e.arrivaltime <= (? + (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ") + IFNULL(kb_wt.boost_amount, 0))
-          AND EXISTS (
-              SELECT 1 FROM sent_troops st 
-              WHERE st.eventid = e.eventid 
-              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
-          )
-
-        UNION ALL
-
-        SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, 
-               " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id, 1 AS intel_level
-        FROM events e
-        JOIN mines mn ON e.targetx = mn.mapx AND e.targety = mn.mapy
-        JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
-        JOIN users u_sender ON e.userid = u_sender.id
-        JOIN users u_target ON mst.user_id = u_target.id
-        WHERE mst.user_id = ?
-          AND mst.soldiercount > 0
-          AND e.userid != ?
-          AND (u_sender.guildid <= 0 OR u_sender.guildid != u_target.guildid)
-          AND e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
-          AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
-          AND e.is_processing = 0
-          AND e.arrivaltime > ?
-          AND EXISTS (
-              SELECT 1 FROM sent_troops st 
-              WHERE st.eventid = e.eventid 
-              AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
-          )
-        GROUP BY e.eventid, e.arrivaltime, mn.level, e.targetx, e.targety
-        ORDER BY arrivaltime
-    ";
+            SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, k.id AS kingdom_id, 
+                   IFNULL(t_intel.techlevel, 0) AS intel_level
+            FROM events e
+            JOIN kingdoms k ON e.targetid = k.id
+            JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = " . BuildingTypes::BUILDING_WATCHTOWER . "
+            LEFT JOIN kingdom_boosts kb_wt ON k.id = kb_wt.kingdomid AND kb_wt.resource_type = " . ResourceTypes::RESOURCE_TYPE_WATCHTOWER . " AND kb_wt.ticks_remaining > 0
+            LEFT JOIN techs t_intel ON k.id = t_intel.kingdomid AND t_intel.techid = " . TechTypes::TECH_TYPE_ARCANE_INTEL . "
+            WHERE k.userid = ? 
+              AND e.userid != k.userid
+              AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+              AND e.is_processing = 0
+              AND e.arrivaltime > ?
+              AND e.arrivaltime <= (? + (b.buildinglevel * " . WATCHTOWER_DETECTION_PER_LEVEL . ") + IFNULL(kb_wt.boost_amount, 0))
+              AND EXISTS (
+                  SELECT 1 FROM sent_troops st 
+                  WHERE st.eventid = e.eventid 
+                  AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+              )
+    
+            UNION ALL
+    
+            SELECT e.eventid, e.arrivaltime, CONCAT('Mine (Stufe ', mn.level, ')') AS kingdomname, e.targetx, e.targety, 
+                   " . MapFieldTypes::MAP_FIELD_MINE . " AS kingdom_id, 1 AS intel_level
+            FROM events e
+            JOIN mines mn ON e.targetx = mn.mapx AND e.targety = mn.mapy
+            JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
+            JOIN users u_sender ON e.userid = u_sender.id
+            JOIN users u_target ON mst.user_id = u_target.id
+            WHERE mst.user_id = ?
+              AND mst.soldiercount > 0
+              AND e.userid != ?
+              AND (u_sender.guildid <= 0 OR u_sender.guildid != u_target.guildid)
+              AND e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
+              AND e.actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
+              AND e.is_processing = 0
+              AND e.arrivaltime > ?
+              AND mn.level > 1
+              AND EXISTS (
+                  SELECT 1 FROM sent_troops st 
+                  WHERE st.eventid = e.eventid 
+                  AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+              )
+            GROUP BY e.eventid, e.arrivaltime, mn.level, e.targetx, e.targety
+            ORDER BY arrivaltime
+        ";
 
         $result = $this->mysqli->execute_query($query, [$uid, $now, $now, $uid, $uid, $now]);
         $all_attacks = $result->fetch_all(MYSQLI_ASSOC);
@@ -939,5 +941,20 @@ class User
     public function has_achievement(int $req_type): bool
     {
         return Achievement::has($this->user_id, $req_type);
+    }
+
+    public function consume_last_researched_flash(int $kingdom_id, int $origin_building): ?string
+    {
+        $last = $this->get_last_researched_tech($kingdom_id, $origin_building);
+
+        if (!empty($last)) {
+            $name = $last["techname"];
+            $lvl = (int)$last["techlevel"];
+            $this->clear_last_researched_tech($kingdom_id, $origin_building);
+
+            return show_weighted_box("$name ($lvl → " . ($lvl + 1) . ")", "Forschung abgeschlossen:");
+        }
+
+        return null;
     }
 }

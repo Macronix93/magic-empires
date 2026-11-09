@@ -20,8 +20,9 @@ $perc_u = $breakdown["perc_u"];
 $total_fields = MAX_X * MAX_Y;
 $map_percentage = round(($stats['occupied_fields'] / $total_fields) * 100, 2);
 
-/* --- VIEW --- */
-
+/*
+ * HTML Content Part
+ */
 $view = "
 <div style='display: flex; justify-content: center; margin-bottom: 30px; text-align:left; padding: 0 10px;'>
     <div class='box-container stats-box-main'>

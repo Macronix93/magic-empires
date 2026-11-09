@@ -210,7 +210,6 @@ if (isset($_GET["tid"])) {
         if ($ticket["status"] == 1) {
             $view .= "<div id='newmessage-section'>
                         <form method='POST' action='support.php' id='newmessage'>
-                            " . csrf_input() . "
                             <input type='hidden' name='tid' value='$tid'>
                             <input type='hidden' name='send_msg' value='1'>
                             <textarea id='message-input' name='text' rows='3' placeholder='Deine Antwort...' required style='margin-right: 10px;'></textarea>
@@ -360,7 +359,6 @@ if (isset($_GET["tid"])) {
                 <div class='box-header'>Neues Support-Ticket</div>
                 <div class='box-content box-content-bg' style='padding: 15px;'>
                     <form method='POST' action='support.php' id='newticketform'>
-                        " . csrf_input() . "
                         <input type='hidden' name='open_ticket' value='1'>
                         <input type='text' name='subject' placeholder='Betreff' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>
                         <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' required></textarea>

@@ -115,7 +115,6 @@ $view .= '<form action="marketplace.php" method="POST"
       data-type-field="d" 
       data-amount-field="dv"
       data-is-listing="true">
-      ' . csrf_input() . '
     <input type="hidden" name="action" value="create_offer">
     <table class="table marketplace-form-table" style="margin-bottom: 15px; width: 100%;">
     <tr>
@@ -271,7 +270,6 @@ if ($result->num_rows > 0) {
                             data-on-submit='checkMarket' 
                             data-res-type='" . (int)$row["supply"] . "' 
                             data-amount='" . (int)$row["supplyvalue"] . "'>
-                            " . csrf_input() . "
                             <input type='hidden' name='action' value='" . e($action_type) . "'>
                             <input type='hidden' name='offer_id' value='" . e($row["offerid"]) . "'>
                             <input type='submit' class='" . e($btn_class) . "' value=''>
@@ -441,7 +439,6 @@ if ($other_kingdoms_res->num_rows > 0) {
 
         $view .= "<br><br><hr><br><div class='title-border'>Interner Ressourcentransport</div>";
         $view .= '<form action="marketplace.php" method="POST" id="form-internal-transport" data-on-submit="checkInternalTransport">
-                    ' . csrf_input() . '
                     <input type="hidden" name="action" value="send_internal">
                     <table class="table internal-transport-table" style="width: 100%;">
                     <tr>

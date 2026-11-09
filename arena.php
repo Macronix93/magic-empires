@@ -229,9 +229,6 @@ if (!$is_season_active) {
     $h_data = $hero_info["hero"];
     $active_skill = $hero_info["active_skill"];
     $all_skills = $hero_info["skills"];
-    $is_h_max = ($h_data["level"] >= ARENA_HERO_MAX_LEVEL);
-    $h_xp_percent = $is_h_max ? 100 : (($h_data["xp_needed"] > 0) ? min(100, round(($h_data["xp"] / $h_data["xp_needed"]) * 100, 1)) : 100);
-    $h_xp_text = $is_h_max ? "<span class='passed'>MAX</span>" : "{$h_data["xp"]} / {$h_data["xp_needed"]} XP";
 
     $hero_atk = $h_data["atk"];
     $hero_def = $h_data["def"];
@@ -279,13 +276,7 @@ if (!$is_season_active) {
                                     <b>Helden-Stufe</b>
                                     <span>{$h_data["level"]} / " . ARENA_HERO_MAX_LEVEL . "</span>
                                 </div>
-                                <!-- Lila XP-Bar Held -->
-                                <div class='arena-xp-bar'>
-                                    <div style='width: $h_xp_percent%; height: 100%; background: linear-gradient(90deg, #8e44ad, #ba55d3);'></div>
-                                    <span class='arena-xp-bar-text'>
-                                        $h_xp_text
-                                    </span>
-                                </div>
+                                " . Arena::render_xp_bar($h_data["level"], ARENA_HERO_MAX_LEVEL, $h_data["xp"], $h_data["xp_needed"]) . "
                             </div>
                         </div>
                         <div style='font-size: 13px; opacity: 0.85; margin-bottom: 8px; text-align: left;'>
@@ -295,11 +286,9 @@ if (!$is_season_active) {
 
     foreach ($all_skills as $sid => $s) {
         $is_active = $s["is_active"];
-        $is_s_max = ($s["level"] >= ARENA_SKILL_MAX_LEVEL);
-        $s_xp_percent = $is_s_max ? 100 : (($s["xp_needed"] > 0) ? min(100, round(($s["xp"] / $s["xp_needed"]) * 100, 1)) : 100);
-        $s_xp_text = $is_s_max ? "<span class='passed'>MAX</span>" : "{$s["xp"]} / {$s["xp_needed"]} XP";
         $rps_perc = fdec(round($s["rps_bonus"] * 100, 1));
         $active_border = $is_active ? "border: 2px solid var(--link-color); background: rgba(212, 175, 55, 0.15);" : "border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);";
+        $xp_bar = Arena::render_xp_bar($s["level"], ARENA_SKILL_MAX_LEVEL, $s["xp"], $s["xp_needed"]);
 
         $view .= "
         <div class='arena-skill-card' style='padding: 8px 12px; border-radius: 4px; $active_border display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer;' 
@@ -314,12 +303,7 @@ if (!$is_season_active) {
                     </span>
                     <span class='passed arena-skills-perc'><b>+$rps_perc%</b> vs. {$s["target_name"]}</span>
                 </div>
-                <div class='arena-xp-bar'>
-                    <div style='width: $s_xp_percent%; height: 100%; background: linear-gradient(90deg, #8e44ad, #ba55d3);'></div>
-                    <span class='arena-xp-bar-text'>
-                        $s_xp_text
-                    </span>
-                </div>
+                $xp_bar
             </div>
             <div class='arena-skill-btn-wrap' style='min-width: 60px;'>
                 " . ($is_active ? "<b class='passed' style='font-size: 12px;'>Aktiv</b>" : "<button type='button' data-on-click='selectHeroSkill' data-id='{$s["id"]}' style='padding: 3px 8px; font-size: 11px;'>Wählen</button>") . "

@@ -1,24 +1,22 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
 session_write_close();
 
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $user->check_user_login();
-    $uid = $user->get_user_id();
+$uid = $user->get_user_id();
 
-    $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $uid . ".json";
+$cache_file = sys_get_temp_dir() . "/me_map_cache_" . $uid . ".json";
 
-    // 2 seconds cache
-    if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 2) {
-        header("Content-Type: application/json");
-        readfile($cache_file);
-        exit;
-    }
+// 2 seconds cache
+if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 2) {
+    header("Content-Type: application/json");
+    readfile($cache_file);
+    exit;
+}
 
-    $now = time();
+$now = time();
 
-    $query = "SELECT m.mapx, m.mapy, m.fieldtype,
+$query = "SELECT m.mapx, m.mapy, m.fieldtype,
               CASE 
                 WHEN m.kingdomid = " . MapFieldTypes::MAP_FIELD_RESOURCE_TILE . " AND (r.mapx IS NULL OR r.expires_at < $now) THEN " . MapFieldTypes::MAP_FIELD_EMPTY . "
                 WHEN m.kingdomid = " . MapFieldTypes::MAP_FIELD_MONSTER_CAMP . " AND (mc.mapx IS NULL OR mc.expires_at < $now) THEN " . MapFieldTypes::MAP_FIELD_EMPTY . "
@@ -103,95 +101,92 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
           ) e_mov ON e_mov.targetx = m.mapx AND e_mov.targety = m.mapy
           ORDER BY m.mapy, m.mapx";
 
-    $result = $db_instance->execute_query($query, [
-        $uid,   // has_outgoing_event k.userid check
-        $uid,   // ag.user_id (advent_calendar_gifts)
-        $uid,   // mst_agg my_mine_troops
-        $uid,   // mst_agg my_mine_troop_icon CASE
-        $uid,   // mst_agg my_mine_troop_icon ORDER BY
-        $uid    // e_mov e.userid
-    ]);
+$result = $db_instance->execute_query($query, [
+    $uid,   // has_outgoing_event k.userid check
+    $uid,   // ag.user_id (advent_calendar_gifts)
+    $uid,   // mst_agg my_mine_troops
+    $uid,   // mst_agg my_mine_troop_icon CASE
+    $uid,   // mst_agg my_mine_troop_icon ORDER BY
+    $uid    // e_mov e.userid
+]);
 
-    $map_data = [];
+$map_data = [];
 
-    while ($row = $result->fetch_assoc()) {
-        $troop_icon_display = $row["my_troop_icon"] ?? "";
-        if (empty($troop_icon_display) && (int)$row["kingdomid"] === MapFieldTypes::MAP_FIELD_MINE && (int)($row["my_mine_troops"] ?? 0) > 0) {
-            $troop_icon_display = $row["my_mine_troop_icon"] ?? "";
-        }
+while ($row = $result->fetch_assoc()) {
+    $troop_icon_display = $row["my_troop_icon"] ?? "";
+    if (empty($troop_icon_display) && (int)$row["kingdomid"] === MapFieldTypes::MAP_FIELD_MINE && (int)($row["my_mine_troops"] ?? 0) > 0) {
+        $troop_icon_display = $row["my_mine_troop_icon"] ?? "";
+    }
 
-        $mine_info = null;
-        if ((int)$row["kingdomid"] === MapFieldTypes::MAP_FIELD_MINE) {
-            $w_done = (int)$row["work_done"];
-            $w_total = max(1, (int)$row["work_total"]);
-            $m_atk = (int)$row["current_mine_atk"];
+    $mine_info = null;
+    if ((int)$row["kingdomid"] === MapFieldTypes::MAP_FIELD_MINE) {
+        $w_done = (int)$row["work_done"];
+        $w_total = max(1, (int)$row["work_total"]);
+        $m_atk = (int)$row["current_mine_atk"];
 
-            $max_rate = $w_total / MINE_MIN_DURATION_SECONDS;
-            $rate_per_sec = min($m_atk * MINE_WORK_RATE_FACTOR, $max_rate);
-            $rem_work = max(0, $w_total - $w_done);
-            $est_seconds = ($rate_per_sec > 0) ? (int)ceil($rem_work / $rate_per_sec) : 0;
+        $max_rate = $w_total / MINE_MIN_DURATION_SECONDS;
+        $rate_per_sec = min($m_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+        $rem_work = max(0, $w_total - $w_done);
+        $est_seconds = ($rate_per_sec > 0) ? (int)ceil($rem_work / $rate_per_sec) : 0;
 
-            $mine_info = [
-                "w_done" => $w_done,
-                "w_total" => $w_total,
-                "cur_troops" => (int)$row["current_mine_troops"],
-                "max_troops" => (int)$row["max_troops"],
-                "my_troops" => (int)$row["my_mine_troops"],
-                "est_seconds" => $est_seconds
-            ];
-        }
-
-        $map_data[] = [
-            (int)$row["mapx"],
-            (int)$row["mapy"],
-            (int)$row["fieldtype"],
-            (int)$row["kingdomid"],
-            (int)$row["buildinglevel"],
-            (int)$row["is_burning"],
-            (int)$row["monsterlevel"],
-            $row["username"] ?? "",
-            $row["kingdomname"] ?? "",
-            (int)($row["score"] ?? 0),
-            (int)($row["owner_id"] ?? 0),
-            (int)($row["expires_at"] ?? 0),
-            $troop_icon_display,
-            (int)($row["guildid"] ?? -1),
-            (int)($row["has_outgoing_event"] ?? 0),
-            $mine_info,
-            (int)($row["gift_day"] ?? 0)
+        $mine_info = [
+            "w_done" => $w_done,
+            "w_total" => $w_total,
+            "cur_troops" => (int)$row["current_mine_troops"],
+            "max_troops" => (int)$row["max_troops"],
+            "my_troops" => (int)$row["my_mine_troops"],
+            "est_seconds" => $est_seconds
         ];
     }
 
-    $world_event_manager = new WorldEvent();
-    $active_event = $world_event_manager->get_active_event();
-
-    $event_info = ["is_active" => false];
-
-    if ($active_event) {
-        $pool = $world_event_manager->get_monster_pool();
-        $monster = $pool[$active_event["monster_index"]] ?? $pool[0];
-
-        $event_info = [
-            "is_active" => true,
-            "type" => $active_event["event_type"],
-            "current_hp" => (int)$active_event["current_hp"],
-            "total_hp" => (int)$active_event["total_hp"],
-            "end_time" => (int)$active_event["end_time"],
-            "monster_name" => $monster["name"],
-            "monster_icon" => $monster["icon"]
-        ];
-    }
-
-    $response = [
-        "map_data" => $map_data,
-        "event_info" => $event_info
+    $map_data[] = [
+        (int)$row["mapx"],
+        (int)$row["mapy"],
+        (int)$row["fieldtype"],
+        (int)$row["kingdomid"],
+        (int)$row["buildinglevel"],
+        (int)$row["is_burning"],
+        (int)$row["monsterlevel"],
+        $row["username"] ?? "",
+        $row["kingdomname"] ?? "",
+        (int)($row["score"] ?? 0),
+        (int)($row["owner_id"] ?? 0),
+        (int)($row["expires_at"] ?? 0),
+        $troop_icon_display,
+        (int)($row["guildid"] ?? -1),
+        (int)($row["has_outgoing_event"] ?? 0),
+        $mine_info,
+        (int)($row["gift_day"] ?? 0)
     ];
-
-    $json = json_encode($response);
-    file_put_contents($cache_file, $json);
-
-    header("Content-Type: application/json");
-    echo $json;
-} else {
-    change_location("map.php");
 }
+
+$world_event_manager = new WorldEvent();
+$active_event = $world_event_manager->get_active_event();
+
+$event_info = ["is_active" => false];
+
+if ($active_event) {
+    $pool = $world_event_manager->get_monster_pool();
+    $monster = $pool[$active_event["monster_index"]] ?? $pool[0];
+
+    $event_info = [
+        "is_active" => true,
+        "type" => $active_event["event_type"],
+        "current_hp" => (int)$active_event["current_hp"],
+        "total_hp" => (int)$active_event["total_hp"],
+        "end_time" => (int)$active_event["end_time"],
+        "monster_name" => $monster["name"],
+        "monster_icon" => $monster["icon"]
+    ];
+}
+
+$response = [
+    "map_data" => $map_data,
+    "event_info" => $event_info
+];
+
+$json = json_encode($response);
+file_put_contents($cache_file, $json);
+
+header("Content-Type: application/json");
+echo $json;

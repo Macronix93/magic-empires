@@ -49,7 +49,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
 
 <div class="form">
     <form class="login-register" method="POST" action="resetpassword.php?token=<?= e($token) ?>">
-        <?= csrf_input() ?>
         <fieldset>
             <legend><b>Passwort zurücksetzen</b></legend>
             <?php

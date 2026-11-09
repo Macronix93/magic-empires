@@ -1,15 +1,16 @@
 <?php
 require_once("includes/core.php");
 
-$result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_STORAGE);
+[
+    "current_kingdom" => $current_kingdom,
+    "building" => $building,
+    "building_name" => $building_name,
+    "kingdom" => $kingdom,
+    "level" => $level
+] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_STORAGE);
 
-$current_kingdom = $result['current_kingdom'];
-$building = $result['building'];
-$building_name = $building->get_building_name();
-$kingdom = $result['kingdom'];
-
-$level = $building->get_building_level();
 $secure_percent = $level * STORAGE_SECURE_PERCENT_STEP;
+
 $display_percent = $secure_percent * 100;
 $example_secure_units = floor($kingdom->get_kingdom_max_food() * $secure_percent);
 

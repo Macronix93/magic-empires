@@ -622,6 +622,16 @@ class Kingdom
         return $boosts;
     }
 
+    public function get_active_boost(int $res_type): array
+    {
+        $boosts = $this->get_active_boosts($res_type);
+
+        return [
+            "amount" => (int)($boosts[$res_type]["amount"] ?? 0),
+            "ticks" => (int)($boosts[$res_type]["ticks"] ?? 0)
+        ];
+    }
+
     public function recalculate_production(): void
     {
         $shrine = $this->get_shrine_data();
@@ -1171,5 +1181,29 @@ class Kingdom
         $boost_sec = $boosts[ResourceTypes::RESOURCE_TYPE_WATCHTOWER]["amount"] ?? 0;
 
         return $base + $boost_sec;
+    }
+
+    public function can_afford_costs(array $costs): bool
+    {
+        return $this->get_kingdom_wood() >= ($costs["cost_wood"] ?? 0)
+            && $this->get_kingdom_food() >= ($costs["cost_food"] ?? 0)
+            && $this->get_kingdom_stone() >= ($costs["cost_stone"] ?? 0)
+            && $this->get_kingdom_gold() >= ($costs["cost_gold"] ?? 0);
+    }
+
+    public function pay_costs(array $costs): void
+    {
+        $this->give_kingdom_wood(-($costs["cost_wood"] ?? 0));
+        $this->give_kingdom_food(-($costs["cost_food"] ?? 0));
+        $this->give_kingdom_stone(-($costs["cost_stone"] ?? 0));
+        $this->give_kingdom_gold(-($costs["cost_gold"] ?? 0));
+    }
+
+    public function refund_costs(array $costs): void
+    {
+        $this->give_kingdom_wood($costs["cost_wood"] ?? 0);
+        $this->give_kingdom_food($costs["cost_food"] ?? 0);
+        $this->give_kingdom_stone($costs["cost_stone"] ?? 0);
+        $this->give_kingdom_gold($costs["cost_gold"] ?? 0);
     }
 }

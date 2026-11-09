@@ -170,7 +170,6 @@ if (isset($_GET["action"])) {
             $view .= "<form id='newmessage'
                               action='messages.php?action=new'
                               method='POST'>
-                              " . csrf_input() . "
                             <input type='hidden' name='sendpm' value='1'>
                             <table class='table'>
                                 <tr>
@@ -251,7 +250,6 @@ if (isset($_GET["action"])) {
                                       id='newmessage'
                                       action='messages.php?action=read&s=" . $sender_id . "'
                                       method='POST'>
-                                        " . csrf_input() . "
                                         <input type='hidden' name='receiver' value='" . $sender_id . "'>
                                         <textarea id='message-input' 
                                               name='text' 

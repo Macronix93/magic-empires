@@ -1,67 +1,55 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
 session_write_close();
 
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-        echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
-        exit;
-    }
+$sug_id = (int)($_POST["id"] ?? 0);
+$type = $_POST["type"] ?? ""; // "up" or "down"
+$uid = $user->get_user_id();
 
-    if (!verify_csrf_token()) {
-        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
-        exit;
-    }
+if ($sug_id <= 0 || !in_array($type, ["up", "down"])) {
+    echo json_encode(["success" => false, "error" => "Ungültige Eingabe"]);
+    exit;
+}
 
-    $user->check_user_login();
-    $sug_id = (int)($_POST["id"] ?? 0);
-    $type = $_POST["type"] ?? ""; // "up" or "down"
-    $uid = $user->get_user_id();
+$vote_val = ($type === "up") ? 1 : -1;
 
-    if ($sug_id <= 0 || !in_array($type, ["up", "down"])) {
-        echo json_encode(["success" => false, "error" => "Ungültige Eingabe"]);
-        exit;
-    }
+$res_existing = $db_instance->execute_query(
+    "SELECT vote FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
+    [$sug_id, $uid]
+);
+$existing = $res_existing->fetch_assoc();
 
-    $vote_val = ($type === "up") ? 1 : -1;
-
-    $res_existing = $db_instance->execute_query(
-        "SELECT vote FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
-        [$sug_id, $uid]
-    );
-    $existing = $res_existing->fetch_assoc();
-
-    if ($existing) {
-        if ((int)$existing["vote"] === $vote_val) {
-            $db_instance->execute_query(
-                "DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
-                [$sug_id, $uid]
-            );
-            $my_vote = 0;
-        } else {
-            $db_instance->execute_query(
-                "UPDATE suggestion_votes SET vote = ? WHERE suggestion_id = ? AND user_id = ?",
-                [$vote_val, $sug_id, $uid]
-            );
-            $my_vote = $vote_val;
-        }
+if ($existing) {
+    if ((int)$existing["vote"] === $vote_val) {
+        $db_instance->execute_query(
+            "DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
+            [$sug_id, $uid]
+        );
+        $my_vote = 0;
     } else {
         $db_instance->execute_query(
-            "INSERT INTO suggestion_votes (suggestion_id, user_id, vote, created_at) VALUES (?, ?, ?, ?)",
-            [$sug_id, $uid, $vote_val, time()]
+            "UPDATE suggestion_votes SET vote = ? WHERE suggestion_id = ? AND user_id = ?",
+            [$vote_val, $sug_id, $uid]
         );
         $my_vote = $vote_val;
     }
+} else {
+    $db_instance->execute_query(
+        "INSERT INTO suggestion_votes (suggestion_id, user_id, vote, created_at) VALUES (?, ?, ?, ?)",
+        [$sug_id, $uid, $vote_val, time()]
+    );
+    $my_vote = $vote_val;
+}
 
-    $res_counts = $db_instance->execute_query("
+$res_counts = $db_instance->execute_query("
         SELECT 
             COALESCE(SUM(IF(vote = 1, 1, 0)), 0) AS upvotes,
             COALESCE(SUM(IF(vote = -1, 1, 0)), 0) AS downvotes
         FROM suggestion_votes WHERE suggestion_id = ?
     ", [$sug_id])->fetch_assoc();
 
-    $res_voters = $db_instance->execute_query("
+$res_voters = $db_instance->execute_query("
         SELECT 
             (SELECT GROUP_CONCAT(u1.username ORDER BY v1.id ASC SEPARATOR ', ') 
              FROM suggestion_votes v1 JOIN users u1 ON v1.user_id = u1.id 
@@ -71,13 +59,11 @@ if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"
              WHERE v2.suggestion_id = ? AND v2.vote = -1) AS downvoters
     ", [$sug_id, $sug_id])->fetch_assoc();
 
-    echo json_encode([
-        "success" => true,
-        "upvotes" => (int)$res_counts["upvotes"],
-        "downvotes" => (int)$res_counts["downvotes"],
-        "my_vote" => $my_vote,
-        "upvoters" => !empty($res_voters["upvoters"]) ? e($res_voters["upvoters"]) : "<i>Noch keine Stimmen</i>",
-        "downvoters" => !empty($res_voters["downvoters"]) ? e($res_voters["downvoters"]) : "<i>Noch keine Stimmen</i>"
-    ]);
-    exit;
-}
+echo json_encode([
+    "success" => true,
+    "upvotes" => (int)$res_counts["upvotes"],
+    "downvotes" => (int)$res_counts["downvotes"],
+    "my_vote" => $my_vote,
+    "upvoters" => !empty($res_voters["upvoters"]) ? e($res_voters["upvoters"]) : "<i>Noch keine Stimmen</i>",
+    "downvoters" => !empty($res_voters["downvoters"]) ? e($res_voters["downvoters"]) : "<i>Noch keine Stimmen</i>"
+]);

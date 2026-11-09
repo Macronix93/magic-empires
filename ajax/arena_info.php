@@ -1,7 +1,5 @@
 <?php
-require_once("../includes/core.php");
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 ?>
 <div id="modal-title-data" data-title="Arena – Anleitung & Belohnungen" data-width="650px" style="display: none;"></div>
 <div style="padding: 10px; max-width: 600px; margin: 0 auto; text-align: left; line-height: 1.5;">

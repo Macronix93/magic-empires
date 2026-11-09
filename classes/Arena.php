@@ -997,35 +997,8 @@ class Arena
             $this->db->commit();
 
             // Prepare unit badges
-            $atk_cards = [];
-            foreach ($atk_prepared as $u) {
-                $key = $u["key"] ?? $u["id"];
-                $atk_cards[] = [
-                    "id" => $u["id"],
-                    "initial" => $u["count"],
-                    "losses" => $combat_result["attacker_losses"][$key] ?? 0,
-                    "atk" => $u["atk"],
-                    "def" => $u["def"],
-                    "h_lvl" => $u["h_lvl"] ?? null,
-                    "s_id" => $u["s_id"] ?? null,
-                    "is_fictional" => false
-                ];
-            }
-
-            $def_cards = [];
-            foreach ($def_prepared as $u) {
-                $key = $u["key"] ?? $u["id"];
-                $def_cards[] = [
-                    "id" => $u["id"],
-                    "initial" => $u["count"],
-                    "losses" => $combat_result["defender_losses"][$key] ?? 0,
-                    "atk" => $u["atk"],
-                    "def" => $u["def"],
-                    "h_lvl" => $u["h_lvl"] ?? null,
-                    "s_id" => $u["s_id"] ?? null,
-                    "is_fictional" => false
-                ];
-            }
+            $atk_cards = self::build_battle_cards($atk_prepared, $combat_result["attacker_losses"]);
+            $def_cards = self::build_battle_cards($def_prepared, $combat_result["defender_losses"]);
 
             $grid_html = BattleReportRenderer::render_vs_grid(
                 $atk_cards,
@@ -1036,27 +1009,23 @@ class Arena
 
             $is_won = ($winner_id === $this->user_id);
             $is_draw = ($winner_id === 0);
+
             $outcome_type = $is_draw ? "neutral" : ($is_won ? "success" : "error");
             $outcome_title = $is_draw ? "Unentschieden!" : ($is_won ? "Sieg!" : "Niederlage!");
 
-            if ($is_draw || $atk_elo_change === 0) {
-                $change_str = "+/- 0";
-                $change_style = "style='color: #ffffff;'";
-                $change_class = "";
-            } else {
-                $change_str = ($atk_elo_change > 0) ? "+$atk_elo_change" : "$atk_elo_change";
-                $change_class = ($atk_elo_change > 0) ? "passed" : "error";
-                $change_style = "";
-            }
+            $change_html = self::format_elo_change($atk_elo_change, $is_draw);
 
             // Show hero and skill in report
             $xp_text = ($atk_xp_gained > 0) ? "<span class='passed'>+$atk_xp_gained XP</span>" : "<span style='color: rgb(230, 220, 200);'>0 XP</span>";
             $h_up = $hero_leveled_up ? " <b style='color: #ba55d3;'>★ HELD LEVEL UP! ★</b>" : "";
             $s_up = $skill_leveled_up ? " <b style='color: #ba55d3;'>★ SKILL LEVEL UP! ★</b>" : "";
-            $hero_xp_notice = "<br><span style='color: var(--link-color);'>" .
-                "Held (Stufe $new_hero_level): $xp_text$h_up<br>" . "{$atk_skill["name"]} (Stufe $new_skill_level): $xp_text$s_up" . "</span>";
 
-            $main_text = "<div class='arena-battle-log'>Wertungs-Änderung: <b class='$change_class' $change_style>$change_str ELO</b> (Neu: <b>" . fnum($new_atk_elo) . " ELO</b>)" . $hero_xp_notice . "</div>";
+            $hero_xp_notice = "<br><span style='color: var(--link-color);'>" .
+                "Held (Stufe $new_hero_level): $xp_text$h_up<br>" .
+                "{$atk_skill["name"]} (Stufe $new_skill_level): $xp_text$s_up" .
+                "</span>";
+
+            $main_text = "<div class='arena-battle-log'>Wertungs-Änderung: $change_html (Neu: <b>" . fnum($new_atk_elo) . " ELO</b>)" . $hero_xp_notice . "</div>";
 
             $outcome_html = BattleReportRenderer::render_outcome_box(
                 $outcome_title,
@@ -1461,5 +1430,51 @@ class Arena
         ", $exclude_ids);
 
         return ((int)$res->fetch_column()) > 0;
+    }
+
+    public static function build_battle_cards(array $troops, array $losses = []): array
+    {
+        $cards = [];
+
+        foreach ($troops as $u) {
+            $key = $u["key"] ?? $u["id"];
+            $cards[] = [
+                "id" => $u["id"],
+                "key" => $key,
+                "initial" => (int)($u["initial"] ?? $u["count"] ?? 0),
+                "losses" => (int)($losses[$key] ?? 0),
+                "atk" => (int)($u["atk"] ?? 0),
+                "def" => (int)($u["def"] ?? 0),
+                "h_lvl" => $u["h_lvl"] ?? null,
+                "s_id" => $u["s_id"] ?? null,
+                "is_fictional" => false
+            ];
+        }
+
+        return $cards;
+    }
+
+    public static function format_elo_change(int $change, bool $is_draw = false): string
+    {
+        if ($is_draw || $change === 0) {
+            return "<b style='color: #ffffff;'>+/- 0 ELO</b>";
+        }
+
+        $sign = ($change > 0) ? "+" : "";
+        $class = ($change > 0) ? "passed" : "error";
+        return "<b class='$class'>$sign$change ELO</b>";
+    }
+
+    public static function render_xp_bar(int $level, int $max_level, int $xp, int $xp_needed): string
+    {
+        $is_max = ($level >= $max_level);
+        $percent = $is_max ? 100 : (($xp_needed > 0) ? min(100, round(($xp / $xp_needed) * 100, 1)) : 100);
+        $text = $is_max ? "<span class='passed'>MAX</span>" : "{$xp} / {$xp_needed} XP";
+
+        return "
+        <div class='arena-xp-bar'>
+            <div style='width: {$percent}%; height: 100%; background: linear-gradient(90deg, #8e44ad, #ba55d3);'></div>
+            <span class='arena-xp-bar-text'>$text</span>
+        </div>";
     }
 }

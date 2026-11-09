@@ -203,15 +203,7 @@ for ($i = 0; $i < $building_count; $i++) {
         $text_build = "<b class='passed'>MAX</b>";
     } else {
         $costs = $buildings[$i]->calculate_building_cost();
-        $cost_wood = $costs["cost_wood"];
-        $cost_food = $costs["cost_food"];
-        $cost_stone = $costs["cost_stone"];
-        $cost_gold = $costs["cost_gold"];
-
-        $text_wood = get_resource_text($cost_wood, $kingdom_wood);
-        $text_food = get_resource_text($cost_food, $kingdom_food);
-        $text_stone = get_resource_text($cost_stone, $kingdom_stone);
-        $text_gold = get_resource_text($cost_gold, $kingdom_gold);
+        $resource_costs = render_cost_legend($costs, $kingdom);
 
         if ($kingdom_is_building) {
             if ($kingdom_building_id == $i) {
@@ -228,7 +220,6 @@ for ($i = 0; $i < $building_count; $i++) {
                                                " . format_time_for_js($difference_time) . "
                                 </span><br>
                                 <form id='cancel-form' action='towncenter.php' method='POST'>
-                                    " . csrf_input() . "
                                     <input type='hidden' name='action' value='cancel'>
                                     <input type='hidden' name='bid' value='" . $i . "'>
                                     <input type='submit' value='Abbruch' style='margin-top: 5px;'>
@@ -245,11 +236,9 @@ for ($i = 0; $i < $building_count; $i++) {
 
                 $text_build = "<span class='error item-needed'>Dorfzentrum Stufe $needed_tc benötigt</span>";
             } else {
-                $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-                $is_disabled = $res_disabled ? "disabled" : "";
+                $is_disabled = $kingdom->can_afford_costs($costs) ? "" : "disabled";
 
                 $text_build = "<form action='towncenter.php' method='POST'>
-                                    " . csrf_input() . "
                                     <input type='hidden' name='action' value='build'>
                                     <input type='hidden' name='bid' value='" . $i . "'>
                                     <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Bauen") . "' $is_disabled>
@@ -259,19 +248,6 @@ for ($i = 0; $i < $building_count; $i++) {
 
         $base_sec = round($buildings[$i]->get_building_time() * pow($buildings[$i]->get_building_mult(), $level));
         $time_text = convert_sec_to_str((int)round($base_sec * $kingdom->get_construction_time_multiplier()));
-
-        if ($cost_food > 0) {
-            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
-        }
-        if ($cost_wood > 0) {
-            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
-        }
-        if ($cost_stone > 0) {
-            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
-        }
-        if ($cost_gold > 0) {
-            $resource_costs .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
-        }
     }
 
     $view .= "<tr>

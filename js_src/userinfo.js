@@ -194,7 +194,6 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
     const sourceModal = sourceElement ? sourceElement.closest('.overlay-modal') : null;
 
     let targetModal = null;
-    let isStacking = false;
     let isAlreadyOpen = false;
 
     if (openModals.length === 0 || !sourceModal) {
@@ -209,7 +208,6 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
             targetModal = sourceModal;
             isAlreadyOpen = true;
         } else {
-            isStacking = true;
             isAlreadyOpen = false;
             const depth = openModals.length;
             targetModal = document.createElement("div");
@@ -289,7 +287,7 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                 }
                 if (customWidth) {
                     targetModal.style.maxWidth = customWidth;
-                } else if (!isAlreadyOpen && !isStacking) {
+                } else {
                     targetModal.style.maxWidth = "";
                 }
 

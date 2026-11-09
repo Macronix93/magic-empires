@@ -325,4 +325,47 @@ class Tech
             return $posA <=> $posB;
         });
     }
+
+    public function check_dependencies(array $buildings, array $techs): string
+    {
+        $error = "";
+
+        foreach ($this->t_dependencies as $dependency) {
+            // Building dependencies
+            if (isset($dependency["dependencyid"]) && (int)$dependency["dependencyid"] >= 0) {
+                $b_id = (int)$dependency["dependencyid"];
+                $needed = (int)$dependency["dependencylevel"];
+                $current = isset($buildings[$b_id]) ? $buildings[$b_id]->get_building_level() : 0;
+
+                if ($needed > $current) {
+                    $b_name = isset($buildings[$b_id]) ? $buildings[$b_id]->get_building_name() : "Gebäude";
+                    $error .= $this->t_name . " setzt " . $b_name . " Stufe " . $needed . " voraus!<br />";
+                }
+            }
+
+            // Tech dependencies
+            if (isset($dependency["techdepid"]) && (int)$dependency["techdepid"] >= 0) {
+                $t_id = (int)$dependency["techdepid"];
+                $needed = (int)$dependency["techdeplevel"];
+                $current = isset($techs[$t_id]) ? $techs[$t_id]->get_tech_level() : 0;
+
+                if ($needed > $current) {
+                    $t_name = isset($techs[$t_id]) ? $techs[$t_id]->get_tech_name() : "Forschung";
+                    $error .= $this->t_name . " setzt " . $t_name . " Stufe " . $needed . " voraus!<br />";
+                }
+            }
+        }
+        return $error;
+    }
+
+    public function calculate_research_seconds(int $level, float $speed_multiplier = 1.0): int
+    {
+        $base_sec = (int)round($this->t_time * pow($this->t_mult, $level));
+        return (int)round($base_sec * $speed_multiplier);
+    }
+
+    public function is_max_level(): bool
+    {
+        return $this->get_tech_level() >= $this->get_tech_max_level();
+    }
 }

@@ -5,67 +5,52 @@ class BattleReportRenderer
     private static ?array $soldier_cache = null;
     private static ?array $monster_cache = null;
 
-    public static function render_vs_grid(array  $attacker_units, array $defender_units, string $atk_label = "Deine Truppen",
-                                          string $def_label = "Gegner", int $left_wall_def = 0, int $right_wall_def = 0): string
+    public static function render_vs_grid(
+        array  $attacker_units,
+        array  $defender_units,
+        string $atk_label = "Deine Truppen",
+        string $def_label = "Gegner",
+        int    $left_wall_def = 0,
+        int    $right_wall_def = 0
+    ): string
     {
-        // Calculate Power Sums
-        $sum_atk_atk = 0;
-        $sum_atk_def = $left_wall_def;
-        $atk_cards_html = "";
+        $atk_column = self::render_side_column($attacker_units, $atk_label, $left_wall_def, "<i>Wir haben keine Truppen!</i>");
+        $def_column = self::render_side_column($defender_units, $def_label, $right_wall_def, "<i>Keine Truppen stationiert.</i>");
 
-        if (empty($attacker_units)) {
-            $atk_cards_html = "<i>Wir haben keine Truppen!</i>";
+        return "
+        <div class='battle-vs-wrapper'>
+            $atk_column
+            <div class='battle-vs-divider'>VS</div>
+            $def_column
+        </div>";
+    }
+
+    private static function render_side_column(array $units, string $label, int $wall_def = 0, string $empty_msg = ""): string
+    {
+        $sum_atk = 0;
+        $sum_def = $wall_def;
+        $cards_html = "";
+
+        if (empty($units)) {
+            $cards_html = $empty_msg;
         } else {
-            foreach ($attacker_units as $u) {
-                $sum_atk_atk += ($u["initial"] ?? 0) * ($u["atk"] ?? 0);
-                $sum_atk_def += ($u["initial"] ?? 0) * ($u["def"] ?? 0);
-
-                $atk_cards_html .= self::render_unit_card($u);
+            foreach ($units as $u) {
+                $initial = (int)($u["initial"] ?? 0);
+                $sum_atk += $initial * (int)($u["atk"] ?? 0);
+                $sum_def += $initial * (int)($u["def"] ?? 0);
+                $cards_html .= self::render_unit_card($u);
             }
         }
 
-        $sum_def_atk = 0;
-        $sum_def_def = $right_wall_def;
-        $def_cards_html = "";
-
-        if (empty($defender_units)) {
-            $def_cards_html = "<i>Keine Truppen stationiert.</i>";
-        } else {
-            foreach ($defender_units as $u) {
-                $sum_def_atk += ($u["initial"] ?? 0) * ($u["atk"] ?? 0);
-                $sum_def_def += ($u["initial"] ?? 0) * ($u["def"] ?? 0);
-
-                $def_cards_html .= self::render_unit_card($u);
-            }
-        }
-
-        $html = "<div class='battle-vs-wrapper'>";
-
-        // Attacker Box
-        $html .= "<div class='battle-column'>";
-        $html .= "<div class='report-section-title'>$atk_label</div>";
-        $html .= "<div class='battle-strength'>";
-        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_atk_atk) . "</span>";
-        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_atk_def) . "</span>";
-        $html .= "</div>";
-        $html .= $atk_cards_html;
-        $html .= "</div>";
-
-        // Divider
-        $html .= "<div class='battle-vs-divider'>VS</div>";
-
-        // Defender Box
-        $html .= "<div class='battle-column'>";
-        $html .= "<div class='report-section-title'>$def_label</div>";
-        $html .= "<div class='battle-strength'>";
-        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_def_atk) . "</span>";
-        $html .= "<span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_def_def) . "</span>";
-        $html .= "</div>";
-        $html .= $def_cards_html;
-        $html .= "</div>";
-
-        $html .= "</div>";
-        return $html;
+        return "
+        <div class='battle-column'>
+            <div class='report-section-title'>$label</div>
+            <div class='battle-strength'>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sum_atk) . "</span>
+                <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_def) . "</span>
+            </div>
+            $cards_html
+        </div>";
     }
 
     public static function render_unit_card(

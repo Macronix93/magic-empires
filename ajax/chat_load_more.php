@@ -1,11 +1,6 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || $_SERVER["HTTP_X_REQUESTED_WITH"] !== "XMLHttpRequest") {
-    change_location("messages.php");
-}
-
-$user->check_user_login();
 $oldest_id = (int)($_GET["oldest_id"] ?? 0);
 $u_id = $user->get_user_id();
 

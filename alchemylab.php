@@ -140,7 +140,7 @@ if ($has_active_process) {
 
     if ($in_res !== -1) {
         $initial_progress = ($capacity > 0) ? min(100, max(0, (($capacity - $in_amt) / $capacity) * 100)) : 0;
-        $initial_progress_str = fdec($initial_progress, 1);
+        $initial_progress_str = number_format($initial_progress, 1, '.', '');
 
         $view .= "
             <div style='display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 1.2em; margin-bottom: 15px;'>
@@ -151,7 +151,7 @@ if ($has_active_process) {
 
             <div class='split-content' style='margin-bottom: 5px;'>
                 <span>Im Kessel verbleibend:</span>
-                <b><span id='live-kettle-in'>" . fnum($in_amt) . "</span> / " . fnum($capacity) . "</b>
+                <b><span id='live-kettle-in'>" . fnum($in_amt, true) . "</span> / " . fnum($capacity) . "</b>
             </div>
             
             <div class='tick-progress-bg' style='height: 8px; margin-bottom: 12px;'>
@@ -190,7 +190,6 @@ if ($has_active_process) {
                     <div><span class='passed'>" . get_resource_icon($out_res) . " <b id='live-claim-val'>" . fnum($ready_to_claim) . "</b></span>$buffer_display</div>
                 </div>
                 <form method='POST' style='margin-top: 10px; text-align: center;'>
-                    " . csrf_input() . "
                     <button type='submit' name='claim_output' id='btn-claim' " . ($ready_to_claim <= 0 ? "disabled" : "") . ">
                         Ressourcen einsammeln
                     </button>
@@ -203,7 +202,6 @@ if ($has_active_process) {
             <hr style='margin-top: 20px;'>
             <h4 style='margin-top: 20px;'>Rohstoffe nachfüllen</h4>
             <form method='POST'>
-                " . csrf_input() . "
                 <div style='display: flex; gap: 5px; justify-content: center; align-items: center; max-width: 340px; margin: 0 auto;'>
                     " . get_resource_icon($in_res) . "
                     <input type='text' name='top_up_amount' id='top_up_amount' placeholder='0' inputmode='numeric' pattern='[0-9]*' class='js-numeric-input' style='width: 70px;' $is_top_up_disabled>
@@ -216,7 +214,6 @@ if ($has_active_process) {
     if ($in_amt > 0) {
         $view .= "
             <form method='POST' id='form-cancel-alchemy' style='margin-top: 20px;'>
-                " . csrf_input() . "
                 <input type='hidden' name='cancel_transmutation' value='1'>
                 <button type='button' data-on-click='confirmCancelAlchemy'>
                     Umwandlung abbrechen & Kessel leeren
@@ -242,7 +239,6 @@ if ($has_active_process) {
     <div class='box-container' style='max-width: 450px; margin: 0 auto;'>
         <div class='box-header'>Neue Umwandlung starten</div>
         <form method='POST' class='box-content box-content-bg' style='padding: 20px;'>
-            " . csrf_input() . "
             <table class='table' style='width: 100%; border: none; margin-bottom: 15px;'>
                 <tr>
                     <td style='width: 55%;'>Ausgangs-Rohstoff:</td>

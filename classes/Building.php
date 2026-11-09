@@ -238,4 +238,9 @@ class Building
         $res = $db->execute_query($query, [$user_id]);
         return (float)($res->fetch_column() ?? 1.0);
     }
+
+    public static function calculate_boost_cost(int $level): int
+    {
+        return BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $level - 1);
+    }
 }

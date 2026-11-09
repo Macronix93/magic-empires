@@ -28,78 +28,44 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
         $action = $_POST["action"];
 
         if (isset($techs[$tech_id])) {
-            $tech_level = $techs[$tech_id]->get_tech_level();
-            $tech_max_level = $techs[$tech_id]->get_tech_max_level();
-            $costs = $techs[$tech_id]->calculate_tech_cost();
-            $cost_wood = $costs["cost_wood"];
-            $cost_food = $costs["cost_food"];
-            $cost_stone = $costs["cost_stone"];
-            $cost_gold = $costs["cost_gold"];
+            $selected_tech = $techs[$tech_id];
+            $tech_level = $selected_tech->get_tech_level();
+            $costs = $selected_tech->calculate_tech_cost();
 
             if ($action == "research") {
-                if ($tech_level >= $tech_max_level) {
+                if ($selected_tech->is_max_level()) {
                     $error = "Die Forschung ist schon maximal erforscht!";
+                } else if ($kingdom_is_researching) {
+                    $error = "Du forschst bereits!";
                 } else {
-                    if ($kingdom_is_researching) {
-                        $error = "Du forschst bereits!";
+                    $target_level = $tech_level + 1;
+                    $current_smithy_lvl = $building->get_building_level();
+                    $required_smithy_lvl = Tech::get_required_smithy_level($tech_id, $target_level);
+
+                    if ($current_smithy_lvl < $required_smithy_lvl) {
+                        $error = "Für Stufe $target_level benötigst du Schmiede Stufe $required_smithy_lvl!";
                     } else {
-                        $target_level = $tech_level + 1;
-                        $current_smithy_lvl = $building->get_building_level();
-                        $required_smithy_lvl = Tech::get_required_smithy_level($tech_id, $target_level);
+                        $error .= $techs[$tech_id]->check_dependencies($buildings, $all_techs_for_check);
+                    }
 
-                        if ($current_smithy_lvl < $required_smithy_lvl) {
-                            $error = "Für Stufe $target_level benötigst du Schmiede Stufe $required_smithy_lvl!";
-                        }
+                    // Dependency check passed - research/upgrade tech!
+                    if (empty($error)) {
+                        if (!$kingdom->can_afford_costs($costs)) {
+                            $error = "Nicht genügend Ressourcen!";
+                        } else {
+                            $duration = $techs[$tech_id]->calculate_research_seconds($tech_level, $kingdom->get_smithy_research_multiplier());
+                            $tech_time = time() + $duration;
 
-                        $tech_dependencies = $techs[$tech_id]->get_tech_dependencies();
+                            // Subtract research costs from kingdom resources
+                            $kingdom->pay_costs($costs);
 
-                        foreach ($tech_dependencies as $dependency) {
-                            // Check BUILDING Dependency
-                            if (isset($dependency["dependencyid"]) && (int)$dependency["dependencyid"] >= 0) {
-                                $building_level_needed = $dependency["dependencylevel"];
-                                $building_level_current = $buildings[$dependency["dependencyid"]]->get_building_level();
+                            $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                [ActionTypes::ACTION_SMITHY_UPGRADE, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $tech_level, $techs[$tech_id]->get_tech_name()]);
 
-                                if ($building_level_needed > $building_level_current) {
-                                    $error .= $techs[$tech_id]->get_tech_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " Stufe 
-                                " . $building_level_needed . " voraus!<br />";
-                                }
-                            }
+                            $kingdom_is_researching = true;
+                            $kingdom_research_id = $tech_id;
 
-                            // Check TECH Dependency
-                            if (isset($dependency["techdepid"]) && (int)$dependency["techdepid"] >= 0) {
-                                $tech_level_needed = $dependency["techdeplevel"];
-                                $tech_level_current = $all_techs_for_check[$dependency["techdepid"]]->get_tech_level();
-
-                                if ($tech_level_needed > $tech_level_current) {
-                                    $error .= $techs[$tech_id]->get_tech_name() . " setzt " . $all_techs_for_check[$dependency["techdepid"]]->get_tech_name() . " Stufe 
-                                " . $tech_level_needed . " voraus!<br />";
-                                }
-                            }
-                        }
-
-                        // Dependency check passed - research/upgrade tech!
-                        if (empty($error)) {
-                            if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
-                                $error = "Nicht genügend Ressourcen!";
-                            } else {
-                                $smithy_mult = $kingdom->get_smithy_research_multiplier();
-                                $base_sec = (int)round($techs[$tech_id]->get_tech_time() * pow($techs[$tech_id]->get_tech_mult(), $tech_level));
-                                $tech_time = time() + (int)round($base_sec * $smithy_mult);
-
-                                // Subtract research costs from kingdom resources
-                                $kingdom->give_kingdom_wood(-$cost_wood);
-                                $kingdom->give_kingdom_food(-$cost_food);
-                                $kingdom->give_kingdom_stone(-$cost_stone);
-                                $kingdom->give_kingdom_gold(-$cost_gold);
-
-                                $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                    [ActionTypes::ACTION_SMITHY_UPGRADE, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $tech_level, $techs[$tech_id]->get_tech_name()]);
-
-                                $kingdom_is_researching = true;
-                                $kingdom_research_id = $tech_id;
-
-                                change_location("blacksmith.php");
-                            }
+                            change_location("blacksmith.php");
                         }
                     }
                 }
@@ -114,10 +80,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     $kingdom_research_id = -1;
 
                     // Refund the player
-                    $kingdom->give_kingdom_wood($cost_wood);
-                    $kingdom->give_kingdom_food($cost_food);
-                    $kingdom->give_kingdom_stone($cost_stone);
-                    $kingdom->give_kingdom_gold($cost_gold);
+                    $kingdom->refund_costs($costs);
 
                     change_location("blacksmith.php");
                 } else {
@@ -128,16 +91,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
     }
 }
 
-$last_researched_tech = $user->get_last_researched_tech($current_kingdom, BuildingTypes::BUILDING_SMITHY);
-
-if (!empty($last_researched_tech)) {
-    $researched_tech_name = $last_researched_tech["techname"];
-    $researched_tech_level = $last_researched_tech["techlevel"];
-
-    $flash_box = show_weighted_box("$researched_tech_name (" . $researched_tech_level . " → " . ($researched_tech_level + 1) . ")", "Forschung abgeschlossen:");
-
-    $user->clear_last_researched_tech($current_kingdom, BuildingTypes::BUILDING_SMITHY);
-}
+$flash_box = $user->consume_last_researched_flash($current_kingdom, BuildingTypes::BUILDING_SMITHY);
 
 /*
  * HTML Content Part
@@ -242,20 +196,7 @@ foreach ($techs as $i => $tech) {
         $text_build = "<b class='passed'>MAX</b>";
     } else {
         $costs = $tech->calculate_tech_cost();
-        $cost_wood = $costs["cost_wood"];
-        $cost_food = $costs["cost_food"];
-        $cost_stone = $costs["cost_stone"];
-        $cost_gold = $costs["cost_gold"];
-
-        $text_wood = get_resource_text($cost_wood, $kingdom_wood);
-        $text_food = get_resource_text($cost_food, $kingdom_food);
-        $text_stone = get_resource_text($cost_stone, $kingdom_stone);
-        $text_gold = get_resource_text($cost_gold, $kingdom_gold);
-
-        if ($cost_food > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $text_food . "</div>";
-        if ($cost_wood > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $text_wood . "</div>";
-        if ($cost_stone > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $text_stone . "</div>";
-        if ($cost_gold > 0) $res_html .= "<div class='legend-item'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $text_gold . "</div>";
+        $res_html = render_cost_legend($costs, $kingdom);
 
         if ($kingdom_is_researching) {
             if ($kingdom_research_id == $i) {
@@ -269,7 +210,6 @@ foreach ($techs as $i => $tech) {
                                        data-seconds='$difference_time' 
                                        data-hide-id='cancel-form'>" . format_time_for_js($difference_time) . "</span><br>
                               <form id='cancel-form' action='blacksmith.php' method='POST'>
-                                " . csrf_input() . "
                                 <input type='hidden' name='action' value='cancel'>
                                 <input type='hidden' name='tid' value='" . $i . "'>
                                 <input type='submit' value='Abbruch' style='margin-top: 5px;'>
@@ -286,11 +226,9 @@ foreach ($techs as $i => $tech) {
             if ($is_smithy_locked) {
                 $text_build = "<span class='error item-needed'>Schmiede Stufe $required_smithy_lvl benötigt</span>";
             } else {
-                $res_disabled = $cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold;
-                $disabled = $res_disabled ? "disabled" : "";
+                $disabled = $kingdom->can_afford_costs($costs) ? "" : "disabled";
 
                 $text_build = "<form action='blacksmith.php' method='POST'>
-                                    " . csrf_input() . "
                                     <input type='hidden' name='action' value='research'>
                                     <input type='hidden' name='tid' value='" . $i . "'>
                                     <input type='submit' value='" . ($level > 0 ? "Upgrade" : "Forschen") . "' $disabled>
@@ -311,15 +249,14 @@ foreach ($techs as $i => $tech) {
             </div>";
 
     if (!$is_maxed) {
-        $smithy_mult = $kingdom->get_smithy_research_multiplier();
-        $base_sec = (int)round($tech->get_tech_time() * pow($tech->get_tech_mult(), $level));
+        $duration = $tech->calculate_research_seconds($level, $kingdom->get_smithy_research_multiplier());
 
         $view .= "
             <div class='map-legend' style='justify-content: left; margin-top: 10px; gap: 5px;'>
                 $res_html
             </div>
             " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME) . " 
-            " . convert_sec_to_str((int)round($base_sec * $smithy_mult));
+            " . convert_sec_to_str($duration);
     }
 
     $view .= "

@@ -333,4 +333,17 @@ class Map
             @unlink($cache_file);
         }
     }
+
+    public static function require_valid_coordinates(): array
+    {
+        $x = (int)($_GET["x"] ?? $_POST["x"] ?? 0);
+        $y = (int)($_GET["y"] ?? $_POST["y"] ?? 0);
+
+        if ($x < 1 || $x > MAX_X || $y < 1 || $y > MAX_Y) {
+            echo show_error_box("Ungültige Koordinaten.");
+            exit;
+        }
+
+        return [$x, $y];
+    }
 }

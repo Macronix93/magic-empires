@@ -1,11 +1,6 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
-    change_location("arena.php");
-}
-
-$user->check_user_login();
 $uid = $user->get_user_id();
 $battle_id = (int)($_GET["id"] ?? 0);
 
@@ -44,37 +39,8 @@ $is_draw = ($winner_id === 0);
 $atk_data = $details["attacker"] ?? [];
 $def_data = $details["defender"] ?? [];
 
-$atk_cards = [];
-foreach (($atk_data["troops"] ?? []) as $u) {
-    $key = $u["key"] ?? $u["id"];
-    $atk_cards[] = [
-            "id" => $u["id"],
-            "key" => $key,
-            "initial" => $u["count"],
-            "losses" => $atk_data["losses"][$key] ?? 0,
-            "atk" => $u["atk"],
-            "def" => $u["def"],
-            "h_lvl" => $u["h_lvl"] ?? null,
-            "s_id" => $u["s_id"] ?? null,
-            "is_fictional" => false
-    ];
-}
-
-$def_cards = [];
-foreach (($def_data["troops"] ?? []) as $u) {
-    $key = $u["key"] ?? $u["id"];
-    $def_cards[] = [
-            "id" => $u["id"],
-            "key" => $key,
-            "initial" => $u["count"],
-            "losses" => $def_data["losses"][$key] ?? 0,
-            "atk" => $u["atk"],
-            "def" => $u["def"],
-            "h_lvl" => $u["h_lvl"] ?? null,
-            "s_id" => $u["s_id"] ?? null,
-            "is_fictional" => false
-    ];
-}
+$atk_cards = Arena::build_battle_cards($atk_data["troops"] ?? [], $atk_data["losses"] ?? []);
+$def_cards = Arena::build_battle_cards($def_data["troops"] ?? [], $def_data["losses"] ?? []);
 
 if ($is_defender) {
     $left_cards = $def_cards;
@@ -96,20 +62,12 @@ $outcome_title = $is_draw ? "Unentschieden!" : ($is_won ? "Sieg!" : "Niederlage!
 $my_elo_change = $is_attacker ? (int)$battle["attacker_elo_change"] : (int)$battle["defender_elo_change"];
 $my_elo_after = $is_attacker ? (int)$battle["attacker_elo_after"] : (int)$battle["defender_elo_after"];
 
-if ($is_draw || $my_elo_change === 0) {
-    $change_str = "+/- 0";
-    $change_style = "style='color: #ffffff;'";
-    $change_class = "";
-} else {
-    $change_str = ($my_elo_change > 0) ? "+$my_elo_change" : "$my_elo_change";
-    $change_class = ($my_elo_change > 0) ? "passed" : "error";
-    $change_style = "";
-}
+$change_html = Arena::format_elo_change($my_elo_change, $is_draw);
 
 $date_str = date("d.m.Y H:i:s", $battle["created_at"]);
 $role_str = $is_attacker ? "Angriff" : "Verteidigung";
 
-$main_text = "<div class='arena-battle-log'>Wertungs-Änderung: <b class='$change_class' $change_style>$change_str ELO</b> (Neu: <b>" . fnum($my_elo_after) . " ELO</b>)</div>";
+$main_text = "<div class='arena-battle-log'>Wertungs-Änderung: $change_html (Neu: <b>" . fnum($my_elo_after) . " ELO</b>)</div>";
 $sub_text = "<div class='arena-battle-log'>Duell vom $date_str ($role_str).</div>";
 
 $outcome_html = BattleReportRenderer::render_outcome_box($outcome_title, $main_text, 0, 0, $sub_text, $outcome_type);

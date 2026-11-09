@@ -224,31 +224,7 @@ if (!$user->is_admin()) {
                 foreach ($fields as $f) {
                     $x = (int)$f["mapx"];
                     $y = (int)$f["mapy"];
-
-                    $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
-                    $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
-                    $active_keys = [];
-
-                    foreach ($res_values as $key => $val) {
-                        if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
-                    }
-
-                    if (empty($active_keys)) $active_keys[] = array_rand($res_values);
-
-                    $temp_total = $total;
-                    $count_keys = count($active_keys);
-
-                    for ($i = 0; $i < $count_keys; $i++) {
-                        $key = $active_keys[$i];
-                        if ($i == $count_keys - 1) {
-                            $res_values[$key] = $temp_total;
-                        } else {
-                            $share = mt_rand(10, 80) / 100;
-                            $val = (int)($temp_total * $share);
-                            $res_values[$key] = $val;
-                            $temp_total -= $val;
-                        }
-                    }
+                    $res_values = MapSpawner::generate_resource_tile_values();
 
                     $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]})";
                     $update_coords[] = "(mapx = $x AND mapy = $y)";
@@ -865,7 +841,6 @@ if (!$user->is_admin()) {
                             <b>Wartungsmodus:</b> $m_status
                         </div>
                         <form method='POST' id='maint_form' style='margin: 0;'>
-                            " . csrf_input() . "
                             <input type='hidden' name='toggle_maintenance' value='1'>
                             <input type='hidden' name='maintenance_reason' id='maint_reason_input' value=''>
                             <input type='button' data-on-click='confirmMaintenance' value='" . (MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren") . "'>
@@ -876,7 +851,6 @@ if (!$user->is_admin()) {
                             <b>Winter-Theme & Schnee:</b> $w_status
                         </div>
                         <form method='POST' style='margin: 0;'>
-                            " . csrf_input() . "
                             <input type='hidden' name='toggle_winter_theme' value='1'>
                             <input type='submit' value='$w_button'>
                         </form>
@@ -889,7 +863,6 @@ if (!$user->is_admin()) {
                     <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
                         <p style='margin-top: 0;'>Manuelle Generierung von Objekten auf freien Feldern.</p>
                         <form method='POST' style='display: flex; gap: 10px; justify-content: center;'>
-                            " . csrf_input() . "
                             <select name='spawn_type' style='width: 200px;'>
                                 <option value='all'>Alles füllen</option>
                                 <option value='resources'>Nur Ressourcen</option>
@@ -913,7 +886,6 @@ if (!$user->is_admin()) {
              <span>Status: $status_badge</span>
              <p style='opacity: 0.8;'>Überschreibt alle Marschgeschwindigkeiten mit einer festen Sekundenzahl.<br>Trage <b>0</b> ein, um die normale Berechnung zu aktivieren.</p>
              <form method='POST' style='display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;'>
-                " . csrf_input() . "
                  <label for='fixed_seconds'>Dauer (Sekunden):</label>
                  <input type='text' inputmode='numeric' pattern='[0-9]*' name='fixed_seconds' id='fixed_seconds'  value='$current_fixed'  style='width: 60px;' required>
                  <input type='submit' name='update_fixed_march' value='Speichern'>
@@ -927,7 +899,6 @@ if (!$user->is_admin()) {
         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
             <p style='margin-top: 0;'>Erstellt fehlende Benutzerkonten im phpBB-Forum nach.</p>
             <form method='POST'>
-                " . csrf_input() . "
                 <input type='submit' name='sync_forum_accounts' value='Fehlende Foren-User synchronisieren'>
             </form>
         </div>
@@ -938,7 +909,6 @@ if (!$user->is_admin()) {
         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
             <p style='margin-top: 0;'>Setzt alle Arena-Wertungen und Helden zurück.</p>
             <form method='POST'>
-                " . csrf_input() . "
                 <input type='submit' name='reset_arena_season' value='Arena Saison-Reset jetzt durchführen' onclick='return confirm(\"Bist du sicher? Alle Belohnungen werden ausgeschüttet und eine neue Saison gestartet!\");'>
             </form>
         </div>
@@ -955,21 +925,17 @@ if (!$user->is_admin()) {
             <p style='margin-top: 0;'>Status: $cal_status</p>
             <div style='display: flex; gap: 10px; flex-direction: column; justify-content: center; flex-wrap: wrap; align-items: center;'>
                 <form method='POST'>
-                    " . csrf_input() . "
                     <input type='submit' name='spawn_test_advent_gifts' value='24 Test-Geschenke für MICH'>
                 </form>
                 <form method='POST' style='display:flex; gap:5px; align-items:center;'>
-                    " . csrf_input() . "
                     <input type='text' name='test_username' placeholder='Test-User Name...' style='width: 140px;' required>
                     <input type='submit' name='spawn_test_advent_user' value='Für Test-User'>
                 </form>
                 " . (!$cal_active ? "
                 <form method='POST'>
-                    " . csrf_input() . "
                     <input type='button' data-on-click='confirmStartAdvent' value='🎄 Für alle starten (24 Tage)'>
                 </form>" : "
                 <form method='POST'>
-                    " . csrf_input() . "
                     <input type='button' data-on-click='confirmStopAdvent' value='Kalender stoppen & leeren' class='btn-delete'>
                 </form>") . "
             </div>
@@ -981,7 +947,6 @@ if (!$user->is_admin()) {
         <div class='box-content box-content-bg-danger' style='padding: 15px; text-align: center;'>
             <p class='error'><b>ACHTUNG:</b> Ein Runden-Reset löscht alle Königreiche, Truppen, Fortschritte und generiert eine komplett neue Karte!</p>
             <form method='POST'>
-                " . csrf_input() . "
                 <input type='button' data-on-click='confirmResetRound' value='RUNDEN-RESET' style='color: white;'>
                 <input type='hidden' name='reset_round' id='hidden_reset_submit'>
             </form>
@@ -1000,7 +965,6 @@ if (!$user->is_admin()) {
                     <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
                         <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' data-width='1050px' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
                         <form method='POST' id='form-clear-$f'>
-                            " . csrf_input() . "
                             <input type='hidden' name='log_to_clear' value='$f'>
                             <input type='hidden' name='clear_log' value='1'>
                             <input type='button' 

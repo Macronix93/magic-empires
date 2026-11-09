@@ -8,18 +8,8 @@ class CombatEngine
         $total_def_units = 0;
         $total_atk_def = 0;
         $total_def_def = 0;
-        $atk_def_pools = [
-            SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-            SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-            SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-            SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-        ];
-        $def_def_pools = [
-            SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-            SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-            SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-            SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-        ];
+        $atk_def_pools = SoldierTypes::get_empty_category_map();
+        $def_def_pools = SoldierTypes::get_empty_category_map();
         $atk_has_cat = [];
         $def_has_cat = [];
 
@@ -61,12 +51,7 @@ class CombatEngine
 
         // Damage Distribution
         $distribute = function (array $units, array $enemy_has_cat, array $enemy_def_pools, int $enemy_total_def) use ($get_target_cat) {
-            $targeted_dmg = [
-                SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-                SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-                SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-                SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-            ];
+            $targeted_dmg = SoldierTypes::get_empty_category_map();
             $shared_dmg = 0;
             $total_raw_atk = 0;
             $global_focus_share = RPS_TARGET_FOCUS;
@@ -113,12 +98,7 @@ class CombatEngine
                 }
             }
 
-            $final_incoming = [
-                SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-                SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-                SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-                SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-            ];
+            $final_incoming = SoldierTypes::get_empty_category_map();
             foreach ($enemy_def_pools as $cat => $cat_def) {
                 $final_incoming[$cat] = $targeted_dmg[$cat];
 
@@ -151,31 +131,12 @@ class CombatEngine
         $damping_def = 1.0;
         if ($own_offense["raw_atk"] > 0 && $effective_counter > 0) {
             $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
-            $base_min = 1.0 - (defined("PVP_DAMPING_BASE_DISCOUNT") ? PVP_DAMPING_BASE_DISCOUNT : 0.90);
-            $hard_min = 1.0 - (defined("PVP_DAMPING_MAX_DISCOUNT") ? PVP_DAMPING_MAX_DISCOUNT : 0.95);
-            $slope = defined("PVP_DAMPING_SLOPE") ? PVP_DAMPING_SLOPE : 0.01;
+            $base_min = 1.0 - PVP_DAMPING_BASE_DISCOUNT;
+            $hard_min = 1.0 - PVP_DAMPING_MAX_DISCOUNT;
+            $slope = PVP_DAMPING_SLOPE;
 
-            $ratio_def = $effective_counter / $own_offense["raw_atk"];
-            if ($ratio_def > PVP_DAMPING_THRESHOLD) {
-                $min_factor = $base_min;
-                if ($ratio_def > PVP_DAMPING_MAX_RATIO) {
-                    $min_factor = max($hard_min, $base_min - (($ratio_def - PVP_DAMPING_MAX_RATIO) * $slope));
-                }
-                $clamped = max(0.0, min(1.0, ($ratio_def - PVP_DAMPING_THRESHOLD) / $range));
-                $raw_damping = pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
-                $damping_def *= max($min_factor, $raw_damping);
-            }
-
-            $ratio_atk = $own_offense["raw_atk"] / $effective_counter;
-            if ($ratio_atk > PVP_DAMPING_THRESHOLD) {
-                $min_factor = $base_min;
-                if ($ratio_atk > PVP_DAMPING_MAX_RATIO) {
-                    $min_factor = max($hard_min, $base_min - (($ratio_atk - PVP_DAMPING_MAX_RATIO) * $slope));
-                }
-                $clamped = max(0.0, min(1.0, ($ratio_atk - PVP_DAMPING_THRESHOLD) / $range));
-                $raw_damping = pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
-                $damping_atk *= max($min_factor, $raw_damping);
-            }
+            $damping_def *= self::calculate_pvp_damping($effective_counter, $own_offense["raw_atk"], $range, $base_min, $hard_min, $slope);
+            $damping_atk *= self::calculate_pvp_damping($own_offense["raw_atk"], $effective_counter, $range, $base_min, $hard_min, $slope);
         }
 
         // Base Loss Ratios
@@ -295,5 +256,27 @@ class CombatEngine
         }
 
         return [$losses, $total_losses];
+    }
+
+    private static function calculate_pvp_damping(float $opposing_power, float $incoming_power, float $range, float $base_min, float $hard_min, float $slope): float
+    {
+        if ($incoming_power <= 0 || $opposing_power <= 0) {
+            return 1.0;
+        }
+
+        $ratio = $opposing_power / $incoming_power;
+        if ($ratio <= PVP_DAMPING_THRESHOLD) {
+            return 1.0;
+        }
+
+        $min_factor = $base_min;
+        if ($ratio > PVP_DAMPING_MAX_RATIO) {
+            $min_factor = max($hard_min, $base_min - (($ratio - PVP_DAMPING_MAX_RATIO) * $slope));
+        }
+
+        $clamped = max(0.0, min(1.0, ($ratio - PVP_DAMPING_THRESHOLD) / $range));
+        $raw_damping = pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
+
+        return max($min_factor, $raw_damping);
     }
 }

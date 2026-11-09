@@ -606,7 +606,6 @@ $view .= '
     <div class="box-header">Anrede & Titel</div>
     <div class="box-content box-content-bg" style="padding: 15px;">
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="save_salutation_and_title" value="1">
             <div style="display: flex; gap: 20px; justify-content: center; align-items: center; margin-bottom: 15px;">
                 <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
@@ -637,7 +636,6 @@ $view .= '
                  style="width: 60px; height: 60px; border: 2px solid var(--border-gold); border-radius: 5px; background: rgba(0,0,0,0.3);">
         </div>
         <form action="settings.php" method="POST" enctype="multipart/form-data" id="avatar-upload-form">
-            ' . csrf_input() . '
             <input type="hidden" name="submit_avatar" value="1">
             <p>Neues Profilbild hochladen (Max. ' . MAX_UPLOAD_FILE_SIZE . ' KB):</p>
             <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif" required>
@@ -685,7 +683,6 @@ $view .= '
     <div class="box-header">Ansicht & Anzeige</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="game">
             <table class="table" style="width: 100%;">
                 <tr>
@@ -743,7 +740,6 @@ $view .= '
     <div class="box-header">Aktuelles Königreich umbenennen</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="game">
             <p style="margin-top: 0;">Aktueller Name: <b>' . e($current_k_name) . '</b></p>
             <input type="text" name="new_kingdom_name" maxlength="25" placeholder="Neuer Name..." required style="width: 100%; margin-bottom: 10px;">
@@ -768,7 +764,6 @@ $view .= '
         <p style="margin-top:0;">' . $current_partner_text . '</p>
         <p>Spielst du mit jemandem aus dem gleichen Haushalt? Gib hier den Namen an, um Sperren zu vermeiden:</p>
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="game">
             <input type="text" name="partner_name" value="' . e($current_partner_name) . '" placeholder="Name des Mitspielers..." style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="update_sharing" value="Partner speichern">
@@ -814,7 +809,6 @@ $view .= '
     <div class="box-header">Benutzernamen ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
             <table class="table" style="width: 100%;">
                 <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="16" required></td></tr>
@@ -833,7 +827,6 @@ $view .= '
     <div class="box-header">Passwort ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
             <table class="table" style="width: 100%;">
                 <tr><td>Aktuelles Passwort:</td><td><input type="password" name="old_pw" required></td></tr>
@@ -850,7 +843,6 @@ $view .= '
     <div class="box-header">E-Mail Adresse ändern</div>
     <div class="box-content box-content-bg" style="padding: 10px;">
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
             <table class="table" style="width: 100%;">
                 <tr><td>Neue E-Mail:</td><td><input type="email" name="new_email" required></td></tr>
@@ -898,7 +890,6 @@ $view .= '
 
         <h4 style="margin: 0 0 10px 0;">Benachrichtigungs-Arten anpassen:</h4>
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
             <div style="display: flex; flex-direction: column; gap: 8px; font-size: 14px;">
                 <label style="display: flex; align-items: center; gap: 8px;">
@@ -937,7 +928,6 @@ $view .= '
 if ($push_devices_count > 0) {
     $view .= '
             <form method="POST" style="margin-top: 8px;">
-                ' . csrf_input() . '
                 <input type="hidden" name="tab" value="account">
                 <input type="submit" 
                        name="delete_all_push_devices" 
@@ -973,7 +963,6 @@ $view .= '<div class="box-container" style="border-color: var(--border-gold); ma
                 <span style="font-size: 13px;"><b>Nicht möglich:</b><br>' . implode("<br>", $vac_checks) . '</span>
             </div>' : '') . '
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
             <table class="table" style="width: 100%;">
                 <tr>
@@ -1006,7 +995,6 @@ $view .= '
     <div class="box-content box-content-bg-danger" style="padding: 10px;">
         <p class="error"><b>Vorsicht:</b> Das Löschen deines Accounts kann nicht rückgängig gemacht werden!</p>
         <form method="POST">
-            ' . csrf_input() . '
             <input type="hidden" name="tab" value="account">
             <table class="table" style="width: 100%;">
                 <tr><td>Passwort zur Bestätigung:</td><td><input type="password" name="confirm_pw_delete" required></td></tr>

@@ -1,131 +1,117 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-        echo json_encode(["success" => false, "error" => "Ungültige Anfragemethode"]);
-        exit;
-    }
+$action = $_POST["action"] ?? '';
+$guild_logic = new Guild($user);
+$response = ["success" => false];
 
-    if (!verify_csrf_token()) {
-        echo json_encode(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
-        exit;
-    }
+switch ($action) {
+    case "invite":
+        $target_id = (int)($_POST["target_id"] ?? 0);
+        $res = $guild_logic->invite_user($target_id);
 
-    $user->check_user_login();
-    $action = $_POST["action"] ?? '';
-    $guild_logic = new Guild($user);
-    $response = ["success" => false];
-
-    switch ($action) {
-        case "invite":
-            $target_id = (int)($_POST["target_id"] ?? 0);
-            $res = $guild_logic->invite_user($target_id);
-
-            if ($res === null) {
-                $response["success"] = true;
-
-                $response["html"] = show_passed_box("Einladung wurde erfolgreich verschickt!");
-            } else {
-                $response["error"] = $res;
-            }
-            break;
-
-        case "accept_invite":
-            $invite_id = (int)($_POST["invite_id"] ?? 0);
-            $res = $guild_logic->join_guild($invite_id, true);
-
-            if ($res === null) {
-                $_SESSION["game_success"] = "Willkommen in der Gilde!";
-
-                $guild_logic->delete_invite_msg($db_instance, $user->get_user_id());
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
+        if ($res === null) {
             $response["success"] = true;
-            break;
 
-        case "decline_invite":
-            $invite_id = (int)($_POST["invite_id"] ?? 0);
-            $res = $guild_logic->decline_invite($invite_id);
+            $response["html"] = show_passed_box("Einladung wurde erfolgreich verschickt!");
+        } else {
+            $response["error"] = $res;
+        }
+        break;
 
-            if ($res === null) {
-                $_SESSION["game_success"] = "Du hast die Einladung abgelehnt.";
+    case "accept_invite":
+        $invite_id = (int)($_POST["invite_id"] ?? 0);
+        $res = $guild_logic->join_guild($invite_id, true);
 
-                $guild_logic->delete_invite_msg($db_instance, $user->get_user_id());
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
-            $response["success"] = true;
-            break;
+        if ($res === null) {
+            $_SESSION["game_success"] = "Willkommen in der Gilde!";
 
-        case "leave":
-            $res = $guild_logic->leave_guild();
-            if ($res === null) {
-                $_SESSION["game_success"] = "Du hast die Gilde erfolgreich verlassen.";
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
-            $response["success"] = true;
-            break;
+            $guild_logic->delete_invite_msg($db_instance, $user->get_user_id());
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
 
-        case "kick":
-            $target_id = (int)($_POST["target_id"] ?? 0);
-            $res = $guild_logic->kick_member($target_id);
+    case "decline_invite":
+        $invite_id = (int)($_POST["invite_id"] ?? 0);
+        $res = $guild_logic->decline_invite($invite_id);
 
-            if ($res === null) {
-                $_SESSION["game_success"] = "Das Mitglied wurde aus der Gilde entfernt.";
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
-            $response["success"] = true;
-            break;
+        if ($res === null) {
+            $_SESSION["game_success"] = "Du hast die Einladung abgelehnt.";
 
-        case "set_rank":
-            $target_id = (int)($_POST["target_id"] ?? 0);
-            $rank_id = (int)($_POST["rank_id"] ?? 0);
-            $res = $guild_logic->set_member_rank($target_id, $rank_id);
+            $guild_logic->delete_invite_msg($db_instance, $user->get_user_id());
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
 
-            if ($res === null) {
-                $_SESSION["game_success"] = "Der Rang wurde erfolgreich angepasst.";
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
-            $response["success"] = true;
-            break;
+    case "leave":
+        $res = $guild_logic->leave_guild();
+        if ($res === null) {
+            $_SESSION["game_success"] = "Du hast die Gilde erfolgreich verlassen.";
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
 
-        case "join":
-            $guild_id = (int)($_POST["guild_id"] ?? 0);
-            $res = $guild_logic->join_guild($guild_id);
+    case "kick":
+        $target_id = (int)($_POST["target_id"] ?? 0);
+        $res = $guild_logic->kick_member($target_id);
 
-            if ($res === null) {
-                $_SESSION["game_success"] = "Willkommen in der Gilde!";
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
-            $response["success"] = true;
-            break;
+        if ($res === null) {
+            $_SESSION["game_success"] = "Das Mitglied wurde aus der Gilde entfernt.";
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
 
-        case "cancel_invite":
-            $invite_id = (int)($_POST["invite_id"] ?? 0);
-            $res = $guild_logic->cancel_invite($invite_id);
+    case "set_rank":
+        $target_id = (int)($_POST["target_id"] ?? 0);
+        $rank_id = (int)($_POST["rank_id"] ?? 0);
+        $res = $guild_logic->set_member_rank($target_id, $rank_id);
 
-            if ($res === null) {
-                $_SESSION["game_success"] = "Die Einladung wurde erfolgreich zurückgezogen.";
-            } else {
-                $_SESSION["game_error"] = $res;
-            }
-            $response["success"] = true;
-            break;
+        if ($res === null) {
+            $_SESSION["game_success"] = "Der Rang wurde erfolgreich angepasst.";
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
 
-        default:
-            $response["error"] = "Unbekannte Aktion";
-            break;
-    }
+    case "join":
+        $guild_id = (int)($_POST["guild_id"] ?? 0);
+        $res = $guild_logic->join_guild($guild_id);
 
-    session_write_close();
-    header('Content-Type: application/json');
-    echo json_encode($response);
-} else {
-    change_location("guild.php");
+        if ($res === null) {
+            $_SESSION["game_success"] = "Willkommen in der Gilde!";
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
+
+    case "cancel_invite":
+        $invite_id = (int)($_POST["invite_id"] ?? 0);
+        $res = $guild_logic->cancel_invite($invite_id);
+
+        if ($res === null) {
+            $_SESSION["game_success"] = "Die Einladung wurde erfolgreich zurückgezogen.";
+        } else {
+            $_SESSION["game_error"] = $res;
+        }
+        $response["success"] = true;
+        break;
+
+    default:
+        $response["error"] = "Unbekannte Aktion";
+        break;
 }
+
+session_write_close();
+
+header('Content-Type: application/json');
+echo json_encode($response);

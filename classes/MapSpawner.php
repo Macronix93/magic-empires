@@ -38,20 +38,7 @@ class MapSpawner
         ");
 
         $res_count = $this->db->execute_query("SELECT COUNT(*) FROM map WHERE kingdomid = " . MapFieldTypes::MAP_FIELD_RESOURCE_TILE)->fetch_column();
-        if ($res_count >= MAX_RESOURCE_TILES) {
-            return 0;
-        }
-
-        $needed = MAX_RESOURCE_TILES - $res_count;
-        if ($custom_limit !== null) {
-            $limit = min($custom_limit, $needed);
-        } elseif ($fill_all) {
-            $limit = $needed;
-        } else {
-            $batch_limit = (int)ceil(RESOURCE_TILES_SPAWN_RATE / 24);
-            $limit = min($batch_limit, $needed);
-        }
-
+        $limit = self::calculate_spawn_limit($res_count, MAX_RESOURCE_TILES, (int)ceil(RESOURCE_TILES_SPAWN_RATE / 24), $fill_all, $custom_limit);
         if ($limit <= 0) return 0;
 
         $query_free_res = "
@@ -79,47 +66,7 @@ class MapSpawner
                 $y = (int)$f["mapy"];
 
                 $expires = time() + mt_rand(SPAWN_LIFETIME_MIN * 86400, SPAWN_LIFETIME_MAX * 86400);
-                $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
-
-                $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
-                $active_keys = [];
-
-                foreach ($res_values as $key => $val) {
-                    if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
-                }
-
-                if (empty($active_keys)) $active_keys[] = array_rand($res_values);
-
-                if (in_array("gold", $active_keys)) {
-                    // Gold generation is 20% "richer" than the rest
-                    $total = (int)($total * 1.2);
-                }
-
-                $temp_total = $total;
-                $count = count($active_keys);
-
-                for ($i = 0; $i < $count; $i++) {
-                    $key = $active_keys[$i];
-
-                    if ($i == $count - 1) {
-                        $res_values[$key] = $temp_total;
-                    } else {
-                        // Random portion
-                        $min_share = 10;
-                        $max_share = 80;
-
-                        if ($key === "gold") {
-                            $min_share = 50;
-                            $max_share = 90;
-                        }
-
-                        $share = mt_rand($min_share, $max_share) / 100;
-                        $val = (int)($temp_total * $share);
-
-                        $res_values[$key] = $val;
-                        $temp_total -= $val;
-                    }
-                }
+                $res_values = self::generate_resource_tile_values();
 
                 $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]}, $expires)";
                 $update_coords[] = "($x, $y)";
@@ -155,16 +102,7 @@ class MapSpawner
             return 0;
         }
 
-        $needed = MAX_MINES - $current_mines;
-        if ($custom_limit !== null) {
-            $limit = min($custom_limit, $needed);
-        } elseif ($fill_all) {
-            $limit = $needed;
-        } else {
-            $batch_limit = (int)ceil(MINE_SPAWN_RATE / 24);
-            $limit = min($batch_limit, $needed);
-        }
-
+        $limit = self::calculate_spawn_limit($current_mines, MAX_MINES, (int)ceil(MINE_SPAWN_RATE / 24), $fill_all, $custom_limit);
         if ($limit <= 0) return 0;
 
         $count_mines_res = $this->db->query("
@@ -335,15 +273,7 @@ class MapSpawner
             return 0;
         }
 
-        $needed = MAX_MONSTER_CAMPS - $total_on_map;
-        if ($custom_limit !== null) {
-            $limit = min($custom_limit, $needed);
-        } else if ($fill_all) {
-            $limit = $needed;
-        } else {
-            $limit = min(MONSTER_CAMP_SPAWN_RATE, $needed);
-        }
-
+        $limit = self::calculate_spawn_limit($total_on_map, MAX_MONSTER_CAMPS, MONSTER_CAMP_SPAWN_RATE, $fill_all, $custom_limit);
         if ($limit <= 0) return 0;
 
         // Load Monster Data
@@ -551,5 +481,62 @@ class MapSpawner
         }
 
         return $total / $maxV;
+    }
+
+    public static function calculate_spawn_limit(int $current_count, int $max_limit, int $batch_rate, bool $fill_all = false, ?int $custom_limit = null): int
+    {
+        if ($current_count >= $max_limit) {
+            return 0;
+        }
+
+        $needed = $max_limit - $current_count;
+        if ($custom_limit !== null) {
+            $limit = min($custom_limit, $needed);
+        } else if ($fill_all) {
+            $limit = $needed;
+        } else {
+            $limit = min($batch_rate, $needed);
+        }
+
+        return max(0, $limit);
+    }
+
+    public static function generate_resource_tile_values(): array
+    {
+        $total = mt_rand(MIN_RESOURCES_PER_TILE, MAX_RESOURCES_PER_TILE);
+        $res_values = ["food" => 0, "wood" => 0, "stone" => 0, "gold" => 0];
+        $active_keys = [];
+
+        foreach ($res_values as $key => $val) {
+            if (mt_rand(1, 100) <= 70) $active_keys[] = $key;
+        }
+
+        if (empty($active_keys)) {
+            $active_keys[] = array_rand($res_values);
+        }
+
+        if (in_array("gold", $active_keys, true)) {
+            // Gold generation is 20% "richer" than the rest
+            $total = (int)($total * 1.2);
+        }
+
+        $temp_total = $total;
+        $count = count($active_keys);
+        for ($i = 0; $i < $count; $i++) {
+            $key = $active_keys[$i];
+
+            if ($i === $count - 1) {
+                $res_values[$key] = $temp_total;
+            } else {
+                $min_share = ($key === "gold") ? 50 : 10;
+                $max_share = ($key === "gold") ? 90 : 80;
+                $share = mt_rand($min_share, $max_share) / 100;
+                $val = (int)($temp_total * $share);
+                $res_values[$key] = $val;
+                $temp_total -= $val;
+            }
+        }
+
+        return $res_values;
     }
 }

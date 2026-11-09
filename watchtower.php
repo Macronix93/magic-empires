@@ -1,12 +1,13 @@
 <?php
 require_once("includes/core.php");
 
-$result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_WATCHTOWER);
-$current_kingdom = $result['current_kingdom'];
-$building = $result['building'];
-$building_name = $building->get_building_name();
-$kingdom = $result['kingdom'];
-$level = $building->get_building_level();
+[
+    "current_kingdom" => $current_kingdom,
+    "building" => $building,
+    "building_name" => $building_name,
+    "kingdom" => $kingdom,
+    "level" => $level
+] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_WATCHTOWER);
 
 $base_visibility = $level * WATCHTOWER_DETECTION_PER_LEVEL;
 $next_visibility = ($level + 1) * WATCHTOWER_DETECTION_PER_LEVEL;
@@ -16,12 +17,10 @@ $raw_boost_seconds = (int)round($base_visibility * $boost_percent);
 $boost_seconds = (int)(floor($raw_boost_seconds / 60) * 60);
 
 $boost_duration_ticks = (int)round(($level + BASE_BOOST_DURATION) * BOOST_WATCHTOWER_DURATION_FACTOR);
-$boost_cost = BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $level - 1);
-
-$active_boosts = $kingdom->get_active_boosts(ResourceTypes::RESOURCE_TYPE_WATCHTOWER);
-$this_boost = $active_boosts[ResourceTypes::RESOURCE_TYPE_WATCHTOWER] ?? null;
-$boost_amount = $this_boost["amount"] ?? 0;
-$ticks_left = $this_boost["ticks"] ?? 0;
+$boost_cost = Building::calculate_boost_cost($level);
+$this_boost = $kingdom->get_active_boost(ResourceTypes::RESOURCE_TYPE_WATCHTOWER);
+$boost_amount = $this_boost["amount"];
+$ticks_left = $this_boost["ticks"];
 
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . convert_sec_to_str($boost_amount, false, false) . ")</span>" : "";
 
@@ -89,7 +88,6 @@ if ($level >= BOOST_MIN_BUILDING_LEVEL) {
 
         $view .= "<p class='res-building-boost-text'>Ein Boost erhöht die Sichtweite für die nächsten <b>$boost_duration_ticks Erträge</b> um <b>+$boost_perc_display%</b> (+" . convert_sec_to_str($boost_seconds, false, false) . ").</p>";
         $view .= "<form method='POST'>
-                    " . csrf_input() . "
                     <button type='submit' name='activate_boost' class='boost-button' $disabled>
                         Boost aktivieren für $cost_display_html
                     </button>

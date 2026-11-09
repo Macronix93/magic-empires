@@ -1,16 +1,23 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
-    change_location("arena.php");
-}
-
-$user->check_user_login();
 $uid = $user->get_user_id();
 $arena = new Arena($uid);
 $hero_info = $arena->get_hero_full_data();
-
 $type = $_GET["type"] ?? "hero";
+
+$render_row = function (int $lvl, int $cur_lvl, int $max_lvl, int $xp_needed, int $cum_xp, string $val_html): string {
+    $is_max = ($lvl === $max_lvl);
+    $highlight = ($lvl === $cur_lvl) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
+    $xp_col = $is_max ? "<span class='passed'>MAX</span>" : fnum($xp_needed);
+
+    return "<tr>
+        <td class='td-center' $highlight>$lvl</td>
+        <td class='td-center' $highlight>$xp_col</td>
+        <td class='td-center' $highlight>" . fnum($cum_xp) . "</td>
+        <td class='td-center' $highlight>$val_html</td>
+    </tr>";
+};
 
 if ($type === "hero"):
     $cur_lvl = (int)$hero_info["hero"]["level"];
@@ -36,24 +43,14 @@ if ($type === "hero"):
                 $xp_needed = Arena::get_hero_xp_needed($lvl);
                 $hero_atk = (int)round(ARENA_HERO_BASE_ATK * pow(ARENA_HERO_STAT_FACTOR, $lvl - 1));
                 $hero_def = (int)round(ARENA_HERO_BASE_DEF * pow(ARENA_HERO_STAT_FACTOR, $lvl - 1));
-                $is_max = ($lvl === ARENA_HERO_MAX_LEVEL);
-                $highlight = ($lvl === $cur_lvl) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
-                ?>
-                <tr>
-                    <td class="td-center" <?= $highlight ?>>
-                        <?= $lvl ?>
-                    </td>
-                    <td class="td-center" <?= $highlight ?>><?= $is_max ? "<span class='passed'>MAX</span>" : fnum($xp_needed) ?></td>
-                    <td class="td-center" <?= $highlight ?>><?= fnum($cumulative_xp) ?></td>
-                    <td class="td-center" <?= $highlight ?>><?= fnum($hero_atk) ?> | <?= fnum($hero_def) ?></td>
-                </tr>
-                <?php
-                if (!$is_max) $cumulative_xp += $xp_needed;
+
+                echo $render_row($lvl, $cur_lvl, ARENA_HERO_MAX_LEVEL, $xp_needed, $cumulative_xp, fnum($hero_atk) . " | " . fnum($hero_def));
+
+                if ($lvl < ARENA_HERO_MAX_LEVEL) $cumulative_xp += $xp_needed;
             }
             ?>
         </table>
     </div>
-
 <?php
 elseif ($type === "skill"):
     $skill_id = (int)($_GET["id"] ?? 1);
@@ -82,19 +79,10 @@ elseif ($type === "skill"):
             for ($s_lvl = 1; $s_lvl <= ARENA_SKILL_MAX_LEVEL; $s_lvl++) {
                 $skill_xp_needed = Arena::get_skill_xp_needed($s_lvl);
                 $skill_rps = Arena::get_skill_rps_bonus($s_lvl) * 100;
-                $is_s_max = ($s_lvl === ARENA_SKILL_MAX_LEVEL);
-                $highlight = ($s_lvl === $cur_lvl) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
-                ?>
-                <tr>
-                    <td class="td-center" <?= $highlight ?>>
-                        <?= $s_lvl ?>
-                    </td>
-                    <td class="td-center" <?= $highlight ?>><?= $is_s_max ? "<span class='passed'>MAX</span>" : fnum($skill_xp_needed) ?></td>
-                    <td class="td-center" <?= $highlight ?>><?= fnum($cumulative_skill_xp) ?></td>
-                    <td class="td-center passed" <?= $highlight ?>>+<?= fdec($skill_rps) ?>%</td>
-                </tr>
-                <?php
-                if (!$is_s_max) $cumulative_skill_xp += $skill_xp_needed;
+
+                echo $render_row($s_lvl, $cur_lvl, ARENA_SKILL_MAX_LEVEL, $skill_xp_needed, $cumulative_skill_xp, "<span class='passed'>+" . fdec($skill_rps) . "%</span>");
+
+                if ($s_lvl < ARENA_SKILL_MAX_LEVEL) $cumulative_skill_xp += $skill_xp_needed;
             }
             ?>
         </table>

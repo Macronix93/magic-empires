@@ -1,62 +1,57 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest") {
-    $user->check_user_login();
-    $guild_id = (int)($_GET["id"] ?? 0);
-    $guild_logic = new Guild($user);
-    $data = $guild_logic->get_guild_details($guild_id);
+$guild_id = (int)($_GET["id"] ?? 0);
+$guild_logic = new Guild($user);
+$data = $guild_logic->get_guild_details($guild_id);
 
-    if (!$data) {
-        echo show_error_box("Gilde nicht gefunden.");
-        exit;
-    }
+if (!$data) {
+    echo show_error_box("Gilde nicht gefunden.");
+    exit;
+}
 
-    $my_guild_id = $user->get_user_guild_id();
-    $user_score = $user->get_user_score();
+$my_guild_id = $user->get_user_guild_id();
+$user_score = $user->get_user_score();
 
-    echo "<div style='text-align: center;'><img src='" . $guild_logic->get_avatar($guild_id) . "' class='guild-avatar' alt='Wappen'><h2>[" . e($data["tag"]) . "] " . e($data["name"]) . "</h2>";
+echo "<div style='text-align: center;'><img src='" . $guild_logic->get_avatar($guild_id) . "' class='guild-avatar' alt='Wappen'><h2>[" . e($data["tag"]) . "] " . e($data["name"]) . "</h2>";
 
-    if ($data["motto"]) {
-        echo "<p class='guild-motto' style='color: rgb(208, 208, 208); opacity: 0.7;'><i>&bdquo;" . e($data["motto"]) . "&ldquo;</i></p>";
-    }
+if ($data["motto"]) {
+    echo "<p class='guild-motto' style='color: rgb(208, 208, 208); opacity: 0.7;'><i>&bdquo;" . e($data["motto"]) . "&ldquo;</i></p>";
+}
 
-    echo "</div>";
+echo "</div>";
 
-    $score_text = ($data["min_score"] == -1) ? "Nur per Einladung" : ($data["min_score"] > 0 ? fnum($data["min_score"], true) . " Punkte" : "Jeder");
-    $can_join = ($my_guild_id <= 0 && $data["min_score"] != -1 && $user_score >= $data["min_score"] && $data["members"] < $data["max_members"]);
+$score_text = ($data["min_score"] == -1) ? "Nur per Einladung" : ($data["min_score"] > 0 ? fnum($data["min_score"], true) . " Punkte" : "Jeder");
+$can_join = ($my_guild_id <= 0 && $data["min_score"] != -1 && $user_score >= $data["min_score"] && $data["members"] < $data["max_members"]);
 
-    echo "<table class='table' style='width: 70%;'>
+echo "<table class='table' style='width: 70%;'>
             <tr><td>Mitglieder:</td><td>" . $data["members"] . " / " . $data["max_members"] . "</td></tr>
             <tr><td>Beitritt:</td><td>" . $score_text . "</td></tr>
             <tr><td>Gilden-Punkte:</td><td>" . fnum($data["score"], true) . "</td></tr>
         </table>";
 
-    if ($can_join) {
-        echo "<div style='text-align: center; margin: 10px 0;'>
+if ($can_join) {
+    echo "<div style='text-align: center; margin: 10px 0;'>
             <button data-on-click='joinGuild' data-id='{$data["id"]}' data-name='" . e($data["name"]) . "'>Gilde beitreten</button>
           </div>";
-    }
+}
 
-    echo "<div class='title-border' style='margin-top: 15px;'>Mitglieder-Liste</div>";
-    echo "<table class='table guild-members-table'>
+echo "<div class='title-border' style='margin-top: 15px;'>Mitglieder-Liste</div>";
+echo "<table class='table guild-members-table'>
         <tr>
             <td class='td-gradient td-center'><b>Spieler</b></td>
             <td class='td-gradient td-center'><b>Rang</b></td>
             <td class='td-gradient td-center'><b>Punkte</b></td>
         </tr>";
 
-    $members = $guild_logic->get_members_detailed($guild_id);
-    while ($m = $members->fetch_assoc()) {
-        $guild_user = new User($m["id"], $m["username"]);
+$members = $guild_logic->get_members_detailed($guild_id);
+while ($m = $members->fetch_assoc()) {
+    $guild_user = new User($m["id"], $m["username"]);
 
-        echo "<tr>
+    echo "<tr>
             <td>" . $guild_user->render_user() . "</td>
             <td class='td-center' style='color: {$m["rank_color"]}; font-weight: bold;'>" . e($m["rank_name"]) . "</td>
             <td class='td-center'>" . fnum($m["ranking_points"], true) . "</td>
           </tr>";
-    }
-    echo "</table>";
-} else {
-    change_location("guilds.php");
 }
+echo "</table>";

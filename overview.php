@@ -857,7 +857,6 @@ if (!empty($all_tp_entries)) {
                     </small>
                     <div class='delete-btn'>
                         <form action='overview.php' method='POST' style='display: inline;'>
-                            " . csrf_input() . "
                             <input type='hidden' name='recall_mine_troops' value='1'>
                             <input type='hidden' name='mine_x' value='$mx'>
                             <input type='hidden' name='mine_y' value='$my'>
@@ -899,7 +898,6 @@ if (!empty($all_tp_entries)) {
 
             if ($is_me && !$is_return && ((int)($event_data["is_processing"] ?? 0) === 0)) {
                 $action_button = "<form action='overview.php' method='POST' style='display: inline;'>
-                                    " . csrf_input() . "
                                     <input type='hidden' name='cancel_event' value='1'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>
                                     <input type='submit' value='' class='btn-delete' title='Abbrechen'>
@@ -1133,7 +1131,6 @@ if ($result_trades && $result_trades->num_rows > 0) {
         if ($is_cancelable) {
             $view .= "<div class='delete-btn'>
                         <form action='overview.php' method='POST' style='display: inline;'>
-                            " . csrf_input() . "
                             <input type='hidden' name='cancel_event' value='1'>
                             <input type='hidden' name='eid' value='$event_id'>
                             <input type='submit' value='' class='btn-delete' title='Abbrechen'>

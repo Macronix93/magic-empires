@@ -1,5 +1,5 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
 if (!$user->is_admin()) {
     die("Zugriff verweigert.");

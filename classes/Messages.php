@@ -605,7 +605,6 @@ class Messages
         ";
         $this->view .= "
             <form id='form-delete-conversation' method='POST' action='messages.php' style='display: none;'>
-                " . csrf_input() . "
                 <input type='hidden' name='delete_conversation' value='1'>
                 <input type='hidden' name='partner_id' id='delete-partner-id' value=''>
             </form>
@@ -1412,7 +1411,6 @@ class Messages
                         "Kein einziger Späher kehrte lebend zurück.",
                         "error"
                     );
-                    $html .= "</div>";
                 }
 
                 $html .= "</div>";

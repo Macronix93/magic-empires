@@ -1,11 +1,6 @@
 <?php
-require_once("../includes/core.php");
+require_once("../includes/ajax_core.php");
 
-if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
-    change_location("overview.php");
-}
-
-$user->check_user_login();
 $uid = $user->get_user_id();
 
 // Get kingdoms of user (+ shrine alignment)
@@ -206,18 +201,8 @@ $global_power = [
         "pure_base_atk" => 0, "pure_base_def" => 0,
         "total_smithy_atk" => 0, "total_smithy_def" => 0,
         "total_shrine_atk" => 0,
-        "cat_atk" => [
-                SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-                SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-                SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-                SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-        ],
-        "cat_def" => [
-                SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-                SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-                SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-                SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-        ]
+        "cat_atk" => SoldierTypes::get_empty_category_map(),
+        "cat_def" => SoldierTypes::get_empty_category_map()
 ];
 
 foreach ($kingdoms as $k) {
@@ -252,18 +237,8 @@ foreach ($kingdoms as $k) {
             "pure_base_atk" => 0, "pure_base_def" => 0,
             "total_smithy_atk" => 0, "total_smithy_def" => 0,
             "total_shrine_atk" => 0,
-            "cat_atk" => [
-                    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-                    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-                    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-                    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-            ],
-            "cat_def" => [
-                    SoldierTypes::SOLDIER_TYPE_INFANTRY => 0,
-                    SoldierTypes::SOLDIER_TYPE_CAVALRY => 0,
-                    SoldierTypes::SOLDIER_TYPE_ARCHERS => 0,
-                    SoldierTypes::SOLDIER_TYPE_SPECIAL => 0
-            ]
+            "cat_atk" => SoldierTypes::get_empty_category_map(),
+            "cat_def" => SoldierTypes::get_empty_category_map()
     ];
 
     foreach ($units_to_calc as $sid => $sol_count) {
