@@ -279,4 +279,55 @@ class CombatEngine
 
         return max($min_factor, $raw_damping);
     }
+
+    public static function get_pvp_damping(float $opposing_power, float $incoming_power): float
+    {
+        $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
+        $base_min = 1.0 - PVP_DAMPING_BASE_DISCOUNT;
+        $hard_min = 1.0 - PVP_DAMPING_MAX_DISCOUNT;
+        return self::calculate_pvp_damping($opposing_power, $incoming_power, $range, $base_min, $hard_min, PVP_DAMPING_SLOPE);
+    }
+
+    public static function calculate_stealth(
+        int $atk_count,
+        int $def_scouts,
+        int $unit_atk,
+        int $unit_def,
+        int $wt_level
+    ): array
+    {
+        if ($def_scouts <= 0 || $atk_count <= 0) {
+            return [
+                "atk_losses" => 0,
+                "def_losses" => 0,
+                "survivors" => max(0, $atk_count)
+            ];
+        }
+
+        $unit_def = max(1, $unit_def);
+        $p_atk_pool = $atk_count * $unit_atk;
+        $p_def_pool = $atk_count * $unit_def;
+
+        $e_atk_pool = $def_scouts * ($unit_atk + ($wt_level * 0.5));
+        $e_def_pool = $def_scouts * ($unit_def + $wt_level);
+
+        $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
+        $base_min = 1.0 - PVP_DAMPING_BASE_DISCOUNT;
+        $hard_min = 1.0 - PVP_DAMPING_MAX_DISCOUNT;
+
+        $damping_atk = self::calculate_pvp_damping($p_atk_pool, $e_atk_pool, $range, $base_min, $hard_min, PVP_DAMPING_SLOPE);
+        $damping_def = self::calculate_pvp_damping($e_atk_pool, $p_atk_pool, $range, $base_min, $hard_min, PVP_DAMPING_SLOPE);
+
+        $p_loss_ratio = min(1.0, ($e_atk_pool / ($p_def_pool * SCOUT_COMBAT_LETHALITY)) * $damping_atk);
+        $e_loss_ratio = min(1.0, ($p_atk_pool / ($e_def_pool * SCOUT_COMBAT_LETHALITY)) * $damping_def);
+
+        $atk_losses = (int)round($atk_count * $p_loss_ratio);
+        $def_losses = (int)round($def_scouts * $e_loss_ratio);
+
+        return [
+            "atk_losses" => $atk_losses,
+            "def_losses" => $def_losses,
+            "survivors" => max(0, $atk_count - $atk_losses)
+        ];
+    }
 }

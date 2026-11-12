@@ -93,14 +93,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 change_location("suggestions.php");
             }
         }
-    }
-}
 
-if ($is_admin) {
-    if ($_SERVER["REQUEST_METHOD"] === "POST") {
-        if (!verify_csrf_token()) {
-            $error = "Ungültiger Sicherheits-Token!";
-        } else {
+        if ($is_admin) {
             if (isset($_POST["admin_update_status"])) {
                 $sug_id = (int)$_POST["suggestion_id"];
                 $status = (int)$_POST["status"];

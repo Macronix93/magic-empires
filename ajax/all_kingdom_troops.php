@@ -112,8 +112,15 @@ foreach ($kingdoms as $k) {
     $total_capacity_all += $cap;
 }
 
+$main_k_id = $user->get_main_kingdom();
+
 foreach ($res_troops as $row) {
     $kid = (int)$row["kingdom_id"];
+
+    if (!in_array($kid, $k_ids, true)) {
+        $kid = $main_k_id;
+    }
+
     $type = $row["type"];
     $sid = (int)$row["soldierid"];
     $cnt = (int)$row["total_count"];
@@ -190,7 +197,7 @@ foreach ($res_troops as $row) {
             ];
         }
         $kingdom_troops[$kid][$sid]["count"] += $cnt;
-        $total_units_per_k[$kid] += $cnt;
+        $total_units_per_k[$kid] = ($total_units_per_k[$kid] ?? 0) + $cnt;
     }
 }
 
@@ -301,13 +308,15 @@ foreach ($kingdoms as $k) {
 }
 
 // Helper function for stat rendering
-$render_power_stat = function (string $type, int $total, int $pure_base, int $smithy_bonus, int $shrine_bonus, array $cat_vals, string $id_suffix): string {
+$render_power_stat = function (string $type, int $total, int $pure_base, int $smithy_bonus, int $shrine_bonus, array $cat_vals,
+                               string $id_suffix, bool $full_number = false): string {
     $is_atk = ($type === "atk");
     $icon = get_resource_icon($is_atk ? ResourceTypes::RESOURCE_TYPE_ATTACK : ResourceTypes::RESOURCE_TYPE_DEFENSE);
     $title = $is_atk ? "Angriffs-Bonus:" : "Verteidigungs-Bonus:";
     $has_bonus = $is_atk ? ($smithy_bonus > 0 || $shrine_bonus > 0) : ($smithy_bonus > 0);
     $val_class = $has_bonus ? "passed" : "";
     $pop_id = "pop_{$type}_$id_suffix";
+    $displayed_total = $full_number ? fnum($total, true) : fnum($total, false, true);
 
     $render_split_row = function (string $label, int $val): string {
         if ($val <= 0) return "";
@@ -319,20 +328,30 @@ $render_power_stat = function (string $type, int $total, int $pure_base, int $sm
             . $render_split_row("Schützen", $cat_vals[SoldierTypes::SOLDIER_TYPE_ARCHERS])
             . $render_split_row("Spezial", $cat_vals[SoldierTypes::SOLDIER_TYPE_SPECIAL]);
 
+    $total_header_row = ($id_suffix !== "global")
+            ? "<div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b>" . fnum($total, true) . "</div>
+                <hr>"
+            : "";
 
-    if ($total <= 0) {
-        return "<span class='$val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
-                " . $icon . "<span>" . fnum($total, false, true) . "</span></span>";
-    } else {
-        return "
-        <span class='popup $val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
-            $icon <span>" . fnum($total, false, true) . "</span>
-            <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 220px;'>
+    $bonus_block = "";
+    if ($has_bonus) {
+        $bonus_block = "
                 <b>$title</b>
                 <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base, true) . "</span></div>
                 " . ($smithy_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($smithy_bonus, true) . "</span></div>" : "") . "
                 " . ($shrine_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($shrine_bonus, true) . "</span></div>" : "") . "
-                <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+                <hr>";
+    }
+
+    if ($total <= 0) {
+        return "<span class='$val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'> " . $icon . "<span>" . $displayed_total . "</span></span>";
+    } else {
+        return "
+        <span class='popup $val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
+            $icon <span>" . $displayed_total . "</span>
+            <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 220px;'>
+                $total_header_row
+                $bonus_block
                 <b>Gattungen:</b>
                 $cat_rows
             </div>
@@ -355,8 +374,24 @@ $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capa
         </div>
 
         <div class="all-troops-sum-stats">
-            <?= $render_power_stat("atk", $global_power["total_atk"], $global_power["pure_base_atk"], $global_power["total_smithy_atk"], $global_power["total_shrine_atk"], $global_power["cat_atk"], "global") ?>
-            <?= $render_power_stat("def", $global_power["total_def"], $global_power["pure_base_def"], $global_power["total_smithy_def"], 0, $global_power["cat_def"], "global") ?>
+            <?= $render_power_stat("atk",
+                    $global_power["total_atk"],
+                    $global_power["pure_base_atk"],
+                    $global_power["total_smithy_atk"],
+                    $global_power["total_shrine_atk"],
+                    $global_power["cat_atk"],
+                    "global",
+                    true)
+            ?>
+            <?= $render_power_stat("def",
+                    $global_power["total_def"],
+                    $global_power["pure_base_def"],
+                    $global_power["total_smithy_def"],
+                    0,
+                    $global_power["cat_def"],
+                    "global",
+                    true)
+            ?>
         </div>
 
         <?php if (!empty($global_troops)): ?>

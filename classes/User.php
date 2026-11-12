@@ -105,12 +105,21 @@ class User
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
-        $_SESSION["kingdomid"] = $row["mainkingdom"];
         $_SESSION["message_count"] = $row["msgcount"];
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
         $_SESSION["device_id"] = $device_id;
         $_SESSION["chat_filter"] = $row["chat_filter"];
         $_SESSION["tutorial_done"] = (int)$row["tutorial_done"];
+
+        $target_kid = (int)$row["mainkingdom"];
+        if (!empty($_COOKIE["me_last_kid"])) {
+            $cookie_kid = (int)$_COOKIE["me_last_kid"];
+            $check_k = $this->mysqli->execute_query("SELECT 1 FROM kingdoms WHERE id = ? AND userid = ?", [$cookie_kid, $user_id]);
+            if ($check_k && $check_k->num_rows > 0) {
+                $target_kid = $cookie_kid;
+            }
+        }
+        $_SESSION["kingdomid"] = $target_kid;
 
         // Update login time and session id
         $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ?, device_id = ? WHERE id = ?",
@@ -125,37 +134,6 @@ class User
     public function process_user_events(): void
     {
         new EventManager($this)->process_all();
-    }
-
-    public function check_session_id(): void
-    {
-        $result = $this->mysqli->execute_query("SELECT sessionid FROM users WHERE id = ?", [$this->get_user_id()]);
-        $row = $result->fetch_assoc();
-
-        if ($row && $row["sessionid"] === session_id()) {
-            return;
-        }
-
-        if (isset($_COOKIE["me_remember"])) {
-            $parts = explode(':', $_COOKIE["me_remember"]);
-
-            if (count($parts) === 2) {
-                $token = $parts[1];
-                $token_hash = hash("sha256", $token);
-
-                $res_token = $this->mysqli->execute_query(
-                    "SELECT id FROM user_remember_tokens WHERE userid = ? AND token_hash = ? AND expires_at > ?",
-                    [$this->get_user_id(), $token_hash, time()]
-                );
-
-                if ($res_token && $res_token->num_rows > 0) {
-                    return;
-                }
-            }
-        }
-
-        session_destroy();
-        change_location("index.php?logout=session");
     }
 
     public function get_user_id(): int
@@ -440,6 +418,8 @@ class User
                 "news" => 0,
                 "suggestions" => 0,
                 "achievements" => 0,
+                "arena" => 0,
+                "forum" => 0,
                 "total" => 0
             ];
         }
@@ -502,6 +482,7 @@ class User
         $news = (int)($res["news"] ?? 0);
         $suggestions = (int)($res["suggestions"] ?? 0);
         $arena_unread = (int)($res["arena_unread"] ?? 0);
+        $forum_unread = PhpBBBridge::get_unread_topics_count($this->get_user_name());
 
         $this->cached_unread_counts = [
             "pms" => $pms,
@@ -513,7 +494,8 @@ class User
             "suggestions" => $suggestions,
             "achievements" => $claimable_achs,
             "arena" => $arena_unread,
-            "total" => $pms + $server + $world + $guild + $support + $suggestions + $claimable_achs + $arena_unread
+            "forum" => $forum_unread,
+            "total" => $pms + $server + $world + $guild + $support + $suggestions + $claimable_achs + $arena_unread + $forum_unread
         ];
 
         return $this->cached_unread_counts;
@@ -651,7 +633,22 @@ class User
         );
 
         $cookie_value = $this->user_id . ':' . $random_token;
-        setcookie("me_remember", $cookie_value, $expires, '/', '', true, true);
+        $is_secure = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off");
+        setcookie("me_remember", $cookie_value, $expires, '/', '', $is_secure, true);
+    }
+
+    public function refresh_remember_me_token(string $raw_token, string $token_hash): void
+    {
+        $expires = time() + (86400 * REMEMBER_ME_COOKIE_DAYS);
+
+        $this->mysqli->execute_query(
+            "UPDATE user_remember_tokens SET expires_at = ? WHERE userid = ? AND token_hash = ?",
+            [$expires, $this->user_id, $token_hash]
+        );
+
+        $cookie_value = $this->user_id . ':' . $raw_token;
+        $is_secure = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off");
+        setcookie("me_remember", $cookie_value, $expires, '/', '', $is_secure, true);
     }
 
     public function check_user_login_and_kingdom($building_type): array
@@ -690,21 +687,7 @@ class User
     public function check_user_login(): void
     {
         if (!($this->is_logged_in())) {
-            $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
-
-            if ($is_ajax) {
-                http_response_code(401);
-                header("Content-Type: application/json; charset=utf-8");
-
-                echo json_encode([
-                    "success" => false,
-                    "error" => "Deine Session ist abgelaufen. Bitte lade die Seite neu.",
-                    "redirect" => "index.php?logout=session"
-                ]);
-                exit;
-            }
-
-            change_location("index.php");
+            change_location("index.php", 0, 401, "Deine Session ist abgelaufen. Bitte lade die Seite neu.");
         }
     }
 
@@ -785,7 +768,8 @@ class User
               AND EXISTS (
                   SELECT 1 FROM sent_troops st 
                   WHERE st.eventid = e.eventid 
-                  AND st.soldierid != " . Soldiers::SOLDIER_SCOUT . "
+                  HAVING MAX(st.soldierid NOT IN (" . Soldiers::SOLDIER_SCOUT . ", " . Soldiers::SOLDIER_THIEF . ")) = 1
+                      OR COUNT(DISTINCT st.soldierid) > 1
               )
     
             UNION ALL
@@ -838,21 +822,22 @@ class User
         $now = time();
 
         $query = "
-        SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, u.username AS sender_name
-        FROM events e
-        JOIN kingdoms k ON e.targetid = k.id
-        JOIN users u ON e.userid = u.id
-        WHERE k.userid = ? 
-          AND e.actionid = ? 
-          AND e.arrivaltime > ?
-        ORDER BY e.arrivaltime
-    ";
+            SELECT e.eventid, e.arrivaltime, k.kingdomname, e.targetx, e.targety, u.username AS sender_name,
+                   IFNULL(e.notification_sent, 0) AS notification_sent
+            FROM events e
+            JOIN kingdoms k ON e.targetid = k.id
+            JOIN users u ON e.userid = u.id
+            WHERE k.userid = ? 
+              AND e.actionid = ? 
+              AND e.arrivaltime > ?
+            ORDER BY e.arrivaltime
+        ";
         $result = $this->mysqli->execute_query($query, [$this->user_id, ActionTypes::ACTION_STATION_TROOPS, $now]);
         $supports = $result->fetch_all(MYSQLI_ASSOC);
 
         $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
         foreach ($supports as &$sup) {
-            $sup["is_new"] = !in_array($sup["eventid"], $ack_ids);
+            $sup["is_new"] = ((int)$sup["notification_sent"] === 0 && !in_array($sup["eventid"], $ack_ids));
         }
 
         return $supports;

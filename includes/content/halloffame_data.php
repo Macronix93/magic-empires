@@ -35,6 +35,17 @@ $categories = [
                     WHERE s.monster_kills > 0 
                     ORDER BY val DESC, uid"
     ],
+    "pvp_kills" => [
+        "label" => "Kriegsherr",
+        "title" => "Besiegte Truppen (PvP)",
+        "limit" => 20,
+        "type" => "player",
+        "query" => "SELECT u.username, u.id as uid, s.units_defeated_pvp as val 
+                    FROM player_stats s 
+                    JOIN users u ON s.userid = u.id 
+                    WHERE s.units_defeated_pvp > 0 
+                    ORDER BY val DESC, uid"
+    ],
     "martyr" => [
         "label" => "Märtyrer",
         "title" => "Truppenverluste (PvP)",
@@ -81,7 +92,7 @@ $categories = [
     ],
     "thieves" => [
         "label" => "Diebesgilde",
-        "title" => "Gestohlene Rohstoffe",
+        "title" => "Gestohlene Ressourcen",
         "limit" => 20,
         "type" => "player",
         "query" => "SELECT u.username, u.id as uid, s.resources_stolen as val 

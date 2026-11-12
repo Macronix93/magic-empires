@@ -155,7 +155,7 @@ registerAction("fillSimMax", (el) => {
     }
 });
 
-document.querySelectorAll(".js-tech-input, #en_wall_lvl, .warsim-table input, .js-mon-input").forEach(input => {
+document.querySelectorAll(".js-tech-input, #en_wall_lvl, #en_wall_hp, .warsim-table input, .js-mon-input").forEach(input => {
     input.addEventListener("input", () => {
         if (input.type === "text") {
             input.value = input.value.replace(/\D/g, "");
@@ -164,19 +164,29 @@ document.querySelectorAll(".js-tech-input, #en_wall_lvl, .warsim-table input, .j
         let val = parseInt(input.value);
         if (isNaN(val) || val < 0) val = 0;
 
-        if (input.classList.contains("js-tech-input") || input.id === "en_wall_lvl") {
+        if (input.id === "en_wall_hp") {
+            const lvl = parseInt(document.getElementById("en_wall_lvl")?.value, 10) || 0;
+            const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
+            const maxHp = (lvl > 0) ? (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc) : 0;
+
+            if (val > maxHp) val = maxHp;
+
+            input.value = val;
+            currentSimWallHp = val;
+        } else if (input.classList.contains("js-tech-input") || input.id === "en_wall_lvl") {
             const maxVal = parseInt(input.dataset.max || input.max) || W_CONF.maxLvl;
             const minVal = parseInt(input.dataset.min || input.min) || 0;
+
             if (val > maxVal) val = maxVal;
             if (val < minVal) val = minVal;
             input.value = val;
+
+            if (input.id === "en_wall_lvl" || input.id === "en_tech_4") {
+                resetWallToMax();
+            }
         }
 
-        if (input.id === "en_wall_lvl" || input.id === "en_tech_4") {
-            resetWallToMax();
-        }
-
-        if (input.type === "text") input.style.color = "";
+        if (input.type === "text" && input.id !== "en_wall_hp") input.style.color = "";
 
         updateLivePowerSummary();
     });
@@ -227,20 +237,32 @@ function resetWallToMax() {
     lvlInput.value = lvl;
 
     const techLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
+    const maxHp = (lvl > 0) ? (lvl * W_CONF.wallDefaultHp) + (techLvl * W_CONF.wallHpInc) : 0;
 
-    currentSimWallHp = (lvl > 0) ? (lvl * W_CONF.wallDefaultHp) + (techLvl * W_CONF.wallHpInc) : 0;
+    currentSimWallHp = maxHp;
+
+    const hpInput = document.getElementById("en_wall_hp");
+    if (hpInput) {
+        hpInput.value = maxHp;
+        hpInput.style.color = "";
+    }
 }
 
 function calculateWallDefenseBonus(hp, lvl) {
     if (lvl <= 0 || hp <= 0) return 0;
-    const maxHpForLvl = lvl * W_CONF.wallDefaultHp;
 
-    const levelScale = Math.pow((lvl - 1), W_CONF.wallFactor);
-    const maxScale = Math.pow((W_CONF.maxLvl - 1), W_CONF.wallFactor);
-    const scaledMaxDefense = W_CONF.wallMinDef + (W_CONF.wallMaxDef - W_CONF.wallMinDef) * (levelScale / maxScale);
+    const wallTechLvl = parseInt(document.getElementById("en_tech_4")?.value) || 0;
+    const maxHp = (lvl * W_CONF.wallDefaultHp) + (wallTechLvl * W_CONF.wallHpInc);
+    if (maxHp <= 0) return 0;
 
-    let defense = Math.floor((hp / maxHpForLvl) * scaledMaxDefense);
-    return Math.max(W_CONF.wallMinDef, defense);
+    const levelRatio = (lvl - 1) / (W_CONF.maxLvl - 1);
+    const maxDefense = W_CONF.wallMinDef + (W_CONF.wallMaxDef - W_CONF.wallMinDef) * levelRatio;
+    const baseDefense = W_CONF.wallMinDef * (lvl / W_CONF.maxLvl);
+
+    const hpRatio = Math.min(1.0, Math.max(0.0, hp / maxHp));
+    const defense = baseDefense + (maxDefense - baseDefense) * hpRatio;
+
+    return Math.max(W_CONF.wallMinDef, Math.round(defense));
 }
 
 function calculateWarOutcome(soldierTypes) {
@@ -719,9 +741,21 @@ function updateLivePowerSummary() {
     const myShrineBonus = getDynamicShrineMult("my");
     const enShrineBonus = getDynamicShrineMult("en");
 
-    document.getElementById("wall_hp_display").innerText = formatNumJS(currentSimWallHp);
-    document.getElementById("wall_hp_display_max").innerText = formatNumJS(maxHp);
-    document.getElementById("wall_def_display").innerText = wallBonus;
+    const hpInput = document.getElementById("en_wall_hp");
+    if (hpInput && currentSimWallHp !== null && document.activeElement !== hpInput) {
+        hpInput.value = currentSimWallHp;
+        hpInput.disabled = (lvl <= 0);
+    }
+
+    const maxHpDisplay = document.getElementById("wall_hp_display_max");
+    if (maxHpDisplay) {
+        maxHpDisplay.innerText = formatNumJS(maxHp);
+    }
+
+    const wallDefDisplay = document.getElementById("wall_def_display");
+    if (wallDefDisplay) {
+        wallDefDisplay.innerText = wallBonus;
+    }
 
     soldierTypes.forEach(type => {
         const cO = parseInt(document.getElementById(type + "_own").value) || 0;

@@ -113,9 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
 
             $total_comments = (int)$db_instance->execute_query("SELECT COUNT(*) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id])->fetch_column();
-            $target_page = max(1, (int)ceil($total_comments / MAX_SUGGESTION_COMMENTS_PER_PAGE));
-            header("Location: suggestion_comments.php?id=$sug_id&cpage=$target_page");
-            exit;
+            $_GET["cpage"] = max(1, (int)ceil($total_comments / MAX_SUGGESTION_COMMENTS_PER_PAGE));
         }
     }
 }

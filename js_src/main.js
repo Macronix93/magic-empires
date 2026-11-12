@@ -8,6 +8,12 @@ let activeHoverPopup = null;
 const KINGDOM_SWITCH_COOLDOWN = 800;
 const UPDATE_MSG_BADGES_INTERVAL = 60000;
 const UPDATE_MSG_BADGES_LAST_FETCH = 30000;
+let isPageUnloading = false;
+let cachedChatEmojis = null;
+
+window.addEventListener("beforeunload", () => {
+    isPageUnloading = true;
+});
 
 registerAction("closeAdventModal", (el) => {
     const targetUrl = el?.getAttribute("href") && el.getAttribute("href") !== "#"
@@ -247,6 +253,16 @@ registerAction("toggleReactionPicker", (el) => {
     });
 
     if (!isVisible) {
+        if (picker.children.length === 0) {
+            const type = el.dataset.type || container.closest('.reaction-container')?.dataset.type || '';
+            const id = el.dataset.id || container.closest('.reaction-container')?.dataset.id || '';
+
+            picker.innerHTML = getChatEmojis().map(emoji =>
+                `<span class="picker-emoji" data-on-click="toggleReaction" data-type="${type}" data-id="${id}" data-emoji="${emoji}">${emoji}</span>`
+            ).join('');
+            picker.querySelectorAll('[data-on-click]').forEach(bindActions);
+        }
+
         picker.style.display = "grid";
         picker.style.maxHeight = "";
         picker.style.maxWidth = "";
@@ -473,13 +489,46 @@ observer.observe(document.body, {
     attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
 });
 
+function getChatEmojis() {
+    if (cachedChatEmojis) return cachedChatEmojis;
+
+    const meta = document.querySelector('meta[name="chat-emojis"]');
+    if (meta && meta.content) {
+        try {
+            cachedChatEmojis = JSON.parse(meta.content);
+            return cachedChatEmojis;
+        } catch (e) {
+        }
+    }
+
+    const menuSpans = document.querySelectorAll('#emoji-menu span');
+    if (menuSpans.length > 0) {
+        cachedChatEmojis = Array.from(menuSpans).map(s => s.textContent.trim());
+        return cachedChatEmojis;
+    }
+
+    return [];
+}
+
 function updateSidebarAndHeaderDOM(data) {
-    if (!data || !data.sidebar_html) return;
+    if (!data) return;
 
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = data.sidebar_html;
+    const deskHtml = data.sidebar_html_desk || data.sidebar_html;
+    const mobHtml = data.sidebar_html_mob || data.sidebar_html;
+    if (!deskHtml && !mobHtml) return;
 
-    document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
+    const updateContainer = (container, html) => {
+        if (!container || !html) return;
+
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+
+        const newMobileKname = tempDiv.querySelector(".mobile-only-kname");
+        const currentMobileKname = container.querySelector(".mobile-only-kname");
+        if (newMobileKname && currentMobileKname) {
+            currentMobileKname.innerHTML = newMobileKname.innerHTML;
+        }
+
         const newKingdomInfo = tempDiv.querySelector("#kingdom-info");
         const currentKingdomInfo = container.querySelector("#kingdom-info");
         if (newKingdomInfo && currentKingdomInfo) {
@@ -499,10 +548,23 @@ function updateSidebarAndHeaderDOM(data) {
         }
 
         container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
-    });
+    };
 
-    const select = document.getElementById("choosekingdom");
-    if (select && data.kingdom) select.value = data.kingdom.id;
+    const deskContainer = document.querySelector(".right-container");
+    if (deskContainer && deskHtml) {
+        updateContainer(deskContainer, deskHtml);
+    }
+
+    const mobContainer = document.getElementById("nav-right-menu");
+    if (mobContainer && mobHtml) {
+        updateContainer(mobContainer, mobHtml);
+    }
+
+    if (data.kingdom) {
+        document.querySelectorAll("select[name='choosekingdom']").forEach(s => {
+            s.value = data.kingdom.id;
+        });
+    }
 
     const mobTitle = document.querySelector(".mobile-kingdom-title");
     if (mobTitle && data.kingdom) {
@@ -544,7 +606,7 @@ function switchKingdomById(kingdomId) {
                 let filename = currentUrl.pathname.split('/').pop();
 
                 if (filename === "map.php" && typeof window.handleMapKingdomSwitch === "function") {
-                    window.handleMapKingdomSwitch(data.kingdom, data.sidebar_html, data.has_any_alchemy_ready);
+                    window.handleMapKingdomSwitch(data);
                     return;
                 }
 
@@ -574,6 +636,9 @@ function switchKingdomById(kingdomId) {
                 } else {
                     window.location.href = currentUrl.pathname;
                 }
+            } else {
+                showGameError(data.error || "Königreich konnte nicht gewechselt werden.");
+                setTimeout(() => window.location.reload(), 2000);
             }
         })
         .catch(err => showGameError("Kingdom-Switch Fehler:" + err))
@@ -748,6 +813,14 @@ function formatNumJS(number) {
 }
 
 function setup() {
+    document.querySelectorAll('body > .popupbox').forEach(box => {
+        const triggerId = box.id.replace(/_box$/, '');
+
+        if (triggerId && !document.getElementById(triggerId)) {
+            box.remove();
+        }
+    });
+
     const popups = document.querySelectorAll('.popup');
 
     popups.forEach(trigger => {
@@ -934,10 +1007,9 @@ function updateServerTime(initialServerTimestamp) {
         }
 
         const percent = tickReached ? 100 : (secondsIntoHour / 3600) * 100;
-        const sidebarTick = document.querySelector("#ressource-box .tick-progress-fill");
-        if (sidebarTick) {
-            sidebarTick.style.width = percent + "%";
-        }
+        document.querySelectorAll(".resource-tick-wrapper .tick-progress-fill").forEach(bar => {
+            bar.style.width = percent + "%";
+        });
     }
 
     setInterval(updateDisplay, 500);
@@ -1447,6 +1519,7 @@ function updateSidebarBadges(counts) {
     if (counts.world !== undefined) update(".js-badge-world", counts.world);
     if (counts.guild !== undefined) update(".js-badge-guild", counts.guild);
     if (counts.suggestions !== undefined) update(".js-badge-suggestions", counts.suggestions);
+    if (counts.forum !== undefined) update(".js-badge-forum", counts.forum);
 
     const unreadArena = counts.arena || 0;
     const hasArenaCoins = counts.arena_coins || 0;
@@ -1458,7 +1531,7 @@ function updateSidebarBadges(counts) {
     });
 
     const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0) + (counts.suggestions || 0) +
-        (counts.achievements || 0) + unreadArena;
+        (counts.achievements || 0) + unreadArena + (counts.forum || 0);
 
     const mobileDot = document.getElementById("mobile-nav-dot");
     if (mobileDot) {
@@ -1501,7 +1574,7 @@ function syncFeedbackIcon(msgElement, type = null, id = null) {
 window.syncFeedbackIcon = syncFeedbackIcon;
 
 function showGameMessage(message, type = "error") {
-    if (!message) return;
+    if (isPageUnloading || !message) return;
 
     const iconMap = {
         passed: "icon_checked.png",
@@ -1561,6 +1634,12 @@ function showGameMessage(message, type = "error") {
 
     const flashContainer = document.getElementById("middle-flash-container");
     if (flashContainer) {
+        const oldBox = flashContainer.querySelector(`.info-box.event-${type}`);
+        if (oldBox) {
+            clearTimeout(oldBox._timer);
+            oldBox.remove();
+        }
+
         const box = document.createElement("div");
         box.className = `info-box event-${type}`;
         box.innerHTML = `<img src="images/icons/${icon}" alt="${type}"><span>${message}</span>`;
@@ -1571,9 +1650,12 @@ function showGameMessage(message, type = "error") {
             box.classList.add("fade-out");
             box.addEventListener("animationend", () => box.remove(), {once: true});
         };
-        setTimeout(dismiss, 4000);
 
-        box.addEventListener("click", dismiss);
+        box._timer = setTimeout(dismiss, 4000);
+        box.addEventListener("click", () => {
+            clearTimeout(box._timer);
+            dismiss();
+        });
         return;
     }
 

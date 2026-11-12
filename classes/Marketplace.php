@@ -88,8 +88,13 @@ class Marketplace
             return "Du hast heute bereits {$daily["max"]} Angebote erstellt oder angenommen!";
         }
 
-        if ($supply < ResourceTypes::RESOURCE_TYPE_FOOD || $supply > ResourceTypes::RESOURCE_TYPE_GOLD
-            || $demand < ResourceTypes::RESOURCE_TYPE_FOOD || $demand > ResourceTypes::RESOURCE_TYPE_GOLD) {
+        $valid_trade_resources = [
+            ResourceTypes::RESOURCE_TYPE_FOOD,
+            ResourceTypes::RESOURCE_TYPE_WOOD,
+            ResourceTypes::RESOURCE_TYPE_STONE,
+            ResourceTypes::RESOURCE_TYPE_GOLD
+        ];
+        if (!in_array($supply, $valid_trade_resources, true) || !in_array($demand, $valid_trade_resources, true)) {
             return "Diese Ressource gibt es nicht!";
         }
         if ($supply === $demand) {

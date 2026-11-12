@@ -85,8 +85,25 @@ function convert_sec_to_str(int $secs, bool $short_format = false, bool $show_se
     return !empty($trimmed) ? $trimmed : "0s";
 }
 
+function is_ajax_request(): bool
+{
+    return !empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest";
+}
+
 #[NoReturn]
-function change_location(string $url, int $seconds = 0): void
+function send_json(array|string $data, int $status_code = 200): void
+{
+    if ($status_code !== 200) {
+        http_response_code($status_code);
+    }
+
+    header("Content-Type: application/json; charset=utf-8");
+    echo is_string($data) ? $data : json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+#[NoReturn]
+function change_location(string $url, int $seconds = 0, ?int $ajax_status_code = null, ?string $ajax_error = null): void
 {
     $is_absolute = str_starts_with($url, "https://") || str_starts_with($url, "//");
 
@@ -97,6 +114,14 @@ function change_location(string $url, int $seconds = 0): void
     } else {
         $base = defined("BASE_URL") ? rtrim(BASE_URL, "/") : "";
         $full_url = $base . "/" . ltrim($url, "/");
+    }
+
+    if (is_ajax_request() && ($ajax_status_code !== null || $ajax_error !== null)) {
+        send_json([
+                "success" => false,
+                "error" => $ajax_error ?? "Weiterleitung erforderlich.",
+                "redirect" => $full_url
+        ], $ajax_status_code ?? 200);
     }
 
     if ($seconds === 0) {
@@ -204,7 +229,7 @@ function fnum($number, bool $simple_format = false, $is_barracks = false): strin
 
     $uid = "val_" . substr(md5(mt_rand()), 0, 6);
 
-    return "<span class='popup' id='$uid'>$short<div id='{$uid}_box' class='popupbox'>$full</div></span>";
+    return "<span class='popup' id='$uid'>$short<div id='{$uid}_box' class='popupbox' style='display: none;'>$full</div></span>";
 }
 
 function regex_pattern(): string
@@ -395,11 +420,8 @@ function generate_safe_password($length = 12): string
 #[NoReturn]
 function render_error_page(string $title, string $message): void
 {
-    if (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest") {
-        http_response_code(500);
-        header("Content-Type: application/json; charset=utf-8");
-        echo json_encode(["error" => $title . ": " . $message]);
-        exit;
+    if (is_ajax_request()) {
+        send_json(["error" => $title . ": " . $message], 500);
     }
 
     http_response_code(500);
@@ -549,73 +571,76 @@ function get_bad_word_pattern(string $bad_word, bool $bound_left = true, bool $b
     return '/' . $left . $stretchy_pattern . $right . '/iu';
 }
 
+function build_bad_word_pattern(string $bad): ?string
+{
+    $bad = trim($bad);
+    $len = mb_strlen($bad, "UTF-8");
+    if ($len < 3) {
+        return null;
+    }
+
+    $bad_lower = mb_strtolower($bad, "UTF-8");
+    if (in_array($bad_lower, ['arsch', 'anal'], true)) {
+        return null;
+    }
+
+    $is_strict = ($len < 4 || in_array($bad_lower, ["bad", "dick", "ass"], true));
+    return get_bad_word_pattern($bad, $is_strict, $is_strict);
+}
+
+function prepare_bad_word_patterns(array $words): array
+{
+    usort($words, fn($a, $b) => mb_strlen($b, "UTF-8") - mb_strlen($a, "UTF-8"));
+
+    $patterns = [];
+    foreach ($words as $word) {
+        $pattern = build_bad_word_pattern($word);
+        if ($pattern !== null) {
+            $patterns[] = $pattern;
+        }
+    }
+    return $patterns;
+}
+
 function get_prepared_chat_patterns(): array
 {
     static $cached_patterns = null;
     if ($cached_patterns !== null) {
         return $cached_patterns;
     }
-
-    $bad_words = get_bad_words_only();
-    usort($bad_words, function ($a, $b) {
-        return mb_strlen($b, 'UTF-8') - mb_strlen($a, 'UTF-8');
-    });
-
-    $cached_patterns = [];
-
-    foreach ($bad_words as $bad) {
-        $bad = trim($bad);
-        $len = mb_strlen($bad, 'UTF-8');
-        if (empty($bad) || $len < 3) continue;
-
-        $bad_lower = mb_strtolower($bad, 'UTF-8');
-        if (in_array($bad_lower, ['arsch', 'anal'])) continue;
-
-        $is_strict = ($len < 4 || in_array($bad_lower, ['bad', 'dick', 'ass']));
-
-        $cached_patterns[] = get_bad_word_pattern($bad, $is_strict, $is_strict);
-    }
-
-    return $cached_patterns;
+    return $cached_patterns = prepare_bad_word_patterns(get_bad_words_only());
 }
 
-function contains_bad_words($name, ?array $list = null): bool
+function get_prepared_name_patterns(): array
 {
-    if (empty($name)) return false;
+    static $cached_patterns = null;
+    if ($cached_patterns !== null) {
+        return $cached_patterns;
+    }
+    return $cached_patterns = prepare_bad_word_patterns(get_bad_names());
+}
 
-    if (preg_match('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $name)
-            || preg_match('/(?<!k)anal/iu', $name)) {
+
+function contains_bad_words(string $name, ?array $list = null): bool
+{
+    if (empty($name)) {
+        return false;
+    }
+
+    if (preg_match('/(?<![bmhwBMHW])(?<!kl)(?<!ha)(?<!nachb)arsch/iu', $name) || preg_match('/(?<!k)anal/iu', $name)) {
         return true;
     }
 
-    $bad_words = $list ?? get_bad_names();
+    $patterns = ($list !== null) ? prepare_bad_word_patterns($list) : get_prepared_name_patterns();
     $split_name = preg_replace('/([a-zäöüß])([A-ZÄÖÜ])/u', '$1 $2', $name);
 
-    foreach ($bad_words as $bad) {
-        $bad = trim($bad);
-        $len = mb_strlen($bad, 'UTF-8');
-        if (empty($bad) || $len < 3) continue;
+    return array_any($patterns, fn($pattern) => preg_match($pattern, $name) || ($name !== $split_name && preg_match($pattern, $split_name)));
 
-        $bad_lower = mb_strtolower($bad, 'UTF-8');
-        if (in_array($bad_lower, ['arsch', 'anal'])) continue;
-
-        $is_strict = ($len < 4 || in_array($bad_lower, ['bad', 'dick', 'ass']));
-        $pattern = get_bad_word_pattern($bad, $is_strict, $is_strict);
-
-        if (preg_match($pattern, $name)) {
-            return true;
-        }
-        if ($name !== $split_name && preg_match($pattern, $split_name)) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 function send_user_push(int $user_id, string $title, string $message, string $category = "combat", string $target_url = "/overview.php"): bool
 {
-    global $db_instance;
+    $db_instance = Database::get_instance()->get_connection();
 
     $valid_categories = ["combat", "troops", "building", "storage", "messages", "events"];
     if (!in_array($category, $valid_categories)) {
@@ -631,6 +656,22 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
     }
 
     try {
+        $res_check = $db_instance->execute_query(
+                "SELECT u.lastactivity, IFNULL(ups.`$category`, 1) AS is_allowed
+             FROM users u
+             LEFT JOIN user_push_settings ups ON ups.user_id = u.id
+             WHERE u.id = ? LIMIT 1",
+                [$user_id]
+        )->fetch_assoc();
+
+        if (!$res_check || empty($res_check["is_allowed"])) {
+            return false;
+        }
+
+        if ((time() - (int)$res_check["lastactivity"]) < 60) {
+            return false;
+        }
+
         $res_pref = $db_instance->execute_query(
                 "SELECT `$category` FROM user_push_settings WHERE user_id = ?",
                 [$user_id]
@@ -659,12 +700,13 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
         ];
 
         $http_client = new Client([
-                "timeout" => 5,
-                "verify" => !((defined("IS_DEV") && IS_DEV)),
+                "timeout" => 15,
+                "connect_timeout" => 10,
+                "verify" => !((defined("IS_DEV") && IS_DEV))
         ]);
 
         $default_options = [
-                "timeout" => 5,
+                "timeout" => 15
         ];
 
         $web_push = new Minishlink\WebPush\WebPush($auth, $default_options, $http_client);
@@ -900,6 +942,14 @@ function get_page_icon(string $key, string $css_class = "menu-icons", string $al
 
 function get_csrf_token(): string
 {
+    $uid = $_SESSION["userid"] ?? 0;
+    $device_id = $_COOKIE["me_device_id"] ?? $_SESSION["device_id"] ?? '';
+
+    if ($uid > 0 && !empty($device_id)) {
+        $_SESSION["csrf_token"] = hash_hmac("sha256", $uid . "_" . $device_id, AVATAR_SALT);
+        return $_SESSION["csrf_token"];
+    }
+
     if (empty($_SESSION["csrf_token"])) {
         $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
     }

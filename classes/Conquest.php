@@ -24,6 +24,7 @@ class Conquest
     private int $accumulated_damage = 0;
     private int $enemy_garrison_loss_count = 0;
     private Kingdom $enemy_kingdom;
+    private array $own_garrison_soldiers = [];
 
     public function __construct()
     {
@@ -124,7 +125,10 @@ class Conquest
     {
         $enemy_soldiers_result = $this->mysqli->execute_query("SELECT * FROM soldiers WHERE kingdomid = ?", [$this->target_id]);
         foreach ($enemy_soldiers_result as $row) {
-            $this->enemy_soldiers[$row["soldierid"]] = $row["soldiercount"];
+            $sid = (int)$row["soldierid"];
+            $cnt = (int)$row["soldiercount"];
+            $this->own_garrison_soldiers[$sid] = $cnt;
+            $this->enemy_soldiers[$sid] = $cnt;
         }
 
         $res_stat = $this->mysqli->execute_query("
@@ -353,20 +357,17 @@ class Conquest
                     );
                 }
 
-                if ($soldier["soldiername"] === "Eroberer") {
+                if ($id === Soldiers::SOLDIER_CONQUEROR) {
                     $this->conquerer_count -= $my_loss;
                 }
+
                 $this->my_score_loss += $my_loss * $soldier["score"];
                 $this->my_loss_count += $my_loss;
             }
 
             if ($init_enemy > 0) {
                 $total_unit_losses = (int)$this->initial_soldiers[$id]["enemy_losses"];
-
-                $res_own_garrison = (int)($this->mysqli->execute_query(
-                    "SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
-                    [$this->enemy_kingdom->get_kingdom_id(), $id]
-                )->fetch_column() ?: 0);
+                $res_own_garrison = $this->own_garrison_soldiers[$id] ?? 0;
 
                 if ($total_unit_losses > 0 && $res_own_garrison > 0) {
                     $garrison_share = $res_own_garrison / $init_enemy;
@@ -667,10 +668,7 @@ class Conquest
 
         foreach ($this->soldier_types as $id => $s) {
             $tot_loss = (int)($this->initial_soldiers[$id]["enemy_losses"] ?? 0);
-            $res_own_garrison = (int)($this->mysqli->execute_query(
-                "SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
-                [$this->enemy_kingdom->get_kingdom_id(), $id]
-            )->fetch_column() ?: 0);
+            $res_own_garrison = $this->own_garrison_soldiers[$id] ?? 0;
 
             $tot_init = (int)($this->initial_soldiers[$id]["initial_enemy_soldiers"] ?? 0);
             $garrison_share = ($tot_init > 0) ? ($res_own_garrison / $tot_init) : 0;
@@ -742,5 +740,71 @@ class Conquest
         unset($sup);
 
         return $supporters_data;
+    }
+
+    public function get_censored_defender_units(): array
+    {
+        $atk_units = $this->get_battle_result_data(true);
+        $def_units = $this->get_battle_result_data(false);
+
+        $needed_atk = 0;
+        foreach ($atk_units as $u) {
+            $count = (int)($u["initial"] ?? 0);
+            $def = max(1, (int)($u["def"] ?? 1));
+            $needed_atk += (int)ceil($count * $def * LETHALITY_PVP);
+        }
+
+        $total_def_atk = 0;
+        foreach ($def_units as $u) {
+            $total_def_atk += (int)($u["initial"] ?? 0) * max(1, (int)($u["atk"] ?? 1));
+        }
+
+        if ($total_def_atk <= $needed_atk) {
+            return $def_units;
+        }
+
+        $censored = [];
+        $accumulated_atk = 0;
+
+        foreach ($def_units as $u) {
+            $losses = (int)($u["losses"] ?? 0);
+            if ($losses > 0) {
+                $u_atk = max(1, (int)($u["atk"] ?? 1));
+                $shown_count = min((int)$u["initial"], $losses + 1);
+                $censored[$u["id"]] = array_merge($u, [
+                    "initial" => $shown_count,
+                    "losses" => $losses
+                ]);
+                $accumulated_atk += $shown_count * $u_atk;
+            }
+        }
+
+        foreach ($def_units as $u) {
+            if ($accumulated_atk >= $needed_atk) {
+                break;
+            }
+
+            $u_id = $u["id"];
+            $u_atk = max(1, (int)($u["atk"] ?? 1));
+            $rem_atk = $needed_atk - $accumulated_atk;
+            $units_needed = (int)ceil($rem_atk / $u_atk);
+
+            if (isset($censored[$u_id])) {
+                $already_shown = $censored[$u_id]["initial"];
+                $available = (int)$u["initial"] - $already_shown;
+                $add = min($available, $units_needed);
+                $censored[$u_id]["initial"] += $add;
+                $accumulated_atk += $add * $u_atk;
+            } else {
+                $shown_count = min((int)$u["initial"], max(1, $units_needed));
+                $censored[$u_id] = array_merge($u, [
+                    "initial" => $shown_count,
+                    "losses" => 0
+                ]);
+                $accumulated_atk += $shown_count * $u_atk;
+            }
+        }
+
+        return array_values($censored);
     }
 }

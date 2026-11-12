@@ -2,7 +2,9 @@
     <div class="box-header">Königreich-Info</div>
     <div class="box-content" style="padding: 10px; background-color: var(--box-content-color);">
         <?php
-        $kingdom = new Kingdom($user->get_current_kingdom());
+        if (!isset($kingdom) || !$kingdom instanceof Kingdom || $kingdom->get_kingdom_id() !== $user->get_current_kingdom()) {
+            $kingdom = new Kingdom($user->get_current_kingdom());
+        }
 
         $active_boosts = $kingdom->get_active_boosts(); // Get active resource boosts
         $current_align = $kingdom->get_kingdom_alignment();

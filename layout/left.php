@@ -10,6 +10,7 @@ $unread_guild = $unreads["guild"];
 $unread_suggestions = $unreads["suggestions"] ?? 0;
 $unread_achievements = $unreads["achievements"] ?? 0;
 $unread_arena = $unreads["arena"] ?? 0;
+$unread_forum = $unreads["forum"] ?? 0;
 
 $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 
@@ -158,6 +159,9 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             </div>
             <div class="box" data-on-click="navigate" data-url="forum.php">
                 <?= get_page_icon("forum.php") ?> Forum
+                <span class="msg-badge js-badge-forum" style="<?= $unread_forum > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($unread_forum) ?>
+                </span>
             </div>
             <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="settings.php">

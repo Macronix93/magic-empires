@@ -9,9 +9,7 @@ $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $uid . ".json";
 
 // 2 seconds cache
 if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 2) {
-    header("Content-Type: application/json");
-    readfile($cache_file);
-    exit;
+    send_json((string)file_get_contents($cache_file));
 }
 
 $now = time();
@@ -188,5 +186,4 @@ $response = [
 $json = json_encode($response);
 file_put_contents($cache_file, $json);
 
-header("Content-Type: application/json");
-echo $json;
+send_json($json);

@@ -51,7 +51,7 @@ if ($user->is_logged_in()) {
             : 0;
 
     $sup_count = !empty($_SESSION["active_supports"])
-            ? count(array_filter($_SESSION["active_supports"], fn($sup) => !in_array($sup["eventid"], $ack_sup_ids)))
+            ? count(array_filter($_SESSION["active_supports"], fn($sup) => !empty($sup["is_new"]) && !in_array($sup["eventid"], $ack_sup_ids)))
             : 0;
 
     $show_attack_alert = ($atk_count > 0);

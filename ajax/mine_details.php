@@ -101,7 +101,7 @@ foreach ($res_miners as $m) {
                 <input type='hidden' name='mine_x' value='$x'>
                 <input type='hidden' name='mine_y' value='$y'>
                 <input type='hidden' name='kingdom_id' value='{$m["kingdom_id"]}'>
-                <button type='submit' class='btn-delete'> Heimrufen </button>
+                <button type='submit' class='btn-delete'>Heimrufen</button>
             </form>";
     }
 

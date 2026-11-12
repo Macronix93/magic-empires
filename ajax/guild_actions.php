@@ -112,6 +112,4 @@ switch ($action) {
 }
 
 session_write_close();
-
-header('Content-Type: application/json');
-echo json_encode($response);
+send_json($response);

@@ -1,6 +1,10 @@
 <?php
 require_once("../includes/ajax_core.php");
 
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    exit;
+}
+
 $opened_at = $_SESSION["faq_opened_at"] ?? 0;
 $now = time();
 $required_seconds = ACHIEVEMENT_FAQ_OPEN_TIME;

@@ -11,11 +11,12 @@ class BattleReportRenderer
         string $atk_label = "Deine Truppen",
         string $def_label = "Gegner",
         int    $left_wall_def = 0,
-        int    $right_wall_def = 0
+        int    $right_wall_def = 0,
+        string $def_empty_msg = "<i>Keine Truppen stationiert.</i>"
     ): string
     {
         $atk_column = self::render_side_column($attacker_units, $atk_label, $left_wall_def, "<i>Wir haben keine Truppen!</i>");
-        $def_column = self::render_side_column($defender_units, $def_label, $right_wall_def, "<i>Keine Truppen stationiert.</i>");
+        $def_column = self::render_side_column($defender_units, $def_label, $right_wall_def, $def_empty_msg);
 
         return "
         <div class='battle-vs-wrapper'>
@@ -29,17 +30,37 @@ class BattleReportRenderer
     {
         $sum_atk = 0;
         $sum_def = $wall_def;
+        $total_losses = 0;
+        $is_fictional = false;
         $cards_html = "";
 
         if (empty($units)) {
             $cards_html = $empty_msg;
         } else {
             foreach ($units as $u) {
-                $initial = (int)($u["initial"] ?? 0);
+                $initial = (int)($u["initial"] ?? $u["count"] ?? 0);
+                $losses = (int)($u["losses"] ?? 0);
                 $sum_atk += $initial * (int)($u["atk"] ?? 0);
                 $sum_def += $initial * (int)($u["def"] ?? 0);
+                $total_losses += $losses;
+
+                if (!empty($u["is_fictional"])) {
+                    $is_fictional = true;
+                }
+
                 $cards_html .= self::render_unit_card($u);
             }
+        }
+
+        $summary_html = "";
+        if ($total_losses > 0) {
+            $loss_display = fnum($total_losses) . ($is_fictional ? " <small>(fiktiv)</small>" : "");
+
+            $summary_html = "
+                <div class='battle-report-losses'>
+                    Verluste gesamt:
+                    <b>$loss_display</b>
+                </div>";
         }
 
         return "
@@ -50,6 +71,7 @@ class BattleReportRenderer
                 <span>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sum_def) . "</span>
             </div>
             $cards_html
+            $summary_html
         </div>";
     }
 
@@ -160,14 +182,22 @@ class BattleReportRenderer
         }
     }
 
-    public static function render_resource_box(array $res, string $title, string $color_class = "passed"): string
+    public static function render_resource_box(array $res, string $title, string $color_class = "passed",
+                                               bool  $is_negative = false): string
     {
         $items = [];
+        $is_neg = $is_negative || ($color_class === "error") || str_contains($title, "Gestohlene");
+        $sign = $is_neg ? "-" : "";
 
-        if (($res["food"] ?? 0) > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . fnum($res["food"]);
-        if (($res["wood"] ?? 0) > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . fnum($res["wood"]);
-        if (($res["stone"] ?? 0) > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . fnum($res["stone"]);
-        if (($res["gold"] ?? 0) > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . fnum($res["gold"]);
+        $food = $res["food"] ?? $res[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0;
+        $wood = $res["wood"] ?? $res[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0;
+        $stone = $res["stone"] ?? $res[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0;
+        $gold = $res["gold"] ?? $res[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0;
+
+        if ($food > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . " " . $sign . fnum($food);
+        if ($wood > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . " " . $sign . fnum($wood);
+        if ($stone > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . " " . $sign . fnum($stone);
+        if ($gold > 0) $items[] = get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . " " . $sign . fnum($gold);
 
         if (empty($items)) return "";
 
@@ -285,12 +315,56 @@ class BattleReportRenderer
         }
 
         // Troops
-        if (!empty($intel["troops"])) {
-            $html .= "<div class='report-section-title' style='margin-top: 10px;'>Gegnerische Garnison</div>";
+        if (!empty($intel["garrison_scouted"]) || !empty($intel["troops"])) {
+            $html .= "<div class='report-section-title' style='margin-top: 10px;'>Gegnerische Garnison & Mauer</div>";
+
+            $total_atk = (int)($intel["total_atk"] ?? 0);
+            $total_def = (int)($intel["total_def"] ?? 0);
+
+            $w = $intel["wall"] ?? null;
+
+            $html .= "<div class='all-troops-sum-stats scout-item' style='flex-wrap: wrap; gap: 15px; border: 1px solid #555; background: rgba(0,0,0,0.4);'>";
+
+            if ($total_atk > 0) {
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_atk, true) . "</span>";
+            }
+            if ($total_def > 0) {
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_def, true) . "</span>";
+            }
+
+            if ($w !== null && (int)$w["level"] > 0) {
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>
+                          " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH) . " <b>Mauer:</b> " . fnum($w["hp"]) . " / " . fnum($w["max_hp"]) . "</span>";
+            }
+            $html .= "</div>";
+
+            if (!empty($intel["troops"])) {
+                $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
+
+                foreach ($intel["troops"] as $t) {
+                    $html .= self::render_unit_card($t, 0, 0, "", true);
+                }
+
+                $html .= "</div>";
+            }
+        }
+
+        if (!empty($intel["support_troops"])) {
+            $html .= "<div class='report-section-title' style='margin-top: 10px;'>Unterstützungstruppen</div>";
+
+            $sup_atk = (int)($intel["support_atk"] ?? 0);
+            $sup_def = (int)($intel["support_def"] ?? 0);
+            if ($sup_atk > 0 || $sup_def > 0) {
+                $html .= "<div class='all-troops-sum-stats' style='flex-wrap: wrap; gap: 15px;'>";
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <b>" . fnum($sup_atk, true) . "</b></span>";
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <b>" . fnum($sup_def, true) . "</b></span>";
+                $html .= "</div>";
+            }
+
             $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
 
-            foreach ($intel["troops"] as $t) {
-                $html .= self::render_unit_card($t, 0, 0, "", true);
+            foreach ($intel["support_troops"] as $st) {
+                $html .= self::render_unit_card($st, 0, 0, "", true);
             }
 
             $html .= "</div>";
@@ -320,6 +394,7 @@ class BattleReportRenderer
             "wood" => ResourceTypes::RESOURCE_TYPE_WOOD,
             "stone" => ResourceTypes::RESOURCE_TYPE_STONE,
             "gold" => ResourceTypes::RESOURCE_TYPE_GOLD,
+            "villager" => ResourceTypes::RESOURCE_TYPE_VILLAGER,
             "coal" => ResourceTypes::RESOURCE_TYPE_COAL,
             "iron" => ResourceTypes::RESOURCE_TYPE_IRON,
             "sapphire" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,

@@ -19,11 +19,7 @@ registerAction("checkMarket", (form, event) => {
         const valD = parseInt(document.getElementById("dv").value) || 0;
 
         if (valS <= 0 || valD <= 0) {
-            showConfirmationDialog("Bitte gib gültige Mengen an.",
-                "Ok",
-                "",
-                () => {
-                });
+            showGameError("Bitte gib gültige Mengen an.");
             return;
         }
 
@@ -33,13 +29,7 @@ registerAction("checkMarket", (form, event) => {
         const grace = 0.01;
 
         if (ratio1 > maxRatio + grace || ratio2 > maxRatio + grace) {
-            showConfirmationDialog(
-                `Das Handelsverhältnis ist zu extrem! Erlaubt ist maximal ein Verhältnis von 1:${maxRatio}.`,
-                "Ok",
-                "",
-                () => {
-                }
-            );
+            showGameError(`Das Handelsverhältnis ist zu extrem! Erlaubt ist maximal ein Verhältnis von 1:${maxRatio}.`,);
             return;
         }
 
@@ -75,6 +65,12 @@ registerAction("checkMarket", (form, event) => {
     }
 });
 registerAction("checkInternalTransport", (form, event) => {
+    if (form.dataset.dailyFull === "true" || (window.marketConfig && window.marketConfig.is_daily_full)) {
+        event.preventDefault();
+        showGameError("Du hast dein tägliches Limit an Handelsaktionen bereits erreicht!");
+        return;
+    }
+
     const arrivalDataEl = document.getElementById("internal-arrival-data");
     const targetSelect = document.getElementById("target_k");
     if (!arrivalDataEl || !targetSelect) return;
@@ -216,6 +212,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const updateInternalSum = () => {
         let total = 0;
         const maxCap = window.marketConfig ? window.marketConfig.max_capacity_per_offer : 0;
+        const form = document.getElementById("form-internal-transport");
+        const isDailyFull = (form && form.dataset.dailyFull === "true") || (window.marketConfig && window.marketConfig.is_daily_full);
+
         internalInputs.forEach(input => {
             total += parseInt(input.value, 10) || 0;
         });
@@ -225,7 +224,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (internalSubmit) {
-            internalSubmit.disabled = (total <= 0 || total > maxCap);
+            internalSubmit.disabled = (total <= 0 || total > maxCap || isDailyFull);
         }
 
         updateTargetStockDisplay();

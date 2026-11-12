@@ -14,19 +14,23 @@ class Database
         $max_retries = 3;
         $attempt = 0;
         $connected = false;
+
+        $env_host = $_ENV["HOST"] ?? $_SERVER["HOST"] ?? getenv("HOST");
+        $env_user = $_ENV["USER"] ?? $_SERVER["USER"] ?? getenv("USER");
+        $env_pass = $_ENV["PASSWORD"] ?? $_SERVER["PASSWORD"] ?? getenv("PASSWORD");
+        $env_db = $_ENV["DATABASE"] ?? $_SERVER["DATABASE"] ?? getenv("DATABASE");
         $env_port = $_ENV["PORT"] ?? $_SERVER["PORT"] ?? getenv("PORT");
+
+        $host = !empty($env_host) ? $env_host : "127.0.0.1";
+        $user = $env_user ?: "";
+        $pass = $env_pass ?: "";
+        $db = $env_db ?: "";
         $port = !empty($env_port) ? (int)$env_port : 34156;
 
         while ($attempt < $max_retries && !$connected) {
             $attempt++;
             try {
-                $this->_connection = new mysqli(
-                    getenv("HOST") ?: "127.0.0.1",
-                    getenv("USER"),
-                    getenv("PASSWORD"),
-                    getenv("DATABASE"),
-                    $port
-                );
+                $this->_connection = new mysqli($host, $user, $pass, $db, $port);
 
                 $connected = true;
             } catch (mysqli_sql_exception $e) {

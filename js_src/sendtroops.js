@@ -87,13 +87,12 @@ registerAction("fillMaxAndRefresh", (el) => {
             document.querySelectorAll(".js-unit-input").forEach(inp => inp.value = "");
             valToSet = 1;
         } else {
-            const quotaLimit = form?.dataset.mineLimit !== undefined
-                ? parseInt(form.dataset.mineLimit)
-                : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
+            const quotaLimit = getEffectiveQuotaLimit(form);
 
             if (quotaLimit !== null) {
                 const otherUnits = getSelectedTroopCountExcept(input);
                 const allowed = Math.max(0, quotaLimit - otherUnits);
+
                 valToSet = Math.min(valToSet, allowed);
             }
         }
@@ -124,12 +123,8 @@ registerAction("clearAllTroops", () => {
 });
 registerAction("selectAllTroops", () => {
     const form = document.getElementById("send-troops-form");
-    const isGift = form && form.dataset.isGift === "true";
-    const quotaLimit = form?.dataset.mineLimit !== undefined
-        ? parseInt(form.dataset.mineLimit)
-        : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
-
-    let remainingQuota = isGift ? 1 : (quotaLimit !== null ? quotaLimit : Infinity);
+    const quotaLimit = getEffectiveQuotaLimit(form);
+    let remainingQuota = quotaLimit !== null ? quotaLimit : Infinity;
 
     const isMine = form && form.dataset.isMine === "true";
     const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
@@ -272,6 +267,27 @@ registerAction("submitSendTroopsForm", (form, e) => {
         });
 });
 
+function getEffectiveQuotaLimit(form) {
+    if (!form) return null;
+    if (form.dataset.isGift === "true") return 1;
+
+    let limits = [];
+    if (form.dataset.troopLimit !== undefined) {
+        limits.push(parseInt(form.dataset.troopLimit, 10));
+    }
+
+    if (form.dataset.mineLimit !== undefined) {
+        limits.push(parseInt(form.dataset.mineLimit, 10));
+    }
+
+    if (form.dataset.supportLimit !== undefined) {
+        limits.push(parseInt(form.dataset.supportLimit, 10));
+    }
+
+    limits = limits.filter(n => !isNaN(n));
+    return limits.length > 0 ? Math.min(...limits) : null;
+}
+
 function updateTroopSummary() {
     const inputs = document.querySelectorAll(".js-unit-input");
     const summaryList = document.getElementById("troop-summary-list");
@@ -279,7 +295,9 @@ function updateTroopSummary() {
     const summaryContainer = document.getElementById("troop-summary-container");
     const actionButtons = document.getElementById("troop-action-buttons");
     const form = document.getElementById("send-troops-form");
-    const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
+
+    const scoutId = String(form?.dataset.scoutId || "12");
+    const thiefId = String(form?.dataset.thiefId || "11");
 
     if (form && form.dataset.isMine === "true") {
         const scoutInput = document.getElementById("sol_" + scoutId);
@@ -330,6 +348,9 @@ function updateTroopSummary() {
     let totalMiningUnits = 0;
     let totalAtk = 0;
     let totalDef = 0;
+    let scoutCount = 0;
+    let thiefCount = 0;
+    let otherCount = 0;
 
     inputs.forEach(input => {
         let rawValue = input.value;
@@ -347,6 +368,15 @@ function updateTroopSummary() {
         }
 
         if (val > 0) {
+            const uId = String(input.dataset.id);
+            if (uId === scoutId) {
+                scoutCount += val;
+            } else if (uId === thiefId) {
+                thiefCount += val;
+            } else {
+                otherCount += val;
+            }
+
             const name = input.dataset.name;
             const iconName = input.dataset.icon;
             const iconPath = `images/icons/${iconName}.png`;
@@ -369,6 +399,25 @@ function updateTroopSummary() {
             }
         }
     });
+
+    const stealthWarningEl = document.getElementById("stealth-warning-box");
+    if (stealthWarningEl) {
+        if (scoutCount > 0 && thiefCount > 0 && otherCount === 0) {
+            stealthWarningEl.innerHTML = `
+                <div class="info-box event-warning" style="margin: 0; text-align: left;">
+                    <img src="images/icons/icon_warning.png" alt="Hinweis">
+                    <span>
+                        <b>Achtung:</b> Werden Späher und Diebe gemeinsam ohne reguläre Armee entsandt, 
+                        wird dies als offener PvP-Kampf gegen die Garnison gewertet und löst Alarm beim feindlichen Wachturm aus!
+                        Gestohlene Ressourcen und Spionageberichte können dennoch generiert werden bei erfolgreichem Kampf.
+                    </span>
+                </div>`;
+            stealthWarningEl.style.display = "block";
+        } else {
+            stealthWarningEl.style.display = "none";
+            stealthWarningEl.innerHTML = "";
+        }
+    }
 
     summaryList.innerHTML = badgesHtml;
 
@@ -393,6 +442,11 @@ function updateTroopSummary() {
     }
 
     summaryContainer.style.display = (totalUnits > 0) ? "flex" : "none";
+
+    const summaryCountEl = document.getElementById("troop-summary-count");
+    if (summaryCountEl) {
+        summaryCountEl.innerText = totalUnits.toLocaleString("de-DE");
+    }
 
     const mineCapDisplay = document.getElementById("mine-capacity-display");
     if (mineCapDisplay && hasMineLimit) {
@@ -502,6 +556,12 @@ function updateTroopSummary() {
                 }
             }
 
+            const hasTroopLimit = form && form.dataset.troopLimit !== undefined;
+            const troopLimit = hasTroopLimit ? parseInt(form.dataset.troopLimit, 10) : null;
+            if (hasTroopLimit && totalUnits > troopLimit) {
+                disabled = true;
+            }
+
             submitBtn.disabled = disabled;
         }
     }
@@ -539,9 +599,7 @@ document.addEventListener("input", (e) => {
             });
         }
 
-        const quotaLimit = form?.dataset.mineLimit !== undefined
-            ? parseInt(form.dataset.mineLimit)
-            : (form?.dataset.supportLimit !== undefined ? parseInt(form.dataset.supportLimit) : null);
+        const quotaLimit = getEffectiveQuotaLimit(form);
 
         if (quotaLimit !== null) {
             const otherUnits = getSelectedTroopCountExcept(e.target);

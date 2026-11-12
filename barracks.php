@@ -126,7 +126,7 @@ if (!empty($last_upgraded)) {
     $cat = (int)$_GET["cat"];
 
     if ($cat === SoldierTypes::SOLDIER_TYPE_SUPPORT) {
-        $active_cat = $show_support_feature ? SoldierTypes::SOLDIER_TYPE_SUPPORT : 0;
+        $active_cat = $show_support_feature ? SoldierTypes::SOLDIER_TYPE_SUPPORT : SoldierTypes::SOLDIER_TYPE_INFANTRY;
     } else if ($cat >= 0 && $cat <= SoldierTypes::SOLDIER_TYPE_SUPPORT) {
         $active_cat = $cat;
     }
@@ -236,7 +236,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $db_instance->execute_query("DELETE FROM stationed_troops WHERE owner_id = ? AND source_kingdom_id = ? AND target_kingdom_id = ?", [$owner_id, $source_id, $target_id]);
                 $db_instance->commit();
 
-                $_SESSION["support_success"] = "Die Truppen befinden sich nun auf dem Rückmarsch.";
+                $_SESSION["game_success"] = "Die Truppen befinden sich nun auf dem Rückmarsch.";
 
                 change_location("barracks.php?cat=" . SoldierTypes::SOLDIER_TYPE_SUPPORT);
             } else {
@@ -332,129 +332,148 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else {
                 $count = (int)$raw_count;
                 $upgrade_to = !empty($_POST["upgrade_to"]) ? (int)$_POST["upgrade_to"] : null;
+                $special_unit_limits = [
+                    Soldiers::SOLDIER_SETTLER_WAGON => ["limit" => MAX_SETTLER_WAGONS_PER_KINGDOM, "name" => "Gründungskarren"],
+                    Soldiers::SOLDIER_CONQUEROR => ["limit" => MAX_CONQUERORS_PER_KINGDOM, "name" => "Eroberer"],
+                    Soldiers::SOLDIER_RAIDER => ["limit" => MAX_RAIDERS_PER_KINGDOM, "name" => "Räuber"]
+                ];
+                $is_space_exempt = in_array($s_id, TROOP_LIMIT_EXEMPT, true);
 
                 if ($kingdom_is_recruiting || $kingdom_is_upgrading) {
                     $error = "Du bist bereits am Rekrutieren oder Aufwerten!";
                 } else if ($count > $dynamic_limit) {
                     $error = "Deine Kaserne erlaubt aktuell maximal $dynamic_limit Einheiten gleichzeitig!";
-                } else if (empty($upgrade_to) && $count > $space_left) {
+                } else if (empty($upgrade_to) && !$is_space_exempt && $count > $space_left) {
                     $error = "Nicht genug Platz! Dein Truppenlimit lässt nur noch $space_left Einheiten zu.";
-                } else if ($s_id < 0 || $s_id >= $soldiers_count) {
-                    $error = "Diese Einheit existiert nicht!";
-                } else if ($soldiers[$s_id]->get_soldier_required_level() > $building->get_building_level()) {
-                    $error = "Deine Kaserne hat eine zu niedrige Stufe für diese Einheit!";
-                } else if ($s_id == Soldiers::SOLDIER_HERO) {
-                    $error = "Helden können nicht ausgebildet werden!";
-                } else {
-                    $source_soldier = $soldiers[$s_id];
-                    $source_db_id = $source_soldier->get_soldier_id();
+                } else if (isset($special_unit_limits[$s_id])) {
+                    $u_limit = $special_unit_limits[$s_id]["limit"];
+                    $u_name = $special_unit_limits[$s_id]["name"];
+                    $cur_total = $kingdom->get_unit_total_count($s_id, true);
 
-                    $res_count = $db_instance->execute_query("SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?", [$current_kingdom, $source_db_id]);
-                    $current_owned = $res_count->fetch_assoc()["soldiercount"] ?? 0;
+                    if ($cur_total + $count > $u_limit) {
+                        $remaining = max(0, $u_limit - $cur_total);
+                        $error = "Maximal $u_limit $u_name pro Königreich erlaubt! (Bereits vorhanden/in Bau: $cur_total, noch möglich: $remaining)";
+                    }
+                }
 
-                    if (!empty($upgrade_to)) {
-                        $target_db_id = $upgrade_to;
-                        $target_soldier = null;
+                if (empty($error)) {
+                    if ($s_id < 0 || $s_id >= $soldiers_count) {
+                        $error = "Diese Einheit existiert nicht!";
+                    } else if ($soldiers[$s_id]->get_soldier_required_level() > $building->get_building_level()) {
+                        $error = "Deine Kaserne hat eine zu niedrige Stufe für diese Einheit!";
+                    } else if ($s_id == Soldiers::SOLDIER_HERO) {
+                        $error = "Helden können nicht ausgebildet werden!";
+                    } else {
+                        $source_soldier = $soldiers[$s_id];
+                        $source_db_id = $source_soldier->get_soldier_id();
 
-                        foreach ($soldiers as $s) {
-                            if ($s->get_soldier_id() == $target_db_id) {
-                                $target_soldier = $s;
-                                break;
+                        $res_count = $db_instance->execute_query("SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?", [$current_kingdom, $source_db_id]);
+                        $current_owned = $res_count->fetch_assoc()["soldiercount"] ?? 0;
+
+                        if (!empty($upgrade_to)) {
+                            $target_db_id = $upgrade_to;
+                            $target_soldier = null;
+
+                            foreach ($soldiers as $s) {
+                                if ($s->get_soldier_id() == $target_db_id) {
+                                    $target_soldier = $s;
+                                    break;
+                                }
                             }
-                        }
 
-                        if ($target_db_id == $source_db_id) {
-                            $error = "Du kannst eine Einheit nicht zu sich selbst aufwerten!";
-                        } else if ($current_owned < $count) {
-                            $error = "Nicht genügend Einheiten für das Upgrade vorhanden!";
-                        } else if (!$target_soldier || $source_soldier->get_soldier_category() != $target_soldier->get_soldier_category()) {
-                            $error = "Ungültiges Upgrade!";
-                        } else if ($target_soldier->get_soldier_required_level() <= $source_soldier->get_soldier_required_level()) {
-                            $error = "Upgrades sind nur zu Einheiten eines höheren Rangs möglich!";
-                        } else if ($target_soldier->get_soldier_required_level() > $building->get_building_level()) {
-                            $error = "Deine Kaserne hat eine zu niedrige Stufe für diese Einheit!";
-                        } else if ($target_soldier->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
-                            $error = "Spezialeinheiten können nicht durch Aufwertung erhalten werden!";
-                        } else {
-                            $diff_gold = max(0, ($target_soldier->get_soldier_gold_cost() - $source_soldier->get_soldier_gold_cost()) * $count);
-                            $diff_food = max(0, ($target_soldier->get_soldier_food_cost() - $source_soldier->get_soldier_food_cost()) * $count);
-                            $diff_wood = max(0, ($target_soldier->get_soldier_wood_cost() - $source_soldier->get_soldier_wood_cost()) * $count);
-                            $diff_stone = max(0, ($target_soldier->get_soldier_stone_cost() - $source_soldier->get_soldier_stone_cost()) * $count);
+                            if ($target_db_id == $source_db_id) {
+                                $error = "Du kannst eine Einheit nicht zu sich selbst aufwerten!";
+                            } else if ($current_owned < $count) {
+                                $error = "Nicht genügend Einheiten für das Upgrade vorhanden!";
+                            } else if (!$target_soldier || $source_soldier->get_soldier_category() != $target_soldier->get_soldier_category()) {
+                                $error = "Ungültiges Upgrade!";
+                            } else if ($target_soldier->get_soldier_required_level() <= $source_soldier->get_soldier_required_level()) {
+                                $error = "Upgrades sind nur zu Einheiten eines höheren Rangs möglich!";
+                            } else if ($target_soldier->get_soldier_required_level() > $building->get_building_level()) {
+                                $error = "Deine Kaserne hat eine zu niedrige Stufe für diese Einheit!";
+                            } else if ($target_soldier->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL) {
+                                $error = "Spezialeinheiten können nicht durch Aufwertung erhalten werden!";
+                            } else {
+                                $diff_gold = max(0, ($target_soldier->get_soldier_gold_cost() - $source_soldier->get_soldier_gold_cost()) * $count);
+                                $diff_food = max(0, ($target_soldier->get_soldier_food_cost() - $source_soldier->get_soldier_food_cost()) * $count);
+                                $diff_wood = max(0, ($target_soldier->get_soldier_wood_cost() - $source_soldier->get_soldier_wood_cost()) * $count);
+                                $diff_stone = max(0, ($target_soldier->get_soldier_stone_cost() - $source_soldier->get_soldier_stone_cost()) * $count);
 
-                            if ($kingdom_gold >= $diff_gold && $kingdom_food >= $diff_food && $kingdom_wood >= $diff_wood && $kingdom_stone >= $diff_stone) {
-                                $single_upgrade_time = (int)round($target_soldier->get_soldier_time() * $smithy_multiplier);
-                                $upgrade_time = $single_upgrade_time * $count;
-                                $finish_at = time() + $upgrade_time;
+                                if ($kingdom_gold >= $diff_gold && $kingdom_food >= $diff_food && $kingdom_wood >= $diff_wood && $kingdom_stone >= $diff_stone) {
+                                    $single_upgrade_time = (int)round($target_soldier->get_soldier_time() * $smithy_multiplier);
+                                    $upgrade_time = $single_upgrade_time * $count;
+                                    $finish_at = time() + $upgrade_time;
 
-                                $kingdom->give_kingdom_gold(-$diff_gold);
-                                $kingdom->give_kingdom_food(-$diff_food);
-                                $kingdom->give_kingdom_wood(-$diff_wood);
-                                $kingdom->give_kingdom_stone(-$diff_stone);
+                                    $kingdom->give_kingdom_gold(-$diff_gold);
+                                    $kingdom->give_kingdom_food(-$diff_food);
+                                    $kingdom->give_kingdom_wood(-$diff_wood);
+                                    $kingdom->give_kingdom_stone(-$diff_stone);
 
-                                // Remove old troops
-                                $db_instance->execute_query("UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?",
-                                    [$count, $current_kingdom, $source_db_id]);
+                                    // Remove old troops
+                                    $db_instance->execute_query("UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?",
+                                        [$count, $current_kingdom, $source_db_id]);
 
-                                // Create Upgrade event
-                                $db_instance->execute_query(
-                                    "INSERT INTO events (actionid, userid, kingdomid, buildingid, soldierid, recruittime, soldiergoal, buildingname) 
+                                    // Create Upgrade event
+                                    $db_instance->execute_query(
+                                        "INSERT INTO events (actionid, userid, kingdomid, buildingid, soldierid, recruittime, soldiergoal, buildingname) 
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                                    [ActionTypes::ACTION_UPGRADE_TROOPS, $user->get_user_id(), $current_kingdom, $source_db_id, $target_db_id, $finish_at, $count, "Truppen-Upgrade"]
-                                );
+                                        [ActionTypes::ACTION_UPGRADE_TROOPS, $user->get_user_id(), $current_kingdom, $source_db_id, $target_db_id, $finish_at, $count, "Truppen-Upgrade"]
+                                    );
 
-                                $logger->log_game("ECONOMY", "UPGRADE_START",
-                                    [
-                                        "from" => $source_db_id,
-                                        "to" => $target_db_id,
-                                        "count" => $count
-                                    ], $current_kingdom);
+                                    $logger->log_game("ECONOMY", "UPGRADE_START",
+                                        [
+                                            "from" => $source_db_id,
+                                            "to" => $target_db_id,
+                                            "count" => $count
+                                        ], $current_kingdom);
+
+                                    change_location("barracks.php?cat=$active_cat");
+                                } else {
+                                    $error = "Nicht genügend Ressourcen!";
+                                }
+                            }
+                        } else {
+                            $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost());
+                            $unit_cost_gold = (int)($soldiers[$s_id]->get_soldier_gold_cost());
+                            $unit_cost_wood = (int)($soldiers[$s_id]->get_soldier_wood_cost());
+                            $unit_cost_stone = (int)($soldiers[$s_id]->get_soldier_stone_cost());
+
+                            $total_food = $unit_cost_food * $count;
+                            $total_gold = $unit_cost_gold * $count;
+                            $total_wood = $unit_cost_wood * $count;
+                            $total_stone = $unit_cost_stone * $count;
+                            $cost_villager = $soldiers[$s_id]->get_soldier_villager_cost() * $count;
+
+                            if ($total_food > $kingdom_food) {
+                                $error = "Nicht genug Nahrung!";
+                            } else if ($total_gold > $kingdom_gold) {
+                                $error = "Nicht genug Gold!";
+                            } else if ($total_stone > $kingdom_stone) {
+                                $error = "Nicht genug Stein!";
+                            } else if ($total_wood > $kingdom_wood) {
+                                $error = "Nicht genug Holz!";
+                            } else if ($cost_villager > $kingdom_villager) {
+                                $error = "Nicht genug Dorfbewohner!";
+                            } else {
+                                $current_time = time();
+                                $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
+                                $single_unit_time = (int)round($soldiers[$s_id]->get_soldier_time() * $discount);
+                                $recruiting_time = $current_time + ($single_unit_time * $count);
+
+                                $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
+                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                $db_instance->execute_query($query,
+                                    [ActionTypes::ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, BuildingTypes::BUILDING_TOWNCENTER,
+                                        $current_time, '0', '-', $s_id, $recruiting_time, $count]);
+
+                                // Subtract values
+                                $kingdom->give_kingdom_food(-$total_food);
+                                $kingdom->give_kingdom_gold(-$total_gold);
+                                $kingdom->give_kingdom_stone(-$total_stone);
+                                $kingdom->give_kingdom_wood(-$total_wood);
 
                                 change_location("barracks.php?cat=$active_cat");
-                            } else {
-                                $error = "Nicht genügend Ressourcen!";
                             }
-                        }
-                    } else {
-                        $unit_cost_food = (int)($soldiers[$s_id]->get_soldier_food_cost());
-                        $unit_cost_gold = (int)($soldiers[$s_id]->get_soldier_gold_cost());
-                        $unit_cost_wood = (int)($soldiers[$s_id]->get_soldier_wood_cost());
-                        $unit_cost_stone = (int)($soldiers[$s_id]->get_soldier_stone_cost());
-
-                        $total_food = $unit_cost_food * $count;
-                        $total_gold = $unit_cost_gold * $count;
-                        $total_wood = $unit_cost_wood * $count;
-                        $total_stone = $unit_cost_stone * $count;
-                        $cost_villager = $soldiers[$s_id]->get_soldier_villager_cost() * $count;
-
-                        if ($total_food > $kingdom_food) {
-                            $error = "Nicht genug Nahrung!";
-                        } else if ($total_gold > $kingdom_gold) {
-                            $error = "Nicht genug Gold!";
-                        } else if ($total_stone > $kingdom_stone) {
-                            $error = "Nicht genug Stein!";
-                        } else if ($total_wood > $kingdom_wood) {
-                            $error = "Nicht genug Holz!";
-                        } else if ($cost_villager > $kingdom_villager) {
-                            $error = "Nicht genug Dorfbewohner!";
-                        } else {
-                            $current_time = time();
-                            $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
-                            $single_unit_time = (int)round($soldiers[$s_id]->get_soldier_time() * $discount);
-                            $recruiting_time = $current_time + ($single_unit_time * $count);
-
-                            $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
-                                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                            $db_instance->execute_query($query,
-                                [ActionTypes::ACTION_BUILD_TROOPS, $user->get_user_id(), $current_kingdom, BuildingTypes::BUILDING_TOWNCENTER,
-                                    $current_time, '0', '-', $s_id, $recruiting_time, $count]);
-
-                            // Subtract values
-                            $kingdom->give_kingdom_food(-$total_food);
-                            $kingdom->give_kingdom_gold(-$total_gold);
-                            $kingdom->give_kingdom_stone(-$total_stone);
-                            $kingdom->give_kingdom_wood(-$total_wood);
-
-                            change_location("barracks.php?cat=$active_cat");
                         }
                     }
                 }
@@ -624,6 +643,26 @@ $cat_numbers_def_str = $render_split_row("Infanterie", $cat_def[$inf_cat])
     . $render_split_row("Schützen", $cat_def[$arc_cat])
     . $render_split_row("Spezial", $cat_def[$spec_cat]);
 
+$has_atk_bonus = ($total_smithy_atk > 0 || $total_shrine_atk > 0);
+$has_def_bonus = ($total_smithy_def > 0);
+$atk_bonus_html = "";
+if ($has_atk_bonus) {
+    $atk_bonus_html = "
+                        <b>Angriffs-Bonus:</b>
+                        <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base_atk, true) . "</span></div>
+                        " . ($total_smithy_atk > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_atk, true) . "</span></div>" : "") . "
+                        " . ($total_shrine_atk > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($total_shrine_atk, true) . "</span></div>" : "") . "
+                        <hr>";
+}
+$def_bonus_html = "";
+if ($has_def_bonus) {
+    $def_bonus_html = "
+                        <b>Verteidigungs-Bonus:</b>
+                        <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base_def, true) . "</span></div>
+                        <div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_def, true) . "</span></div>
+                        <hr>";
+}
+
 $view .= "
 <div class='garnison-box'>
     <table style='width: 100%; border-collapse: collapse; border: none; background: transparent;'>
@@ -635,11 +674,9 @@ $view .= "
                 <span class='popup $atk_class' id='total_atk_info'>
                     " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span>" . fnum($total_k_atk, false, true) . "</span>
                     <div id='total_atk_info_box' class='popupbox' style='text-align: left; min-width: 240px;'>
-                        <b>Angriffs-Bonus:</b>
-                        <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base_atk, true) . "</span></div>
-                        " . ($total_smithy_atk > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_atk, true) . "</span></div>" : "") . "
-                        " . ($total_shrine_atk > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($total_shrine_atk, true) . "</span></div>" : "") . "
-                        <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+                        <div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b>" . fnum($total_k_atk, true) . "</div>
+                        <hr>
+                        $atk_bonus_html
                         <b>Gattungen:</b>
                         $cat_numbers_atk_str
                     </div>
@@ -647,10 +684,9 @@ $view .= "
                 <span style='margin-left: 10px;' class='popup $def_class' id='total_def_info'>
                     " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span>" . fnum($total_k_def, false, true) . "</span>
                     <div id='total_def_info_box' class='popupbox' style='text-align: left; min-width: 240px;'>
-                        <b>Verteidigungs-Bonus:</b>
-                        <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base_def, true) . "</span></div>
-                        " . ($total_smithy_def > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_def, true) . "</span></div>" : "") . "
-                        <hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.4);'>
+                        <div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b>" . fnum($total_k_def, true) . "</div>
+                        <hr>
+                        $def_bonus_html
                         <b>Gattungen:</b>
                         $cat_numbers_def_str
                     </div>
@@ -878,7 +914,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $s_id_internal = $soldiers[$i]->get_soldier_id();
     $owned_count = $kingdom_soldiers[$s_id_internal] ?? 0;
     $req_lvl = $soldiers[$i]->get_soldier_required_level();
-    $barracks_lvl = $building->get_building_level();
 
     if ($req_lvl > $barracks_lvl && $owned_count <= 0) {
         continue;
@@ -905,6 +940,18 @@ for ($i = 0; $i < $soldiers_count; $i++) {
 
     $base_unit_time = $soldiers[$i]->get_soldier_time();
     $unit_time_display = (int)($base_unit_time * $smithy_multiplier);
+    $plunder_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
+
+    $unit_special_limit = match ($s_id_internal) {
+        Soldiers::SOLDIER_SETTLER_WAGON => MAX_SETTLER_WAGONS_PER_KINGDOM,
+        Soldiers::SOLDIER_CONQUEROR => MAX_CONQUERORS_PER_KINGDOM,
+        Soldiers::SOLDIER_RAIDER => MAX_RAIDERS_PER_KINGDOM,
+        default => null
+    };
+    $unit_total_in_kingdom = ($unit_special_limit !== null)
+        ? $kingdom->get_unit_total_count($s_id_internal, true)
+        : 0;
+    $is_space_exempt = in_array($s_id_internal, TROOP_LIMIT_EXEMPT, true);
 
     $cost_food = (int)($soldiers[$i]->get_soldier_food_cost());
     $cost_gold = (int)($soldiers[$i]->get_soldier_gold_cost());
@@ -919,8 +966,6 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $text_villager = "<span id='cost-villager-$i'>" . fnum($cost_villager) . "</span>";
 
     $capacity_text = "";
-
-    $plunder_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
 
     switch ($s_id_internal) {
         case Soldiers::SOLDIER_THIEF:
@@ -1060,7 +1105,9 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         $max_soldiers = max(0, $max_soldiers);
         $owned_count = $kingdom_soldiers[$soldiers[$i]->get_soldier_id()] ?? 0;
 
-        $can_train_at_least_one = ($max_soldiers > 0 && $space_left > 0);
+        $unit_cap_remaining = ($unit_special_limit !== null) ? max(0, $unit_special_limit - $unit_total_in_kingdom) : 999999;
+        $max_space_for_this = $is_space_exempt ? $unit_cap_remaining : min($space_left, $unit_cap_remaining);
+        $can_train_at_least_one = ($max_soldiers > 0 && $max_space_for_this > 0);
 
         $can_upgrade_to_anything = false;
         if ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && $owned_count > 0) {
@@ -1081,6 +1128,11 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             $is_disabled = "disabled";
         }
 
+        $limit_attrs = ($unit_special_limit !== null) ? " data-unit-limit='$unit_special_limit' data-unit-total='$unit_total_in_kingdom'" : "";
+        if ($is_space_exempt) {
+            $limit_attrs .= " data-space-exempt='true'";
+        }
+
         $text_build = "<form action='barracks.php' method='POST' style='display: flex; flex-direction: column; gap: 5px; align-items: center;'>
                         <input type='hidden' name='action' value='train'>
                         <input type='hidden' name='recruit' value='$i'>
@@ -1093,6 +1145,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
                                    data-cost-food='$cost_food' data-cost-gold='$cost_gold'
                                    data-cost-stone='$cost_stone' data-cost-wood='$cost_wood'
                                    data-cost-villager='$cost_villager' data-time-per-unit='$base_unit_time'
+                                   $limit_attrs
                                    inputmode='numeric' pattern='[0-9]*'
                                    placeholder='0' $is_disabled>
                             <input type='button' value='Max.' data-on-click='fillMaxAndCalc' data-target='count$i' $is_disabled>
@@ -1141,9 +1194,12 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $owned_total = $total_kingdom_soldiers[$s_id_internal] ?? $owned_in_garrison;
 
     $stock_info = "";
-    if ($owned_total > 0) {
+    if ($owned_total > 0 || $unit_special_limit !== null) {
+        $limit_display = ($unit_special_limit !== null) ? " / " . $unit_special_limit : "";
+        $total_count_val = ($unit_special_limit !== null) ? $unit_total_in_kingdom : $owned_total;
+
         $stock_info = "<hr style='margin: 8px 0;'>"
-            . "<b>Gesamt im Königreich:</b> " . fnum($owned_total);
+            . "<b>Gesamt im Königreich:</b> " . fnum($total_count_val) . $limit_display;
     }
 
     $view .= "<tr class='$row_class' data-unit-category='$unit_cat' style='$row_style'>

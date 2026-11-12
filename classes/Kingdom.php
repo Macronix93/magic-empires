@@ -35,6 +35,9 @@ class Kingdom
     private int $alignment;
     private ?array $shrine_cache = null;
     private ?array $building_levels_cache = null;
+    private int $creation_method = KingdomCreationTypes::KINGDOM_CREATION_INITIAL;
+    private int $created_at = 0;
+    private int $protection_until = 0;
 
     public function __construct(int $kingdom_id = -1)
     {
@@ -75,6 +78,9 @@ class Kingdom
                 $this->villager_per_hour = $row["villagerperhour"];
                 $this->wall_hp = $row["wallhp"];
                 $this->alignment = $row["alignment"];
+                $this->creation_method = (int)($row["creation_method"] ?? KingdomCreationTypes::KINGDOM_CREATION_INITIAL);
+                $this->created_at = (int)($row["created_at"] ?? 0);
+                $this->protection_until = (int)($row["protection_until"] ?? 0);
 
                 $this->base_food_rate = $row["base_food_rate"];
                 $this->base_gold_rate = $row["base_gold_rate"];
@@ -155,19 +161,21 @@ class Kingdom
 
         // Insert kingdom
         $random_name = $this->generate_random_name();
-
         $this->kingdom_name = $random_name;
+        $protection_until = ($creation_method !== KingdomCreationTypes::KINGDOM_CREATION_CONQUEST)
+            ? (time() + (NEW_KINGDOM_PROTECTION_DAYS * 86400))
+            : 0;
 
         $query = "
                     INSERT INTO kingdoms (kingdomname, userid, username, mapx, mapy, food, maxfood, wood, maxwood, stone, maxstone, gold, maxgold, foodperhour, 
                                           woodperhour, stoneperhour, goldperhour, wallhp, base_food_rate, base_gold_rate, base_stone_rate, base_wood_rate, 
-                                          creation_method, created_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
+                                          creation_method, created_at, protection_until) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
         ";
 
         $result_kingdom = $this->mysqli->execute_query($query, [$random_name, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
-            $food_rate, $gold_rate, $stone_rate, $wood_rate, $creation_method, time()]);
+            $food_rate, $gold_rate, $stone_rate, $wood_rate, $creation_method, time(), $protection_until]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
 
         // Update map properties of x and y
@@ -587,14 +595,17 @@ class Kingdom
     {
         if ($wall_hp <= 0 || $wall_level <= 0) return 0;
 
-        $max_hp = $wall_level * DEFAULT_WALL_HP;
-        $level_scale = pow(($wall_level - 1), WALL_DEFENSE_FACTOR);
-        $max_scale = pow(MAX_BUILDING_LEVEL - 1, WALL_DEFENSE_FACTOR);
-        $scaled_max_defense = MIN_WALL_DEFENSE + (MAX_WALL_DEFENSE - MIN_WALL_DEFENSE) * ($level_scale / $max_scale);
+        $max_hp = $this->get_wall_max_hp();
+        if ($max_hp <= 0) return 0;
 
-        $defense = floor(($wall_hp / $max_hp) * $scaled_max_defense);
+        $level_ratio = ($wall_level - 1) / max(1, (MAX_BUILDING_LEVEL - 1));
+        $max_defense = MIN_WALL_DEFENSE + (MAX_WALL_DEFENSE - MIN_WALL_DEFENSE) * $level_ratio;
+        $base_defense = MIN_WALL_DEFENSE * ($wall_level / MAX_BUILDING_LEVEL);
 
-        return max(MIN_WALL_DEFENSE, (int)$defense);
+        $hp_ratio = min(1.0, max(0.0, $wall_hp / $max_hp));
+        $defense = $base_defense + ($max_defense - $base_defense) * $hp_ratio;
+
+        return max(MIN_WALL_DEFENSE, (int)round($defense));
     }
 
     public function get_active_boosts(?int $res_type = null): array
@@ -842,22 +853,24 @@ class Kingdom
     public function get_current_troop_count(bool $include_queue = true, bool $include_incoming = false): int
     {
         $kid = $this->kingdom_id;
+        $exempt_ids = implode(',', TROOP_LIMIT_EXEMPT);
 
-        // Own troops (barracks + sent + upgrading)
+        // Own troops (barracks + sent + stationed + mines + upgrading)
         $query_own = "SELECT (
-                            (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ?) +
-                            (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops WHERE source_kingdom_id = ?) +
-                            (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?) +
-                            (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE kingdom_id = ?) +
-                            (SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . ")
-                        ) AS total";
+            (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ? AND soldierid NOT IN ($exempt_ids)) +
+            (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops WHERE source_kingdom_id = ? AND soldierid NOT IN ($exempt_ids)) +
+            (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ? AND soldier_id NOT IN ($exempt_ids)) +
+            (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE kingdom_id = ? AND soldier_id NOT IN ($exempt_ids)) +
+            (SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . " AND soldierid NOT IN ($exempt_ids))
+        ) AS total";
+
         $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid, $kid, $kid, $kid]);
         $total = (int)$res_own->fetch_row()[0];
 
         // Troops currently recruiting
         if ($include_queue) {
             $res_training = $this->mysqli->execute_query(
-                "SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ?",
+                "SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid NOT IN ($exempt_ids)",
                 [$kid, ActionTypes::ACTION_BUILD_TROOPS]
             );
             $total += (int)$res_training->fetch_row()[0];
@@ -873,6 +886,7 @@ class Kingdom
                   AND e.actionid = ? 
                   AND e.kingdomid != ? 
                   AND e.userid = (SELECT userid FROM kingdoms WHERE id = ?)
+                  AND st.soldierid NOT IN ($exempt_ids)
             ";
             $res_incoming = $this->mysqli->execute_query($query_incoming, [
                 $kid,
@@ -881,6 +895,34 @@ class Kingdom
                 $kid
             ]);
             $total += (int)$res_incoming->fetch_row()[0];
+        }
+
+        return $total;
+    }
+
+    public function get_unit_total_count(int $soldier_id, bool $include_queue = true): int
+    {
+        $kid = $this->kingdom_id;
+        $query = "
+            SELECT SUM(cnt) FROM (
+                SELECT soldiercount AS cnt FROM soldiers WHERE kingdomid = ? AND soldierid = ?
+                UNION ALL
+                SELECT soldiercount AS cnt FROM sent_troops WHERE source_kingdom_id = ? AND soldierid = ?
+                UNION ALL
+                SELECT soldiercount AS cnt FROM stationed_troops WHERE source_kingdom_id = ? AND soldier_id = ?
+                UNION ALL
+                SELECT soldiercount AS cnt FROM mine_stationed_troops WHERE kingdom_id = ? AND soldier_id = ?
+            ) t
+        ";
+        $total = (int)$this->mysqli->execute_query($query, [$kid, $soldier_id, $kid, $soldier_id, $kid, $soldier_id, $kid, $soldier_id])->fetch_column();
+
+        if ($include_queue) {
+            $queued = (int)$this->mysqli->execute_query(
+                "SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
+                [$kid, ActionTypes::ACTION_BUILD_TROOPS, $soldier_id]
+            )->fetch_column();
+
+            $total += $queued;
         }
 
         return $total;
@@ -1034,15 +1076,18 @@ class Kingdom
         $res = $this->mysqli->execute_query("
             SELECT 
                 (SELECT COUNT(*) FROM events 
-                 WHERE kingdomid = ? AND actionid IN (?, ?)) AS active_events,
+                 WHERE kingdomid = ? AND actionid IN (?, ?, ?, ?)) AS active_events,
                 (SELECT COUNT(DISTINCT mine_id) FROM mine_stationed_troops 
                  WHERE kingdom_id = ?) AS active_mines
         ", [
             $this->kingdom_id,
             ActionTypes::ACTION_SEND_TROOPS,
             ActionTypes::ACTION_RETURN_TROOPS,
+            ActionTypes::ACTION_STATION_TROOPS,
+            ActionTypes::ACTION_SUPPORT_RETURN,
             $this->kingdom_id
         ]);
+
         $row = $res->fetch_assoc();
         $occupied = (int)($row["active_events"] ?? 0) + (int)($row["active_mines"] ?? 0);
 
@@ -1205,5 +1250,52 @@ class Kingdom
         $this->give_kingdom_food($costs["cost_food"] ?? 0);
         $this->give_kingdom_stone($costs["cost_stone"] ?? 0);
         $this->give_kingdom_gold($costs["cost_gold"] ?? 0);
+    }
+
+    public function get_kingdom_created_at(): int
+    {
+        return $this->created_at;
+    }
+
+    public function get_kingdom_creation_method(): int
+    {
+        return $this->creation_method;
+    }
+
+    public function has_new_kingdom_protection(): bool
+    {
+        if (NEW_KINGDOM_PROTECTION_DAYS <= 0
+            || $this->creation_method === KingdomCreationTypes::KINGDOM_CREATION_CONQUEST
+            || $this->protection_until === 1) {
+            return false;
+        }
+
+        if ($this->protection_until > 1) {
+            return time() < $this->protection_until;
+        }
+
+        if ($this->created_at > 0) {
+            return (time() - $this->created_at) < (NEW_KINGDOM_PROTECTION_DAYS * 86400);
+        }
+        return false;
+    }
+
+    public function get_protection_time_left(): int
+    {
+        if (!$this->has_new_kingdom_protection()) {
+            return 0;
+        }
+
+        if ($this->protection_until > 1) {
+            return max(0, $this->protection_until - time());
+        }
+
+        return max(0, ($this->created_at + (NEW_KINGDOM_PROTECTION_DAYS * 86400)) - time());
+    }
+
+    public function remove_protection(): void
+    {
+        $this->protection_until = 1;
+        $this->mysqli->execute_query("UPDATE kingdoms SET protection_until = 1 WHERE id = ?", [$this->kingdom_id]);
     }
 }

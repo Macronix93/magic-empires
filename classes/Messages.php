@@ -10,13 +10,14 @@ class Messages
         "battle_monster",
         "battle_ruin",
         "mine_battle",
-        "support_combat",
         "spy_report",
         "spy_monster_camp",
         "spy_mine",
         "spy_ruin",
         "spy_resource_tile",
-        "watchtower_alert"
+        "watchtower_alert",
+        "thief_report",
+        "thief_detected"
     ];
 
     public function __construct(User $user)
@@ -35,17 +36,18 @@ class Messages
         $template = $data["template"] ?? "";
 
         return match ($template) {
-            "battle_pvp" => "Kampfbericht vs. " . ($data["opponent_name"] ?? "Gegner"),
+            "battle_pvp" => "Kampfbericht vs. " . ($data["opponent_name"] ?? "Gegner") . (!empty($data["opponent_kname"]) ? " (" . $data["opponent_kname"] . ")" : ""),
             "battle_monster" => "Kampfbericht: Camp (Lv " . ($data["camp_level"] ?? 1) . ")",
             "battle_ruin" => "Kampfbericht: " . ($data["ruin_name"] ?? "Ruine"),
             "mine_battle" => "Kampfbericht: Erzmine",
-            "support_combat" => "Unterstützung vs. " . ($data["attacker_name"] ?? "Gegner"),
-            "spy_report" => "Spionage: " . ($data["target_kname"] ?? "Königreich"),
+            "spy_report" => "Spionage: " . ($data["opp_name"] ?? "Gegner") . (!empty($data["target_kname"]) ? " – " . $data["target_kname"] : ""),
             "spy_monster_camp" => "Spionage: Camp (Lv " . ($data["camp_level"] ?? 1) . ")",
             "spy_mine" => "Spionage: Erzmine",
             "spy_ruin" => "Spionage: Ruine",
             "spy_resource_tile" => "Spionage: Vorratslager",
-            "watchtower_alert" => "Wachturm-Meldung",
+            "watchtower_alert" => "Wachturm-Meldung: " . ($data["kingdom_name"] ?? ""),
+            "thief_report" => "Diebeszug: " . ($data["opp_name"] ?? "Gegner") . (!empty($data["target_kname"]) ? " – " . $data["target_kname"] : ""),
+            "thief_detected" => "Nachtwache vs. " . ($data["attacker_name"] ?? "Gegner") . (!empty($data["target_kname"]) ? " (" . $data["target_kname"] . ")" : ""),
             default => null
         };
     }
@@ -428,14 +430,9 @@ class Messages
         $picker_html = '';
         if ($mode === "full" || $mode === "btn_only") {
             $picker_html = '<div class="reaction-add-wrapper" style="position:relative; display:inline-block;">
-                            <span class="reaction-add" data-on-click="toggleReactionPicker">🙂</span>
-                            <div class="reaction-picker" style="display:none;">';
-            foreach (Messages::get_chat_emojis() as $emoji) {
-                $picker_html .= '<span class="picker-emoji" data-on-click="toggleReaction" 
-                            data-type="' . $type . '" data-id="' . $id . '" 
-                            data-emoji="' . e($emoji) . '">' . e($emoji) . '</span>';
-            }
-            $picker_html .= '</div></div>';
+                                <span class="reaction-add" data-on-click="toggleReactionPicker" data-type="' . e($type) . '" data-id="' . $id . '">🙂</span>
+                                <div class="reaction-picker" style="display:none;"></div>
+                            </div>';
         }
 
         $html = '<div class="reaction-container mode-' . $mode . '" data-type="' . $type . '" data-id="' . $id . '">';
@@ -665,13 +662,7 @@ class Messages
             $this->view .= "</table>";
         }
 
-        $this->view .= "
-            <br>
-            <form action='messages.php' method='GET'>
-                <input type='hidden' name='action' value='new'>
-                <input type='submit' value='Neue Konversation' style='margin-top: 5px;'>
-            </form>
-        ";
+        $this->view .= "<br><a href='messages.php?action=new'><button type='button' style='margin-top: 5px;'>Neue Konversation</button></a>";
 
         return $this->view;
     }
@@ -1196,8 +1187,9 @@ class Messages
                 $is_shared = !empty($data["is_shared_view"]);
 
                 $wall_def = (int)($data["wall_defense"] ?? 0);
+                $is_total_atk_defeat = (($data["outcome"] ?? "") === "total_defeat");
                 $left_wall_def = $is_attacker ? 0 : $wall_def;
-                $right_wall_def = $is_attacker ? $wall_def : 0;
+                $right_wall_def = ($is_attacker && !$is_total_atk_defeat) ? $wall_def : 0;
 
                 $opponent_name = e($data["opponent_name"] ?? "Gegner");
                 $opp_x = (int)($data["opp_x"] ?? 0);
@@ -1218,31 +1210,35 @@ class Messages
 
                     if ($is_attacker) {
                         $sub_title = "Schlachtfeld: <b>$opponent_kname</b> ($opp_link)";
-                        $atk_label = "Angreifer ($atk_name)";
-                        $def_label = "Verteidiger ($def_name)";
+                        $atk_label = "Angreifer: $atk_name";
+                        $def_label = "Verteidiger: $def_name)";
                     } else {
                         $sub_title = "Schlachtfeld: <b>$my_kname</b> ($my_link)";
-                        $atk_label = "Verteidiger ($def_name)";
-                        $def_label = "Angreifer ($atk_name)";
+                        $atk_label = "Verteidiger: $def_name";
+                        $def_label = "Angreifer: $atk_name";
                     }
                 } else {
                     if ($is_attacker) {
-                        $header_title = "Kampfbericht: <b>$opponent_name</b> ($opp_link)";
+                        $header_title = "Kampfbericht: <b>$opponent_name</b> – <i>$opponent_kname</i> ($opp_link)";
                         $sub_title = "Truppen aus: <b>$my_kname</b> ($my_link)";
                         $atk_label = "Deine Truppen";
                         $def_label = "Verteidiger";
                     } else if ($is_supporter) {
                         $header_title = "Unterstützungskampf: <b>$my_kname</b> ($my_link)";
-                        $sub_title = "Angriff von: <b>$opponent_name</b> aus $opp_link";
+                        $sub_title = "Angriff von: <b>$opponent_name</b> - <b>$opponent_kname</b> ($opp_link)";
                         $atk_label = "Gesamte Verteidigung";
                         $def_label = "Angreifer: $opponent_name";
                     } else {
-                        $header_title = "Angriff von: <b>$opponent_name</b> ($opp_link)";
+                        $header_title = "Angriff von: <b>$opponent_name</b> - <i>$opponent_kname</i> ($opp_link)";
                         $sub_title = "Verteidigung von: <b>$my_kname</b> ($my_link)";
                         $atk_label = "Deine Verteidigung";
                         $def_label = "Angreifer";
                     }
                 }
+
+                $def_empty_msg = ($is_attacker && $is_total_atk_defeat)
+                    ? "<i>Wir haben keine Überlebenden – Verteidiger unbekannt.</i>"
+                    : "<i>Keine Truppen stationiert.</i>";
 
                 $html = "<div class='battle-report'>";
                 $html .= "<div class='title-border'>$header_title</div>";
@@ -1253,7 +1249,8 @@ class Messages
                     $atk_label,
                     $def_label,
                     $left_wall_def,
-                    $right_wall_def
+                    $right_wall_def,
+                    $def_empty_msg
                 );
 
                 if ($is_shared) {
@@ -1376,6 +1373,162 @@ class Messages
                 $html .= "</div>";
                 return $html;
 
+            case "thief_aborted_guild":
+                $opp_name = e($data["opponent_name"] ?? "Ein Mitspieler");
+                $kname = e($data["target_kname"] ?? "Königreich");
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "Diebeszug abgebrochen: Verbündetes Königreich",
+                        "Deine Diebe erreichten <b>$kname</b> ($c_link). Da das Königreich mittlerweile von deinem Gildenmitglied <b>$opp_name</b> gehalten wird, wurde der Diebeszug abgebrochen.",
+                        0,
+                        0,
+                        "Deine Diebe treten unverzüglich den Rückmarsch an."
+                    ) . "</div>";
+
+            case "thief_aborted_protection":
+                $reason = $data["reason"] ?? "noob";
+                $kname = e($data["target_kname"] ?? "Königreich");
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+                $title = ($reason === "new_kingdom") ? "Diebeszug abgebrochen: Gründungsschutz" : "Diebeszug abgebrochen: Noob-Schutz";
+                $main = ($reason === "new_kingdom")
+                    ? "Das Ziel-Königreich <b>$kname</b> ($c_link) steht noch unter Gründungsschutz!"
+                    : "Der Besitzer von <b>$kname</b> ($c_link) steht unter Noob-Schutz!";
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        $title,
+                        $main,
+                        0,
+                        0,
+                        "Deine Diebe kehren unverrichteter Dinge um.",
+                        "error"
+                    ) . "</div>";
+
+            case "thief_report":
+                $is_shared = !empty($data["is_shared_view"]);
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $hx = (int)($data["home_x"] ?? 0);
+                $hy = (int)($data["home_y"] ?? 0);
+                $target_kname = e($data["target_kname"] ?? "Unbekannt");
+                $opp_name = e($data["opp_name"] ?? "Gegner");
+                $atk_name = e($data["attacker_name"] ?? "Angreifer");
+                $home_kname = e($data["home_kname"] ?? "Königreich");
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
+                $atk_thieves = (int)($data["atk_thieves"] ?? 0);
+                $thief_losses = (int)($data["thief_losses"] ?? 0);
+                $def_scouts = (int)($data["def_scouts"] ?? 0);
+                $def_losses = (int)($data["def_losses"] ?? 0);
+                $loot = $data["loot"] ?? [];
+
+                $html = "<div class='battle-report'>";
+                $html .= "<div class='title-border'>Diebeszug: <b>$opp_name</b> – <i>$target_kname</i> ($c_link)</div>";
+                $html .= "<div class='battle-report-troops-origin'>Diebe aus: <b>$home_kname</b> ($h_link)</div>";
+
+                $badges_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 15px;'>";
+                $badges_html .= BattleReportRenderer::render_unit_card([
+                    "id" => Soldiers::SOLDIER_THIEF,
+                    "name" => $is_shared ? "Diebe ($atk_name)" : "Deine Diebe",
+                    "initial" => $atk_thieves,
+                    "losses" => $thief_losses
+                ]);
+                if ($def_scouts > 0 && ($thief_losses > 0 || $def_losses > 0)) {
+                    $badges_html .= BattleReportRenderer::render_unit_card([
+                        "id" => Soldiers::SOLDIER_SCOUT,
+                        "name" => "Wach-Späher",
+                        "initial" => $def_scouts,
+                        "losses" => $def_losses
+                    ]);
+                }
+                $badges_html .= "</div>";
+
+                if (!empty($data["success"])) {
+                    $has_loot = array_sum($loot) > 0;
+                    $main_text = $has_loot
+                        ? "Die Diebe sind an der Garnison vorbei in <b>$target_kname</b> eingedrungen und haben Rohstoffe entwendet!"
+                        : "Die Diebe sind in <b>$target_kname</b> eingedrungen, konnten jedoch keine ungeschützten Vorräte finden (alles durch das Lager geschützt).";
+                    $sub_text = ($thief_losses > 0)
+                        ? "Feindliche Späher konnten $thief_losses Diebe im Schattenkampf abfangen."
+                        : "Alle Diebe kehren unversehrt mit ihrer Beute zurück.";
+                    $html .= BattleReportRenderer::render_outcome_box(
+                        $has_loot ? "Diebeszug erfolgreich" : "Keine ungeschützte Beute",
+                        $main_text . $badges_html,
+                        0,
+                        0,
+                        $sub_text,
+                        $has_loot ? "success" : "neutral"
+                    );
+                    if ($has_loot) {
+                        $html .= BattleReportRenderer::render_resource_box($loot, "Erbeutete Ressourcen", "passed");
+                    }
+                } else {
+                    $main_text = "Die Diebe wurden im Königreich <b>$target_kname</b> von den Spähern von <b>$opp_name</b> entdeckt und restlos ausgeschaltet." . $badges_html;
+                    $html .= BattleReportRenderer::render_outcome_box(
+                        "Diebeszug gescheitert",
+                        $main_text,
+                        0,
+                        0,
+                        "Kein einziger Dieb kehrte lebend zurück.",
+                        "error"
+                    );
+                }
+                $html .= "</div>";
+                return $html;
+
+            case "thief_detected":
+                $is_shared = !empty($data["is_shared_view"]);
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $hx = (int)($data["home_x"] ?? 0);
+                $hy = (int)($data["home_y"] ?? 0);
+                $attacker = e($data["attacker_name"] ?? "Gegner");
+                $home_kname = e($data["home_kname"] ?? "Unbekannt");
+                $target_kname = e($data["target_kname"] ?? "Königreich");
+                $def_scouts = (int)($data["def_scouts"] ?? 0);
+                $def_losses = (int)($data["def_losses"] ?? 0);
+                $atk_thieves = (int)($data["atk_thieves"] ?? 0);
+                $thief_losses = (int)($data["thief_losses"] ?? 0);
+                $all_eliminated = !empty($data["all_eliminated"]);
+                $loot = $data["loot"] ?? [];
+
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $h_link = "<a href='map.php?startx=$hx&starty=$hy' data-on-click='mapJump' data-x='$hx' data-y='$hy'>$hx:$hy</a>";
+
+                $badges_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 15px;'>";
+                if ($def_scouts > 0) {
+                    $badges_html .= BattleReportRenderer::render_unit_card([
+                        "id" => Soldiers::SOLDIER_SCOUT,
+                        "name" => $is_shared ? "Verteidigende Späher" : "Deine Späher",
+                        "initial" => $def_scouts,
+                        "losses" => $def_losses
+                    ]);
+                }
+                $badges_html .= BattleReportRenderer::render_unit_card([
+                    "id" => Soldiers::SOLDIER_THIEF,
+                    "name" => "Feindliche Diebe",
+                    "initial" => $atk_thieves,
+                    "losses" => $thief_losses
+                ]);
+                $badges_html .= "</div>";
+
+                $def_main = "Diebe von <b>$attacker</b> aus <b>$home_kname</b> ($h_link) sind in das Königreich <b>$target_kname</b> ($c_link) geschlichen." . $badges_html;
+                $def_sub = $all_eliminated
+                    ? "Die wachsamen Späher konnten alle feindlichen Diebe abfangen und ausschalten!"
+                    : (($def_scouts > 0) ? "Einigen Dieben gelang trotz Gegenwehr der Späher die Flucht." : "Da keine Späher stationiert waren, konnten die Diebe ungehindert plündern.");
+                $def_box_type = $all_eliminated ? "success" : (array_sum($loot) > 0 ? "error" : "neutral");
+
+                $html = "<div class='battle-report'>";
+                $html .= BattleReportRenderer::render_outcome_box("Nachtwache: Diebe entdeckt!", $def_main, 0, 0, $def_sub, $def_box_type);
+                if (array_sum($loot) > 0) {
+                    $html .= BattleReportRenderer::render_resource_box($loot, "Gestohlene Ressourcen", "error");
+                }
+                $html .= "</div>";
+                return $html;
+
             case "spy_report":
                 $tx = (int)($data["target_x"] ?? 0);
                 $ty = (int)($data["target_y"] ?? 0);
@@ -1390,7 +1543,7 @@ class Messages
                 $atk_losses = (int)($data["atk_losses"] ?? 0);
 
                 $html = "<div class='battle-report'>";
-                $html .= "<div class='title-border'>Spionage: <b>$opp_name</b> ($c_link)</div>";
+                $html .= "<div class='title-border'>Spionage: <b>$opp_name</b> – <i>$target_kname</i> ($c_link)</div>";
                 $html .= "<div class='battle-report-troops-origin'>Späher aus: <b>$home_kname</b> ($h_link)</div>";
 
                 if (!empty($data["success"]) && !empty($data["intel"])) {
@@ -1482,6 +1635,30 @@ class Messages
                         $main_text,
                         0, 0,
                         "Deine Einheiten kehren ohne Verzögerung in ihr Königreich zurück."
+                    ) . "</div>";
+
+            case "station_target_conquered_early_return":
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $target_name = e($data["target_name"] ?? "Königreich");
+                $home_name = e($data["home_name"] ?? "Königreich");
+
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
+                foreach (($data["units"] ?? []) as $u) {
+                    $units_html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
+                }
+                $units_html .= "</div>";
+
+                $main_text = "Dein Ziel-Königreich <b>$target_name</b> ($c_link) wurde vom Feind erobert! Deine zur Stationierung entsandten Truppen 
+                                aus <b>$home_name</b> haben sofort auf freiem Feld umgedreht und befinden sich auf dem Rückmarsch.$units_html";
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "Ziel erobert – Vorzeitige Rückkehr",
+                        $main_text,
+                        0,
+                        0,
+                        "Deine Einheiten kehren ohne Verzögerung in ihre Garnison zurück.",
+                        "error"
                     ) . "</div>";
 
             case "spy_resource_tile":
@@ -1585,6 +1762,18 @@ class Messages
                 $html .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
                 $html .= "</div></div>";
                 return $html;
+
+            case "spy_aborted_guild":
+                $opp_name = e($data["opponent_name"] ?? "Ein Mitspieler");
+                $kname = e($data["target_kname"] ?? "Königreich");
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+
+                $title = "Spionage abgebrochen: Verbündetes Königreich";
+                $main = "Deine Späher erreichten <b>$kname</b> ($c_link). Da das Königreich mittlerweile von deinem Gildenmitglied <b>$opp_name</b> gehalten wird, wurde die Spionage abgebrochen.";
+                $sub = "Deine Späher treten unverzüglich den Rückmarsch an.";
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box($title, $main, 0, 0, $sub) . "</div>";
 
             case "spy_mine":
                 $tx = (int)($data["target_x"] ?? 0);
@@ -1746,6 +1935,24 @@ class Messages
                 $html .= "</div></div>";
                 return $html;
 
+            case "support_incoming":
+                $sender = e($data["sender_name"] ?? "Verbündeter");
+                $target_name = e($data["target_name"] ?? "Königreich");
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                $arrival_str = convert_sec_to_str((int)($data["arrival_seconds"] ?? 0));
+
+                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
+                foreach (($data["units"] ?? []) as $u) {
+                    $units_html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
+                }
+                $units_html .= "</div>";
+
+                $main = "<b>$sender</b> entsendet Truppen zur Unterstützung nach <b>$target_name</b> ($c_link).<br>Ankunft in ca. <b>$arrival_str</b>.$units_html";
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box("Unterstützung im Anmarsch",
+                        $main, 0, 0, "Die Einheiten sind unterwegs und werden nach Eintreffen dein Dorf verteidigen.", "support") . "</div>";
+
             case "support_turned_back":
                 $reason = $data["reason"] ?? "target_lost";
                 $target = e($data["target_name"] ?? "Königreich");
@@ -1839,36 +2046,6 @@ class Messages
                         "Die Soldaten stehen dir ab sofort wieder zur Verfügung.",
                         "support"
                     ) .
-                    "</div>";
-
-            case "support_combat":
-                $tx = (int)($data["target_x"] ?? 0);
-                $ty = (int)($data["target_y"] ?? 0);
-                $ax = (int)($data["atk_x"] ?? 0);
-                $ay = (int)($data["atk_y"] ?? 0);
-                $target_name = e($data["target_name"] ?? "Königreich");
-                $attacker_name = e($data["attacker_name"] ?? "Gegner");
-                $atk_kname = e($data["atk_kname"] ?? "Feinddorf");
-                $total_loss = (int)($data["total_loss"] ?? 0);
-
-                $target_c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-                $atk_c_link = "<a href='map.php?startx=$ax&starty=$ay' data-on-click='mapJump' data-x='$ax' data-y='$ay'>$ax:$ay</a>";
-
-                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 15px;'>";
-                foreach (($data["units"] ?? []) as $u) {
-                    $units_html .= BattleReportRenderer::render_unit_card($u);
-                }
-                $units_html .= "</div>";
-
-                $outcome_text = ($total_loss > 0) ? " Sie haben Verluste erlitten." : " Sie haben den Angriff unbeschadet überstanden.";
-                $type = ($total_loss > 0) ? "error" : "success";
-
-                $main_text = "Deine Truppen in <b>$target_name</b> ($target_c_link) wurden von <b>$attacker_name</b> aus <b>$atk_kname</b> ($atk_c_link) angegriffen.";
-                $main_text .= $outcome_text;
-                $main_text .= $units_html;
-
-                return "<div class='battle-report'>" .
-                    BattleReportRenderer::render_outcome_box("Unterstützungskampf: Bericht", $main_text, 0, 0, "", $type) .
                     "</div>";
 
             case "reinforce_self":
@@ -2027,8 +2204,9 @@ class Messages
                     $sx = (int)$src["x"];
                     $sy = (int)$src["y"];
                     $s_link = "<a href='map.php?startx=$sx&starty=$sy' data-on-click='mapJump' data-x='$sx' data-y='$sy'>$sx:$sy</a>";
+                    $attacker_name = !empty($src["username"]) ? "<b>" . e($src["username"]) . "</b> - " : "";
 
-                    $info_rows[] = "<b>Herkunft des Angriffs:</b> " . e($src["name"]) . " ($s_link)";
+                    $info_rows[] = "<b>Herkunft des Angriffs:</b> " . $attacker_name . "<b>" . e($src["name"]) . "</b> ($s_link)";
                 }
 
                 $html .= "<div style='background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 4px; text-align: left; line-height: 1.6; margin: 0 5px;'>";
@@ -2607,7 +2785,7 @@ class Messages
                     : "<span class='error'>Das Königreich wurde überrannt!</span>",
                 "sub_text" => $is_atk
                     ? "Die verbleibenden Truppen machen sich auf den Heimweg."
-                    : "Die Verteidiger wurden bis auf den letzten Mann aufgerieben.",
+                    : "Deine Verteidigung wurde bis auf den letzten Mann aufgerieben.",
                 "type" => $is_atk ? "success" : "error"
             ],
             default => [

@@ -161,4 +161,4 @@ echo json_encode([
     "count" => count($rows),
     "hasMore" => $has_more,
     "reactionUpdates" => $reaction_updates
-]);
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -3,20 +3,7 @@
  * Core file
  ************************************/
 
-/*
-    Check session and create if non-existent
-*/
-if (session_status() == PHP_SESSION_NONE) {
-    if (!str_contains($_SERVER["HTTP_HOST"] ?? '', "localhost")) {
-        ini_set("session.cookie_domain", ".magic-empires.de");
-        ini_set("session.cookie_samesite", "Lax");
-    }
-
-    session_start();
-}
-
 require __DIR__ . "/../vendor/autoload.php"; // Composer Autoloader
-
 require_once("config.php");
 require_once("functions.php");
 
@@ -38,6 +25,23 @@ if (!$is_cli) {
 } else {
     define("BASE_URL", '/');
     define("IS_DEV", true);
+}
+
+/*
+    Check session and create if non-existent
+*/
+if (session_status() === PHP_SESSION_NONE) {
+    if (IS_DEV) {
+        session_name("ME_DEV_SESSID");
+        ini_set("session.cookie_samesite", "Lax");
+    } else {
+        ini_set("session.cookie_domain", ".magic-empires.de");
+        ini_set("session.cookie_samesite", "Lax");
+    }
+
+    ini_set("session.gc_maxlifetime", (string)TIMEOUT_MAX_SECONDS);
+
+    session_start();
 }
 
 $js_folder = IS_DEV ? "js_src/" : "js/";
@@ -135,7 +139,7 @@ $user = new User($_SESSION["userid"] ?? -1, "", $_SESSION["kingdomid"] ?? -1);
 
 if (!$is_cli) {
     require_once("sessions.php");
-    
+
     ob_start("auto_inject_csrf_token");
 }
 

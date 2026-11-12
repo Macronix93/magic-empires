@@ -91,7 +91,6 @@ if ($is_post_logout || $is_get_logout) {
     $cookie_hash = $_COOKIE["logout_verify"] ?? "";
 
     $is_system_logout = (!empty($url_hash) && $url_hash === $cookie_hash);
-    $is_manual_logout = ($is_post_logout || (empty($logout_type) && $user->is_logged_in()));
 
     if ($is_system_logout) {
         if ($logout_type === "inactive") {
@@ -103,11 +102,11 @@ if ($is_post_logout || $is_get_logout) {
         } else if ($logout_type === "deleted") {
             $success = "Dein Account wurde erfolgreich gelöscht!";
         }
-    } else if ($is_manual_logout) {
+    } else if ($is_post_logout) {
         $success = "Du hast dich erfolgreich ausgeloggt!";
     }
 
-    if ($user->is_logged_in()) {
+    if ($user->is_logged_in() && ($is_post_logout || $is_system_logout)) {
         if (isset($_COOKIE["me_remember"])) {
             list($uid, $token) = explode(':', $_COOKIE["me_remember"], 2);
             $token_hash = hash("sha256", $token);

@@ -15,6 +15,8 @@ $daily_info = $market->get_daily_trades_info();
 $daily_trades_count = $daily_info["current"];
 $max_trades = $daily_info["max"];
 $max_capacity = $market->get_max_capacity();
+$is_daily_full = $daily_info["is_full"];
+$input_disabled = $is_daily_full ? "disabled" : "";
 
 $my_x = $kingdom->get_kingdom_map_x();
 $my_y = $kingdom->get_kingdom_map_y();
@@ -126,9 +128,9 @@ $view .= '<form action="marketplace.php" method="POST"
                    id="sv"
                    size="5"
                    maxlength="6"
-                   inputmode="numeric" pattern="[0-9]*" placeholder="0">
+                   inputmode="numeric" pattern="[0-9]*" placeholder="0" ' . $input_disabled . '>
             <label>
-                <select name="s" id="s" class="marketplace-dropdown">
+                <select name="s" id="s" class="marketplace-dropdown" ' . $input_disabled . '>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '">Holz</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
@@ -144,9 +146,9 @@ $view .= '<form action="marketplace.php" method="POST"
                    id="dv"
                    size="5"
                    maxlength="6"
-                   inputmode="numeric" pattern="[0-9]*" placeholder="0">
+                   inputmode="numeric" pattern="[0-9]*" placeholder="0" ' . $input_disabled . '>
             <label>
-                <select name="d" id="d" class="marketplace-dropdown">
+                <select name="d" id="d" class="marketplace-dropdown" ' . $input_disabled . '>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_FOOD . '">Nahrung</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_WOOD . '" selected>Holz</option>
                     <option value="' . ResourceTypes::RESOURCE_TYPE_STONE . '">Stein</option>
@@ -175,7 +177,7 @@ $view .= '<form action="marketplace.php" method="POST"
         </td>
         <td style="width: 18%; text-align: center">
             <div class="market-submit-wrap">
-                <input type="submit" value="Abschicken"/>
+                <input type="submit" value="Abschicken" ' . $input_disabled . '/>
                 ' . ($in_guild ? "
                 <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none;'>
                     <input type='checkbox' name='guild_only' id='guild_only' value='1'/>
@@ -444,7 +446,7 @@ if ($other_kingdoms_res->num_rows > 0) {
                     <tr>
                         <td style="width: 30%;">
                             <label for="target_k">Ziel: <small id="target-arrival-display" style="opacity: 0.7;">' . $init_time_display . '</small></label><br>
-                            <select name="target_k" id="target_k" class="target-kingdom">' . $options_html . '</select>
+                            <select name="target_k" id="target_k" class="target-kingdom" ' . $input_disabled . '>' . $options_html . '</select>
                             <div class="mobile-internal-stock-box" id="target-k-stock-box">
                                 <div class="mobile-stock-header" id="target-k-stock-header">
                                     Vorräte in <b>' . $init_header_name . '</b>:
@@ -459,14 +461,18 @@ if ($other_kingdoms_res->num_rows > 0) {
                         </td>
                         <td style="width: 50%; text-align: center; vertical-align: middle;">
                             <div class="internal-res-grid">
-                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
-                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
-                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
-                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;"></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_FOOD) . ' 
+                                <input type="text" name="am[0]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $input_disabled . '></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_WOOD) . ' 
+                                <input type="text" name="am[1]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $input_disabled . '></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_STONE) . ' 
+                                <input type="text" name="am[2]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $input_disabled . '></div>
+                                <div class="internal-res-item">' . get_resource_icon(ResourceTypes::RESOURCE_TYPE_GOLD) . ' 
+                                <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $input_disabled . '></div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
                                 <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
-                                <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled>
+                                <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled ' . ($is_daily_full ? "title='Tägliches Handelslimit erreicht!'" : "") . '>
                             </div>
                         </td>
                     </tr>
@@ -490,6 +496,7 @@ $market_config = [
     "max_ratio" => MAX_MARKET_RATIO,
     "listing_fee_step" => MARKET_LISTING_FEE_STEP,
     "max_capacity_per_offer" => $max_capacity,
+    "is_daily_full" => $is_daily_full,
     "guild_trade_discount" => ($trade_disc_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL),
     "factors" => [
         ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,

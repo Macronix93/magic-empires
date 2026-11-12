@@ -64,6 +64,19 @@ const WINTER_COLORS = {
 
 const COLORS = isWinter ? WINTER_COLORS : STANDARD_COLORS;
 
+const WINTER_HAT_CONFIG = {
+    goblin: {
+        x: 0.30,
+        y: -0.08,
+        size: 0.42
+    },
+    golem: {
+        x: 0.32,
+        y: -0.07,
+        size: 0.34
+    }
+};
+
 registerAction("jumpToHome", (el, e) => {
     if (e) e.stopPropagation();
 
@@ -239,7 +252,8 @@ document.addEventListener("DOMContentLoaded", () => {
         monster3: 'icon_dragon_small.png',  // Level 8-10
         ruin: 'icon_ruins.png',
         mine: 'icon_mine.png',
-        gift: 'icon_gift.png'
+        gift: 'icon_gift.png',
+        winterHat: 'icon_winter_hat.png'
     };
 
     let loadedCount = 0;
@@ -715,7 +729,7 @@ function draw() {
         mapData.forEach(tile => {
             const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , myTroopIcon, enemyGuildId, , mineInfo, giftDay] = tile;
 
-            if (kid === -1 && giftDay === 0) return;
+            if (kid === -1 && giftDay === 0 && (!myTroopIcon || myTroopIcon === "")) return;
 
             const posX = (x - 1) * scaledTile + currentTranslateX;
             const posY = (y - 1) * scaledTile + currentTranslateY;
@@ -796,6 +810,15 @@ function draw() {
                 else if (monsterLevel >= 4) mIcon = images.monster2;
 
                 ctx.drawImage(mIcon, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
+
+                if (isWinter && images.winterHat && images.winterHat.complete && images.winterHat.naturalWidth !== 0 && monsterLevel < 8) {
+                    const cfg = (monsterLevel < 4) ? WINTER_HAT_CONFIG.goblin : WINTER_HAT_CONFIG.golem;
+                    const hatSize = scaledTile * cfg.size;
+                    const hatX = posX + (scaledTile * cfg.x);
+                    const hatY = posY + (scaledTile * cfg.y);
+
+                    ctx.drawImage(images.winterHat, hatX, hatY, hatSize, hatSize);
+                }
             } else if (kid === -4) {
                 ctx.drawImage(images.ruin, posX + scaledTile * 0.1, posY + scaledTile * 0.1, scaledTile * 0.8, scaledTile * 0.8);
             } else if (kid === -5) {
@@ -1963,72 +1986,38 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
     });
 })();
 
-window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemyReady) {
-    if (!newKingdom) return;
+window.handleMapKingdomSwitch = function (firstArg, sidebarDataFallback, hasAnyAlchemyReady) {
+    if (!firstArg) return;
 
-    if (newKingdom.kingdom) {
-        sidebarHtml = newKingdom.sidebar_html;
-        newKingdom = newKingdom.kingdom;
+    let dataObj;
+    let newKingdom;
+
+    if (firstArg.kingdom) {
+        dataObj = firstArg;
+        newKingdom = firstArg.kingdom;
+        hasAnyAlchemyReady = firstArg.has_any_alchemy_ready;
+    } else {
+        newKingdom = firstArg;
+        dataObj = {
+            kingdom: newKingdom,
+            sidebar_html: typeof sidebarDataFallback === "string" ? sidebarDataFallback : "",
+            sidebar_html_desk: sidebarDataFallback?.sidebar_html_desk || sidebarDataFallback,
+            sidebar_html_mob: sidebarDataFallback?.sidebar_html_mob || sidebarDataFallback,
+            has_any_alchemy_ready: hasAnyAlchemyReady
+        };
     }
 
     if (gameConfig && gameConfig.currentKingdom) {
         Object.assign(gameConfig.currentKingdom, newKingdom);
     }
 
-    if (sidebarHtml) {
-        const tempDiv = document.createElement("div");
-        tempDiv.innerHTML = sidebarHtml;
-
-        document.querySelectorAll(".right-container, #nav-right-menu").forEach(container => {
-            const newKingdomInfo = tempDiv.querySelector("#kingdom-info");
-            const currentKingdomInfo = container.querySelector("#kingdom-info");
-            if (newKingdomInfo && currentKingdomInfo) {
-                currentKingdomInfo.innerHTML = newKingdomInfo.innerHTML;
-            }
-
-            const newBuildings = tempDiv.querySelector("#kingdom-buildings");
-            const currentBuildings = container.querySelector("#kingdom-buildings");
-            if (newBuildings && currentBuildings) {
-                currentBuildings.innerHTML = newBuildings.innerHTML;
-            }
-
-            const newSelect = tempDiv.querySelector("#choosekingdom");
-            const currentSelect = container.querySelector("#choosekingdom");
-            if (newSelect && currentSelect) {
-                currentSelect.value = newSelect.value;
-            }
-
-            container.querySelectorAll('[data-on-click], [data-on-change], [data-on-submit]').forEach(bindActions);
-        });
-
-        if (typeof setup === "function") {
-            setup();
-        }
-    }
-
-    const select = document.getElementById("choosekingdom");
-    if (select) select.value = newKingdom.id;
-
-    const mobTitle = document.querySelector(".mobile-kingdom-title");
-    if (mobTitle) {
-        const items = document.querySelectorAll(".mobile-kingdom-dropdown-item");
-        let pos = 1;
-        items.forEach((it, idx) => {
-            if (parseInt(it.dataset.id) === parseInt(newKingdom.id)) {
-                pos = idx + 1;
-                it.classList.add("active");
-            } else {
-                it.classList.remove("active");
-            }
-        });
-        mobTitle.innerHTML = `${pos} - ${newKingdom.name} <span style="font-size: 10px; opacity: 0.7;">▾</span>`;
+    if (typeof updateSidebarAndHeaderDOM === "function") {
+        updateSidebarAndHeaderDOM(dataObj);
     }
 
     const overlay = document.getElementById("onpage-overlay");
     const isOverlayOpen = overlay && overlay.style.display !== "none";
     const popupBox = document.getElementById("field-popup-box");
-    //const wasPopupOpen = popupBox && (popupBox.style.display === "block");
-
     let keepTarget = false;
     const prevTargetX = selectedX;
     const prevTargetY = selectedY;
@@ -2050,11 +2039,6 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemy
         selectedY = null;
 
         selectField(prevTargetX, prevTargetY, false);
-
-        // if (!wasPopupOpen && popupBox) {
-        //     popupBox.style.display = "none";
-        // }
-
         draw();
         refreshMapDataSilently(false);
     } else {
@@ -2079,11 +2063,7 @@ window.handleMapKingdomSwitch = function (newKingdom, sidebarHtml, hasAnyAlchemy
 
     const rightDot = document.getElementById("mobile-right-nav-dot");
     if (rightDot) {
-        const hasAlert = (hasAnyAlchemyReady !== undefined)
-            ? hasAnyAlchemyReady
-            : (sidebarHtml.includes("icon_building15.png") && sidebarHtml.includes("msg-badge")
-                && !sidebarHtml.includes("golden-badge"));
-
+        const hasAlert = (hasAnyAlchemyReady !== undefined) ? hasAnyAlchemyReady : false;
         rightDot.style.display = hasAlert ? "block" : "none";
     }
 };

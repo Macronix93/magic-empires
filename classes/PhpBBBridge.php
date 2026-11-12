@@ -103,7 +103,8 @@ class PhpBBBridge
             'user_style' => 1,
             'user_options' => 230271,
             'user_new' => 1,
-            'user_ip' => $_SERVER["REMOTE_ADDR"] ?? '127.0.0.1'
+            'user_ip' => $_SERVER["REMOTE_ADDR"] ?? '127.0.0.1',
+            'user_lastmark' => $now
         ];
 
         foreach ($user_columns as $field => $meta) {
@@ -294,8 +295,8 @@ class PhpBBBridge
         $forum_base = getenv("FORUM_URL") ?: "https://board.magic-empires.de";
         $target_url = rtrim($forum_base, "/") . "/sso.php?token=" . $token . "&user=" . urlencode($username);
 
-        header("Location: " . $target_url);
-        exit;
+        unset($_SESSION["forum_unread_cache"]);
+        change_location($target_url);
     }
 
     public static function username_exists(string $username): bool
@@ -353,5 +354,58 @@ class PhpBBBridge
             "skipped" => $skipped,
             "errors" => $errors
         ];
+    }
+
+    public static function get_unread_topics_count(string $username): int
+    {
+        if (!self::is_enabled() || empty($username)) {
+            return 0;
+        }
+
+        $now = time();
+        if (isset($_SESSION["forum_unread_cache"]) && ($now - $_SESSION["forum_unread_cache"]["time"]) < 60) {
+            return (int)$_SESSION["forum_unread_cache"]["count"];
+        }
+
+        $db = self::get_connection();
+        if (!$db) return 0;
+
+        $prefix = self::get_prefix();
+        $username_clean = self::clean_username($username);
+        $cutoff_30_days = $now - (30 * 86400);
+
+        $query = "
+            SELECT COUNT(t.topic_id)
+            FROM {$prefix}users u
+            JOIN {$prefix}topics t 
+              ON t.topic_last_post_time > GREATEST(u.user_lastmark, u.user_regdate, ?)
+            LEFT JOIN {$prefix}topics_track tt 
+              ON tt.user_id = u.user_id AND tt.topic_id = t.topic_id
+            LEFT JOIN {$prefix}forums_track ft 
+              ON ft.user_id = u.user_id AND ft.forum_id = t.forum_id
+            WHERE u.username_clean = ?
+              AND t.forum_id != 15
+              AND t.topic_visibility = 1
+              AND t.topic_moved_id = 0
+              AND t.topic_last_poster_id != u.user_id
+              AND t.topic_last_post_time > GREATEST(
+                  u.user_lastmark,
+                  u.user_regdate,
+                  ?,
+                  IFNULL(tt.mark_time, 0),
+                  IFNULL(ft.mark_time, 0)
+              )
+        ";
+
+        try {
+            $count = (int)($db->execute_query($query, [$cutoff_30_days, $username_clean, $cutoff_30_days])->fetch_column() ?? 0);
+            $_SESSION["forum_unread_cache"] = [
+                "count" => $count,
+                "time" => $now
+            ];
+            return $count;
+        } catch (Throwable) {
+            return 0;
+        }
     }
 }

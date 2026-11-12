@@ -22,16 +22,19 @@ if (!$is_system_log && !$is_chat_backup) {
 
 $file_path = $log_dir . ($sub_dir ? $sub_dir . "/" : "") . $file;
 if (!file_exists($file_path)) {
-    echo show_error_box("Datei existiert noch nicht.");
-    return;
+    send_json(["success" => false, "error" => "Diese Log-Datei existiert noch nicht."]);
 }
 
 $all_lines = file($file_path);
+$total_lines = count($all_lines);
+if ($total_lines === 0) {
+    send_json(["success" => false, "error" => "Diese Log-Datei ist leer."]);
+}
+
 if ($sub_dir !== "chat_backups") {
     $all_lines = array_reverse($all_lines);
 }
 
-$total_lines = count($all_lines);
 $total_pages = ceil($total_lines / $per_page);
 
 $offset = ($page - 1) * $per_page;

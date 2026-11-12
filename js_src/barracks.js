@@ -177,8 +177,17 @@ registerAction("fillMaxAndCalc", (el) => {
         }
     }
 
-    if (!isUpgrade) {
+    const isSpaceExempt = input.dataset.spaceExempt === "true";
+
+    if (!isUpgrade && !isSpaceExempt) {
         maxCanAfford = Math.min(maxCanAfford, kRes.spaceLeft);
+    }
+
+    if (input.dataset.unitLimit) {
+        const uLimit = parseInt(input.dataset.unitLimit, 10) || 0;
+        const uTotal = parseInt(input.dataset.unitTotal, 10) || 0;
+
+        maxCanAfford = Math.min(maxCanAfford, Math.max(0, uLimit - uTotal));
     }
 
     input.value = Math.max(0, maxCanAfford);
@@ -315,8 +324,15 @@ function updateRecruitCosts(input) {
         }
     });
 
+    const isSpaceExempt = input.dataset.spaceExempt === "true";
+    const unitLimit = input.dataset.unitLimit ? parseInt(input.dataset.unitLimit, 10) : null;
+    const unitTotal = input.dataset.unitTotal ? parseInt(input.dataset.unitTotal, 10) : 0;
+    const isUnitLimitReached = unitLimit !== null && (unitTotal >= unitLimit);
+    const wouldExceedUnitLimit = unitLimit !== null && (unitTotal + amount > unitLimit);
+
     const noUnitsToUpgrade = isUpgrade && (parseInt(input.dataset.owned) <= 0);
-    const trainingBlocked = (!isUpgrade && kRes.spaceLeft <= 0) || !canAffordOne || noUnitsToUpgrade;
+    const spaceBlocked = (!isUpgrade && !isSpaceExempt && kRes.spaceLeft <= 0);
+    const trainingBlocked = spaceBlocked || !canAffordOne || noUnitsToUpgrade || isUnitLimitReached;
 
     if (trainingBlocked) {
         input.disabled = true;
@@ -325,7 +341,9 @@ function updateRecruitCosts(input) {
         input.disabled = false;
     }
 
-    if (!isUpgrade && amount > kRes.spaceLeft) {
+    const isOverLimit = (!isUpgrade && !isSpaceExempt && amount > kRes.spaceLeft) || wouldExceedUnitLimit;
+
+    if (isOverLimit) {
         input.style.color = "#ff4d4d";
     } else {
         input.style.color = "";
@@ -336,14 +354,8 @@ function updateRecruitCosts(input) {
     }
 
     if (submitBtn) {
-        const isOverLimit = !isUpgrade && amount > kRes.spaceLeft;
-
         submitBtn.disabled = (
-            amount <= 0 ||
-            hasRelevantError ||
-            !canAffordOne ||
-            noUnitsToUpgrade ||
-            isOverLimit
+            amount <= 0 || hasRelevantError || !canAffordOne || noUnitsToUpgrade || isOverLimit
         );
     }
 }
@@ -370,17 +382,20 @@ document.addEventListener("DOMContentLoaded", () => {
             const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
 
             let maxAllowed = kRes.dynamicLimit;
+            const isSpaceExempt = this.dataset.spaceExempt === "true";
 
-            if (!isUpgrade) {
+            if (!isUpgrade && !isSpaceExempt) {
                 maxAllowed = Math.min(maxAllowed, kRes.spaceLeft);
-                const villCost = parseInt(this.dataset.costVillager) || 0;
+            }
+            if (this.dataset.unitLimit) {
+                const uLimit = parseInt(this.dataset.unitLimit, 10) || 0;
+                const uTotal = parseInt(this.dataset.unitTotal, 10) || 0;
+                maxAllowed = Math.min(maxAllowed, Math.max(0, uLimit - uTotal));
+            }
 
-                if (villCost > 0) {
-                    maxAllowed = Math.min(maxAllowed, Math.floor(kRes.villager / villCost));
-                }
-            } else {
-                const ownedUnits = parseInt(this.dataset.owned) || 0;
-                maxAllowed = Math.min(maxAllowed, ownedUnits);
+            const villCost = parseInt(this.dataset.costVillager) || 0;
+            if (villCost > 0) {
+                maxAllowed = Math.min(maxAllowed, Math.floor(kRes.villager / villCost));
             }
 
             const resources = ["food", "wood", "stone", "gold"];

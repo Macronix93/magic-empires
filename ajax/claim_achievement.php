@@ -9,7 +9,7 @@ if ($ach_id <= 0) {
     exit;
 }
 
-if (Achievement::claim_reward($uid, $ach_id)) {
+if (Achievement::claim_reward($uid, $ach_id, $user)) {
     echo json_encode([
         "success" => true,
         "id" => $ach_id,

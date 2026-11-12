@@ -112,6 +112,10 @@ input[type="checkbox"] {
     vertical-align: middle;
 }
 
+li {
+    margin-top: 7px;
+}
+
 /* Landing Page Layout */
 .landing-main {
     display: flex;
@@ -148,19 +152,6 @@ input[type="checkbox"] {
 .hero-footer {
     margin-top: auto;
     text-align: center;
-}
-
-.landing-messages {
-    width: 100%;
-    padding: 20px 20px 0 20px;
-}
-
-.landing-messages .info-box {
-    max-width: 600px;
-}
-
-.landing-messages .info-box:last-child {
-    margin-bottom: 0;
 }
 
 .landing-hero h1 {
@@ -464,6 +455,16 @@ button .emoji-fix {
     margin-top: 0 !important;
 }
 
+.battle-report-losses {
+    display: flex;
+    gap: 5px;
+    opacity: 0.8;
+    font-size: 15px;
+    margin: 4px 0;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.35);
+}
+
 .battle-vs-wrapper {
     display: flex;
     align-items: stretch;
@@ -481,6 +482,10 @@ button .emoji-fix {
     padding: 5px;
     border-radius: 5px;
     border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.battle-column > .battle-unit-card + .battle-unit-card {
+    margin-top: -7px;
 }
 
 .battle-strength {
@@ -971,6 +976,20 @@ select {
     background-position: right 12px center, center;
 }
 
+select:disabled {
+    cursor: not-allowed;
+    background-color: #3a3a3a;
+    border: 2px solid #555;
+    color: rgb(152, 152, 152);
+    /*box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.3);*/
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23777777' \
+    viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, #444 0%, #303030 100%);
+    background-repeat: no-repeat, no-repeat;
+    background-position: right 12px center, center;
+    opacity: 0.85;
+}
+
 option {
     font-size: 14px;
 }
@@ -1105,6 +1124,11 @@ button:not(:disabled):active {
     transform: translateY(1px);
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5) !important;
     transition: none !important;
+    color: rgba(240, 240, 240, 0.8) !important;
+    text-shadow: -1px -1px 0 rgba(0, 0, 0, 0.5),
+    1px -1px 0 rgba(0, 0, 0, 0.5),
+    -1px 1px 0 rgba(0, 0, 0, 0.5),
+    1px 1px 0 rgba(0, 0, 0, 0.5) !important;
 }
 
 @media (hover: none) {
@@ -1120,14 +1144,22 @@ button:not(:disabled):active {
     input[type=button]:hover,
     button:hover {
         background: #96281e;
-        /*border-color: var(--link-color) !important;*/
     }
 
     input[type=submit]:not(:disabled):active,
     input[type=button]:not(:disabled):active,
     button:not(:disabled):active {
         background: #6e1a10 !important;
-        /*border-color: var(--link-color) !important;*/
+    }
+
+    input.btn-delete:hover,
+    button.btn-delete:hover {
+        background-color: #d12c2c !important;
+    }
+
+    input.btn-accept:hover,
+    button.btn-accept:hover {
+        background-color: #1ca34c !important;
     }
 }
 
@@ -1148,6 +1180,7 @@ button:disabled {
     color: rgb(152, 152, 152);
     cursor: not-allowed;
 }
+
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
@@ -2785,6 +2818,49 @@ body.modal-open footer {
 }
 
 /* Minimap */
+/* Coordinate Modal Preview */
+.coord-modal-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.coord-modal-wrap .minimap-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.coord-modal-wrap .minimap-container {
+    display: grid;
+    width: fit-content;
+    max-width: none;
+    grid-template-columns: 24px repeat(13, 24px) !important;
+    grid-auto-rows: 24px;
+    gap: 1px;
+    box-sizing: content-box;
+    margin: 0 auto;
+}
+
+.coord-modal-wrap .minimap-tile {
+    width: 100%;
+    height: 100%;
+    font-size: 14px;
+}
+
+.coord-modal-wrap .minimap-label-y {
+    height: 100%;
+    font-size: 11px;
+}
+
+.coord-modal-wrap .minimap-label-x,
+.coord-modal-wrap .minimap-origin {
+    height: 20px;
+    font-size: 10px;
+}
+
 .minimap-container {
     display: grid;
     gap: 1px;
@@ -3040,6 +3116,7 @@ img[data-on-click] {
     display: flex;
     flex-direction: column;
     align-items: center;
+    width: 280px !important;
     max-width: 280px;
     margin: 8px auto 2px auto;
     padding: 8px 16px;
@@ -3563,7 +3640,7 @@ img[data-on-click] {
     width: 100%;
 }
 
-.overview-info-table td:nth-child(2) div {
+.overview-info-table td:nth-child(2) > div {
     display: inline-flex;
     align-items: center;
     gap: 3px;
@@ -3810,6 +3887,21 @@ img[data-on-click] {
     font-size: 13px;
 }
 
+.arena-opponent-avatar {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+}
+
+.arena-opponent-info {
+    text-align: left;
+}
+
+.arena-opponent-elo {
+    color: var(--link-color);
+    font-weight: bold;
+}
+
 .all-troops-kingdom-name {
     font-size: 18px;
 }
@@ -3977,6 +4069,30 @@ button.btn-logout:not(:disabled):active {
     cursor: pointer;
 }
 
+.wall-hp-bar {
+    width: 100%;
+    height: 20px;
+    background: #333;
+    border: 1px solid var(--border-gold);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.event-hp-bar {
+    width: 100%;
+    height: 25px;
+    background: #333;
+    border: 2px solid var(--border-gold);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+}
+
+.event-monster-img {
+    width: 94px;
+    height: 94px;
+}
+
 @supports (-webkit-touch-callout: none) or (font: -apple-system-body) {
     .js-countdown,
     .tick-timer,
@@ -4031,6 +4147,24 @@ button.btn-logout:not(:disabled):active {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    .wall-hp-bar,
+    .event-hp-bar {
+        height: 15px;
+    }
+
+    .event-monster-img {
+        width: 60px;
+        height: 60px;
+    }
+
+    .monster-desc {
+        font-size: 12px;
+    }
+
+    li {
+        margin-top: 3px;
     }
 
     .advent-calendar-gift {
@@ -4089,10 +4223,6 @@ button.btn-logout:not(:disabled):active {
     .target-kingdom {
         width: 220px;
         font-size: 13px;
-    }
-
-    .arena-description {
-        font-size: 14px;
     }
 
     .show-ach-userinfo,
@@ -4273,6 +4403,10 @@ button.btn-logout:not(:disabled):active {
         font-size: 9px;
     }
 
+    .arena-description {
+        font-size: 14px;
+    }
+
     .arena-power-sticky {
         top: 60px;
     }
@@ -4310,6 +4444,33 @@ button.btn-logout:not(:disabled):active {
 
     .arena-xp-bar-text {
         font-size: 10px;
+    }
+
+    .arena-opponent-avatar {
+        width: 28px !important;
+        height: 28px !important;
+    }
+
+    .arena-opponent-name {
+        font-size: 14px;
+    }
+
+    .arena-opponent-elo {
+        font-size: 13px;
+    }
+
+    .arena-opponent-gain {
+        font-size: 12px;
+    }
+
+    .opponent-card .box-content {
+
+    }
+
+    .opponent-card button.btn-accept {
+        min-width: 90px !important;
+        padding: 3px 8px !important;
+        font-size: 11px !important;
     }
 
     .scout-grid {
@@ -4522,26 +4683,6 @@ button.btn-logout:not(:disabled):active {
         letter-spacing: 1px;
     }
 
-    .landing-messages .info-box {
-        max-width: 90%;
-        font-size: 14px;
-        min-height: 30px;
-    }
-
-    .landing-messages {
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-
-    .landing-messages .event-error {
-        display: none !important;
-    }
-
-    .landing-messages .event-passed,
-    .landing-messages .event-warning {
-        margin: 10px auto !important;
-    }
-
     .modal-auth-errors {
         display: block;
         position: fixed !important;
@@ -4622,6 +4763,32 @@ button.btn-logout:not(:disabled):active {
         z-index: 10;
         padding: 0;
         line-height: 1;
+    }
+
+    .coord-modal-wrap {
+        gap: 10px;
+    }
+
+    .coord-modal-wrap .minimap-container {
+        grid-template-columns: 22px repeat(13, 20px) !important;
+        grid-auto-rows: 20px !important;
+    }
+
+    .coord-modal-wrap .minimap-tile {
+        width: 100% !important;
+        height: 100% !important;
+        font-size: 12px !important;
+    }
+
+    .coord-modal-wrap .minimap-label-y {
+        height: 100% !important;
+        font-size: 10px !important;
+    }
+
+    .coord-modal-wrap .minimap-label-x,
+    .coord-modal-wrap .minimap-origin {
+        height: 18px !important;
+        font-size: 9px !important;
     }
 
     .minimap-container {
@@ -4868,6 +5035,10 @@ button.btn-logout:not(:disabled):active {
         width: 90%;
     }
 
+    .active-guild-project .tick-progress-bg {
+        height: 6px !important;
+    }
+
     .guild-project-res-type {
         font-size: 14px;
     }
@@ -5086,6 +5257,10 @@ button.btn-logout:not(:disabled):active {
     .battle-column .ressource-icons {
         width: 16px !important;
         height: 16px !important;
+    }
+
+    .battle-column > .battle-unit-card + .battle-unit-card {
+        margin-top: -2px;
     }
 
     .scout-resource-bar .ressource-icons {
@@ -5336,6 +5511,13 @@ button.btn-logout:not(:disabled):active {
         font-size: 10px;
     }
 
+    .map-sync-spinner {
+        top: 5px;
+        right: 5px;
+        width: 14px;
+        height: 14px;
+    }
+
     .popupbox {
         min-width: 0;
         max-width: 90vw;
@@ -5516,8 +5698,16 @@ button.btn-logout:not(:disabled):active {
     .marketplace-dropdown {
         height: 25px;
         font-size: 11px;
-        padding: 3px 22px 3px 6px;
         background-position: right 6px center, center;
+    }
+
+    .js-upgrade-select,
+    .js-barracks-send-select {
+        padding: 3px 22px 3px 6px;
+    }
+
+    .marketplace-dropdown {
+        padding: 3px 27px 3px 6px;
     }
 
     .js-upgrade-select {
@@ -5651,6 +5841,12 @@ button.btn-logout:not(:disabled):active {
 
     .battle-report {
         padding: 5px;
+    }
+
+    .battle-report-losses {
+        font-size: 10px;
+        margin: 4px 0;
+        padding-top: 4px;
     }
 
     .battle-unit-card {
@@ -5956,6 +6152,12 @@ button.btn-logout:not(:disabled):active {
     .internal-transport-table select {
         margin: 5px auto !important;
     }
+
+    input[type=submit]:not(:disabled):active,
+    input[type=button]:not(:disabled):active,
+    button:not(:disabled):active {
+        transform: none;
+    }
 }
 
 @media screen and (min-width: 601px) {
@@ -5969,6 +6171,10 @@ button.btn-logout:not(:disabled):active {
 }
 
 @media screen and (max-width: 1392px) {
+    [id^="faq-"] {
+        scroll-margin-top: 40px;
+    }
+
     .mobile-nav-arrow,
     .mobile-kingdom-display {
         display: flex;

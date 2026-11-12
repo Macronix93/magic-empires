@@ -23,23 +23,6 @@ $count_wp = (int)$db_instance->execute_query("
     WHERE userid = ? AND actionid IN (?, ?)
 ", [$uid, ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])->fetch_column();
 
-if (!isset($_SESSION["acknowledged_attacks"])) {
-    $_SESSION["acknowledged_attacks"] = [];
-}
-
-if (!isset($_SESSION["acknowledged_supports"])) {
-    $_SESSION["acknowledged_supports"] = [];
-}
-
-if (!empty($_SESSION["active_supports"])) {
-    foreach ($_SESSION["active_supports"] as $sup) {
-        if (!in_array($sup["eventid"], $_SESSION["acknowledged_supports"])) {
-            $_SESSION["acknowledged_supports"][] = $sup["eventid"];
-        }
-    }
-}
-
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
@@ -78,11 +61,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                     $db_instance->execute_query(
                         "UPDATE events SET 
-                    actionid = ?, 
-                    arrivaltime = ?, 
-                    loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0,
-                    is_processing = 0
-                 WHERE eventid = ? AND is_processing = 0",
+                            actionid = ?, 
+                            arrivaltime = ?, 
+                            loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0,
+                            is_processing = 0
+                         WHERE eventid = ? AND is_processing = 0",
                         [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
                     );
 
@@ -147,7 +130,41 @@ if (isset($_COOKIE["me_overview_pagesize"]) && is_numeric($_COOKIE["me_overview_
     $limit = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, (int)$_COOKIE["me_overview_pagesize"]));
 }
 
-// -- INCOMING ENEMIES OVERVIEW ---
+// -- INCOMING ENEMIES OVERVIEW + INCOMING SUPPORT ---
+if (!isset($_SESSION["acknowledged_attacks"])) {
+    $_SESSION["acknowledged_attacks"] = [];
+}
+
+if (!isset($_SESSION["acknowledged_supports"])) {
+    $_SESSION["acknowledged_supports"] = [];
+}
+
+if (!empty($_SESSION["active_supports"])) {
+    $support_ids = [];
+
+    foreach ($_SESSION["active_supports"] as $sup) {
+        if ((int)($sup["notification_sent"] ?? 0) === 0) {
+            $support_ids[] = (int)$sup["eventid"];
+        }
+
+        if (!in_array($sup["eventid"], $_SESSION["acknowledged_supports"])) {
+            $_SESSION["acknowledged_supports"][] = $sup["eventid"];
+        }
+    }
+
+    if (!empty($support_ids)) {
+        $placeholders = implode(',', array_fill(0, count($support_ids), '?'));
+
+        try {
+            $db_instance->execute_query(
+                "UPDATE events SET notification_sent = 1 WHERE eventid IN ($placeholders) AND actionid = ?",
+                array_merge($support_ids, [ActionTypes::ACTION_STATION_TROOPS])
+            );
+        } catch (Throwable) {
+        }
+    }
+}
+
 if (!empty($_SESSION["active_attacks"])) {
     $incoming_html = "";
 
@@ -633,24 +650,16 @@ $query = "
         kt.userid AS target_userid, 
         kt.username AS target_username,
         u_sender.username AS sender_username
-    FROM (
-        SELECT 
-            eventid, actionid, userid, kingdomid, targetid, 
-            targetx, targety, arrivaltime, buildingtime, is_processing,
-            loot_food, loot_wood, loot_stone, loot_gold, loot_coins,
-            loot_coal, loot_iron, loot_sapphire, loot_diamond
-        FROM events 
-        WHERE 
-            (userid = ? AND kingdomid = ? AND actionid IN (?, ?, ?, ?)) 
-            OR 
-            (targetid = ? AND actionid = ?) 
-        ORDER BY arrivaltime, eventid
-    ) e
+    FROM events e
     LEFT JOIN sent_troops st ON st.eventid = e.eventid
     LEFT JOIN soldier_list sl ON st.soldierid = sl.id
     LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     LEFT JOIN users u_sender ON e.userid = u_sender.id
+    WHERE 
+        (e.userid = ? AND e.kingdomid = ? AND e.actionid IN (?, ?, ?, ?)) 
+        OR 
+        (e.targetid = ? AND e.actionid = ?)
     GROUP BY e.arrivaltime, e.eventid, st.soldierid
     ORDER BY e.arrivaltime, e.eventid
 ";
@@ -699,12 +708,16 @@ if ($result && $result->num_rows > 0) {
                 "loot_sapphire" => (int)($row["loot_sapphire"] ?? 0),
                 "loot_diamond" => (int)($row["loot_diamond"] ?? 0),
                 "is_scouting" => true,
+                "is_thieving" => true,
                 "soldiers" => []
             ];
         }
 
         if ((int)$row["st_soldierid"] !== Soldiers::SOLDIER_SCOUT) {
             $grouped_events[$event_id]["is_scouting"] = false;
+        }
+        if ((int)$row["st_soldierid"] !== Soldiers::SOLDIER_THIEF) {
+            $grouped_events[$event_id]["is_thieving"] = false;
         }
 
         // Append this troop type to the troops list
@@ -851,10 +864,12 @@ if (!empty($all_tp_entries)) {
                 </td>
                 <td class='td-center'>$m_coords</td>
                 <td class='td-center td-timer-cell' style='position: relative;'>
-                    <span class='js-countdown' data-seconds='$rem_sec' data-no-reload='true'>" . format_time_for_js($rem_sec) . "</span><br>
-                    <small style='opacity: 0.8;'>
-                        <b class='js-mine-progress' data-work-done='{$mine_data["work_done"]}' data-work-total='{$mine_data["work_total"]}' data-rate='$rate'>$percent_display %</b> abgebaut
-                    </small>
+                    <div style='display: flex; flex-wrap: wrap; justify-content: center; flex-direction: column;'>
+                        <span class='js-countdown' data-seconds='$rem_sec' data-no-reload='true'>" . format_time_for_js($rem_sec) . "</span>
+                        <small style='opacity: 0.8;'>
+                            <b class='js-mine-progress' data-work-done='{$mine_data["work_done"]}' data-work-total='{$mine_data["work_total"]}' data-rate='$rate'>$percent_display %</b> abgebaut
+                        </small>
+                    </div>
                     <div class='delete-btn'>
                         <form action='overview.php' method='POST' style='display: inline;'>
                             <input type='hidden' name='recall_mine_troops' value='1'>
@@ -886,7 +901,8 @@ if (!empty($all_tp_entries)) {
                     $coords_str = e($event_data["target_kingdom_name"]) . "<br><small>$target_coords</small>";
                 }
             } else if ($event_data["targetid"] > 0 && !empty($event_data["target_username"])) {
-                $coords_str = "$target_coords <small>(" . e($event_data["target_username"]) . ")</small>";
+                $target_k_name = !empty($event_data["target_kingdom_name"]) ? e($event_data["target_kingdom_name"]) . "<br>" : "";
+                $coords_str = $target_k_name . "<small>$target_coords (" . e($event_data["target_username"]) . ")</small>";
             } else {
                 $coords_str = "$target_coords";
             }
@@ -905,6 +921,7 @@ if (!empty($all_tp_entries)) {
             }
 
             $is_pure_scout = $event_data["is_scouting"];
+            $is_pure_thief = $event_data["is_thieving"];
 
             if ($action_id === ActionTypes::ACTION_STATION_TROOPS) {
                 $tgt_name = e($event_data["target_kingdom_name"] ?? "Unbekannt");
@@ -939,7 +956,9 @@ if (!empty($all_tp_entries)) {
                 } else if ($is_target_my_kingdom) {
                     $action_type = "Stationieren";
                 } else {
-                    $action_type = ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_WORLD_EVENT ? "Event" : ($is_pure_scout ? "Spionage" : "Angriff"));
+                    $action_type = ($event_data["targetid"] == MapFieldTypes::MAP_FIELD_WORLD_EVENT
+                        ? "Event"
+                        : ($is_pure_scout ? "Spionage" : ($is_pure_thief ? "Diebeszug" : "Angriff")));
                 }
             }
 

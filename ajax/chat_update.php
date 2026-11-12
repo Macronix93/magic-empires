@@ -13,11 +13,6 @@ $last_id = (int)($_GET["last_id"] ?? 0);
 $oldest_id = (int)($_GET["oldest_id"] ?? 0);
 
 if ($type === "guild" && isset($_POST["mark_all_read"])) {
-    if (!verify_csrf_token()) {
-        echo json_encode(["error" => "Ungültiger Sicherheits-Token"]);
-        exit;
-    }
-
     $guild_id = $user->get_user_guild_id();
 
     if ($guild_id > 0) {
@@ -202,4 +197,4 @@ echo json_encode(array_merge([
     "messagesToDelete" => $deleted_ids,
     "reactionUpdates" => $reaction_updates,
     "error" => ""
-], $extra_data));
+], $extra_data), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

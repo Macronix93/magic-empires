@@ -1,16 +1,12 @@
 <?php
 require_once("includes/core.php");
 
-$result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_SMITHY);
-
-$current_kingdom = $result['current_kingdom'];
-$building = $result['building'];
-$building_name = $building->get_building_name();
-$kingdom = $result['kingdom'];
-$kingdom_wood = $result["k_wood"];
-$kingdom_food = $result["k_food"];
-$kingdom_stone = $result["k_stone"];
-$kingdom_gold = $result["k_gold"];
+[
+    "current_kingdom" => $current_kingdom,
+    "building" => $building,
+    "building_name" => $building_name,
+    "kingdom" => $kingdom
+] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_SMITHY);
 
 // Fetch all buildings and their dependencies
 $techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_SMITHY);
@@ -96,11 +92,6 @@ $flash_box = $user->consume_last_researched_flash($current_kingdom, BuildingType
 /*
  * HTML Content Part
  */
-$kingdom_wood = $kingdom->get_kingdom_wood();
-$kingdom_food = $kingdom->get_kingdom_food();
-$kingdom_stone = $kingdom->get_kingdom_stone();
-$kingdom_gold = $kingdom->get_kingdom_gold();
-
 $smithy_boni_view = "";
 
 $blades_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES);

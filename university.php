@@ -5,11 +5,7 @@ require_once("includes/core.php");
     "current_kingdom" => $current_kingdom,
     "building" => $building,
     "building_name" => $building_name,
-    "kingdom" => $kingdom,
-    "k_wood" => $kingdom_wood,
-    "k_food" => $kingdom_food,
-    "k_stone" => $kingdom_stone,
-    "k_gold" => $kingdom_gold
+    "kingdom" => $kingdom
 ] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_UNIVERSITY);
 
 // Fetch all buildings and their dependencies

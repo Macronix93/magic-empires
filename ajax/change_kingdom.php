@@ -11,6 +11,7 @@ if (isset($chosen) && is_numeric($chosen)) {
     if ($row_check && (int)$row_check["userid"] === $user->get_user_id()) {
         $_SESSION["kingdomid"] = $chosen;
         $user->set_current_kingdom($chosen);
+        setcookie("me_last_kid", (string)$chosen, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, true);
 
         $k = new Kingdom($chosen);
         $cmd_stats = $k->get_command_stats();
@@ -34,14 +35,22 @@ if (isset($chosen) && is_numeric($chosen)) {
         $sidebar_data = $user->get_sidebar_data($chosen);
 
         ob_start();
-
+        $side_prefix = "desk_";
         $kingdom = $k;
         include(__DIR__ . "/../layout/right.php");
-        $sidebar_html = ob_get_clean();
+        $sidebar_html_desk = ob_get_clean();
+
+        ob_start();
+        $side_prefix = "mob_";
+        $kingdom = $k;
+        include(__DIR__ . "/../layout/right.php");
+        $sidebar_html_mob = ob_get_clean();
 
         echo json_encode([
             "success" => true,
-            "sidebar_html" => $sidebar_html,
+            "sidebar_html" => $sidebar_html_desk,
+            "sidebar_html_desk" => $sidebar_html_desk,
+            "sidebar_html_mob" => $sidebar_html_mob,
             "has_any_alchemy_ready" => !empty($sidebar_data["has_any_alchemy_ready"]),
             "kingdom" => [
                 "id" => $chosen,

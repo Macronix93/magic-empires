@@ -465,7 +465,10 @@ function updateChat(chatPartner) {
         })
         .catch(error => {
             isUpdatingChat = false;
-            showGameError("Chat Update Error:" + error);
+
+            if (!isPageUnloading && error.name !== "AbortError") {
+                showGameError("Chat Update Error: " + error);
+            }
         });
 }
 
@@ -723,7 +726,11 @@ function initializeChat() {
 
             applyChatPrefill();
         })
-        .catch(err => showGameError("Chat Init Fehler:" + err));
+        .catch(err => {
+            if (!isPageUnloading && err.name !== "AbortError") {
+                showGameError("Chat Init Fehler: " + err);
+            }
+        });
 }
 
 function filterServerMessages(element) {
@@ -804,7 +811,9 @@ function checkServerMessagesEmpty() {
             messageSection.appendChild(placeholder);
         }
 
-        placeholder.textContent = (category === "Alle" || categoryId === "-1") ? "Keine Servernachrichten vorhanden." : `Keine Servernachrichten in "${categoryName}" vorhanden.`;
+        placeholder.textContent = (category === "Alle" || categoryId === "-1")
+            ? "Keine Servernachrichten vorhanden."
+            : `Keine Servernachrichten in "${category}" vorhanden.`;
         placeholder.style.display = "block";
     } else if (visibleCount > 0) {
         document.getElementById("server-empty-category")?.remove();

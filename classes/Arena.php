@@ -109,6 +109,7 @@ class Arena
                 WHERE attacker_id = ? AND defender_id IN ($placeholders)
                 GROUP BY defender_id
             ", array_merge([$uid], $opp_ids));
+
             while ($row = $res_cd->fetch_assoc()) {
                 $cooldowns[(int)$row["defender_id"]] = (int)$row["last_battle"];
             }
@@ -130,13 +131,13 @@ class Arena
 
             if ($cooldown_left > 0) {
                 $button_html = "
-                    <button type='button' class='btn-accept' disabled style='min-width: 120px; font-variant-numeric: tabular-nums;' title='Gegner-Cooldown aktiv'>
+                    <button type='button' disabled style='min-width: 120px; font-variant-numeric: tabular-nums;' title='Gegner-Cooldown aktiv'>
                         <span class='js-countdown' data-seconds='$cooldown_left' data-keep-params='true' data-zero-text='Bereit'>" . format_time_for_js($cooldown_left) . "</span>
                     </button>";
             } else {
                 $is_no_coins = ($player_data["coins"] <= 0);
                 $btn_title = $is_no_coins ? "title='Keine Arena-Münzen übrig!'" : "";
-                $button_html = " <button type='button' class='btn-accept'  
+                $button_html = " <button type='button' 
                                     data-on-click='openArenaAttackInline'  
                                     data-id='$opp_id'  
                                     data-name='" . e($opp["username"]) . "'  
@@ -146,12 +147,12 @@ class Arena
             $html .= "
             <div class='box-container opponent-card' style='margin-bottom: 0;'>
                 <div class='box-content box-content-bg' style='padding: 10px 15px; display: flex; align-items: center; justify-content: space-between;'>
-                    <div style='display: flex; align-items: center; gap: 12px;'>
-                        <img src='{$opp["avatar"]}' class='user-image' style='width: 42px; height: 42px;' alt=''>
-                        <div style='text-align: left;'>
-                            <b>" . e($opp["username"]) . "$guild_badge</b><br>
-                            <span style='color: var(--link-color); font-weight: bold;'>" . fnum($opp_elo) . " ELO</span> 
-                            <small>($gain_text)</small>
+                    <div style='display: flex; align-items: center; gap: 10px;'>
+                        <img src='{$opp["avatar"]}' class='user-image arena-opponent-avatar' alt=''>
+                        <div class='arena-opponent-info'>
+                            <b class='arena-opponent-name'>" . e($opp["username"]) . "$guild_badge</b><br>
+                            <span class='arena-opponent-elo'>" . fnum($opp_elo) . " ELO</span> 
+                            <small class='arena-opponent-gain'>($gain_text)</small>
                         </div>
                     </div>
                     <div>

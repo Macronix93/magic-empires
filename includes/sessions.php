@@ -1,6 +1,6 @@
 <?php
 // Cookie/Remember Me Check
-$is_logging_out = isset($_POST["logout"]);
+$is_logging_out = isset($_POST["logout"]) || isset($_GET["logout"]);
 
 if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
     if (str_contains($_COOKIE["me_remember"], ':')) {
@@ -22,14 +22,10 @@ if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"])
                 change_location("index.php?vacation_locked=1");
             }
 
-            $user->login_user($row["userid"]);
-
-            $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE token_hash = ?", [$token_hash]);
-            $user->create_remember_me_token();
-
+            $user->login_user((int)$row["userid"]);
+            $user->refresh_remember_me_token($token, $token_hash);
+            $user->set_current_kingdom($_SESSION["kingdomid"] ?? -1);
             $_SESSION["lastactivity"] = time();
-
-            change_location($_SERVER["REQUEST_URI"]);
         } else {
             setcookie("me_remember", '', time() - 3600, '/');
         }
@@ -39,8 +35,6 @@ if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"])
 
 // Timeout and session ID check
 if ($user->is_logged_in()) {
-    $user->check_session_id();
-
     if (MAINTENANCE_MODE && !$user->is_admin()) {
         if (basename($_SERVER["PHP_SELF"]) === "index.php" && $is_logging_out) {
             return;
@@ -59,8 +53,7 @@ if ($user->is_logged_in()) {
 
     // Check current user
     $query = "
-        SELECT 
-            u.is_banned, u.ban_reason, u.mainkingdom, k.id AS current_k_exists
+        SELECT u.sessionid, u.is_banned, u.ban_reason, u.mainkingdom, k.id AS current_k_exists
         FROM users u
         LEFT JOIN kingdoms k ON k.id = ? AND k.userid = u.id
         WHERE u.id = ?
@@ -68,6 +61,28 @@ if ($user->is_logged_in()) {
     ";
     $check_res = $db_instance->execute_query($query, [$current_k_id, $current_uid]);
     $user_status = $check_res->fetch_assoc();
+
+    // Session id validation
+    if (!$user_status || $user_status["sessionid"] !== session_id()) {
+        $has_valid_remember = false;
+
+        if (isset($_COOKIE["me_remember"]) && str_contains($_COOKIE["me_remember"], ':')) {
+            list(, $token) = explode(':', $_COOKIE["me_remember"], 2);
+            $token_hash = hash("sha256", $token);
+
+            $res_token = $db_instance->execute_query(
+                "SELECT 1 FROM user_remember_tokens WHERE userid = ? AND token_hash = ? AND expires_at > ?",
+                [$current_uid, $token_hash, time()]
+            );
+
+            $has_valid_remember = ($res_token && $res_token->num_rows > 0);
+        }
+
+        if (!$has_valid_remember) {
+            session_destroy();
+            change_location("index.php?logout=session", 0, 401, "Session abgelaufen.");
+        }
+    }
 
     // Account is banned
     if ($user_status && (int)$user_status["is_banned"] === 1) {
@@ -127,33 +142,39 @@ if ($user->is_logged_in()) {
         if (!MAINTENANCE_MODE || $user->is_admin()) {
             $_SESSION["lastactivity"] = $timestamp;
 
-            $is_ajax = (!empty($_SERVER["HTTP_X_REQUESTED_WITH"]) && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
+            $is_ajax = is_ajax_request();
+
+            if (!isset($_SESSION["last_db_update"])) {
+                $_SESSION["last_db_update"] = 0;
+            }
+            if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
+                $db_instance->execute_query("UPDATE users SET lastactivity = ? WHERE id = ?", [$timestamp, $user->get_user_id()]);
+                $_SESSION["last_db_update"] = $timestamp;
+            }
 
             if (!$is_ajax) {
-                if (!isset($_SESSION["last_db_update"])) {
-                    $_SESSION["last_db_update"] = 0;
-                }
-                if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
-                    $db_instance->execute_query("UPDATE users SET lastactivity = ? WHERE id = ?", [$timestamp, $user->get_user_id()]);
-                    $_SESSION["last_db_update"] = $timestamp;
-                }
-
                 // Process all events for the user
-                $user->process_user_events();
+                if ($timestamp - ($_SESSION["last_events_processed"] ?? 0) >= 2) {
+                    $user->process_user_events();
+
+                    $_SESSION["last_events_processed"] = $timestamp;
+                }
 
                 // Spawn advent calendar gifts
-                if (AdventCalendar::is_active()) {
-                    $today_str = date("Y-m-d");
+                if ($_SERVER["REQUEST_METHOD"] === "GET") {
+                    if (AdventCalendar::is_active()) {
+                        $today_str = date("Y-m-d");
 
-                    if (($_SESSION["last_advent_check"] ?? "") !== $today_str) {
-                        AdventCalendar::ensure_user_gifts($current_uid);
+                        if (($_SESSION["last_advent_check"] ?? "") !== $today_str) {
+                            AdventCalendar::ensure_user_gifts($current_uid);
 
-                        $_SESSION["last_advent_check"] = $today_str;
+                            $_SESSION["last_advent_check"] = $today_str;
+                        }
                     }
-                }
 
-                $_SESSION["active_attacks"] = $user->check_for_incoming_attacks();
-                $_SESSION["active_supports"] = $user->check_for_incoming_support();
+                    $_SESSION["active_attacks"] = $user->check_for_incoming_attacks();
+                    $_SESSION["active_supports"] = $user->check_for_incoming_support();
+                }
             }
         }
     }

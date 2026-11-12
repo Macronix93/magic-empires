@@ -323,7 +323,7 @@ class Achievement
         return self::grant_achievement($user_id, $ach);
     }
 
-    public static function claim_reward(int $user_id, int $achievement_id): bool
+    public static function claim_reward(int $user_id, int $achievement_id, ?User $active_user = null): bool
     {
         $db = Database::get_instance()->get_connection();
 
@@ -345,8 +345,8 @@ class Achievement
             }
 
             $coins = (int)$row["reward_coins"];
-            $user_obj = new User($user_id, $row["username"]);
-            $user_obj->give_user_coins($coins);
+            $target_user = $active_user ?? new User($user_id, $row["username"]);
+            $target_user->give_user_coins($coins);
 
             $db->execute_query("UPDATE user_achievements SET is_claimed = 1 WHERE id = ?", [$row["id"]]);
             $db->commit();

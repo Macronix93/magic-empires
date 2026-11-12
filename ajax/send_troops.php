@@ -7,23 +7,22 @@ require_once("../includes/ajax_core.php");
 #[NoReturn]
 function exit_send_troops_error(string $message): void
 {
-    if (!isset($_SERVER["HTTP_X_REQUESTED_WITH"]) || strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) !== "xmlhttprequest") {
-        $_SESSION["game_error"] = $message;
-
-        $x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? (int)$_GET["x"] : 1;
-        $y = (isset($_GET["y"]) && ctype_digit($_GET["y"])) ? (int)$_GET["y"] : 1;
-
-        change_location("map.php?startx=$x&starty=$y");
+    if ($_SERVER["REQUEST_METHOD"] === "POST") {
+        send_json(["success" => false, "error" => $message]);
     }
 
-    header("Content-Type: application/json; charset=utf-8");
-    echo json_encode(["success" => false, "error" => $message]);
+    echo "<div id='modal-title-data' data-title='Truppenentsendung' data-width='550px' style='display: none;'></div>";
+    echo "<div style='text-align: center; max-width: 520px; margin: 0 auto;'>";
+    echo show_error_box($message);
+    echo "<p style='font-size: 13px; opacity: 0.8; margin-top: 15px;'><i>Wähle oben ein anderes Königreich, um Truppen zu diesem Ziel zu entsenden.</i></p>";
+    echo "</div>";
     exit;
 }
 
 $kingdom = new Kingdom($user->get_current_kingdom());
 $barracks_level = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
 $cmd_stats = $kingdom->get_command_stats();
+$troop_limit = $kingdom->get_troop_limit();
 
 $map = new Map($user);
 $target_x = (isset($_GET["x"]) && ctype_digit($_GET["x"])) ? intval($_GET["x"]) : 1;
@@ -106,6 +105,7 @@ $my_guild_id = $user->get_user_guild_id();
 $is_ally = ($my_guild_id > 0 && $my_guild_id === $enemy_guild_id && $enemy_user_id !== $user->get_user_id());
 
 $is_noob_protected = false;
+$is_new_kingdom_protected = false;
 
 $current_support_load = 0;
 $total_support_limit = 0;
@@ -128,8 +128,10 @@ if ($is_ally) {
             exit_send_troops_error("Dieser Spieler befindet sich im Urlaubsmodus und kann weder angegriffen noch ausspioniert werden!");
         }
 
+        $target_k_obj = new Kingdom($kingdom_id);
+        $is_new_kingdom_protected = $target_k_obj->has_new_kingdom_protection();
         $is_noob_protected = Conquest::has_noob_protection($user->get_user_score(), $enemy_score);
-        $only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id > 0 && $enemy_user_id != $user->get_user_id());
+        $only_scouts_allowed = (!$is_ally && ($is_noob_protected || $is_new_kingdom_protected) && $enemy_user_id > 0 && $enemy_user_id != $user->get_user_id());
     }
 }
 
@@ -236,12 +238,8 @@ if ($expires_at > 0) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (!verify_csrf_token()) {
-        exit_send_troops_error("Ungültiger Sicherheits-Token!");
-    }
-
     if ($barracks_level <= 0) {
-        $error = "Befehl verweigert: Du besitzt keine Kaserne!";
+        exit_send_troops_error("Befehl verweigert: Du besitzt keine Kaserne!");
     } else {
         $event_id = null;
         $has_soldiers = false;
@@ -305,8 +303,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
 
-        if ($is_noob_protected && $has_non_scout_units) {
-            $error = "Aufgrund des Noob-Schutzes dürfen nur reine Spionage-Trupps (Späher) entsendet werden!";
+        if ($has_non_scout_units) {
+            if ($is_new_kingdom_protected) {
+                $target_k_obj = new Kingdom($kingdom_id);
+                $error = "Dieses Königreich steht noch für " . convert_sec_to_str($target_k_obj->get_protection_time_left()) . " unter Gründungsschutz vor Angriffen!";
+            } else if ($is_noob_protected) {
+                $error = "Aufgrund des Noob-Schutzes dürfen nur reine Spionage-Trupps (Späher) entsendet werden!";
+            }
         }
 
         $max_commands = $cmd_stats["max"];
@@ -352,6 +355,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if (!$has_soldiers) {
             $error = "Du musst mindestens einen Soldaten auswählen!";
+        } else if ($total_units_in_request > $troop_limit) {
+            $error = "Deine entsendete Armee darf das Kasernenlimit von " . fnum($troop_limit, true) . " Einheiten nicht überschreiten!";
         } else if ($total_occupied_commands >= $max_commands) {
             $error = "Deine Offiziere sind überlastet! (Limit: $max_commands Befehle).<br>Baue das Dorfzentrum weiter aus, falls möglich.";
         } else if ($is_gift && $total_units_in_request > ADVENT_CALENDAR_MAX_UNITS) {
@@ -369,44 +374,48 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             if (!$res_mine) {
                 $error = "Diese Mine ist nicht mehr verfügbar!";
-            } else if ($has_non_scout_units && empty($error)) {
-                $total_squad_atk = 0;
-                foreach ($_POST["soldiers"] as $s_id => $count) {
-                    $cnt = (int)$count;
-                    if ($cnt > 0 && isset($soldiers[(int)$s_id])) {
-                        $total_squad_atk += $cnt * $soldiers[(int)$s_id]->get_soldier_attack();
+            } else {
+                if ($has_non_scout_units && empty($error)) {
+                    $total_squad_atk = 0;
+                    foreach ($_POST["soldiers"] as $s_id => $count) {
+                        $cnt = (int)$count;
+                        if ($cnt > 0 && isset($soldiers[(int)$s_id])) {
+                            $total_squad_atk += $cnt * $soldiers[(int)$s_id]->get_soldier_attack();
+                        }
+                    }
+
+                    if ($total_squad_atk <= 0) {
+                        $error = "Dein Trupp besitzt keine Angriffskraft und kann in der Mine kein Gestein abbauen!";
                     }
                 }
 
-                if ($total_squad_atk <= 0) {
-                    $error = "Dein Trupp besitzt keine Angriffskraft und kann in der Mine kein Gestein abbauen!";
-                }
-            } else {
-                $my_gid = $user->get_user_guild_id();
-                $claimed_gid = (int)$res_mine["claimed_guild_id"];
-                $claimed_uid = (int)$res_mine["claimed_user_id"];
+                if (empty($error)) {
+                    $my_gid = $user->get_user_guild_id();
+                    $claimed_gid = (int)$res_mine["claimed_guild_id"];
+                    $claimed_uid = (int)$res_mine["claimed_user_id"];
 
-                $res_curr = $db_instance->execute_query("
+                    $res_curr = $db_instance->execute_query("
                     SELECT (
                         (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE mine_id = ?) +
                         (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? AND e.actionid = ?)
                     ) AS total", [$res_mine["id"], MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS]);
 
-                $current_mine_troops = (int)$res_curr->fetch_column();
-                $max_capacity = (int)$res_mine["max_troops"];
-                $free_space = max(0, $max_capacity - $current_mine_troops);
+                    $current_mine_troops = (int)$res_curr->fetch_column();
+                    $max_capacity = (int)$res_mine["max_troops"];
+                    $free_space = max(0, $max_capacity - $current_mine_troops);
 
-                $is_mine_empty = ($current_mine_troops === 0);
-                $is_friendly = ($my_gid > 0 && $claimed_gid === $my_gid) || ($claimed_uid === $user->get_user_id());
+                    $is_mine_empty = ($current_mine_troops === 0);
+                    $is_friendly = ($my_gid > 0 && $claimed_gid === $my_gid) || ($claimed_uid === $user->get_user_id());
 
-                if (!$has_non_scout_units) {
-                    if ($is_friendly && !$is_mine_empty) {
-                        $error = "Du kannst eine von dir oder deinen Verbündeten besetzte Mine nicht ausspionieren!";
-                    }
-                } else {
-                    if (!$is_mine_empty && $is_friendly) {
-                        if ($total_units_in_request > $free_space) {
-                            $error = "In der Mine sind aktuell nur noch $free_space Plätze frei (Kapazität: $max_capacity)!";
+                    if (!$has_non_scout_units) {
+                        if ($is_friendly && !$is_mine_empty) {
+                            $error = "Du kannst eine von dir oder deinen Verbündeten besetzte Mine nicht ausspionieren!";
+                        }
+                    } else {
+                        if (!$is_mine_empty && $is_friendly) {
+                            if ($total_units_in_request > $free_space) {
+                                $error = "In der Mine sind aktuell nur noch $free_space Plätze frei (Kapazität: $max_capacity)!";
+                            }
                         }
                     }
                 }
@@ -457,9 +466,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         if (!empty($error)) {
-            header("Content-Type: application/json; charset=utf-8");
-            echo json_encode(["success" => false, "error" => $error]);
-            exit;
+            send_json(["success" => false, "error" => $error]);
         }
 
         $now = time();
@@ -539,18 +546,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
             }
 
-            header("Content-Type: application/json; charset=utf-8");
-            echo json_encode([
+            $is_pvp_attack = ($enemy_user_id > 0 && $enemy_user_id != $user->get_user_id() && !$is_ally && $has_non_scout_units);
+            $is_mine_attack = ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && isset($is_mine_empty, $is_friendly) && !$is_mine_empty && !$is_friendly && $has_non_scout_units);
+
+            $lost_protection = false;
+            if (($is_pvp_attack || $is_mine_attack) && $kingdom->has_new_kingdom_protection()) {
+                $kingdom->remove_protection();
+                $lost_protection = true;
+            }
+
+            $success_msg = $lost_protection
+                ? "Truppen erfolgreich gesendet!<br>Hinweis: Der Angriffsschutz für dein Königreich ist hierdurch vorzeitig erloschen."
+                : "Truppen erfolgreich gesendet!";
+
+            if ($is_support) {
+                $units_data = [];
+                foreach ($_POST["soldiers"] as $sid => $cnt) {
+                    $c = (int)$cnt;
+                    if ($c > 0 && isset($soldiers[(int)$sid])) {
+                        $units_data[] = [
+                            "id" => (int)$sid,
+                            "count" => $c
+                        ];
+                    }
+                }
+
+                $target_k_obj = new Kingdom($kingdom_id);
+                $incoming_sup_json = [
+                    "template" => "support_incoming",
+                    "sender_name" => $user->get_user_name(),
+                    "target_name" => $target_k_obj->get_kingdom_name(),
+                    "target_x" => $target_x,
+                    "target_y" => $target_y,
+                    "arrival_seconds" => $arrival_time,
+                    "units" => $units_data
+                ];
+
+                Messages::send_server_message($enemy_user_id, $row["username"], MessageCategories::CATEGORY_GUILD, $incoming_sup_json);
+
+                send_user_push(
+                    $enemy_user_id,
+                    "🛡️ Unterstützung unterwegs: " . $target_k_obj->get_kingdom_name(),
+                    $user->get_user_name() . " schickt Verstärkung zu deinem Königreich " . $target_k_obj->get_kingdom_name() . " (Ankunft in " . convert_sec_to_str($arrival_time) . ").",
+                    "troops",
+                    "overview.php"
+                );
+            }
+
+            send_json([
                 "success" => true,
-                "message" => "Truppen erfolgreich gesendet!",
+                "message" => $success_msg,
                 "troops" => $kingdom_soldiers
             ]);
-            exit;
         } catch (Exception $e) {
             $db_instance->rollback();
-            header("Content-Type: application/json; charset=utf-8");
-            echo json_encode(["success" => false, "error" => "Datenbankfehler beim Absenden: " . $e->getMessage()]);
-            exit;
+
+            send_json(["success" => false, "error" => "Datenbankfehler beim Absenden: " . $e->getMessage()]);
         }
     }
 }
@@ -569,17 +620,26 @@ if ($cmd_stats["is_full"]) {
 }
 
 // Noob protection check
-if ($only_scouts_allowed) {
+if ($is_new_kingdom_protected) {
+    $target_k_obj = new Kingdom($kingdom_id);
+    $rem_str = convert_sec_to_str($target_k_obj->get_protection_time_left());
+
+    $view .= show_warning_box("
+        <b>Gründungsschutz aktiv:</b><br>
+        Dieses Königreich wurde vor kurzem gegründet und steht noch für <b>$rem_str</b> unter Schutz vor feindlichen Angriffen.<br>
+        Reine Spionage (nur Späher) ist möglich.
+    ");
+} else if ($only_scouts_allowed) {
     $my_score = $user->get_user_score();
     $min_allowed = floor($my_score * NOOB_PROTECTION_MULT);
     $max_allowed = floor($my_score / NOOB_PROTECTION_MULT);
 
     $view .= show_warning_box("
-                    <b>Punktestand zu unterschiedlich:</b><br>
-                    Ein Angriff ist nicht möglich.<br>
-                    Du kannst nur Spieler angreifen, die einen Score von <b>" . fnum($min_allowed) . "</b> bis <b>" . fnum($max_allowed) . "</b> haben <b>(" . (NOOB_PROTECTION_MULT * 100) . "%)</b>.<br>
-                    Reine Spionage (nur Späher) ist allerdings möglich.
-                ");
+        <b>Punktestand zu unterschiedlich:</b><br>
+        Ein Angriff ist nicht möglich.<br>
+        Du kannst nur Spieler angreifen, die einen Score von <b>" . fnum($min_allowed) . "</b> bis <b>" . fnum($max_allowed) . "</b> haben <b>(" . (NOOB_PROTECTION_MULT * 100) . "%)</b>.<br>
+        Reine Spionage (nur Späher) ist allerdings möglich.
+    ");
 }
 
 if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
@@ -797,7 +857,8 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
         $send_title = $is_spying ? "Königreich spionieren" : "Königreich angreifen";
     }
 
-    $view .= '<div class="title-border">Königreich-Info (' . $field_name . ')</div>
+    $view .= '<div id="stealth-warning-box" style="display: none; margin-bottom: 10px;"></div>
+                <div class="title-border">Königreich-Info (' . $field_name . ')</div>
                       <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
                           <tr>
                               <td class="td-mapinfo"><b>Koordinaten</b></td>
@@ -936,17 +997,16 @@ if ($barracks_level > 0) {
 
         $mine_attrs = "";
         if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && !$is_spying) {
-            $mine_attrs = ' data-scout-id="' . Soldiers::SOLDIER_SCOUT . '"
-                                data-is-mine="true"
-                                data-mine-limit="' . $mine_limit . '" 
-                                data-mine-current="' . ($is_friendly ? $total_occupied_or_incoming : 0) . '" 
-                                data-mine-max="' . $max_capacity . '" 
-                                data-mine-friendly="' . ($is_friendly && !$is_mine_empty ? "true" : "false") . '"
-                                data-mine-rem-work="' . $work_rem . '" 
-                                data-mine-work-total="' . (int)$res_mine["work_total"] . '"
-                                data-mine-current-atk="' . ($is_friendly ? $current_mine_atk : 0) . '" 
-                                data-mine-work-factor="' . MINE_WORK_RATE_FACTOR . '"
-                                data-mine-min-duration="' . MINE_MIN_DURATION_SECONDS . '"';
+            $mine_attrs = ' data-is-mine="true"
+                            data-mine-limit="' . $mine_limit . '" 
+                            data-mine-current="' . ($is_friendly ? $total_occupied_or_incoming : 0) . '" 
+                            data-mine-max="' . $max_capacity . '" 
+                            data-mine-friendly="' . ($is_friendly && !$is_mine_empty ? "true" : "false") . '"
+                            data-mine-rem-work="' . $work_rem . '" 
+                            data-mine-work-total="' . (int)$res_mine["work_total"] . '"
+                            data-mine-current-atk="' . ($is_friendly ? $current_mine_atk : 0) . '" 
+                            data-mine-work-factor="' . MINE_WORK_RATE_FACTOR . '"
+                            data-mine-min-duration="' . MINE_MIN_DURATION_SECONDS . '"';
         }
 
         $support_attrs = "";
@@ -957,13 +1017,17 @@ if ($barracks_level > 0) {
                                 data-support-max="' . $total_support_limit . '"';
         }
 
+        $troop_limit_attr = ' data-troop-limit="' . $troop_limit . '"';
         $gift_attrs = $is_gift ? ' data-is-gift="true" data-max-units="1"' : '';
         $ajax_query_extra = $is_gift ? "&mode=gift&day=$gift_day" : "";
+        $unit_ids_attr = ' data-scout-id="' . Soldiers::SOLDIER_SCOUT . '" data-thief-id="' . Soldiers::SOLDIER_THIEF . '"';
 
         $view .= '<form action="javascript:void(0);" data-ajax-url="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . $ajax_query_extra . '" 
-                        method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $mine_attrs . $support_attrs . $gift_attrs . '>
+                        method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $troop_limit_attr . $unit_ids_attr . $mine_attrs . $support_attrs . $gift_attrs . '>
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
-                            <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">Gewählte Truppen</div>
+                            <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">
+                                Gewählte Truppen (<span id="troop-summary-count">0</span> / ' . fnum($troop_limit, true) . ')
+                            </div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>
                             <div id="troop-summary-totals" style="width: 100%; display: flex; justify-content: center; margin-top: 15px;"></div>
                         </div>

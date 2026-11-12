@@ -72,9 +72,7 @@ class Map
                     if ($is_target) $class .= " minimap-target";
 
                     $content = "";
-                    if ($is_target) {
-                        $content = "⭐";
-                    } else if ($kid > 0) {
+                    if ($kid > 0) {
                         $content = "🏰";
                     } else if ($kid === MapFieldTypes::MAP_FIELD_RESOURCE_TILE) {
                         $content = "💎";
@@ -82,6 +80,10 @@ class Map
                         $content = "👹";
                     } else if ($kid === MapFieldTypes::MAP_FIELD_MINE) {
                         $content = "⛏️";
+                    } else if ($kid === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
+                        $content = "🏚️";
+                    } else if ($kid === MapFieldTypes::MAP_FIELD_GIFT) {
+                        $content = "🎁";
                     }
 
                     $html .= "<div class='" . e($class) . "' style='background-color: " . e($color) . ";'>" . e($content) . "</div>";

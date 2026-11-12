@@ -165,8 +165,13 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
                     <button type="button" class="btn-stepper" data-on-click="stepWarsimTech" data-target="en_wall_lvl" data-step="1">+</button>
                 </div>
             </div>
-            <div style="text-align: left; font-size: 12px; opacity: 0.8; margin-top: 5px;">
-                HP: <span id="wall_hp_display">' . fnum($initial_wall_hp) . '</span> / <span id="wall_hp_display_max">' . fnum($initial_wall_hp) . '</span>
+            <div class="split-content" style="margin-top: 5px; align-items: center;">
+                <span>HP:</span>
+                <div style="display: inline-flex; align-items: center; gap: 4px;">
+                    <input type="text" id="en_wall_hp" value="' . $initial_wall_hp . '" inputmode="numeric" pattern="[0-9]*" 
+                           style="width: 48px; height: 22px; text-align: center; padding: 0; font-size: 13px; box-sizing: border-box;">
+                    <span style="font-size: 12px; opacity: 0.8;">/ <span id="wall_hp_display_max">' . fnum($initial_wall_hp) . '</span></span>
+                </div>
             </div>
             <div style="text-align: right; font-weight: bold; color: var(--link-color); margin-top: 5px;">
                 Bonus: +<span id="wall_def_display">' . $initial_wall_def . '</span> DEF

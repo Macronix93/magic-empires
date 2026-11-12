@@ -32,4 +32,4 @@ echo json_encode([
     "worldUnread" => (int)$unreads["world"],
     "guildUnread" => (int)$unreads["guild"],
     "achievementsUnread" => (int)($unreads["achievements"] ?? 0)
-]);
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

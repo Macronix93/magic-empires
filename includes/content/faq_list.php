@@ -297,6 +297,18 @@
                             Spionageberichte über das gegnerische Dorf mit nach Hause.
                         </li>
                     </ul>
+                    <b>7. Kampfberichte & Sichtbarkeit (Nebel des Krieges):</b>
+                    <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
+                        <li><b>Totale Niederlage:</b> Werden alle angreifenden Einheiten restlos vernichtet, kehrt
+                            niemand lebend zurück, um Bericht zu erstatten – die feindlichen Verteidigungstruppen
+                            bleiben im Kampfbericht komplett verborgen.
+                        </li>
+                        <li><b>Teilweise Einsicht:</b> Überleben Teile deiner Angriffsarmee gegen eine große Übermacht
+                            des Verteidigers, zeigt der Kampfbericht auf gegnerischer Seite nur den Teil der feindlichen
+                            Truppen an, mit dem deine Einheiten tatsächlich im direkten Gefecht standen. Um die gesamte
+                            Garnison eines Gegners vorab gefahrlos aufzudecken, sollten <b>Späher</b> eingesetzt werden.
+                        </li>
+                    </ul>
                 </td>
             </tr>
             <tr>

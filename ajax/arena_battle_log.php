@@ -44,12 +44,12 @@ $def_cards = Arena::build_battle_cards($def_data["troops"] ?? [], $def_data["los
 
 if ($is_defender) {
     $left_cards = $def_cards;
-    $left_label = "Deine Verteidigung";
+    $left_label = "Verteidigung";
     $right_cards = $atk_cards;
     $right_label = e($battle["attacker_name"]);
 } else {
     $left_cards = $atk_cards;
-    $left_label = $is_attacker ? "Deine Angreifer" : e($battle["attacker_name"]);
+    $left_label = $is_attacker ? "Angreifer" : e($battle["attacker_name"]);
     $right_cards = $def_cards;
     $right_label = e($battle["defender_name"]);
 }

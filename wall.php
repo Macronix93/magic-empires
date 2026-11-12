@@ -83,7 +83,7 @@ $view .= "<div style='display: flex; flex-direction: column; gap: 15px; align-it
                     <span><img src='images/icons/icon_health.png' class='ressource-icons' alt='Haltbarkeit'></span>
                     <span>" . fnum($wall_hp) . " / " . fnum($wall_max_hp) . "</span>
                 </div>
-                <div style='width: 100%; height: 20px; background: #333; border: 1px solid var(--border-gold); border-radius: 3px; overflow: hidden;'>
+                <div class='wall-hp-bar'>
                     <div style='width: " . (($wall_hp / $wall_max_hp) * 100) . "%; height: 100%; background: linear-gradient(90deg, #15803b, #2ecc71); transition: width 0.5s;'></div>
                 </div>
             </div>

@@ -354,12 +354,12 @@ if (!$active_event) {
 
         if ($is_boss_dead) {
             $view .= "<div style='filter: grayscale(1) sepia(1) hue-rotate(-50deg); opacity: 0.5;'>
-                        <img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "' style='width: 94px; height: 94px;'>
+                        <img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "' class='event-monster-img'>
                       </div>";
             $view .= "<p class='monster-desc'>" . e($monster["desc"]) . "</p>";
             $view .= "<h2 class='passed' style='margin: 0;'>BESIEGT!</h2>";
         } else {
-            $view .= "<img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "' style='width: 94px; height: 94px;'>";
+            $view .= "<img src='images/icons/" . e($monster["icon"]) . ".png' alt='" . e($monster["name"]) . "' class='event-monster-img'>";
             $view .= "<p class='monster-desc'>" . e($monster["desc"]) . "</p>";
         }
 
@@ -375,7 +375,7 @@ if (!$active_event) {
                             </span>
                             <span>$hp_display_percent%</span>
                         </div>
-                        <div style='width: 100%; height: 25px; background: #333; border: 2px solid var(--border-gold); border-radius: 5px; overflow: hidden; position: relative;'>
+                        <div class='event-hp-bar'>
                             <div style='width: $bar_width%; height: 100%; background: linear-gradient(90deg, #a62121, #ff4d4d); transition: width 0.5s ease;'></div>
                         </div>
                     </div>";
