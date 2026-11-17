@@ -386,7 +386,7 @@ function updateChat(chatPartner) {
             }
 
             const newMessageLine = document.getElementById("new-message-line");
-            if (data.html === "") {
+            if (!data.html) {
                 if (newMessageLine) messageSection.removeChild(newMessageLine);
             } else {
                 removeEmptyPlaceholder();
@@ -710,10 +710,12 @@ function initializeChat() {
                 messageForm.addEventListener("submit", e => insertNewChatMessage(e));
             }
 
-            setInterval(() => updateChat(), CHAT_UPDATE_INTERVAL);
+            setInterval(() => {
+                if (!document.hidden) {
+                    updateChat();
+                }
+            }, CHAT_UPDATE_INTERVAL);
 
-            // scrollDown();
-            // scrollToLatestMessage();
             if (document.getElementById("new-message-line")) {
                 scrollToLatestMessage();
             } else {

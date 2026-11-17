@@ -427,8 +427,18 @@ class Marketplace
         }
 
         $max_capacity = $this->get_max_capacity();
-        if ($total_sum > $max_capacity) {
-            return ["success" => false, "error" => "Kapazität überschritten (Max. " . fnum($max_capacity) . ")!"];
+        if ($max_capacity <= 0) {
+            return ["success" => false, "error" => "Dein Marktplatz hat keine Kapazität!"];
+        }
+
+        $required_actions = (int)ceil($total_sum / $max_capacity);
+        $remaining_actions = max(0, $daily["max"] - $daily["current"]);
+
+        if ($required_actions > $remaining_actions) {
+            return [
+                "success" => false,
+                "error" => "Nicht genügend tägliche Handelsaktionen übrig! (Benötigt: $required_actions, Verfügbar: $remaining_actions)"
+            ];
         }
 
         $stocks = [
@@ -472,7 +482,9 @@ class Marketplace
                 (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
             ]);
 
-            $this->db->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$uid]);
+            $this->db->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + ? WHERE id = ?",
+                [$required_actions, $uid]
+            );
 
             Logger::get_instance()->log_game("TRADE", "INTERNAL_TRANSPORT", [
                 "target_kingdom" => $target_id,

@@ -34,7 +34,7 @@ if ($type === "server") {
             $data = json_decode($row["data_json"], true);
             $data["msg_date"] = (int)$row["date"];
 
-            $content = $messages_obj->render_message_template($data);
+            $content = Messages::render_message_template($data);
 
             $is_combat_cat = in_array((int)$row["category"], [MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE], true);
 

@@ -29,8 +29,7 @@ $process_content = function ($raw) {
         '</ul>',
         '<li>',
         '</li>',
-        '</li>',
-        '</ul>'
+        '</li>'
     ];
 
     return preg_replace($cleanup_patterns, $cleanup_replace, $content);

@@ -106,6 +106,21 @@ registerAction("switchSettingsTab", (el) => {
     url.searchParams.set("tab", tabName);
     window.history.replaceState({}, '', url);
 });
+registerAction("moveKingdomOrder", (btn) => {
+    const dir = parseInt(btn.dataset.dir, 10);
+    const item = btn.closest(".kingdom-sort-item");
+    const list = document.getElementById("kingdom-sort-list");
+    if (!item || !list) return;
+
+    if (dir === -1 && item.previousElementSibling) {
+        list.insertBefore(item, item.previousElementSibling);
+    } else if (dir === 1 && item.nextElementSibling) {
+        list.insertBefore(item.nextElementSibling, item);
+    }
+
+    updateKingdomSortNumbers();
+});
+
 document.addEventListener("input", (e) => {
     if (e.target && e.target.classList.contains("js-pagesize-input")) {
         const input = e.target;
@@ -128,6 +143,29 @@ document.addEventListener("input", (e) => {
         input.value = raw;
     }
 });
+
+function updateKingdomSortNumbers(floatingItem = null, placeholder = null) {
+    const list = document.getElementById("kingdom-sort-list");
+    if (!list) return;
+
+    let pos = 1;
+    Array.from(list.children).forEach(child => {
+        if (child === floatingItem) return;
+        if (child === placeholder) {
+            if (floatingItem) {
+                const fPos = floatingItem.querySelector(".js-sort-pos");
+                if (fPos) fPos.textContent = "#" + pos;
+            }
+
+            pos++;
+        } else if (child.classList.contains("kingdom-sort-item")) {
+            const posEl = child.querySelector(".js-sort-pos");
+            if (posEl) posEl.textContent = "#" + pos;
+
+            pos++;
+        }
+    });
+}
 
 function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -254,4 +292,99 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    const sortList = document.getElementById("kingdom-sort-list");
+    if (!sortList) return;
+
+    // Natives HTML5-Drag-Geisterbild deaktivieren
+    sortList.addEventListener("dragstart", (e) => e.preventDefault());
+
+    let draggedItem = null;
+    let placeholder = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    const onPointerMove = (e) => {
+        if (!draggedItem) return;
+
+        // Element exakt an der Maus / am Finger führen
+        draggedItem.style.left = (e.clientX - offsetX) + "px";
+        draggedItem.style.top = (e.clientY - offsetY) + "px";
+
+        const siblings = Array.from(sortList.querySelectorAll(".kingdom-sort-item:not(.is-dragging)"));
+        let nextSibling = null;
+
+        for (const sibling of siblings) {
+            const box = sibling.getBoundingClientRect();
+            const boxCenterY = box.top + (box.height / 2);
+            if (e.clientY < boxCenterY) {
+                nextSibling = sibling;
+                break;
+            }
+        }
+
+        if (nextSibling) {
+            sortList.insertBefore(placeholder, nextSibling);
+        } else {
+            sortList.appendChild(placeholder);
+        }
+
+        updateKingdomSortNumbers(draggedItem, placeholder);
+    };
+
+    const onPointerUp = () => {
+        if (!draggedItem) return;
+
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("pointercancel", onPointerUp);
+
+        if (placeholder && placeholder.parentNode) {
+            sortList.insertBefore(draggedItem, placeholder);
+            placeholder.remove();
+        }
+
+        draggedItem.classList.remove("is-dragging");
+        draggedItem.style.position = "";
+        draggedItem.style.width = "";
+        draggedItem.style.height = "";
+        draggedItem.style.left = "";
+        draggedItem.style.top = "";
+        document.body.style.cursor = "";
+
+        draggedItem = null;
+        placeholder = null;
+        updateKingdomSortNumbers();
+    };
+
+    sortList.addEventListener("pointerdown", (e) => {
+        if (e.target.closest(".btn-stepper") || (e.pointerType === "mouse" && e.button !== 0)) return;
+
+        const item = e.target.closest(".kingdom-sort-item");
+        if (!item) return;
+
+        e.preventDefault();
+        draggedItem = item;
+
+        const rect = item.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+
+        placeholder = document.createElement("div");
+        placeholder.className = "kingdom-sort-placeholder";
+        placeholder.style.height = rect.height + "px";
+        sortList.insertBefore(placeholder, item);
+
+        item.classList.add("is-dragging");
+        item.style.position = "fixed";
+        item.style.width = rect.width + "px";
+        item.style.height = rect.height + "px";
+        item.style.left = rect.left + "px";
+        item.style.top = rect.top + "px";
+        document.body.style.cursor = "grabbing";
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", onPointerUp);
+        window.addEventListener("pointercancel", onPointerUp);
+    });
 });

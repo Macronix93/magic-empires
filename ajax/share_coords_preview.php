@@ -1,8 +1,8 @@
 <?php
 require_once("../includes/ajax_core.php");
 
+[$x, $y] = Map::require_valid_coordinates();
 $map = new Map($user);
-[$x, $y] = $map->require_valid_coordinates();
 ?>
 <div id="modal-title-data" data-title="Koordinaten <?= $x ?>:<?= $y ?>" data-width="380px" style="display: none;"></div>
 

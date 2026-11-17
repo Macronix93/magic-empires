@@ -108,8 +108,8 @@ class User
         $_SESSION["message_count"] = $row["msgcount"];
         $_SESSION["message_timeframe_end"] = $row["lastsentmsgend"];
         $_SESSION["device_id"] = $device_id;
-        $_SESSION["chat_filter"] = $row["chat_filter"];
-        $_SESSION["tutorial_done"] = (int)$row["tutorial_done"];
+        $_SESSION["chat_filter"] = (bool)$row["chat_filter"];
+        $_SESSION["tutorial_done"] = (bool)$row["tutorial_done"];
 
         $target_kid = (int)$row["mainkingdom"];
         if (!empty($_COOKIE["me_last_kid"])) {
@@ -666,7 +666,7 @@ class User
         $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
 
         // Check if building is built
-        if ($building == null) {
+        if (!$building) {
             change_location("towncenter.php");
         }
 
@@ -837,7 +837,7 @@ class User
 
         $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
         foreach ($supports as &$sup) {
-            $sup["is_new"] = ((int)$sup["notification_sent"] === 0 && !in_array($sup["eventid"], $ack_ids));
+            $sup["is_new"] = (empty($sup["notification_sent"]) && !in_array($sup["eventid"], $ack_ids));
         }
 
         return $supports;

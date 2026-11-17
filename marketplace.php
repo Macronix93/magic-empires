@@ -177,7 +177,7 @@ $view .= '<form action="marketplace.php" method="POST"
         </td>
         <td style="width: 18%; text-align: center">
             <div class="market-submit-wrap">
-                <input type="submit" value="Abschicken" ' . $input_disabled . '/>
+                <input type="submit" id="market-offer-submit" value="Abschicken" disabled />
                 ' . ($in_guild ? "
                 <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none;'>
                     <input type='checkbox' name='guild_only' id='guild_only' value='1'/>
@@ -471,7 +471,7 @@ if ($other_kingdoms_res->num_rows > 0) {
                                 <input type="text" name="am[3]" class="js-internal-res-input" size="6" maxlength="7" placeholder="0" inputmode="numeric" pattern="[0-9]*" style="width: 80px;" ' . $input_disabled . '></div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px; margin-top: 20px; flex-direction: column;">
-                                <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">0 / ' . fnum($max_capacity) . '</div>
+                                <div id="internal-sum-display" style="font-size: 12px; font-weight: bold;">Handelsaktionen: 0</div>
                                 <input type="submit" id="internal-submit" value="Senden" style="width: 150px;" disabled ' . ($is_daily_full ? "title='Tägliches Handelslimit erreicht!'" : "") . '>
                             </div>
                         </td>
@@ -497,6 +497,8 @@ $market_config = [
     "listing_fee_step" => MARKET_LISTING_FEE_STEP,
     "max_capacity_per_offer" => $max_capacity,
     "is_daily_full" => $is_daily_full,
+    "remaining_trades" => max(0, $max_trades - $daily_trades_count),
+    "user_coins" => $user->get_user_coins(),
     "guild_trade_discount" => ($trade_disc_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL),
     "factors" => [
         ResourceTypes::RESOURCE_TYPE_FOOD => MARKET_FEE_MULTIPLIER_FOOD,

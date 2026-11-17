@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
+require_post();
 
 $chosen = $_POST["choosekingdom"] ?? null;
 
@@ -11,7 +12,12 @@ if (isset($chosen) && is_numeric($chosen)) {
     if ($row_check && (int)$row_check["userid"] === $user->get_user_id()) {
         $_SESSION["kingdomid"] = $chosen;
         $user->set_current_kingdom($chosen);
+
         setcookie("me_last_kid", (string)$chosen, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, true);
+
+        if (!empty($_POST["light"])) {
+            send_json(["success" => true]);
+        }
 
         $k = new Kingdom($chosen);
         $cmd_stats = $k->get_command_stats();

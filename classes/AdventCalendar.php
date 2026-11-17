@@ -11,16 +11,12 @@ class AdventCalendar
 
     public static function is_active(): bool
     {
-        $db = Database::get_instance()->get_connection();
-        $val = $db->execute_query("SELECT value FROM system_settings WHERE name = 'advent_calendar_active'")->fetch_column();
-        return ($val === '1');
+        return defined("ADVENT_CALENDAR_ACTIVE") && ADVENT_CALENDAR_ACTIVE;
     }
 
     public static function get_start_timestamp(): int
     {
-        $db = Database::get_instance()->get_connection();
-        $val = $db->execute_query("SELECT value FROM system_settings WHERE name = 'advent_calendar_start'")->fetch_column();
-        return (int)($val ?? 0);
+        return defined("ADVENT_CALENDAR_START") ? ADVENT_CALENDAR_START : 0;
     }
 
     public static function get_current_day(): int
@@ -103,14 +99,12 @@ class AdventCalendar
         return $this->insert_gifts_batch($entries);
     }
 
-    public static function ensure_user_gifts(int $user_id): int
+    public function ensure_user_gifts(int $user_id): int
     {
         if (!self::is_active() || $user_id <= 0) return 0;
-
-        $db = Database::get_instance()->get_connection();
         $curr_day = self::get_current_day();
 
-        $res = $db->execute_query("SELECT day FROM advent_calendar_gifts WHERE user_id = ?", [$user_id]);
+        $res = $this->db->execute_query("SELECT day FROM advent_calendar_gifts WHERE user_id = ?", [$user_id]);
         $spawned_days = array_column($res->fetch_all(MYSQLI_ASSOC), "day");
 
         $missing_days = [];
@@ -122,14 +116,12 @@ class AdventCalendar
 
         if (empty($missing_days)) return 0;
 
-        $cal = new self();
-        $coords = $cal->find_free_coordinates($user_id, count($missing_days));
+        $coords = $this->find_free_coordinates($user_id, count($missing_days));
         if (empty($coords)) return 0;
 
         $entries = [];
         foreach ($missing_days as $idx => $day) {
             if (!isset($coords[$idx])) break;
-
             $entries[] = [
                 "user_id" => $user_id,
                 "day" => $day,
@@ -138,7 +130,7 @@ class AdventCalendar
             ];
         }
 
-        return $cal->insert_gifts_batch($entries);
+        return $this->insert_gifts_batch($entries);
     }
 
     public function insert_gifts_batch(array $entries): int
@@ -261,7 +253,7 @@ class AdventCalendar
     {
         if ($user_id <= 0) return false;
 
-        if (isset($_SESSION["tutorial_done"]) && (int)$_SESSION["tutorial_done"] === 0) {
+        if (isset($_SESSION["tutorial_done"]) && !$_SESSION["tutorial_done"]) {
             return false;
         }
 
@@ -270,8 +262,8 @@ class AdventCalendar
         $has_gifts = (bool)$db->execute_query("SELECT 1 FROM advent_calendar_gifts WHERE user_id = ? LIMIT 1", [$user_id])->fetch_column();
         if (!self::is_active() && !$has_gifts) return false;
 
-        $seen = (int)($db->execute_query("SELECT advent_intro_seen FROM users WHERE id = ?", [$user_id])->fetch_column() ?? 1);
-        return ($seen === 0);
+        $seen = (bool)($db->execute_query("SELECT advent_intro_seen FROM users WHERE id = ?", [$user_id])->fetch_column() ?? true);
+        return !$seen;
     }
 
     public static function render_intro_modal(): string

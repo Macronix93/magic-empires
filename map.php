@@ -231,6 +231,8 @@ echo '<div class="map-options">
     </div>';
 
 // Map Container
+$cmd_color = $commands_full ? "color: #ff4d4d;" : "";
+
 echo '<div id="map-container" 
             data-start-x="' . $x . '" 
             data-start-y="' . $y . '" 
@@ -241,7 +243,14 @@ echo '<div id="map-loader">
             <div class="loading-spinner"></div>
             <div class="loader-text">Kartograph zeichnet Karte...</div>
           </div>';
-echo '<div id="coords-display" class="map-coords-overlay">X: ' . $x . ' | Y: ' . $y . '</div>';
+echo '<div id="coords-display" class="map-coords-overlay" style="display: flex; align-items: center; gap: 8px;">
+        <span id="coords-text">X: ' . $x . ' | Y: ' . $y . '</span>
+        <span>|</span>
+        <span id="map-commands-display" title="Aktive Truppenbewegungen" style="display: inline-flex; align-items: center; gap: 8px; ' . $cmd_color . '">
+            <img src="images/icons/icon_sword.png" alt="Befehle" class="map-commands-icon">
+            <span id="map-commands-count">' . $occupied_commands . '/' . $max_commands . '</span>
+        </span>
+      </div>';
 echo '<div class="map-viewport" id="map-viewport">
             <canvas id="map-canvas" style="display: block;"></canvas>
           </div>';

@@ -158,11 +158,10 @@ const GLOBAL_SETTLEMENT_MAX = 8;
 const DEFAULT_WALL_HP = 1000;
 const WALL_ABSORPTION_PER_LEVEL = 100;
 const WALL_EFFECTIVE_DMG_FACTOR = 0.03;
-const MIN_WALL_DEFENSE = 1500;
-const MAX_WALL_DEFENSE = 25000;
-const WALL_DEFENSE_FACTOR = 0.7;
-const BASE_WALL_REPAIR_COST = 15;
-const NOOB_PROTECTION_MULT = 0;
+const WALL_DEF_FACTOR = 1.6;
+const WALL_DEF_GROWTH = 1.25;
+const BASE_WALL_REPAIR_COST = 20;
+const DEFAULT_NOOB_PROTECTION_MULT = 0.5;
 const RAM_FLAT_DAMAGE = 60;
 const LETHALITY_PVP = 2.0;
 const LETHALITY_PVE = 3.5;
@@ -186,7 +185,7 @@ const MAX_SOLDIERS_RECRUIT_INPUT = 99;
 const TROOP_LIMIT_BASE = 50;
 const TROOP_LIMIT_FACTOR = 50;
 const TROOP_LIMIT_EXPONENT = 2.3;
-const THIEF_BASE_CAPACITY = 500;
+const THIEF_BASE_CAPACITY = 400;
 const RAIDER_BASE_CAPACITY = 300;
 const RAIDER_LOSS_CHANCE = 10;
 const RAIDER_LOSS_MIN_PERC = 5;
@@ -194,7 +193,7 @@ const RAIDER_LOSS_MAX_PERC = 8;
 const RAIDER_MIN_RESOURCE_VARIANCE = 40;
 const RAIDER_MAX_RESOURCE_VARIANCE = 200;
 const RAIDER_RESOURCE_IGNORE_CHANCE = 35;
-const BASE_CONQUEST_CHANCE = 0.2;
+const BASE_CONQUEST_CHANCE = 0.1;
 const MIN_CONQUEST_CHANCE = 0.05;
 const MAX_CONQUEST_CHANCE = 0.9;
 const BASE_SETTLER_CHANCE = 0.3;
@@ -202,7 +201,7 @@ const SETTLER_CHANCE_STEP = 0.2;
 const MAX_SETTLER_CHANCE = 1.0;
 const PLAYER_KINGDOM_SCOUT_BOOST = 0.5;
 const RESOURCE_TILE_DEPLETED_THRESHOLD = 5;
-const MAX_SETTLER_WAGONS_PER_KINGDOM = 9;
+const MAX_SETTLER_WAGONS_PER_KINGDOM = 8;
 const MAX_CONQUERORS_PER_KINGDOM = 20;
 const MAX_RAIDERS_PER_KINGDOM = 800;
 const TROOP_LIMIT_EXEMPT = [Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_CONQUEROR, Soldiers::SOLDIER_RAIDER];
@@ -515,13 +514,13 @@ const ARENA_ALLOWED_TECH_IDS = [
 ];
 
 const ARENA_SEASON_REWARDS = [
-    1 => ["coins" => 50, "res" => 225000, "label" => "1. Platz"],
-    2 => ["coins" => 35, "res" => 150000, "label" => "2. Platz"],
-    3 => ["coins" => 25, "res" => 112500, "label" => "3. Platz"],
-    10 => ["coins" => 15, "res" => 60000, "label" => "Top 10"],
-    25 => ["coins" => 10, "res" => 37500, "label" => "Top 25"],
-    50 => ["coins" => 5, "res" => 22500, "label" => "Top 50"],
-    99999 => ["coins" => 2, "res" => 7500, "label" => "Teilnahme"]
+    1 => ["coins" => 50, "res" => 225000],
+    2 => ["coins" => 35, "res" => 150000],
+    3 => ["coins" => 25, "res" => 112500],
+    10 => ["coins" => 15, "res" => 60000],
+    25 => ["coins" => 10, "res" => 37500],
+    50 => ["coins" => 5, "res" => 22500],
+    99999 => ["coins" => 2, "res" => 7500]
 ];
 const ARENA_HERO_SKILLS = [
     1 => [
@@ -725,7 +724,6 @@ interface ActionTypes
     const int ACTION_SMITHY_UPGRADE = 8;
     const int ACTION_STATION_TROOPS = 9;
     const int ACTION_SUPPORT_RETURN = 10;
-    const int ACTION_MINE_GATHER = 11;
 }
 
 interface TechTypes

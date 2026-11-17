@@ -47,13 +47,24 @@ if ($user->is_logged_in()) {
         return;
     }
 
+    $is_switching_k = false;
+    if (!empty($_COOKIE["me_switch_kid"]) && is_numeric($_COOKIE["me_switch_kid"])) {
+        $switch_kid = (int)$_COOKIE["me_switch_kid"];
+
+        setcookie("me_switch_kid", "", time() - 3600, "/");
+        $_SESSION["kingdomid"] = $switch_kid;
+
+        $user->set_current_kingdom($switch_kid);
+        $is_switching_k = true;
+    }
+
     $current_k_id = $user->get_current_kingdom();
     $current_ip = $_SERVER["REMOTE_ADDR"];
     $current_uid = $user->get_user_id();
 
     // Check current user
     $query = "
-        SELECT u.sessionid, u.is_banned, u.ban_reason, u.mainkingdom, k.id AS current_k_exists
+        SELECT u.sessionid, u.is_banned, u.ban_reason, u.ban_until, u.mainkingdom, k.id AS current_k_exists
         FROM users u
         LEFT JOIN kingdoms k ON k.id = ? AND k.userid = u.id
         WHERE u.id = ?
@@ -85,13 +96,19 @@ if ($user->is_logged_in()) {
     }
 
     // Account is banned
-    if ($user_status && (int)$user_status["is_banned"] === 1) {
-        $reason = $user_status["ban_reason"] ?? "Dein Account wurde gesperrt.";
+    if (!empty($user_status["is_banned"])) {
+        $ban_until = (int)($user_status["ban_until"] ?? 0);
 
-        setcookie("me_remember", '', time() - 3600, '/');
+        if ($ban_until > 0 && $ban_until <= time()) {
+            $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?", [$current_uid]);
+        } else {
+            $reason = $user_status["ban_reason"] ?? "Dein Account wurde gesperrt.";
 
-        session_destroy();
-        change_location("index.php?banned=" . urlencode($reason));
+            setcookie("me_remember", '', time() - 3600, '/');
+            session_destroy();
+
+            change_location("index.php?banned=" . urlencode($reason) . "&until=" . $ban_until);
+        }
     }
 
     // Safety check: is the current IP banned?
@@ -115,9 +132,13 @@ if ($user->is_logged_in()) {
         $_SESSION["kingdomid"] = $main_k;
         $user->set_current_kingdom($main_k);
 
+        setcookie("me_last_kid", (string)$main_k, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, true);
+
         if (basename($_SERVER["PHP_SELF"]) !== "overview.php") {
             change_location(basename($_SERVER["PHP_SELF"]));
         }
+    } else if ($is_switching_k) {
+        setcookie("me_last_kid", (string)$current_k_id, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, true);
     }
 
     $timestamp = time();
@@ -143,13 +164,19 @@ if ($user->is_logged_in()) {
             $_SESSION["lastactivity"] = $timestamp;
 
             $is_ajax = is_ajax_request();
+            $current_script = basename($_SERVER["PHP_SELF"] ?? '');
+            $is_background_poll = $is_ajax
+                && $_SERVER["REQUEST_METHOD"] === "GET"
+                && in_array($current_script, ["badge_counts.php", "chat_update.php", "map_full_load.php"], true);
 
-            if (!isset($_SESSION["last_db_update"])) {
-                $_SESSION["last_db_update"] = 0;
-            }
-            if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
-                $db_instance->execute_query("UPDATE users SET lastactivity = ? WHERE id = ?", [$timestamp, $user->get_user_id()]);
-                $_SESSION["last_db_update"] = $timestamp;
+            if (!$is_background_poll) {
+                if (!isset($_SESSION["last_db_update"])) {
+                    $_SESSION["last_db_update"] = 0;
+                }
+                if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
+                    $db_instance->execute_query("UPDATE users SET lastactivity = ? WHERE id = ?", [$timestamp, $user->get_user_id()]);
+                    $_SESSION["last_db_update"] = $timestamp;
+                }
             }
 
             if (!$is_ajax) {
@@ -166,7 +193,7 @@ if ($user->is_logged_in()) {
                         $today_str = date("Y-m-d");
 
                         if (($_SESSION["last_advent_check"] ?? "") !== $today_str) {
-                            AdventCalendar::ensure_user_gifts($current_uid);
+                            new AdventCalendar()->ensure_user_gifts($current_uid);
 
                             $_SESSION["last_advent_check"] = $today_str;
                         }

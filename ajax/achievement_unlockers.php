@@ -55,7 +55,7 @@ if (isset($_GET["userid"])) {
                         <td class="td-gradient td-center"><b>Freigeschaltet am</b></td>
                     </tr>
                     <?php foreach ($res_user_achs as $row):
-                        $is_secret = ((int)$row["is_secret"] === 1 && empty($row["viewer_unlocked"]));
+                        $is_secret = ($row["is_secret"] && empty($row["viewer_unlocked"]));
                         $ach_name = $is_secret ? "???" : e($row["name"]);
                         $ach_desc = $is_secret ? "<i>Diese Errungenschaft ist geheim.</i>" : e($row["description"]);
                         $ach_title = Achievement::resolve_title($row, $target_gender);
@@ -100,7 +100,7 @@ if (!$ach) {
     exit;
 }
 
-$is_secret = ((int)$ach["is_secret"] === 1);
+$is_secret = (bool)$ach["is_secret"];
 $res_unlocked = $db_instance->execute_query(
         "SELECT 1 FROM user_achievements WHERE user_id = ? AND achievement_id = ? LIMIT 1", [$uid, $ach_id]
 );

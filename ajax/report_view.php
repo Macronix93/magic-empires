@@ -39,13 +39,11 @@ if ($row) {
     $is_owner = ($current_uid === (int)$row_legacy["receiverid"]);
 }
 
-$messages = new Messages($user);
-
 if (!empty($data)) {
     $data["msg_date"] = $date;
     $data["is_shared_view"] = !$is_owner;
 
-    $content = $messages->render_message_template($data);
+    $content = Messages::render_message_template($data);
 } else {
     $content = $row_legacy["message"] ?? "Bericht nicht lesbar.";
 }

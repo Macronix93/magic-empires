@@ -18,7 +18,7 @@ if ($user_id) {
     $query = "
         SELECT users.id, users.username, users.lastactivity, users.guildid, 
                users.registerdate, users.ranking_points AS score, users.is_vacation, 
-               users.vacation_until, kingdoms.mapx, kingdoms.mapy
+               users.vacation_until, users.active_title_id, users.gender, kingdoms.mapx, kingdoms.mapy
         FROM users 
         JOIN kingdoms ON users.mainkingdom = kingdoms.id 
         WHERE users.id = ?
@@ -129,12 +129,13 @@ if ($user_id) {
     $x = $row["mapx"];
     $y = $row["mapy"];
     $target_user_obj = new User($row["id"], $row["username"]);
+    $target_user_obj->set_user_row($row);
     $user_title = $target_user_obj->get_active_title();
 
     $title_html = !empty($user_title) ? "<div class='user-title' style='display: inline-block; margin-left: 5px;'>&bdquo;" . e($user_title) . "&ldquo;</div>" : "";
 
     // Get sorted list of players and calculate the rank
-    $rank_query = "SELECT COUNT(*) + 1 AS rank FROM users WHERE (score > ?) OR (score = ? AND id < ?)";
+    $rank_query = "SELECT COUNT(*) + 1 AS rank FROM users WHERE status = 1 AND ((ranking_points > ?) OR (ranking_points = ? AND id < ?))";
     $result = $db_instance->execute_query($rank_query, [$score, $score, $user_id]);
     $user_rank = $result->fetch_column();
 

@@ -159,7 +159,7 @@ if (isset($_GET["action"])) {
         $receiver_value = isset($_GET["receiver"]) ? e($_GET["receiver"]) : (isset($_POST["receiver"]) ? e($_POST["receiver"]) : "");
         $message = isset($_POST["text"]) ? e($_POST["text"]) : "";
 
-        if (isset($_POST["text"]) && $error == null) {
+        if (isset($_POST["text"]) && empty($error)) {
             $view = $messages->show_private_inbox();
         } else {
             $view .= "
@@ -178,7 +178,7 @@ if (isset($_GET["action"])) {
                                     </td>
                                     <td>
                                         <label>
-                                            <input type='text' name='receiver' maxlength='16' value='$receiver_value'>
+                                            <input type='text' name='receiver' maxlength='" . MAX_USERNAME_LENGTH . "' value='$receiver_value'>
                                         </label>
                                         <button type='button' data-on-click='openOverlay' data-url='userlist.php' data-title='Spielerliste'>
                                         Spielerliste
@@ -212,7 +212,7 @@ if (isset($_GET["action"])) {
         } else {
             $sender_id = (int)$_GET["s"];
 
-            if ($sender_id == null) {
+            if ($sender_id <= 0) {
                 $error = "Der Spieler existiert nicht!";
                 $view = $messages->show_private_inbox();
             } else {
@@ -317,9 +317,10 @@ if (isset($_GET["worldchat"])) {
 
     $inbox_header = "Privatnachrichten";
 } else if (!isset($_GET["action"])) {
-    $private = $messages->get_unread_private_count();
-    $server = $messages->get_unread_server_count();
-    $world = $messages->get_unread_world_count();
+    $unreads = $user->get_unread_counts();
+    $private = $unreads["pms"];
+    $server = $unreads["server"];
+    $support_unread = $unreads["support"];
 
     $view .= "<div class='msg-button-container'>";
 
@@ -346,26 +347,6 @@ if (isset($_GET["worldchat"])) {
     $view .= "</a>";
 
     // Support Button
-    $is_staff = ($user->get_user_admin_level() > 0);
-    $uid = $user->get_user_id();
-
-    $support_unread_query = $is_staff
-        ? "SELECT COUNT(*) FROM support_messages sm 
-           JOIN support_tickets t ON sm.ticketid = t.id 
-           WHERE sm.hasread = 0 
-             AND sm.senderid != ? 
-             AND (
-                 (sm.is_admin_reply = 0 AND t.status = 1 AND t.userid != ?) 
-                 OR 
-                 (sm.is_admin_reply = 1 AND t.userid = ?)
-             )"
-        : "SELECT COUNT(*) FROM support_messages sm 
-           JOIN support_tickets t ON sm.ticketid = t.id 
-           WHERE t.userid = ? AND sm.is_admin_reply = 1 AND sm.hasread = 0 AND sm.senderid != ?";
-
-    $params_support = $is_staff ? [$uid, $uid, $uid] : [$uid, $uid];
-    $support_unread = $db_instance->execute_query($support_unread_query, $params_support)->fetch_row()[0];
-
     $view .= "<a href='support.php' class='msg-button'>
     <div class='msg-left'>
         <span>🛠️</span>

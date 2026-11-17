@@ -165,8 +165,9 @@ $view .= '<table class="table ranking-table">
 $pos = $offset_guilds + 1;
 
 if ($guilds_res->num_rows > 0) {
+    $guild_logic = new Guild($user);
+
     foreach ($guilds_res as $row) {
-        $guild_logic = new Guild($user);
         $badge = $guild_logic->render_badge($row["id"], $row["tag"], $row["name"]);
 
         $view .= "<tr>

@@ -288,7 +288,7 @@ class PhpBBBridge
 
         $db = Database::get_instance()->get_connection();
         $db->execute_query(
-            "UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?",
+            "UPDATE users SET forum_sso_token = ?, forum_sso_expires = ? WHERE id = ?",
             [$token, $expires, $uid]
         );
 

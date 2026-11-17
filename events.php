@@ -528,7 +528,7 @@ if (!$active_event) {
             if ($is_reached) {
                 $cell_style = "style='background: rgba(0, 0, 0, 0.05); color: rgba(230, 220, 200, 0.6);'";
                 $status_style = "class='td-center' style='background: rgba(0, 0, 0, 0.05);'";
-                $status_html = "<span style='color: #2fa22f;'>✔</span";
+                $status_html = "<span style='color: #2fa22f;'>✔</span>";
             } else {
                 $cell_style = "";
                 $status_style = "class='td-center'";

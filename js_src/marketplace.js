@@ -199,19 +199,10 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     };
 
-    const getOtherInternalResSum = (currentInput) => {
-        let sum = 0;
-        internalInputs.forEach(inp => {
-            if (inp !== currentInput) {
-                sum += parseInt(inp.value, 10) || 0;
-            }
-        });
-        return sum;
-    };
-
     const updateInternalSum = () => {
         let total = 0;
-        const maxCap = window.marketConfig ? window.marketConfig.max_capacity_per_offer : 0;
+        const maxCap = window.marketConfig ? (parseInt(window.marketConfig.max_capacity_per_offer, 10) || 1) : 1;
+        const remainingTrades = window.marketConfig ? (parseInt(window.marketConfig.remaining_trades, 10) || 0) : 0;
         const form = document.getElementById("form-internal-transport");
         const isDailyFull = (form && form.dataset.dailyFull === "true") || (window.marketConfig && window.marketConfig.is_daily_full);
 
@@ -219,12 +210,20 @@ document.addEventListener("DOMContentLoaded", function () {
             total += parseInt(input.value, 10) || 0;
         });
 
+        const requiredActions = total > 0 ? Math.ceil(total / maxCap) : 0;
+        const exceedsTrades = requiredActions > remainingTrades;
+
         if (sumDisplay) {
-            sumDisplay.innerHTML = `<span class="${total > maxCap ? "error" : "passed"}">${formatNumJS(total)}</span> / ${formatNumJS(maxCap)}`;
+            if (total === 0) {
+                sumDisplay.innerHTML = `Handelsaktionen: 0`;
+            } else {
+                const statusClass = exceedsTrades ? "error" : "passed";
+                sumDisplay.innerHTML = `Handelsaktionen: <span class="${statusClass}">${requiredActions}</span>`;
+            }
         }
 
         if (internalSubmit) {
-            internalSubmit.disabled = (total <= 0 || total > maxCap || isDailyFull);
+            internalSubmit.disabled = (total <= 0 || exceedsTrades || isDailyFull);
         }
 
         updateTargetStockDisplay();
@@ -233,6 +232,7 @@ document.addEventListener("DOMContentLoaded", function () {
     internalInputs.forEach(input => {
         input.addEventListener("input", function () {
             let rawValue = this.value.replace(/[^0-9]/g, '');
+
             if (rawValue.length > 1 && rawValue.startsWith('0')) {
                 rawValue = rawValue.replace(/^0+/, '');
             }
@@ -246,47 +246,77 @@ document.addEventListener("DOMContentLoaded", function () {
             let val = parseInt(rawValue, 10) || 0;
             const match = this.name.match(/am\[(\d+)]/);
             const resIndex = match ? match[1] : null;
-
-            const maxCap = window.marketConfig ? window.marketConfig.max_capacity_per_offer : Infinity;
             const storage = window.curKingdomStorage;
-            const stock = (resIndex !== null && storage && storage[resIndex]) ? parseInt(storage[resIndex].cur, 10) : Infinity;
 
-            const otherSum = getOtherInternalResSum(this);
-            const remainingCap = Math.max(0, maxCap - otherSum);
-            const maxAllowed = Math.min(stock, remainingCap);
+            const stock = (resIndex !== null && storage && storage[resIndex])
+                ? parseInt(storage[resIndex].cur, 10)
+                : 0;
 
-            if (val > maxAllowed) {
-                this.value = maxAllowed > 0 ? maxAllowed : '';
-            } else {
-                this.value = val;
+            if (val > stock) {
+                val = stock;
             }
-
+            this.value = val > 0 ? val : '';
             updateInternalSum();
         });
     });
 
+    const clampOfferInputs = () => {
+        const config = window.marketConfig;
+        const storage = window.curKingdomStorage;
+        if (!config) return;
+
+        const maxCap = parseInt(config.max_capacity_per_offer, 10) || 0;
+        const inputS = document.getElementById("sv");
+        const inputD = document.getElementById("dv");
+
+        if (inputS && supplySelect) {
+            const resTypeS = supplySelect.value;
+            const currentStock = (storage && storage[resTypeS]) ? parseInt(storage[resTypeS].cur, 10) : maxCap;
+            const maxAllowedS = Math.max(0, Math.min(maxCap, currentStock));
+
+            let cleanS = inputS.value.replace(/[^0-9]/g, '');
+            if (cleanS.length > 1 && cleanS.startsWith('0')) cleanS = cleanS.replace(/^0+/, '');
+
+            if (cleanS !== '') {
+                let numS = parseInt(cleanS, 10) || 0;
+                if (numS > maxAllowedS) numS = maxAllowedS;
+
+                inputS.value = numS > 0 ? numS : '';
+            } else {
+                inputS.value = '';
+            }
+        }
+
+        if (inputD) {
+            let cleanD = inputD.value.replace(/[^0-9]/g, '');
+            if (cleanD.length > 1 && cleanD.startsWith('0')) cleanD = cleanD.replace(/^0+/, '');
+
+            if (cleanD !== '') {
+                let numD = parseInt(cleanD, 10) || 0;
+                if (numD > maxCap) numD = maxCap;
+
+                inputD.value = numD > 0 ? numD : '';
+            } else {
+                inputD.value = '';
+            }
+        }
+    };
+
     inputs.forEach(input => {
         if (!input) return;
 
-        input.dataset.lastValidValue = input.value;
-
         input.addEventListener("input", function () {
-            let cleanValue = this.value.replace(/[^0-9]/g, '');
-
-            if (cleanValue !== this.dataset.lastValidValue) {
-                this.value = cleanValue;
-                this.dataset.lastValidValue = cleanValue;
-                calculateLiveFee();
-            } else {
-                this.value = cleanValue;
-            }
+            clampOfferInputs();
+            calculateLiveFee();
         });
     });
 
     [supplySelect, demandSelect].forEach(select => {
         if (!select) return;
+
         select.addEventListener("change", function () {
             updateDropdowns();
+            clampOfferInputs();
             calculateLiveFee();
         });
     });
@@ -340,12 +370,15 @@ function calculateLiveFee() {
     const amountInputD = document.getElementById("dv");
     const listingDisplay = document.getElementById("live-listing-fee");
     const buyerDisplay = document.getElementById("live-buyer-fee");
+    const submitBtn = document.getElementById("market-offer-submit");
     const config = window.marketConfig;
 
     if (!amountInputS || !amountInputD || !listingDisplay || !buyerDisplay || !config) return;
 
     const valS = parseInt(amountInputS.value) || 0;
     const valD = parseInt(amountInputD.value) || 0;
+
+    let isRatioInvalid = false;
 
     if (valS > 0 && valD > 0) {
         const maxRatio = config.max_ratio;
@@ -354,6 +387,8 @@ function calculateLiveFee() {
         const grace = 0.01;
 
         if (ratio1 > maxRatio + grace || ratio2 > maxRatio + grace) {
+            isRatioInvalid = true;
+
             amountInputS.classList.add("input-error");
             amountInputD.classList.add("input-error");
         } else {
@@ -366,17 +401,19 @@ function calculateLiveFee() {
     }
 
     const listingFee = valS > 0 ? Math.max(1, Math.ceil(valS / config.listing_fee_step)) : 1;
-    listingDisplay.innerText = listingFee.toLocaleString();
+    const userCoins = parseInt(config.user_coins, 10) || 0;
+    const cannotAffordFee = listingFee > userCoins;
+
+    listingDisplay.innerText = listingFee.toLocaleString("de-DE");
+    listingDisplay.classList.toggle("error", cannotAffordFee);
 
     if (valS <= 0 || valD <= 0) {
         buyerDisplay.innerText = "1";
     } else {
         const typeS = document.getElementById('s').value;
         const typeD = document.getElementById('d').value;
-
         const feeS = Math.floor(valS * (config.factors[typeS] || 0));
         const feeD = Math.floor(valD * (config.factors[typeD] || 0));
-
         const maxVarFee = Math.max(feeS, feeD);
         let buyerFee = (config.base + maxVarFee);
         const guildOnlyBox = document.getElementById("guild_only");
@@ -386,5 +423,15 @@ function calculateLiveFee() {
         }
 
         buyerDisplay.innerText = buyerFee.toLocaleString("de-DE");
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = (
+            config.is_daily_full ||
+            valS <= 0 ||
+            valD <= 0 ||
+            isRatioInvalid ||
+            cannotAffordFee
+        );
     }
 }

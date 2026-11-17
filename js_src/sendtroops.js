@@ -231,6 +231,10 @@ registerAction("submitSendTroopsForm", (form, e) => {
                     if (gameConfig.currentKingdom.occupiedCommands >= gameConfig.currentKingdom.maxCommands) {
                         gameConfig.currentKingdom.commandsFull = true;
                     }
+
+                    if (typeof updateMapCommandDisplay === "function") {
+                        updateMapCommandDisplay();
+                    }
                 }
 
                 if (typeof refreshMapDataSilently === "function") {
@@ -522,7 +526,7 @@ function updateTroopSummary() {
 
             if (durDisplay) {
                 if (totalRate > 0 && workTotal > 0) {
-                    const estSec = Math.max(1800, Math.ceil(workTotal / totalRate));
+                    const estSec = Math.max(mineMinDuration, Math.ceil(workTotal / totalRate));
                     durDisplay.innerHTML = `ca. ${formatMineDuration(estSec)}`;
                 } else {
                     durDisplay.innerHTML = `<i>Keine Truppen gewählt</i>`;

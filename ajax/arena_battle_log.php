@@ -15,7 +15,7 @@ $res = $db_instance->execute_query("
     JOIN users u_atk ON ab.attacker_id = u_atk.id
     JOIN users u_def ON ab.defender_id = u_def.id
     WHERE ab.id = ? AND (ab.attacker_id = ? OR ab.defender_id = ? OR ?)
-", [$battle_id, $uid, $uid, (int)$user->is_admin()]);
+", [$battle_id, $uid, $uid, $user->is_admin()]);
 
 $battle = $res->fetch_assoc();
 

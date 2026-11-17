@@ -187,6 +187,19 @@ if ($maint_lvl > 0) {
     $boni_view .= "<tr><td>Mauerwartung:</td><td class='passed'>-$percent% Reparaturkosten</td></tr>";
 }
 
+$wall_hp_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WALL_HP_INC);
+if ($wall_hp_lvl > 0) {
+    $wall_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+    $base_max_hp = $wall_lvl * DEFAULT_WALL_HP;
+    $total_max_hp = $kingdom->get_wall_max_hp();
+
+    $hp_bonus = fnum($wall_hp_lvl * RESEARCH_WALL_HP_INC);
+    $def_diff = $kingdom->calculate_wall_defense($total_max_hp, $wall_lvl) - $kingdom->calculate_wall_defense($base_max_hp, $wall_lvl);
+    $def_bonus = fnum($def_diff);
+
+    $boni_view .= "<tr><td>Festungsbau:</td><td class='passed'>+$hp_bonus HP (+$def_bonus DEF)</td></tr>";
+}
+
 $plund_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
 if ($plund_lvl > 0) {
     $percent = fdec($plund_lvl * PLUNDER_CAPACITY_BONUS * 100);

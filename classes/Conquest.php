@@ -25,6 +25,7 @@ class Conquest
     private int $enemy_garrison_loss_count = 0;
     private Kingdom $enemy_kingdom;
     private array $own_garrison_soldiers = [];
+    private int $siege_level = 0;
 
     public function __construct()
     {
@@ -84,11 +85,37 @@ class Conquest
         return $this->conquerer_count;
     }
 
-    public function calculate_wall_damage(): int
+    private function get_wall_hp_after_rams(): int
     {
         $current_wall_hp = $this->enemy_kingdom->get_wall_hp();
-
         if ($current_wall_hp <= 0) {
+            return 0;
+        }
+
+        $ram_count = (int)($this->soldiers[Soldiers::SOLDIER_RAM]["initial"] ?? 0);
+        if ($ram_count <= 0) {
+            return $current_wall_hp;
+        }
+
+        $siege_multiplier = 1.0 + ($this->siege_level * SMITHY_SIEGE_BONUS);
+        $ram_damage = (int)round(($ram_count * RAM_FLAT_DAMAGE) * $siege_multiplier);
+
+        return max(0, $current_wall_hp - $ram_damage);
+    }
+
+    public function calculate_wall_bonus(): int
+    {
+        $wall_level = $this->enemy_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+        if ($wall_level <= 0) {
+            return 0;
+        }
+        return $this->enemy_kingdom->calculate_wall_defense($this->get_wall_hp_after_rams(), $wall_level);
+    }
+
+    public function calculate_wall_damage(): int
+    {
+        $hp_after_rams = $this->get_wall_hp_after_rams();
+        if ($hp_after_rams <= 0) {
             return 0;
         }
 
@@ -102,23 +129,10 @@ class Conquest
         $max_normal_dmg_cap = $max_wall_hp * WALL_MAX_NORMAL_DAMAGE_PERCENT;
         $normal_troop_wall_dmg = min($normal_troop_wall_dmg, $max_normal_dmg_cap);
 
-        $ram_count = (int)($this->soldiers[Soldiers::SOLDIER_RAM]["initial"] ?? 0);
-        $ram_damage = $ram_count * RAM_FLAT_DAMAGE;
+        $siege_multiplier = 1.0 + ($this->siege_level * SMITHY_SIEGE_BONUS);
+        $final_normal_damage = (int)round($normal_troop_wall_dmg * $siege_multiplier);
 
-        $res_atk = $this->mysqli->execute_query("SELECT kingdomid FROM events WHERE eventid = ?", [$this->event_id]);
-        $attacker_kingdom_id = (int)$res_atk->fetch_column();
-
-        $res_siege = $this->mysqli->execute_query(
-            "SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
-            [$attacker_kingdom_id, TechTypes::TECH_TYPE_SIEGE]
-        );
-        $siege_lvl = ($res_siege->num_rows > 0) ? (int)$res_siege->fetch_column() : 0;
-        $siege_multiplier = 1.0 + ($siege_lvl * SMITHY_SIEGE_BONUS);
-
-        $total_wall_dmg = ($normal_troop_wall_dmg + $ram_damage) * $siege_multiplier;
-        $final_damage = (int)round($total_wall_dmg);
-
-        return max(0, $current_wall_hp - $final_damage);
+        return max(0, $hp_after_rams - $final_normal_damage);
     }
 
     public function get_enemy_soldiers(): void
@@ -202,6 +216,8 @@ class Conquest
 
     public function set_soldier_stats(Kingdom $attacker_kingdom, Kingdom $defender_kingdom): void
     {
+        $this->siege_level = $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SIEGE);
+
         // TECHS ATTACKER
         $atk_techs = [
             "inf_a" => $attacker_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS,
@@ -258,17 +274,6 @@ class Conquest
                 $this->enemy_soldier_type_def[$id] = (int)$soldier["defense"];
             }
         }
-    }
-
-    public function calculate_wall_bonus(): int
-    {
-        $wall_level = $this->enemy_kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
-
-        if ($wall_level <= 0) {
-            return 0;
-        }
-
-        return $this->enemy_kingdom->calculate_wall_defense($this->enemy_kingdom->get_wall_hp(), $wall_level);
     }
 
     public function calculate_battle_outcome(): void
@@ -475,12 +480,13 @@ class Conquest
 
     public function get_conquering_rate(int $conquerer_count): float
     {
-        return min(BASE_CONQUEST_CHANCE + ($conquerer_count * MIN_CONQUEST_CHANCE), MAX_CONQUEST_CHANCE) * 100;
+        if ($conquerer_count <= 0) return 0.0;
+        return min(BASE_CONQUEST_CHANCE + (($conquerer_count - 1) * MIN_CONQUEST_CHANCE), MAX_CONQUEST_CHANCE) * 100;
     }
 
     public function is_conquered(float $success_rate): bool
     {
-        return mt_rand(0, 100) <= $success_rate;
+        return mt_rand(1, 100) <= $success_rate;
     }
 
     public static function has_noob_protection(int $attacker_score, int $defender_score): bool
@@ -599,7 +605,7 @@ class Conquest
     public function get_monster_defenders(int $x, int $y): void
     {
         $res = $this->mysqli->execute_query("
-        SELECT mcu.count, ml.id as monster_id, ml.monster_name, ml.attack, ml.defense, ml.icon
+        SELECT mcu.count, ml.id as monster_id, ml.attack, ml.defense
         FROM monster_camp_units mcu
         JOIN monster_list ml ON mcu.monster_id = ml.id
         WHERE mcu.mapx = ? AND mcu.mapy = ?", [$x, $y]);
@@ -607,10 +613,8 @@ class Conquest
         foreach ($res as $row) {
             $this->enemy_soldiers[$row["monster_id"]] = [
                 "count" => (int)$row["count"],
-                "name" => $row["monster_name"],
                 "atk" => (int)$row["attack"],
-                "def" => (int)$row["defense"],
-                "icon" => $row["icon"]
+                "def" => (int)$row["defense"]
             ];
         }
     }
@@ -806,5 +810,88 @@ class Conquest
         }
 
         return array_values($censored);
+    }
+
+    public static function build_watchtower_alert_data(array $row, ?int $now = null): array
+    {
+        $db = Database::get_instance()->get_connection();
+
+        $current_time = $now ?? time();
+        $intel_level = (int)($row["intel_level"] ?? 0);
+        $arrival_time = (int)($row["arrivaltime"] ?? 0);
+        $arrival_seconds = max(0, $arrival_time - $current_time);
+
+        $source_data = null;
+        if ($intel_level >= 2 && !empty($row["source_id"])) {
+            $res_source = $db->execute_query("
+                SELECT k.kingdomname, k.mapx, k.mapy, u.username AS attacker_username
+                FROM kingdoms k
+                JOIN users u ON k.userid = u.id
+                WHERE k.id = ?
+            ", [(int)$row["source_id"]]);
+
+            if ($src = $res_source->fetch_assoc()) {
+                $source_data = [
+                    "name" => $src["kingdomname"],
+                    "username" => $src["attacker_username"] ?? "",
+                    "x" => (int)$src["mapx"],
+                    "y" => (int)$src["mapy"]
+                ];
+            }
+        }
+
+        $total_units = null;
+        if ($intel_level >= 3) {
+            $res_count = $db->execute_query(
+                "SELECT SUM(soldiercount) as total FROM sent_troops WHERE eventid = ?",
+                [(int)$row["eventid"]]
+            );
+
+            $total_units = (int)($res_count->fetch_assoc()["total"] ?? 0);
+        }
+
+        $identified_units = null;
+        $strength_data = null;
+        if ($intel_level >= 4) {
+            $identified_units = [];
+            $total_atk = 0;
+            $total_def = 0;
+            $res_troops = $db->execute_query("
+                SELECT st.soldierid, sl.attack, sl.defense, SUM(st.soldiercount) AS soldiercount
+                FROM sent_troops st
+                JOIN soldier_list sl ON st.soldierid = sl.id
+                WHERE st.eventid = ?
+                GROUP BY st.soldierid, sl.attack, sl.defense
+            ", [(int)$row["eventid"]]);
+
+            while ($t = $res_troops->fetch_assoc()) {
+                $count = (int)$t["soldiercount"];
+                $total_atk += (int)round($count * $t["attack"]);
+                $total_def += (int)round($count * $t["defense"]);
+                $identified_units[] = [
+                    "id" => (int)$t["soldierid"],
+                    "count" => $count
+                ];
+            }
+
+            if ($intel_level >= 5) {
+                $strength_data = [
+                    "atk" => $total_atk,
+                    "def" => $total_def
+                ];
+            }
+        }
+
+        return [
+            "template" => "watchtower_alert",
+            "kingdom_name" => $row["kingdomname"],
+            "intel_level" => $intel_level,
+            "arrival_seconds" => $arrival_seconds,
+            "arrival_time" => $arrival_time,
+            "source" => $source_data,
+            "total_units" => $total_units,
+            "units" => $identified_units,
+            "strength" => $strength_data
+        ];
     }
 }

@@ -57,9 +57,6 @@ body {
 
 .preload * {
     -webkit-transition: none !important;
-    -moz-transition: none !important;
-    -ms-transition: none !important;
-    -o-transition: none !important;
     transition: none !important;
 }
 
@@ -1390,7 +1387,7 @@ select:-webkit-autofill:focus {
 .content-box {
     display: grid;
     grid-template-columns: 225px 1fr 225px;
-    grid-template-areas: "left middle right";
+    grid-template-areas: "col-left col-middle col-right";
     max-width: 1400px;
     margin: 0 auto;
     gap: 50px;
@@ -1576,18 +1573,18 @@ select:-webkit-autofill:focus {
 }
 
 .left-container {
-    grid-area: left;
+    grid-area: col-left;
     width: 235px;
 }
 
 .middle-container {
-    grid-area: middle;
+    grid-area: col-middle;
     min-width: 350px;
     padding-bottom: 20px;
 }
 
 .right-container {
-    grid-area: right;
+    grid-area: col-right;
     width: 235px;
 }
 
@@ -2030,6 +2027,11 @@ tr:first-child td.td-gradient {
     z-index: 100;
     pointer-events: none;
     font-family: monospace;
+}
+
+.map-commands-icon {
+    width: 15px;
+    height: 15px;
 }
 
 /* Live Power Container Warsim */
@@ -2800,6 +2802,18 @@ body.modal-open footer {
     pointer-events: none;
     z-index: 9998;
     animation: pulse-blue-border 2s infinite;
+}
+
+.incoming-support-target {
+    width: 40%;
+}
+
+.incoming-support-units {
+    width: 35%;
+}
+
+.incoming-support-time {
+    width: 25%;
 }
 
 @keyframes pulse-blue-border {
@@ -4093,6 +4107,108 @@ button.btn-logout:not(:disabled):active {
     height: 94px;
 }
 
+#kingdom-sort-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0 auto 15px auto;
+}
+
+.kingdom-sort-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 16px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(165, 124, 0, 0.5);
+    border-radius: 4px;
+    cursor: grab;
+    transition: background-color 0.15s, border-color 0.15s;
+    touch-action: none;
+}
+
+.kingdom-sort-item:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: var(--border-gold);
+}
+
+.kingdom-sort-item:active {
+    cursor: grabbing;
+}
+
+.kingdom-sort-item,
+.kingdom-sort-item * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.kingdom-sort-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.kingdom-sort-handle {
+    color: var(--link-color);
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.kingdom-sort-pos {
+    min-width: 22px;
+    text-align: left;
+    color: var(--link-color);
+    font-size: 16px;
+}
+
+.kingdom-sort-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kingdom-sort-coords {
+    opacity: 0.7;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.kingdom-sort-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.kingdom-sort-actions .btn-stepper {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+    padding: 0;
+}
+
+.kingdom-sort-item.is-dragging {
+    background: var(--table-color) !important;
+    border: 1px solid var(--link-color) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.85), 0 0 8px rgba(212, 175, 55, 0.3) !important;
+    transform: scale(1.03);
+    cursor: grabbing !important;
+    z-index: 100000;
+    pointer-events: none;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.kingdom-sort-placeholder {
+    border: 1px dashed rgba(212, 175, 55, 0.5);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
 @supports (-webkit-touch-callout: none) or (font: -apple-system-body) {
     .js-countdown,
     .tick-timer,
@@ -4147,6 +4263,40 @@ button.btn-logout:not(:disabled):active {
     :root {
         --map-tile-size: 40px;
         --map-viewport-height: 350px;
+    }
+
+    #kingdom-sort-list {
+        gap: 4px;
+        margin-bottom: 12px;
+    }
+
+    .kingdom-sort-item {
+        padding: 4px 8px;
+        font-size: 12px;
+        gap: 6px;
+    }
+
+    .kingdom-sort-left {
+        gap: 5px;
+    }
+
+    .kingdom-sort-handle {
+        font-size: 12px;
+    }
+
+    .kingdom-sort-pos {
+        min-width: 18px;
+        font-size: 11px;
+    }
+
+    .kingdom-sort-coords {
+        font-size: 10px;
+    }
+
+    .kingdom-sort-actions .btn-stepper {
+        width: 20px;
+        height: 20px;
+        font-size: 9px !important;
     }
 
     .wall-hp-bar,
@@ -4277,6 +4427,18 @@ button.btn-logout:not(:disabled):active {
         font-size: 12px !important;
     }
 
+    .incoming-support-target {
+        width: 45%;
+    }
+
+    .incoming-support-units {
+        width: 30%;
+    }
+
+    .incoming-support-time {
+        width: 25%;
+    }
+
     #support-container .table {
         width: 100% !important;
         table-layout: fixed !important;
@@ -4288,6 +4450,22 @@ button.btn-logout:not(:disabled):active {
         vertical-align: middle;
         word-break: break-word;
         overflow-wrap: anywhere;
+    }
+
+    .support-incoming-table col:nth-child(1) {
+        width: 23% !important;
+    }
+
+    .support-incoming-table col:nth-child(2) {
+        width: 38% !important;
+    }
+
+    .support-incoming-table col:nth-child(3) {
+        width: 23% !important;
+    }
+
+    .support-incoming-table col:nth-child(4) {
+        width: 18% !important;
     }
 
     .support-outgoing-table col:nth-child(1) {
@@ -5509,6 +5687,11 @@ button.btn-logout:not(:disabled):active {
         top: 2px;
         left: 2px;
         font-size: 10px;
+    }
+
+    .map-commands-icon {
+        width: 11px;
+        height: 11px;
     }
 
     .map-sync-spinner {

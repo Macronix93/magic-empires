@@ -408,7 +408,7 @@ class Messages
             $res = $db->execute_query($query, [$my_id, $type, $id]);
 
             while ($row = $res->fetch_assoc()) {
-                $active_class = ($row["self_reacted"] == 1) ? " active" : '';
+                $active_class = (!empty($row["self_reacted"])) ? " active" : '';
 
                 $user_list = e($row["names"]);
                 $popup_id = "reac_" . $type . "_" . $id . "_" . md5($row["emoji"]);
@@ -507,7 +507,7 @@ class Messages
 
         while ($row = $res->fetch_assoc()) {
             $eid = (int)$row["entity_id"];
-            $active_class = ((int)$row["self_reacted"] === 1) ? " active" : "";
+            $active_class = (!empty($row["self_reacted"])) ? " active" : "";
             $user_list = e($row["names"]);
             $popup_id = "reac_" . $reaction_type . "_" . $eid . "_" . md5($row["emoji"]);
 
@@ -706,7 +706,7 @@ class Messages
 
         $last_unread_index = -1;
         foreach ($rows as $index => $row) {
-            if ($row["hasread"] == 0) {
+            if (!$row["hasread"]) {
                 $last_unread_index = $index;
             }
         }
@@ -719,7 +719,7 @@ class Messages
                 $data = json_decode($row["data_json"], true);
                 $data["msg_date"] = (int)$row["date"];
 
-                $content = $this->render_message_template($data);
+                $content = self::render_message_template($data);
 
                 $is_combat_cat = in_array((int)$row["category"], [MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE], true);
 
@@ -759,7 +759,7 @@ class Messages
         return $html;
     }
 
-    public function render_message_template(array $data): string
+    public static function render_message_template(array $data): string
     {
         $type = $data["template"] ?? $data["type"] ?? "text";
 
@@ -1211,7 +1211,7 @@ class Messages
                     if ($is_attacker) {
                         $sub_title = "Schlachtfeld: <b>$opponent_kname</b> ($opp_link)";
                         $atk_label = "Angreifer: $atk_name";
-                        $def_label = "Verteidiger: $def_name)";
+                        $def_label = "Verteidiger: $def_name";
                     } else {
                         $sub_title = "Schlachtfeld: <b>$my_kname</b> ($my_link)";
                         $atk_label = "Verteidiger: $def_name";
@@ -1285,7 +1285,7 @@ class Messages
                         ];
                     }
                 } else {
-                    $out = $this->resolve_pvp_outcome($data["outcome"] ?? "repelled", $role);
+                    $out = self::resolve_pvp_outcome($data["outcome"] ?? "repelled", $role);
                 }
 
                 $html .= BattleReportRenderer::render_outcome_box(
@@ -1343,7 +1343,7 @@ class Messages
                             );
                         }
                     } else {
-                        $cq = $this->resolve_conquest_data($data["conquest"]);
+                        $cq = self::resolve_conquest_data($data["conquest"]);
 
                         if ($cq) {
                             $html .= BattleReportRenderer::render_outcome_box(
@@ -1463,7 +1463,7 @@ class Messages
                         $has_loot ? "success" : "neutral"
                     );
                     if ($has_loot) {
-                        $html .= BattleReportRenderer::render_resource_box($loot, "Erbeutete Ressourcen", "passed");
+                        $html .= BattleReportRenderer::render_resource_box($loot, "Erbeutete Ressourcen");
                     }
                 } else {
                     $main_text = "Die Diebe wurden im Königreich <b>$target_kname</b> von den Spähern von <b>$opp_name</b> entdeckt und restlos ausgeschaltet." . $badges_html;
@@ -1935,24 +1935,6 @@ class Messages
                 $html .= "</div></div>";
                 return $html;
 
-            case "support_incoming":
-                $sender = e($data["sender_name"] ?? "Verbündeter");
-                $target_name = e($data["target_name"] ?? "Königreich");
-                $tx = (int)($data["target_x"] ?? 0);
-                $ty = (int)($data["target_y"] ?? 0);
-                $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
-                $arrival_str = convert_sec_to_str((int)($data["arrival_seconds"] ?? 0));
-
-                $units_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center;'>";
-                foreach (($data["units"] ?? []) as $u) {
-                    $units_html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
-                }
-                $units_html .= "</div>";
-
-                $main = "<b>$sender</b> entsendet Truppen zur Unterstützung nach <b>$target_name</b> ($c_link).<br>Ankunft in ca. <b>$arrival_str</b>.$units_html";
-                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box("Unterstützung im Anmarsch",
-                        $main, 0, 0, "Die Einheiten sind unterwegs und werden nach Eintreffen dein Dorf verteidigen.", "support") . "</div>";
-
             case "support_turned_back":
                 $reason = $data["reason"] ?? "target_lost";
                 $target = e($data["target_name"] ?? "Königreich");
@@ -2137,15 +2119,25 @@ class Messages
                     "</div>";
 
             case "noob_protection":
-                return "<div class='battle-report'>" .
-                    BattleReportRenderer::render_outcome_box(
-                        "Angriff abgebrochen",
-                        "Der Gegner steht unter Noob-Schutz!",
+                $opp_name = e($data["opponent_name"] ?? "Der Gegner");
+                $kname = e($data["target_kname"] ?? "");
+                $tx = (int)($data["target_x"] ?? 0);
+                $ty = (int)($data["target_y"] ?? 0);
+
+                if (!empty($kname) && $tx > 0 && $ty > 0) {
+                    $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
+                    $main_text = "Deine Truppen erreichten <b>$kname</b> ($c_link). Da der Besitzer <b>$opp_name</b> unter Noob-Schutz steht, konnte der Angriff nicht durchgeführt werden!";
+                } else {
+                    $main_text = "Der Gegner steht unter Noob-Schutz!";
+                }
+
+                return "<div class='battle-report'>" . BattleReportRenderer::render_outcome_box(
+                        "Angriff abgebrochen: Noob-Schutz",
+                        $main_text,
                         0, 0,
-                        "Deine Truppen machen sich sofort auf den Heimweg.",
+                        "Deine Truppen machen sich unverrichteter Dinge auf den Heimweg.",
                         "error"
-                    ) .
-                    "</div>";
+                    ) . "</div>";
 
             case "target_lost":
                 return "<div class='battle-report'>" .
@@ -2204,9 +2196,9 @@ class Messages
                     $sx = (int)$src["x"];
                     $sy = (int)$src["y"];
                     $s_link = "<a href='map.php?startx=$sx&starty=$sy' data-on-click='mapJump' data-x='$sx' data-y='$sy'>$sx:$sy</a>";
-                    $attacker_name = !empty($src["username"]) ? "<b>" . e($src["username"]) . "</b> - " : "";
+                    $attacker_name = !empty($src["username"]) ? "" . e($src["username"]) . " - " : "";
 
-                    $info_rows[] = "<b>Herkunft des Angriffs:</b> " . $attacker_name . "<b>" . e($src["name"]) . "</b> ($s_link)";
+                    $info_rows[] = "<b>Herkunft des Angriffs:</b> " . $attacker_name . e($src["name"]) . " ($s_link)";
                 }
 
                 $html .= "<div style='background: rgba(0,0,0,0.4); padding: 10px 15px; border-radius: 4px; text-align: left; line-height: 1.6; margin: 0 5px;'>";
@@ -2751,7 +2743,7 @@ class Messages
         }
     }
 
-    private function resolve_pvp_outcome(mixed $out, string $role): array
+    private static function resolve_pvp_outcome(mixed $out, string $role): array
     {
         if (is_array($out)) return $out;
 
@@ -2801,7 +2793,7 @@ class Messages
         };
     }
 
-    private function resolve_conquest_data(mixed $cq): ?array
+    private static function resolve_conquest_data(mixed $cq): ?array
     {
         if (is_array($cq)) return $cq;
         if (!$cq) return null;

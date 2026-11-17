@@ -143,7 +143,7 @@ while ($row = $result->fetch_assoc()) {
         (int)$row["fieldtype"],
         (int)$row["kingdomid"],
         (int)$row["buildinglevel"],
-        (int)$row["is_burning"],
+        (bool)$row["is_burning"],
         (int)$row["monsterlevel"],
         $row["username"] ?? "",
         $row["kingdomname"] ?? "",
@@ -152,7 +152,7 @@ while ($row = $result->fetch_assoc()) {
         (int)($row["expires_at"] ?? 0),
         $troop_icon_display,
         (int)($row["guildid"] ?? -1),
-        (int)($row["has_outgoing_event"] ?? 0),
+        (bool)($row["has_outgoing_event"] ?? false),
         $mine_info,
         (int)($row["gift_day"] ?? 0)
     ];

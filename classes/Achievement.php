@@ -104,7 +104,7 @@ class Achievement
             WHERE k.userid = ?
         ", [$user_id])->fetch_assoc();
 
-        $p_stats = new Stats()->get_player_stats($user_id);
+        $p_stats = Stats::get_player_stats($user_id);
 
         $hero_lvl = (int)($db->execute_query(
             "SELECT hero_level FROM arena_players WHERE user_id = ?", [$user_id]

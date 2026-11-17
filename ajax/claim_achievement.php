@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
+require_post();
 
 $uid = $user->get_user_id();
 $ach_id = (int)($_POST["id"] ?? 0);

@@ -610,11 +610,11 @@ class Guild
         );
 
         $perms = $res->fetch_assoc();
-        return $perms ?: [
-            "can_invite" => 0,
-            "can_kick" => 0,
-            "can_edit_settings" => 0,
-            "is_founder" => 0
+        return [
+            "can_invite" => !empty($perms["can_invite"]),
+            "can_kick" => !empty($perms["can_kick"]),
+            "can_edit_settings" => !empty($perms["can_edit_settings"]),
+            "is_founder" => !empty($perms["is_founder"])
         ];
     }
 
@@ -1173,17 +1173,6 @@ class Guild
             ORDER BY c.current_project_amount DESC",
             [$this->id]
         );
-    }
-
-    public function get_top_contributors(): mysqli_result
-    {
-        return $this->db->execute_query("
-            SELECT u.username, c.total_resources 
-            FROM guild_member_contributions c
-            JOIN users u ON c.user_id = u.id
-            WHERE c.guild_id = ? AND c.total_resources > 0
-            ORDER BY c.total_resources DESC LIMIT 10",
-            [$this->id]);
     }
 
     public function cancel_active_project(): void

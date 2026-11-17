@@ -2,13 +2,6 @@
 
 class Stats
 {
-    private mysqli $db;
-
-    public function __construct()
-    {
-        $this->db = Database::get_instance()->get_connection();
-    }
-
     public static function update_player_stat(int $user_id, string $column, int $increment = 1): void
     {
         $db = Database::get_instance()->get_connection();
@@ -49,11 +42,12 @@ class Stats
         $db->execute_query($query, [$increment, $name]);
     }
 
-    public function sync_user_score(int $user_id): array
+    public static function sync_user_score(int $user_id): array
     {
-        $breakdown = $this->calculate_user_score_breakdown($user_id);
+        $db = Database::get_instance()->get_connection();
+        $breakdown = self::calculate_user_score_breakdown($user_id);
 
-        $this->db->execute_query(
+        $db->execute_query(
             "UPDATE users SET score = ?, ranking_points = ? WHERE id = ?",
             [$breakdown["total"], $breakdown["total"], $user_id]
         );
@@ -62,10 +56,12 @@ class Stats
         return $breakdown;
     }
 
-    public function calculate_user_score_breakdown(int $user_id): array
+    public static function calculate_user_score_breakdown(int $user_id): array
     {
+        $db = Database::get_instance()->get_connection();
+
         // Building Score (TC, Wall, Storage Level 1 excluded!)
-        $res_b = $this->db->execute_query("
+        $res_b = $db->execute_query("
             SELECT IFNULL(SUM(
                 IF(b.buildingid IN (?, ?, ?), 
                    GREATEST(0, (b.buildinglevel * (b.buildinglevel + 1) / 2) - 1) * bl.buildingscore, 
@@ -79,7 +75,7 @@ class Stats
         $score_buildings = (int)$res_b->fetch_column();
 
         // Tech Score
-        $res_t = $this->db->execute_query("
+        $res_t = $db->execute_query("
             SELECT IFNULL(SUM((t.techlevel * (t.techlevel + 1) / 2) * tl.techscore), 0) 
             FROM techs t 
             JOIN tech_list tl ON t.techid = tl.id 
@@ -90,7 +86,7 @@ class Stats
 
         // Troop Score
         $hero_id = Soldiers::SOLDIER_HERO;
-        $res_u = $this->db->execute_query("
+        $res_u = $db->execute_query("
             SELECT IFNULL(SUM(total_count * sl.scoregain), 0) 
             FROM (
                 SELECT soldierid, SUM(soldiercount) AS total_count 
@@ -137,9 +133,11 @@ class Stats
         ];
     }
 
-    public function get_player_stats(int $user_id): array
+    public static function get_player_stats(int $user_id): array
     {
-        $stats = $this->db->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$user_id])->fetch_assoc();
+        $db = Database::get_instance()->get_connection();
+
+        $stats = $db->execute_query("SELECT * FROM player_stats WHERE userid = ?", [$user_id])->fetch_assoc();
         if ($stats) {
             return $stats;
         }
@@ -162,8 +160,10 @@ class Stats
         return $defaults;
     }
 
-    public function get_global_stats(): array
+    public static function get_global_stats(): array
     {
+        $db = Database::get_instance()->get_connection();
+
         $stats_query = "
             SELECT 
                 -- Resources of all kingdoms
@@ -198,6 +198,6 @@ class Stats
                 (SELECT IFNULL(SUM(supplyvalue), 0) FROM marketplace) as market_volume
             FROM kingdoms k
         ";
-        return $this->db->execute_query($stats_query)->fetch_assoc() ?: [];
+        return $db->execute_query($stats_query)->fetch_assoc() ?: [];
     }
 }

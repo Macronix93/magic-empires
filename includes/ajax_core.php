@@ -10,3 +10,10 @@ $user->check_user_login();
 if ($_SERVER["REQUEST_METHOD"] === "POST" && !verify_csrf_token()) {
     send_json(["success" => false, "error" => "Ungültiger Sicherheits-Token!"]);
 }
+
+function require_post(): void
+{
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        send_json(["success" => false, "error" => "Method Not Allowed"], 405);
+    }
+}

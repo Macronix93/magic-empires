@@ -127,6 +127,7 @@ foreach ($res_troops as $row) {
     $sname = $row["soldiername"];
     $icon = $row["icon"];
     $category = (int)$row["category"];
+    $is_limit_exempt = in_array($sid, TROOP_LIMIT_EXEMPT, true);
 
     if (!isset($soldier_meta[$sid])) {
         $soldier_meta[$sid] = [
@@ -149,8 +150,10 @@ foreach ($res_troops as $row) {
                 "count" => $cnt
         ];
 
-        $incoming_station_totals[$kid] += $cnt;
-    } elseif ($type === "support") {
+        if (!$is_limit_exempt) {
+            $incoming_station_totals[$kid] += $cnt;
+        }
+    } else if ($type === "support") {
         $owner_name = $row["owner_name"] ?: "Verbündeter";
 
         if (!isset($support_troops_by_k[$kid][$owner_name])) {
@@ -182,7 +185,10 @@ foreach ($res_troops as $row) {
             ];
         }
         $global_troops[$sid]["count"] += $cnt;
-        $total_units_all += $cnt;
+
+        if (!$is_limit_exempt) {
+            $total_units_all += $cnt;
+        }
 
         if ($type === "away") {
             $away_by_kingdom[$kid] = ($away_by_kingdom[$kid] ?? 0) + $cnt;
@@ -197,7 +203,10 @@ foreach ($res_troops as $row) {
             ];
         }
         $kingdom_troops[$kid][$sid]["count"] += $cnt;
-        $total_units_per_k[$kid] = ($total_units_per_k[$kid] ?? 0) + $cnt;
+
+        if (!$is_limit_exempt) {
+            $total_units_per_k[$kid] = ($total_units_per_k[$kid] ?? 0) + $cnt;
+        }
     }
 }
 

@@ -1,9 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
-
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    exit;
-}
+require_post();
 
 Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SECRET_WARSIM);
 

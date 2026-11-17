@@ -149,12 +149,6 @@ if (!empty($last_built_building)) {
 /*
  * HTML Content Part
  */
-// Get current ressources
-$kingdom_wood = $kingdom->get_kingdom_wood();
-$kingdom_food = $kingdom->get_kingdom_food();
-$kingdom_stone = $kingdom->get_kingdom_stone();
-$kingdom_gold = $kingdom->get_kingdom_gold();
-
 $view .= '<table class="table building-table">
             <colgroup>
                 <col class="col-description">

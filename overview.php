@@ -139,31 +139,31 @@ if (!isset($_SESSION["acknowledged_supports"])) {
     $_SESSION["acknowledged_supports"] = [];
 }
 
-if (!empty($_SESSION["active_supports"])) {
-    $support_ids = [];
-
-    foreach ($_SESSION["active_supports"] as $sup) {
-        if ((int)($sup["notification_sent"] ?? 0) === 0) {
-            $support_ids[] = (int)$sup["eventid"];
-        }
-
-        if (!in_array($sup["eventid"], $_SESSION["acknowledged_supports"])) {
-            $_SESSION["acknowledged_supports"][] = $sup["eventid"];
-        }
-    }
-
-    if (!empty($support_ids)) {
-        $placeholders = implode(',', array_fill(0, count($support_ids), '?'));
-
-        try {
-            $db_instance->execute_query(
-                "UPDATE events SET notification_sent = 1 WHERE eventid IN ($placeholders) AND actionid = ?",
-                array_merge($support_ids, [ActionTypes::ACTION_STATION_TROOPS])
-            );
-        } catch (Throwable) {
-        }
-    }
-}
+//if (!empty($_SESSION["active_supports"])) {
+//    $support_ids = [];
+//
+//    foreach ($_SESSION["active_supports"] as $sup) {
+//        if (empty($sup["notification_sent"])) {
+//            $support_ids[] = (int)$sup["eventid"];
+//        }
+//
+//        if (!in_array($sup["eventid"], $_SESSION["acknowledged_supports"])) {
+//            $_SESSION["acknowledged_supports"][] = $sup["eventid"];
+//        }
+//    }
+//
+//    if (!empty($support_ids)) {
+//        $placeholders = implode(',', array_fill(0, count($support_ids), '?'));
+//
+//        try {
+//            $db_instance->execute_query(
+//                "UPDATE events SET notification_sent = 1 WHERE eventid IN ($placeholders) AND actionid = ?",
+//                array_merge($support_ids, [ActionTypes::ACTION_STATION_TROOPS])
+//            );
+//        } catch (Throwable) {
+//        }
+//    }
+//}
 
 if (!empty($_SESSION["active_attacks"])) {
     $incoming_html = "";
@@ -189,18 +189,114 @@ if (!empty($_SESSION["active_attacks"])) {
             : "";
 
         $new_badge = $is_new_attack ? "<span class='msg-badge badge-cell-right' title='Neuer Angriff!'>!</span>" : "";
+        $event_id = (int)$attack["eventid"];
 
-        $incoming_html .= "<tr>
-            <td style='color: var(--link-color); position: relative;'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>$coords_link
-                $new_badge
-            </td>
+        $incoming_html .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='ajax/watchtower_alert_view.php?id=$event_id' data-title='Wachturm-Alarm'>
+            <td style='color: var(--link-color); position: relative;'>Alarm in <b>" . e($attack["kingdomname"]) . "</b>$coords_link $new_badge </td>
             <td class='td-center'><b>$time_display</b></td>
         </tr>";
     }
     unset($attack);
 
     $view .= '<div class="title-border error" style="border-bottom: 2px double rgb(197, 35, 35);">Feindliche Truppenbewegungen</div>';
-    $view .= '<table class="table" style="max-width: 550px">' . $incoming_html . '</table><br>';
+    $view .= '<table class="table">' . $incoming_html . '</table><br>';
+}
+
+if (!empty($_SESSION["active_supports"])) {
+    $support_ids_to_mark = [];
+    $all_sup_event_ids = array_map(fn($s) => (int)$s["eventid"], $_SESSION["active_supports"]);
+
+    $sup_troops_by_event = [];
+    if (!empty($all_sup_event_ids)) {
+        $sup_placeholders = implode(',', array_fill(0, count($all_sup_event_ids), '?'));
+        $res_sup_troops = $db_instance->execute_query("
+            SELECT st.eventid, SUM(st.soldiercount) AS soldiercount, sl.soldiername, sl.icon
+            FROM sent_troops st
+            JOIN soldier_list sl ON st.soldierid = sl.id
+            WHERE st.eventid IN ($sup_placeholders)
+            GROUP BY st.eventid, st.soldierid, sl.soldiername, sl.icon
+            ORDER BY st.soldierid
+        ", $all_sup_event_ids);
+
+        while ($st_row = $res_sup_troops->fetch_assoc()) {
+            $sup_troops_by_event[(int)$st_row["eventid"]][] = $st_row;
+        }
+    }
+
+    $support_html = "";
+    foreach ($_SESSION["active_supports"] as &$sup) {
+        $event_id = (int)$sup["eventid"];
+        $is_new_support = !empty($sup["is_new"]) || (empty($sup["notification_sent"]) && !in_array($event_id, $_SESSION["acknowledged_supports"]));
+
+        if (empty($sup["notification_sent"])) {
+            $support_ids_to_mark[] = $event_id;
+            $sup["notification_sent"] = 1;
+        }
+        if (!in_array($event_id, $_SESSION["acknowledged_supports"])) {
+            $_SESSION["acknowledged_supports"][] = $event_id;
+        }
+        $sup["is_new"] = false;
+
+        $diff = max(0, (int)$sup["arrivaltime"] - $now);
+        $time_display = "<span class='js-countdown' data-seconds='$diff' data-no-reload='true' data-zero-text='00:00'>" . format_time_for_js($diff) . "</span>";
+        $tx = (int)($sup["targetx"] ?? 0);
+        $ty = (int)($sup["targety"] ?? 0);
+        $coords_link = ($tx > 0 && $ty > 0) ? " (<a href='#' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>)" : "";
+        $new_badge = $is_new_support ? "<span class='msg-badge badge-cell-right' title='Neue Unterstützung!'>!</span>" : "";
+
+        $badge_count = 0;
+        $units_html = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
+        foreach (($sup_troops_by_event[$event_id] ?? []) as $u) {
+            $badge_count++;
+            $resp_class = "";
+            if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) $resp_class .= " badge-hide-mobile";
+            if ($badge_count > MAX_UNIT_BADGES_PER_ROW_DESKTOP) $resp_class .= " badge-hide-desktop";
+
+            $units_html .= "<div class='unit-badge $resp_class' title='" . e($u["soldiername"]) . "'>
+                <img src='images/icons/" . e($u["icon"]) . ".png' class='ressource-icons' alt='" . e($u["soldiername"]) . "'>
+                <b>" . fnum($u["soldiercount"]) . "</b>
+            </div>";
+        }
+
+        if ($badge_count > MAX_UNIT_BADGES_PER_ROW_MOBILE) {
+            $btn_extra = ($badge_count <= MAX_UNIT_BADGES_PER_ROW_DESKTOP) ? " hide-toggle-desktop" : "";
+            $units_html .= "<span data-on-click='toggleBadges' class='badge-toggle$btn_extra' style='cursor: pointer; font-weight: bold; padding: 5px;'> (...)</span>";
+        }
+        $units_html .= "</div>";
+
+        $support_html .= "<tr>
+            <td style='position: relative;'>
+                <b>" . e($sup["kingdomname"]) . "</b>$coords_link<br>
+                <small style='opacity: 0.7;'>von <b>" . e($sup["sender_name"]) . "</b></small>
+                $new_badge
+            </td>
+            <td class='td-center'>$units_html</td>
+            <td class='td-center'><b>$time_display</b></td>
+        </tr>";
+    }
+    unset($sup);
+
+    if (!empty($support_ids_to_mark)) {
+        $placeholders = implode(',', array_fill(0, count($support_ids_to_mark), '?'));
+
+        try {
+            $db_instance->execute_query(
+                "UPDATE events SET notification_sent = 1 WHERE eventid IN ($placeholders) AND actionid = ?",
+                array_merge($support_ids_to_mark, [ActionTypes::ACTION_STATION_TROOPS])
+            );
+        } catch (Throwable) {
+        }
+    }
+
+    $view .= '<div class="title-border" style="color: #389cff; border-bottom: 2px double #389cff;">Eingehende Unterstützung</div>';
+    $view .= "<table class='table sent-troops-table'>
+        <colgroup>
+            <col class='incoming-support-target'>
+            <col class='incoming-support-units'>
+            <col class='incoming-support-time'>
+        </colgroup>
+        $support_html
+    </table><br>";
 }
 
 // --- BUILDING, TECH & RECRUIT OVERVIEW ---
@@ -656,10 +752,7 @@ $query = "
     LEFT JOIN kingdoms k ON e.kingdomid = k.id 
     LEFT JOIN kingdoms kt ON e.targetid = kt.id
     LEFT JOIN users u_sender ON e.userid = u_sender.id
-    WHERE 
-        (e.userid = ? AND e.kingdomid = ? AND e.actionid IN (?, ?, ?, ?)) 
-        OR 
-        (e.targetid = ? AND e.actionid = ?)
+    WHERE (e.userid = ? AND e.kingdomid = ? AND e.actionid IN (?, ?, ?, ?)) 
     GROUP BY e.arrivaltime, e.eventid, st.soldierid
     ORDER BY e.arrivaltime, e.eventid
 ";
@@ -670,9 +763,7 @@ $result = $db_instance->execute_query($query, [
     ActionTypes::ACTION_SEND_TROOPS,
     ActionTypes::ACTION_RETURN_TROOPS,
     ActionTypes::ACTION_STATION_TROOPS,
-    ActionTypes::ACTION_SUPPORT_RETURN,
-    $active_k_id,
-    ActionTypes::ACTION_STATION_TROOPS
+    ActionTypes::ACTION_SUPPORT_RETURN
 ]);
 
 $grouped_events = [];
@@ -912,7 +1003,7 @@ if (!empty($all_tp_entries)) {
                                data-seconds='$difference_time' 
                                data-no-reload='true'>" . format_time_for_js($difference_time) . "</span>";
 
-            if ($is_me && !$is_return && ((int)($event_data["is_processing"] ?? 0) === 0)) {
+            if ($is_me && !$is_return && empty($event_data["is_processing"])) {
                 $action_button = "<form action='overview.php' method='POST' style='display: inline;'>
                                     <input type='hidden' name='cancel_event' value='1'>
                                     <input type='hidden' name='eid' value='" . $event_id . "'>
@@ -1016,7 +1107,7 @@ if (!empty($all_tp_entries)) {
             $view .= "<tr> <td class='td-center'>$action_type</td> <td $cell_pop_attr>$soldiers_str $cell_pop_box</td> <td class='td-center'>$coords_str</td>";
             $view .= "<td class='td-center td-timer-cell' style='position: relative;'>$action_counter";
 
-            if ($action_button !== "") {
+            if ($action_button) {
                 $view .= "<div class='delete-btn'>
                             $action_button
                           </div>";
@@ -1204,7 +1295,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
 }
 
 // Tutorial Check
-if (isset($_SESSION["tutorial_done"]) && $_SESSION["tutorial_done"] === 0) {
+if (isset($_SESSION["tutorial_done"]) && !$_SESSION["tutorial_done"]) {
     $view .= render_tutorial_modal($user);
 }
 

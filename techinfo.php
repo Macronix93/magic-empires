@@ -89,7 +89,7 @@ if ($row) {
 
         $chance_info = "";
         if ($soldier_id === Soldiers::SOLDIER_CONQUEROR) {
-            $base = (BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100;
+            $base = BASE_CONQUEST_CHANCE * 100;
             $step = MIN_CONQUEST_CHANCE * 100;
             $max = MAX_CONQUEST_CHANCE * 100;
             $chance_info = "Ein Eroberer hat eine Erfolgschance von <b>$base%</b>. " .
@@ -277,17 +277,10 @@ if ($row) {
                 $cells = "";
 
                 $count = 1;
-                $justify_style = "";
                 foreach ($guild_storage_res as $info) {
                     $cap = (int)round($info["base"] * pow(GUILD_STORAGE_INC_FACTOR, $target_lvl));
 
-                    if ($count % 2 == 0 && $count !== 0) {
-                        $justify_style = "justify-content: flex-end;";
-                    } else {
-                        $justify_style = "justify-content: flex-start;";
-                    }
-
-                    $cells .= "<div style='display: flex; align-items: center; $justify_style gap: 4px; white-space: nowrap;'>" .
+                    $cells .= "<div style='display: flex; align-items: center; justify-content: flex-start; gap: 4px; white-space: nowrap;'>" .
                             get_resource_icon($info["icon"]) . " <span>" . fnum($cap) . "</span>" .
                             "</div>";
 
@@ -295,7 +288,7 @@ if ($row) {
                 }
 
                 $view .= "<td class='td-center' $style>" .
-                        "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 4px 4px; max-width: 200px; margin: 0 10px;'>" .
+                        "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 4px 4px; max-width: 200px; margin: 0 auto;'>" .
                         $cells .
                         "</div>" .
                         "</td>";
@@ -536,13 +529,15 @@ if ($row) {
 
         if ($building_id === BuildingTypes::BUILDING_STORAGE) {
             $view .= "<td class='td-center td-gradient'>Kapazität</td>";
+        } else if ($building_id === BuildingTypes::BUILDING_WALL) {
+            $view .= "<td class='td-center td-gradient' style='width: 22%;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH) . " / " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . "</td>";
         }
 
         foreach ($active_res as $res_id) {
             $view .= "<td class='td-center td-gradient'>" . get_resource_icon($res_id) . "</td>";
         }
 
-        $view .= "              <td class='td-center td-gradient' style='width: 25%;'>" . get_resource_icon($time_icon_type) . "</td>
+        $view .= "              <td class='td-center td-gradient' style='width: 30%;'>" . get_resource_icon($time_icon_type) . "</td>
                             </tr>";
 
         for ($i = 0; $i < $max_lvl_to_show; $i++) {
@@ -615,6 +610,14 @@ if ($row) {
             if ($building_id === BuildingTypes::BUILDING_STORAGE) {
                 $cap = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $i));
                 $view .= "<td class='td-center' $style>" . fnum($cap) . "</td>";
+            } else if ($building_id === BuildingTypes::BUILDING_WALL) {
+                $w_hp = $target_lvl * DEFAULT_WALL_HP;
+                $w_def = (int)round($w_hp * WALL_DEF_FACTOR * pow(WALL_DEF_GROWTH, $w_hp / DEFAULT_WALL_HP));
+                $view .= "<td class='td-center' $style>
+                            <div style='display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 5px;'>
+                                <span style='text-align: right;'>" . fnum($w_hp) . "</span>/<small style='text-align: left;'>" . fnum($w_def) . "</small>
+                            </div>
+                        </td>";
             }
 
             foreach ($active_res as $col => $res_id) {

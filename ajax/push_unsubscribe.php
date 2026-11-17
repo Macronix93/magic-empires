@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
+require_post();
 
 $raw = file_get_contents("php://input");
 $data = json_decode($raw, true);

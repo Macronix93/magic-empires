@@ -46,7 +46,7 @@ class Support
 
         $this->db->execute_query(
             "INSERT INTO support_messages (ticketid, senderid, message, is_admin_reply, hasread, created_at) VALUES (?, ?, ?, ?, 0, ?)",
-            [$tid, $uid, $clean_msg, $is_staff_reply ? 1 : 0, $now]
+            [$tid, $uid, $clean_msg, $is_staff_reply, $now]
         );
 
         if ($is_staff_reply) {

@@ -58,7 +58,7 @@ class BattleReportRenderer
 
             $summary_html = "
                 <div class='battle-report-losses'>
-                    Verluste gesamt:
+                    Verluste:
                     <b>$loss_display</b>
                 </div>";
         }

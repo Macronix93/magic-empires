@@ -13,6 +13,6 @@ echo json_encode([
     "suggestions" => (int)$unreads["suggestions"],
     "achievements" => (int)($unreads["achievements"] ?? 0),
     "arena" => (int)($unreads["arena"] ?? 0),
-    "arena_coins" => Arena::has_available_coins($user->get_user_id()) ? 1 : 0,
+    "arena_coins" => Arena::has_available_coins($user->get_user_id()),
     "forum" => (int)($unreads["forum"] ?? 0),
 ]);

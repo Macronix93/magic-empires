@@ -33,12 +33,11 @@ if (!$is_cli) {
 if (session_status() === PHP_SESSION_NONE) {
     if (IS_DEV) {
         session_name("ME_DEV_SESSID");
-        ini_set("session.cookie_samesite", "Lax");
     } else {
         ini_set("session.cookie_domain", ".magic-empires.de");
-        ini_set("session.cookie_samesite", "Lax");
     }
 
+    ini_set("session.cookie_samesite", "Lax");
     ini_set("session.gc_maxlifetime", (string)TIMEOUT_MAX_SECONDS);
 
     session_start();
@@ -87,6 +86,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
  */
 spl_autoload_register(function ($class_name) {
     $file = __DIR__ . "/../classes/" . str_replace('\\', '/', $class_name) . ".php";
+
     if (file_exists($file)) {
         require_once $file;
     }
@@ -122,6 +122,9 @@ while ($s_row = $settings_res->fetch_assoc()) {
 define("MAINTENANCE_MODE", ($sys_settings["maintenance_mode"] ?? '0') === '1');
 define("MAINTENANCE_REASON", $sys_settings["maintenance_reason"] ?? "Wartungsarbeiten");
 define("DEBUG_FIXED_MARCH_SECONDS", (int)($sys_settings["debug_fixed_march_seconds"] ?? 0));
+define("NOOB_PROTECTION_MULT", (float)($sys_settings["noob_protection_mult"] ?? DEFAULT_NOOB_PROTECTION_MULT));
+define("ADVENT_CALENDAR_ACTIVE", ($sys_settings["advent_calendar_active"] ?? '0') === '1');
+define("ADVENT_CALENDAR_START", (int)($sys_settings["advent_calendar_start"] ?? 0));
 
 $server_winter = ($sys_settings["winter_theme"] ?? '0') === '1';
 $disable_special = (($_COOKIE["me_disable_special_theme"] ?? "0") === "1") || (($_COOKIE["me_theme_pref"] ?? "") === "default");

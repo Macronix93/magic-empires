@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
+require_post();
 
 $u_id = $user->get_user_id();
 $is_admin = $user->is_admin();

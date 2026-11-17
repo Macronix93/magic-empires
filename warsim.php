@@ -127,9 +127,8 @@ $war_base_bonus = $res_war_data->fetch_column() ?: SHRINE_WAR_DEFAULT_BONUS;
 $is_war_god = ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR);
 
 // Wall bonus
-$initial_wall_lvl = 1;
-$initial_wall_hp = $initial_wall_lvl * DEFAULT_WALL_HP;
-$initial_wall_def = MIN_WALL_DEFENSE;
+$initial_wall_hp = DEFAULT_WALL_HP;
+$initial_wall_def = (int)round($initial_wall_hp * WALL_DEF_FACTOR * pow(WALL_DEF_GROWTH, $initial_wall_hp / DEFAULT_WALL_HP));
 
 $view = "Hier kannst du das Ergebnis eines Kampfes berechnen.<br><br>";
 
@@ -173,8 +172,11 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
                     <span style="font-size: 12px; opacity: 0.8;">/ <span id="wall_hp_display_max">' . fnum($initial_wall_hp) . '</span></span>
                 </div>
             </div>
-            <div style="text-align: right; font-weight: bold; color: var(--link-color); margin-top: 5px;">
-                Bonus: +<span id="wall_def_display">' . $initial_wall_def . '</span> DEF
+            <div class="split-content" style="margin-top: 5px; align-items: center;">
+            <span>DEF:</span>
+                <div style="font-weight: bold; color: var(--link-color);">
+                    +<span id="wall_def_display">' . fnum($initial_wall_def, true) . '</span></span>
+                </div>
             </div>
         </div>
     </div>
@@ -376,16 +378,15 @@ $view .= '<div id="warsim-data"
                 data-current-kid="' . $user->get_current_kingdom() . '"
                 data-soldiers="' . e(json_encode(array_map(fn($s) => $s->get_soldier_name(), $soldiers))) . '"
                 data-shrine-atk-mult="' . $shrine_atk_mult . '"
-                data-has-sim-ach="' . ($has_warsim_ach ? '1' : '0') . '"></div> 
+                data-has-sim-ach="' . ($has_warsim_ach ? 'true' : 'false') . '"></div> 
           <div id="warsim-const" 
                 data-inf_atk="' . SMITHY_INF_ATK_BONUS . '" data-inf_def="' . SMITHY_INF_DEF_BONUS . '"
                 data-cav_atk="' . SMITHY_CAV_ATK_BONUS . '" data-cav_def="' . SMITHY_CAV_DEF_BONUS . '"
                 data-arc_atk="' . SMITHY_ARC_ATK_BONUS . '" data-arc_def="' . SMITHY_ARC_DEF_BONUS . '"
                 data-wall_default_hp="' . DEFAULT_WALL_HP . '"
                 data-wall_hp_inc="' . RESEARCH_WALL_HP_INC . '"
-                data-wall_min_def="' . MIN_WALL_DEFENSE . '"
-                data-wall_max_def="' . MAX_WALL_DEFENSE . '"
-                data-wall_factor="' . WALL_DEFENSE_FACTOR . '"
+                data-wall_def_factor="' . WALL_DEF_FACTOR . '"
+                data-wall_def_growth="' . WALL_DEF_GROWTH . '"
                 data-wall_absorption_per_lvl="' . WALL_ABSORPTION_PER_LEVEL . '"
                 data-wall_eff_dmg_factor="' . WALL_EFFECTIVE_DMG_FACTOR . '"
                 data-siege_bonus="' . SMITHY_SIEGE_BONUS . '"

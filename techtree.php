@@ -12,10 +12,10 @@ $dependency_text = "";
 // Current kingdom
 $current_kid = $user->get_current_kingdom();
 $main_kid = $user->get_main_kingdom();
-$main_k = new Kingdom($main_kid);
+$kingdom = new Kingdom($current_kid);
+$main_k = ($current_kid === $main_kid) ? $kingdom : new Kingdom($main_kid);
 
 // Fetch all buildings and their dependencies
-$kingdom = new Kingdom($user->get_current_kingdom());
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $techs = $kingdom->fetch_all_kingdom_techs();
 

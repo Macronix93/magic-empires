@@ -672,16 +672,6 @@ function send_user_push(int $user_id, string $title, string $message, string $ca
             return false;
         }
 
-        $res_pref = $db_instance->execute_query(
-                "SELECT `$category` FROM user_push_settings WHERE user_id = ?",
-                [$user_id]
-        );
-        $is_allowed = !($res_pref->num_rows > 0) || $res_pref->fetch_column();
-
-        if (!$is_allowed) {
-            return false;
-        }
-
         $subscriptions = $db_instance->execute_query(
                 "SELECT id, endpoint, public_key, auth_token FROM user_push_subscriptions WHERE user_id = ?",
                 [$user_id]

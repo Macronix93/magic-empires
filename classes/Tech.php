@@ -269,9 +269,9 @@ class Tech
                 default => 10,
             },
             TechTypes::TECH_TYPE_BARRACKS_EXPANSION => match (true) {
-                $target_level <= 2 => 8,
-                $target_level <= 4 => 9,
-                default => 10,
+                $target_level <= 2 => 7,
+                $target_level <= 4 => 8,
+                default => 9,
             },
             TechTypes::TECH_TYPE_SCHOLARSHIP => min(10, $target_level + 2),
             default => min(10, $target_level),

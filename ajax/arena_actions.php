@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
+require_post();
 
 $uid = $user->get_user_id();
 $arena = new Arena($uid);
@@ -56,7 +57,7 @@ switch ($action) {
         $opponents = $arena->get_or_roll_opponents(true);
         $new_rerolls_left = $arena->get_rerolls_left();
         $has_more = $arena->has_more_opponents($opponents);
-        $html = Arena::render_opponents_html($opponents, $arena->get_player_data(), $uid);
+        $html = $arena->render_opponents_html($opponents);
 
         echo json_encode([
             "success" => true,

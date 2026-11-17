@@ -138,7 +138,7 @@ registerAction("editSuggestionInline", (el, event) => {
             <input type="hidden" name="edit_suggestion" value="1">
             
             <label style="font-size: 13px; color: var(--link-color);">Titel:</label><br>
-            <input type="text" name="title" value="${oldTitle}" maxlength="100" style="width: 100%; margin-bottom: 10px;" required>
+            <input type="text" name="title" value="${oldTitle}" maxlength="50" style="width: 100%; margin-bottom: 10px;" required>
             
             <label style="font-size: 13px; color: var(--link-color);">Beschreibung:</label><br>
             <textarea name="content" rows="6" maxlength="2000" style="width: 100%; margin-bottom: 10px; resize: vertical;" required>${oldContent}</textarea>

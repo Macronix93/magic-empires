@@ -108,7 +108,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $error = "Das Ticket existiert nicht mehr oder wurde gelöscht.";
             } else if (!$is_staff && $t_check["userid"] != $uid) {
                 $error = "Zugriff verweigert!";
-            } else if ($t_check["status"] == 0) {
+            } else if (!$t_check["status"]) {
                 $error = "Dieses Ticket ist bereits geschlossen!";
             } else if ($val_error) {
                 $error = $val_error;
@@ -170,14 +170,14 @@ if (isset($_GET["tid"])) {
 
         $db_instance->execute_query("UPDATE support_messages SET hasread = 1 WHERE ticketid = ? AND senderid != ?", [$tid, $uid]);
 
-        if ($ticket["status"] != 1) {
+        if (!$ticket["status"]) {
             $view .= show_warning_box("Dieses Ticket ist geschlossen (" . e($ticket["close_reason"]) . ").");
         }
 
         $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='navigate' data-url='support.php'>Zurück</button>";
         $view .= "<h3 style='margin: 0; flex: 1;'>Ticket #$tid: " . e($ticket["subject"]) . "</h3>";
 
-        if ($ticket["status"] == 1) {
+        if ($ticket["status"]) {
             $view .= "<div><button class='btn-delete' style='width: auto; padding: 5px 10px;' data-on-click='confirmCloseTicket' data-id='$tid'>Ticket schließen</button></div>";
         }
         $view .= "</div>";
@@ -207,7 +207,7 @@ if (isset($_GET["tid"])) {
         }
         $view .= "</div>";
 
-        if ($ticket["status"] == 1) {
+        if ($ticket["status"]) {
             $view .= "<div id='newmessage-section'>
                         <form method='POST' action='support.php' id='newmessage'>
                             <input type='hidden' name='tid' value='$tid'>
@@ -257,8 +257,8 @@ if (isset($_GET["tid"])) {
             </tr>";
 
         foreach ($tickets as $t) {
-            $closed_ticket = $t["status"] == 0 ? " tr-inactive" : "";
-            $status = $t["status"] == 1
+            $closed_ticket = !$t["status"] ? " tr-inactive" : "";
+            $status = $t["status"]
                 ? "<img src='images/icons/icon_question.png' class='ressource-icons' alt='Offen'>"
                 : "<img src='images/icons/icon_lock.png' class='ressource-icons' alt='Geschlossen'>";
             $assigned_info = "";

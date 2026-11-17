@@ -12,7 +12,9 @@ registerAction("openOverlay", (el, e) => {
 registerAction("closeOverlay", (el) => {
     closeOverlay(el);
 });
-registerAction("mapJump", (el) => {
+registerAction("mapJump", (el, e) => {
+    if (e) e.stopPropagation();
+
     const x = el.dataset.x;
     const y = el.dataset.y;
 
@@ -282,7 +284,7 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                     if (titleData.dataset.width) customWidth = titleData.dataset.width;
                 }
 
-                if (customTitle && customTitle.trim() !== "" && overlayTitle) {
+                if (customTitle?.trim() && overlayTitle) {
                     overlayTitle.innerText = customTitle;
                 }
                 if (customWidth) {

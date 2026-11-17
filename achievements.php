@@ -60,7 +60,7 @@ foreach ($grouped as $catKey => $items) {
 
     foreach ($items as $ach) {
         $is_unlocked = (bool)$ach["is_unlocked"];
-        $is_secret = ((int)$ach["is_secret"] === 1 && !$is_unlocked);
+        $is_secret = ($ach["is_secret"] && !$is_unlocked);
         $is_claimed = (bool)$ach["is_claimed"];
         $reward = (int)$ach["reward_coins"];
 

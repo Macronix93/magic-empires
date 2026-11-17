@@ -348,7 +348,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 } else if (isset($special_unit_limits[$s_id])) {
                     $u_limit = $special_unit_limits[$s_id]["limit"];
                     $u_name = $special_unit_limits[$s_id]["name"];
-                    $cur_total = $kingdom->get_unit_total_count($s_id, true);
+                    $cur_total = $kingdom->get_unit_total_count($s_id, true, true);
 
                     if ($cur_total + $count > $u_limit) {
                         $remaining = max(0, $u_limit - $cur_total);
@@ -783,27 +783,22 @@ if (!empty($other_kingdoms)) {
     $first_available_id = null;
 
     foreach ($other_kingdoms as $ok) {
-        if ((int)$ok["already_sent"] === 0 && $first_available_id === null) {
-            $first_available_id = (int)$ok["id"];
-        }
-    }
-
-    foreach ($other_kingdoms as $ok) {
         $ok_id = (int)$ok["id"];
         $k_pos = $ok["k_pos"];
-        $is_sent = ((int)$ok["already_sent"] > 0);
+        $is_sent = !empty($ok["already_sent"]);
 
         $seconds = $map->get_arrival_time($my_x, $my_y, (int)$ok["mapx"], (int)$ok["mapy"], $current_kingdom, $ok_id);
         $time_str = convert_sec_to_str($seconds, true);
 
         if (!$is_sent) {
             $available_count++;
-            $selected = ($ok_id === $first_available_id) ? "selected" : "";
 
-            if ($ok_id === $first_available_id) {
+            if ($first_available_id === null) {
+                $first_available_id = $ok_id;
                 $first_time_str = $time_str;
             }
 
+            $selected = ($ok_id === $first_available_id) ? "selected" : "";
             $options_html .= "<option value='$ok_id' data-x='{$ok["mapx"]}' data-y='{$ok["mapy"]}' data-time='$time_str' $selected>$k_pos - " . e($ok["kingdomname"]) . " ({$ok["mapx"]}:{$ok["mapy"]})</option>";
         } else {
             $options_html .= "<option value='$ok_id' disabled style='color: #888;' data-time='$time_str'>$k_pos - " . e($ok["kingdomname"]) . " (Truppen unterwegs)</option>";
@@ -939,7 +934,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
     $prev_cat = $unit_cat;
 
     $base_unit_time = $soldiers[$i]->get_soldier_time();
-    $unit_time_display = (int)($base_unit_time * $smithy_multiplier);
+    $unit_time_display = (int)round($base_unit_time * $smithy_multiplier);
     $plunder_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
 
     $unit_special_limit = match ($s_id_internal) {
@@ -949,7 +944,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         default => null
     };
     $unit_total_in_kingdom = ($unit_special_limit !== null)
-        ? $kingdom->get_unit_total_count($s_id_internal, true)
+        ? $kingdom->get_unit_total_count($s_id_internal, true, true)
         : 0;
     $is_space_exempt = in_array($s_id_internal, TROOP_LIMIT_EXEMPT, true);
 
@@ -980,7 +975,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             }
             break;
         case Soldiers::SOLDIER_CONQUEROR:
-            $base = fdec((BASE_CONQUEST_CHANCE + MIN_CONQUEST_CHANCE) * 100);
+            $base = fdec(BASE_CONQUEST_CHANCE * 100);
             $step = fdec(MIN_CONQUEST_CHANCE * 100);
             $max = fdec(MAX_CONQUEST_CHANCE * 100);
 
@@ -1055,7 +1050,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
             foreach ($soldiers as $s) {
                 if ($s->get_soldier_id() == $target_id) {
                     $target_name = $s->get_soldier_name();
-                    $upg_unit_time = (int)($s->get_soldier_time() * $smithy_multiplier);
+                    $upg_unit_time = (int)round($s->get_soldier_time() * $smithy_multiplier);
                     break;
                 }
             }
@@ -1246,14 +1241,16 @@ $view .= '</table>';
 $view .= "<div id='support-container' data-unit-category='" . SoldierTypes::SOLDIER_TYPE_SUPPORT . "' style='" . ($recruitment_visible ? 'display: none;' : '') . "'>";
 
 // --- SECTION: INCOMING ---
-$view .= "<div class='title-border'>Erhaltene Unterstützung</div>";
+$map_support_helper = new Map($user);
 
+// --- SECTION: INCOMING ---
+$view .= "<div class='title-border'>Erhaltene Unterstützung</div>";
 $res_in = $db_instance->execute_query("
     SELECT st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id, 
            SUM(st.soldiercount) as soldiercount,
            u.username as owner_name, 
-           k_src.kingdomname as src_kname, 
-           k_tgt.kingdomname as tgt_kname,
+           k_src.kingdomname as src_kname, k_src.mapx as src_x, k_src.mapy as src_y,
+           k_tgt.kingdomname as tgt_kname, k_tgt.mapx as tgt_x, k_tgt.mapy as tgt_y,
            sl.soldiername, 
            sl.icon 
     FROM stationed_troops st
@@ -1263,74 +1260,83 @@ $res_in = $db_instance->execute_query("
     JOIN soldier_list sl ON st.soldier_id = sl.id
     WHERE k_tgt.userid = ?
     GROUP BY st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id, 
-             u.username, k_src.kingdomname, k_tgt.kingdomname, sl.soldiername, sl.icon
-    ORDER BY k_tgt.kingdomname, u.username",
-    [$user->get_user_id()]
+             u.username, k_src.kingdomname, k_src.mapx, k_src.mapy, k_tgt.kingdomname, k_tgt.mapx, k_tgt.mapy, sl.soldiername, sl.icon
+    ORDER BY k_tgt.kingdomname, u.username", [$user->get_user_id()]
 );
 
 $grouped_in = [];
 foreach ($res_in as $row) {
     $key = $row["target_kingdom_id"] . '_' . $row["owner_id"] . '_' . $row["source_kingdom_id"];
-
     if (!isset($grouped_in[$key])) {
         $grouped_in[$key] = [
             "owner_name" => $row["owner_name"],
             "src_kname" => $row["src_kname"],
+            "src_x" => (int)$row["src_x"],
+            "src_y" => (int)$row["src_y"],
             "tgt_kname" => $row["tgt_kname"],
-            "owner_id" => $row["owner_id"],
-            "source_id" => $row["source_kingdom_id"],
-            "target_id" => $row["target_kingdom_id"],
+            "tgt_x" => (int)$row["tgt_x"],
+            "tgt_y" => (int)$row["tgt_y"],
+            "owner_id" => (int)$row["owner_id"],
+            "source_id" => (int)$row["source_kingdom_id"],
+            "target_id" => (int)$row["target_kingdom_id"],
             "troops" => []
         ];
     }
-
     $grouped_in[$key]["troops"][] = $row;
 }
 
 if (!empty($grouped_in)) {
     $view .= "<table class='table support-incoming-table' style='margin-bottom: 30px;'>
-                <colgroup>
-                    <col style='width: 24%;'>  <!-- Soldaten -->
-                    <col style='width: 58%;'>  <!-- Unterstützer -->
-                    <col style='width: 18%;'>  <!-- Aktion -->
-                </colgroup>
-                <tr>
-                    <td class='td-gradient td-center'><b>Soldaten</b></td>
-                    <td class='td-gradient td-center'><b>Unterstützer</b></td>
-                    <td class='td-gradient td-center'><b>Aktion</b></td>
-                </tr>";
+    <colgroup>
+        <col style='width: 31%;'>  <!-- Soldaten -->
+        <col style='width: 33%;'>  <!-- Unterstützer -->
+        <col style='width: 18%;'>  <!-- Dauer -->
+        <col style='width: 18%;'>  <!-- Aktion -->
+    </colgroup>
+    <tr>
+        <td class='td-gradient td-center'><b>Soldaten</b></td>
+        <td class='td-gradient td-center'><b>Unterstützer</b></td>
+        <td class='td-gradient td-center'><b>Abzugszeit</b></td>
+        <td class='td-gradient td-center'><b>Aktion</b></td>
+    </tr>";
 
     foreach ($grouped_in as $data) {
         $troop_icons = "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
-
         foreach ($data["troops"] as $t) {
             $troop_icons .= "
-                <div class='unit-badge' title='{$t["soldiername"]}'>
-                    <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
-                    <b>{$t["soldiercount"]}</b>
-                </div>";
+            <div class='unit-badge' title='{$t["soldiername"]}'>
+                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
+                <b>{$t["soldiercount"]}</b>
+            </div>";
         }
-
         $troop_icons .= "</div>";
 
+        $return_secs = $map_support_helper->get_arrival_time(
+            $data["tgt_x"], $data["tgt_y"],
+            $data["src_x"], $data["src_y"],
+            $data["source_id"], null, false, false, true
+        );
+        $return_time_str = convert_sec_to_str($return_secs, true);
+
         $view .= "<tr>
-                <td class='td-center'>$troop_icons</td>
-                <td class='td-center'>
-                    <span style='font-weight: bold;'>" . e($data["owner_name"]) . "</span><br>
-                    <small>aus " . e($data["src_kname"]) . "</small><br>
-                    <span class='passed'>hilft dir in: " . e($data["tgt_kname"]) . "</span>
-                </td>
-                <td class='td-center'>
-                    <form method='POST'>
-                        <input type='hidden' name='action' value='return_support_stack'>
-                        <input type='hidden' name='return_support_stack' value='1'>
-                        <input type='hidden' name='target_id' value='{$data["target_id"]}'>
-                        <input type='hidden' name='source_id' value='{$data["source_id"]}'>
-                        <input type='hidden' name='owner_id' value='{$data["owner_id"]}'>
-                        <input type='submit' name='return_support_stack' value='Entlassen'>
-                    </form>
-                </td>
-            </tr>";
+            <td class='td-center'>$troop_icons</td>
+            <td class='td-center'>
+                <span style='font-weight: bold;'>" . e($data["owner_name"]) . "</span><br>
+                <small style='opacity: 0.7;'>aus " . e($data["src_kname"]) . "</small><br>
+                <small class='passed'>in " . e($data["tgt_kname"]) . "</small>
+            </td>
+            <td class='td-center'>$return_time_str</td>
+            <td class='td-center'>
+                <form method='POST'>
+                    <input type='hidden' name='action' value='return_support_stack'>
+                    <input type='hidden' name='return_support_stack' value='1'>
+                    <input type='hidden' name='target_id' value='{$data["target_id"]}'>
+                    <input type='hidden' name='source_id' value='{$data["source_id"]}'>
+                    <input type='hidden' name='owner_id' value='{$data["owner_id"]}'>
+                    <input type='submit' name='return_support_stack' value='Entlassen'>
+                </form>
+            </td>
+        </tr>";
     }
     $view .= "</table>";
 } else {
@@ -1339,97 +1345,99 @@ if (!empty($grouped_in)) {
 
 // --- SECTION: OUTGOING ---
 $view .= "<br><div class='title-border'>Gesendete Unterstützung</div>";
-
 $res_out = $db_instance->execute_query("
-        SELECT st.target_kingdom_id, st.source_kingdom_id, st.soldier_id,
-               SUM(st.soldiercount) as soldiercount,
-               k_tgt.kingdomname as tgt_kname, k_tgt.mapx, k_tgt.mapy, 
-               k_src.kingdomname as src_kname,
-               sl.soldiername, sl.icon,
-               u_tgt.username as target_owner_name,
-               u_tgt.id as target_userid
-        FROM stationed_troops st
-        JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
-        JOIN kingdoms k_src ON st.source_kingdom_id = k_src.id
-        JOIN users u_tgt ON k_tgt.userid = u_tgt.id
-        JOIN soldier_list sl ON st.soldier_id = sl.id
-        WHERE st.owner_id = ?
-        GROUP BY st.target_kingdom_id, st.source_kingdom_id, st.soldier_id
-    ", [$user->get_user_id()]
+    SELECT st.target_kingdom_id, st.source_kingdom_id, st.soldier_id, SUM(st.soldiercount) as soldiercount,
+           k_tgt.kingdomname as tgt_kname, k_tgt.mapx, k_tgt.mapy, 
+           k_src.kingdomname as src_kname, k_src.mapx as src_x, k_src.mapy as src_y,
+           sl.soldiername, sl.icon,
+           u_tgt.username as target_owner_name, u_tgt.id as target_userid
+    FROM stationed_troops st
+    JOIN kingdoms k_tgt ON st.target_kingdom_id = k_tgt.id
+    JOIN kingdoms k_src ON st.source_kingdom_id = k_src.id
+    JOIN users u_tgt ON k_tgt.userid = u_tgt.id
+    JOIN soldier_list sl ON st.soldier_id = sl.id
+    WHERE st.owner_id = ?
+    GROUP BY st.target_kingdom_id, st.source_kingdom_id, st.soldier_id,
+             k_tgt.kingdomname, k_tgt.mapx, k_tgt.mapy, k_src.kingdomname, k_src.mapx, k_src.mapy,
+             sl.soldiername, sl.icon, u_tgt.username, u_tgt.id",
+    [$user->get_user_id()]
 );
 
 $grouped_out = [];
 foreach ($res_out as $row) {
     $key = $row["source_kingdom_id"] . '_' . $row["target_kingdom_id"];
-
     if (!isset($grouped_out[$key])) {
         $grouped_out[$key] = [
             "tgt_kname" => $row["tgt_kname"],
             "src_kname" => $row["src_kname"],
+            "src_x" => (int)$row["src_x"],
+            "src_y" => (int)$row["src_y"],
             "target_owner" => $row["target_owner_name"],
-            "target_userid" => $row["target_userid"],
-            "mapx" => $row["mapx"],
-            "mapy" => $row["mapy"],
-            "target_id" => $row["target_kingdom_id"],
-            "source_id" => $row["source_kingdom_id"],
+            "target_userid" => (int)$row["target_userid"],
+            "mapx" => (int)$row["mapx"],
+            "mapy" => (int)$row["mapy"],
+            "target_id" => (int)$row["target_kingdom_id"],
+            "source_id" => (int)$row["source_kingdom_id"],
             "troops" => []
         ];
     }
-
     $grouped_out[$key]["troops"][] = $row;
 }
 
 if (!empty($grouped_out)) {
-    $view .= "<table class='table'>
-                <colgroup>
-                    <col style='width: 24%;'>  <!-- Soldaten-->
-                    <col style='width: 35%;'>  <!-- Ziel-Königreich & Koordinaten -->
-                    <col style='width: 23%;'>  <!-- Spielername -->
-                    <col style='width: 18%;'>  <!-- Aktion -->
-                </colgroup>
-                <tr>
-                    <td class='td-gradient td-center'><b>Soldaten</b></td>
-                    <td class='td-gradient td-center'><b>Königreich</b></td>
-                    <td class='td-gradient td-center'><b>Spieler</b></td>
-                    <td class='td-gradient td-center'><b>Aktion</b></td>
-                </tr>";
+    $view .= "<table class='table support-outgoing-table'>
+    <colgroup>
+        <col style='width: 22%;'>  <!-- Soldaten -->
+        <col style='width: 38%;'>  <!-- Ziel-Königreich & Koordinaten -->
+        <col style='width: 16%;'>  <!-- Dauer -->
+        <col style='width: 16%;'>  <!-- Aktion -->
+    </colgroup>
+    <tr>
+        <td class='td-gradient td-center'><b>Soldaten</b></td>
+        <td class='td-gradient td-center'><b>Königreich</b></td>
+        <td class='td-gradient td-center'><b>Abzugszeit</b></td>
+        <td class='td-gradient td-center'><b>Aktion</b></td>
+    </tr>";
 
     foreach ($grouped_out as $data) {
         $troop_icons = "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
-
         foreach ($data["troops"] as $t) {
             $troop_icons .= "
-                <div class='unit-badge' title='{$t["soldiername"]}'>
-                    <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
-                    <b>{$t["soldiercount"]}</b>
-                </div>";
+            <div class='unit-badge' title='{$t["soldiername"]}'>
+                <img src='images/icons/{$t["icon"]}.png' class='ressource-icons' alt=''>
+                <b>{$t["soldiercount"]}</b>
+            </div>";
         }
-
         $troop_icons .= "</div>";
+
+        $return_secs = $map_support_helper->get_arrival_time(
+            $data["mapx"], $data["mapy"],
+            $data["src_x"], $data["src_y"],
+            $data["source_id"], null, false, false, true
+        );
+        $return_time_str = convert_sec_to_str($return_secs, true);
 
         $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $data["target_userid"] . "' data-title='Spieler-Info'>" . e($data["target_owner"]) . "</a>";
         $c_link = "<a href='map.php?startx={$data["mapx"]}&starty={$data["mapy"]}' data-on-click='mapJump' data-x='{$data["mapx"]}' data-y='{$data["mapy"]}'>{$data["mapx"]}:{$data["mapy"]}</a>";
 
         $view .= "<tr>
-                    <td class='td-center'>$troop_icons</td>
-                    <td class='td-center'>
-                        <b>" . e($data["tgt_kname"]) . "</b><br>
-                        <small>($c_link)</small><br>
-                        <small style='opacity:0.7;'>aus: " . e($data["src_kname"]) . "</small>
-                    </td>
-                    <td class='td-center'>
-                        $sender_link
-                    </td>
-                    <td class='td-center'>
-                        <form method='POST'>
-                            <input type='hidden' name='action' value='return_support_stack'>
-                            <input type='hidden' name='return_support_stack' value='1'>
-                            <input type='hidden' name='target_id' value='{$data["target_id"]}'>
-                            <input type='hidden' name='source_id' value='{$data["source_id"]}'>
-                            <input type='submit' name='return_support_stack' value='Heimrufen'>
-                        </form>
-                    </td>
-                </tr>";
+            <td class='td-center'>$troop_icons</td>
+            <td class='td-center'>
+                <b>" . e($data["tgt_kname"]) . "</b>
+                <small>($c_link)</small><br>$sender_link<br>
+                <small style='opacity: 0.7;'>aus " . e($data["src_kname"]) . "</small>
+            </td>
+            <td class='td-center'>$return_time_str</td>
+            <td class='td-center'>
+                <form method='POST'>
+                    <input type='hidden' name='action' value='return_support_stack'>
+                    <input type='hidden' name='return_support_stack' value='1'>
+                    <input type='hidden' name='target_id' value='{$data["target_id"]}'>
+                    <input type='hidden' name='source_id' value='{$data["source_id"]}'>
+                    <input type='submit' name='return_support_stack' value='Heimrufen'>
+                </form>
+            </td>
+        </tr>";
     }
     $view .= "</table>";
 } else {

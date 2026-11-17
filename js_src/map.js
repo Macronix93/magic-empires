@@ -13,7 +13,7 @@ let panAnimationID = null;
 let costGrid = {};
 let isAutoPanning = false;
 let burningKingdoms = [];
-
+let lastAnimFrame = 0;
 let velocityX = 0;
 let velocityY = 0;
 let lastMouseX = 0;
@@ -22,29 +22,23 @@ let initialMouseX = 0;
 let initialMouseY = 0;
 let lastMoveTime = 0;
 let momentumID = null;
-const friction = 0.95;
-
 let selectedX = null;
 let selectedY = null;
 let currentPath = [];
-
+let initialPinchDistance = null;
+let isMobileView = window.innerWidth < 600;
+let lastMapInteraction = Date.now();
+let mapPollTimeout = null;
+let gameConfig = {};
+let lastMapSync = Date.now();
+const friction = 0.95;
 const MAP_DIMENSION = 100;
 const MAX_X = MAP_DIMENSION;
 const MAX_Y = MAP_DIMENSION
 const BASE_TILE_SIZE = 60;
-let initialPinchDistance = null;
-
-let isMobileView = window.innerWidth < 600;
-
-let lastMapInteraction = Date.now();
-let mapPollTimeout = null;
-
 const MAP_POLL_ACTIVE_INTERVAL = 60000;   // 1 minute with activity
 const MAP_POLL_IDLE_INTERVAL = 300000;  // 5 minutes with inactivity (30+ Min)
 const MAP_IDLE_THRESHOLD = 1800000; // 30 minutes inactivity boundary
-
-let gameConfig = {};
-
 const isWinter = document.documentElement.classList.contains("theme-winter");
 const STANDARD_COLORS = {
     1: "#576574", // Gebirge
@@ -53,7 +47,6 @@ const STANDARD_COLORS = {
     4: "#dca34b", // Wüste
     5: "#78a55a"  // Hochland
 };
-
 const WINTER_COLORS = {
     1: "#5d738a", // Gebirge
     2: "#1e5b82", // Küste
@@ -61,9 +54,7 @@ const WINTER_COLORS = {
     4: "#b5a895", // Wüste
     5: "#d0e0eb"  // Hochland
 };
-
 const COLORS = isWinter ? WINTER_COLORS : STANDARD_COLORS;
-
 const WINTER_HAT_CONFIG = {
     goblin: {
         x: 0.30,
@@ -76,6 +67,7 @@ const WINTER_HAT_CONFIG = {
         size: 0.34
     }
 };
+const IMAGE_SMOOTHING = true;
 
 registerAction("jumpToHome", (el, e) => {
     if (e) e.stopPropagation();
@@ -325,7 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 mapData = data.map_data;
                 window.activeEventInfo = data.event_info;
                 mapCache = null;
-                burningKingdoms = mapData.filter(t => t[3] > 0 && t[5] === 1);
+                burningKingdoms = mapData.filter(t => t[3] > 0 && t[5]);
 
                 if (gameConfig.useAutoTiling) {
                     buildBiomeMapCache();
@@ -362,11 +354,10 @@ document.addEventListener("DOMContentLoaded", () => {
         function runMapAnimationLoop(time) {
             if (!document.hidden && hasBurningKingdomInView()) {
                 if (time - lastAnimFrame >= 40) {
-                    lastAnimFrame = time;
-
                     draw();
                 }
             }
+
             requestAnimationFrame(runMapAnimationLoop);
         }
 
@@ -528,9 +519,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     scheduleNextMapPoll();
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && (Date.now() - lastMapSync >= 30000)) {
+            refreshMapDataSilently(false);
+        }
+    });
 });
 
 function applyZoomAt(newZoom, mouseX, mouseY) {
+    cancelAnimationFrame(momentumID);
+    velocityX = 0;
+    velocityY = 0;
+
+    if (isAutoPanning) {
+        cancelAnimationFrame(panAnimationID);
+        isAutoPanning = false;
+    }
+
     const oldZoom = zoom;
     zoom = Math.max(0.15, Math.min(2.0, newZoom));
 
@@ -563,24 +569,26 @@ function resizeCanvas() {
 
     canvas.width = newWidth * ratio;
     canvas.height = newHeight * ratio;
-
     canvas.style.width = newWidth + "px";
     canvas.style.height = newHeight + "px";
 
     ctx.scale(ratio, ratio);
 
-    ctx.imageSmoothingEnabled = false;
-    ctx.mozImageSmoothingEnabled = false;
-    ctx.webkitImageSmoothingEnabled = false;
-    ctx.msImageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = IMAGE_SMOOTHING;
+    ctx.mozImageSmoothingEnabled = IMAGE_SMOOTHING;
+    ctx.webkitImageSmoothingEnabled = IMAGE_SMOOTHING;
+    ctx.msImageSmoothingEnabled = IMAGE_SMOOTHING;
 
     clampMapPosition();
     draw();
 }
 
 function drawAutoTiles(scaledTile) {
+    const viewW = viewport.offsetWidth;
+    const viewH = viewport.offsetHeight;
+
     ctx.fillStyle = COLORS[5];
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, viewW, viewH);
 
     const size = scaledTile + 0.4;
     const useCurves = zoom > 0.2;
@@ -592,12 +600,16 @@ function drawAutoTiles(scaledTile) {
         if (!tiles) return;
 
         ctx.fillStyle = COLORS[type];
+        ctx.beginPath();
 
-        tiles.forEach(tile => {
+        let hasVisibleInnerCorners = false;
+
+        for (let i = 0; i < tiles.length; i++) {
+            const tile = tiles[i];
             const posX = (tile.x - 1) * scaledTile + currentTranslateX;
             const posY = (tile.y - 1) * scaledTile + currentTranslateY;
 
-            if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
+            if (posX + scaledTile < 0 || posX > viewW || posY + scaledTile < 0 || posY > viewH) continue;
 
             if (useCurves) {
                 const [cTL, cTR, cBR, cBL] = tile.corners;
@@ -609,59 +621,71 @@ function drawAutoTiles(scaledTile) {
                 const w = size - (edgeW ? pad : 0) - (edgeO ? pad : 0);
                 const h = size - (edgeN ? pad : 0) - (edgeS ? pad : 0);
 
-                ctx.beginPath();
-                ctx.roundRect(x, y, w, h, [
-                    cTL ? r : 0,
-                    cTR ? r : 0,
-                    cBR ? r : 0,
-                    cBL ? r : 0
-                ]);
-                ctx.fill();
+                if (cTL || cTR || cBR || cBL) {
+                    ctx.roundRect(x, y, w, h, [
+                        cTL ? r : 0,
+                        cTR ? r : 0,
+                        cBR ? r : 0,
+                        cBL ? r : 0
+                    ]);
+                } else {
+                    ctx.rect(x, y, w, h);
+                }
 
                 if (inTL || inTR || inBR || inBL) {
-                    ctx.fillStyle = COLORS[5];
-
-                    if (inTL) {
-                        ctx.beginPath();
-                        ctx.moveTo(posX, posY);
-                        ctx.arc(posX, posY, pad, 0, 0.5 * Math.PI, false);
-                        ctx.closePath();
-                        ctx.fill();
-                    }
-                    if (inTR) {
-                        ctx.beginPath();
-                        ctx.moveTo(posX + size, posY);
-                        ctx.arc(posX + size, posY, pad, 0.5 * Math.PI, Math.PI, false);
-                        ctx.closePath();
-                        ctx.fill();
-                    }
-                    if (inBR) {
-                        ctx.beginPath();
-                        ctx.moveTo(posX + size, posY + size);
-                        ctx.arc(posX + size, posY + size, pad, Math.PI, 1.5 * Math.PI, false);
-                        ctx.closePath();
-                        ctx.fill();
-                    }
-                    if (inBL) {
-                        ctx.beginPath();
-                        ctx.moveTo(posX, posY + size);
-                        ctx.arc(posX, posY + size, pad, 1.5 * Math.PI, 2 * Math.PI, false);
-                        ctx.closePath();
-                        ctx.fill();
-                    }
-
-                    ctx.fillStyle = COLORS[type];
+                    hasVisibleInnerCorners = true;
                 }
             } else {
-                ctx.fillRect(posX, posY, size, size);
+                ctx.rect(posX, posY, size, size);
             }
-        });
+        }
+        ctx.fill();
+
+        if (useCurves && hasVisibleInnerCorners) {
+            ctx.fillStyle = COLORS[5];
+            ctx.beginPath();
+
+            for (let i = 0; i < tiles.length; i++) {
+                const tile = tiles[i];
+                const [inTL, inTR, inBR, inBL] = tile.inners;
+                if (!inTL && !inTR && !inBR && !inBL) continue;
+
+                const posX = (tile.x - 1) * scaledTile + currentTranslateX;
+                const posY = (tile.y - 1) * scaledTile + currentTranslateY;
+                if (posX + scaledTile < 0 || posX > viewW || posY + scaledTile < 0 || posY > viewH) continue;
+
+                if (inTL) {
+                    ctx.moveTo(posX, posY);
+                    ctx.arc(posX, posY, pad, 0, 0.5 * Math.PI, false);
+                    ctx.closePath();
+                }
+                if (inTR) {
+                    ctx.moveTo(posX + size, posY);
+                    ctx.arc(posX + size, posY, pad, 0.5 * Math.PI, Math.PI, false);
+                    ctx.closePath();
+                }
+                if (inBR) {
+                    ctx.moveTo(posX + size, posY + size);
+                    ctx.arc(posX + size, posY + size, pad, Math.PI, 1.5 * Math.PI, false);
+                    ctx.closePath();
+                }
+                if (inBL) {
+                    ctx.moveTo(posX, posY + size);
+                    ctx.arc(posX, posY + size, pad, 1.5 * Math.PI, 2 * Math.PI, false);
+                    ctx.closePath();
+                }
+            }
+            ctx.fill();
+        }
     });
 }
 
 function drawNormal(scaledTile) {
+    const viewW = viewport.offsetWidth;
+    const viewH = viewport.offsetHeight;
+
     ctx.fillStyle = "#1a120b";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, viewW, viewH);
 
     for (let type in mapCache) {
         ctx.fillStyle = COLORS[type];
@@ -671,9 +695,7 @@ function drawNormal(scaledTile) {
             const [x, y] = tile;
             const posX = (x - 1) * scaledTile + currentTranslateX;
             const posY = (y - 1) * scaledTile + currentTranslateY;
-
-            if (posX + scaledTile >= 0 && posX <= canvas.width &&
-                posY + scaledTile >= 0 && posY <= canvas.height) {
+            if (posX + scaledTile >= 0 && posX <= viewW && posY + scaledTile >= 0 && posY <= viewH) {
                 ctx.rect(posX, posY, scaledTile + 0.4, scaledTile + 0.4);
             }
         });
@@ -682,8 +704,11 @@ function drawNormal(scaledTile) {
     }
 }
 
+
 function draw() {
     if (!mapData.length) return;
+
+    lastAnimFrame = performance.now();
 
     if (!mapCache) {
         if (gameConfig.useAutoTiling) {
@@ -697,6 +722,9 @@ function draw() {
     }
 
     const scaledTile = BASE_TILE_SIZE * zoom;
+    const totalMapSize = MAP_DIMENSION * scaledTile;
+    const viewW = viewport.offsetWidth;
+    const viewH = viewport.offsetHeight;
 
     if (gameConfig.useAutoTiling) {
         drawAutoTiles(scaledTile);
@@ -704,37 +732,52 @@ function draw() {
         drawNormal(scaledTile);
     }
 
-    const showGrid = zoom > 0.15;
-    const showIcons = zoom > 0.1;
-
-    if (showGrid) {
+    if (zoom > 0.15) {
         ctx.strokeStyle = "rgba(0,0,0,0.1)";
         ctx.lineWidth = 1;
         ctx.beginPath();
 
-        mapData.forEach(tile => {
-            const [x, y] = tile;
-            const posX = (x - 1) * scaledTile + currentTranslateX;
-            const posY = (y - 1) * scaledTile + currentTranslateY;
+        const startCol = Math.max(0, Math.floor(-currentTranslateX / scaledTile));
+        const endCol = Math.min(MAP_DIMENSION, Math.ceil((viewW - currentTranslateX) / scaledTile));
+        const startRow = Math.max(0, Math.floor(-currentTranslateY / scaledTile));
+        const endRow = Math.min(MAP_DIMENSION, Math.ceil((viewH - currentTranslateY) / scaledTile));
 
-            if (posX + scaledTile >= 0 && posX <= canvas.width && posY + scaledTile >= 0 && posY <= canvas.height) {
-                ctx.rect(posX, posY, scaledTile, scaledTile);
-            }
-        });
+        const minX = Math.max(0, currentTranslateX);
+        const maxX = Math.min(viewW, currentTranslateX + totalMapSize);
+        const minY = Math.max(0, currentTranslateY);
+        const maxY = Math.min(viewH, currentTranslateY + totalMapSize);
 
+        for (let c = startCol; c <= endCol; c++) {
+            const px = c * scaledTile + currentTranslateX;
+            ctx.moveTo(px, minY);
+            ctx.lineTo(px, maxY);
+        }
+        for (let r = startRow; r <= endRow; r++) {
+            const py = r * scaledTile + currentTranslateY;
+            ctx.moveTo(minX, py);
+            ctx.lineTo(maxX, py);
+        }
         ctx.stroke();
     }
 
+    const showIcons = zoom > 0.1;
+
     if (showIcons) {
+        const filterPlayers = document.getElementById("filter-players").checked;
+        const filterResources = document.getElementById("filter-resources").checked;
+        const filterMonsters = document.getElementById("filter-monsters").checked;
+        const filterRuins = document.getElementById("filter-ruins").checked;
+        const filterMines = document.getElementById("filter-mines")?.checked;
+
         mapData.forEach(tile => {
             const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , myTroopIcon, enemyGuildId, , mineInfo, giftDay] = tile;
 
-            if (kid === -1 && giftDay === 0 && (!myTroopIcon || myTroopIcon === "")) return;
+            if (kid === -1 && giftDay === 0 && !myTroopIcon) return;
 
             const posX = (x - 1) * scaledTile + currentTranslateX;
             const posY = (y - 1) * scaledTile + currentTranslateY;
 
-            if (posX + scaledTile < 0 || posX > canvas.width || posY + scaledTile < 0 || posY > canvas.height) return;
+            if (posX + scaledTile < 0 || posX > viewW || posY + scaledTile < 0 || posY > viewH) return;
 
             if (giftDay > 0) {
                 ctx.drawImage(images.gift, posX + scaledTile * 0.15, posY + scaledTile * 0.15, scaledTile * 0.7, scaledTile * 0.7);
@@ -759,12 +802,6 @@ function draw() {
                     ctx.fillText(giftDay, bX + (badgeW / 2), bY + (badgeH / 2));
                 }
             }
-
-            const filterPlayers = document.getElementById("filter-players").checked;
-            const filterResources = document.getElementById("filter-resources").checked;
-            const filterMonsters = document.getElementById("filter-monsters").checked;
-            const filterRuins = document.getElementById("filter-ruins").checked;
-            const filterMines = document.getElementById("filter-mines")?.checked;
 
             if (kid > 0 && !filterPlayers) return;
             if (kid === -2 && !filterResources) return;
@@ -874,7 +911,7 @@ function draw() {
 
                 ctx.drawImage(img, posX, posY, scaledTile, scaledTile);
 
-                if (isBurning === 1) {
+                if (isBurning) {
                     const animTime = (zoom >= 0.4) ? (performance.now() * 0.004) : 0;
                     const tilePhase = (x * 7 + y * 13);
 
@@ -915,7 +952,7 @@ function draw() {
                 }
             }
 
-            if (myTroopIcon && myTroopIcon !== "") {
+            if (myTroopIcon) {
                 const miniIconSize = scaledTile * 0.45;
                 const padding = 2;
                 const miniX = posX + scaledTile - miniIconSize - padding;
@@ -1102,28 +1139,10 @@ function dragEnd(e) {
 
 function handleWheel(e) {
     e.preventDefault();
-    if (isAutoPanning) {
-        cancelAnimationFrame(panAnimationID);
-        isAutoPanning = false;
-    }
 
-    const delta = e.deltaY > 0 ? -0.1 : 0.1; // old: 0.15
-    const oldZoom = zoom;
-    zoom = Math.max(0.15, Math.min(2.0, zoom + delta));
-
-    if (oldZoom !== zoom) {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        const worldX = (mouseX - currentTranslateX) / oldZoom;
-        const worldY = (mouseY - currentTranslateY) / oldZoom;
-
-        currentTranslateX = mouseX - (worldX * zoom);
-        currentTranslateY = mouseY - (worldY * zoom);
-
-        clampMapPosition();
-        draw();
-    }
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const rect = canvas.getBoundingClientRect();
+    applyZoomAt(zoom + delta, e.clientX - rect.left, e.clientY - rect.top);
 }
 
 function selectField(x, y, shouldCenter = false) {
@@ -1704,8 +1723,8 @@ function centerMapOn(x, y, immediate = false, onComplete = null) {
 }
 
 function updateCenterCoords() {
-    const coordsDisplay = document.getElementById("coords-display");
-    if (!coordsDisplay || !mapData.length) return;
+    const coordsText = document.getElementById("coords-text") || document.getElementById("coords-display");
+    if (!coordsText || !mapData.length) return;
 
     const scaledTile = BASE_TILE_SIZE * zoom;
 
@@ -1716,7 +1735,21 @@ function updateCenterCoords() {
     const ty = Math.floor((centerY - currentTranslateY) / scaledTile) + 1;
 
     if (tx >= 1 && tx <= MAX_X && ty >= 1 && ty <= MAX_Y) {
-        coordsDisplay.innerText = `X: ${tx} | Y: ${ty}`;
+        coordsText.innerText = `X: ${tx} | Y: ${ty}`;
+    }
+}
+
+function updateMapCommandDisplay() {
+    if (!gameConfig || !gameConfig.currentKingdom) return;
+
+    const countEl = document.getElementById("map-commands-count");
+    const wrapEl = document.getElementById("map-commands-display");
+    const occ = gameConfig.currentKingdom.occupiedCommands || 0;
+    const max = gameConfig.currentKingdom.maxCommands || 0;
+
+    if (countEl) countEl.textContent = `${occ}/${max}`;
+    if (wrapEl) {
+        wrapEl.style.color = (occ >= max) ? "#ff4d4d" : "";
     }
 }
 
@@ -1833,6 +1866,7 @@ function jumpTo(x, y, immediate = false) {
 }
 
 function refreshMapDataSilently(closePopup = false, callback = null) {
+    lastMapSync = Date.now();
     showMapSyncSpinner(true);
 
     fetch("ajax/map_full_load.php", {
@@ -1842,7 +1876,7 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
         .then(data => {
             mapData = data.map_data;
             window.activeEventInfo = data.event_info;
-            burningKingdoms = mapData.filter(t => t[3] > 0 && t[5] === 1);
+            burningKingdoms = mapData.filter(t => t[3] > 0 && t[5]);
 
             draw();
 
@@ -2009,6 +2043,7 @@ window.handleMapKingdomSwitch = function (firstArg, sidebarDataFallback, hasAnyA
 
     if (gameConfig && gameConfig.currentKingdom) {
         Object.assign(gameConfig.currentKingdom, newKingdom);
+        updateMapCommandDisplay();
     }
 
     if (typeof updateSidebarAndHeaderDOM === "function") {
@@ -2069,3 +2104,4 @@ window.handleMapKingdomSwitch = function (firstArg, sidebarDataFallback, hasAnyA
 };
 
 window.jumpToCoordinates = jumpTo;
+window.updateMapCommandDisplay = updateMapCommandDisplay;

@@ -7,8 +7,7 @@ $uid = $user->get_user_id();
 // Set arena logs as read
 $db_instance->execute_query("UPDATE arena_players SET last_viewed_logs = ? WHERE user_id = ?", [time(), $uid]);
 
-$arena = new Arena($uid);
-$is_season_active = $arena->is_season_active();
+$is_season_active = Arena::is_season_active();
 
 if (!$is_season_active) {
     $season_info = Arena::get_season_time_info();
@@ -19,6 +18,7 @@ if (!$is_season_active) {
         Die neue Saison beginnt in: <b><span class='js-countdown' data-seconds='{$season_info["seconds_until_next_season"]}'>-</span></b>
     ");
 } else {
+    $arena = new Arena($uid);
     $is_participating = $arena->is_participating();
     $player_data = $arena->get_player_data();
 
@@ -166,7 +166,7 @@ if (!$is_season_active) {
                         </div>
                     </div>
                     <div id='arena-opponents-container' style='display: flex; flex-direction: column; gap: 7px;'>
-                        " . Arena::render_opponents_html($opponents, $player_data, $uid) . "
+                        " . $arena->render_opponents_html($opponents) . "
                     </div>";
     }
     $view .= "</div>";
@@ -174,7 +174,6 @@ if (!$is_season_active) {
     // TAB 2: DEFENSE
     $current_def_troops = $player_data["defense_troops"] ?? [];
     $current_def_techs = $player_data["defense_techs"] ?? [];
-    $hero_participates = (int)($player_data["defense_hero_participates"] ?? 1);
 
     $init_troops_sum = 0;
     $init_techs_sum = 0;

@@ -3,12 +3,11 @@ require_once("includes/core.php");
 
 $user->check_user_login();
 
-$stats_manager = new Stats();
 $uid = $user->get_user_id();
 
-$stats = $stats_manager->get_global_stats();
-$my_stats = $stats_manager->get_player_stats($uid);
-$breakdown = $stats_manager->calculate_user_score_breakdown($uid);
+$stats = Stats::get_global_stats();
+$my_stats = Stats::get_player_stats($uid);
+$breakdown = Stats::calculate_user_score_breakdown($uid);
 
 $score_buildings = $breakdown["buildings"];
 $score_techs = $breakdown["techs"];

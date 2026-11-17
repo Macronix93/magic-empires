@@ -423,12 +423,41 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } else if ($enemy_user_id == $user->get_user_id() && $target_x != -1) {
             $target_k_obj = new Kingdom($kingdom_id);
             $target_limit = $target_k_obj->get_troop_limit();
-
             $target_occupied = $target_k_obj->get_current_troop_count(true, true);
             $free_space = max(0, $target_limit - $target_occupied);
 
-            if ($total_units_in_request > $free_space) {
+            $non_exempt_units = 0;
+            foreach ($_POST["soldiers"] as $s_id => $cnt) {
+                $s_id = (int)$s_id;
+                $cnt = (int)$cnt;
+
+                if ($cnt > 0 && !in_array($s_id, TROOP_LIMIT_EXEMPT, true)) {
+                    $non_exempt_units += $cnt;
+                }
+            }
+
+            if ($non_exempt_units > $free_space) {
                 $error = "Im Zielkönigreich ist nicht genug Platz für die Stationierung! Frei: " . fnum($free_space) . " Plätze.";
+            } else {
+                $special_unit_limits = [
+                    Soldiers::SOLDIER_SETTLER_WAGON => ["limit" => MAX_SETTLER_WAGONS_PER_KINGDOM, "name" => "Gründungskarren"],
+                    Soldiers::SOLDIER_CONQUEROR => ["limit" => MAX_CONQUERORS_PER_KINGDOM, "name" => "Eroberer"],
+                    Soldiers::SOLDIER_RAIDER => ["limit" => MAX_RAIDERS_PER_KINGDOM, "name" => "Räuber"]
+                ];
+
+                foreach ($special_unit_limits as $sp_id => $sp_info) {
+                    $sent_sp = (int)($_POST["soldiers"][$sp_id] ?? 0);
+
+                    if ($sent_sp > 0) {
+                        $cur_in_target = $target_k_obj->get_unit_total_count($sp_id, true, true);
+
+                        if ($cur_in_target + $sent_sp > $sp_info["limit"]) {
+                            $rem_sp = max(0, $sp_info["limit"] - $cur_in_target);
+                            $error = "Im Zielkönigreich sind maximal {$sp_info["limit"]} {$sp_info["name"]} erlaubt! (Vorhanden/im Bau/unterwegs: $cur_in_target, noch möglich: $rem_sp)";
+                            break;
+                        }
+                    }
+                }
             }
         } else if ($is_support) {
             $attacker_id = $user->get_user_id();
@@ -560,30 +589,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 : "Truppen erfolgreich gesendet!";
 
             if ($is_support) {
-                $units_data = [];
-                foreach ($_POST["soldiers"] as $sid => $cnt) {
-                    $c = (int)$cnt;
-                    if ($c > 0 && isset($soldiers[(int)$sid])) {
-                        $units_data[] = [
-                            "id" => (int)$sid,
-                            "count" => $c
-                        ];
-                    }
-                }
-
-                $target_k_obj = new Kingdom($kingdom_id);
-                $incoming_sup_json = [
-                    "template" => "support_incoming",
-                    "sender_name" => $user->get_user_name(),
-                    "target_name" => $target_k_obj->get_kingdom_name(),
-                    "target_x" => $target_x,
-                    "target_y" => $target_y,
-                    "arrival_seconds" => $arrival_time,
-                    "units" => $units_data
-                ];
-
-                Messages::send_server_message($enemy_user_id, $row["username"], MessageCategories::CATEGORY_GUILD, $incoming_sup_json);
-
                 send_user_push(
                     $enemy_user_id,
                     "🛡️ Unterstützung unterwegs: " . $target_k_obj->get_kingdom_name(),
@@ -1026,7 +1031,7 @@ if ($barracks_level > 0) {
                         method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $troop_limit_attr . $unit_ids_attr . $mine_attrs . $support_attrs . $gift_attrs . '>
                         <div id="troop-summary-container" style="display: none; flex-direction: column; align-items: center;">
                             <div class="title-border" style="margin-bottom: 10px; margin-top: 15px;">
-                                Gewählte Truppen (<span id="troop-summary-count">0</span> / ' . fnum($troop_limit, true) . ')
+                                Gewählte Truppen <span class="battle-report-troops-origin" style="letter-spacing: normal;">(<span id="troop-summary-count">0</span> / ' . fnum($troop_limit, true) . ')</span>
                             </div>
                             <div id="troop-summary-list" style="display: flex; gap: 5px; justify-content: center; align-items: center; flex-wrap: wrap;"></div>
                             <div id="troop-summary-totals" style="width: 100%; display: flex; justify-content: center; margin-top: 15px;"></div>

@@ -92,11 +92,14 @@ class Arena
         }
     }
 
-    public static function render_opponents_html(array $opponents, array $player_data, int $uid): string
+    public function render_opponents_html(array $opponents): string
     {
         if (empty($opponents)) {
             return show_warning_box("Aktuell befinden sich keine weiteren Spieler in deiner Wertungs-Reichweite. Versuche es später noch einmal!");
         }
+
+        $player_data = $this->get_player_data();
+        $uid = $this->user_id;
 
         // Load cooldowns
         $opp_ids = array_column($opponents, "user_id");
@@ -338,7 +341,6 @@ class Arena
                                 "json" => [
                                     "template" => "arena_season_reward",
                                     "rank" => $rank,
-                                    "tier_label" => $reward["label"],
                                     "elo" => $old_elo,
                                     "loot" => $res_loot
                                 ]
@@ -465,18 +467,26 @@ class Arena
     public static function has_available_coins(int $user_id): bool
     {
         static $cache = [];
+
         if (isset($cache[$user_id])) {
             return $cache[$user_id];
         }
 
-        if ($user_id <= 0 || !self::is_season_active()) return false;
+        if ($user_id <= 0 || !self::is_season_active()) {
+            return false;
+        }
 
-        $arena = new self($user_id);
-        if (!$arena->is_participating()) return false;
+        $db = Database::get_instance()->get_connection();
+        $seconds_per_coin = ARENA_COIN_REGEN_HOURS * 3600;
+        $res = $db->execute_query("
+            SELECT 1 FROM arena_players
+            WHERE user_id = ?
+              AND defense_troops IS NOT NULL
+              AND (coins > 0 OR (? - last_coin_update) >= ?)
+            LIMIT 1
+        ", [$user_id, time(), $seconds_per_coin]);
 
-        $data = $arena->get_player_data();
-
-        return $cache[$user_id] = ($data && (int)$data["coins"] > 0);
+        return $cache[$user_id] = ($res->num_rows > 0);
     }
 
     public static function is_season_active(): bool
@@ -1113,8 +1123,6 @@ class Arena
             $prepared[] = [
                 "id" => (int)$id,
                 "key" => (int)$id,
-                "name" => $meta["soldiername"],
-                "icon" => $meta["icon"],
                 "count" => $cnt,
                 "category" => $cat,
                 "atk" => (int)$meta["attack"] + $b_atk,
@@ -1218,7 +1226,7 @@ class Arena
                 "xp_needed" => self::get_hero_xp_needed($hero_lvl),
                 "atk" => $base_atk,
                 "def" => $base_def,
-                "participates" => (int)($p["defense_hero_participates"] ?? 1)
+                "participates" => (bool)($p["defense_hero_participates"] ?? true)
             ],
             "active_skill" => $active_skill,
             "skills" => $skills
@@ -1470,11 +1478,11 @@ class Arena
     {
         $is_max = ($level >= $max_level);
         $percent = $is_max ? 100 : (($xp_needed > 0) ? min(100, round(($xp / $xp_needed) * 100, 1)) : 100);
-        $text = $is_max ? "<span class='passed'>MAX</span>" : "{$xp} / {$xp_needed} XP";
+        $text = $is_max ? "<span class='passed'>MAX</span>" : "$xp / $xp_needed XP";
 
         return "
         <div class='arena-xp-bar'>
-            <div style='width: {$percent}%; height: 100%; background: linear-gradient(90deg, #8e44ad, #ba55d3);'></div>
+            <div style='width: $percent%; height: 100%; background: linear-gradient(90deg, #8e44ad, #ba55d3);'></div>
             <span class='arena-xp-bar-text'>$text</span>
         </div>";
     }

@@ -187,7 +187,7 @@ if ($has_active_process) {
             <div style='background: rgba(0,0,0,0.3); border: 1px solid var(--border-gold); border-radius: 5px; padding: 12px; margin: 15px 0;'>
                 <div class='split-content'>
                     <span>Bereit zur Abholung:</span>
-                    <div><span class='passed'>" . get_resource_icon($out_res) . " <b id='live-claim-val'>" . fnum($ready_to_claim) . "</b></span>$buffer_display</div>
+                    <div><span class='passed'>" . get_resource_icon($out_res) . " <b id='live-claim-val'>" . fnum($ready_to_claim, true) . "</b></span>$buffer_display</div>
                 </div>
                 <form method='POST' style='margin-top: 10px; text-align: center;'>
                     <button type='submit' name='claim_output' id='btn-claim' " . ($ready_to_claim <= 0 ? "disabled" : "") . ">

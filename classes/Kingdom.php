@@ -38,6 +38,7 @@ class Kingdom
     private int $creation_method = KingdomCreationTypes::KINGDOM_CREATION_INITIAL;
     private int $created_at = 0;
     private int $protection_until = 0;
+    private ?array $tech_levels_cache = null;
 
     public function __construct(int $kingdom_id = -1)
     {
@@ -298,7 +299,7 @@ class Kingdom
         if ($row) {
             $this->recruiting_id = $row["soldierid"];
         }
-        return $result->num_rows == 1;
+        return $result->num_rows > 0;
     }
 
     public function get_kingdom_recruiting_id(): int
@@ -314,7 +315,7 @@ class Kingdom
         if ($row) {
             $this->building_id = $row["buildingid"];
         }
-        return $result->num_rows == 1;
+        return $result->num_rows > 0;
     }
 
     public function get_kingdom_building_id(): int
@@ -346,7 +347,7 @@ class Kingdom
         if ($row) {
             $this->tech_id = $row["buildingid"];
         }
-        return $result->num_rows == 1;
+        return $result->num_rows > 0;
     }
 
     public function is_kingdom_smithing(int $kingdom_id): bool
@@ -357,7 +358,7 @@ class Kingdom
         if ($row) {
             $this->tech_id = $row["buildingid"];
         }
-        return $result->num_rows == 1;
+        return $result->num_rows > 0;
     }
 
     public function get_shrine_modifier(): float
@@ -585,27 +586,17 @@ class Kingdom
         $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$wall_hp, $this->kingdom_id]);
     }
 
-    public function get_wall_max_hp(): int
+    public function get_wall_max_hp(?int $wall_level = null): int
     {
-        return DEFAULT_WALL_HP * $this->get_kingdom_building_level(BuildingTypes::BUILDING_WALL)
-            + $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_WALL_HP_INC) * RESEARCH_WALL_HP_INC;
+        $lvl = $wall_level ?? $this->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+        return DEFAULT_WALL_HP * $lvl + $this->get_kingdom_tech_level(TechTypes::TECH_TYPE_WALL_HP_INC) * RESEARCH_WALL_HP_INC;
     }
 
-    public function calculate_wall_defense(int $wall_hp, int $wall_level): int
+    public function calculate_wall_defense(int $wall_hp, int $wall_level = 1): int
     {
         if ($wall_hp <= 0 || $wall_level <= 0) return 0;
 
-        $max_hp = $this->get_wall_max_hp();
-        if ($max_hp <= 0) return 0;
-
-        $level_ratio = ($wall_level - 1) / max(1, (MAX_BUILDING_LEVEL - 1));
-        $max_defense = MIN_WALL_DEFENSE + (MAX_WALL_DEFENSE - MIN_WALL_DEFENSE) * $level_ratio;
-        $base_defense = MIN_WALL_DEFENSE * ($wall_level / MAX_BUILDING_LEVEL);
-
-        $hp_ratio = min(1.0, max(0.0, $wall_hp / $max_hp));
-        $defense = $base_defense + ($max_defense - $base_defense) * $hp_ratio;
-
-        return max(MIN_WALL_DEFENSE, (int)round($defense));
+        return (int)round($wall_hp * WALL_DEF_FACTOR * pow(WALL_DEF_GROWTH, $wall_hp / DEFAULT_WALL_HP));
     }
 
     public function get_active_boosts(?int $res_type = null): array
@@ -715,10 +706,19 @@ class Kingdom
 
     public function get_kingdom_tech_level(int $tech_id): int
     {
-        $result = $this->mysqli->execute_query("SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
-            [$this->kingdom_id, $tech_id]);
-        $row = $result->fetch_assoc();
-        return $row ? $row["techlevel"] : 0;
+        if ($this->tech_levels_cache === null) {
+            $this->tech_levels_cache = [];
+
+            $res = $this->mysqli->execute_query(
+                "SELECT techid, techlevel FROM techs WHERE kingdomid = ?",
+                [$this->kingdom_id]
+            );
+
+            while ($r = $res->fetch_assoc()) {
+                $this->tech_levels_cache[(int)$r["techid"]] = (int)$r["techlevel"];
+            }
+        }
+        return $this->tech_levels_cache[$tech_id] ?? 0;
     }
 
     public function fetch_all_kingdom_techs(?int $origin_building = null): array
@@ -900,7 +900,7 @@ class Kingdom
         return $total;
     }
 
-    public function get_unit_total_count(int $soldier_id, bool $include_queue = true): int
+    public function get_unit_total_count(int $soldier_id, bool $include_queue = true, bool $include_incoming = false): int
     {
         $kid = $this->kingdom_id;
         $query = "
@@ -923,6 +923,21 @@ class Kingdom
             )->fetch_column();
 
             $total += $queued;
+        }
+
+        if ($include_incoming) {
+            $incoming = (int)$this->mysqli->execute_query("
+                SELECT IFNULL(SUM(st.soldiercount), 0)
+                FROM sent_troops st
+                JOIN events e ON st.eventid = e.eventid
+                WHERE e.targetid = ?
+                  AND e.actionid = ?
+                  AND e.kingdomid != ?
+                  AND e.userid = (SELECT userid FROM kingdoms WHERE id = ?)
+                  AND st.soldierid = ?
+            ", [$kid, ActionTypes::ACTION_SEND_TROOPS, $kid, $kid, $soldier_id])->fetch_column();
+
+            $total += $incoming;
         }
 
         return $total;
@@ -1264,20 +1279,10 @@ class Kingdom
 
     public function has_new_kingdom_protection(): bool
     {
-        if (NEW_KINGDOM_PROTECTION_DAYS <= 0
-            || $this->creation_method === KingdomCreationTypes::KINGDOM_CREATION_CONQUEST
-            || $this->protection_until === 1) {
+        if (NEW_KINGDOM_PROTECTION_DAYS <= 0 || $this->creation_method === KingdomCreationTypes::KINGDOM_CREATION_CONQUEST) {
             return false;
         }
-
-        if ($this->protection_until > 1) {
-            return time() < $this->protection_until;
-        }
-
-        if ($this->created_at > 0) {
-            return (time() - $this->created_at) < (NEW_KINGDOM_PROTECTION_DAYS * 86400);
-        }
-        return false;
+        return time() < $this->protection_until;
     }
 
     public function get_protection_time_left(): int
@@ -1285,17 +1290,12 @@ class Kingdom
         if (!$this->has_new_kingdom_protection()) {
             return 0;
         }
-
-        if ($this->protection_until > 1) {
-            return max(0, $this->protection_until - time());
-        }
-
-        return max(0, ($this->created_at + (NEW_KINGDOM_PROTECTION_DAYS * 86400)) - time());
+        return max(0, $this->protection_until - time());
     }
 
     public function remove_protection(): void
     {
-        $this->protection_until = 1;
-        $this->mysqli->execute_query("UPDATE kingdoms SET protection_until = 1 WHERE id = ?", [$this->kingdom_id]);
+        $this->protection_until = 0;
+        $this->mysqli->execute_query("UPDATE kingdoms SET protection_until = 0 WHERE id = ?", [$this->kingdom_id]);
     }
 }

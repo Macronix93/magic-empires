@@ -1,5 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
+require_post();
 
 $action = $_POST["action"] ?? '';
 $guild_logic = new Guild($user);

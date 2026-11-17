@@ -20,8 +20,10 @@ $now = time();
 
 if (isset($_GET["banned"])) {
     $ban_reason = trim($_GET["banned"]);
+    $until_ts = (int)($_GET["until"] ?? 0);
     $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
-    $error = "Dein Account wurde gesperrt!" . $reason_text;
+    $until_text = ($until_ts > time()) ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", $until_ts) . " Uhr" : "<br />Dauer: Permanent";
+    $error = "Dein Account wurde gesperrt!" . $reason_text . $until_text;
 }
 
 // ACCOUNT ACTIVATION
@@ -64,7 +66,7 @@ if (!empty($_GET["key"])) {
                 }
 
                 if (AdventCalendar::is_active()) {
-                    AdventCalendar::ensure_user_gifts($user_id);
+                    new AdventCalendar()->ensure_user_gifts($user_id);
                 }
 
                 $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
@@ -157,11 +159,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (empty($name) || empty($pass)) {
             $error .= "Bitte beide Felder ausfüllen!";
         } else {
-            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason FROM users WHERE username = ? OR email = ? LIMIT 1",
+            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason, ban_until FROM users WHERE username = ? OR email = ? LIMIT 1",
                     [$name, $name]
             );
 
-            if ($result && $result->num_rows == 1) {
+            if ($result && $result->num_rows > 0) {
                 $row = $result->fetch_assoc();
 
                 if (!empty($row["is_vacation"])) {
@@ -176,9 +178,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 if (empty($error)) {
                     if ($row["is_banned"]) {
-                        $ban_reason = trim($row["ban_reason"] ?? "");
-                        $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
-                        $error .= "Dein Account wurde gesperrt!" . $reason_text;
+                        if (!empty($row["ban_until"]) && (int)$row["ban_until"] <= $now) {
+                            $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?", [$row["id"]]);
+                            $row["is_banned"] = false;
+                        } else {
+                            $ban_reason = trim($row["ban_reason"] ?? "");
+                            $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
+                            $until_text = (!empty($row["ban_until"]) && $row["ban_until"] > $now)
+                                    ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", (int)$row["ban_until"]) . " Uhr"
+                                    : "<br />Dauer: Permanent";
+
+                            $error .= "Dein Account wurde gesperrt!" . $reason_text . $until_text;
+                        }
                     } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
                         $warning = $maintenance_text;
                     } else {
@@ -235,7 +246,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error .= "Du musst die Spielregeln akzeptieren!<br>";
             }
 
-            if (!isset($_SESSION["captcha_passed"]) || $_SESSION["captcha_passed"] !== true) {
+            if (empty($_SESSION["captcha_passed"])) {
                 $response = $_POST["g-recaptcha-response"] ?? "";
                 $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("SERVER_KEY") . "&response=" . $response);
                 $data = json_decode($json);
@@ -536,7 +547,7 @@ $count_online = $res_online->fetch_row()[0];
                                             </tr>
                                             <tr>
                                                 <td style="display: flex; justify-content: center; padding: 10px;">
-                                                    <?php if (isset($_SESSION["captcha_passed"]) && $_SESSION["captcha_passed"] === true): ?>
+                                                    <?php if (!empty($_SESSION["captcha_passed"])): ?>
                                                         <div style="background: rgba(11, 218, 81, 0.1); padding: 10px; border-radius: 5px; text-align: center; width: 100%;">
                                                             <span class="passed">✔</span> <b>Botschutz
                                                                 verifiziert</b>

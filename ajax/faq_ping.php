@@ -1,9 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
-
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    exit;
-}
+require_post();
 
 $opened_at = $_SESSION["faq_opened_at"] ?? 0;
 $now = time();

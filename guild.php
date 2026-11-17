@@ -32,7 +32,7 @@ if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
     }
 }
 
-$is_invite_only = isset($_POST["g_invite_only"]) && $_POST["g_invite_only"] == "1";
+$is_invite_only = !empty($_POST["g_invite_only"]);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {

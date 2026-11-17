@@ -74,13 +74,21 @@ registerAction("banUserDialog", (el) => {
         );
     } else {
         const reason = prompt(`Grund für den Bann von ${name}:`, "Verstoß gegen die Regeln");
+
         if (reason !== null) {
-            submitAdminPost({
-                toggle_ban: "1",
-                user_id: uid,
-                ban_status: "1",
-                reason: reason
-            });
+            const hoursInput = prompt(`Bann-Dauer in Stunden eingeben (0 oder leer lassen für PERMANENT):`, "0");
+
+            if (hoursInput !== null) {
+                const hours = parseInt(hoursInput.replace(/\D/g, ''), 10) || 0;
+
+                submitAdminPost({
+                    toggle_ban: "1",
+                    user_id: uid,
+                    ban_status: "1",
+                    reason: reason,
+                    ban_hours: hours
+                });
+            }
         }
     }
 });

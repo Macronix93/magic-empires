@@ -10,6 +10,7 @@ const UPDATE_MSG_BADGES_INTERVAL = 60000;
 const UPDATE_MSG_BADGES_LAST_FETCH = 30000;
 let isPageUnloading = false;
 let cachedChatEmojis = null;
+let kingdomLoaderTimer = null;
 
 window.addEventListener("beforeunload", () => {
     isPageUnloading = true;
@@ -587,11 +588,84 @@ function updateSidebarAndHeaderDOM(data) {
     }
 }
 
+function showKingdomSwitchLoader() {
+    document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display").forEach(el => {
+        el.style.pointerEvents = "none";
+    });
+
+    const bigBox = document.querySelector(".middle-container .big-box-container");
+    if (bigBox) {
+        bigBox.style.position = "relative";
+        bigBox.style.pointerEvents = "none";
+    }
+
+    clearTimeout(kingdomLoaderTimer);
+    kingdomLoaderTimer = setTimeout(() => {
+        document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = true);
+        document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
+            el.style.opacity = "0.5";
+        });
+
+        if (bigBox) {
+            const content = bigBox.querySelector(".big-box-content");
+            if (content) {
+                content.style.opacity = "0.25";
+            }
+
+            if (!document.getElementById("kingdom-switch-loader")) {
+                const loader = document.createElement("div");
+                loader.id = "kingdom-switch-loader";
+                loader.style.cssText = "position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; " +
+                    "z-index: 500; pointer-events: all; opacity: 0; transition: opacity 0.2s ease;";
+                loader.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;">Wechsle Königreich...</div>`;
+                bigBox.appendChild(loader);
+
+                requestAnimationFrame(() => {
+                    loader.style.opacity = "1";
+                });
+            }
+        }
+    }, 250);
+}
+
 function switchKingdomById(kingdomId) {
     if (isKingdomSwitching) return;
     isKingdomSwitching = true;
 
-    let formData = new FormData();
+    const currentUrl = new URL(window.location.href);
+    const filename = currentUrl.pathname.split('/').pop();
+
+    const isGuildChatActive = filename === "guild.php" && document.getElementById("guild_tab_chat")
+        && window.getComputedStyle(document.getElementById("guild_tab_chat")).display !== "none";
+    const isInPlaceSwitch = (
+        filename === "map.php" ||
+        filename === "messages.php" ||
+        filename === "chat_embed.php" ||
+        filename === "support.php" ||
+        isGuildChatActive
+    );
+
+    if (!isInPlaceSwitch) {
+        showKingdomSwitchLoader();
+        document.cookie = "me_switch_kid=" + encodeURIComponent(kingdomId) + "; path=/; max-age=30; SameSite=Lax";
+
+        const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php"];
+        let targetUrl = currentUrl.pathname;
+
+        if (filename === "barracks.php") {
+            const cat = currentUrl.searchParams.get("cat");
+            if (cat !== null) targetUrl = `${currentUrl.pathname}?cat=${cat}`;
+        } else if (filename === "warsim.php") {
+            targetUrl = "warsim.php?keep_sim=1";
+        } else if (keepParamsPages.includes(filename)) {
+            targetUrl = currentUrl.pathname + currentUrl.search;
+        }
+
+        window.location.href = targetUrl;
+        return;
+    }
+
+    const formData = new FormData();
     formData.append("choosekingdom", kingdomId);
 
     fetch("ajax/change_kingdom.php", {
@@ -602,30 +676,19 @@ function switchKingdomById(kingdomId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                let currentUrl = new URL(window.location.href);
-                let filename = currentUrl.pathname.split('/').pop();
-
                 if (filename === "map.php" && typeof window.handleMapKingdomSwitch === "function") {
                     window.handleMapKingdomSwitch(data);
+                    isKingdomSwitching = false;
                     return;
                 }
 
-                if (filename === "messages.php" || filename === "chat_embed.php") {
+                if (filename === "messages.php" || filename === "chat_embed.php" || filename === "support.php" || isGuildChatActive) {
                     updateSidebarAndHeaderDOM(data);
+                    isKingdomSwitching = false;
                     return;
                 }
 
-                if (filename === "guild.php") {
-                    const chatTab = document.getElementById("guild_tab_chat");
-                    const isChatActive = chatTab && window.getComputedStyle(chatTab).display !== "none";
-
-                    if (isChatActive) {
-                        updateSidebarAndHeaderDOM(data);
-                        return;
-                    }
-                }
-
-                const keepParamsPages = ["messages.php", "ranking.php", "support.php", "guild.php", "arena.php"];
+                const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php"];
                 if (filename === "barracks.php") {
                     const cat = currentUrl.searchParams.get("cat");
                     window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;
@@ -637,13 +700,14 @@ function switchKingdomById(kingdomId) {
                     window.location.href = currentUrl.pathname;
                 }
             } else {
+                isKingdomSwitching = false;
                 showGameError(data.error || "Königreich konnte nicht gewechselt werden.");
-                setTimeout(() => window.location.reload(), 2000);
+                setTimeout(() => window.location.reload(), 1500);
             }
         })
-        .catch(err => showGameError("Kingdom-Switch Fehler:" + err))
-        .finally(() => {
+        .catch(err => {
             isKingdomSwitching = false;
+            showGameError("Kingdom-Switch Fehler: " + err);
         });
 }
 
@@ -776,9 +840,13 @@ function sendReaction(type, id, emoji, sourceContainer) {
         });
 }
 
-function formatNumJS(number) {
+function formatNumJS(number, simpleFormat = false) {
     if (!number || isNaN(number)) return "0";
     let n = Math.floor(Number(number));
+
+    if (simpleFormat) {
+        return n.toLocaleString("de-DE");
+    }
 
     if (n >= 1000000000) {
         let main = Math.floor(n / 1000000000);
@@ -1117,6 +1185,49 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
 document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
         stopTitleFlash();
+    }
+});
+
+document.addEventListener("submit", (e) => {
+    const form = e.target;
+    if (!form || form.tagName !== "FORM") return;
+    if (e.defaultPrevented) return;
+
+    const method = (form.getAttribute("method") || "GET").toUpperCase();
+    const action = form.getAttribute("action") || "";
+    if (method !== "POST" || action.startsWith("javascript:")) return;
+
+    if (form.dataset.isSubmitting === "true") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+    }
+
+    form.dataset.isSubmitting = "true";
+
+    const submitter = e.submitter;
+    if (submitter && submitter.name) {
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = submitter.name;
+        hidden.value = submitter.value;
+        form.appendChild(hidden);
+    }
+
+    form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+        btn.disabled = true;
+    });
+});
+
+window.addEventListener("pageshow", (e) => {
+    if (e.persisted) {
+        document.querySelectorAll('form[data-is-submitting="true"]').forEach(form => {
+            delete form.dataset.isSubmitting;
+
+            form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+                btn.disabled = false;
+            });
+        });
     }
 });
 
@@ -1522,12 +1633,12 @@ function updateSidebarBadges(counts) {
     if (counts.forum !== undefined) update(".js-badge-forum", counts.forum);
 
     const unreadArena = counts.arena || 0;
-    const hasArenaCoins = counts.arena_coins || 0;
+    const hasArenaCoins = Boolean(counts.arena_coins);
 
     update(".js-badge-arena", unreadArena);
 
     document.querySelectorAll(".js-badge-arena-coins").forEach(el => {
-        el.style.display = (unreadArena === 0 && hasArenaCoins > 0) ? "flex" : "none";
+        el.style.display = (unreadArena === 0 && hasArenaCoins) ? "flex" : "none";
     });
 
     const total = (counts.priv || 0) + (counts.world || 0) + (counts.guild || 0) + (counts.suggestions || 0) +

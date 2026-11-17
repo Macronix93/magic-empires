@@ -116,7 +116,7 @@ if (!$user->is_admin()) {
 
         if (isset($_POST["reset_fixed_march"])) {
             $_POST["fixed_seconds"] = "0";
-            $_POST["update_fixed_march"] = "1";
+            $_POST["update_fixed_march"] = true;
         }
 
         if (isset($_POST["update_fixed_march"])) {
@@ -130,6 +130,28 @@ if (!$user->is_admin()) {
             $logger->admin("Marschzeit gesetzt auf: " . ($seconds > 0 ? "{$seconds}s (Fest)" : "Deaktiviert (Normal)"));
             $_SESSION["game_success"] = ($seconds > 0) ? "Feste Marschzeit auf <b>{$seconds} Sekunden</b> gesetzt!" : "Marschzeit deaktiviert. Es gelten wieder normale Entfernungszeiten.";
 
+            change_location("adminpanel.php?tab=system");
+        }
+
+        if (isset($_POST["reset_noob_protection"])) {
+            $_POST["noob_mult"] = (string)DEFAULT_NOOB_PROTECTION_MULT;
+            $_POST["update_noob_protection"] = true;
+        }
+
+        if (isset($_POST["update_noob_protection"])) {
+            $raw_mult = str_replace(',', '.', trim($_POST["noob_mult"] ?? "0"));
+            $mult = max(0.0, min(1.0, round((float)$raw_mult, 2)));
+
+            $db_instance->execute_query(
+                "INSERT INTO system_settings (name, value) VALUES ('noob_protection_mult', ?) 
+                 ON DUPLICATE KEY UPDATE value = VALUES(value)",
+                [(string)$mult]
+            );
+
+            $logger->admin("Noob-Schutz Faktor gesetzt auf: " . ($mult > 0 ? ($mult * 100) . "%" : "Deaktiviert (0)"));
+            $_SESSION["game_success"] = ($mult > 0)
+                ? "Noob-Schutz erfolgreich auf <b>" . fdec($mult) . " (" . fdec($mult * 100) . "%)</b> gesetzt!"
+                : "Noob-Schutz wurde <b>deaktiviert</b>!";
             change_location("adminpanel.php?tab=system");
         }
 
@@ -170,27 +192,27 @@ if (!$user->is_admin()) {
 
             // Reset global counters
             $db_instance->execute_query("
-            UPDATE system_settings 
-            SET value = '0' 
-            WHERE name IN ('total_fallen_soldiers', 'total_slain_monsters', 'total_battles', 'total_trades')
-        ");
+                UPDATE system_settings 
+                SET value = '0' 
+                WHERE name IN ('total_fallen_soldiers', 'total_slain_monsters', 'total_battles', 'total_trades')
+            ");
 
             // Reset Users
             $db_instance->execute_query("
-            UPDATE users SET 
-                score = ?, 
-                ranking_points = ?, 
-                mainkingdom = -1, 
-                coins = 0, 
-                guildid = -1, 
-                guild_rank_id = NULL, 
-                is_vacation = 0, 
-                vacation_until = 0, 
-                daily_trades_count = 0, 
-                last_trade_reset = 0,
-                last_world_chat_id = 0,
-                last_guild_chat_id = 0
-        ", [STARTING_SCORE, STARTING_SCORE]);
+                UPDATE users SET 
+                    score = ?, 
+                    ranking_points = ?, 
+                    mainkingdom = -1, 
+                    coins = 0, 
+                    guildid = -1, 
+                    guild_rank_id = NULL, 
+                    is_vacation = 0, 
+                    vacation_until = 0, 
+                    daily_trades_count = 0, 
+                    last_trade_reset = 0,
+                    last_world_chat_id = 0,
+                    last_guild_chat_id = 0
+            ", [STARTING_SCORE, STARTING_SCORE]);
 
             // Generate a new random map
             $spawner = new MapSpawner($db_instance);
@@ -215,31 +237,7 @@ if (!$user->is_admin()) {
             }
 
             // Create initial resource tiles for map
-            $fields = $db_instance->execute_query("SELECT mapx, mapy FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT ?", [MAX_RESOURCE_TILES]);
-
-            if ($fields->num_rows > 0) {
-                $insert_values = [];
-                $update_coords = [];
-
-                foreach ($fields as $f) {
-                    $x = (int)$f["mapx"];
-                    $y = (int)$f["mapy"];
-                    $res_values = MapSpawner::generate_resource_tile_values();
-
-                    $insert_values[] = "($x, $y, {$res_values["food"]}, {$res_values["wood"]}, {$res_values["stone"]}, {$res_values["gold"]})";
-                    $update_coords[] = "(mapx = $x AND mapy = $y)";
-                }
-
-                if (!empty($insert_values)) {
-                    $sql_insert = "INSERT INTO resource_tiles_data (mapx, mapy, food, wood, stone, gold) VALUES " . implode(', ', $insert_values);
-                    $db_instance->query($sql_insert);
-                }
-
-                if (!empty($update_coords)) {
-                    $sql_update = "UPDATE map SET kingdomid = -2 WHERE " . implode(' OR ', $update_coords);
-                    $db_instance->query($sql_update);
-                }
-            }
+            $spawner->spawn_resources(true);
 
             // Remove maintenance mode
             $db_instance->execute_query("UPDATE system_settings SET value = '0' WHERE name = 'maintenance_mode'");
@@ -275,44 +273,55 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["toggle_maintenance"])) {
-            $new_val = (MAINTENANCE_MODE ? "0" : "1");
+            $enable_maintenance = !MAINTENANCE_MODE;
             $reason = $_POST["maintenance_reason"] ?? "Geplante Wartungsarbeiten";
 
-            $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$new_val]);
+            $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$enable_maintenance ? "1" : "0"]);
             $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_reason'", [$reason]);
-            $logger->admin("MAINTENANCE MODE changed to: " . ($new_val == "1" ? "ON ($reason)" : "OFF"));
+
+            $logger->admin("MAINTENANCE MODE: " . ($enable_maintenance ? "ON ($reason)" : "OFF"));
 
             change_location("adminpanel.php");
         }
 
         if (isset($_POST["toggle_winter_theme"])) {
-            $curr_server_val = ($sys_settings["winter_theme"] ?? '0') === '1';
-            $new_val = ($curr_server_val ? "0" : "1");
+            $enable_winter = !(($sys_settings["winter_theme"] ?? '0') === '1');
 
             $db_instance->execute_query(
-                "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'", [$new_val]
+                "UPDATE system_settings SET value = ? WHERE name = 'winter_theme'", [$enable_winter ? "1" : "0"]
             );
 
-            $logger->admin("WINTER THEME geändert auf: " . ($new_val == "1" ? "ON" : "OFF"));
+            $logger->admin("WINTER THEME: " . ($enable_winter ? "ON" : "OFF"));
 
-            $_SESSION["game_success"] = "Winter-Theme wurde <b>" . ($new_val == "1" ? "aktiviert" : "deaktiviert") . "</b>!";
+            $_SESSION["game_success"] = "Winter-Theme wurde <b>" . ($enable_winter ? "aktiviert" : "deaktiviert") . "</b>!";
 
             change_location("adminpanel.php?tab=system");
         }
 
         if (isset($_POST["toggle_ban"])) {
             $uid = (int)($_POST["user_id"] ?? 0);
-            $ban_status = (int)($_POST["ban_status"] ?? 0);
+            $ban_status = !empty($_POST["ban_status"]);
 
-            if ($ban_status === 1) {
+            if ($ban_status) {
                 $reason = trim($_POST["reason"] ?? "Verstoß gegen die Regeln");
+                $ban_hours = max(0, (int)($_POST["ban_hours"] ?? 0));
+                $ban_until = ($ban_hours > 0) ? (time() + ($ban_hours * 3600)) : 0;
+                $duration_log = ($ban_until > 0) ? "until " . date("d.m.Y H:i", $ban_until) : "PERMANENT";
 
-                $db_instance->execute_query("UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?", [$reason, $uid]);
-                $logger->admin("BANNED USER ID $uid. Reason: $reason");
+                $db_instance->execute_query(
+                    "UPDATE users SET is_banned = 1, ban_reason = ?, ban_until = ? WHERE id = ?",
+                    [$reason, $ban_until, $uid]
+                );
 
-                $_SESSION["game_success"] = "Benutzer ID $uid wurde gebannt!";
+                $logger->admin("BANNED USER ID $uid ($duration_log). Reason: $reason");
+
+                $_SESSION["game_success"] = "Benutzer ID $uid wurde gebannt (" . ($ban_until > 0 ? "bis " . date("d.m.Y H:i", $ban_until) : "Permanent") . ")!";
             } else {
-                $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL WHERE id = ?", [$uid]);
+                $db_instance->execute_query(
+                    "UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?",
+                    [$uid]
+                );
+
                 $logger->admin("UNBANNED USER ID $uid");
 
                 $_SESSION["game_success"] = "Benutzer ID $uid wurde entsperrt!";
@@ -323,11 +332,11 @@ if (!$user->is_admin()) {
 
         if (isset($_POST["toggle_ip_ban"])) {
             $target_ip = trim($_POST["ip"] ?? "");
-            $ban_status = (int)($_POST["ip_ban_status"] ?? 0);
+            $ban_status = !empty($_POST["ip_ban_status"]);
             $target_uid = (int)($_POST["user_id"] ?? 0);
 
             if (filter_var($target_ip, FILTER_VALIDATE_IP)) {
-                if ($ban_status === 1) {
+                if ($ban_status) {
                     $reason = trim($_POST["reason"] ?? "Verstoß gegen die Regeln");
 
                     $db_instance->execute_query(
@@ -462,7 +471,8 @@ if (!$user->is_admin()) {
                     "coins", "mainkingdom", "guildid", "password", "avatar",
                     "is_banned", "ban_reason", "gender", "active_title_id",
                     "is_vacation", "vacation_until", "linked_user_id",
-                    "msgcount", "lastsentmsgend", "daily_trades_count"
+                    "msgcount", "lastsentmsgend", "daily_trades_count",
+                    "ban_until"
                 ];
 
                 if (!in_array($field, $allowed_editable_fields, true)) {
@@ -481,7 +491,7 @@ if (!$user->is_admin()) {
                         $score_val = (int)$new_value;
 
                         $result = $db_instance->execute_query("UPDATE users SET score = ?, ranking_points = ? WHERE id = ?", [$score_val, $score_val, $user_id]);
-                    } else if ($field === "is_vacation" && (int)$new_value === 0) {
+                    } else if ($field === "is_vacation" && !$new_value) {
                         $result = $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$user_id]);
                     } else if ($field === "linked_user_id" && (empty($new_value) || (int)$new_value <= 0)) {
                         $result = $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$user_id]);
@@ -530,7 +540,6 @@ if (!$user->is_admin()) {
             $error = "Der Benutzer existiert nicht!";
         } else {
             $kingdoms = [];
-            $events = [];
             $user_info = [];
             $found_kingdom = null;
 
@@ -548,6 +557,7 @@ if (!$user->is_admin()) {
                         'Titel-ID' => ['field' => 'active_title_id', 'value' => $row['active_title_id'] ?? 0, 'editable' => true],
                         'Bann-Status' => ['field' => 'is_banned', 'value' => $row['is_banned'], 'editable' => true],
                         'Bann-Grund' => ['field' => 'ban_reason', 'value' => $row['ban_reason'], 'editable' => true],
+                        'Gebannt bis' => ['field' => 'ban_until', 'value' => $row['ban_until'] ?? 0, 'editable' => true],
                         'Passwort' => ['field' => 'password', 'value' => "Passwort", 'editable' => true],
                         'Avatar' => ['field' => 'avatar', 'value' => $adm_user->get_avatar(), 'editable' => true],
                         'Account-Status' => ['field' => 'status', 'value' => $row['status'], 'editable' => true],
@@ -604,7 +614,8 @@ if (!$user->is_admin()) {
 
                 if ($label === "Avatar") {
                     $display_value = '<img class="user-image" src="' . e($raw_value) . '" alt="Nutzerbild">';
-                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Rate-Limit Ende", "Urlaub bis"])) {
+                } else if (in_array($label, ["Registriert am", "Letzter Login", "Letzte Aktivität", "Rate-Limit Ende",
+                    "Urlaub bis", "Gebannt bis"])) {
                     $display_value = ((int)$raw_value > 0) ? date("d.m.Y H:i:s", (int)$raw_value) : "-";
                 } else if ($label === "Punkte") {
                     $display_value = fnum($raw_value);
@@ -893,6 +904,29 @@ if (!$user->is_admin()) {
              </form>
          </div>
      </div>";
+    $current_noob = NOOB_PROTECTION_MULT;
+    $noob_badge = ($current_noob > 0)
+        ? "<span class='passed' style='font-weight: bold;'>AKTIV (" . fdec($current_noob * 100) . "%)</span>"
+        : "<span class='error' style='font-weight: bold;'>Deaktiviert (0%)</span>";
+    $noob_reset_disabled = ($current_noob === DEFAULT_NOOB_PROTECTION_MULT) ? "disabled" : "";
+
+    $settings_list .= "
+    <div class='box-container' style='margin-top: 20px;'>
+        <div class='box-header'>Noob-Schutz-Steuerung</div>
+        <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
+            <span>Status: $noob_badge</span>
+            <p style='opacity: 0.8;'>Bestimmt den Punkte-Faktor (zwischen <b>0</b> und <b>1</b>) für den Angriffsschutz.<br>Trage <b>0</b> ein, um den Noob-Schutz komplett zu deaktivieren 
+            (Standard: " . fdec(DEFAULT_NOOB_PROTECTION_MULT) . ").</p>
+            <form method='POST' style='display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;'>
+                <label for='noob_mult'>Faktor (0 - 1):</label>
+                <input type='text' inputmode='decimal' pattern='^(0(\.[0-9]+|,?[0-9]+)?|1(\.0+|,0+)?)$' name='noob_mult' id='noob_mult' 
+                       value='$current_noob' 
+                       style='width: 60px; text-align: center;' required>
+                <input type='submit' name='update_noob_protection' value='Speichern'>
+                <input type='submit' name='reset_noob_protection' value='Reset (" . DEFAULT_NOOB_PROTECTION_MULT . ")' $noob_reset_disabled>
+            </form>
+        </div>
+    </div>";
     $settings_list .= "
     <div class='box-container' style='margin-top: 20px;'>
         <div class='box-header'>Forum-Synchronisation</div>

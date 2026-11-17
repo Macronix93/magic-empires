@@ -29,7 +29,6 @@ if ($type === "guild" && isset($_POST["mark_all_read"])) {
     exit;
 }
 
-$session_token = $_SESSION["active_chat_token"] ?? "";
 session_write_close();
 
 $html = "";

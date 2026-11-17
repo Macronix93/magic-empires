@@ -287,6 +287,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
 
+        // Save Kingdom Order
+        if (isset($_POST['save_kingdom_order'])) {
+            $order_ids = $_POST['kingdom_order'] ?? [];
+
+            if (is_array($order_ids) && count($order_ids) > 1) {
+                $res_k = $db_instance->execute_query(
+                    "SELECT id, created_at FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
+                    [$uid]
+                );
+                $existing_kingdoms = $res_k->fetch_all(MYSQLI_ASSOC);
+                $valid_ids = array_column($existing_kingdoms, 'id');
+
+                $timestamps = array_map('intval', array_column($existing_kingdoms, 'created_at'));
+                sort($timestamps);
+                for ($i = 1; $i < count($timestamps); $i++) {
+                    if ($timestamps[$i] <= $timestamps[$i - 1]) {
+                        $timestamps[$i] = $timestamps[$i - 1] + 1;
+                    }
+                }
+
+                $db_instance->begin_transaction();
+                try {
+                    $idx = 0;
+                    foreach ($order_ids as $kid) {
+                        $kid = (int)$kid;
+
+                        if (in_array($kid, $valid_ids, true) && isset($timestamps[$idx])) {
+                            $db_instance->execute_query(
+                                "UPDATE kingdoms SET created_at = ? WHERE id = ? AND userid = ?",
+                                [$timestamps[$idx], $kid, $uid]
+                            );
+                            $idx++;
+                        }
+                    }
+                    $db_instance->commit();
+
+                    $_SESSION["game_success"] = "Die Reihenfolge deiner Königreiche wurde gespeichert!";
+                } catch (Throwable) {
+                    $db_instance->rollback();
+
+                    $_SESSION["game_error"] = "Fehler beim Speichern der Reihenfolge.";
+                }
+                change_location("settings.php?tab=game");
+            }
+        }
+
         // IP Sharing Partner
         if (isset($_POST['update_sharing'])) {
             $partner_input = trim($_POST['partner_name'] ?? '');
@@ -346,12 +392,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $autofocus_troops = isset($_POST["autofocus_troops"]) ? "1" : "0";
 
             $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
-            $_SESSION["chat_filter"] = $filter_val;
+            $_SESSION["chat_filter"] = (bool)$filter_val;
 
             setcookie("me_overview_pagesize", (string)$pagesize, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
             setcookie("me_list_view", $list_view, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
             setcookie("me_map_popup", $map_popup, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-            setcookie("me_autofocus_troops", $autofocus_troops, $now + 31536000, "/", "", false, false);
+            setcookie("me_autofocus_troops", $autofocus_troops, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
 
             $_COOKIE["me_overview_pagesize"] = (string)$pagesize;
             $_COOKIE["me_list_view"] = $list_view;
@@ -577,7 +623,7 @@ $tab_menu = "
 <div class='tab' id='settings-tabs' style='margin: 0 auto 15px auto; max-width: 550px;'>
     <div class='tablinks " . ($active_tab === 'profile' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='profile'>Profil</div>
     <div class='tablinks " . ($active_tab === 'game' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='game'>Spiel & Anzeige</div>
-    <div class='tablinks " . ($active_tab === 'account' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='account''>Account</div>
+    <div class='tablinks " . ($active_tab === 'account' ? 'active' : '') . "' data-on-click='switchSettingsTab' data-tab='account'>Account</div>
 </div>";
 
 $view = $tab_menu . $view;
@@ -653,9 +699,9 @@ $view .= "<div id='tab_game' class='settings-tab' style='display: " . ($active_t
 
 $cur_pagesize = (int)($_COOKIE["me_overview_pagesize"] ?? OVERVIEW_PAGESIZE_DEFAULT);
 $cur_pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $cur_pagesize));
-$cur_list_view = ((int)($_COOKIE["me_list_view"] ?? 0) === 1);
-$cur_map_popup = ((int)($_COOKIE["me_map_popup"] ?? 1) === 1);
-$cur_filter = ($_SESSION["chat_filter"] ?? 1);
+$cur_list_view = (($_COOKIE["me_list_view"] ?? "0") === "1");
+$cur_map_popup = (($_COOKIE["me_map_popup"] ?? "1") === "1");
+$cur_filter = ($_SESSION["chat_filter"] ?? true);
 $cur_show_snow = (($_COOKIE["me_show_snow"] ?? "1") === "1");
 $cur_autofocus_troops = (($_COOKIE["me_autofocus_troops"] ?? "0") === "1");
 $cur_disable_special = (($_COOKIE["me_disable_special_theme"] ?? "0") === "1") || (($cur_theme_pref ?? "") === "default");
@@ -742,7 +788,7 @@ $view .= '
         <form method="POST">
             <input type="hidden" name="tab" value="game">
             <p style="margin-top: 0;">Aktueller Name: <b>' . e($current_k_name) . '</b></p>
-            <input type="text" name="new_kingdom_name" maxlength="25" placeholder="Neuer Name..." required style="width: 100%; margin-bottom: 10px;">
+            <input type="text" name="new_kingdom_name" maxlength="' . MAX_KINGDOM_NAME_LENGTH . '" placeholder="Neuer Name..." required style="width: 100%; margin-bottom: 10px;">
             <input type="submit" name="rename_kingdom" value="Namen speichern">
         </form>
         <p style="font-size: 12px; opacity: 0.6; margin-top: 10px;">
@@ -751,6 +797,50 @@ $view .= '
         </p>
     </div>
 </div>';
+
+$user_kingdoms_list = $db_instance->execute_query(
+    "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
+    [$uid]
+)->fetch_all(MYSQLI_ASSOC);
+
+if (count($user_kingdoms_list) > 1) {
+    $view .= '
+    <div class="box-container">
+        <div class="box-header">Königreiche sortieren</div>
+        <div class="box-content box-content-bg" style="padding: 15px;">
+            <p style="margin-top: 0; opacity: 0.85;">
+                Ziehe die Königreiche per <b>Drag &amp; Drop</b> oder nutze die Pfeile, um die Reihenfolge für alle Übersichten und Dropdowns festzulegen:
+            </p>
+            <form method="POST">
+                <input type="hidden" name="tab" value="game">
+                <input type="hidden" name="save_kingdom_order" value="1">
+                <div id="kingdom-sort-list" style="display: flex; flex-direction: column; margin-bottom: 15px;">';
+
+    foreach ($user_kingdoms_list as $idx => $uk) {
+        $pos = $idx + 1;
+        $view .= '
+                    <div class="kingdom-sort-item" draggable="true">
+                        <input type="hidden" name="kingdom_order[]" value="' . (int)$uk["id"] . '">
+                        <div class="kingdom-sort-left">
+                            <span class="kingdom-sort-handle" title="Ziehen zum Verschieben">☰</span>
+                            <b class="js-sort-pos kingdom-sort-pos">#' . $pos . '</b>
+                            <span class="kingdom-sort-name">' . e($uk["kingdomname"]) . '</span>
+                            <small class="kingdom-sort-coords">(' . (int)$uk["mapx"] . ':' . (int)$uk["mapy"] . ')</small>
+                        </div>
+                        <div class="kingdom-sort-actions">
+                            <button type="button" class="btn-stepper" data-on-click="moveKingdomOrder" data-dir="-1" title="Nach oben">▲</button>
+                            <button type="button" class="btn-stepper" data-on-click="moveKingdomOrder" data-dir="1" title="Nach unten">▼</button>
+                        </div>
+                    </div>';
+    }
+
+    $view .= '
+                </div>
+                <input type="submit" value="Reihenfolge speichern">
+            </form>
+        </div>
+    </div>';
+}
 
 $current_partner_name = $user_data['partner_name'] ?? '';
 $current_partner_text = !empty($current_partner_name)
@@ -811,7 +901,7 @@ $view .= '
         <form method="POST">
             <input type="hidden" name="tab" value="account">
             <table class="table" style="width: 100%;">
-                <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="16" required></td></tr>
+                <tr><td>Neuer Name:</td><td><input type="text" name="new_username" maxlength="' . MAX_USERNAME_LENGTH . '" required></td></tr>
                 <tr><td>Passwort-Bestätigung:</td><td><input type="password" name="confirm_pw_name" required></td></tr>
             </table><br>
             <input type="submit" name="change_username" value="Namen ändern">
@@ -858,12 +948,12 @@ $push_settings = $db_instance->execute_query(
     [$uid]
 )->fetch_assoc();
 
-$val_combat = $push_settings['combat'] ?? 1;
-$val_troops = $push_settings['troops'] ?? 1;
-$val_building = $push_settings['building'] ?? 1;
-$val_storage = $push_settings['storage'] ?? 1;
-$val_messages = $push_settings['messages'] ?? 1;
-$val_events = $push_settings['events'] ?? 1;
+$val_combat = (bool)($push_settings['combat'] ?? true);
+$val_troops = (bool)($push_settings['troops'] ?? true);
+$val_building = (bool)($push_settings['building'] ?? true);
+$val_storage = (bool)($push_settings['storage'] ?? true);
+$val_messages = (bool)($push_settings['messages'] ?? true);
+$val_events = (bool)($push_settings['events'] ?? true);
 
 $res_push_count = $db_instance->execute_query("SELECT COUNT(*) FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
 $push_devices_count = (int)$res_push_count->fetch_column();
