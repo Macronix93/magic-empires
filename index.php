@@ -8,76 +8,94 @@ if (!empty(MAINTENANCE_REASON)) {
     $maintenance_text .= "<br><b>Grund:</b> " . e(MAINTENANCE_REASON);
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "GET") {
-    unset($_SESSION["captcha_passed"]);
-}
-
 $success = "";
 $error = "";
 $warning = "";
 $mode = $_GET["action"] ?? "login";
 $now = time();
 
-if (isset($_GET["banned"])) {
-    $ban_reason = trim($_GET["banned"]);
-    $until_ts = (int)($_GET["until"] ?? 0);
-    $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
-    $until_text = ($until_ts > time()) ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", $until_ts) . " Uhr" : "<br />Dauer: Permanent";
-    $error = "Dein Account wurde gesperrt!" . $reason_text . $until_text;
-}
+$old_username = "";
+$old_email = "";
+$old_accept_rules = false;
+$is_post_feedback = false;
 
-// ACCOUNT ACTIVATION
-if (!empty($_GET["key"])) {
-    $activation_key = make_secure($_GET["key"]);
-    $result = $db_instance->execute_query("SELECT id, username, status, email, password FROM users WHERE activationkey = ? LIMIT 1", [$activation_key]);
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    if (isset($_SESSION["auth_flash"])) {
+        $flash = $_SESSION["auth_flash"];
+        unset($_SESSION["auth_flash"]);
 
-    if ($result && $result->num_rows > 0) {
-        $user_data = $result->fetch_assoc();
-        $user_id = $user_data["id"];
-        $username = $user_data["username"];
+        $success = $flash["success"] ?? "";
+        $error = $flash["error"] ?? "";
+        $warning = $flash["warning"] ?? "";
+        $old_username = $flash["username"] ?? "";
+        $old_email = $flash["email"] ?? "";
+        $old_accept_rules = !empty($flash["accept_rules"]);
+        $is_post_feedback = true;
+    } else {
+        unset($_SESSION["captcha_passed"]);
+    }
 
-        if (!$user_data["status"]) {
-            $max_news_id = $db_instance->query("SELECT MAX(date) FROM news")->fetch_row()[0] ?? 0;
-            $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
-            $max_sug_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
-            $max_comm_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
+    if (isset($_GET["banned"])) {
+        $ban_reason = trim($_GET["banned"]);
+        $until_ts = (int)($_GET["until"] ?? 0);
+        $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
+        $until_text = ($until_ts > time()) ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", $until_ts) . " Uhr" : "<br />Dauer: Permanent";
+        $error = "Dein Account wurde gesperrt!" . $reason_text . $until_text;
+    }
 
-            $db_instance->execute_query(
-                    "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ?, last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
-                    [$max_news_id, $max_chat_id, $max_sug_id, $max_comm_id, $user_id]
-            );
+    // ACCOUNT ACTIVATION
+    if (!empty($_GET["key"])) {
+        $activation_key = make_secure($_GET["key"]);
+        $result = $db_instance->execute_query("SELECT id, username, status, email, password FROM users WHERE activationkey = ? LIMIT 1", [$activation_key]);
 
-            $kingdom = new Kingdom();
-            $main_kingdom = $kingdom->create_kingdom($user_id, $username);
+        if ($result && $result->num_rows > 0) {
+            $user_data = $result->fetch_assoc();
+            $user_id = $user_data["id"];
+            $username = $user_data["username"];
 
-            if ($main_kingdom) {
-                // Update last rank
-                $query_rank = "UPDATE users JOIN (SELECT id, (@rank := @rank + 1) AS new_rank 
+            if (!$user_data["status"]) {
+                $max_news_id = $db_instance->query("SELECT MAX(date) FROM news")->fetch_row()[0] ?? 0;
+                $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
+                $max_sug_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
+                $max_comm_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
+
+                $db_instance->execute_query(
+                        "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ?, last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
+                        [$max_news_id, $max_chat_id, $max_sug_id, $max_comm_id, $user_id]
+                );
+
+                $kingdom = new Kingdom();
+                $main_kingdom = $kingdom->create_kingdom($user_id, $username);
+
+                if ($main_kingdom) {
+                    // Update last rank
+                    $query_rank = "UPDATE users JOIN (SELECT id, (@rank := @rank + 1) AS new_rank 
                         FROM (SELECT id FROM users ORDER BY score DESC) 
                         AS ranked_users CROSS JOIN (SELECT @rank := 0) AS init) AS r ON users.id = r.id 
                         SET users.lastrank = r.new_rank 
                         WHERE users.id = ?
                 ";
-                $db_instance->execute_query($query_rank, [$user_id]);
-                $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $user_id]);
+                    $db_instance->execute_query($query_rank, [$user_id]);
+                    $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $user_id]);
 
-                if (!IS_DEV) {
-                    PhpBBBridge::create_forum_user($username, $user_data["email"], $user_data["password"]);
+                    if (!IS_DEV) {
+                        PhpBBBridge::create_forum_user($username, $user_data["email"], $user_data["password"]);
+                    }
+
+                    if (AdventCalendar::is_active()) {
+                        new AdventCalendar()->ensure_user_gifts($user_id);
+                    }
+
+                    $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
+                } else {
+                    $error = "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de";
                 }
-
-                if (AdventCalendar::is_active()) {
-                    new AdventCalendar()->ensure_user_gifts($user_id);
-                }
-
-                $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
             } else {
-                $error = "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de";
+                $error = "Dieser Account ist bereits aktiviert.";
             }
         } else {
-            $error = "Dieser Account ist bereits aktiviert.";
+            $error = "Ungültiger oder abgelaufener Aktivierungsschlüssel.";
         }
-    } else {
-        $error = "Ungültiger oder abgelaufener Aktivierungsschlüssel.";
     }
 }
 
@@ -151,6 +169,8 @@ if ($is_post_logout || $is_get_logout) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $is_auth_post = isset($_POST["login"]) || isset($_POST["register"]);
+
     // LOGIN
     if (isset($_POST["login"])) {
         $name = make_secure($_POST["username"] ?? "");
@@ -159,7 +179,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (empty($name) || empty($pass)) {
             $error .= "Bitte beide Felder ausfüllen!";
         } else {
-            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason, ban_until FROM users WHERE username = ? OR email = ? LIMIT 1",
+            $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason, ban_until,
+                        is_vacation, vacation_until FROM users WHERE username = ? OR email = ? LIMIT 1",
                     [$name, $name]
             );
 
@@ -251,14 +272,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $json = file_get_contents("https://www.google.com/recaptcha/api/siteverify?secret=" . getenv("SERVER_KEY") . "&response=" . $response);
                 $data = json_decode($json);
 
-                if ($data->success) {
+                if (!empty($data->success)) {
                     $_SESSION["captcha_passed"] = true;
                 } else {
                     $error .= "Bitte den Botschutz akzeptieren!<br>";
                 }
             }
 
-            $name = $_POST["username"];
+            $name = $_POST["username"] ?? "";
             if (preg_match('/\s/', $name)) {
                 $error .= "Benutzername darf keine Leerzeichen enthalten!<br>";
             } else {
@@ -294,7 +315,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error .= "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!<br>";
             } else {
                 if (str_ends_with(strtolower($email), "@magic-empires.de") ||
-                        str_ends_with(strtolower($email), "@abc.de")) {
+                        str_ends_with(strtolower($email), "@sylvan-giese.de")) {
                     $error .= "Diese E-Mail-Adresse ist nicht gestattet!<br>";
                 } else {
                     $domain = substr(strrchr($email, "@"), 1);
@@ -342,6 +363,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
         }
+    }
+
+    if ($is_auth_post) {
+        $_SESSION["auth_flash"] = [
+                "success" => $success,
+                "error" => $error,
+                "warning" => $warning,
+                "username" => $_POST["username"] ?? "",
+                "email" => $_POST["email"] ?? "",
+                "accept_rules" => isset($_POST["accept_rules"])
+        ];
+
+        $redirect_url = ($mode === "register") ? "index.php?action=register" : "index.php";
+        change_location($redirect_url);
     }
 }
 
@@ -435,11 +470,13 @@ $count_online = $res_online->fetch_row()[0];
                                 <?php
                                 if (!empty($error)) {
                                     $errors = explode("<br>", $error);
+
                                     foreach ($errors as $e) {
                                         if (trim($e) !== "") echo show_error_box($e);
                                     }
                                 }
-                                if (!empty($warning) && $_SERVER["REQUEST_METHOD"] === "POST") {
+
+                                if (!empty($warning) && $is_post_feedback) {
                                     echo show_warning_box($warning);
                                 }
                                 ?>
@@ -511,14 +548,14 @@ $count_online = $res_online->fetch_row()[0];
                                                         <input type="text" name="username"
                                                                placeholder="Benutzername"
                                                                style="width: 100%;"
-                                                               value="<?= e($_POST["username"] ?? "") ?>">
+                                                               value="<?= e($old_username) ?>">
                                                     </label></td>
                                             </tr>
                                             <tr>
                                                 <td><label>
                                                         <input type="text" name="email" placeholder="E-Mail Adresse"
                                                                style="width: 100%;"
-                                                               value="<?= e($_POST["email"] ?? "") ?>">
+                                                               value="<?= e($old_email) ?>">
                                                     </label></td>
                                             </tr>
                                             <tr>
@@ -539,7 +576,7 @@ $count_online = $res_online->fetch_row()[0];
                                                 <td style="padding: 10px; text-align: left; font-size: 14px;">
                                                     <label style="display: flex; align-items: center; gap: 10px;">
                                                         <input type="checkbox" name="accept_rules"
-                                                               value="1" <?= isset($_POST["accept_rules"]) ? "checked" : '' ?>>
+                                                               value="1" <?= $old_accept_rules ? "checked" : '' ?>>
                                                         <span>Ich akzeptiere die <a href="rules.php" target="_blank"
                                                                                     style="text-decoration: underline; color: var(--link-color);">Regeln</a>.</span>
                                                     </label>

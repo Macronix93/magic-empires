@@ -104,6 +104,7 @@ if ($row_enemy) {
 $my_guild_id = $user->get_user_guild_id();
 $is_ally = ($my_guild_id > 0 && $my_guild_id === $enemy_guild_id && $enemy_user_id !== $user->get_user_id());
 
+$only_scouts_allowed = false;
 $is_noob_protected = false;
 $is_new_kingdom_protected = false;
 
@@ -176,7 +177,7 @@ $row = $result->fetch_assoc();
 
 $scout_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SCOUT] ?? 0);
 $has_raiders = ((int)($kingdom_soldiers[Soldiers::SOLDIER_RAIDER] ?? 0) > 0);
-$only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
+//$only_scouts_allowed = (!$is_ally && $is_noob_protected && $enemy_user_id != -1);
 
 $mining_units_count = 0;
 for ($i = Soldiers::SOLDIER_MILITIA; $i <= Soldiers::SOLDIER_ELVENARCHER; $i++) {
@@ -320,9 +321,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             FROM events e 
             JOIN sent_troops st ON e.eventid = st.eventid
             WHERE e.userid = ? 
-              AND e.targetid = -1 
+              AND e.targetid = ? 
               AND st.soldierid = ? 
-              AND e.actionid = ?", [$user->get_user_id(), Soldiers::SOLDIER_SETTLER_WAGON, ActionTypes::ACTION_SEND_TROOPS]
+              AND e.actionid = ?",
+            [$user->get_user_id(), MapFieldTypes::MAP_FIELD_EMPTY, Soldiers::SOLDIER_SETTLER_WAGON, ActionTypes::ACTION_SEND_TROOPS]
         );
         $ongoing_foundations = (int)($res_ongoing->fetch_assoc()["total"] ?? 0);
         $settler_wagon_count = (int)($_POST["soldiers"][Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
@@ -953,7 +955,7 @@ foreach ($soldiers as $soldier_id => $s_obj) {
     }
 }
 
-$only_scouts_allowed = (!$is_ally && $is_noob_protected);
+//$only_scouts_allowed = (!$is_ally && $is_noob_protected);
 $settler_wagon_count = (int)($kingdom_soldiers[Soldiers::SOLDIER_SETTLER_WAGON] ?? 0);
 $first_active_cat = isset($_GET["cat"]) ? (int)$_GET["cat"] : -1;
 
@@ -1159,7 +1161,7 @@ if ($barracks_level > 0) {
                 $shrine_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
             }
 
-            $real_atk = (int)round(($s_obj->get_soldier_attack() + $atk_bonus) * $shrine_mult);
+            $real_atk = (int)round($s_obj->get_soldier_attack() * $shrine_mult) + $atk_bonus;
             $real_def = (int)($s_obj->get_soldier_defense() + $def_bonus);
 
             $row_style = ($show_all_checked || $unit_cat === $first_active_cat) ? "" : "display: none;";

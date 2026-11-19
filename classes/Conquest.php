@@ -263,14 +263,17 @@ class Conquest
                 // Stats Attacker Troops
                 $this->soldier_type_atk[$id] = (int)round(($soldier["attack"] * $atk_shrine) + $atk_techs[$prefix . 'a']);
                 $this->soldier_type_def[$id] = (int)($soldier["defense"] + $atk_techs[$prefix . 'd']);
+
                 // Stats Defender Troops
                 $this->enemy_soldier_type_atk[$id] = (int)round(($soldier["attack"] * $def_atk_shrine) + $def_techs[$prefix . 'a']);
                 $this->enemy_soldier_type_def[$id] = (int)($soldier["defense"] + $def_techs[$prefix . 'd']);
             } else {
-                // Special Units
-                $this->soldier_type_atk[$id] = (int)$soldier["attack"];
+                // Special Units Attacker
+                $this->soldier_type_atk[$id] = (int)round($soldier["attack"] * $atk_shrine);
                 $this->soldier_type_def[$id] = (int)$soldier["defense"];
-                $this->enemy_soldier_type_atk[$id] = (int)$soldier["attack"];
+
+                // Special Units Defender
+                $this->enemy_soldier_type_atk[$id] = (int)round($soldier["attack"] * $def_atk_shrine);
                 $this->enemy_soldier_type_def[$id] = (int)$soldier["defense"];
             }
         }
@@ -666,34 +669,71 @@ class Conquest
                   WHERE st.target_kingdom_id = ? 
                   ORDER BY st.soldier_id, st.id";
         $res = $this->mysqli->execute_query($query, [$this->target_id]);
+        $rows = $res->fetch_all(MYSQLI_ASSOC);
 
-        $supporters_data = [];
+        if (empty($rows)) {
+            return [];
+        }
+
         $remaining_losses_per_type = [];
-
         foreach ($this->soldier_types as $id => $s) {
             $tot_loss = (int)($this->initial_soldiers[$id]["enemy_losses"] ?? 0);
             $res_own_garrison = $this->own_garrison_soldiers[$id] ?? 0;
-
             $tot_init = (int)($this->initial_soldiers[$id]["initial_enemy_soldiers"] ?? 0);
             $garrison_share = ($tot_init > 0) ? ($res_own_garrison / $tot_init) : 0;
             $garrison_loss = min($res_own_garrison, (int)floor($tot_loss * $garrison_share));
             $remaining_losses_per_type[$id] = max(0, $tot_loss - $garrison_loss);
         }
 
-        while ($row = $res->fetch_assoc()) {
-            $uid = (int)$row["owner_id"];
+        $stacks_by_type = [];
+        foreach ($rows as $idx => $row) {
             $sid = (int)$row["soldier_id"];
             $initial = (int)$row["soldiercount"];
             $tot_init_type = (int)($this->initial_soldiers[$sid]["initial_enemy_soldiers"] ?? 0);
             $tot_loss_type = (int)($this->initial_soldiers[$sid]["enemy_losses"] ?? 0);
 
-            $loss = 0;
+            $base_loss = 0;
+            $fraction = 0.0;
             if ($tot_init_type > 0 && $tot_loss_type > 0) {
-                $unit_loss_ratio = $tot_loss_type / $tot_init_type;
-                $calculated_loss = (int)round($initial * $unit_loss_ratio);
-                $loss = min($initial, $calculated_loss, $remaining_losses_per_type[$sid]);
-                $remaining_losses_per_type[$sid] = max(0, $remaining_losses_per_type[$sid] - $loss);
+                $exact_loss = $initial * ($tot_loss_type / $tot_init_type);
+                $base_loss = min($initial, (int)floor($exact_loss), $remaining_losses_per_type[$sid]);
+                $fraction = $exact_loss - floor($exact_loss);
+                $remaining_losses_per_type[$sid] -= $base_loss;
             }
+
+            $rows[$idx]["_loss"] = $base_loss;
+            $rows[$idx]["_fraction"] = $fraction;
+            $stacks_by_type[$sid][] = $idx;
+        }
+
+        foreach ($stacks_by_type as $sid => $indices) {
+            $rem = $remaining_losses_per_type[$sid] ?? 0;
+            if ($rem <= 0) continue;
+
+            usort($indices, function ($a, $b) use ($rows) {
+                $cmp = $rows[$b]["_fraction"] <=> $rows[$a]["_fraction"];
+                return ($cmp !== 0) ? $cmp : ($rows[$b]["soldiercount"] <=> $rows[$a]["soldiercount"]);
+            });
+
+            foreach ($indices as $idx) {
+                if ($rem <= 0) break;
+
+                $avail = (int)$rows[$idx]["soldiercount"] - $rows[$idx]["_loss"];
+
+                if ($avail > 0) {
+                    $add = min($rem, $avail);
+                    $rows[$idx]["_loss"] += $add;
+                    $rem -= $add;
+                }
+            }
+        }
+
+        $supporters_data = [];
+        foreach ($rows as $row) {
+            $uid = (int)$row["owner_id"];
+            $sid = (int)$row["soldier_id"];
+            $initial = (int)$row["soldiercount"];
+            $loss = (int)$row["_loss"];
 
             if ($loss > 0) {
                 $score_loss = $loss * (int)$row["scoregain"];
@@ -723,7 +763,6 @@ class Conquest
                     "units" => []
                 ];
             }
-
             if (!isset($supporters_data[$uid]["units"][$sid])) {
                 $supporters_data[$uid]["units"][$sid] = [
                     "id" => $sid,
@@ -733,7 +772,6 @@ class Conquest
                     "def" => (int)$row["defense"]
                 ];
             }
-
             $supporters_data[$uid]["units"][$sid]["initial"] += $initial;
             $supporters_data[$uid]["units"][$sid]["losses"] += $loss;
         }
@@ -856,24 +894,58 @@ class Conquest
             $identified_units = [];
             $total_atk = 0;
             $total_def = 0;
+
+            $atk_techs = [];
+            $shrine_mult = 1.0;
+            $source_id = (int)($row["source_id"] ?? 0);
+            if ($intel_level >= 5 && $source_id > 0) {
+                $src_k = new Kingdom($source_id);
+
+                if ($src_k->get_kingdom_id() > 0) {
+                    $atk_techs = [
+                        SoldierTypes::SOLDIER_TYPE_INFANTRY => [
+                            "a" => $src_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_BLADES) * SMITHY_INF_ATK_BONUS,
+                            "d" => $src_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_SHIELDWALL) * SMITHY_INF_DEF_BONUS
+                        ],
+                        SoldierTypes::SOLDIER_TYPE_CAVALRY => [
+                            "a" => $src_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_LANCE_RIDING) * SMITHY_CAV_ATK_BONUS,
+                            "d" => $src_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_CUIRASS) * SMITHY_CAV_DEF_BONUS
+                        ],
+                        SoldierTypes::SOLDIER_TYPE_ARCHERS => [
+                            "a" => $src_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_ARROWHEADS) * SMITHY_ARC_ATK_BONUS,
+                            "d" => $src_k->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS
+                        ],
+                    ];
+
+                    if ($src_k->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
+                        $shrine_mult += $src_k->calculate_shrine_bonus($src_k->get_shrine_modifier());
+                    }
+                }
+            }
+
             $res_troops = $db->execute_query("
-                SELECT st.soldierid, sl.attack, sl.defense, SUM(st.soldiercount) AS soldiercount
+                SELECT st.soldierid, sl.attack, sl.defense, sl.category, SUM(st.soldiercount) AS soldiercount
                 FROM sent_troops st
                 JOIN soldier_list sl ON st.soldierid = sl.id
                 WHERE st.eventid = ?
-                GROUP BY st.soldierid, sl.attack, sl.defense
+                GROUP BY st.soldierid, sl.attack, sl.defense, sl.category
             ", [(int)$row["eventid"]]);
 
             while ($t = $res_troops->fetch_assoc()) {
                 $count = (int)$t["soldiercount"];
-                $total_atk += (int)round($count * $t["attack"]);
-                $total_def += (int)round($count * $t["defense"]);
+                $cat = (int)$t["category"];
+                $b_atk = $atk_techs[$cat]["a"] ?? 0;
+                $b_def = $atk_techs[$cat]["d"] ?? 0;
+                $unit_atk = (int)round(($t["attack"] * $shrine_mult) + $b_atk);
+                $unit_def = (int)round($t["defense"] + $b_def);
+
+                $total_atk += $count * $unit_atk;
+                $total_def += $count * $unit_def;
                 $identified_units[] = [
                     "id" => (int)$t["soldierid"],
                     "count" => $count
                 ];
             }
-
             if ($intel_level >= 5) {
                 $strength_data = [
                     "atk" => $total_atk,

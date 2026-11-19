@@ -10,12 +10,12 @@ $uid = $user->get_user_id();
 function get_support_error($text): ?string
 {
     $text_plain = trim(strip_tags($text));
-    $line_breaks_count = substr_count($text, '<br />');
+    $line_breaks_count = substr_count($text, "\n");
     $text_without_line_breaks = preg_replace('/<br\s*\/?>/i', '', $text);
 
     if (empty($text_plain)) {
         return "Bitte eine Nachricht eingeben!";
-    } else if (strlen($text_without_line_breaks) > MAX_MESSAGE_LENGTH) {
+    } else if (mb_strlen($text_without_line_breaks, "UTF-8") > MAX_MESSAGE_LENGTH) {
         return "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
     } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
         return "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";

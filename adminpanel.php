@@ -403,39 +403,18 @@ if (!$user->is_admin()) {
 
         if (isset($_POST["delete_user"])) {
             $user_id = (int)($_POST["user_id"] ?? 0);
+            $username = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
 
-            // Check if user id was found and get all kingdoms for updating the map
-            $query = "
-                SELECT users.username, kingdoms.id AS kingdomid
-                FROM users
-                LEFT JOIN kingdoms ON users.id = kingdoms.userid
-                WHERE users.id = ?
-            ";
-            $result = $db_instance->execute_query($query, [$user_id]);
+            $err = User::delete_account($user_id);
 
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_assoc();
-                $username = $row["username"];
-
-                // Check if user was in a guild and leader
-                $guild_manager = new Guild($user);
-                $guild_manager->handle_leader_deletion($user_id);
-
-                Kingdom::convert_user_kingdoms_to_ruins($user_id);
-                User::delete_user_avatar_files($user_id);
-                PhpBBBridge::delete_forum_user($username);
-
-                // Delete the user
-                $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
-
-                $em = new EventManager($user);
-                $em->process_orphaned_support();
-
+            if ($err !== null) {
+                $error .= $err;
+            } else {
                 $logger->admin("DELETED USER: $username (ID: $user_id)");
 
-                $flash_box = show_passed_box("Benutzer erfolgreich gelöscht!");
-            } else {
-                $error .= "Der Benutzer existiert nicht!";
+                $_SESSION["game_success"] = "Benutzer erfolgreich gelöscht!";
+
+                change_location("adminpanel.php?tab=users");
             }
         }
 
@@ -839,7 +818,6 @@ if (!$user->is_admin()) {
 
     // Show Server Settings
     $m_status = MAINTENANCE_MODE ? "<span class='error'>AKTIV</span>" : "<span class='passed'>Inaktiv</span>";
-    $m_button = MAINTENANCE_MODE ? "Deaktivieren" : "Aktivieren";
     $w_status = $server_winter ? "<span class='passed' style='font-weight: bold;'>AKTIV</span>" : "<span class='error'>Inaktiv</span>";
     $w_button = $server_winter ? "Deaktivieren" : "Aktivieren";
 
@@ -991,24 +969,32 @@ if (!$user->is_admin()) {
     $system_log_section .= "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px;'>";
 
     $files = ["admin.log", "error.log", "security.log"];
+    $log_dir = __DIR__ . "/logs/";
+    $can_clear_logs = ($user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN);
+
     foreach ($files as $f) {
+        $log_path = $log_dir . $f;
+        $is_empty = (!file_exists($log_path) || filesize($log_path) === 0);
+        $view_disabled = $is_empty ? "disabled title='Keine Einträge vorhanden'" : "";
+        $clear_disabled = ($is_empty || !$can_clear_logs) ? "disabled" : "";
+        $clear_bg = ($is_empty || !$can_clear_logs) ? "" : "background: #4b140a;";
         $url = "ajax/admin_log_view.php?file=$f";
 
         $system_log_section .= "<div class='box-container' style='width: 200px; margin: 0;'>
-                    <div class='box-header' style='font-size: 14px;'>$f</div>
-                    <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
-                        <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' data-width='1050px' style='width: 100%; margin-bottom: 5px;'>Ansehen</button>
-                        <form method='POST' id='form-clear-$f'>
-                            <input type='hidden' name='log_to_clear' value='$f'>
-                            <input type='hidden' name='clear_log' value='1'>
-                            <input type='button' 
-                                   data-on-click='confirmClearLog' 
-                                   data-filename='$f' 
-                                   value='Leeren' 
-                                   style='width: 100%; font-size: 11px; background: #4b140a;'>
-                        </form>
-                    </div>
-                </div>";
+            <div class='box-header' style='font-size: 14px;'>$f</div>
+            <div class='box-content box-content-bg' style='padding: 10px; text-align: center;'>
+                <button data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' data-width='1050px' style='width: 100%; margin-bottom: 5px;' $view_disabled>Ansehen</button>
+                <form method='POST' id='form-clear-$f'>
+                    <input type='hidden' name='log_to_clear' value='$f'>
+                    <input type='hidden' name='clear_log' value='1'>
+                    <input type='button' 
+                           data-on-click='confirmClearLog' 
+                           data-filename='$f' 
+                           value='Leeren' 
+                           style='width: 100%; font-size: 11px; $clear_bg' $clear_disabled>
+                </form>
+            </div>
+        </div>";
     }
     $system_log_section .= "</div>";
 
@@ -1133,7 +1119,7 @@ if (!$user->is_admin()) {
               </tr>";
         }
     } else {
-        $game_logs_table .= "<tr><td colspan='6' class='td-center'>Keine Einträge gefunden.</td></tr>";
+        $game_logs_table .= "<tr><td colspan='5' class='td-center'>Keine Einträge gefunden.</td></tr>";
     }
     $game_logs_table .= "</table>";
 

@@ -192,7 +192,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const isOverflown = totalProjected > maxStock;
 
             stockEl.innerHTML = `
-            <span class="${isOverflown ? 'error' : ''}"">
+            <span class="${isOverflown ? "error" : ''}">
                 ${formatNumJS(totalProjected)} / ${formatNumJS(maxStock)}
             </span>
         `;

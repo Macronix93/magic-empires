@@ -190,7 +190,7 @@ class Marketplace
 
         $this->db->begin_transaction();
         $result = $this->db->execute_query("
-            SELECT m.*, k.mapx, k.mapy, u.ip AS seller_ip, u.device_id AS seller_device 
+            SELECT m.*, k.mapx, k.mapy, u.ip AS seller_ip, u.device_id AS seller_device, u.guildid AS seller_guild_id
             FROM marketplace m 
             JOIN kingdoms k ON m.kingdomid = k.id 
             JOIN users u ON m.userid = u.id 
@@ -249,8 +249,7 @@ class Marketplace
         }
 
         $coins_cost = (int)$row["coins"];
-        $seller_gid = (int)($this->db->execute_query("SELECT guildid FROM users WHERE id = ?", [$row["userid"]])->fetch_column() ?? 0);
-        $is_ally_deal = ($my_guild_id > 0 && $seller_gid === $my_guild_id);
+        $is_ally_deal = ($my_guild_id > 0 && $row["seller_guild_id"] === $my_guild_id);
 
         if ($is_ally_deal) {
             $discount_lvl = Guild::get_user_guild_tech_level($uid, GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
@@ -394,6 +393,14 @@ class Marketplace
 
     public function send_internal_transport(int $target_id, array $amounts, Map $map): array
     {
+        foreach ($amounts as $k => $v) {
+            if ((int)$v < 0) {
+                return ["success" => false, "error" => "Ungültige Ressourcenmenge!"];
+            }
+
+            $amounts[(int)$k] = (int)$v;
+        }
+
         $target_market_lvl = (int)($this->db->execute_query(
             "SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
             [$target_id, BuildingTypes::BUILDING_MARKETPLACE]

@@ -238,17 +238,22 @@ class User
 
     public function get_avatar(): string
     {
-        $hashedName = substr(hash("sha256", $this->user_id . AVATAR_SALT), 0, 12);
+        static $avatar_cache = [];
 
+        if (isset($avatar_cache[$this->user_id])) {
+            return $avatar_cache[$this->user_id];
+        }
+
+        $hashed_name = substr(hash("sha256", $this->user_id . AVATAR_SALT), 0, 12);
         $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH;
-        $files = glob($directory . $hashedName . ".*");
+        $files = glob($directory . $hashed_name . ".*");
 
         if (!empty($files)) {
             $info = pathinfo($files[0]);
-            return UPLOADS_FILE_PATH . $hashedName . "." . $info["extension"] . "?t=" . filemtime($files[0]);
+            return $avatar_cache[$this->user_id] = UPLOADS_FILE_PATH . $hashed_name . "." . $info["extension"] . "?t=" . filemtime($files[0]);
         }
 
-        return DEFAULT_AVATAR;
+        return $avatar_cache[$this->user_id] = DEFAULT_AVATAR;
     }
 
     private function load_user_row(): array
@@ -366,6 +371,12 @@ class User
         if (!isset($_SESSION["last_recruited_soldier"])) {
             $_SESSION["last_recruited_soldier"] = [];
         }
+
+        $prev = $_SESSION["last_recruited_soldier"][$kingdom_id] ?? null;
+        if ($prev && ($prev["soldiername"] ?? "") === $soldier_name) {
+            $soldier_count += (int)($prev["soldiercount"] ?? 0);
+        }
+
         $_SESSION["last_recruited_soldier"][$kingdom_id] = [
             "soldiername" => $soldier_name,
             "soldiercount" => $soldier_count,
@@ -837,7 +848,8 @@ class User
 
         $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
         foreach ($supports as &$sup) {
-            $sup["is_new"] = (empty($sup["notification_sent"]) && !in_array($sup["eventid"], $ack_ids));
+            $sup["notification_sent"] = !empty($sup["notification_sent"]);
+            $sup["is_new"] = (!$sup["notification_sent"] && !in_array($sup["eventid"], $ack_ids));
         }
 
         return $supports;
@@ -939,6 +951,102 @@ class User
 
             return show_weighted_box("$name ($lvl → " . ($lvl + 1) . ")", "Forschung abgeschlossen:");
         }
+
+        return null;
+    }
+
+    public static function delete_account(int $user_id, bool $block_email = false): ?string
+    {
+        if ($user_id <= 0) {
+            return "Ungültige Benutzer-ID.";
+        }
+
+        $db = Database::get_instance()->get_connection();
+        $logger = Logger::get_instance();
+
+        $u_data = $db->execute_query(
+            "SELECT username, email, guildid FROM users WHERE id = ?",
+            [$user_id]
+        )->fetch_assoc();
+
+        if (!$u_data) {
+            return "Der Benutzer existiert nicht!";
+        }
+
+        $username = $u_data["username"];
+        $email = $u_data["email"];
+        $guild_id = (int)($u_data["guildid"] ?? -1);
+        $target_user = new User($user_id, $username);
+
+        $db->begin_transaction();
+        try {
+            if ($block_email && !empty($email)) {
+                $block_until = time() + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
+                $db->execute_query(
+                    "INSERT INTO blocked_emails (email, blocked_until) VALUES (?, ?) ON DUPLICATE KEY UPDATE blocked_until = VALUES(blocked_until)",
+                    [$email, $block_until]
+                );
+            }
+
+            // Reverse attacks of other users
+            $db->execute_query(
+                "UPDATE events SET actionid = ?, arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - buildingtime), targetid = -1, is_processing = 0
+             WHERE targetid IN (SELECT id FROM kingdoms WHERE userid = ?) AND actionid = ?",
+                [ActionTypes::ACTION_RETURN_TROOPS, $user_id, ActionTypes::ACTION_SEND_TROOPS]
+            );
+
+            // Reverse resource transports of other users
+            $db->execute_query(
+                "UPDATE events e JOIN kingdoms k_source ON e.targetid = k_source.id SET 
+                e.actionid = ?, e.arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - e.buildingtime),
+                e.targetx = k_source.mapx, e.targety = k_source.mapy, e.kingdomid = e.targetid, e.targetid = -1,
+                e.buildingname = 'Transport-Rückkehr', e.is_processing = 0 
+             WHERE e.kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) AND e.userid != ? AND e.actionid = ?",
+                [ActionTypes::ACTION_RETURN_RESOURCES, $user_id, $user_id, ActionTypes::ACTION_RECEIVE_RESOURCES]
+            );
+
+            $guild_manager = new Guild($target_user, $guild_id);
+            $guild_manager->handle_leader_deletion($user_id);
+
+            // Update guild research to guild leader
+            $db->execute_query(
+                "UPDATE events e JOIN guilds g ON e.guild_id = g.id SET e.userid = g.founder_id WHERE e.userid = ? AND e.guild_id IS NOT NULL",
+                [$user_id]
+            );
+
+            // Convert kingdoms of the user to ruins
+            Kingdom::convert_user_kingdoms_to_ruins($user_id);
+
+            // Cleanup mine possessions
+            $db->execute_query(
+                "UPDATE mines m SET
+                m.claimed_user_id = (SELECT mst.user_id FROM mine_stationed_troops mst WHERE mst.mine_id = m.id AND mst.user_id != ? LIMIT 1),
+                m.claimed_guild_id = IF(
+                    EXISTS(SELECT 1 FROM mine_stationed_troops mst WHERE mst.mine_id = m.id AND mst.user_id != ?),
+                    m.claimed_guild_id,
+                    NULL
+                )
+             WHERE m.claimed_user_id = ?",
+                [$user_id, $user_id, $user_id]
+            );
+
+            // Delete account
+            $db->execute_query("DELETE FROM users WHERE id = ?", [$user_id]);
+
+            // Return orphaned support troops
+            $em = new EventManager($target_user);
+            $em->process_orphaned_support();
+
+            $db->commit();
+        } catch (Throwable $e) {
+            $db->rollback();
+
+            $logger->error("Fehler beim Löschen des Accounts ID $user_id: " . $e->getMessage());
+            return "Ein Datenbankfehler ist aufgetreten. Der Account konnte nicht sicher gelöscht werden.";
+        }
+
+        self::delete_user_avatar_files($user_id);
+        PhpBBBridge::delete_forum_user($username);
 
         return null;
     }

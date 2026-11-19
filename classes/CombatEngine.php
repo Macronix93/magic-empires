@@ -289,11 +289,13 @@ class CombatEngine
     }
 
     public static function calculate_stealth(
-        int $atk_count,
-        int $def_scouts,
-        int $unit_atk,
-        int $unit_def,
-        int $wt_level
+        int  $atk_count,
+        int  $def_scouts,
+        int  $unit_atk,
+        int  $unit_def,
+        int  $wt_level,
+        ?int $def_unit_atk = null,
+        ?int $def_unit_def = null
     ): array
     {
         if ($def_scouts <= 0 || $atk_count <= 0) {
@@ -305,11 +307,14 @@ class CombatEngine
         }
 
         $unit_def = max(1, $unit_def);
+        $d_atk = $def_unit_atk ?? $unit_atk;
+        $d_def = max(1, $def_unit_def ?? $unit_def);
+
         $p_atk_pool = $atk_count * $unit_atk;
         $p_def_pool = $atk_count * $unit_def;
 
-        $e_atk_pool = $def_scouts * ($unit_atk + ($wt_level * 0.5));
-        $e_def_pool = $def_scouts * ($unit_def + $wt_level);
+        $e_atk_pool = $def_scouts * ($d_atk + ($wt_level * 0.5));
+        $e_def_pool = $def_scouts * ($d_def + $wt_level);
 
         $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
         $base_min = 1.0 - PVP_DAMPING_BASE_DISCOUNT;

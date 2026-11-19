@@ -173,9 +173,9 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
                 </div>
             </div>
             <div class="split-content" style="margin-top: 5px; align-items: center;">
-            <span>DEF:</span>
+                <span>DEF:</span>
                 <div style="font-weight: bold; color: var(--link-color);">
-                    +<span id="wall_def_display">' . fnum($initial_wall_def, true) . '</span></span>
+                    +<span id="wall_def_display">' . fnum($initial_wall_def, true) . '</span>
                 </div>
             </div>
         </div>
@@ -371,7 +371,7 @@ $view .= '</div>';
 // --- BUTTONS & DATA ---
 $shrine_atk_mult = 1.0;
 if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-    $shrine_atk_mult += $kingdom->get_shrine_modifier();
+    $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
 }
 
 $view .= '<div id="warsim-data" 

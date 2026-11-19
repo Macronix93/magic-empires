@@ -53,7 +53,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
         </div>
         <div class="box-content">
             <div class="box<?= $current_page === 'overview.php' ? ' active' : '' ?>"
-                 data-on-click="navigate" data-url="index.php">
+                 data-on-click="navigate" data-url="overview.php">
                 <?= get_page_icon("overview.php") ?> Übersicht
                 <span class="msg-badge" style="<?= $atk_count > 0 ? '' : 'display: none;' ?>">
                     <?= $messages->show_messages_indicator($atk_count) ?>

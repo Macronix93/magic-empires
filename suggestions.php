@@ -10,7 +10,6 @@ if (!SUGGESTIONS_ENABLED) {
 $uid = $user->get_user_id();
 $is_admin = $user->is_admin();
 
-$user_last_comm_read = (int)($db_instance->execute_query("SELECT last_suggestion_comment_read FROM users WHERE id = ?", [$uid])->fetch_column() ?? 0);
 $latest_sug_id = (int)($db_instance->execute_query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
 $db_instance->execute_query(
     "UPDATE users SET last_suggestion_read = ? WHERE id = ?",
@@ -329,7 +328,6 @@ while ($row = $suggestions->fetch_assoc()) {
     $sug_id = (int)$row["id"];
     $status_data = $status_meta[$row["status"]] ?? $status_meta[0];
     $my_vote = (int)$row["my_vote"];
-    $author = new User($row["user_id"], $row["username"]);
     $author_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$row["user_id"]}' data-title='Spieler-Info'><b>" . e($row["username"]) . "</b></a>";
     $date_str = date("d.m.Y \u\m H:i:s", $row["created_at"]);
     $score = (int)$row["score"];

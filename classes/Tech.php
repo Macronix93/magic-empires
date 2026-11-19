@@ -140,6 +140,7 @@ class Tech
     public function get_tech_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_tech$this->tech_id.png";
+        $disk_path = __DIR__ . "/../" . $icon_path;
 
         if (isset($this->tech_id) && file_exists($icon_path)) {
             return "<img src='$icon_path' class='$class' alt='$this->t_name' title='$this->t_name'/>";

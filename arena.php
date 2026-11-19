@@ -118,7 +118,7 @@ if (!$is_season_active) {
                             <span class='error'>{$player_data["losses"]}</span> / 
                             <span>{$player_data["draws"]}</span>
                         </b><br>
-                        <small style='opacity: 0.7;'>{$player_data["season_battles"]} Kämpfe</small>
+                        <small style='opacity: 0.7;'>{$player_data["season_battles"]} " . ((int)$player_data["season_battles"] === 1 ? "Kampf" : "Kämpfe") . "</small>
                     </div>
                     <div style='text-align: center;'>
                         <span style='font-size: 13px; opacity: 0.8;'>Saison endet in</span><br>

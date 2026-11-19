@@ -28,7 +28,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             $tech_level = $selected_tech->get_tech_level();
             $costs = $selected_tech->calculate_tech_cost();
 
-            if ($action == "research") {
+            if ($action === "research") {
                 if ($selected_tech->is_max_level()) {
                     $error = "Die Forschung ist schon maximal erforscht!";
                 } else if ($kingdom_is_researching) {
@@ -65,18 +65,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                         }
                     }
                 }
-            } else if ($action == "cancel") {
-                if ($kingdom_is_researching && $kingdom_research_id == $tech_id) {
+            } else if ($action === "cancel") {
+                if ($kingdom_is_researching && $kingdom_research_id === $tech_id) {
                     $db_instance->execute_query(
                         "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
-                        [$user->get_user_id(), $tech_id, $user->get_current_kingdom(), ActionTypes::ACTION_SMITHY_UPGRADE]
+                        [$user->get_user_id(), $tech_id, $current_kingdom, ActionTypes::ACTION_SMITHY_UPGRADE]
                     );
 
-                    $kingdom_is_researching = false;
-                    $kingdom_research_id = -1;
-
-                    // Refund the player
-                    $kingdom->refund_costs($costs);
+                    if ($db_instance->affected_rows === 1) {
+                        $kingdom_is_researching = false;
+                        $kingdom_research_id = -1;
+                        $kingdom->refund_costs($costs);
+                    }
 
                     change_location("blacksmith.php");
                 } else {

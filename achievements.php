@@ -77,11 +77,9 @@ foreach ($grouped as $catKey => $items) {
         }
 
         $desc = $is_secret ? "<i>Diese Errungenschaft ist geheim.</i>" : e($ach["description"]);
-
-        $ach_title = ($user_gender === 'f' && !empty($ach["title_f"])) ? $ach["title_f"] : $ach["title"];
         $title_tag = $is_secret
             ? "<small style='opacity: 0.6;'>Titel: ???</small>"
-            : "<small " . ($is_unlocked ? "class='passed'" : "") . " style='font-weight: bold;'>Titel: &bdquo;" . e($ach_title) . "&ldquo;</small>";
+            : "<small " . ($is_unlocked ? "class='passed'" : "") . " style='font-weight: bold;'>Titel: &bdquo;" . Achievement::resolve_title($ach, $user_gender) . "&ldquo;</small>";
         $reward_text_and_coin =
             "<span style='display: flex; justify-content: center; align-items: center; gap: 5px;'>" .
             get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) .
@@ -134,7 +132,9 @@ foreach ($grouped as $catKey => $items) {
             }
         }
 
-        $unlocked_at = "<div class='unlocked-at' style='font-style: italic; opacity: 0.7; margin-top: 15px;'>Freigeschaltet am " . date("d.m.Y H:i:s", $ach["unlocked_at"]) . "</div>";
+        if ($is_unlocked) {
+            $unlocked_at = "<div class='unlocked-at' style='font-style: italic; opacity: 0.7; margin-top: 15px;'>Freigeschaltet am " . date("d.m.Y H:i:s", $ach["unlocked_at"]) . "</div>";
+        }
 
         $view .= "
         <tr>

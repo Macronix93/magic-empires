@@ -227,9 +227,6 @@ registerAction("switchAdminTab", (el) => {
 
     window.history.replaceState({}, '', url);
 });
-registerAction("spawnTestAdventGifts", () => {
-    submitAdminPost({spawn_test_advent_gifts: "1"});
-});
 registerAction("confirmStartAdvent", () => {
     showConfirmationDialog(
         "Möchtest du den Adventskalender für alle Spieler starten? Tag 1 wird sofort an alle aktiven Spieler verteilt und die Benachrichtigung aktiviert.",

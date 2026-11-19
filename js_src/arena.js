@@ -251,13 +251,6 @@ registerAction("saveArenaDefense", (form, e) => {
             }
         });
 });
-registerAction("openArenaAttackModal", (btn) => {
-    const oppId = btn.dataset.id;
-    const oppName = btn.dataset.name;
-    const oppElo = btn.dataset.elo;
-
-    openOverlay(`ajax/arena_attack_modal.php?defender_id=${oppId}&name=${encodeURIComponent(oppName)}&elo=${oppElo}`, "Duell vorbereiten");
-});
 registerAction("executeArenaAttack", (form, e) => {
     if (e) e.preventDefault();
     const btn = document.getElementById("btn-start-arena-attack");
@@ -574,7 +567,7 @@ function initArenaForm(form) {
         }
 
         const currentRewardKid = String(form.querySelector('select[name="reward_kingdom_id"]')?.value || "0");
-        if (currentRewardKid !== savedRewardKid) return true;
+        return currentRewardKid !== savedRewardKid;
     };
 
     const checkValidSubmit = () => {
@@ -726,21 +719,6 @@ function initArenaForm(form) {
     updateTechsCounter();
     updateLivePower();
 }
-
-const arenaModalObserver = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1) {
-                const attackForm = node.id === "arena-attack-form" ? node : node.querySelector?.("#arena-attack-form");
-                if (attackForm && !attackForm.dataset.initialized) {
-                    attackForm.dataset.initialized = "true";
-                    initArenaForm(attackForm);
-                }
-            }
-        });
-    });
-});
-arenaModalObserver.observe(document.body, {childList: true, subtree: true});
 
 document.addEventListener("DOMContentLoaded", () => {
     const defForm = document.getElementById("arena-defense-form");

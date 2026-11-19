@@ -643,10 +643,10 @@ hr {
     justify-content: flex-start;
     border-spacing: 0;
     border-collapse: separate;
-    border: 2px solid var(--box-header);
+    border: 1px solid var(--box-header);
     background-color: var(--table-color);
     margin-bottom: 10px;
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
 }
 
 .tab div {
@@ -657,7 +657,7 @@ hr {
     min-width: fit-content;
     padding: 10px;
     transition: 0.3s;
-    border: solid 1px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--box-header);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -667,13 +667,13 @@ hr {
 .tab div:hover {
     background-color: var(--box-selected);
     color: var(--link-color);
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
 }
 
 .tab div.active {
     background-color: var(--box-selected);
     color: var(--link-color);
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
 }
 
 .tablinks.tab-disabled,
@@ -720,13 +720,6 @@ hr {
 #messages-section.large-height {
     max-height: 690px !important;
     min-height: 500px;
-}
-
-#messages-section-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 20px;
 }
 
 .chat-text {
@@ -910,20 +903,6 @@ hr {
     margin: 0 auto;
 }
 
-.header-copyright {
-    position: absolute;
-    left: 55%;
-    bottom: 40px;
-    transform: translateX(min(180px, 25vw));
-    color: rgba(230, 220, 200, 0.3);
-    font-size: 12px;
-    font-family: 'Georgia', serif;
-    text-shadow: 1px 1px 2px #000;
-    white-space: nowrap;
-    z-index: 10;
-    pointer-events: none;
-}
-
 .form {
     display: flex;
     justify-content: center;
@@ -999,7 +978,7 @@ option {
     transition: background-color 0.2s;
 }
 
-.tr-hover:hover td {
+.tr-hover:not(:has(.no-hover:hover)):hover td:not(.no-hover) {
     background-color: var(--box-selected);
     transition: background-color 0.2s;
 }
@@ -1588,6 +1567,45 @@ select:-webkit-autofill:focus {
     width: 235px;
 }
 
+.modal-flash-container {
+    position: sticky;
+    top: 0;
+    z-index: 2500;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    pointer-events: none;
+    overflow: visible;
+    width: 100%;
+}
+
+.modal-flash-container .info-box {
+    pointer-events: auto;
+    position: relative;
+    top: 0;
+    width: 95%;
+    max-width: 550px;
+    flex-shrink: 0 !important;
+    height: auto !important;
+    min-height: 36px;
+    margin: 0 auto 10px auto;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+    animation: flashToastIn 0.25s ease-out forwards;
+    transition: opacity 0.4s ease;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+.modal-flash-container .info-box.fade-out {
+    animation: flashToastOut 0.35s ease-in forwards !important;
+    pointer-events: none;
+}
+
 .middle-flash-container {
     position: sticky;
     top: 15px;
@@ -1616,7 +1634,7 @@ select:-webkit-autofill:focus {
     -webkit-backdrop-filter: blur(10px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
     animation: flashToastIn 0.25s ease-out forwards;
-    transition: opacity 0.4s ease, transform 0.4s ease;
+    transition: opacity 0.4s ease;
     user-select: none;
     box-sizing: border-box;
 }
@@ -1624,22 +1642,18 @@ select:-webkit-autofill:focus {
 @keyframes flashToastIn {
     0% {
         opacity: 0;
-        transform: scale(0.5);
     }
     100% {
         opacity: 1;
-        transform: scale(1);
     }
 }
 
 @keyframes flashToastOut {
     0% {
         opacity: 1;
-        transform: scale(1);
     }
     100% {
         opacity: 0;
-        transform: scale(0.8);
     }
 }
 
@@ -2035,14 +2049,6 @@ tr:first-child td.td-gradient {
 }
 
 /* Live Power Container Warsim */
-.troop-text {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 90px;
-    display: inline-block;
-}
-
 #live-power-container {
     display: flex;
     justify-content: center;
@@ -2327,7 +2333,8 @@ tr:first-child td.td-gradient {
     margin: 0;
     z-index: 1100;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.85);
-    transition: opacity 0.5s ease;
+    animation: flashToastIn 0.25s ease-out forwards;
+    transition: opacity 0.4s ease;
     pointer-events: none;
     text-align: center;
     line-height: 1.3;
@@ -3611,6 +3618,36 @@ img[data-on-click] {
     width: 6%;
 }
 
+.guild-tech-table .col-gt-level {
+    width: 12%;
+}
+
+.guild-tech-table .col-gt-capacity {
+    width: 32%;
+}
+
+.guild-tech-table .col-gt-time {
+    width: 18%;
+}
+
+.tech-info-page .table.tech-ally-trade td {
+    font-size: 14px;
+    padding: 5px 4px;
+    white-space: nowrap;
+}
+
+.tech-info-page .table.tech-ally-trade .col-gt-level {
+    width: 8%;
+}
+
+.tech-info-page .table.tech-ally-trade .col-gt-res {
+    width: auto;
+}
+
+.tech-info-page .table.tech-ally-trade .col-gt-time {
+    width: 16%;
+}
+
 .no-event {
     opacity: 0.6;
 }
@@ -4107,6 +4144,20 @@ button.btn-logout:not(:disabled):active {
     height: 94px;
 }
 
+.event-loot-target {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.event-reward-kingdom {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
 #kingdom-sort-list {
     display: flex;
     flex-direction: column;
@@ -4307,6 +4358,19 @@ button.btn-logout:not(:disabled):active {
     .event-monster-img {
         width: 60px;
         height: 60px;
+    }
+
+    .event-loot-target {
+        flex-direction: column;
+    }
+
+    .event-reward-kingdom {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .event-reward-kingdom > select {
+        min-width: 240px;
     }
 
     .monster-desc {
@@ -4641,10 +4705,6 @@ button.btn-logout:not(:disabled):active {
         font-size: 12px;
     }
 
-    .opponent-card .box-content {
-
-    }
-
     .opponent-card button.btn-accept {
         min-width: 90px !important;
         padding: 3px 8px !important;
@@ -4668,6 +4728,19 @@ button.btn-logout:not(:disabled):active {
     .boost-button .ressource-icons {
         width: 14px;
         height: 14px;
+    }
+
+    .tech-info-page .table.tech-ally-trade td {
+        padding: 3px 1px !important;
+        white-space: wrap;
+    }
+
+    .tech-info-page .table.tech-ally-trade .col-gt-level {
+        width: 11%;
+    }
+
+    .tech-info-page .table.tech-ally-trade .col-gt-time {
+        width: 11%;
     }
 
     .guild-donation-table {
@@ -4774,7 +4847,9 @@ button.btn-logout:not(:disabled):active {
         display: none !important;
     }
 
-    .middle-flash-container .info-box {
+    .middle-flash-container .info-box,
+    .modal-flash-container .info-box,
+    .event-warning {
         min-height: 25px;
     }
 
@@ -5727,10 +5802,6 @@ button.btn-logout:not(:disabled):active {
         height: auto;
     }
 
-    .troop-text {
-        max-width: fit-content;
-    }
-
     .marketplace-form-table {
         display: block !important;
         width: 100% !important;
@@ -5918,10 +5989,6 @@ button.btn-logout:not(:disabled):active {
         width: 20%;
     }
 
-    .warsim-table colgroup col:nth-child(3) {
-        width: 20%;
-    }
-
     .warsim-table td {
         padding: 2px 4px;
     }
@@ -6020,6 +6087,15 @@ button.btn-logout:not(:disabled):active {
 
     .tab div {
         font-size: 12px;
+    }
+
+    .tab {
+        box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+    }
+
+    .tab div.active,
+    .tab div:hover {
+        box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
     }
 
     .battle-report {
@@ -6224,11 +6300,6 @@ button.btn-logout:not(:disabled):active {
 
     .delete-btn {
         right: 5px;
-    }
-
-    .header-copyright {
-        transform: translateX(0);
-        font-size: 11px;
     }
 
     .avatar-container {

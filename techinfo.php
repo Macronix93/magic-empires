@@ -2,12 +2,7 @@
 require_once("includes/core.php");
 
 $user->check_user_login();
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php include_once("layout/head.php"); ?>
-<body>
-<?php
+
 $building_id = isset($_GET["bid"]) ? (int)$_GET["bid"] : null;
 $tech_id = isset($_GET["tid"]) ? (int)$_GET["tid"] : null;
 $soldier_id = isset($_GET["sid"]) ? (int)$_GET["sid"] : null;
@@ -41,8 +36,8 @@ if ($building_id !== null) {
         $tech = $kingdom->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
         $current_level_value = $tech ? $tech->get_tech_level() : 0;
         $max_lvl_to_show = ($tech_id === TechTypes::TECH_TYPE_IMPERIAL)
-                ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
-                : $row["maxlevel"];
+            ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
+            : $row["maxlevel"];
         $time_key = "timetoresearch";
         $time_icon_type = ResourceTypes::RESOURCE_TYPE_RECRUIT_TIME;
     }
@@ -93,17 +88,17 @@ if ($row) {
             $step = MIN_CONQUEST_CHANCE * 100;
             $max = MAX_CONQUEST_CHANCE * 100;
             $chance_info = "Ein Eroberer hat eine Erfolgschance von <b>$base%</b>. " .
-                    "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
+                "Jeder weitere im Trupp erhöht diese um <b>$step%</b> (maximal <b>$max%</b>).";
         } else if ($soldier_id === Soldiers::SOLDIER_SETTLER_WAGON) {
             $res_founded = $db_instance->execute_query(
-                    "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
-                    [$user->get_user_id()]
+                "SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
+                [$user->get_user_id()]
             );
             $curr_founded = (int)$res_founded->fetch_row()[0];
 
             $res_imp = $db_instance->execute_query(
-                    "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
-                    [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
+                "SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id WHERE k.userid = ? AND t.techid = ? AND t.techlevel > 0",
+                [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
             );
             $imp_bonus = (int)$res_imp->fetch_row()[0];
             $limit = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $imp_bonus);
@@ -133,8 +128,8 @@ if ($row) {
                     </div> 
                     <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; margin-top: 0;'>" . e($row["description"]) .
-                ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
-                ($is_thief ? "<br>Der Dieb hat eine Tragekapazität von maximal " . THIEF_BASE_CAPACITY . " Ressourcen pro Einheit." : "") . " " . $chance_info . "</p>
+            ($is_raider ? "<br>Der Räuber hat eine Plünderkapazität von maximal " . RAIDER_BASE_CAPACITY . " Ressourcen." : "") .
+            ($is_thief ? "<br>Der Dieb hat eine Tragekapazität von maximal " . THIEF_BASE_CAPACITY . " Ressourcen pro Einheit." : "") . " " . $chance_info . "</p>
                         $mining_info_html
                         <table class='table' style='width: 100%;'>
                             <tr>";
@@ -168,10 +163,10 @@ if ($row) {
         }
 
         $time_display = $is_hero ? "<i class='passed'>Einzigartig</i>" : convert_sec_to_str($row["requiredtime"]);
-        $view .= "              <td class='td-center'>$time_display</td>
-                            </tr>
-                        </table>
-                        <p style='font-size: 18px; margin-top: 15px;'>";
+        $view .= "<td class='td-center'>$time_display</td>
+                     </tr>
+                      </table>
+                       <p style='font-size: 18px; margin-top: 15px;'>";
 
         if ($is_hero) {
             $view .= "Helden können nicht ausgebildet werden. Sie werden alle 24 Stunden zufällig an einen Herrscher verteilt.";
@@ -183,23 +178,27 @@ if ($row) {
             }
         }
 
-        $view .= "      </p>
-                    </div>
-                  </div>";
+        $view .= "</p>
+                </div>
+              </div>";
     } else if ($is_guild_tech) {
         $m = $row["multiplicator"];
         $calc_cost = fn($base, $lvl) => ($base <= 0) ? 0 : (int)round($base * pow($m, $lvl));
+        $tech_table_class = ($guild_tech_id === GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT
+            || $guild_tech_id === GuildTechTypes::GUILD_TECH_ALLY_TRADE_SPEED)
+            ? "tech-ally-trade"
+            : "";
 
         $active_res = [];
         $res_fields = [
-                "food_cost" => ResourceTypes::RESOURCE_TYPE_FOOD,
-                "wood_cost" => ResourceTypes::RESOURCE_TYPE_WOOD,
-                "stone_cost" => ResourceTypes::RESOURCE_TYPE_STONE,
-                "gold_cost" => ResourceTypes::RESOURCE_TYPE_GOLD,
-                "coal_cost" => ResourceTypes::RESOURCE_TYPE_COAL,
-                "iron_cost" => ResourceTypes::RESOURCE_TYPE_IRON,
-                "sapphire_cost" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
-                "diamond_cost" => ResourceTypes::RESOURCE_TYPE_DIAMOND
+            "food_cost" => ResourceTypes::RESOURCE_TYPE_FOOD,
+            "wood_cost" => ResourceTypes::RESOURCE_TYPE_WOOD,
+            "stone_cost" => ResourceTypes::RESOURCE_TYPE_STONE,
+            "gold_cost" => ResourceTypes::RESOURCE_TYPE_GOLD,
+            "coal_cost" => ResourceTypes::RESOURCE_TYPE_COAL,
+            "iron_cost" => ResourceTypes::RESOURCE_TYPE_IRON,
+            "sapphire_cost" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE,
+            "diamond_cost" => ResourceTypes::RESOURCE_TYPE_DIAMOND
         ];
 
         foreach ($res_fields as $col => $icon_id) {
@@ -209,10 +208,10 @@ if ($row) {
         }
 
         $guild_storage_res = [
-                "coal" => ["icon" => ResourceTypes::RESOURCE_TYPE_COAL, "base" => GUILD_STORAGE_BASE_COAL],
-                "iron" => ["icon" => ResourceTypes::RESOURCE_TYPE_IRON, "base" => GUILD_STORAGE_BASE_IRON],
-                "sapphire" => ["icon" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE, "base" => GUILD_STORAGE_BASE_SAPPHIRE],
-                "diamond" => ["icon" => ResourceTypes::RESOURCE_TYPE_DIAMOND, "base" => GUILD_STORAGE_BASE_DIAMOND]
+            "coal" => ["icon" => ResourceTypes::RESOURCE_TYPE_COAL, "base" => GUILD_STORAGE_BASE_COAL],
+            "iron" => ["icon" => ResourceTypes::RESOURCE_TYPE_IRON, "base" => GUILD_STORAGE_BASE_IRON],
+            "sapphire" => ["icon" => ResourceTypes::RESOURCE_TYPE_SAPPHIRE, "base" => GUILD_STORAGE_BASE_SAPPHIRE],
+            "diamond" => ["icon" => ResourceTypes::RESOURCE_TYPE_DIAMOND, "base" => GUILD_STORAGE_BASE_DIAMOND]
         ];
 
         $res = match ($guild_tech_id) {
@@ -251,20 +250,20 @@ if ($row) {
                             " . e($row["description"]) . "
                         </p>
                         $guild_tech_bonus_info
-                        <table class='table' style='width: 100%;'>
+                        <table class='table guild-tech-table $tech_table_class' style='width: 100%;'>
                             <tr>
-                                <td class='td-center td-gradient' style='width: 12%;'>Stufe</td>";
+                                <td class='td-center td-gradient col-gt-level'>Lvl</td>";
 
         if ($guild_tech_id === GuildTechTypes::GUILD_TECH_TYPE_STORAGE) {
-            $view .= "<td class='td-center td-gradient' style='width: 32%;'>Kapazität</td>";
+            $view .= "<td class='td-center td-gradient col-gt-capacity'>Kapazität</td>";
         }
 
         foreach ($active_res as $icon_id) {
-            $view .= "<td class='td-center td-gradient'>" . get_resource_icon($icon_id) . "</td>";
+            $view .= "<td class='td-center td-gradient col-gt-res'>" . get_resource_icon($icon_id) . "</td>";
         }
 
-        $view .= "              <td class='td-center td-gradient' style='width: 18%;'>" . get_resource_icon($time_icon_type) . "</td>
-                            </tr>";
+        $view .= "<td class='td-center td-gradient col-gt-time'>" . get_resource_icon($time_icon_type) . "</td>
+                </tr>";
 
         for ($i = 0; $i < $max_lvl_to_show; $i++) {
             $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
@@ -276,22 +275,19 @@ if ($row) {
                 $target_lvl = $i + 1;
                 $cells = "";
 
-                $count = 1;
                 foreach ($guild_storage_res as $info) {
                     $cap = (int)round($info["base"] * pow(GUILD_STORAGE_INC_FACTOR, $target_lvl));
 
                     $cells .= "<div style='display: flex; align-items: center; justify-content: flex-start; gap: 4px; white-space: nowrap;'>" .
-                            get_resource_icon($info["icon"]) . " <span>" . fnum($cap) . "</span>" .
-                            "</div>";
-
-                    $count++;
+                        get_resource_icon($info["icon"]) . " <span>" . fnum($cap) . "</span>" .
+                        "</div>";
                 }
 
                 $view .= "<td class='td-center' $style>" .
-                        "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 4px 4px; max-width: 200px; margin: 0 auto;'>" .
-                        $cells .
-                        "</div>" .
-                        "</td>";
+                    "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 4px 4px; max-width: 200px; margin: 0 auto;'>" .
+                    $cells .
+                    "</div>" .
+                    "</td>";
             }
 
             foreach ($active_res as $col => $icon_id) {
@@ -309,18 +305,18 @@ if ($row) {
 
         $biome_info = "";
         $is_prod_building = in_array($building_id, [
-                BuildingTypes::BUILDING_MILL,
-                BuildingTypes::BUILDING_SAWMILL,
-                BuildingTypes::BUILDING_STONEMINE,
-                BuildingTypes::BUILDING_GOLDMINE
+            BuildingTypes::BUILDING_MILL,
+            BuildingTypes::BUILDING_SAWMILL,
+            BuildingTypes::BUILDING_STONEMINE,
+            BuildingTypes::BUILDING_GOLDMINE
         ]);
 
         if ($building_id !== null && $is_prod_building) {
             $res_map = [
-                    BuildingTypes::BUILDING_MILL => ["field" => "foodrate", "base" => BASE_FOOD_GAIN],
-                    BuildingTypes::BUILDING_SAWMILL => ["field" => "woodrate", "base" => BASE_WOOD_GAIN],
-                    BuildingTypes::BUILDING_STONEMINE => ["field" => "stonerate", "base" => BASE_STONE_GAIN],
-                    BuildingTypes::BUILDING_GOLDMINE => ["field" => "goldrate", "base" => BASE_GOLD_GAIN]
+                BuildingTypes::BUILDING_MILL => ["field" => "foodrate", "base" => BASE_FOOD_GAIN],
+                BuildingTypes::BUILDING_SAWMILL => ["field" => "woodrate", "base" => BASE_WOOD_GAIN],
+                BuildingTypes::BUILDING_STONEMINE => ["field" => "stonerate", "base" => BASE_STONE_GAIN],
+                BuildingTypes::BUILDING_GOLDMINE => ["field" => "goldrate", "base" => BASE_GOLD_GAIN]
             ];
 
             $config = $res_map[$building_id];
@@ -385,9 +381,9 @@ if ($row) {
 
                     $biome_info .= "<span class='passed'>Stufe {$sa["required_level"]}:</span> <b>" . e($sa["name"]) . "</b>";
                     $biome_info .= "<small style='opacity:0.8; margin-left: 10px;'>" .
-                            "(<span class='passed'>+$b_val% " . e($sa["bonus_text"]) . "</span> / " .
-                            "<span class='error'>-$m_val% " . e($sa["malus_text"]) . "</span>)" .
-                            "</small><br>";
+                        "(<span class='passed'>+$b_val% " . e($sa["bonus_text"]) . "</span> / " .
+                        "<span class='error'>-$m_val% " . e($sa["malus_text"]) . "</span>)" .
+                        "</small><br>";
                 }
 
                 $biome_info .= "</div></div>";
@@ -406,10 +402,10 @@ if ($row) {
 
         $tech_bonus_info = "";
         $res_techs = [
-                TechTypes::TECH_TYPE_FOOD_INC => ["name" => "Nahrung", "val" => RESEARCH_FOOD_INC],
-                TechTypes::TECH_TYPE_WOOD_INC => ["name" => "Holz", "val" => RESEARCH_WOOD_INC],
-                TechTypes::TECH_TYPE_STONE_INC => ["name" => "Stein", "val" => RESEARCH_STONE_INC],
-                TechTypes::TECH_TYPE_GOLD_INC => ["name" => "Gold", "val" => RESEARCH_GOLD_INC]
+            TechTypes::TECH_TYPE_FOOD_INC => ["name" => "Nahrung", "val" => RESEARCH_FOOD_INC],
+            TechTypes::TECH_TYPE_WOOD_INC => ["name" => "Holz", "val" => RESEARCH_WOOD_INC],
+            TechTypes::TECH_TYPE_STONE_INC => ["name" => "Stein", "val" => RESEARCH_STONE_INC],
+            TechTypes::TECH_TYPE_GOLD_INC => ["name" => "Gold", "val" => RESEARCH_GOLD_INC]
         ];
 
         if ($tech_id !== null && isset($res_techs[$tech_id])) {
@@ -422,16 +418,16 @@ if ($row) {
 
         $active_res = [];
         $res_map = [
-                "food" => "foodcost",
-                "wood" => 'woodcost',
-                "stone" => "stonecost",
-                "gold" => "goldcost"
+            "food" => "foodcost",
+            "wood" => 'woodcost',
+            "stone" => "stonecost",
+            "gold" => "goldcost"
         ];
         $res_icons = [
-                ResourceTypes::RESOURCE_TYPE_FOOD,
-                ResourceTypes::RESOURCE_TYPE_WOOD,
-                ResourceTypes::RESOURCE_TYPE_STONE,
-                ResourceTypes::RESOURCE_TYPE_GOLD
+            ResourceTypes::RESOURCE_TYPE_FOOD,
+            ResourceTypes::RESOURCE_TYPE_WOOD,
+            ResourceTypes::RESOURCE_TYPE_STONE,
+            ResourceTypes::RESOURCE_TYPE_GOLD
         ];
 
         $idx = 0;
@@ -442,7 +438,7 @@ if ($row) {
         }
 
         $name = $row["buildingname"] ?? $row["techname"];
-        $dynamic_effect_sentence = "";
+
         if ($tech_id !== null) {
             $res = match ($tech_id) {
                 TechTypes::TECH_TYPE_ARCHITECTURE => [fdec(ARCHITECTURE_TIME_REDUCTION * 100) . "%", "Reduktion der Bauzeit"],
@@ -454,13 +450,13 @@ if ($row) {
                 TechTypes::TECH_TYPE_STORAGE_INC => [fnum(RESEARCH_STORAGE_INC), "zusätzliche Kapazität pro Ressource"],
                 TechTypes::TECH_TYPE_IMPERIAL => ["", "Ermöglicht die Gründung einer weiteren Siedlung (nur im Hauptkönigreich forschbar)."],
                 TechTypes::TECH_TYPE_ARCANE_INTEL => ["", "Erweitert die Informationen herannahender Truppen im Wachturm:<br>" .
-                        "<div style='margin: 5px auto 0; max-width: fit-content; text-align: left;'>" .
-                        "<span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
-                        "<span class='passed'>Stufe 2:</span> Name & Herkunft des Angreifers<br>" .
-                        "<span class='passed'>Stufe 3:</span> Grobe Schätzung der Truppenzahl<br>" .
-                        "<span class='passed'>Stufe 4:</span> Exakte Einheitenliste & Anzahl<br>" .
-                        "<span class='passed'>Stufe 5:</span> Berechnung der gegnerischen Kampfkraft" .
-                        "</div>"
+                    "<div style='margin: 5px auto 0; max-width: fit-content; text-align: left;'>" .
+                    "<span class='passed'>Stufe 1:</span> Anzeige der verbleibenden Ankunftszeit<br>" .
+                    "<span class='passed'>Stufe 2:</span> Name & Herkunft des Angreifers<br>" .
+                    "<span class='passed'>Stufe 3:</span> Grobe Schätzung der Truppenzahl<br>" .
+                    "<span class='passed'>Stufe 4:</span> Exakte Einheitenliste & Anzahl<br>" .
+                    "<span class='passed'>Stufe 5:</span> Berechnung der gegnerischen Kampfkraft" .
+                    "</div>"
                 ],
                 TechTypes::TECH_TYPE_BARRACKS_EXPANSION => ["+" . fnum(BARRACKS_EXPANSION_CAPACITY_PER_LEVEL), "Truppenkapazität der Kaserne"],
                 TechTypes::TECH_TYPE_SCHOLARSHIP => [fdec(SCHOLARSHIP_RESEARCH_REDUCTION * 100) . "%", "Reduktion der Forschungszeit in der Universität"],
@@ -515,7 +511,7 @@ if ($row) {
                     </div> 
                     <div class='big-box-content tech-info-page'>
                         <p style='font-style: italic; margin-top: 0;'>
-                            " . e($row["description"]) . " $dynamic_effect_sentence
+                            " . e($row["description"]) . "
                         </p>
                         $biome_info
                         $tech_bonus_info
@@ -553,8 +549,8 @@ if ($row) {
 
                 $is_current_row = ($i == $current_level_value);
                 $uni_lvl_display = $is_current_row
-                        ? "<b class='" . ($cur_uni_lvl >= $req_uni ? "passed" : "error") . "'>($req_uni)</b>"
-                        : "($req_uni)";
+                    ? "<b class='" . ($cur_uni_lvl >= $req_uni ? "passed" : "error") . "'>($req_uni)</b>"
+                    : "($req_uni)";
 
                 $req_display = "<span class='popup' id='$p_uni' style='display: flex; align-items: center; gap: 3px;'>$uni_icon $uni_lvl_display<div id='{$p_uni}_box' class='popupbox'>Universität</div></span>";
 
@@ -563,16 +559,16 @@ if ($row) {
                     $p_wt = "req_wt_{$tech_id}_$target_lvl";
 
                     $wt_lvl_display = $is_current_row
-                            ? "<b class='" . ($cur_wt_lvl >= $req_wt ? "passed" : "error") . "'>($req_wt)</b>"
-                            : "($req_wt)";
+                        ? "<b class='" . ($cur_wt_lvl >= $req_wt ? "passed" : "error") . "'>($req_wt)</b>"
+                        : "($req_wt)";
 
                     $req_display .= "<span class='popup' id='$p_wt' style='display: flex; align-items: center; gap: 3px;'>$wt_icon $wt_lvl_display<div id='{$p_wt}_box' class='popupbox'>Wachturm</div></span>";
                 } else if ($tech_id === TechTypes::TECH_TYPE_MAINTENANCE) {
                     $p_wall = "req_wall_{$tech_id}_$target_lvl";
 
                     $wall_lvl_display = $is_current_row
-                            ? "<b class='" . ($cur_wall_lvl >= 2 ? "passed" : "error") . "'>(2)</b>"
-                            : "(2)";
+                        ? "<b class='" . ($cur_wall_lvl >= 2 ? "passed" : "error") . "'>(2)</b>"
+                        : "(2)";
 
                     $req_display .= "<span class='popup' id='$p_wall' style='display: flex; align-items: center; gap: 3px;'>$wall_icon $wall_lvl_display<div id='{$p_wall}_box' class='popupbox'>Mauer</div></span>";
                 } else if ($tech_id === TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
@@ -595,8 +591,8 @@ if ($row) {
                 $is_current_row = ($i == $current_level_value);
 
                 $sm_lvl_display = $is_current_row
-                        ? "<b class='" . ($cur_smithy_lvl >= $req_sm ? "passed" : "error") . "'>($req_sm)</b>"
-                        : "($req_sm)";
+                    ? "<b class='" . ($cur_smithy_lvl >= $req_sm ? "passed" : "error") . "'>($req_sm)</b>"
+                    : "($req_sm)";
 
                 $req_display = "<span class='popup' id='$p_sm' style='display: flex; align-items: center; gap: 3px;'>$smithy_icon $sm_lvl_display<div id='{$p_sm}_box' class='popupbox'>Schmiede</div></span>";
 
@@ -639,6 +635,3 @@ if ($row) {
     $error = "Nichts zum Anzeigen gefunden!";
 }
 echo $view;
-?>
-</body>
-</html>

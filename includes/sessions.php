@@ -41,7 +41,7 @@ if ($user->is_logged_in()) {
         }
 
         if (basename($_SERVER["PHP_SELF"]) !== "maintenance.php") {
-            change_location("maintenance.php");
+            change_location("maintenance.php", 0, 503, "Wartungsmodus aktiv.");
         }
 
         return;
@@ -107,7 +107,7 @@ if ($user->is_logged_in()) {
             setcookie("me_remember", '', time() - 3600, '/');
             session_destroy();
 
-            change_location("index.php?banned=" . urlencode($reason) . "&until=" . $ban_until);
+            change_location("index.php?banned=" . urlencode($reason) . "&until=" . $ban_until, 0, 403, "Account gesperrt.");
         }
     }
 
@@ -123,7 +123,7 @@ if ($user->is_logged_in()) {
         setcookie("me_remember", '', time() - 3600, '/');
         session_destroy();
 
-        change_location("index.php?banned=" . urlencode($reason));
+        change_location("index.php?banned=" . urlencode($reason), 0, 403, "IP gesperrt.");
     }
 
     // Kingdom doesn't exist anymore
@@ -156,7 +156,7 @@ if ($user->is_logged_in()) {
                 $token = bin2hex(random_bytes(16));
 
                 setcookie("logout_verify", $token, time() + 30, "/", "", false, false);
-                change_location("index.php?logout=session&v=" . $token);
+                change_location("index.php?logout=session&v=" . $token, 0, 401, "Session abgelaufen.");
             }
         }
     } else {

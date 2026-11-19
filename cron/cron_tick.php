@@ -47,8 +47,8 @@ $query = "SELECT e.*, u.username
               (e.actionid IN ($action_building_list) AND e.buildingtime > 0 AND e.buildingtime <= ?) 
               OR
               (e.actionid IN ($action_movement_list) AND e.arrivaltime > 0 AND e.arrivaltime <= ?)
-              OR
-              (e.actionid = " . ActionTypes::ACTION_BUILD_TROOPS . " AND e.buildingtime <= ?)
+              OR 
+              (e.actionid = " . ActionTypes::ACTION_BUILD_TROOPS . " AND (e.buildingtime + ((e.recruittime - e.buildingtime) / GREATEST(1, e.soldiergoal))) <= ?)
               OR
               (e.actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . " AND e.recruittime > 0 AND e.recruittime <= ?)
           )";
@@ -168,11 +168,13 @@ while ($ev = $finished_events->fetch_assoc()) {
             $user_damage = (int)$p["total_damage"];
             $total_coins = 0;
             $total_gold = 0;
+            $g_gold_lvl = Guild::get_user_guild_tech_level($u_id, GuildTechTypes::GUILD_TECH_EVENT_GOLD);
+            $gold_mult = 1.0 + ($g_gold_lvl * GUILD_BONUS_EVENT_GOLD_PER_LVL);
 
             foreach (WORLD_EVENT_DAMAGE_TIERS as $threshold => $rewards) {
                 if ($user_damage >= $threshold) {
                     $total_coins += $rewards["coins"];
-                    $total_gold += $rewards["gold"];
+                    $total_gold += (int)round($rewards["gold"] * $gold_mult);
                 }
             }
 

@@ -46,7 +46,6 @@ $query = "SELECT m.mapx, m.mapy, m.fieldtype,
             mst_agg.my_mine_troop_icon,
             IFNULL(ag.day, 0) AS gift_day
           FROM map m 
-          JOIN field_types ft ON m.fieldtype = ft.fieldid
           LEFT JOIN kingdoms k ON m.kingdomid = k.id
           LEFT JOIN users u ON k.userid = u.id
           LEFT JOIN buildings b_tc ON m.kingdomid = b_tc.kingdomid AND b_tc.buildingid = " . BuildingTypes::BUILDING_TOWNCENTER . "

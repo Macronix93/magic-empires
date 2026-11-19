@@ -146,7 +146,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $active_cat = (int)$_POST["cat"];
         }
 
-        if ($action == "return_support_stack") {
+        if ($action === "return_support_stack") {
             $owner_id = isset($_POST["owner_id"]) ? (int)$_POST["owner_id"] : $user->get_user_id();
             $source_id = isset($_POST["source_id"]) ? (int)$_POST["source_id"] : $current_kingdom;
             $target_id = isset($_POST["target_id"]) ? (int)$_POST["target_id"] : $current_kingdom;
@@ -244,7 +244,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 $error = "Dieser Trupp ist nicht mehr an diesem Ort stationiert.";
             }
-        } else if ($action == "cancel") {
+        } else if ($action === "cancel") {
             $s_id = (int)($_POST["recruit"] ?? -1);
 
             $db_instance->begin_transaction();
@@ -456,8 +456,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                 $error = "Nicht genug Dorfbewohner!";
                             } else {
                                 $current_time = time();
-                                $discount = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
-                                $single_unit_time = (int)round($soldiers[$s_id]->get_soldier_time() * $discount);
+                                $single_unit_time = (int)round($soldiers[$s_id]->get_soldier_time() * $smithy_multiplier);
                                 $recruiting_time = $current_time + ($single_unit_time * $count);
 
                                 $query = "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname, soldierid, recruittime, soldiergoal) 
@@ -516,11 +515,13 @@ if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
 
 $total_k_atk = 0;
 $total_k_def = 0;
-$total_k_units = 0;
 $pure_base_atk = 0;
 $pure_base_def = 0;
 $total_smithy_atk = 0;
 $total_shrine_atk = 0;
+$support_k_atk = 0;
+$support_k_def = 0;
+
 $cat_atk = SoldierTypes::get_empty_category_map();
 $cat_def = SoldierTypes::get_empty_category_map();
 
@@ -552,14 +553,23 @@ foreach ($result_combined as $row) {
         $unit_atk_with_shrine = (int)round($s_obj->get_soldier_attack() * $shrine_atk_mult);
         $unit_shrine_gain = $unit_atk_with_shrine - $s_obj->get_soldier_attack();
 
+        $single_atk = $unit_atk_with_shrine + $b_atk;
+        $single_def = $s_obj->get_soldier_defense() + $b_def;
+
         $final_atk = $sol_count * ($unit_atk_with_shrine + $b_atk);
         $final_def = $sol_count * ($s_obj->get_soldier_defense() + $b_def);
+
+        $own_cnt = $kingdom_soldiers[$soldier_id] ?? 0;
+        $sup_cnt = max(0, $sol_count - $own_cnt);
+        if ($sup_cnt > 0) {
+            $support_k_atk += $sup_cnt * $single_atk;
+            $support_k_def += $sup_cnt * $single_def;
+        }
 
         $total_k_atk += $final_atk;
         $total_k_def += $final_def;
         $total_smithy_atk += ($sol_count * $b_atk);
         $total_shrine_atk += ($sol_count * $unit_shrine_gain);
-        $total_k_units += $sol_count;
 
         if (isset($cat_atk[$cat])) {
             $cat_atk[$cat] += $final_atk;
@@ -645,6 +655,7 @@ $cat_numbers_def_str = $render_split_row("Infanterie", $cat_def[$inf_cat])
 
 $has_atk_bonus = ($total_smithy_atk > 0 || $total_shrine_atk > 0);
 $has_def_bonus = ($total_smithy_def > 0);
+
 $atk_bonus_html = "";
 if ($has_atk_bonus) {
     $atk_bonus_html = "
@@ -662,6 +673,18 @@ if ($has_def_bonus) {
                         <div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($total_smithy_def, true) . "</span></div>
                         <hr>";
 }
+$own_k_atk = max(0, $total_k_atk - $support_k_atk);
+$own_k_def = max(0, $total_k_def - $support_k_def);
+
+$support_atk_html = ($support_k_atk > 0)
+    ? "<div class='split-content' style='gap: 15px;'><span>Eigene Truppen:</span><span>" . fnum($own_k_atk, true) . "</span></div>"
+    . "<div class='split-content' style='gap: 15px; color: #389cff;'><span>Unterstützung:</span>+" . fnum($support_k_atk, true) . "</div>"
+    : "";
+
+$support_def_html = ($support_k_def > 0)
+    ? "<div class='split-content' style='gap: 15px;'><span>Eigene Truppen:</span><span>" . fnum($own_k_def, true) . "</span></div>"
+    . "<div class='split-content' style='gap: 15px; color: #389cff;'><span>Unterstützung:</span>+" . fnum($support_k_def, true) . "</div>"
+    : "";
 
 $view .= "
 <div class='garnison-box'>
@@ -674,7 +697,8 @@ $view .= "
                 <span class='popup $atk_class' id='total_atk_info'>
                     " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <span>" . fnum($total_k_atk, false, true) . "</span>
                     <div id='total_atk_info_box' class='popupbox' style='text-align: left; min-width: 240px;'>
-                        <div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b>" . fnum($total_k_atk, true) . "</div>
+                        <div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b><b>" . fnum($total_k_atk, true) . "</b></div>
+                        $support_atk_html
                         <hr>
                         $atk_bonus_html
                         <b>Gattungen:</b>
@@ -684,7 +708,8 @@ $view .= "
                 <span style='margin-left: 10px;' class='popup $def_class' id='total_def_info'>
                     " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <span>" . fnum($total_k_def, false, true) . "</span>
                     <div id='total_def_info_box' class='popupbox' style='text-align: left; min-width: 240px;'>
-                        <div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b>" . fnum($total_k_def, true) . "</div>
+                        <div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b><b>" . fnum($total_k_def, true) . "</b></div>
+                        $support_def_html
                         <hr>
                         $def_bonus_html
                         <b>Gattungen:</b>
@@ -1104,24 +1129,7 @@ for ($i = 0; $i < $soldiers_count; $i++) {
         $max_space_for_this = $is_space_exempt ? $unit_cap_remaining : min($space_left, $unit_cap_remaining);
         $can_train_at_least_one = ($max_soldiers > 0 && $max_space_for_this > 0);
 
-        $can_upgrade_to_anything = false;
-        if ($unit_cat != SoldierTypes::SOLDIER_TYPE_SPECIAL && $owned_count > 0) {
-            foreach ($soldiers as $target_soldier) {
-                if ($target_soldier->get_soldier_category() == $unit_cat &&
-                    $target_soldier->get_soldier_required_level() > $soldiers[$i]->get_soldier_required_level() &&
-                    $target_soldier->get_soldier_required_level() <= $building->get_building_level()) {
-
-                    $can_upgrade_to_anything = true;
-                    break;
-                }
-            }
-        }
-
         $is_disabled = $can_train_at_least_one ? "" : "disabled";
-
-        if (!$can_train_at_least_one && !$can_upgrade_to_anything) {
-            $is_disabled = "disabled";
-        }
 
         $limit_attrs = ($unit_special_limit !== null) ? " data-unit-limit='$unit_special_limit' data-unit-total='$unit_total_in_kingdom'" : "";
         if ($is_space_exempt) {
@@ -1329,7 +1337,6 @@ if (!empty($grouped_in)) {
             <td class='td-center'>
                 <form method='POST'>
                     <input type='hidden' name='action' value='return_support_stack'>
-                    <input type='hidden' name='return_support_stack' value='1'>
                     <input type='hidden' name='target_id' value='{$data["target_id"]}'>
                     <input type='hidden' name='source_id' value='{$data["source_id"]}'>
                     <input type='hidden' name='owner_id' value='{$data["owner_id"]}'>

@@ -6,14 +6,18 @@ $uid = $user->get_user_id();
 // Get kingdoms of user (+ shrine alignment)
 $kingdoms = $db_instance->execute_query("
     SELECT k.id, k.kingdomname, k.mapx, k.mapy, k.alignment,
-           IFNULL(b.buildinglevel, 0) AS barracks_level,
-           IFNULL(t.techlevel, 0) AS barracks_expansion_level
+        IFNULL(b.buildinglevel, 0) AS barracks_level,
+        IFNULL(t.techlevel, 0) AS barracks_expansion_level,
+        IFNULL(b_shrine.buildinglevel, 0) AS shrine_level,
+        IFNULL(sa.base_bonus, 0) AS shrine_base_bonus
     FROM kingdoms k 
     LEFT JOIN buildings b ON k.id = b.kingdomid AND b.buildingid = ?
     LEFT JOIN techs t ON k.id = t.kingdomid AND t.techid = ?
+    LEFT JOIN buildings b_shrine ON k.id = b_shrine.kingdomid AND b_shrine.buildingid = ?
+    LEFT JOIN shrine_alignments sa ON k.alignment = sa.id
     WHERE k.userid = ? 
     ORDER BY k.created_at, k.id
-", [BuildingTypes::BUILDING_BARRACKS, TechTypes::TECH_TYPE_BARRACKS_EXPANSION, $uid])->fetch_all(MYSQLI_ASSOC);
+", [BuildingTypes::BUILDING_BARRACKS, TechTypes::TECH_TYPE_BARRACKS_EXPANSION, BuildingTypes::BUILDING_SHRINE, $uid])->fetch_all(MYSQLI_ASSOC);
 
 $k_ids = array_map("intval", array_column($kingdoms, "id"));
 $k_ids_str = !empty($k_ids) ? implode(',', $k_ids) : '0';
@@ -49,6 +53,9 @@ $query = "
         SELECT kingdomid AS kingdom_id, soldierid, soldiercount AS cnt, 'garrison' AS type, '' AS owner_name FROM soldiers 
         WHERE kingdomid IN ($k_ids_str)
         UNION ALL
+        SELECT kingdomid AS kingdom_id, buildingid AS soldierid, soldiergoal AS cnt, 'garrison' AS type, '' AS owner_name FROM events
+        WHERE userid = ? AND actionid = ?
+        UNION ALL
         SELECT source_kingdom_id AS kingdom_id, soldierid, soldiercount AS cnt, 'away' AS type, '' AS owner_name FROM sent_troops 
         WHERE source_kingdom_id IN ($k_ids_str)
         UNION ALL
@@ -74,11 +81,13 @@ $query = "
 ";
 
 $res_troops = $db_instance->execute_query($query, [
-        $uid,                            // owner_id (stationed_troops away)
-        $uid,                            // user_id (mines away)
-        $uid,                            // e.userid (incoming stationing)
-        ActionTypes::ACTION_SEND_TROOPS, // e.actionid
-        $uid                             // owner_id != ? (support)
+        $uid,                               // e.userid (currently upgrading troops)
+        ActionTypes::ACTION_UPGRADE_TROOPS, // e.actionid (currently upgrading troops)
+        $uid,                               // owner_id (stationed_troops away)
+        $uid,                               // user_id (mines away)
+        $uid,                               // e.userid (incoming stationing)
+        ActionTypes::ACTION_SEND_TROOPS,    // e.actionid (incoming stationing)
+        $uid                                // owner_id != ? (support)
 ])->fetch_all(MYSQLI_ASSOC);
 
 $global_troops = [];
@@ -217,12 +226,14 @@ $global_power = [
         "pure_base_atk" => 0, "pure_base_def" => 0,
         "total_smithy_atk" => 0, "total_smithy_def" => 0,
         "total_shrine_atk" => 0,
+        "support_atk" => 0, "support_def" => 0,
         "cat_atk" => SoldierTypes::get_empty_category_map(),
         "cat_def" => SoldierTypes::get_empty_category_map()
 ];
 
 foreach ($kingdoms as $k) {
     $kid = (int)$k["id"];
+
     $inf_a = ($k_techs[$kid][TechTypes::TECH_TYPE_BLADES] ?? 0) * SMITHY_INF_ATK_BONUS;
     $inf_d = ($k_techs[$kid][TechTypes::TECH_TYPE_SHIELDWALL] ?? 0) * SMITHY_INF_DEF_BONUS;
     $cav_a = ($k_techs[$kid][TechTypes::TECH_TYPE_LANCE_RIDING] ?? 0) * SMITHY_CAV_ATK_BONUS;
@@ -231,20 +242,23 @@ foreach ($kingdoms as $k) {
     $arc_d = ($k_techs[$kid][TechTypes::TECH_TYPE_DOUBLET] ?? 0) * SMITHY_ARC_DEF_BONUS;
 
     $k_align = (int)($k["alignment"] ?? 0);
+    $shrine_lvl = (int)($k["shrine_level"] ?? 0);
     $rites_lvl = $k_techs[$kid][TechTypes::TECH_TYPE_ANCESTRAL_RITES] ?? 0;
     $shrine_atk_mult = 1.0;
-    if ($k_align === AlignmentTypes::ALIGN_WAR) {
-        $shrine_atk_mult += (SHRINE_WAR_DEFAULT_BONUS + ($rites_lvl * SHRINE_TECH_STEP));
+    if ($k_align === AlignmentTypes::ALIGN_WAR && $shrine_lvl > 0) {
+        $base_bonus = (float)($k["shrine_base_bonus"] ?: SHRINE_WAR_DEFAULT_BONUS);
+        $shrine_atk_mult += ($base_bonus + ($rites_lvl * SHRINE_TECH_STEP));
     }
 
-    // All troops available in the kingdom (own + support)
-    $units_to_calc = [];
+    $own_units = [];
     foreach (($kingdom_troops[$kid] ?? []) as $sid => $u) {
-        $units_to_calc[$sid] = ($units_to_calc[$sid] ?? 0) + $u["count"];
+        $own_units[$sid] = ($own_units[$sid] ?? 0) + $u["count"];
     }
+
+    $sup_units = [];
     foreach (($support_troops_by_k[$kid] ?? []) as $sup_data) {
         foreach ($sup_data["units"] as $sid => $su) {
-            $units_to_calc[$sid] = ($units_to_calc[$sid] ?? 0) + $su["count"];
+            $sup_units[$sid] = ($sup_units[$sid] ?? 0) + $su["count"];
         }
     }
 
@@ -253,12 +267,20 @@ foreach ($kingdoms as $k) {
             "pure_base_atk" => 0, "pure_base_def" => 0,
             "total_smithy_atk" => 0, "total_smithy_def" => 0,
             "total_shrine_atk" => 0,
+            "support_atk" => 0, "support_def" => 0,
             "cat_atk" => SoldierTypes::get_empty_category_map(),
             "cat_def" => SoldierTypes::get_empty_category_map()
     ];
 
-    foreach ($units_to_calc as $sid => $sol_count) {
-        if ($sol_count <= 0 || !isset($soldier_meta[$sid])) continue;
+    $all_sids = array_unique(array_merge(array_keys($own_units), array_keys($sup_units)));
+
+    foreach ($all_sids as $sid) {
+        if (!isset($soldier_meta[$sid])) continue;
+        $own_cnt = $own_units[$sid] ?? 0;
+        $sup_cnt = $sup_units[$sid] ?? 0;
+        $sol_count = $own_cnt + $sup_cnt;
+        if ($sol_count <= 0) continue;
+
         $base_atk = $soldier_meta[$sid]["attack"];
         $base_def = $soldier_meta[$sid]["defense"];
         $cat = $soldier_meta[$sid]["category"];
@@ -279,8 +301,12 @@ foreach ($kingdoms as $k) {
         $unit_atk_with_shrine = (int)round($base_atk * $shrine_atk_mult);
         $unit_shrine_gain = $unit_atk_with_shrine - $base_atk;
 
-        $final_atk = $sol_count * ($unit_atk_with_shrine + $b_atk);
-        $final_def = $sol_count * ($base_def + $b_def);
+        $single_final_atk = $unit_atk_with_shrine + $b_atk;
+        $single_final_def = $base_def + $b_def;
+
+        $final_atk = $sol_count * $single_final_atk;
+        $final_def = $sol_count * $single_final_def;
+
         $stat["pure_base_atk"] += ($sol_count * $base_atk);
         $stat["pure_base_def"] += ($sol_count * $base_def);
         $stat["total_smithy_atk"] += ($sol_count * $b_atk);
@@ -288,6 +314,11 @@ foreach ($kingdoms as $k) {
         $stat["total_shrine_atk"] += ($sol_count * $unit_shrine_gain);
         $stat["total_atk"] += $final_atk;
         $stat["total_def"] += $final_def;
+
+        if ($sup_cnt > 0) {
+            $stat["support_atk"] += ($sup_cnt * $single_final_atk);
+            $stat["support_def"] += ($sup_cnt * $single_final_def);
+        }
 
         if (isset($stat["cat_atk"][$cat])) {
             $stat["cat_atk"][$cat] += $final_atk;
@@ -305,20 +336,32 @@ foreach ($kingdoms as $k) {
     $global_power["total_smithy_atk"] += $stat["total_smithy_atk"];
     $global_power["total_smithy_def"] += $stat["total_smithy_def"];
     $global_power["total_shrine_atk"] += $stat["total_shrine_atk"];
+    $global_power["support_atk"] += $stat["support_atk"];
+    $global_power["support_def"] += $stat["support_def"];
 
     foreach ([
                      SoldierTypes::SOLDIER_TYPE_INFANTRY,
                      SoldierTypes::SOLDIER_TYPE_CAVALRY,
                      SoldierTypes::SOLDIER_TYPE_ARCHERS,
-                     SoldierTypes::SOLDIER_TYPE_SPECIAL] as $c) {
+                     SoldierTypes::SOLDIER_TYPE_SPECIAL
+             ] as $c) {
         $global_power["cat_atk"][$c] += $stat["cat_atk"][$c];
         $global_power["cat_def"][$c] += $stat["cat_def"][$c];
     }
 }
 
 // Helper function for stat rendering
-$render_power_stat = function (string $type, int $total, int $pure_base, int $smithy_bonus, int $shrine_bonus, array $cat_vals,
-                               string $id_suffix, bool $full_number = false): string {
+$render_power_stat = function (
+        string $type,
+        int    $total,
+        int    $pure_base,
+        int    $smithy_bonus,
+        int    $shrine_bonus,
+        array  $cat_vals,
+        string $id_suffix,
+        bool   $full_number = false,
+        int    $support_val = 0
+): string {
     $is_atk = ($type === "atk");
     $icon = get_resource_icon($is_atk ? ResourceTypes::RESOURCE_TYPE_ATTACK : ResourceTypes::RESOURCE_TYPE_DEFENSE);
     $title = $is_atk ? "Angriffs-Bonus:" : "Verteidigungs-Bonus:";
@@ -332,32 +375,46 @@ $render_power_stat = function (string $type, int $total, int $pure_base, int $sm
         return "<div class='split-content' style='gap: 15px;'><span>$label:</span>" . fnum($val, true) . "</div>";
     };
 
-    $cat_rows = $render_split_row("Infanterie", $cat_vals[SoldierTypes::SOLDIER_TYPE_INFANTRY])
-            . $render_split_row("Kavallerie", $cat_vals[SoldierTypes::SOLDIER_TYPE_CAVALRY])
-            . $render_split_row("Schützen", $cat_vals[SoldierTypes::SOLDIER_TYPE_ARCHERS])
-            . $render_split_row("Spezial", $cat_vals[SoldierTypes::SOLDIER_TYPE_SPECIAL]);
+    $cat_rows =
+            $render_split_row("Infanterie", $cat_vals[SoldierTypes::SOLDIER_TYPE_INFANTRY]) .
+            $render_split_row("Kavallerie", $cat_vals[SoldierTypes::SOLDIER_TYPE_CAVALRY]) .
+            $render_split_row("Schützen", $cat_vals[SoldierTypes::SOLDIER_TYPE_ARCHERS]) .
+            $render_split_row("Spezial", $cat_vals[SoldierTypes::SOLDIER_TYPE_SPECIAL]);
 
-    $total_header_row = ($id_suffix !== "global")
-            ? "<div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b>" . fnum($total, true) . "</div>
-                <hr>"
-            : "";
+    $own_total = max(0, $total - $support_val);
+    $total_header_row = "";
+    if ($id_suffix !== "global" || $support_val > 0) {
+        $total_header_row .= "<div class='split-content' style='gap: 15px; margin-bottom: 4px;'><b>Gesamt:</b><b>" . fnum($total, true) . "</b></div>";
+        if ($support_val > 0) {
+            $total_header_row .= "<div class='split-content' style='gap: 15px;'><span>Eigene Truppen:</span><span>" . fnum($own_total, true) . "</span></div>";
+            $total_header_row .= "<div class='split-content' style='gap: 15px; color: #389cff;'><span>Unterstützung:</span>+" . fnum($support_val, true) . "</div>";
+        }
+        $total_header_row .= "<hr>";
+    }
 
     $bonus_block = "";
     if ($has_bonus) {
         $bonus_block = "
-                <b>$title</b>
-                <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base, true) . "</span></div>
-                " . ($smithy_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($smithy_bonus, true) . "</span></div>" : "") . "
-                " . ($shrine_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($shrine_bonus, true) . "</span></div>" : "") . "
-                <hr>";
+            <b>$title</b>
+            <div class='split-content' style='gap: 15px;'><span>Basis:</span><span>" . fnum($pure_base, true) . "</span></div>
+            " . ($smithy_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schmiede:</span><span>+" . fnum($smithy_bonus, true) . "</span></div>" : "") . "
+            " . ($shrine_bonus > 0 ? "<div class='split-content passed' style='gap: 15px;'><span>Schrein:</span><span>+" . fnum($shrine_bonus, true) . "</span></div>" : "") . "
+            <hr>";
     }
+
+//    $displayed_sup = $full_number ? fnum($support_val, true) : fnum($support_val, false, true);
+//    $sup_subline = ($support_val > 0)
+//            ? "<small style='color: #389cff; font-weight: bold; font-size: 0.78em; line-height: 1;' title='Davon durch Unterstützung'>(+$displayed_sup)</small>"
+//            : "";
 
     if ($total <= 0) {
         return "<span class='$val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'> " . $icon . "<span>" . $displayed_total . "</span></span>";
     } else {
         return "
-        <span class='popup $val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'>
-            $icon <span>" . $displayed_total . "</span>
+        <span class='popup $val_class' id='$pop_id' style='display: inline-flex; flex-direction: column; align-items: center; gap: 2px;'>
+            <span style='display: inline-flex; align-items: center; gap: 4px;'>
+                $icon <span>" . $displayed_total . "</span>
+            </span>
             <div id='{$pop_id}_box' class='popupbox' style='text-align: left; min-width: 220px;'>
                 $total_header_row
                 $bonus_block
@@ -383,24 +440,10 @@ $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capa
         </div>
 
         <div class="all-troops-sum-stats">
-            <?= $render_power_stat("atk",
-                    $global_power["total_atk"],
-                    $global_power["pure_base_atk"],
-                    $global_power["total_smithy_atk"],
-                    $global_power["total_shrine_atk"],
-                    $global_power["cat_atk"],
-                    "global",
-                    true)
-            ?>
-            <?= $render_power_stat("def",
-                    $global_power["total_def"],
-                    $global_power["pure_base_def"],
-                    $global_power["total_smithy_def"],
-                    0,
-                    $global_power["cat_def"],
-                    "global",
-                    true)
-            ?>
+            <?= $render_power_stat("atk", $global_power["total_atk"], $global_power["pure_base_atk"], $global_power["total_smithy_atk"],
+                    $global_power["total_shrine_atk"], $global_power["cat_atk"], "global", true, $global_power["support_atk"]) ?>
+            <?= $render_power_stat("def", $global_power["total_def"], $global_power["pure_base_def"], $global_power["total_smithy_def"], 0,
+                    $global_power["cat_def"], "global", true, $global_power["support_def"]) ?>
         </div>
 
         <?php if (!empty($global_troops)): ?>
@@ -478,8 +521,8 @@ $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capa
                         </div>
 
                         <div class="all-troops-stats-per-kingdom">
-                            <?= $render_power_stat("atk", $kp["total_atk"], $kp["pure_base_atk"], $kp["total_smithy_atk"], $kp["total_shrine_atk"], $kp["cat_atk"], 'k_' . $kid) ?>
-                            <?= $render_power_stat("def", $kp["total_def"], $kp["pure_base_def"], $kp["total_smithy_def"], 0, $kp["cat_def"], 'k_' . $kid) ?>
+                            <?= $render_power_stat("atk", $kp["total_atk"], $kp["pure_base_atk"], $kp["total_smithy_atk"], $kp["total_shrine_atk"], $kp["cat_atk"], 'k_' . $kid, false, $kp["support_atk"] ?? 0) ?>
+                            <?= $render_power_stat("def", $kp["total_def"], $kp["pure_base_def"], $kp["total_smithy_def"], 0, $kp["cat_def"], 'k_' . $kid, false, $kp["support_def"] ?? 0) ?>
                         </div>
 
                         <div class="all-troops-count">
@@ -505,7 +548,7 @@ $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capa
                             <?php foreach ($k_support_groups as $supporter_name => $sup_data): ?>
                                 <hr>
                                 <div class="all-troops-supporter">
-                                    Unterstützung <?= e($supporter_name) ?> (<?= fnum($sup_data["total"]) ?>):
+                                    <?= e($supporter_name) ?> (<?= fnum($sup_data["total"]) ?>):
                                 </div>
                                 <div class="all-troops-unit-list">
                                     <?php foreach ($sup_data["units"] as $su): ?>

@@ -5,6 +5,7 @@ let canLoadMore = true;
 let lastSeenId = 0;
 let isUpdatingChat = false;
 let isSendingChat = false;
+let isChatRateLimited = false;
 
 registerAction("sendWorldMessage", () => sendChatMessage("world"));
 registerAction("sendGuildMessage", () => sendChatMessage("guild"));
@@ -14,7 +15,7 @@ registerAction("deleteGuildChatMsg", (el) => deleteChatMessage(el.dataset.id, "g
 registerAction("deleteServerMsg", (el) => deleteServerMessage(el.dataset.id));
 registerAction("loadOlderChat", (el) => loadOlderChatMessages("private", el.dataset.partnerid));
 registerAction("loadOlderWorldChat", () => loadOlderChatMessages("world"));
-registerAction("loadOlderGuildMessages", () => loadOlderChatMessages("guild"));
+registerAction("loadOlderGuildChat", () => loadOlderChatMessages("guild"));
 registerAction("loadMoreServerMsgs", () => loadOlderServerMessages());
 registerAction("filterServer", (el) => filterServerMessages(el));
 registerAction("confirmDeleteConversation", (el) => conversationDeletionDialog(el.dataset.id, el.dataset.name));
@@ -46,6 +47,12 @@ registerAction("confirmDeleteAllServer", (el) => {
             })
                 .then(r => r.json())
                 .then(data => {
+                    if (data.redirect) {
+                        isPageUnloading = true;
+                        window.location.href = data.redirect;
+                        return;
+                    }
+
                     if (data.success) {
                         window.location.reload();
                     }
@@ -54,8 +61,17 @@ registerAction("confirmDeleteAllServer", (el) => {
     );
 });
 
+function setChatSendLocked(locked) {
+    isChatRateLimited = locked;
+
+    document.querySelectorAll('#newmessage-section input[type="button"], #newmessage-section input[type="submit"], ' +
+        '#newmessage-section button[type="submit"]').forEach(btn => {
+        btn.disabled = locked;
+    });
+}
+
 function sendChatMessage(chatType, extraParams = {}) {
-    if (isSendingChat) return;
+    if (isSendingChat || isChatRateLimited) return;
 
     const messageInput = document.getElementById("message-input");
     if (!messageInput) return;
@@ -93,6 +109,12 @@ function sendChatMessage(chatType, extraParams = {}) {
     })
         .then(r => r.json())
         .then(response => {
+            if (response.redirect) {
+                isPageUnloading = true;
+                window.location.href = response.redirect;
+                return;
+            }
+
             if (response.error === "redirect") {
                 const target = response.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + response.chatPartner;
                 window.location.href = "messages.php?" + target;
@@ -115,11 +137,15 @@ function sendChatMessage(chatType, extraParams = {}) {
                 scrollDown(true);
             }
         })
-        .catch(err => showGameError("Chat Send Fehler:" + err))
+        .catch(err => {
+            if (!isPageUnloading && err.name !== "AbortError") {
+                showGameError("Chat Send Fehler: " + err);
+            }
+        })
         .finally(() => {
             isSendingChat = false;
 
-            if (submitBtn) submitBtn.disabled = false;
+            if (submitBtn && !isChatRateLimited && !isPageUnloading) submitBtn.disabled = false;
         });
 }
 
@@ -162,6 +188,12 @@ function loadOlderChatMessages(type, partnerId = null) {
     })
         .then(r => r.json())
         .then(data => {
+            if (data.redirect) {
+                isPageUnloading = true;
+                window.location.href = data.redirect;
+                return;
+            }
+
             if (data.count > 0) {
                 const oldHeight = section.scrollHeight;
                 btn.insertAdjacentHTML("afterend", data.html);
@@ -175,19 +207,15 @@ function loadOlderChatMessages(type, partnerId = null) {
             finishLoading(btn);
         })
         .catch(err => {
-            showGameError("Fehler beim Laden älterer Nachrichten:" + err);
+            if (!isPageUnloading && err.name !== "AbortError") {
+                showGameError("Fehler beim Laden älterer Nachrichten: " + err);
+            }
 
             isFetchingOlder = false;
 
             if (btn) btn.innerText = "Fehler beim Laden";
         });
 }
-
-function loadOlderGuildMessages() {
-    loadOlderChatMessages("guild");
-}
-
-window.loadOlderGuildMessages = loadOlderGuildMessages;
 
 function loadOlderServerMessages() {
     if (isFetchingOlder || !canLoadMore) return;
@@ -211,6 +239,12 @@ function loadOlderServerMessages() {
     })
         .then(r => r.json())
         .then(data => {
+            if (data.redirect) {
+                isPageUnloading = true;
+                window.location.href = data.redirect;
+                return;
+            }
+
             if (data.count > 0) {
                 if (btn) {
                     btn.insertAdjacentHTML("beforebegin", data.html);
@@ -368,16 +402,20 @@ function updateChat(chatPartner) {
         .then(data => {
             isUpdatingChat = false;
 
+            if (data.redirect) {
+                isPageUnloading = true;
+                window.location.href = data.redirect;
+                return;
+            }
+
             if (data.error === "redirect") {
                 const target = data.chatPartner === "privmsgs" ? "privmsgs" : "action=read&s=" + data.chatPartner;
                 window.location.href = "messages.php?" + target;
                 return;
             }
 
-            const infoBox = document.querySelector(".info-box");
             if (data.error) {
-                setInfoBoxError(data.error);
-                if (infoBox) infoBox.style.display = "flex";
+                displayChatError(data.error);
                 return;
             }
 
@@ -509,13 +547,23 @@ function deleteChatMessage(messageID, type = "private") {
     })
         .then(r => r.json())
         .then(response => {
+            if (response.redirect) {
+                isPageUnloading = true;
+                window.location.href = response.redirect;
+                return;
+            }
+
             if (response.error) {
-                setInfoBoxError(response.error);
+                displayChatError(response.error);
             } else {
                 removeChatBubble(messageID);
             }
         })
-        .catch(err => showGameError("Error:" + err));
+        .catch(err => {
+            if (!isPageUnloading && err.name !== "AbortError") {
+                showGameError("Error: " + err);
+            }
+        });
 }
 
 function deleteServerMessage(messageID) {
@@ -533,6 +581,12 @@ function deleteServerMessage(messageID) {
     })
         .then(r => r.json())
         .then(response => {
+            if (response.redirect) {
+                isPageUnloading = true;
+                window.location.href = response.redirect;
+                return;
+            }
+
             if (response.error) {
                 const infoBox = document.querySelector(".info-box");
                 if (infoBox) {
@@ -557,7 +611,11 @@ function deleteServerMessage(messageID) {
                 }
             }
         })
-        .catch(err => showGameError("Error:" + err));
+        .catch(err => {
+            if (!isPageUnloading && err.name !== "AbortError") {
+                showGameError("Error: " + err);
+            }
+        });
 }
 
 function removeEmptyPlaceholder() {
@@ -665,6 +723,12 @@ function initializeChat() {
     })
         .then(r => r.json())
         .then(data => {
+            if (data.redirect) {
+                isPageUnloading = true;
+                window.location.href = data.redirect;
+                return;
+            }
+
             if (data.error === "redirect") {
                 window.location.href = "messages.php";
                 return;
@@ -672,6 +736,10 @@ function initializeChat() {
 
             messageSection.innerHTML = data.html;
             updateNavigationBadges(data.privUnread, data.worldUnread, data.guildUnread, data.achievementsUnread);
+
+            if (data.rateLimitSeconds && data.rateLimitSeconds > 0) {
+                displayChatError("Du schickst zu viele Nachrichten! Warte bitte:", data.rateLimitSeconds);
+            }
 
             const messageInput = document.getElementById("message-input");
             const messageForm = document.getElementById("newmessage") || document.getElementById("world-chat-form") || document.getElementById("guild-chat-form");
@@ -691,6 +759,11 @@ function initializeChat() {
             if (messageInput) {
                 messageInput.addEventListener("keydown", e => {
                     if (e.key === "Enter" && !e.shiftKey) {
+                        if (isChatRateLimited) {
+                            e.preventDefault();
+                            return;
+                        }
+
                         const isMobile = window.innerWidth <= 600 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
                         if (isMobile) {
                             return;
@@ -837,12 +910,10 @@ function finishLoading(btn) {
     }, 800);
 }
 
-function setInfoBoxError(message) {
-    displayChatError(message);
-}
-
 function displayChatError(message, seconds = undefined) {
-    const infoBox = document.querySelector(".info-box");
+    const infoBox = document.querySelector("#guild_tab_chat .info-box.event-error, #tab_worldchat " +
+            ".info-box.event-error, .big-box-content > .info-box.event-error")
+        || document.querySelector(".info-box.event-error");
     if (!infoBox) return;
 
     let contentWrapper = infoBox.querySelector(".info-wrapper");
@@ -870,7 +941,9 @@ function displayChatError(message, seconds = undefined) {
     errorTextSpan.innerText = message + (seconds !== undefined ? " " : "");
 
     let counterElement = document.getElementById("counter");
-    if (seconds !== undefined) {
+    if (seconds !== undefined && seconds > 0) {
+        setChatSendLocked(true);
+
         if (!counterElement) {
             counterElement = document.createElement("span");
             counterElement.id = "counter";
@@ -878,7 +951,7 @@ function displayChatError(message, seconds = undefined) {
             contentWrapper.append(counterElement);
         }
         if (typeof startCountdown === "function") {
-            startCountdown(counterElement, seconds, 0, null, true);
+            startCountdown(counterElement, seconds, 0, null, true, true);
         }
     } else {
         counterElement?.remove();
@@ -918,4 +991,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     applyChatPrefill();
+});
+
+document.addEventListener("chatRateLimitEnded", () => {
+    setChatSendLocked(false);
 });

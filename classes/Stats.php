@@ -193,9 +193,7 @@ class Stats
                 (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_slain_monsters') as total_monsters_slain,
                 (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_battles') as total_battles,
                 -- Misc
-                (SELECT COUNT(*) FROM messages) as total_msgs,
-                (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_trades') as total_trades,
-                (SELECT IFNULL(SUM(supplyvalue), 0) FROM marketplace) as market_volume
+                (SELECT COUNT(*) FROM messages) as total_msgs
             FROM kingdoms k
         ";
         return $db->execute_query($stats_query)->fetch_assoc() ?: [];

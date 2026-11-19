@@ -2,14 +2,6 @@
 require_once("includes/core.php");
 
 $user->check_user_login();
-?>
-<!DOCTYPE html>
-<html lang="de">
-<?php
-$script_files = ["userinfo", "guild", "sendtroops"];
-?>
-<body>
-<?php
 $user_id = (int)($_GET["userid"] ?? 0);
 
 if ($user_id) {
@@ -282,9 +274,5 @@ if ($user_id) {
             </td>
         </tr>
     </table>
-    <title>Magic Empires - <?= $user_name ?></title>
     <?php
 }
-?>
-</body>
-</html>

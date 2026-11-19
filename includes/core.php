@@ -4,8 +4,8 @@
  ************************************/
 
 require __DIR__ . "/../vendor/autoload.php"; // Composer Autoloader
-require_once("config.php");
-require_once("functions.php");
+require_once(__DIR__ . "/config.php");
+require_once(__DIR__ . "/functions.php");
 
 $is_cli = (php_sapi_name() === "cli");
 
@@ -141,7 +141,7 @@ define("WINTER_THEME_ACTIVE", $active_winter);
 $user = new User($_SESSION["userid"] ?? -1, "", $_SESSION["kingdomid"] ?? -1);
 
 if (!$is_cli) {
-    require_once("sessions.php");
+    require_once(__DIR__ . "/sessions.php");
 
     ob_start("auto_inject_csrf_token");
 }

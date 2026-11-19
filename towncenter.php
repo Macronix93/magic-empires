@@ -37,7 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             $cost_gold = $costs["cost_gold"];
 
             // The action that was set is "building"
-            if ($action == "build") {
+            if ($action === "build") {
                 $max_allowed_for_this_building = Building::get_max_building_level($build_id);
 
                 if ($building_level >= $max_allowed_for_this_building) {
@@ -97,31 +97,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                         }
                     }
                 }
-            } else if ($action == "cancel") { // The action that was set is "cancel building"
-                if ($kingdom_is_building) {
+            } else if ($action === "cancel") { // The action that was set is "cancel building"
+                if ($kingdom_is_building && $kingdom_building_id === $build_id) {
                     $db_instance->execute_query(
                         "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
-                        [
-                            $user->get_user_id(),
-                            $build_id,
-                            $user->get_current_kingdom(),
-                            ActionTypes::ACTION_BUILD_BUILDING
-                        ]
+                        [$user->get_user_id(), $build_id, $current_kingdom, ActionTypes::ACTION_BUILD_BUILDING]
                     );
-
-                    $kingdom_is_building = false;
-                    $kingdom_building_id = -1;
-
-                    // Refund the player
-                    $kingdom->give_kingdom_wood($cost_wood);
-                    $kingdom->give_kingdom_food($cost_food);
-                    $kingdom->give_kingdom_stone($cost_stone);
-                    $kingdom->give_kingdom_gold($cost_gold);
-
-                    $logger->log_game("ECONOMY", "BUILDING_CANCEL", [
-                        "building_id" => $build_id,
-                        "refund" => $costs
-                    ], $current_kingdom);
+                    
+                    if ($db_instance->affected_rows === 1) {
+                        $kingdom_is_building = false;
+                        $kingdom_building_id = -1;
+                        $kingdom->refund_costs($costs);
+                        $logger->log_game("ECONOMY", "BUILDING_CANCEL", ["building_id" => $build_id, "refund" => $costs], $current_kingdom);
+                    }
 
                     change_location("towncenter.php");
                 } else {

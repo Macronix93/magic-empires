@@ -15,7 +15,7 @@ $success = "";
 $token_valid = false;
 $user_data = null;
 
-$result = $db_instance->execute_query("SELECT id FROM users WHERE reset_token = ? AND reset_expires > ? LIMIT 1", [$token, time()]);
+$result = $db_instance->execute_query("SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ? LIMIT 1", [$token, time()]);
 
 if ($result && $result->num_rows > 0) {
     $token_valid = true;

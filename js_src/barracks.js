@@ -1,68 +1,5 @@
 const SUPPORT_CATEGORY = document.getElementById("support-container")?.dataset.unitCategory || "4";
 
-registerAction("toggleAllUnitsView", (el) => {
-    const showAll = el.checked;
-
-    document.cookie = "me_list_view=" + (showAll ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
-
-    const standardTabs = document.getElementById("barracks-tabs-standard");
-    const listTabs = document.getElementById("barracks-tabs-list");
-    const recruitmentTable = document.getElementById("recruitment-table");
-    const supportContainer = document.getElementById("support-container");
-
-    if (showAll) {
-        if (standardTabs) standardTabs.style.display = "none";
-        if (listTabs) listTabs.style.display = "";
-
-        if (listTabs) {
-            listTabs.querySelectorAll(".tablinks").forEach(t => t.classList.remove("active"));
-            const unitsTab = listTabs.querySelector('[data-tab="units"]');
-            if (unitsTab) unitsTab.classList.add("active");
-        }
-
-        if (recruitmentTable) recruitmentTable.style.display = "";
-        if (supportContainer) supportContainer.style.display = "none";
-
-        document.querySelectorAll(".unit-row").forEach(row => {
-            row.style.display = "";
-        });
-        document.querySelectorAll(".unit-category-divider").forEach(row => {
-            row.style.display = "";
-        });
-
-        const header = document.getElementById("recruitment-header");
-        if (header) header.style.display = "none";
-
-        const url = new URL(window.location);
-        url.searchParams.delete("cat");
-        window.history.replaceState({}, '', url);
-    } else {
-        if (standardTabs) standardTabs.style.display = "";
-        if (listTabs) listTabs.style.display = "none";
-
-        document.querySelectorAll(".unit-category-divider").forEach(row => {
-            row.style.display = "none";
-        });
-
-        const header = document.getElementById("recruitment-header");
-        if (header) header.style.display = "";
-
-        const activeStandardTab = standardTabs ? standardTabs.querySelector(".tablinks.active") : null;
-        const category = activeStandardTab ? activeStandardTab.dataset.category : "0";
-
-        if (category === SUPPORT_CATEGORY) {
-            if (recruitmentTable) recruitmentTable.style.display = "none";
-            if (supportContainer) supportContainer.style.display = "";
-        } else {
-            if (recruitmentTable) recruitmentTable.style.display = "";
-            if (supportContainer) supportContainer.style.display = "none";
-
-            document.querySelectorAll(".unit-row").forEach(row => {
-                row.style.display = (row.dataset.unitCategory === category) ? "" : "none";
-            });
-        }
-    }
-});
 registerAction("filterBarracksList", (el) => {
     const tab = el.dataset.tab;
     const listTabs = document.getElementById("barracks-tabs-list");
@@ -292,9 +229,8 @@ function updateRecruitCosts(input) {
             finalUnitCost = baseCostPerUnit;
         }
 
-        let currentMultiplier = 1.0;
-        const totalCostForSelectedAmount = Math.floor(finalUnitCost * currentMultiplier) * amount;
-        const previewCostForOne = Math.floor(finalUnitCost * currentMultiplier) * displayAmount;
+        const totalCostForSelectedAmount = Math.floor(finalUnitCost) * amount;
+        const previewCostForOne = Math.floor(finalUnitCost) * displayAmount;
 
         const displayEl = document.getElementById(`cost-${res}-${id}`);
         if (displayEl) {

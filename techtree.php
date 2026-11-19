@@ -61,18 +61,11 @@ for ($i = 0; $i < $building_count; $i++) {
         $dependency_text = "<span style='white-space: nowrap;'>Keine</span>";
     }
 
-    $view .= "<tr><td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                <td style='width: 35%;'>
-                <a href='#'
-                   data-on-click='openOverlay'
-                   data-url='techinfo.php?bid=" . e($i) . "'
-                   data-title='Gebäude-Info'>
-                " . $buildings[$i]->get_building_name() . " ($current_building_level)
-                </a>
-                </td>
+    $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?bid=" . e($i) . "' data-title='Gebäude-Info'>
+                <td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
+                <td style='width: 35%;'>" . $buildings[$i]->get_building_name() . " ($current_building_level)</td>
                 <td class='techtree-requirements'>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td>
-                </tr>
-    ";
+            </tr>";
 
     $dependency_text = "";
 }
@@ -132,15 +125,11 @@ $render_tech_table = function ($tech_array, $title, $info_title) use ($buildings
             $dependency_text = "Nur in <i>" . $main_k->get_kingdom_name() . "</i>";
         }
 
-        $html .= "<tr>
+        $html .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?tid=" . e($t->get_tech_id()) . "' data-title='$info_title'>
                     <td class='td-center' style='width: 5%;'>{$t->get_tech_icon()}</td>
-                    <td style='width: 35%;'>
-                        <a href='#' data-on-click='openOverlay' data-url='techinfo.php?tid=" . e($t->get_tech_id()) . "' data-title='$info_title'>
-                            {$t->get_tech_name()} ($current_tech_level)
-                        </a>
-                    </td>
+                    <td style='width: 35%;'>{$t->get_tech_name()} ($current_tech_level)</td>
                     <td class='techtree-requirements'>$dependency_text</td>
-                  </tr>";
+                </tr>";
     }
     $html .= '</table><br>';
 
@@ -173,18 +162,14 @@ foreach ($all_guild_techs as $index => $gt) {
     $icon = "images/icons/" . e($gt["icon"]) . ".png";
 
     $lvl_display = $in_guild ? "($cur_lvl/$max_lvl)" : "";
+    $overlay_attrs = "data-on-click='openOverlay' data-url='techinfo.php?gtid=" . (int)$gt["id"] . "' data-title='Gilden-Forschung'";
 
-    $view .= "<tr>
-                <td class='td-center' style='width: 5%;'>
+    $view .= "<tr class='tr-hover'>
+                <td class='td-center td-cursor' style='width: 5%;' $overlay_attrs>
                     <img src='$icon' class='buildable-icons' alt=''>
                 </td>
-                <td style='width: 35%;'>
-                    <a href='#'
-                       data-on-click='openOverlay'
-                       data-url='techinfo.php?gtid=" . (int)$gt["id"] . "'
-                       data-title='Gilden-Forschung'>
-                        " . e($gt["name"]) . " $lvl_display
-                    </a>
+                <td class='td-cursor' style='width: 35%;' $overlay_attrs>
+                    " . e($gt["name"]) . " $lvl_display
                 </td>";
 
     if ($index === 0) {
@@ -202,7 +187,7 @@ foreach ($all_guild_techs as $index => $gt) {
             $req_html .= "<span class='passed' style='white-space: nowrap;'>Gildenmitgliedschaft</span>";
         }
 
-        $view .= "<td class='techtree-requirements' rowspan='$guild_tech_count'>
+        $view .= "<td class='techtree-requirements no-hover' rowspan='$guild_tech_count'>
                     $req_html
                   </td>";
     }
@@ -230,18 +215,11 @@ foreach ($res_soldiers as $row) {
     $is_hero = $s_obj->get_soldier_id() == Soldiers::SOLDIER_HERO;
     $status_class = $is_hero ? "style='font-style: italic;'" : (($barracks_lvl >= $req_lvl) ? "class='passed'" : "class='error'");
 
-    $view .= "<tr>
+    $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?sid=" . $s_obj->get_soldier_id() . "' data-title='Einheiten-Info'>
                 <td class='td-center' style='width: 5%;'>{$s_obj->get_soldier_icon()}</td>
-                <td style='width: 35%;'>
-                    <a href='#' 
-                       data-on-click='openOverlay' 
-                       data-url='techinfo.php?sid=" . $s_obj->get_soldier_id() . "' 
-                       data-title='Einheiten-Info'>
-                        " . $s_obj->get_soldier_name() . "
-                    </a>
-                </td>
+                <td style='width: 35%;'>" . $s_obj->get_soldier_name() . "</td>
                 <td class='techtree-requirements'><span $status_class>" . ($is_hero ? "Verteilung alle 24 Stunden" : "Kaserne ($req_lvl)") . "</span></td>
-              </tr>";
+            </tr>";
 }
 $view .= '</table>';
 

@@ -798,22 +798,27 @@ class Guild
     public function get_avatar(?int $specific_id = null): string
     {
         $target_id = $specific_id ?? $this->id;
+
         if (!$target_id || $target_id <= 0) {
             return DEFAULT_GUILD_AVATAR;
         }
 
+        static $guild_avatar_cache = [];
+
+        if (isset($guild_avatar_cache[$target_id])) {
+            return $guild_avatar_cache[$target_id];
+        }
+
         $hashed_name = substr(hash("sha256", $target_id . "GUILD_AVATAR_SALT"), 0, 12);
         $directory = __DIR__ . "/../" . UPLOADS_FILE_PATH . GUILD_UPLOADS_FILE_PATH;
-
         $files = glob($directory . $hashed_name . ".*");
 
         if (!empty($files)) {
             $info = pathinfo($files[0]);
-
-            return UPLOADS_FILE_PATH . GUILD_UPLOADS_FILE_PATH . $hashed_name . "." . $info["extension"] . "?t=" . filemtime($files[0]);
+            return $guild_avatar_cache[$target_id] = UPLOADS_FILE_PATH . GUILD_UPLOADS_FILE_PATH . $hashed_name . "." . $info["extension"] . "?t=" . filemtime($files[0]);
         }
 
-        return DEFAULT_GUILD_AVATAR;
+        return $guild_avatar_cache[$target_id] = DEFAULT_GUILD_AVATAR;
     }
 
     public function update_avatar(array $file): ?string
@@ -827,8 +832,8 @@ class Guild
         $days_since = (time() - $g_data["last_avatar_change"]) / 86400;
 
         if ($days_since < AVATAR_CHANGE_COOLDOWN_DAYS && !$this->user->is_admin()) {
-            $wait = ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since);
-            return "Wappen-Änderung erst in $wait Tagen wieder möglich.";
+            $wait = (int)ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since);
+            return "Wappen-Änderung erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder möglich.";
         }
 
         $file_tmp = $file["tmp_name"];

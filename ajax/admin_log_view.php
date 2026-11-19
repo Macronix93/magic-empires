@@ -10,6 +10,8 @@ $sub_dir = $_GET["sub"] ?? "";
 
 $allowed_system_files = ["admin.log", "error.log", "security.log"];
 $file = $_GET["file"] ?? '';
+if ($file !== basename($file)) die("Ungültige Datei.");
+
 $page = max(1, (int)($_GET["page"] ?? 1));
 $per_page = 50;
 
@@ -50,7 +52,7 @@ if ($total_pages > 1) {
         $active = ($i == $page) ? "active" : "";
         $url = "ajax/admin_log_view.php?file=$file&page=$i";
 
-        echo "<a href='#' data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' class='page-link $active'>$i</a>";
+        echo "<a href='#' data-on-click='openOverlay' data-url='$url' data-title='Log-Viewer' data-width='1050px' class='page-link $active'>$i</a>";
     }
     echo '</div></div>';
 }

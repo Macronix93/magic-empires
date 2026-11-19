@@ -349,8 +349,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             });
 
-        let lastAnimFrame = 0;
-
         function runMapAnimationLoop(time) {
             if (!document.hidden && hasBurningKingdomInView()) {
                 if (time - lastAnimFrame >= 40) {
@@ -1316,9 +1314,8 @@ function selectField(x, y, shouldCenter = false) {
 
             btnHtml = `<button data-on-click="openOverlay" data-url="${actionUrl}" ${btnDisabled}>${actionBtnText}</button>`;
         }
-        html += `${btnHtml}</td></tr>`;
 
-        html += `</td></tr></table>`;
+        html += `${btnHtml}</td></tr></table>`;
     } else if (kid === -4) {
         // --- ABANDONED KINGDOM ---
         const travelTime = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST);
@@ -1450,8 +1447,7 @@ function selectField(x, y, shouldCenter = false) {
         }
 
         const btnContainer = `<div style="display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap;">${buttons.join("")}</div>`;
-        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">${btnContainer}</td></tr>`;
-        html += `</td></tr></table>`;
+        html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">${btnContainer}</td></tr></table>`;
     } else if (kid === -999) {
         // --- EVENT CENTER
         const isEventActive = window.activeEventInfo && window.activeEventInfo.is_active;
@@ -1521,7 +1517,7 @@ function selectField(x, y, shouldCenter = false) {
         }
     } else {
         // --- PLAYER KINGDOM
-        const scoreIcon = `<img src="../images/icons/icon_score.png" class="ressource-icons" alt="">`;
+        const scoreIcon = `<img src="images/icons/icon_score.png" class="ressource-icons" alt="">`;
         const ownerDisplay = `<a href="#" data-on-click="openOverlay" data-url="userinfo.php?userid=${ownerId}" data-title="Spieler-Info">${owner}</a>`;
 
         html += `<div class="title-border">Königreich-Info (${fieldName})</div>`;

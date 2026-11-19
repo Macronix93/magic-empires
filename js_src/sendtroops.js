@@ -1,42 +1,3 @@
-registerAction("toggleAllUnitsSendTroops", (el) => {
-    const showAll = el.checked;
-
-    document.cookie = "me_list_view=" + (showAll ? "1" : "0") + "; path=/; max-age=31536000; SameSite=Lax";
-
-    const tabs = document.getElementById("sendtroops-tabs");
-    const header = document.getElementById("sendtroops-header");
-    const dividers = document.querySelectorAll(".unit-category-divider");
-    const rows = document.querySelectorAll(".unit-row");
-
-    if (showAll) {
-        if (tabs) tabs.style.display = "none";
-        if (header) header.style.display = "none";
-
-        dividers.forEach(div => div.style.display = "");
-        rows.forEach(row => row.style.display = "");
-
-        const url = new URL(window.location);
-        url.searchParams.delete("cat");
-        window.history.replaceState({}, '', url);
-    } else {
-        if (tabs) tabs.style.display = "";
-        if (header) header.style.display = "";
-
-        dividers.forEach(div => div.style.display = "none");
-
-        const activeTab = tabs ? tabs.querySelector(".tablinks.active") : null;
-        const activeCat = activeTab ? String(activeTab.dataset.category) : "0";
-
-        rows.forEach(row => {
-            const rowCat = String(row.getAttribute("data-unit-category"));
-            row.style.display = (rowCat === activeCat) ? "" : "none";
-        });
-
-        const url = new URL(window.location);
-        url.searchParams.set("cat", activeCat);
-        window.history.replaceState({}, '', url);
-    }
-});
 registerAction("filterSendTroops", (el) => {
     const category = String(el.dataset.category);
     const allRows = document.querySelectorAll(".unit-row");
@@ -204,23 +165,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
                     return;
                 }
 
-                const baseModalBody = document.getElementById("overlay-content-body");
-                const hasParentModal = baseModalBody && baseModalBody.offsetParent !== null;
-
-                if (hasParentModal) {
-                    const oldMsg = baseModalBody.querySelector('.info-box');
-                    if (oldMsg) oldMsg.remove();
-
-                    baseModalBody.insertAdjacentHTML("afterbegin", `
-                    <div class="info-box event-passed" style="margin-bottom: 15px;">
-                        <img src="images/icons/icon_checked.png" alt="Erfolg">
-                        <span>${data.message || "Truppen erfolgreich gesendet!"}</span>
-                    </div>
-                `);
-                    baseModalBody.scrollTo({top: 0, behavior: "smooth"});
-                } else {
-                    showGameMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
-                }
+                showGameMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
 
                 if (typeof gameConfig !== "undefined" && gameConfig.currentKingdom) {
                     if (data.troops) {

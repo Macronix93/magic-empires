@@ -273,7 +273,7 @@ registerAction("toggleReactionPicker", (el) => {
         let pickerWidth = picker.offsetWidth;
 
         const isMobile = window.innerWidth <= 600;
-        const chatSection = el.closest('#messages-section') || el.closest('.box-content');
+        const chatSection = el.closest('#messages-section');
         const cRect = chatSection ? chatSection.getBoundingClientRect() : null;
 
         const boundLeft = (!isMobile && cRect) ? (cRect.left + 5) : 10;
@@ -290,7 +290,7 @@ registerAction("toggleReactionPicker", (el) => {
 
         let openAbove;
 
-        if (spaceBelowInChat < pickerHeight && spaceAboveInChat >= pickerHeight) {
+        if ((spaceBelowInChat < pickerHeight && spaceAboveInChat >= pickerHeight) || !chatSection) {
             openAbove = true;
         } else if (spaceBelowInChat < pickerHeight && spaceAboveInChat < pickerHeight) {
             openAbove = (spaceAboveInChat > spaceBelowInChat);
@@ -589,9 +589,13 @@ function updateSidebarAndHeaderDOM(data) {
 }
 
 function showKingdomSwitchLoader() {
-    document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display").forEach(el => {
+    document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
         el.style.pointerEvents = "none";
     });
+
+    if (typeof window.closeMobileMenus === "function") {
+        window.closeMobileMenus();
+    }
 
     const bigBox = document.querySelector(".middle-container .big-box-container");
     if (bigBox) {
@@ -628,12 +632,32 @@ function showKingdomSwitchLoader() {
     }, 250);
 }
 
+function resetKingdomSwitchLoader() {
+    isKingdomSwitching = false;
+    clearTimeout(kingdomLoaderTimer);
+
+    document.getElementById("kingdom-switch-loader")?.remove();
+    document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = false);
+    document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
+        el.style.pointerEvents = "";
+        el.style.opacity = "";
+    });
+
+    const bigBox = document.querySelector(".middle-container .big-box-container");
+    if (bigBox) {
+        bigBox.style.pointerEvents = "";
+        const content = bigBox.querySelector(".big-box-content");
+        if (content) content.style.opacity = "";
+    }
+}
+
 function switchKingdomById(kingdomId) {
     if (isKingdomSwitching) return;
     isKingdomSwitching = true;
 
     const currentUrl = new URL(window.location.href);
     const filename = currentUrl.pathname.split('/').pop();
+    const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php", "settings.php"];
 
     const isGuildChatActive = filename === "guild.php" && document.getElementById("guild_tab_chat")
         && window.getComputedStyle(document.getElementById("guild_tab_chat")).display !== "none";
@@ -649,7 +673,6 @@ function switchKingdomById(kingdomId) {
         showKingdomSwitchLoader();
         document.cookie = "me_switch_kid=" + encodeURIComponent(kingdomId) + "; path=/; max-age=30; SameSite=Lax";
 
-        const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php"];
         let targetUrl = currentUrl.pathname;
 
         if (filename === "barracks.php") {
@@ -688,7 +711,6 @@ function switchKingdomById(kingdomId) {
                     return;
                 }
 
-                const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php"];
                 if (filename === "barracks.php") {
                     const cat = currentUrl.searchParams.get("cat");
                     window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;
@@ -701,6 +723,7 @@ function switchKingdomById(kingdomId) {
                 }
             } else {
                 isKingdomSwitching = false;
+
                 showGameError(data.error || "Königreich konnte nicht gewechselt werden.");
                 setTimeout(() => window.location.reload(), 1500);
             }
@@ -1221,6 +1244,8 @@ document.addEventListener("submit", (e) => {
 
 window.addEventListener("pageshow", (e) => {
     if (e.persisted) {
+        resetKingdomSwitchLoader();
+
         document.querySelectorAll('form[data-is-submitting="true"]').forEach(form => {
             delete form.dataset.isSubmitting;
 
@@ -1287,6 +1312,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
     if (leftTrigger) {
         leftTrigger.addEventListener("click", function (e) {
+            if (isKingdomSwitching) return;
             e.stopPropagation();
 
             const kingdomDropdown = document.getElementById("mobile-kingdom-dropdown");
@@ -1310,6 +1336,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
     if (rightTrigger) {
         rightTrigger.addEventListener("click", function (e) {
+            if (isKingdomSwitching) return;
             e.stopPropagation();
 
             const kingdomDropdown = document.getElementById("mobile-kingdom-dropdown");
@@ -1684,6 +1711,41 @@ function syncFeedbackIcon(msgElement, type = null, id = null) {
 
 window.syncFeedbackIcon = syncFeedbackIcon;
 
+
+function getActiveModalBody() {
+    const openModals = Array.from(document.querySelectorAll(".overlay-modal"))
+        .filter(m => window.getComputedStyle(m).display !== "none");
+    if (openModals.length === 0) return null;
+
+    const topModal = openModals[openModals.length - 1];
+    return topModal.querySelector(".overlay-body, #overlay-content-body");
+}
+
+function renderToastInContainer(container, type, icon, message) {
+    const oldBox = container.querySelector(`.info-box.event-${type}`);
+    if (oldBox) {
+        clearTimeout(oldBox._timer);
+        oldBox.remove();
+    }
+
+    const box = document.createElement("div");
+    box.className = `info-box event-${type}`;
+    box.innerHTML = `<img src="images/icons/${icon}" alt="${type}"><span>${message}</span>`;
+    container.appendChild(box);
+
+    const dismiss = () => {
+        if (box.classList.contains("fade-out")) return;
+        box.classList.add("fade-out");
+        box.addEventListener("animationend", () => box.remove(), {once: true});
+    };
+
+    box._timer = setTimeout(dismiss, 4000);
+    box.addEventListener("click", () => {
+        clearTimeout(box._timer);
+        dismiss();
+    });
+}
+
 function showGameMessage(message, type = "error") {
     if (isPageUnloading || !message) return;
 
@@ -1699,17 +1761,19 @@ function showGameMessage(message, type = "error") {
             <span>${message}</span>
         </div>`;
 
-    const modalBody = document.querySelector(".overlay-modal:not([style*='display: none']) .overlay-body, #overlay-content-body");
+    const modalBody = getActiveModalBody();
     if (modalBody && modalBody.offsetParent !== null) {
-        const oldMsg = modalBody.querySelector(".info-box");
-        if (oldMsg) oldMsg.remove();
+        let modalFlash = modalBody.querySelector(".modal-flash-container");
+        if (!modalFlash) {
+            modalFlash = document.createElement("div");
+            modalFlash.className = "modal-flash-container";
+            modalBody.prepend(modalFlash);
+        }
 
-        modalBody.insertAdjacentHTML("afterbegin", boxHtml);
-        modalBody.scrollTo({top: 0, behavior: "smooth"});
+        renderToastInContainer(modalFlash, type, icon, message);
         return;
     }
 
-    // 2. Priorität: Arena Inline-Duellansicht
     const arenaInline = document.getElementById("arena-attack-inline-container");
     if (arenaInline && arenaInline.style.display !== "none") {
         const oldMsg = arenaInline.querySelector(".info-box");
@@ -1717,29 +1781,6 @@ function showGameMessage(message, type = "error") {
 
         arenaInline.insertAdjacentHTML("afterbegin", boxHtml);
         window.scrollTo({top: 0, behavior: "smooth"});
-        return;
-    }
-
-    const mapContainer = document.getElementById("map-container");
-    if (mapContainer) {
-        const existing = document.getElementById("map-flash-message");
-        if (existing) existing.remove();
-
-        const box = document.createElement("div");
-        box.id = "map-flash-message";
-        box.className = `info-box event-${type}`;
-        box.innerHTML = `<img src="images/icons/${icon}" alt="${type}"><span>${message}</span>`;
-
-        const isPassed = (type === "passed");
-        box.style.backgroundColor = isPassed ? "rgba(22, 82, 38, 0.92)" : "rgba(90, 22, 22, 0.92)";
-        box.style.borderColor = isPassed ? "rgba(42, 120, 60, 0.65)" : "rgba(140, 35, 35, 0.65)";
-        box.style.whiteSpace = isPassed ? "nowrap" : "normal";
-
-        mapContainer.appendChild(box);
-        setTimeout(() => {
-            box.style.opacity = "0";
-            setTimeout(() => box.remove(), 500);
-        }, isPassed ? 3000 : 4000);
         return;
     }
 
@@ -1922,5 +1963,21 @@ window.fetch = function (url, options = {}) {
             }
         }
     }
-    return originalFetch.call(this, url, options);
+
+    return originalFetch.call(this, url, options).then(response => {
+        const contentType = response.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+            response.clone().json().then(data => {
+                if (data && data.redirect) {
+                    isPageUnloading = true;
+
+                    window.location.href = data.redirect;
+                }
+            }).catch(() => {
+            });
+        }
+
+        return response;
+    });
 };

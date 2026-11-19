@@ -35,7 +35,7 @@ if (isset($chosen) && is_numeric($chosen)) {
         $uid = $user->get_user_id();
         $gid = $user->get_user_guild_id();
         $all_user_kingdoms = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at", [$uid]
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id", [$uid]
         )->fetch_all(MYSQLI_ASSOC);
 
         $sidebar_data = $user->get_sidebar_data($chosen);

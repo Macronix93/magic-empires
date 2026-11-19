@@ -36,7 +36,7 @@ if ($user->is_logged_in()) {
 
     if (empty($all_user_kingdoms)) {
         $all_user_kingdoms = $db_instance->execute_query(
-                "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at",
+                "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
                 [$uid]
         )->fetch_all(MYSQLI_ASSOC);
     }

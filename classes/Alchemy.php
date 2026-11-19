@@ -204,7 +204,7 @@ class Alchemy
         $amount = $amount - ($amount % $step);
 
         if ($amount < $step) {
-            return "Die Menge muss mindestens $step Einheiten betragen.";
+            return "Die Menge muss mindestens $step " . ($step === 1 ? "Einheit" : "Einheiten") . " betragen.";
         }
 
         $maxCap = self::get_capacity($lab_level);

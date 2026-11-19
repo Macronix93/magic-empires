@@ -221,7 +221,7 @@ if (isset($_GET["action"])) {
                 $chat_partner = $result->fetch_assoc()["username"] ?? "";
 
                 // Check if conversation between the two exists
-                $query = "SELECT * FROM messages WHERE (senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)";
+                $query = "SELECT 1 FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND deleted = 0 LIMIT 1";
                 $result = $db_instance->execute_query($query, [$sender_id, $user->get_user_id(), $user->get_user_id(), $sender_id]);
 
                 if ($result->num_rows == 0) {

@@ -56,9 +56,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["request_reset"])) {
             ";
 
                 if (send_mail($email, $subject, $message)) {
-                    $success = "Ein Link zum Zurücksetzen wurde an deine E-Mail gesendet.";
+                    $success = "Falls diese E-Mail existiert, wurde ein Link gesendet.";
                 } else {
-                    $error = "Mail konnte nicht gesendet werden. Support kontaktieren.";
+                    $error = "Mail konnte nicht gesendet werden. Support kontaktieren (support@magic-empires.de).";
                 }
             } else {
                 $success = "Falls diese E-Mail existiert, wurde ein Link gesendet.";

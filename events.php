@@ -447,9 +447,9 @@ if (!$active_event) {
         $view .= "<div style='font-size: 13px; border-top: 1px solid #555; padding-top: 10px; margin-top: 10px;'>";
         if (count($user_all_k) > 1) {
             $view .= "
-            <form method='POST' style='display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;'>
-                <span><b>Beute-Ziel:</b></span>
-                <div style='display: flex; gap: 6px; align-items: center;'>
+            <form method='POST' class='event-loot-target'>
+                <b style='width: 100%; flex: 1;'>Beute-Ziel:</b>
+                <div class='event-reward-kingdom'>
                     <select name='reward_kingdom_id' style='max-width: 220px; font-size: 12px;'>
                         $options_html
                     </select>

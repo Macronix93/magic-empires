@@ -159,7 +159,11 @@ registerAction("switchGuildTab", (el) => {
                 },
                 body: "type=guild&mark_all_read=1"
             }).then(r => r.json())
-                .catch(err => showGameError("Fehler beim Aktualisieren des Gilden-Chats:" + err));
+                .catch(err => {
+                    if (!isPageUnloading) {
+                        showGameError("Fehler beim Aktualisieren des Gilden-Chats:" + err);
+                    }
+                });
 
             setTimeout(() => {
                 if (document.getElementById("new-message-line")) {
@@ -266,17 +270,6 @@ document.addEventListener("input", (e) => {
         if (e.target.value.length > 1 && e.target.value.startsWith('0')) {
             e.target.value = e.target.value.replace(/^0+/, '');
         }
-    }
-
-    if (e.target.classList.contains('js-internal-res-input')) {
-        let val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
-        const needed = parseInt(e.target.dataset.needed) || 0;
-
-        if (val > needed) {
-            val = needed;
-        }
-
-        e.target.value = val > 0 ? val : "";
     }
 
     if (e.target.classList.contains('js-project-res-input')) {

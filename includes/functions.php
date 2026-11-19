@@ -121,7 +121,7 @@ function change_location(string $url, int $seconds = 0, ?int $ajax_status_code =
                 "success" => false,
                 "error" => $ajax_error ?? "Weiterleitung erforderlich.",
                 "redirect" => $full_url
-        ], $ajax_status_code ?? 200);
+        ], $ajax_status_code ?? 401);
     }
 
     if ($seconds === 0) {
@@ -206,7 +206,7 @@ function format_num($number): string
     return number_format($n, 0, ",", ".");
 }
 
-function fnum($number, bool $simple_format = false, $is_barracks = false): string
+function fnum($number, bool $simple_format = false, bool $is_barracks = false): string
 {
     if (!is_numeric($number)) return "0";
 
@@ -407,10 +407,16 @@ function get_include_contents($filename, $variables = []): false|string
     return "Inhalt nicht gefunden.";
 }
 
-function generate_safe_password($length = 12): string
+function generate_safe_password(int $length = 12): string
 {
     $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&?";
-    return substr(str_shuffle(str_repeat($chars, 5)), 0, $length);
+    $password = "";
+
+    for ($i = 0; $i < $length; $i++) {
+        $password .= $chars[random_int(0, strlen($chars) - 1)];
+    }
+
+    return $password;
 }
 
 

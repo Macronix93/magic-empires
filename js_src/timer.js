@@ -163,6 +163,7 @@ function startMasterTimer() {
                     if (errorBox) {
                         errorBox.style.display = "none";
                     }
+                    document.dispatchEvent(new CustomEvent("chatRateLimitEnded"));
                 }
 
                 if (timer.hideID) {

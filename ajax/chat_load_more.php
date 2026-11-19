@@ -151,9 +151,8 @@ foreach ($rows as $row) {
 $reaction_updates = [];
 if (!empty($recent_query)) {
     $res_recent = $db_instance->execute_query($recent_query, $recent_params);
-    while ($r = $res_recent->fetch_assoc()) {
-        $reaction_updates[$r["id"]] = Messages::render_reactions_bar($reaction_type, (int)$r["id"], $user, "badges_only");
-    }
+    $recent_ids = array_map("intval", array_column($res_recent->fetch_all(MYSQLI_ASSOC), "id"));
+    $reaction_updates = Messages::get_batch_reaction_badges($reaction_type, $recent_ids, $user);
 }
 
 echo json_encode([

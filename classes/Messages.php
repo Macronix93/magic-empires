@@ -121,7 +121,7 @@ class Messages
         $timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
         $count = $_SESSION["message_count"] ?? 0;
 
-        if ($now > $timeframe_end) {
+        if ($now >= $timeframe_end) {
             $_SESSION["message_count"] = 0;
             $_SESSION["message_timeframe_end"] = $now + MESSAGES_RATE_INTERVAL;
             $count = 0;
@@ -608,7 +608,7 @@ class Messages
         ";
 
         if ($result->num_rows == 0) {
-            $this->view = "Du hast keine Konversationen!";
+            $this->view .= "Du hast keine Konversationen!<br>";
         } else {
             $this->view .= "
                         <table class='table'>
@@ -1364,7 +1364,7 @@ class Messages
                 }
 
                 if (!empty($data["scout_intel"])) {
-                    $html .= "<div class='battle-column' style='margin-top: 10px;'>";
+                    $html .= "<div class='battle-column'>";
                     $html .= "<div class='title-border'>Spionage:</div>";
                     $html .= BattleReportRenderer::render_scout_intel($data["scout_intel"]);
                     $html .= "</div>";
@@ -1447,24 +1447,31 @@ class Messages
                 $badges_html .= "</div>";
 
                 if (!empty($data["success"])) {
-                    $has_loot = array_sum($loot) > 0;
+                    $loot_mapped = [
+                        ResourceTypes::RESOURCE_TYPE_FOOD => (int)($loot["food"] ?? $loot[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
+                        ResourceTypes::RESOURCE_TYPE_WOOD => (int)($loot["wood"] ?? $loot[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
+                        ResourceTypes::RESOURCE_TYPE_STONE => (int)($loot["stone"] ?? $loot[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
+                        ResourceTypes::RESOURCE_TYPE_GOLD => (int)($loot["gold"] ?? $loot[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0),
+                    ];
+                    $has_loot = array_sum($loot_mapped) > 0;
+
                     $main_text = $has_loot
                         ? "Die Diebe sind an der Garnison vorbei in <b>$target_kname</b> eingedrungen und haben Rohstoffe entwendet!"
-                        : "Die Diebe sind in <b>$target_kname</b> eingedrungen, konnten jedoch keine ungeschützten Vorräte finden (alles durch das Lager geschützt).";
+                        : "Die Diebe sind in <b>$target_kname</b> eingedrungen, konnten jedoch keine ungeschützten Vorräte finden.";
                     $sub_text = ($thief_losses > 0)
                         ? "Feindliche Späher konnten $thief_losses Diebe im Schattenkampf abfangen."
                         : "Alle Diebe kehren unversehrt mit ihrer Beute zurück.";
+
+                    $loot_html = $has_loot ? BattleReportRenderer::render_resource_list($loot_mapped) : "";
+
                     $html .= BattleReportRenderer::render_outcome_box(
                         $has_loot ? "Diebeszug erfolgreich" : "Keine ungeschützte Beute",
-                        $main_text . $badges_html,
+                        $main_text . $loot_html . $badges_html,
                         0,
                         0,
                         $sub_text,
                         $has_loot ? "success" : "neutral"
                     );
-                    if ($has_loot) {
-                        $html .= BattleReportRenderer::render_resource_box($loot, "Erbeutete Ressourcen");
-                    }
                 } else {
                     $main_text = "Die Diebe wurden im Königreich <b>$target_kname</b> von den Spähern von <b>$opp_name</b> entdeckt und restlos ausgeschaltet." . $badges_html;
                     $html .= BattleReportRenderer::render_outcome_box(
@@ -1515,17 +1522,25 @@ class Messages
                 ]);
                 $badges_html .= "</div>";
 
-                $def_main = "Diebe von <b>$attacker</b> aus <b>$home_kname</b> ($h_link) sind in das Königreich <b>$target_kname</b> ($c_link) geschlichen." . $badges_html;
+                $loot_mapped = [
+                    ResourceTypes::RESOURCE_TYPE_FOOD => (int)($loot["food"] ?? $loot[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
+                    ResourceTypes::RESOURCE_TYPE_WOOD => (int)($loot["wood"] ?? $loot[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
+                    ResourceTypes::RESOURCE_TYPE_STONE => (int)($loot["stone"] ?? $loot[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
+                    ResourceTypes::RESOURCE_TYPE_GOLD => (int)($loot["gold"] ?? $loot[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0),
+                ];
+                $has_loot = array_sum($loot_mapped) > 0;
+                $stolen_html = $has_loot ? BattleReportRenderer::render_resource_list($loot_mapped, true) : "";
+
+                $def_main = "Diebe von <b>$attacker</b> aus <b>$home_kname</b> ($h_link) sind in das Königreich <b>$target_kname</b> ($c_link) geschlichen."
+                    . $stolen_html . $badges_html;
+
                 $def_sub = $all_eliminated
                     ? "Die wachsamen Späher konnten alle feindlichen Diebe abfangen und ausschalten!"
                     : (($def_scouts > 0) ? "Einigen Dieben gelang trotz Gegenwehr der Späher die Flucht." : "Da keine Späher stationiert waren, konnten die Diebe ungehindert plündern.");
-                $def_box_type = $all_eliminated ? "success" : (array_sum($loot) > 0 ? "error" : "neutral");
+                $def_box_type = $all_eliminated ? "success" : ($has_loot ? "error" : "neutral");
 
                 $html = "<div class='battle-report'>";
                 $html .= BattleReportRenderer::render_outcome_box("Nachtwache: Diebe entdeckt!", $def_main, 0, 0, $def_sub, $def_box_type);
-                if (array_sum($loot) > 0) {
-                    $html .= BattleReportRenderer::render_resource_box($loot, "Gestohlene Ressourcen", "error");
-                }
                 $html .= "</div>";
                 return $html;
 
@@ -2080,7 +2095,7 @@ class Messages
                         "Marktplatz-Info",
                         "Ein Handelsangebot ist abgelaufen.",
                         0, 0,
-                        "Die Ressourcen wurden sicher in dein Lager zurückgebracht und die Einstellgebühr von $fee Münzen wurde deinem Konto erstattet.",
+                        "Die Ressourcen wurden sicher in dein Lager zurückgebracht und die Einstellgebühr von $fee " . ($fee === 1 ? "Münze" : "Münzen") . " wurde deinem Konto erstattet.",
                         "neutral",
                         $loot
                     ) .
@@ -2196,7 +2211,7 @@ class Messages
                     $sx = (int)$src["x"];
                     $sy = (int)$src["y"];
                     $s_link = "<a href='map.php?startx=$sx&starty=$sy' data-on-click='mapJump' data-x='$sx' data-y='$sy'>$sx:$sy</a>";
-                    $attacker_name = !empty($src["username"]) ? "" . e($src["username"]) . " - " : "";
+                    $attacker_name = !empty($src["username"]) ? e($src["username"]) . " - " : "";
 
                     $info_rows[] = "<b>Herkunft des Angriffs:</b> " . $attacker_name . e($src["name"]) . " ($s_link)";
                 }
@@ -2827,20 +2842,6 @@ class Messages
         };
     }
 
-    public function get_unread_private_count(): int
-    {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM messages WHERE receiverid = ? AND hasread = 0 AND deleted = 0",
-            [$this->user->get_user_id()]);
-        return $result->fetch_assoc()["unreadcount"];
-    }
-
-    public function get_unread_server_count(): int
-    {
-        $result = $this->mysqli->execute_query("SELECT COUNT(*) AS unreadcount FROM server_messages WHERE receiverid = ? AND hasread = 0",
-            [$this->user->get_user_id()]);
-        return $result->fetch_assoc()["unreadcount"];
-    }
-
     public function get_unread_world_count(): int
     {
         $uid = $this->user->get_user_id();
@@ -3204,7 +3205,7 @@ class Messages
     public function get_guild_history_html(): array
     {
         $guild_id = $this->user->get_user_guild_id();
-        $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
+        $limit = MAX_GUILD_CHAT_MESSAGES_SHOWN;
         $u_id = $this->user->get_user_id();
         $is_admin = $this->user->is_admin();
         $my_rank = $this->user->get_guild_rank_id();

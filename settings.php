@@ -31,8 +31,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $days_since_avatar = ($now - $user_data['last_avatar_change']) / 86400;
 
                 if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS && !$user->is_admin()) {
-                    $wait = ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
-                    $error = "Du kannst dein Profilbild erst in $wait Tagen wieder ändern.";
+                    $wait = (int)ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
+
+                    $error = "Du kannst dein Profilbild erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder ändern.";
                 } else {
                     $file_name = $_FILES['image']['name'];
                     $file_tmp = $_FILES['image']['tmp_name'];
@@ -115,8 +116,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if (!password_verify($confirm_pw, $u_data['password'])) {
                 $error = "Passwort-Bestätigung fehlgeschlagen.";
             } else if ($days_since_change < USERNAME_CHANGE_COOLDOWN_DAYS) {
-                $wait = ceil(USERNAME_CHANGE_COOLDOWN_DAYS - $days_since_change);
-                $error = "Du kannst deinen Namen erst in $wait Tagen wieder ändern.";
+                $wait = (int)ceil(USERNAME_CHANGE_COOLDOWN_DAYS - $days_since_change);
+
+                $error = "Du kannst deinen Namen erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder ändern.";
             } else {
                 if (preg_match('/\s/', $raw_name)) {
                     $error = "Benutzername darf keine Leerzeichen enthalten!";
@@ -263,9 +265,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $days_since_k_change = ($now - $k_data['last_name_change']) / 86400;
 
             if ($days_since_k_change < KINGDOM_NAME_CHANGE_COOLDOWN_DAYS) {
-                $wait_k = ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
+                $wait_k = (int)ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
 
-                $error = "Dieses Königreich wurde erst kürzlich umbenannt. Du musst noch $wait_k Tage warten.";
+                $error = "Dieses Königreich wurde erst kürzlich umbenannt. Du musst noch $wait_k " . ($wait_k === 1 ? "Tag" : "Tage") . " warten.";
             } else if (mb_strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || mb_strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
                 $error = "Der Name muss zwischen " . MIN_KINGDOM_NAME_LENGTH . " und " . MAX_KINGDOM_NAME_LENGTH . " Zeichen lang sein.";
             } else if (contains_bad_words($new_k_name)) {
@@ -509,69 +511,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else if ($confirm_word !== "LOESCHEN") {
                 $error = "Bestätigungswort falsch.";
             } else {
-                $deleted_username = $u_data['username'];
-                $block_until = $now + (EMAIL_BLOCK_DAYS_AFTER_DELETION * 86400);
+                $err = User::delete_account($uid, true);
 
-                $db_instance->begin_transaction();
-                try {
-                    $db_instance->execute_query("
-                        INSERT INTO blocked_emails (email, blocked_until) 
-                         VALUES (?, ?) 
-                         ON DUPLICATE KEY UPDATE blocked_until = VALUES(blocked_until)",
-                        [$u_data["email"], $block_until]
-                    );
-
-                    $db_instance->execute_query("
-                    UPDATE events SET 
-                        actionid = ?, 
-                        arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - buildingtime),
-                        targetid = -1, 
-                        is_processing = 0 
-                    WHERE targetid IN (SELECT id FROM kingdoms WHERE userid = ?) 
-                      AND actionid = ?", [ActionTypes::ACTION_RETURN_TROOPS, $uid, ActionTypes::ACTION_SEND_TROOPS]);
-
-                    $db_instance->execute_query("
-                    UPDATE events e
-                    JOIN kingdoms k_source ON e.targetid = k_source.id
-                    SET 
-                        e.actionid = ?,
-                        e.arrivaltime = UNIX_TIMESTAMP() + (UNIX_TIMESTAMP() - e.buildingtime),
-                        e.targetx = k_source.mapx,
-                        e.targety = k_source.mapy,
-                        e.kingdomid = e.targetid,
-                        e.targetid = -1,
-                        e.buildingname = 'Transport-Rückkehr',
-                        e.is_processing = 0 
-                    WHERE e.kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
-                      AND e.userid != ?
-                      AND e.actionid = ?", [ActionTypes::ACTION_RETURN_RESOURCES, $uid, $uid, ActionTypes::ACTION_RECEIVE_RESOURCES]);
-
-                    $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $deleted_username, "email" => $u_data['email']]);
-
-                    // Check if user was in a guild and leader
-                    $guild_manager = new Guild($user, $user->get_user_guild_id());
-                    $guild_manager->handle_leader_deletion($uid);
-
-                    Kingdom::convert_user_kingdoms_to_ruins($uid);
-                    User::delete_user_avatar_files($uid);
-                    PhpBBBridge::delete_forum_user($deleted_username);
-
-                    $db_instance->execute_query("DELETE FROM users WHERE id = ?", [$uid]);
-
-                    $em = new EventManager($user);
-                    $em->process_orphaned_support();
+                if ($err !== null) {
+                    $error = $err;
+                } else {
+                    $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $u_data['username'], "email" => $u_data['email']]);
 
                     $token = bin2hex(random_bytes(16));
-
+                    setcookie("me_remember", '', $now - 3600, "/");
                     setcookie("logout_verify", $token, $now + 30, "/", "", false, true);
                     session_destroy();
 
                     change_location("index.php?logout=deleted&v=" . $token);
-                } catch (Throwable $e) {
-                    $db_instance->rollback();
-
-                    $logger->error("Fehler beim Löschen des Accounts ID $uid: " . $e->getMessage());
-                    $error = "Ein Datenbankfehler ist aufgetreten. Der Account konnte nicht sicher gelöscht werden.";
                 }
             }
         }
@@ -867,11 +819,7 @@ $view .= "</div>";
 $view .= "<div id='tab_account' class='settings-tab' style='display: " . ($active_tab === 'account' ? 'block' : 'none') . "; width: 100%;'>";
 
 // Get user data
-$query = "SELECT u.username, u.email, u.registerdate, u.lastlogin, u.adminlevel, u.score,
-                k.kingdomname, k.mapx, k.mapy 
-          FROM users u 
-          JOIN kingdoms k ON u.mainkingdom = k.id 
-          WHERE u.id = ?";
+$query = "SELECT username, email, registerdate, lastlogin, adminlevel FROM users WHERE id = ?";
 $res = $db_instance->execute_query($query, [$uid]);
 $data = $res->fetch_assoc();
 
@@ -890,7 +838,7 @@ $view .= "<div class='title-border'>Account-Informationen</div>
             <tr><td><b>E-Mail Adresse:</b></td><td>{$data["email"]}</td></tr>
             <tr><td><b>Registriert seit:</b></td><td>" . date("d.m.Y H:i:s", $data["registerdate"]) . " Uhr</td></tr>
             <tr><td><b>Letzter Login:</b></td><td>" . date("d.m.Y H:i:s", $data["lastlogin"]) . " Uhr</td></tr>
-            <tr><td><b>Login-Zeit:</td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
+            <tr><td><b>Login-Zeit:</b></td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
             <tr><td><b>Account-Level:</b></td><td>{$data["adminlevel"]} ($role)</td></tr>
         </table>";
 

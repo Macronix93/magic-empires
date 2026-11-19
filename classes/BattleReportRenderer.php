@@ -272,18 +272,20 @@ class BattleReportRenderer
         return $html;
     }
 
-    public static function render_resource_list(array $resources): string
+    public static function render_resource_list(array $resources, bool $is_negative = false): string
     {
         if (empty($resources)) {
             return "";
         }
 
+        $color_class = $is_negative ? "error" : "passed";
+        $sign = $is_negative ? "-" : "+";
         $items_html = "";
-
+        
         foreach ($resources as $res_id => $amount) {
             if ($amount > 0) {
-                $items_html .= "<div style='display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;'>" .
-                    get_resource_icon($res_id) . " <span class='passed'>+" . fnum($amount) . "</span></div>";
+                $items_html .= "<div style='display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;'>"
+                    . get_resource_icon($res_id) . " <span class='$color_class'>$sign" . fnum($amount) . "</span></div>";
             }
         }
 
@@ -292,8 +294,8 @@ class BattleReportRenderer
         }
 
         return "<div style='display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 10px;'>
-            $items_html
-        </div>";
+                    $items_html
+                </div>";
     }
 
     public static function render_scout_intel(array $intel): string
@@ -322,20 +324,36 @@ class BattleReportRenderer
             $total_def = (int)($intel["total_def"] ?? 0);
 
             $w = $intel["wall"] ?? null;
+            $has_troops = (!empty($intel["troops"]) || !empty($intel["support_troops"]));
+            $wall_def = (int)($w["def"] ?? 0);
 
-            $html .= "<div class='all-troops-sum-stats scout-item' style='flex-wrap: wrap; gap: 15px; border: 1px solid #555; background: rgba(0,0,0,0.4);'>";
+            $html .= "<div class='all-troops-sum-stats scout-item' style='flex-wrap: wrap; gap: 15px; border: 1px solid #555; background: rgba(0,0,0,0.4); align-items: flex-start;'>";
 
             if ($total_atk > 0) {
                 $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($total_atk, true) . "</span>";
             }
+
             if ($total_def > 0) {
-                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_def, true) . "</span>";
+                $wall_bonus_html = "<div style='display: flex; align-items: center; justify-content: center; gap: 5px;'>";
+                $wall_bonus_html .= ($has_troops && $wall_def > 0)
+                    ? "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WALL . ".png' class='ressource-icons' alt=''>
+                        <small class='passed' style='font-size: 0.78em;' title='Mauer-Bonus'>+" . fnum($wall_def, true) . "</small>"
+                    : "";
+                $wall_bonus_html .= "</div>";
+
+                $html .= "
+                <span style='display: inline-flex; flex-direction: column; align-items: center;'>
+                    <span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_def, true) . "</span>
+                    $wall_bonus_html
+                </span>";
             }
 
             if ($w !== null && (int)$w["level"] > 0) {
                 $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>
-                          " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH) . " <b>Mauer:</b> " . fnum($w["hp"]) . " / " . fnum($w["max_hp"]) . "</span>";
+                        " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_HEALTH) . "
+                        <b>Mauer:</b> " . fnum($w["hp"]) . " / " . fnum($w["max_hp"]) . "</span>";
             }
+
             $html .= "</div>";
 
             if (!empty($intel["troops"])) {

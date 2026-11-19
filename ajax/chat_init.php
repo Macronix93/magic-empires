@@ -25,11 +25,17 @@ if ($type === "private") {
 $unreads = $user->get_unread_counts();
 $inbox_only = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 
+$rate_limit_rem = 0;
+if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT && time() < ($_SESSION["message_timeframe_end"] ?? 0)) {
+    $rate_limit_rem = $_SESSION["message_timeframe_end"] - time();
+}
+
 echo json_encode([
     "html" => $chat_data["html"],
     "lastId" => (int)$chat_data["last_id"],
     "privUnread" => $inbox_only,
     "worldUnread" => (int)$unreads["world"],
     "guildUnread" => (int)$unreads["guild"],
-    "achievementsUnread" => (int)($unreads["achievements"] ?? 0)
+    "achievementsUnread" => (int)($unreads["achievements"] ?? 0),
+    "rateLimitSeconds" => $rate_limit_rem
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

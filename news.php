@@ -219,7 +219,10 @@ if ($result->num_rows > 0) {
  */
 $title = "Neuigkeiten";
 $header = "Neuigkeiten";
-$script_files = ["adminpanel", "news"];
+if ($user->is_logged_in() && !$is_admin) {
+    $head_extra = '<meta name="chat-emojis" content="' . e(json_encode(Messages::get_chat_emojis(), JSON_UNESCAPED_UNICODE)) . '">';
+}
+$script_files = $is_admin ? ["adminpanel", "news"] : ["news"];
 
 if ($user->is_logged_in()) {
     include("layout/base.php");

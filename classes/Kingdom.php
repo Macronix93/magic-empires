@@ -1198,9 +1198,9 @@ class Kingdom
                     }
                 }
 
-                $db->execute_query("UPDATE map SET kingdomid = -4 WHERE mapx = ? AND mapy = ?", [$x, $y]);
+                $db->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM, $x, $y]);
             } else {
-                $db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$x, $y]);
+                $db->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [MapFieldTypes::MAP_FIELD_EMPTY, $x, $y]);
             }
         }
     }

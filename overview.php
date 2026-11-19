@@ -139,32 +139,6 @@ if (!isset($_SESSION["acknowledged_supports"])) {
     $_SESSION["acknowledged_supports"] = [];
 }
 
-//if (!empty($_SESSION["active_supports"])) {
-//    $support_ids = [];
-//
-//    foreach ($_SESSION["active_supports"] as $sup) {
-//        if (empty($sup["notification_sent"])) {
-//            $support_ids[] = (int)$sup["eventid"];
-//        }
-//
-//        if (!in_array($sup["eventid"], $_SESSION["acknowledged_supports"])) {
-//            $_SESSION["acknowledged_supports"][] = $sup["eventid"];
-//        }
-//    }
-//
-//    if (!empty($support_ids)) {
-//        $placeholders = implode(',', array_fill(0, count($support_ids), '?'));
-//
-//        try {
-//            $db_instance->execute_query(
-//                "UPDATE events SET notification_sent = 1 WHERE eventid IN ($placeholders) AND actionid = ?",
-//                array_merge($support_ids, [ActionTypes::ACTION_STATION_TROOPS])
-//            );
-//        } catch (Throwable) {
-//        }
-//    }
-//}
-
 if (!empty($_SESSION["active_attacks"])) {
     $incoming_html = "";
 
@@ -228,9 +202,9 @@ if (!empty($_SESSION["active_supports"])) {
         $event_id = (int)$sup["eventid"];
         $is_new_support = !empty($sup["is_new"]) || (empty($sup["notification_sent"]) && !in_array($event_id, $_SESSION["acknowledged_supports"]));
 
-        if (empty($sup["notification_sent"])) {
+        if (!$sup["notification_sent"]) {
             $support_ids_to_mark[] = $event_id;
-            $sup["notification_sent"] = 1;
+            $sup["notification_sent"] = true;
         }
         if (!in_array($event_id, $_SESSION["acknowledged_supports"])) {
             $_SESSION["acknowledged_supports"][] = $event_id;
@@ -1080,7 +1054,7 @@ if (!empty($all_tp_entries)) {
             $soldiers_str .= "</div>";
 
             $has_loot = ($event_data["loot_food"] > 0 || $event_data["loot_wood"] > 0 || $event_data["loot_stone"] > 0
-                || $event_data["loot_gold"] > 0 || ($event_data["loot_coal"] ?? 0) > 0 || ($event_data["loot_iron"] ?? 0) > 0
+                || $event_data["loot_gold"] > 0 || $event_data["loot_coins"] > 0 || ($event_data["loot_coal"] ?? 0) > 0 || ($event_data["loot_iron"] ?? 0) > 0
                 || ($event_data["loot_sapphire"] ?? 0) > 0 || ($event_data["loot_diamond"] ?? 0) > 0);
             $cell_pop_attr = "class='td-center'";
             $cell_pop_box = "";
@@ -1104,7 +1078,7 @@ if (!empty($all_tp_entries)) {
                 $cell_pop_box .= "</div></div>";
             }
 
-            $view .= "<tr> <td class='td-center'>$action_type</td> <td $cell_pop_attr>$soldiers_str $cell_pop_box</td> <td class='td-center'>$coords_str</td>";
+            $view .= "<tr><td class='td-center'>$action_type</td><td $cell_pop_attr>$soldiers_str $cell_pop_box</td> <td class='td-center'>$coords_str</td>";
             $view .= "<td class='td-center td-timer-cell' style='position: relative;'>$action_counter";
 
             if ($action_button) {
@@ -1112,7 +1086,7 @@ if (!empty($all_tp_entries)) {
                             $action_button
                           </div>";
             }
-            $view .= "</tr>";
+            $view .= "</td></tr>";
         }
     }
 

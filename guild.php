@@ -10,19 +10,16 @@ $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
 $k = new Kingdom($user->get_current_kingdom());
 
 $allowed_tabs = ["chat", "general", "settings", "mines", "research"];
-$active_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
 $referer = $_SERVER['HTTP_REFERER'] ?? '';
 $is_external_nav = empty($referer) || !str_contains($referer, 'guild.php');
 
 if (isset($_GET["minepage"])) {
     $active_tab = "mines";
-}
-
-if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
+} else if (isset($_GET["tab"]) && in_array($_GET["tab"], $allowed_tabs)) {
     $active_tab = $_GET["tab"];
 
     setcookie("me_guild_tab", $active_tab, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-} else if ($is_external_nav && !isset($_GET["minepage"])) {
+} else if ($is_external_nav) {
     $active_tab = "chat";
 } else {
     $active_tab = $_COOKIE["me_guild_tab"] ?? "chat";
@@ -419,12 +416,12 @@ if ($my_guild_id === -1) {
                     </td>
                     <td class='td-center'>" . e($g["founder_name"]) . "</td>
                     <td class='td-center'>{$g["member_count"]} / {$g["max_members"]}</td>
-                    <td class='td-center' " . (!$has_score ? "class='error'" : "") . ">$score_display</td>
+                    <td class='td-center'>$score_display</td>
                     <td class='td-center'>$action_icon</td>
                   </tr>";
         }
     } else {
-        $view .= "<tr><td colspan='4' class='td-center'>Bisher keine Gilden gegründet.</td></tr>";
+        $view .= "<tr><td colspan='5' class='td-center'>Bisher keine Gilden gegründet.</td></tr>";
     }
     $view .= "</table>";
 
@@ -808,7 +805,7 @@ if ($my_guild_id === -1) {
 
             $date_display = date("d.m H:i", $log["created_at"]) . " Uhr";
             $view .= "<tr>
-            <td>" . $member_user->render_user() . "</td>
+            <td>" . (!empty($log["user_id"]) ? $member_user->render_user() : e($log["username"])) . "</td>
             <td class='td-center'><div style='display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;'>" . implode("", $badges) . "</div></td>
             <td class='td-center'>$date_display</td>
         </tr>";
