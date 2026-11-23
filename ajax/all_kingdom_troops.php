@@ -56,8 +56,10 @@ $query = "
         SELECT kingdomid AS kingdom_id, buildingid AS soldierid, soldiergoal AS cnt, 'garrison' AS type, '' AS owner_name FROM events
         WHERE userid = ? AND actionid = ?
         UNION ALL
-        SELECT source_kingdom_id AS kingdom_id, soldierid, soldiercount AS cnt, 'away' AS type, '' AS owner_name FROM sent_troops 
-        WHERE source_kingdom_id IN ($k_ids_str)
+        SELECT st.source_kingdom_id AS kingdom_id, st.soldierid, st.soldiercount AS cnt, 'away' AS type, '' AS owner_name
+        FROM sent_troops st
+        JOIN events e ON st.eventid = e.eventid
+        WHERE e.userid = ?
         UNION ALL
         SELECT source_kingdom_id AS kingdom_id, soldier_id AS soldierid, soldiercount AS cnt, 'away' AS type, '' AS owner_name FROM stationed_troops 
         WHERE owner_id = ?
@@ -83,6 +85,7 @@ $query = "
 $res_troops = $db_instance->execute_query($query, [
         $uid,                               // e.userid (currently upgrading troops)
         ActionTypes::ACTION_UPGRADE_TROOPS, // e.actionid (currently upgrading troops)
+        $uid,
         $uid,                               // owner_id (stationed_troops away)
         $uid,                               // user_id (mines away)
         $uid,                               // e.userid (incoming stationing)
@@ -402,11 +405,6 @@ $render_power_stat = function (
             <hr>";
     }
 
-//    $displayed_sup = $full_number ? fnum($support_val, true) : fnum($support_val, false, true);
-//    $sup_subline = ($support_val > 0)
-//            ? "<small style='color: #389cff; font-weight: bold; font-size: 0.78em; line-height: 1;' title='Davon durch Unterstützung'>(+$displayed_sup)</small>"
-//            : "";
-
     if ($total <= 0) {
         return "<span class='$val_class' id='$pop_id' style='display: inline-flex; align-items: center; gap: 4px;'> " . $icon . "<span>" . $displayed_total . "</span></span>";
     } else {
@@ -476,7 +474,6 @@ $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capa
             <tbody>
             <?php foreach ($kingdoms as $k):
                 $kid = (int)$k["id"];
-                $k_name = e($k["kingdomname"]);
                 $kx = (int)$k["mapx"];
                 $ky = (int)$k["mapy"];
                 $k_link = "<a href='map.php?startx=$kx&starty=$ky' data-on-click='mapJump' data-x='$kx' data-y='$ky'>" . e($k["kingdomname"]) . "</a>";
@@ -526,8 +523,8 @@ $global_limit_class = ($total_capacity_all > 0 && $total_units_all > $total_capa
                         </div>
 
                         <div class="all-troops-count">
-                            Gesamt: <b class="<?= $cap_class ?>"><?= $cap_display ?></b><?= $inc_display ?><br>
-                            Unterwegs: <b><?= fnum($k_away) ?></b><?= $support_info_text ?>
+                            Gesamt: <b class="<?= $cap_class ?>"><?= $cap_display ?></b><?= $inc_display ?>
+                            <?= ($k_away > 0 ? "<br>Unterwegs: <b>" . fnum($k_away) . "</b>" : "") . $support_info_text ?>
                         </div>
                     </td>
                     <td style="vertical-align: middle; padding: 10px;">

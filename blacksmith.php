@@ -9,9 +9,12 @@ require_once("includes/core.php");
 ] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_SMITHY);
 
 // Fetch all buildings and their dependencies
-$techs = $kingdom->fetch_all_kingdom_techs(BuildingTypes::BUILDING_SMITHY);
-$buildings = $kingdom->fetch_all_kingdom_buildings();
 $all_techs_for_check = $kingdom->fetch_all_kingdom_techs();
+$techs = array_filter(
+    $all_techs_for_check,
+    fn($t) => $t->get_origin_building() === BuildingTypes::BUILDING_SMITHY
+);
+$buildings = $kingdom->fetch_all_kingdom_buildings();
 
 $kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
 $kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
@@ -20,8 +23,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $tech_id = (int)($_POST["tid"] ?? 0);
-        $action = $_POST["action"];
+        $tech_id = post_int("tid", -1);
+        $action = post_str("action");
 
         if (isset($techs[$tech_id])) {
             $selected_tech = $techs[$tech_id];
@@ -31,8 +34,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             if ($action === "research") {
                 if ($selected_tech->is_max_level()) {
                     $error = "Die Forschung ist schon maximal erforscht!";
-                } else if ($kingdom_is_researching) {
-                    $error = "Du forschst bereits!";
                 } else {
                     $target_level = $tech_level + 1;
                     $current_smithy_lvl = $building->get_building_level();
@@ -41,48 +42,49 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     if ($current_smithy_lvl < $required_smithy_lvl) {
                         $error = "Für Stufe $target_level benötigst du Schmiede Stufe $required_smithy_lvl!";
                     } else {
-                        $error .= $techs[$tech_id]->check_dependencies($buildings, $all_techs_for_check);
+                        $error .= $selected_tech->check_dependencies($buildings, $all_techs_for_check);
                     }
 
-                    // Dependency check passed - research/upgrade tech!
                     if (empty($error)) {
-                        if (!$kingdom->can_afford_costs($costs)) {
-                            $error = "Nicht genügend Ressourcen!";
+                        $err = $selected_tech->start_research($kingdom, $user->get_user_id(), ActionTypes::ACTION_SMITHY_UPGRADE, $kingdom->get_smithy_research_multiplier());
+
+                        if ($err !== null) {
+                            $error = $err;
                         } else {
-                            $duration = $techs[$tech_id]->calculate_research_seconds($tech_level, $kingdom->get_smithy_research_multiplier());
-                            $tech_time = time() + $duration;
-
-                            // Subtract research costs from kingdom resources
-                            $kingdom->pay_costs($costs);
-
-                            $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                [ActionTypes::ACTION_SMITHY_UPGRADE, $user->get_user_id(), $current_kingdom, $tech_id, $tech_time, $tech_level, $techs[$tech_id]->get_tech_name()]);
-
-                            $kingdom_is_researching = true;
-                            $kingdom_research_id = $tech_id;
-
                             change_location("blacksmith.php");
                         }
                     }
                 }
             } else if ($action === "cancel") {
-                if ($kingdom_is_researching && $kingdom_research_id === $tech_id) {
+                $db_instance->begin_transaction();
+                try {
+                    $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
                     $db_instance->execute_query(
-                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
+                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ? AND is_processing = 0",
                         [$user->get_user_id(), $tech_id, $current_kingdom, ActionTypes::ACTION_SMITHY_UPGRADE]
                     );
 
-                    if ($db_instance->affected_rows === 1) {
-                        $kingdom_is_researching = false;
-                        $kingdom_research_id = -1;
-                        $kingdom->refund_costs($costs);
+                    if ($db_instance->affected_rows !== 1) {
+                        throw new RuntimeException("Du forschst gerade nichts oder die Forschung ist bereits abgeschlossen!");
                     }
 
+                    $kingdom->refund_costs($costs);
+                    $db_instance->commit();
+
                     change_location("blacksmith.php");
-                } else {
-                    $error = "Du forschst gerade nichts!";
+                } catch (RuntimeException $e) {
+                    $db_instance->rollback();
+                    $error = $e->getMessage();
+                } catch (Throwable $e) {
+                    $db_instance->rollback();
+                    $logger->error("blacksmith cancel error: " . $e->getMessage());
+                    $error = "Interner Fehler beim Abbrechen der Forschung.";
                 }
+            } else {
+                $error = "Diese Aktion existiert nicht!";
             }
+        } else {
+            $error = "Diese Forschung existiert nicht!";
         }
     }
 }
@@ -158,26 +160,8 @@ foreach ($techs as $i => $tech) {
     $max_level = (int)$tech->get_tech_max_level();
     $is_maxed = ($level >= $max_level);
 
-    if (!$is_maxed) {
-        $show_tech = true;
-        $tech_dependencies = $tech->get_tech_dependencies();
-
-        foreach ($tech_dependencies as $dependency) {
-            if (!empty($dependency["dependencyid"]) && $dependency["dependencyid"] > 0) {
-                if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                    $show_tech = false;
-                    break;
-                }
-            }
-            if (!empty($dependency["techdepid"]) && $dependency["techdepid"] > 0) {
-                if ($dependency["techdeplevel"] > $all_techs_for_check[$dependency["techdepid"]]->get_tech_level()) {
-                    $show_tech = false;
-                    break;
-                }
-            }
-        }
-
-        if (!$show_tech) continue;
+    if (!$is_maxed && !$tech->meets_dependencies($buildings, $all_techs_for_check)) {
+        continue;
     }
 
     $text_build = "";
@@ -187,7 +171,7 @@ foreach ($techs as $i => $tech) {
         $text_build = "<b class='passed'>MAX</b>";
     } else {
         $costs = $tech->calculate_tech_cost();
-        $res_html = render_cost_legend($costs, $kingdom);
+        $res_html = $kingdom->render_cost_legend($costs);
 
         if ($kingdom_is_researching) {
             if ($kingdom_research_id == $i) {

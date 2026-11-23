@@ -1,10 +1,28 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$type = $_GET["type"] ?? '';
-$id = (int)($_GET["id"] ?? 0);
+$type = get_str("type");
+$id = get_int("id");
+$allowed_types = ["news", "world_chat", "chat", "guild_chat"];
+if (!in_array($type, $allowed_types, true) || $id <= 0) die("Ungültige Anfrage");
 
-if (empty($type) || $id <= 0) die("Ungültige Anfrage");
+$uid = $user->get_user_id();
+$has_access = match ($type) {
+    "news" => (bool)$db_instance->execute_query("SELECT 1 FROM news WHERE id = ? LIMIT 1",
+        [$id])->fetch_column(),
+    "world_chat" => (bool)$db_instance->execute_query("SELECT 1 FROM world_chat WHERE id = ? AND deleted = 0 LIMIT 1",
+        [$id])->fetch_column(),
+    "chat" => (bool)$db_instance->execute_query("SELECT 1 FROM messages WHERE id = ? AND (senderid = ? OR receiverid = ?) AND deleted = 0 LIMIT 1",
+        [$id, $uid, $uid])->fetch_column(),
+    "guild_chat" => ($user->get_user_guild_id() > 0) && $db_instance->execute_query("SELECT 1 FROM guild_chat WHERE id = ? AND guild_id = ? AND deleted = 0 LIMIT 1",
+            [$id, $user->get_user_guild_id()])->fetch_column(),
+    default => false
+};
+
+if (!$has_access) {
+    echo show_error_box("Kein Zugriff auf diese Nachricht.");
+    exit;
+}
 
 $query = "SELECT r.emoji, u.username, u.id as uid 
               FROM reactions r 

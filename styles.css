@@ -224,7 +224,7 @@ li {
 
 .col-action,
 .col-guild-action {
-    width: 180px;
+    width: 220px;
 }
 
 .copyright-wrapper {
@@ -427,6 +427,10 @@ button .emoji-fix {
 .unit-badge b {
     font-size: 14px;
     color: #fff;
+}
+
+.unit-badge b.passed {
+    color: rgb(11, 218, 81);
 }
 
 .unit-badge img.badge-arrow-up {
@@ -1587,7 +1591,6 @@ select:-webkit-autofill:focus {
     position: relative;
     top: 0;
     width: 95%;
-    max-width: 550px;
     flex-shrink: 0 !important;
     height: auto !important;
     min-height: 36px;
@@ -1823,7 +1826,7 @@ tr:first-child td.td-gradient {
     align-items: center;
     flex-direction: row;
     border-radius: 10px;
-    margin: 0 auto 15px auto;
+    margin: 0 auto;
     padding: 0 10px;
     min-height: 40px;
     width: 100%;
@@ -1832,7 +1835,8 @@ tr:first-child td.td-gradient {
 
 .info-box img {
     margin-right: 10px;
-    width: auto;
+    width: 28px;
+    height: 28px;
 }
 
 .info-box span {
@@ -2523,14 +2527,12 @@ tr:first-child td.td-gradient {
     left: 0;
     transform: translateX(-100%);
     border-right: 3px ridge var(--border-gold);
-    border-bottom: 3px ridge var(--border-gold);
 }
 
 #nav-right-menu {
     right: 0;
     transform: translateX(100%);
     border-left: 3px ridge var(--border-gold);
-    border-bottom: 3px ridge var(--border-gold);
 }
 
 #nav-left-menu.open,
@@ -2685,6 +2687,22 @@ body.modal-open footer {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.overlay-loader {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: all;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
 .kingdom-switch-container {
@@ -3838,6 +3856,42 @@ img[data-on-click] {
 }
 
 /* Arena Styles */
+.arena-battle-anim-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000010;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+    opacity: 0;
+    pointer-events: auto;
+    transition: opacity 0.25s ease, backdrop-filter 0.25s ease, -webkit-backdrop-filter 0.25s ease;
+}
+
+.arena-battle-anim-overlay.open {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.arena-battle-anim-gif {
+    width: 380px;
+    max-width: 75vw;
+    height: auto;
+    pointer-events: none;
+    user-select: none;
+    filter: drop-shadow(0 0 25px rgba(0, 0, 0, 0.85));
+    transform: scale(0.85);
+    transition: transform 0.25s ease-out;
+}
+
+.arena-battle-anim-overlay.open .arena-battle-anim-gif {
+    transform: scale(1);
+}
+
 .arena-power-sticky {
     position: sticky;
     top: 15px;
@@ -4703,6 +4757,11 @@ button.btn-logout:not(:disabled):active {
 
     .arena-opponent-gain {
         font-size: 12px;
+    }
+
+    .arena-battle-anim-gif {
+        width: 240px;
+        max-width: 70vw;
     }
 
     .opponent-card button.btn-accept {
@@ -6082,7 +6141,7 @@ button.btn-logout:not(:disabled):active {
     }
 
     .col-action {
-        width: 120px;
+        width: 140px;
     }
 
     .tab div {
@@ -6150,8 +6209,11 @@ button.btn-logout:not(:disabled):active {
 
     .left-right-container {
         border-radius: 0;
-        border-bottom-width: 0;
         margin: 0;
+    }
+
+    .left-right-container + .left-right-container {
+        border-top-width: 0;
     }
 
     .mobile-side-nav {
@@ -6411,6 +6473,10 @@ button.btn-logout:not(:disabled):active {
     input[type=button]:not(:disabled):active,
     button:not(:disabled):active {
         transform: none;
+    }
+
+    .box-container {
+        box-shadow: none;
     }
 }
 

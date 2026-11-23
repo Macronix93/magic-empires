@@ -4,7 +4,7 @@ require_post();
 
 $u_id = $user->get_user_id();
 $is_admin = $user->is_admin();
-$type = $_POST["type"] ?? "private";
+$type = post_str("type", "private");
 
 $allowed_types = ["private", "world", "guild", "server"];
 if (!in_array($type, $allowed_types, true)) {
@@ -12,15 +12,15 @@ if (!in_array($type, $allowed_types, true)) {
     exit;
 }
 
-$msg_id = (int)($_POST["m_id"] ?? 0);
+$msg_id = post_int("m_id");
 
 if ($type === "server") {
     // Delete ALL server messages
     $is_delete_all = isset($_POST["delete_all"]) || isset($_POST["all"]);
 
     if ($is_delete_all) {
-        $category = (int)($_POST["category"] ?? -1);
-        $max_id = (int)($_POST["max_id"] ?? 0);
+        $category = post_int("category", -1);
+        $max_id = post_int("max_id");
 
         if ($max_id > 0) {
             if ($category === -1) {

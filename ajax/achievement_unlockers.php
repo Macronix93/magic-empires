@@ -4,7 +4,7 @@ require_once("../includes/ajax_core.php");
 $uid = $user->get_user_id();
 
 if (isset($_GET["userid"])) {
-    $target_user_id = (int)$_GET["userid"];
+    $target_user_id = get_int("userid");
     if ($target_user_id <= 0) {
         echo show_error_box("Ungültige Spieler-ID.");
         exit;
@@ -84,7 +84,7 @@ if (isset($_GET["userid"])) {
     exit;
 }
 
-$ach_id = (int)($_GET["id"] ?? 0);
+$ach_id = get_int("id");
 if ($ach_id <= 0) {
     echo show_error_box("Ungültige Anfrage.");
     exit;

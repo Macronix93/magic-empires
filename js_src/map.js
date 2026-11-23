@@ -507,8 +507,6 @@ document.addEventListener("DOMContentLoaded", () => {
     filterIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            localStorage.removeItem("me_map_" + id);
-
             el.addEventListener("change", () => {
                 saveCurrentFilters();
                 draw();
@@ -1319,7 +1317,7 @@ function selectField(x, y, shouldCenter = false) {
     } else if (kid === -4) {
         // --- ABANDONED KINGDOM ---
         const travelTime = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST);
-        const arrivalScout = Math.round(travelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
+        const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
         const lifetime = expiresAt - now;
 
         html += `<div class="title-border">Ruinen von ${kname}</div>`;
@@ -1453,21 +1451,21 @@ function selectField(x, y, shouldCenter = false) {
         const isEventActive = window.activeEventInfo && window.activeEventInfo.is_active;
 
         if (isEventActive) {
-            const event_data = window.activeEventInfo;
-            const type_label = (window.activeEventInfo.type === "BOSS_HP") ? "Weltenboss" : "Großer Angriff";
-            const time_left = event_data.end_time - Math.floor(Date.now() / 1000);
-            const disabled = event_data.current_hp <= 0 && (window.activeEventInfo.type === "BOSS_HP") ? "disabled" : "";
+            const eventData = window.activeEventInfo;
+            const typeLabel = (window.activeEventInfo.type === "BOSS_HP") ? "Weltenboss" : "Großer Angriff";
+            const timeLeft = eventData.end_time - Math.floor(Date.now() / 1000);
+            const disabled = eventData.current_hp <= 0 && (window.activeEventInfo.type === "BOSS_HP") ? "disabled" : "";
 
-            html += `<div class="title-border">${type_label}</div>`;
+            html += `<div class="title-border">${typeLabel}</div>`;
             html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
             html += `${coordsRowHtml}`;
-            html += `<tr><td class="td-mapinfo"><b>Endet in</b></td><td><span class="js-countdown" data-seconds="${time_left}">-</span></td></tr>`;
+            html += `<tr><td class="td-mapinfo"><b>Endet in</b></td><td><span class="js-countdown" data-seconds="${timeLeft}">-</span></td></tr>`;
 
-            if (event_data.type === "BOSS_HP") {
-                let hpRawPercent = event_data.total_hp > 0 ? (event_data.current_hp / event_data.total_hp) * 100 : 0;
+            if (eventData.type === "BOSS_HP") {
+                let hpRawPercent = eventData.total_hp > 0 ? (eventData.current_hp / eventData.total_hp) * 100 : 0;
                 let hpDisplayText, barWidth;
 
-                if (event_data.current_hp > 0 && hpRawPercent < 0.1) {
+                if (eventData.current_hp > 0 && hpRawPercent < 0.1) {
                     hpDisplayText = "< 0.1";
                     barWidth = 0.5;
                 } else {
@@ -1475,15 +1473,15 @@ function selectField(x, y, shouldCenter = false) {
                     barWidth = hpDisplayText;
                 }
 
-                const formattedHp = typeof formatNumJS === "function" ? formatNumJS(event_data.current_hp) : event_data.current_hp;
+                const formattedHp = typeof formatNumJS === "function" ? formatNumJS(eventData.current_hp) : eventData.current_hp;
 
                 html += `<tr><td class="td-mapinfo"><b>Status</b></td><td>`;
 
-                if (event_data.current_hp > 0) {
+                if (eventData.current_hp > 0) {
                     html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                                 <span style="display: inline-flex; align-items: center; gap: 5px;">
                                     <img src="images/icons/icon_health.png" class="ressource-icons" alt="HP" style="margin: 0; width: 16px; height: 16px;"> 
-                                    <span>${formattedHp} / ${formatNumJS(event_data.total_hp)}</span>
+                                    <span>${formattedHp} / ${formatNumJS(eventData.total_hp)}</span>
                                 </span>
                                 <span>${hpDisplayText}%</span>
                             </div>
@@ -1497,13 +1495,13 @@ function selectField(x, y, shouldCenter = false) {
                 html += `</td></tr>`;
             }
 
-            html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>30 Sek.</td></tr>`;
+            html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(eventData.attack_duration)}</td></tr>`;
             html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
             if (isCommandLimitReached) {
                 html += `<small class="error">${cmdLimitMsg}</small>`;
             } else {
-                html += `<button data-on-click="openOverlay" data-url="ajax/send_troops.php?x=${tx}&y=${ty}" ${disabled}>In die Schlacht!</button>`;
+                html += `<a href="events.php"><button ${disabled}>In die Schlacht!</button></a>`;
             }
 
             html += `<p style='font-size: 13px; margin-top: 10px;'><i>Hinweis: Truppen kehren von Welt-Events immer ohne Verluste heim.</i></p></td></tr></table>`;
@@ -1524,7 +1522,10 @@ function selectField(x, y, shouldCenter = false) {
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `${coordsRowHtml}`;
         html += `<tr><td class="td-mapinfo"><b>Königreich</b></td><td>${kname}</td></tr>`;
-        html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString()}</td></tr>`;
+
+        if (ownerId !== gameConfig.currentKingdom.ownerId) {
+            html += `<tr><td class="td-mapinfo"><b>Besitzer</b></td><td>${ownerDisplay} ${scoreIcon} ${score.toLocaleString()}</td></tr>`;
+        }
 
         if (kid !== gameConfig.currentKingdom.id) {
             const arrivalNormal = Math.round(baseTravelTime);

@@ -11,6 +11,11 @@ const UPDATE_MSG_BADGES_LAST_FETCH = 30000;
 let isPageUnloading = false;
 let cachedChatEmojis = null;
 let kingdomLoaderTimer = null;
+let globalPopupBox = null;
+let lastPopupTouchTime = 0;
+window.ME_CLOCK_ANCHOR = Date.now();
+const clockSubscribers = new Set();
+let globalClockTimeout = null;
 
 window.addEventListener("beforeunload", () => {
     isPageUnloading = true;
@@ -42,7 +47,7 @@ registerAction("switchKingdomFromPopup", (el, e) => {
     if (kid) {
         el.disabled = true;
         el.innerText = "Wechsle...";
-        document.querySelectorAll('.popupbox').forEach(b => b.style.display = "none");
+        hideGlobalPopup();
 
         switchKingdomById(kid);
     }
@@ -56,17 +61,6 @@ registerAction("redirect", (el) => {
         if (!isForbidden) {
             window.location.href = url;
         }
-    }
-});
-registerAction("fillMax", (el) => {
-    const targetId = el.dataset.target;
-    const maxValue = el.dataset.value;
-
-    /** @type {HTMLInputElement} */
-    const input = document.getElementById(targetId);
-
-    if (input) {
-        input.value = maxValue;
     }
 });
 registerAction("toggleMobileKingdomMenu", (el, e) => {
@@ -371,7 +365,6 @@ registerAction("toggleShareTarget", (el) => {
 registerAction("submitShareCoords", (form, e) => {
     if (e) e.preventDefault();
     const submitBtn = document.getElementById("btn-share-submit");
-    const errorBox = document.getElementById("share-coords-error");
     if (submitBtn) submitBtn.disabled = true;
 
     const formData = new FormData(form);
@@ -396,19 +389,13 @@ registerAction("submitShareCoords", (form, e) => {
                     window.location.href = data.redirect_url;
                 }
             } else {
-                if (errorBox) {
-                    errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>${data.error || "Fehler beim Senden"}</span></div>`;
-                    errorBox.style.display = "block";
-                }
+                showGameError(data.error || "Fehler beim Senden.");
 
                 if (submitBtn) submitBtn.disabled = false;
             }
         })
         .catch(() => {
-            if (errorBox) {
-                errorBox.innerHTML = `<div class="info-box event-error" style="margin: 0;"><span>Netzwerkfehler.</span></div>`;
-                errorBox.style.display = "block";
-            }
+            showGameError("Netzwerkfehler.");
 
             if (submitBtn) submitBtn.disabled = false;
         });
@@ -486,9 +473,60 @@ const observer = new MutationObserver((mutations) => {
 observer.observe(document.body, {
     childList: true,
     subtree: true,
-    attributes: true,
     attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
 });
+
+function scheduleGlobalClockTick() {
+    if (globalClockTimeout !== null || clockSubscribers.size === 0) return;
+
+    const now = Date.now();
+    const elapsedInSec = ((now - window.ME_CLOCK_ANCHOR) % 1000 + 1000) % 1000;
+    const delay = (1000 - elapsedInSec) + 25;
+
+    globalClockTimeout = setTimeout(() => {
+        globalClockTimeout = null;
+        runGlobalClockTick();
+    }, delay);
+}
+
+function runGlobalClockTick() {
+    const now = Date.now();
+
+    clockSubscribers.forEach(fn => {
+        try {
+            fn(now);
+        } catch (e) {
+            console.error(e);
+        }
+    });
+
+    if (clockSubscribers.size > 0) {
+        scheduleGlobalClockTick();
+    }
+}
+
+window.registerClockTick = function (fn) {
+    clockSubscribers.add(fn);
+    scheduleGlobalClockTick();
+};
+window.unregisterClockTick = function (fn) {
+    clockSubscribers.delete(fn);
+
+    if (clockSubscribers.size === 0 && globalClockTimeout !== null) {
+        clearTimeout(globalClockTimeout);
+        globalClockTimeout = null;
+    }
+};
+window.resyncGlobalClock = function () {
+    if (globalClockTimeout !== null) {
+        clearTimeout(globalClockTimeout);
+        globalClockTimeout = null;
+    }
+
+    if (clockSubscribers.size > 0) {
+        runGlobalClockTick();
+    }
+};
 
 function getChatEmojis() {
     if (cachedChatEmojis) return cachedChatEmojis;
@@ -659,14 +697,22 @@ function switchKingdomById(kingdomId) {
     const filename = currentUrl.pathname.split('/').pop();
     const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php", "settings.php"];
 
-    const isGuildChatActive = filename === "guild.php" && document.getElementById("guild_tab_chat")
+    const isGuildChatActive = filename === "guild.php"
+        && document.getElementById("guild_tab_chat")
         && window.getComputedStyle(document.getElementById("guild_tab_chat")).display !== "none";
+
+    const overlay = document.getElementById("onpage-overlay");
+    const isEventOverlayOpen = filename === "events.php"
+        && overlay
+        && window.getComputedStyle(overlay).display !== "none";
+
     const isInPlaceSwitch = (
         filename === "map.php" ||
         filename === "messages.php" ||
         filename === "chat_embed.php" ||
         filename === "support.php" ||
-        isGuildChatActive
+        isGuildChatActive ||
+        isEventOverlayOpen
     );
 
     if (!isInPlaceSwitch) {
@@ -705,6 +751,34 @@ function switchKingdomById(kingdomId) {
                     return;
                 }
 
+                if (isEventOverlayOpen) {
+                    updateSidebarAndHeaderDOM(data);
+
+                    const rightDot = document.getElementById("mobile-right-nav-dot");
+                    if (rightDot && data.has_any_alchemy_ready !== undefined) {
+                        rightDot.style.display = data.has_any_alchemy_ready ? "block" : "none";
+                    }
+
+                    const singleBtn = document.querySelector("button[data-url*='ajax/send_troops.php']");
+                    if (singleBtn && data.kingdom) {
+                        const hasBarracks = !!document.querySelector("#kingdom-buildings .box[data-url='barracks.php']");
+                        const eventLocked = singleBtn.dataset.eventLocked === "true";
+                        singleBtn.disabled = eventLocked || !hasBarracks || !!data.kingdom.commandsFull;
+                    }
+
+                    const massBtn = document.querySelector("button[name='attack_all_kingdoms']");
+                    if (massBtn && data.kingdom && massBtn.dataset.eventLocked !== "true") {
+                        massBtn.disabled = !!data.kingdom.commandsFull;
+                    }
+
+                    if (typeof window.reloadOverlay === "function") {
+                        window.reloadOverlay();
+                    }
+
+                    isKingdomSwitching = false;
+                    return;
+                }
+
                 if (filename === "messages.php" || filename === "chat_embed.php" || filename === "support.php" || isGuildChatActive) {
                     updateSidebarAndHeaderDOM(data);
                     isKingdomSwitching = false;
@@ -732,29 +806,6 @@ function switchKingdomById(kingdomId) {
             isKingdomSwitching = false;
             showGameError("Kingdom-Switch Fehler: " + err);
         });
-}
-
-function cleanupPopups() {
-    const isGuildPage = window.location.pathname.includes("guild.php");
-    const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
-
-    if (isGuildPage && !chatTabActive) {
-        return;
-    }
-
-    const boxes = document.querySelectorAll('body > .popupbox');
-    boxes.forEach(box => {
-        const triggerId = box.id.replace('_box', '');
-        const trigger = document.getElementById(triggerId);
-
-        if (!trigger) {
-            box.remove();
-        } else {
-            if (box.style.display === "block" && !trigger.matches(':hover')) {
-                box.style.display = "none";
-            }
-        }
-    });
 }
 
 function sendReaction(type, id, emoji, sourceContainer) {
@@ -903,137 +954,92 @@ function formatNumJS(number, simpleFormat = false) {
     return n.toLocaleString("de-DE");
 }
 
+function getGlobalPopupBox() {
+    if (!globalPopupBox) {
+        globalPopupBox = document.createElement("div");
+        globalPopupBox.id = "global-popup-box";
+        globalPopupBox.className = "popupbox";
+        document.body.appendChild(globalPopupBox);
+    }
+    return globalPopupBox;
+}
+
+function hideGlobalPopup() {
+    if (globalPopupBox) globalPopupBox.style.display = "none";
+    activeHoverPopup = null;
+}
+
+function showGlobalPopup(trigger, e) {
+    const sourceBox = trigger?.querySelector(".popupbox");
+    if (!sourceBox || sourceBox.dataset.enabled === "false") return hideGlobalPopup();
+
+    const isTouch = e.type.startsWith("touch");
+    const isTouchCapable = window.matchMedia("(hover: none)").matches || window.innerWidth <= 600 || ("ontouchstart" in window);
+    const isAction = trigger.dataset.onClick === "openOverlay" || trigger.classList.contains("user-name-link") || /^(activity|act_link)/.test(trigger.id);
+
+    if ((isTouch || isTouchCapable) && (isAction || trigger.closest(".reaction-badge"))) {
+        if (isTouch) hideGlobalPopup();
+        return;
+    }
+    if (isTouch && window.innerWidth <= 600 && trigger.id?.startsWith("activity")) return;
+
+    const box = getGlobalPopupBox();
+    if (!activeHoverPopup || activeHoverPopup.trigger !== trigger || box.style.display === "none") {
+        box.className = sourceBox.className;
+        box.setAttribute("style", sourceBox.getAttribute("style") || "");
+        box.dataset.sourceId = sourceBox.id || "";
+        box.innerHTML = sourceBox.innerHTML;
+        box.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+        box.querySelectorAll("[data-on-click]").forEach(bindActions);
+    }
+
+    box.style.position = "absolute";
+    box.style.left = "-9999px";
+    box.style.top = "0px";
+    box.style.display = "block";
+    box.style.visibility = "hidden";
+    box.style.zIndex = "2000005";
+
+    const bw = box.offsetWidth, bh = box.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const sx = window.pageXOffset || document.documentElement.scrollLeft;
+    const sy = window.pageYOffset || document.documentElement.scrollTop;
+    let left, top;
+
+    if (box.classList.contains("popup-right") && vw < 600) {
+        const r = (trigger.querySelector(".kingdom-link") || trigger).getBoundingClientRect();
+        left = Math.max(sx + 8, Math.min(r.right + sx + 8, sx + vw - bw - 10));
+        top = (r.top - 10 + bh > vh - 10) ? Math.max(sy + 10, sy + vh - bh - 10) : (r.top + sy - 10);
+    } else {
+        const [px, py] = getMouseLocation(e);
+        const pt = e.touches?.[0] || e;
+        left = Math.max(sx + 10, Math.min(px - bw / 2, sx + vw - bw - 10));
+        top = (pt?.clientY + 25 + bh > vh) ? Math.max(sy + 10, py - bh - 20) : (py + 25);
+    }
+
+    box.style.left = left + "px";
+    box.style.top = top + "px";
+    box.style.visibility = "visible";
+    activeHoverPopup = {box, trigger};
+}
+
 function setup() {
-    document.querySelectorAll('body > .popupbox').forEach(box => {
-        const triggerId = box.id.replace(/_box$/, '');
+    getGlobalPopupBox();
+    cleanupPopups();
+}
 
-        if (triggerId && !document.getElementById(triggerId)) {
-            box.remove();
-        }
-    });
-
-    const popups = document.querySelectorAll('.popup');
-
-    popups.forEach(trigger => {
-        const box = trigger.querySelector('.popupbox');
-
-        if (box) {
-            if (box.parentNode !== document.body) {
-                document.querySelectorAll(`body > #${CSS.escape(box.id)}`).forEach(el => el.remove());
-                document.body.appendChild(box);
-            }
-
-            const hideBox = function () {
-                box.style.display = "none";
-                if (activeHoverPopup && activeHoverPopup.box === box) {
-                    activeHoverPopup = null;
-                }
-            };
-
-            const positionBox = function (e) {
-                if (box.dataset.enabled === "false") return;
-
-                const isTouchDevice = window.matchMedia("(hover: none)").matches || window.innerWidth <= 600 || ('ontouchstart' in window);
-                const isActionTrigger = trigger.dataset.onClick === "openOverlay"
-                    || trigger.classList.contains("user-name-link")
-                    || (trigger.id && (trigger.id.startsWith("activity") || trigger.id.startsWith("act_link")));
-
-                if (isTouchDevice && isActionTrigger) {
-                    return;
-                }
-
-                const isReaction = trigger.classList.contains("reaction-badge") || trigger.closest(".reaction-badge");
-                if (isReaction && isTouchDevice) {
-                    return;
-                }
-
-                let mousePos = getMouseLocation(e);
-
-                box.style.position = "absolute";
-                box.style.left = "-9999px";
-                box.style.top = "0px";
-                box.style.display = "block";
-                box.style.visibility = "hidden";
-                box.style.zIndex = "2000005";
-
-                const boxWidth = box.offsetWidth;
-                const boxHeight = box.offsetHeight;
-                const viewportWidth = window.innerWidth;
-                const viewportHeight = window.innerHeight;
-                const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-
-                let left, top;
-
-                if (box.classList.contains("popup-right") && window.innerWidth < 600) {
-                    const targetElem = trigger.querySelector('.kingdom-link') || trigger;
-                    const triggerRect = targetElem.getBoundingClientRect();
-                    const elemScrollX = window.pageXOffset || document.documentElement.scrollLeft;
-                    const elemScrollY = window.pageYOffset || document.documentElement.scrollTop;
-
-                    left = triggerRect.right + elemScrollX + 8;
-                    top = triggerRect.top + elemScrollY - 10;
-
-                    if (left + boxWidth > elemScrollX + viewportWidth - 10) {
-                        left = Math.max(elemScrollX + 8, elemScrollX + viewportWidth - boxWidth - 10);
-                    }
-
-                    if (triggerRect.top - 10 + boxHeight > viewportHeight - 10) {
-                        top = Math.max(elemScrollY + 10, elemScrollY + viewportHeight - boxHeight - 10);
-                    }
-                } else {
-                    left = mousePos[0] - (boxWidth / 2);
-
-                    if (left < scrollX + 10) left = scrollX + 10;
-                    if (left + boxWidth > scrollX + viewportWidth - 10) left = scrollX + viewportWidth - boxWidth - 10;
-
-                    top = mousePos[1] + 25;
-
-                    let clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
-                    if (clientY + 25 + boxHeight > viewportHeight) {
-                        top = mousePos[1] - boxHeight - 20;
-                    }
-                }
-
-                box.style.left = left + "px";
-                box.style.top = top + "px";
-                box.style.visibility = "visible";
-
-                activeHoverPopup = {box: box, trigger: trigger};
-            };
-
-            // Mouse Events
-            trigger.onmouseover = positionBox;
-            trigger.onmousemove = positionBox;
-            trigger.onmouseout = hideBox;
-            trigger.onmouseleave = hideBox;
-
-            // Touch Support
-            trigger.addEventListener("touchstart", function (e) {
-                if (window.innerWidth <= 600 && trigger.id && trigger.id.startsWith("activity")) {
-                    return;
-                }
-
-                if (box.style.display === "block") {
-                    hideBox();
-                } else {
-                    document.querySelectorAll('.popupbox').forEach(b => b.style.display = "none");
-                    positionBox(e);
-                }
-            }, {passive: true});
-        }
-    });
+function cleanupPopups() {
+    if (activeHoverPopup && !document.body.contains(activeHoverPopup.trigger)) hideGlobalPopup();
 }
 
 function getMouseLocation(e) {
-    let posx, posy;
-    if (e.pageX || e.pageY) {
-        posx = e.pageX;
-        posy = e.pageY;
-    } else if (e.clientX || e.clientY) {
-        posx = e.clientX + document.body.scrollLeft + document.documentElement.scrollLeft;
-        posy = e.clientY + document.body.scrollTop + document.documentElement.scrollTop;
-    }
-    return [posx, posy];
+    const p = e.touches?.[0] || e.changedTouches?.[0] || e;
+    if (p.pageX !== undefined || p.pageY !== undefined) return [p.pageX, p.pageY];
+
+    return [
+        p.clientX + document.body.scrollLeft + document.documentElement.scrollLeft,
+        p.clientY + document.body.scrollTop + document.documentElement.scrollTop
+    ];
 }
 
 function adjustUsernameDisplay() {
@@ -1048,18 +1054,16 @@ function adjustUsernameDisplay() {
 }
 
 function updateServerTime(initialServerTimestamp) {
-    const clientStartTime = Date.now();
+    const clientStartTime = window.ME_CLOCK_ANCHOR;
     const serverStartTime = initialServerTimestamp * 1000;
-
     const startHour = new Date(serverStartTime).getHours();
     let tickReached = false;
 
-    function updateDisplay() {
-        const now = Date.now();
-        const elapsed = now - clientStartTime;
+    function updateDisplay(now = Date.now()) {
+        const elapsed = Math.max(0, now - clientStartTime);
         const currentServerTime = new Date(serverStartTime + elapsed);
-
         const timeString = currentServerTime.toTimeString().split(' ')[0];
+
         const serverTimeElements = document.getElementsByClassName("servertime");
         for (let i = 0; i < serverTimeElements.length; i++) {
             if (serverTimeElements[i].offsetParent !== null) {
@@ -1068,7 +1072,6 @@ function updateServerTime(initialServerTimestamp) {
         }
 
         const currentHour = currentServerTime.getHours();
-
         if (currentHour !== startHour) {
             tickReached = true;
         }
@@ -1083,7 +1086,6 @@ function updateServerTime(initialServerTimestamp) {
         }
 
         let displayTime;
-
         if (tickReached) {
             displayTime = "Jetzt";
         } else {
@@ -1103,15 +1105,8 @@ function updateServerTime(initialServerTimestamp) {
         });
     }
 
-    setInterval(updateDisplay, 500);
-
-    document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") {
-            updateDisplay();
-        }
-    });
-
-    updateDisplay();
+    updateDisplay(clientStartTime);
+    window.registerClockTick(updateDisplay);
 }
 
 function switchKingdom(direction) {
@@ -1206,8 +1201,9 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
 }
 
 document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
+    if (document.visibilityState === "visible") {
         stopTitleFlash();
+        window.resyncGlobalClock();
     }
 });
 
@@ -1245,6 +1241,7 @@ document.addEventListener("submit", (e) => {
 window.addEventListener("pageshow", (e) => {
     if (e.persisted) {
         resetKingdomSwitchLoader();
+        window.resyncGlobalClock();
 
         document.querySelectorAll('form[data-is-submitting="true"]').forEach(form => {
             delete form.dataset.isSubmitting;
@@ -1413,6 +1410,7 @@ window.addEventListener("DOMContentLoaded", function () {
     setup();
     adjustUsernameDisplay();
 
+    window.ME_CLOCK_ANCHOR = Date.now();
     if (serverTime) updateServerTime(parseInt(serverTime));
     initAutomaticCountdowns();
 
@@ -1458,6 +1456,8 @@ window.addEventListener("DOMContentLoaded", function () {
                 }
             }
         }, 50);
+
+        window.resyncGlobalClock();
     }, true);
 
     document.addEventListener("focusout", function (e) {
@@ -1465,30 +1465,6 @@ window.addEventListener("DOMContentLoaded", function () {
             currentFocusedInput = null;
         }
     }, true);
-
-    document.addEventListener("mousemove", (e) => {
-        if (activeHoverPopup && (!document.body.contains(activeHoverPopup.trigger) || !activeHoverPopup.trigger.contains(e.target))) {
-            activeHoverPopup.box.style.display = "none";
-            activeHoverPopup = null;
-        }
-
-        const visibleBox = document.querySelector('body > .popupbox[style*="display: block"]');
-        if (visibleBox) {
-            const triggerId = visibleBox.id.replace('_box', '');
-            const trigger = document.getElementById(triggerId);
-
-            if (!trigger || (!trigger.contains(e.target) && !visibleBox.contains(e.target))) {
-                visibleBox.style.display = "none";
-            }
-        }
-    }, {passive: true});
-
-    document.addEventListener("scroll", () => {
-        if (activeHoverPopup) {
-            activeHoverPopup.box.style.display = "none";
-            activeHoverPopup = null;
-        }
-    }, {passive: true, capture: true});
 
     const flashContainer = document.getElementById("middle-flash-container");
     if (flashContainer) {
@@ -1558,6 +1534,8 @@ function selectUser(username) {
 }
 
 function initAutomaticCountdowns() {
+    const batchNow = window.ME_CLOCK_ANCHOR;
+
     document.querySelectorAll('.js-countdown').forEach(el => {
         const seconds = parseInt(el.dataset.seconds) || 0;
         const timerType = parseInt(el.dataset.timerType) || 0;
@@ -1565,7 +1543,7 @@ function initAutomaticCountdowns() {
         const keepParams = el.dataset.keepParams === "true";
         const noReload = el.dataset.noReload === "true";
 
-        startCountdown(el, seconds, timerType, hideID, keepParams, noReload);
+        startCountdown(el, seconds, timerType, hideID, keepParams, noReload, batchNow);
     });
 }
 
@@ -1658,6 +1636,7 @@ function updateSidebarBadges(counts) {
     if (counts.guild !== undefined) update(".js-badge-guild", counts.guild);
     if (counts.suggestions !== undefined) update(".js-badge-suggestions", counts.suggestions);
     if (counts.forum !== undefined) update(".js-badge-forum", counts.forum);
+    if (counts.achievements !== undefined) update(".js-badge-achievements", counts.achievements);
 
     const unreadArena = counts.arena || 0;
     const hasArenaCoins = Boolean(counts.arena_coins);
@@ -1786,28 +1765,7 @@ function showGameMessage(message, type = "error") {
 
     const flashContainer = document.getElementById("middle-flash-container");
     if (flashContainer) {
-        const oldBox = flashContainer.querySelector(`.info-box.event-${type}`);
-        if (oldBox) {
-            clearTimeout(oldBox._timer);
-            oldBox.remove();
-        }
-
-        const box = document.createElement("div");
-        box.className = `info-box event-${type}`;
-        box.innerHTML = `<img src="images/icons/${icon}" alt="${type}"><span>${message}</span>`;
-        flashContainer.appendChild(box);
-
-        const dismiss = () => {
-            if (box.classList.contains("fade-out")) return;
-            box.classList.add("fade-out");
-            box.addEventListener("animationend", () => box.remove(), {once: true});
-        };
-
-        box._timer = setTimeout(dismiss, 4000);
-        box.addEventListener("click", () => {
-            clearTimeout(box._timer);
-            dismiss();
-        });
+        renderToastInContainer(flashContainer, type, icon, message);
         return;
     }
 
@@ -1827,31 +1785,65 @@ window.showGameError = (msg) => showGameMessage(msg, "error");
 window.showGameSuccess = (msg) => showGameMessage(msg, "passed");
 window.showGameWarning = (msg) => showGameMessage(msg, "warning");
 
+document.addEventListener("mouseover", (e) => {
+    if (Date.now() - lastPopupTouchTime < 500) return;
+
+    const trigger = e.target.closest(".popup");
+    if (trigger) showGlobalPopup(trigger, e);
+});
+
+document.addEventListener("mousemove", (e) => {
+    if (Date.now() - lastPopupTouchTime < 500 || !activeHoverPopup) return;
+
+    const trigger = e.target.closest(".popup");
+    if (trigger === activeHoverPopup.trigger) showGlobalPopup(trigger, e);
+    else if (!trigger && !globalPopupBox?.contains(e.target)) hideGlobalPopup();
+}, {passive: true});
+
+document.addEventListener("mouseout", (e) => {
+    if (Date.now() - lastPopupTouchTime < 500 || !activeHoverPopup) return;
+
+    const rel = e.relatedTarget;
+    if (!rel || (!activeHoverPopup.trigger.contains(rel) && !globalPopupBox?.contains(rel) && !rel.closest?.(".popup"))) {
+        hideGlobalPopup();
+    }
+});
+
+document.addEventListener("touchstart", (e) => {
+    lastPopupTouchTime = Date.now();
+    if (globalPopupBox?.style.display === "block" && globalPopupBox.contains(e.target)) return;
+
+    const trigger = e.target.closest(".popup");
+    if (!trigger) return hideGlobalPopup();
+
+    if (activeHoverPopup?.trigger === trigger && globalPopupBox?.style.display === "block") {
+        hideGlobalPopup();
+    } else {
+        showGlobalPopup(trigger, e);
+    }
+}, {passive: true});
+
+document.addEventListener("scroll", () => {
+    if (activeHoverPopup) hideGlobalPopup();
+}, {passive: true, capture: true});
+
 document.addEventListener("pointerdown", (e) => {
-    const btn = e.target.closest('div[id^="pop_k_preview_"] button[data-on-click="switchKingdomFromPopup"]');
+    const btn = e.target.closest('#global-popup-box[data-source-id^="pop_k_preview_"] button[data-on-click="switchKingdomFromPopup"]');
     if (btn) {
         e.preventDefault();
         e.stopPropagation();
 
-        const kid = btn.dataset.id;
-        if (kid) {
+        if (btn.dataset.id) {
             btn.disabled = true;
             btn.innerText = "Wechsle...";
-
-            const box = btn.closest('.popupbox');
-            if (box) box.style.display = "none";
-
-            switchKingdomById(kid);
+            hideGlobalPopup();
+            switchKingdomById(btn.dataset.id);
         }
         return;
     }
 
-    if (window.innerWidth <= 600) {
-        const openPreview = document.querySelector('div[id^="pop_k_preview_"][id$="_box"][style*="display: block"]');
-
-        if (openPreview && !openPreview.contains(e.target) && !e.target.closest('.popup')) {
-            openPreview.style.display = "none";
-        }
+    if (window.innerWidth <= 600 && activeHoverPopup && !globalPopupBox?.contains(e.target) && !e.target.closest(".popup")) {
+        hideGlobalPopup();
     }
 }, true);
 

@@ -2,7 +2,7 @@
 require_once("../includes/ajax_core.php");
 
 $uid = $user->get_user_id();
-$battle_id = (int)($_GET["id"] ?? 0);
+$battle_id = get_int("id");
 
 if ($battle_id <= 0) {
     echo show_error_box("Ungültige Kampf-ID.");

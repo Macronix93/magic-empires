@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$guild_id = (int)($_GET["id"] ?? 0);
+$guild_id = get_int("id");
 $guild_logic = new Guild($user);
 $data = $guild_logic->get_guild_details($guild_id);
 

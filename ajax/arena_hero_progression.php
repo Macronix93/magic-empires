@@ -4,7 +4,7 @@ require_once("../includes/ajax_core.php");
 $uid = $user->get_user_id();
 $arena = new Arena($uid);
 $hero_info = $arena->get_hero_full_data();
-$type = $_GET["type"] ?? "hero";
+$type = get_str("type", "hero");
 
 $render_row = function (int $lvl, int $cur_lvl, int $max_lvl, int $xp_needed, int $cum_xp, string $val_html): string {
     $is_max = ($lvl === $max_lvl);
@@ -53,7 +53,7 @@ if ($type === "hero"):
     </div>
 <?php
 elseif ($type === "skill"):
-    $skill_id = (int)($_GET["id"] ?? 1);
+    $skill_id = get_int("id", 1);
     if (!isset(ARENA_HERO_SKILLS[$skill_id])) $skill_id = 1;
     $skill_meta = ARENA_HERO_SKILLS[$skill_id];
     $cur_lvl = (int)($hero_info["skills"][$skill_id]["level"] ?? 1);

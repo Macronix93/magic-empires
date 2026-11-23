@@ -662,48 +662,48 @@ function conversationDeletionDialog(chatPartnerID, chatPartner) {
     );
 }
 
-function updateNavigationBadges(privCount, worldCount, guildCount, achCount) {
-    const isWorldChatActive = document.getElementById("messages-section")?.dataset.chatType === "world"
-        || window.location.search.includes("worldchat");
-    const isGuildChatActive = document.getElementById("messages-section")?.dataset.chatType === "guild"
-        || (window.location.pathname.includes("guild.php") && document.getElementById("guild_tab_chat")?.style.display !== "none");
-
-    if (isWorldChatActive) worldCount = 0;
-    if (isGuildChatActive) guildCount = 0;
-
-    const setBadges = (selector, count) => {
-        document.querySelectorAll(selector).forEach(badge => {
-            if (count > 0) {
-                badge.innerText = count > 9 ? "9+" : count;
-                badge.style.display = "flex";
-            } else {
-                badge.style.display = "none";
-            }
-        });
-    };
-
-    setBadges(".js-badge-priv", privCount);
-    if (!isWorldChatActive) setBadges(".js-badge-world", worldCount);
-    if (!isGuildChatActive) setBadges(".js-badge-guild", guildCount);
-
-    if (achCount !== undefined) {
-        document.querySelectorAll(".box[data-url='achievements.php'] .msg-badge").forEach(badge => {
-            if (achCount > 0) {
-                badge.innerText = achCount > 9 ? "9+" : achCount;
-                badge.style.display = "inline-flex";
-            } else {
-                badge.style.display = "none";
-            }
-        });
-    }
-
-    const mobileDot = document.getElementById("mobile-nav-dot");
-    if (mobileDot) {
-        const hasAlert = mobileDot.dataset.hasAlert === "true";
-        const effectiveTotal = (privCount || 0) + (isWorldChatActive ? 0 : (worldCount || 0)) + (isGuildChatActive ? 0 : (guildCount || 0)) + (achCount || 0);
-        mobileDot.style.display = (effectiveTotal > 0 || hasAlert) ? "block" : "none";
-    }
-}
+// function updateNavigationBadges(privCount, worldCount, guildCount, achCount) {
+//     const isWorldChatActive = document.getElementById("messages-section")?.dataset.chatType === "world"
+//         || window.location.search.includes("worldchat");
+//     const isGuildChatActive = document.getElementById("messages-section")?.dataset.chatType === "guild"
+//         || (window.location.pathname.includes("guild.php") && document.getElementById("guild_tab_chat")?.style.display !== "none");
+//
+//     if (isWorldChatActive) worldCount = 0;
+//     if (isGuildChatActive) guildCount = 0;
+//
+//     const setBadges = (selector, count) => {
+//         document.querySelectorAll(selector).forEach(badge => {
+//             if (count > 0) {
+//                 badge.innerText = count > 9 ? "9+" : count;
+//                 badge.style.display = "flex";
+//             } else {
+//                 badge.style.display = "none";
+//             }
+//         });
+//     };
+//
+//     setBadges(".js-badge-priv", privCount);
+//     if (!isWorldChatActive) setBadges(".js-badge-world", worldCount);
+//     if (!isGuildChatActive) setBadges(".js-badge-guild", guildCount);
+//
+//     if (achCount !== undefined) {
+//         document.querySelectorAll(".box[data-url='achievements.php'] .msg-badge").forEach(badge => {
+//             if (achCount > 0) {
+//                 badge.innerText = achCount > 9 ? "9+" : achCount;
+//                 badge.style.display = "inline-flex";
+//             } else {
+//                 badge.style.display = "none";
+//             }
+//         });
+//     }
+//
+//     const mobileDot = document.getElementById("mobile-nav-dot");
+//     if (mobileDot) {
+//         const hasAlert = mobileDot.dataset.hasAlert === "true";
+//         const effectiveTotal = (privCount || 0) + (isWorldChatActive ? 0 : (worldCount || 0)) + (isGuildChatActive ? 0 : (guildCount || 0)) + (achCount || 0);
+//         mobileDot.style.display = (effectiveTotal > 0 || hasAlert) ? "block" : "none";
+//     }
+// }
 
 function initializeChat() {
     const messageSection = document.getElementById("messages-section");
@@ -735,7 +735,10 @@ function initializeChat() {
             }
 
             messageSection.innerHTML = data.html;
-            updateNavigationBadges(data.privUnread, data.worldUnread, data.guildUnread, data.achievementsUnread);
+
+            if (data.badges && typeof updateSidebarBadges === "function") {
+                updateSidebarBadges(data.badges);
+            }
 
             if (data.rateLimitSeconds && data.rateLimitSeconds > 0) {
                 displayChatError("Du schickst zu viele Nachrichten! Warte bitte:", data.rateLimitSeconds);

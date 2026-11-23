@@ -5,7 +5,7 @@ if ($user->is_logged_in()) {
     change_location("overview.php");
 }
 
-$token = $_GET["token"] ?? "";
+$token = get_str("token");
 if (empty($token)) {
     change_location("index.php");
 }
@@ -15,13 +15,20 @@ $success = "";
 $token_valid = false;
 $user_data = null;
 
-$result = $db_instance->execute_query("SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ? LIMIT 1", [$token, time()]);
-
-if ($result && $result->num_rows > 0) {
-    $token_valid = true;
-    $user_data = $result->fetch_assoc();
-} else {
+if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
     $error = "Der Link ist ungültig oder abgelaufen.";
+} else {
+    $result = $db_instance->execute_query(
+            "SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ? LIMIT 1",
+            [$token, time()]
+    );
+    
+    if ($result && $result->num_rows > 0) {
+        $token_valid = true;
+        $user_data = $result->fetch_assoc();
+    } else {
+        $error = "Der Link ist ungültig oder abgelaufen.";
+    }
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $token_valid) {
@@ -31,7 +38,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
         $new_plain_password = generate_safe_password(8);
         $new_hash = password_hash($new_plain_password, PASSWORD_BCRYPT);
 
-        $db_instance->execute_query("UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
+        $db_instance->execute_query("UPDATE users SET sessionid = '', password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
+        $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ?", [$user_data["id"]]);
 
         PhpBBBridge::update_password($user_data["username"] ?? "", $new_hash);
 

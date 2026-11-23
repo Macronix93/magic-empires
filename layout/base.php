@@ -32,7 +32,6 @@ if ($user->is_logged_in()) {
     }
 
     $uid = $user->get_user_id();
-    $gid = $user->get_user_guild_id();
 
     if (empty($all_user_kingdoms)) {
         $all_user_kingdoms = $db_instance->execute_query(
@@ -119,9 +118,20 @@ if ($user->is_logged_in()) {
 <div class="header img">
     <img src="images/header.png" alt="Header"/>
 </div>
+<?php
+ob_start();
+include("layout/left.php");
+$left_menu_html = ob_get_clean();
+
+ob_start();
+$side_prefix = "desk_";
+include("layout/right.php");
+$right_menu_desk_html = ob_get_clean();
+$right_menu_mob_html = str_replace("desk_boost_info_", "mob_boost_info_", $right_menu_desk_html);
+?>
 <div class="content-box">
     <div class="left-container">
-        <?php include_once("layout/left.php"); ?>
+        <?= $left_menu_html ?>
     </div>
     <div class="middle-container">
         <div id="middle-flash-container" class="middle-flash-container">
@@ -145,7 +155,6 @@ if ($user->is_logged_in()) {
             }
             ?>
         </div>
-
         <div class="big-box-container">
             <div class="big-box-header">
                 <?php if (!empty($header_icon) && file_exists($header_icon)): ?>
@@ -159,10 +168,7 @@ if ($user->is_logged_in()) {
         </div>
     </div>
     <div class="right-container">
-        <?php
-        $side_prefix = "desk_";
-        include_once("layout/right.php");
-        ?>
+        <?= $right_menu_desk_html ?>
     </div>
 </div>
 <div id="nav-left-trigger" class="mobile-trigger">
@@ -181,7 +187,7 @@ if ($user->is_logged_in()) {
     <?php endif; ?>
 </div>
 <div id="nav-left-menu" class="mobile-side-nav">
-    <?php include("layout/left.php"); ?>
+    <?= $left_menu_html ?>
 </div>
 <?php if ($kingdom_count > 1): ?>
     <?php
@@ -231,10 +237,7 @@ if ($user->is_logged_in()) {
     <?php endif; ?>
 </div>
 <div id="nav-right-menu" class="mobile-side-nav">
-    <?php
-    $side_prefix = "mob_";
-    include("layout/right.php");
-    ?>
+    <?= $right_menu_mob_html ?>
 </div>
 <div id="onpage-overlay" class="overlay-modal" style="display: none;">
     <div id="overlay-handle" class="overlay-header">

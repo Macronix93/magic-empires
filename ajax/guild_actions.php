@@ -2,13 +2,13 @@
 require_once("../includes/ajax_core.php");
 require_post();
 
-$action = $_POST["action"] ?? '';
+$action = post_str("action");
 $guild_logic = new Guild($user);
 $response = ["success" => false];
 
 switch ($action) {
     case "invite":
-        $target_id = (int)($_POST["target_id"] ?? 0);
+        $target_id = post_int("target_id");
         $res = $guild_logic->invite_user($target_id);
 
         if ($res === null) {
@@ -21,7 +21,7 @@ switch ($action) {
         break;
 
     case "accept_invite":
-        $invite_id = (int)($_POST["invite_id"] ?? 0);
+        $invite_id = post_int("invite_id");
         $res = $guild_logic->join_guild($invite_id, true);
 
         if ($res === null) {
@@ -35,7 +35,7 @@ switch ($action) {
         break;
 
     case "decline_invite":
-        $invite_id = (int)($_POST["invite_id"] ?? 0);
+        $invite_id = post_int("invite_id");
         $res = $guild_logic->decline_invite($invite_id);
 
         if ($res === null) {
@@ -59,7 +59,7 @@ switch ($action) {
         break;
 
     case "kick":
-        $target_id = (int)($_POST["target_id"] ?? 0);
+        $target_id = post_int("target_id");
         $res = $guild_logic->kick_member($target_id);
 
         if ($res === null) {
@@ -71,8 +71,8 @@ switch ($action) {
         break;
 
     case "set_rank":
-        $target_id = (int)($_POST["target_id"] ?? 0);
-        $rank_id = (int)($_POST["rank_id"] ?? 0);
+        $target_id = post_int("target_id");
+        $rank_id = post_int("rank_id");
         $res = $guild_logic->set_member_rank($target_id, $rank_id);
 
         if ($res === null) {
@@ -84,7 +84,7 @@ switch ($action) {
         break;
 
     case "join":
-        $guild_id = (int)($_POST["guild_id"] ?? 0);
+        $guild_id = post_int("guild_id");
         $res = $guild_logic->join_guild($guild_id);
 
         if ($res === null) {
@@ -96,7 +96,7 @@ switch ($action) {
         break;
 
     case "cancel_invite":
-        $invite_id = (int)($_POST["invite_id"] ?? 0);
+        $invite_id = post_int("invite_id");
         $res = $guild_logic->cancel_invite($invite_id);
 
         if ($res === null) {

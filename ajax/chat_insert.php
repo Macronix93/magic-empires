@@ -2,7 +2,7 @@
 require_once("../includes/ajax_core.php");
 require_post();
 
-$type = $_POST["type"] ?? "private";
+$type = post_str("type", "private");
 
 $allowed_types = ["private", "world", "guild"];
 if (!in_array($type, $allowed_types, true)) {
@@ -25,7 +25,7 @@ if ($remaining_seconds > 0) {
 }
 
 // Validate text
-$validation = Messages::clean_and_validate_chat_text($_POST["text"] ?? "");
+$validation = Messages::clean_and_validate_chat_text(post_str("text"));
 if (isset($validation["error"])) {
     echo json_encode(["error" => $validation["error"]]);
     exit;
@@ -57,16 +57,16 @@ if ($type === "world") {
     $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
 
 } else { // private
-    $client_token = $_POST["token"] ?? "";
+    $client_token = post_str("token");
     $session_token = $_SESSION["active_chat_token"] ?? "";
-    $receiver_id = (int)($_POST["receiver"] ?? 0);
+    $receiver_id = post_int("receiver");
 
-    if ($client_token !== $session_token) {
+    if ($session_token === "" || !hash_equals($session_token, $client_token)) {
         echo json_encode(["error" => "redirect", "chatPartner" => "privmsgs"]);
         exit;
     }
 
-    if ($receiver_id <= 0) {
+    if ($receiver_id <= 0 || $receiver_id === $u_id) {
         echo json_encode(["error" => "Kein gültiger Empfänger angegeben!"]);
         exit;
     }
@@ -108,7 +108,8 @@ $bubble_html = Messages::render_chat_bubble(
     $cleaned_text,
     $now,
     $user,
-    $user->get_avatar()
+    $user->get_avatar(),
+    []
 );
 
 echo json_encode([

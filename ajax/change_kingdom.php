@@ -2,9 +2,9 @@
 require_once("../includes/ajax_core.php");
 require_post();
 
-$chosen = $_POST["choosekingdom"] ?? null;
+$chosen = post_str("choosekingdom");
 
-if (isset($chosen) && is_numeric($chosen)) {
+if (is_numeric($chosen)) {
     $chosen = (int)$chosen;
     $res = $db_instance->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$chosen]);
     $row_check = $res->fetch_assoc();
@@ -32,10 +32,8 @@ if (isset($chosen) && is_numeric($chosen)) {
             $troops[(int)$t["soldierid"]] = (int)$t["soldiercount"];
         }
 
-        $uid = $user->get_user_id();
-        $gid = $user->get_user_guild_id();
         $all_user_kingdoms = $db_instance->execute_query(
-            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id", [$uid]
+            "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id", [$user->get_user_id()]
         )->fetch_all(MYSQLI_ASSOC);
 
         $sidebar_data = $user->get_sidebar_data($chosen);

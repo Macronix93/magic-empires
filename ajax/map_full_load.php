@@ -173,7 +173,8 @@ if ($active_event) {
         "total_hp" => (int)$active_event["total_hp"],
         "end_time" => (int)$active_event["end_time"],
         "monster_name" => $monster["name"],
-        "monster_icon" => $monster["icon"]
+        "monster_icon" => $monster["icon"],
+        "attack_duration" => $world_event_manager->get_current_duration()
     ];
 }
 

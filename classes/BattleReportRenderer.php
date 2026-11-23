@@ -281,7 +281,7 @@ class BattleReportRenderer
         $color_class = $is_negative ? "error" : "passed";
         $sign = $is_negative ? "-" : "+";
         $items_html = "";
-        
+
         foreach ($resources as $res_id => $amount) {
             if ($amount > 0) {
                 $items_html .= "<div style='display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;'>"
@@ -346,6 +346,12 @@ class BattleReportRenderer
                     <span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($total_def, true) . "</span>
                     $wall_bonus_html
                 </span>";
+            } else if ($has_troops && $wall_def > 0) {
+                $html .= "
+                <span style='display: inline-flex; align-items: center; gap: 5px;'>
+                    <img src='images/icons/icon_building" . BuildingTypes::BUILDING_WALL . ".png' class='ressource-icons' alt=''>
+                    <small class='passed' title='Mauer-Bonus'>+" . fnum($wall_def, true) . "</small>
+                </span>";
             }
 
             if ($w !== null && (int)$w["level"] > 0) {
@@ -373,9 +379,9 @@ class BattleReportRenderer
             $sup_atk = (int)($intel["support_atk"] ?? 0);
             $sup_def = (int)($intel["support_def"] ?? 0);
             if ($sup_atk > 0 || $sup_def > 0) {
-                $html .= "<div class='all-troops-sum-stats' style='flex-wrap: wrap; gap: 15px;'>";
-                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " <b>" . fnum($sup_atk, true) . "</b></span>";
-                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " <b>" . fnum($sup_def, true) . "</b></span>";
+                $html .= "<div class='all-troops-sum-stats' style='flex-wrap: wrap; gap: 15px; border: 1px solid #555; background: rgba(0,0,0,0.4); '>";
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($sup_atk, true) . "</span>";
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($sup_def, true) . "</span>";
                 $html .= "</div>";
             }
 
@@ -386,14 +392,67 @@ class BattleReportRenderer
             }
 
             $html .= "</div>";
+
+            // Total battle power
+            $own_atk = (int)($intel["total_atk"] ?? 0);
+            $own_def = (int)($intel["total_def"] ?? 0);
+            $wall_def_val = (int)($intel["wall"]["def"] ?? 0);
+
+            $combined_atk = $own_atk + $sup_atk;
+            $combined_def = $own_def + $sup_def + $wall_def_val;
+
+            if ($combined_atk > 0 || $combined_def > 0) {
+                $html .= "<div class='report-section-title'>Gesamtstärke</div>";
+                $html .= "<div class='all-troops-sum-stats' style='flex-wrap: wrap; gap: 15px; border: 1px solid #555; background: rgba(0,0,0,0.4);'>";
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ATTACK) . " " . fnum($combined_atk, true) . "</span>";
+                $html .= "<span style='display: inline-flex; align-items: center; gap: 5px;'>" . get_resource_icon(ResourceTypes::RESOURCE_TYPE_DEFENSE) . " " . fnum($combined_def, true) . "</span>";
+                $html .= "</div>";
+            }
         }
 
         // Techs
         if (!empty($intel["techs"])) {
+            $order = array_flip(Tech::DISPLAY_ORDER);
+
+            $get_group = static function (array $t): int {
+                $smithy_ids = [
+                    TechTypes::TECH_TYPE_BLADES,
+                    TechTypes::TECH_TYPE_SHIELDWALL,
+                    TechTypes::TECH_TYPE_LANCE_RIDING,
+                    TechTypes::TECH_TYPE_CUIRASS,
+                    TechTypes::TECH_TYPE_ARROWHEADS,
+                    TechTypes::TECH_TYPE_DOUBLET,
+                    TechTypes::TECH_TYPE_WEIGHT,
+                    TechTypes::TECH_TYPE_METALLURGY,
+                    TechTypes::TECH_TYPE_SIEGE,
+                ];
+
+                if (isset($t["origin_building"])) {
+                    return ((int)$t["origin_building"] === BuildingTypes::BUILDING_SMITHY) ? 1 : 0;
+                }
+
+                return in_array((int)$t["id"], $smithy_ids, true) ? 1 : 0;
+            };
+
+            $sorted_techs = $intel["techs"];
+            usort($sorted_techs, static function ($a, $b) use ($order, $get_group) {
+                $group_cmp = $get_group($a) <=> $get_group($b);
+                if ($group_cmp !== 0) {
+                    return $group_cmp;
+                }
+
+                $lvl_cmp = (int)$b["level"] <=> (int)$a["level"];
+                if ($lvl_cmp !== 0) {
+                    return $lvl_cmp;
+                }
+
+                return ($order[(int)$a["id"]] ?? 9999) <=> ($order[(int)$b["id"]] ?? 9999);
+            });
+
             $html .= "<div class='report-section-title' style='margin-top: 10px;'>Erforschte Technologien</div>";
             $html .= "<div class='scout-grid'>";
 
-            foreach ($intel["techs"] as $t) {
+            foreach ($sorted_techs as $t) {
                 $tid = (int)$t["id"];
                 $html .= "<div class='scout-item'><img src='images/icons/icon_tech$tid.png' class='ressource-icons' alt=''> <span>" . e($t["name"]) . " (" . (int)$t["level"] . ")</span></div>";
             }

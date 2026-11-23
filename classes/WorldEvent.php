@@ -39,31 +39,35 @@ class WorldEvent
             $query = "
                 SELECT SUM(
                     combined.count * (
-                        (sl.attack * (CASE 
-                            WHEN k.alignment = " . AlignmentTypes::ALIGN_WAR . " 
+                        ROUND(sl.attack * (CASE 
+                            WHEN k.alignment = " . AlignmentTypes::ALIGN_WAR . " AND IFNULL(b_shrine.buildinglevel, 0) > 0
                             THEN (1.0 + $war_shrine_base + (IFNULL(t_shrine.techlevel, 0) * " . SHRINE_TECH_STEP . ")) 
                             ELSE 1.0 
-                          END))
-                        +
+                        END)) + 
                         (CASE 
                             WHEN sl.category = " . SoldierTypes::SOLDIER_TYPE_INFANTRY . " THEN IFNULL(t_inf.techlevel, 0) * " . SMITHY_INF_ATK_BONUS . "
                             WHEN sl.category = " . SoldierTypes::SOLDIER_TYPE_CAVALRY . " THEN IFNULL(t_cav.techlevel, 0) * " . SMITHY_CAV_ATK_BONUS . "
                             WHEN sl.category = " . SoldierTypes::SOLDIER_TYPE_ARCHERS . " THEN IFNULL(t_arc.techlevel, 0) * " . SMITHY_ARC_ATK_BONUS . "
                             ELSE 0 
-                         END)
+                        END)
                     )
                 ) as total_power
                 FROM (
                     SELECT kingdomid, soldierid, soldiercount AS count FROM soldiers
-                    
                     UNION ALL
-
-                    SELECT e.kingdomid, st.soldierid, st.soldiercount AS count 
-                    FROM sent_troops st
-                    JOIN events e ON st.eventid = e.eventid
+                    SELECT st.source_kingdom_id AS kingdomid, st.soldierid, st.soldiercount AS count 
+                    FROM sent_troops st JOIN events e ON st.eventid = e.eventid
+                    UNION ALL
+                    SELECT source_kingdom_id AS kingdomid, soldier_id AS soldierid, soldiercount AS count FROM stationed_troops
+                    UNION ALL
+                    SELECT kingdom_id AS kingdomid, soldier_id AS soldierid, soldiercount AS count FROM mine_stationed_troops
+                    UNION ALL
+                    SELECT kingdomid, buildingid AS soldierid, soldiergoal AS count 
+                    FROM events WHERE actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . "
                 ) as combined
                 JOIN soldier_list sl ON combined.soldierid = sl.id
                 JOIN kingdoms k ON combined.kingdomid = k.id
+                LEFT JOIN buildings b_shrine ON b_shrine.kingdomid = k.id AND b_shrine.buildingid = " . BuildingTypes::BUILDING_SHRINE . "
                 LEFT JOIN techs t_inf ON t_inf.kingdomid = k.id AND t_inf.techid = " . TechTypes::TECH_TYPE_BLADES . "
                 LEFT JOIN techs t_cav ON t_cav.kingdomid = k.id AND t_cav.techid = " . TechTypes::TECH_TYPE_LANCE_RIDING . "
                 LEFT JOIN techs t_arc ON t_arc.kingdomid = k.id AND t_arc.techid = " . TechTypes::TECH_TYPE_ARROWHEADS . "
@@ -92,6 +96,8 @@ class WorldEvent
 
     public function record_damage(int $event_id, int $user_id, int $damage, string $type, int $kingdom_id): int
     {
+        $this->mysqli->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$user_id]);
+
         if ($type === "DAMAGE") {
             $check = $this->mysqli->execute_query(
                 "SELECT attempts_used FROM world_event_participants WHERE event_id = ? AND userid = ?",

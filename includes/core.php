@@ -38,7 +38,13 @@ if (session_status() === PHP_SESSION_NONE) {
     }
 
     ini_set("session.cookie_samesite", "Lax");
-    ini_set("session.gc_maxlifetime", (string)TIMEOUT_MAX_SECONDS);
+    ini_set("session.cookie_httponly", "1");
+
+    if (!IS_DEV) {
+        ini_set("session.cookie_secure", "1");
+    }
+
+    ini_set("session.gc_maxlifetime", (string)(TIMEOUT_MAX_SECONDS + 86400));
 
     session_start();
 }
@@ -47,6 +53,9 @@ $js_folder = IS_DEV ? "js_src/" : "js/";
 
 if (!$is_cli) {
     $nonce = base64_encode(random_bytes(16));
+    $frame_ancestors = (basename($_SERVER["PHP_SELF"] ?? "") === "chat_embed.php")
+        ? "'self' https://board.magic-empires.de"
+        : "'self'";
 
     header("Content-Security-Policy: " .
         "default-src 'self'; " .
@@ -55,7 +64,11 @@ if (!$is_cli) {
         "style-src 'self' 'unsafe-inline' https://storage.ko-fi.com https://fonts.googleapis.com; " .
         "img-src 'self' data: https://storage.ko-fi.com https://ko-fi.com; " .
         "connect-src 'self' https://ko-fi.com; " .
-        "font-src 'self' https://fonts.gstatic.com;");
+        "font-src 'self' https://fonts.gstatic.com;" .
+        "object-src 'none'; " .
+        "base-uri 'self'; " .
+        "form-action 'self'; " .
+        "frame-ancestors $frame_ancestors;");
 }
 
 /*
@@ -100,6 +113,7 @@ $prefix = IS_DEV ? "LOCALHOST_" : "ME_";
 
 $client_key = getenv($prefix . "CLIENT_KEY");
 $server_key = getenv($prefix . "SERVER_KEY");
+define("APP_SECRET", getenv("APP_SECRET") ?: AVATAR_SALT);
 putenv("CLIENT_KEY=$client_key");
 putenv("SERVER_KEY=$server_key");
 $_ENV["CLIENT_KEY"] = $client_key;

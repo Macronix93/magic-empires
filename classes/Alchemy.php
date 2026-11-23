@@ -32,11 +32,11 @@ class Alchemy
         try {
             $res = $this->db->execute_query("SELECT * FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE", [$kingdom_id]);
             $row = $res->fetch_assoc();
-            $now = time();
+            $now = microtime(true);
 
             if (!$row || (int)$row["input_resource"] === -1 || (int)$row["input_amount"] <= 0) {
                 if ($row && (int)$row["input_amount"] <= 0) {
-                    $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
+                    $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [sprintf("%.4F", $now), $kingdom_id]);
                 }
                 $this->db->commit();
                 return;
@@ -58,12 +58,12 @@ class Alchemy
             $output_room = max(0, $max_output - $current_output);
 
             if ($output_room < $output_per_step) {
-                $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [$now, $kingdom_id]);
+                $this->db->execute_query("UPDATE kingdom_alchemy SET last_update = ? WHERE kingdom_id = ?", [sprintf("%.4F", $now), $kingdom_id]);
                 $this->db->commit();
                 return;
             }
 
-            $elapsed = max(0, $now - (int)$row["last_update"]);
+            $elapsed = max(0.0, $now - (float)$row["last_update"]);
             if ($elapsed <= 0) {
                 $this->db->commit();
                 return;
@@ -96,7 +96,7 @@ class Alchemy
             if ($elapsed >= ($remaining_seconds_for_all - $grace_tolerance)) {
                 $steps_to_run = $max_possible_steps;
             } else {
-                $steps_to_run = (int)floor(($elapsed + 0.001) / $seconds_per_step);
+                $steps_to_run = (int)floor(($elapsed * $speed_per_hour + 1e-6) / ($step * 3600.0));
                 $steps_to_run = min($steps_to_run, $max_possible_steps);
             }
 
@@ -105,18 +105,15 @@ class Alchemy
                 $output_generated = $steps_to_run * $output_per_step;
                 $new_input = max(0, (int)$row["input_amount"] - $input_consumed);
                 $new_output = $current_output + $output_generated;
-
-                $time_used = $steps_to_run * $seconds_per_step;
+                $time_used = ($steps_to_run * $step * 3600.0) / $speed_per_hour;
                 $sub_second_remainder = max(0.0, $elapsed - $time_used);
-
                 $can_run_more = ($new_input >= $step && ($output_room - $output_generated) >= $output_per_step);
-                $new_last_update = $can_run_more ? ($now - (int)floor($sub_second_remainder)) : $now;
+                $new_last_update = $can_run_more ? ($now - $sub_second_remainder) : $now;
 
-                $this->db->execute_query("
-                    UPDATE kingdom_alchemy 
-                    SET input_amount = ?, output_amount = ?, last_update = ?
-                    WHERE kingdom_id = ?
-                ", [$new_input, $new_output, $new_last_update, $kingdom_id]);
+                $this->db->execute_query(
+                    "UPDATE kingdom_alchemy SET input_amount = ?, output_amount = ?, last_update = ? WHERE kingdom_id = ?",
+                    [$new_input, $new_output, sprintf("%.4F", $new_last_update), $kingdom_id]
+                );
             }
 
             $this->db->commit();
@@ -189,20 +186,13 @@ class Alchemy
             return "Start- und Zielressource dürfen nicht identisch sein.";
         }
 
-        $res_array = [
-            ResourceTypes::RESOURCE_TYPE_FOOD,
-            ResourceTypes::RESOURCE_TYPE_WOOD,
-            ResourceTypes::RESOURCE_TYPE_STONE,
-            ResourceTypes::RESOURCE_TYPE_GOLD
-        ];
-
-        if (!in_array($from_res, $res_array) || !in_array($to_res, $res_array)) {
+        $cost_key = self::resource_to_cost_key($from_res);
+        if ($cost_key === null || self::resource_to_cost_key($to_res) === null) {
             return "Ungültige Ressourcen gewählt.";
         }
 
         $step = self::get_step_size($from_res, $to_res);
         $amount = $amount - ($amount % $step);
-
         if ($amount < $step) {
             return "Die Menge muss mindestens $step " . ($step === 1 ? "Einheit" : "Einheiten") . " betragen.";
         }
@@ -212,43 +202,45 @@ class Alchemy
             return "Die maximale Kessel-Kapazität beträgt " . fnum($maxCap) . ".";
         }
 
-        $stock = match ($from_res) {
-            ResourceTypes::RESOURCE_TYPE_FOOD => $k->get_kingdom_food(),
-            ResourceTypes::RESOURCE_TYPE_WOOD => $k->get_kingdom_wood(),
-            ResourceTypes::RESOURCE_TYPE_STONE => $k->get_kingdom_stone(),
-            ResourceTypes::RESOURCE_TYPE_GOLD => $k->get_kingdom_gold(),
-            default => 0
-        };
-
-        if ($amount > $stock) {
-            return "Du hast nicht genügend Ressourcen auf Lager!";
-        }
-
-        $state = $this->get_state($kingdom_id, $lab_level);
-        if ($state["input_amount"] > 0) {
-            return "Es läuft bereits eine Umwandlung!";
-        }
+        $this->process_kingdom($kingdom_id, $lab_level);
 
         $this->db->begin_transaction();
         try {
-            $k->modify_resource($from_res, -$amount);
+            $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$kingdom_id]);
+
+            $state = $this->db->execute_query(
+                "SELECT input_amount, output_amount FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE",
+                [$kingdom_id]
+            )->fetch_assoc();
+
+            if ($state && ((int)$state["input_amount"] > 0 || (float)$state["output_amount"] > 0)) {
+                throw new RuntimeException("Es läuft bereits eine Umwandlung oder es liegen noch fertige Ressourcen zur Abholung bereit!");
+            }
+
+            if (!$k->pay_costs([$cost_key => $amount])) {
+                throw new RuntimeException("Du hast nicht genügend Ressourcen auf Lager!");
+            }
 
             $this->db->execute_query("
                 INSERT INTO kingdom_alchemy (kingdom_id, input_resource, input_amount, target_resource, output_amount, last_update)
                 VALUES (?, ?, ?, ?, 0, ?)
-                ON DUPLICATE KEY UPDATE 
+                ON DUPLICATE KEY UPDATE
                     input_resource = VALUES(input_resource),
                     input_amount = VALUES(input_amount),
                     target_resource = VALUES(target_resource),
                     output_amount = 0,
                     last_update = VALUES(last_update)
-            ", [$kingdom_id, $from_res, $amount, $to_res, time()]);
+            ", [$kingdom_id, $from_res, $amount, $to_res, sprintf("%.4F", microtime(true))]);
 
             $this->db->commit();
             return null;
-        } catch (Exception $e) {
+        } catch (RuntimeException $e) {
             $this->db->rollback();
-            return "Fehler beim Starten der Umwandlung: " . $e->getMessage();
+            return $e->getMessage();
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            Logger::get_instance()->error("Alchemy start_transmutation error: " . $e->getMessage());
+            return "Fehler beim Starten der Umwandlung.";
         }
     }
 
@@ -266,7 +258,7 @@ class Alchemy
                 "input_amount" => 0,
                 "target_resource" => -1,
                 "output_amount" => 0,
-                "last_update" => time()
+                "last_update" => microtime(true)
             ];
         }
 
@@ -275,119 +267,160 @@ class Alchemy
 
     public function top_up(int $kingdom_id, int $amount, int $lab_level, Kingdom $k): ?string
     {
-        $state = $this->get_state($kingdom_id, $lab_level);
-        if ($state["input_resource"] === -1) {
-            return "Keine Umwandlung aktiv.";
-        }
-
         if ($amount <= 0) {
             return "Bitte gib eine Menge größer als 0 an.";
         }
 
-        $step = self::get_step_size($state["input_resource"], $state["target_resource"]);
-        $amount = $amount - ($amount % $step);
-
-        if ($amount <= 0) {
-            return "Bitte gib mindestens $step Einheiten zum Nachfüllen an.";
-        }
-
-        $max_cap = self::get_capacity($lab_level);
-        $free_space = max(0, $max_cap - $state["input_amount"]);
-
-        if ($amount > $free_space) {
-            return "Der Kessel kann maximal noch " . fnum($free_space) . " Ressourcen aufnehmen.";
-        }
-
-        $stock = match ($state["input_resource"]) {
-            ResourceTypes::RESOURCE_TYPE_FOOD => $k->get_kingdom_food(),
-            ResourceTypes::RESOURCE_TYPE_WOOD => $k->get_kingdom_wood(),
-            ResourceTypes::RESOURCE_TYPE_STONE => $k->get_kingdom_stone(),
-            ResourceTypes::RESOURCE_TYPE_GOLD => $k->get_kingdom_gold(),
-            default => 0
-        };
-
-        if ($amount > $stock) {
-            return "Nicht genügend Rohstoffe im Lager.";
-        }
+        $this->process_kingdom($kingdom_id, $lab_level);
 
         $this->db->begin_transaction();
         try {
-            $k->modify_resource($state["input_resource"], -$amount);
+            $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$kingdom_id]);
 
-            $this->db->execute_query("UPDATE kingdom_alchemy SET input_amount = input_amount + ?, last_update = ? WHERE kingdom_id = ?", [$amount, time(), $kingdom_id]);
+            $state = $this->db->execute_query(
+                "SELECT * FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE",
+                [$kingdom_id]
+            )->fetch_assoc();
+
+            if (!$state || (int)$state["input_resource"] === -1) {
+                throw new RuntimeException("Keine Umwandlung aktiv.");
+            }
+
+            $in_res = (int)$state["input_resource"];
+            $out_res = (int)$state["target_resource"];
+            $cur_in = (int)$state["input_amount"];
+
+            $cost_key = self::resource_to_cost_key($in_res);
+            if ($cost_key === null) {
+                throw new RuntimeException("Ungültige Ressource im Kessel.");
+            }
+
+            $step = self::get_step_size($in_res, $out_res);
+            $amount = $amount - ($amount % $step);
+            if ($amount <= 0) {
+                throw new RuntimeException("Bitte gib mindestens $step Einheiten zum Nachfüllen an.");
+            }
+
+            $max_cap = self::get_capacity($lab_level);
+            $free_space = max(0, $max_cap - $cur_in);
+            if ($amount > $free_space) {
+                throw new RuntimeException("Der Kessel kann maximal noch " . fnum($free_space) . " Ressourcen aufnehmen.");
+            }
+
+            if (!$k->pay_costs([$cost_key => $amount])) {
+                throw new RuntimeException("Nicht genügend Rohstoffe im Lager.");
+            }
+
+            if ($cur_in < $step) {
+                $this->db->execute_query(
+                    "UPDATE kingdom_alchemy SET input_amount = input_amount + ?, last_update = ? WHERE kingdom_id = ?",
+                    [$amount, sprintf("%.4F", microtime(true)), $kingdom_id]
+                );
+            } else {
+                $this->db->execute_query(
+                    "UPDATE kingdom_alchemy SET input_amount = input_amount + ? WHERE kingdom_id = ?",
+                    [$amount, $kingdom_id]
+                );
+            }
+
             $this->db->commit();
             return null;
-        } catch (Exception $e) {
+        } catch (RuntimeException $e) {
             $this->db->rollback();
-            return "Fehler beim Nachfüllen: " . $e->getMessage();
+            return $e->getMessage();
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            Logger::get_instance()->error("Alchemy top_up error: " . $e->getMessage());
+            return "Fehler beim Nachfüllen.";
         }
     }
 
     public function claim(int $kingdom_id, int $lab_level, Kingdom $k): ?string
     {
-        $state = $this->get_state($kingdom_id, $lab_level);
-        $claimable = (int)round((float)$state["output_amount"]);
-
-        if ($claimable <= 0) {
-            return "Keine fertigen Ressourcen zum Einsammeln bereit.";
-        }
-
-        $target_res = $state["target_resource"];
+        $this->process_kingdom($kingdom_id, $lab_level);
 
         $this->db->begin_transaction();
         try {
-            $k->modify_resource($target_res, $claimable);
+            $state = $this->db->execute_query(
+                "SELECT * FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE",
+                [$kingdom_id]
+            )->fetch_assoc();
 
-            if ($state["input_amount"] <= 0) {
-                $this->db->execute_query("DELETE FROM kingdom_alchemy WHERE kingdom_id = ?", [$kingdom_id]);
-            } else {
-                $this->db->execute_query("
-                    UPDATE kingdom_alchemy 
-                    SET output_amount = 0
-                    WHERE kingdom_id = ?
-                ", [$kingdom_id]);
+            $claimable = $state ? (int)round((float)$state["output_amount"]) : 0;
+            if ($claimable <= 0) {
+                $this->db->rollback();
+                return "Keine fertigen Ressourcen zum Einsammeln bereit.";
             }
 
-            Stats::update_player_stat($k->get_kingdom_owner_id(), "alchemy_claimed", $claimable);
+            $target_res = (int)$state["target_resource"];
+            $k->modify_resource($target_res, $claimable);
+
+            if ((int)$state["input_amount"] <= 0) {
+                $this->db->execute_query("DELETE FROM kingdom_alchemy WHERE kingdom_id = ?", [$kingdom_id]);
+            } else {
+                $this->db->execute_query("UPDATE kingdom_alchemy SET output_amount = 0 WHERE kingdom_id = ?", [$kingdom_id]);
+            }
 
             $this->db->commit();
+
+            Stats::update_player_stat($k->get_kingdom_owner_id(), "alchemy_claimed", $claimable);
             return null;
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->db->rollback();
-            return "Fehler beim Abholen: " . $e->getMessage();
+            Logger::get_instance()->error("Alchemy claim error: " . $e->getMessage());
+            return "Fehler beim Abholen.";
         }
     }
 
     public function cancel(int $kingdom_id, int $lab_level, Kingdom $k): ?string
     {
-        $state = $this->get_state($kingdom_id, $lab_level);
-        if ($state["input_resource"] === -1 && (float)$state["output_amount"] <= 0) {
-            return "Keine Umwandlung aktiv.";
-        }
+        $this->process_kingdom($kingdom_id, $lab_level);
 
         $this->db->begin_transaction();
         try {
-            $unconverted = $state["input_amount"];
-            if ($unconverted > 0 && $state["input_resource"] !== -1) {
-                $k->modify_resource($state["input_resource"], $unconverted);
+            $state = $this->db->execute_query(
+                "SELECT * FROM kingdom_alchemy WHERE kingdom_id = ? FOR UPDATE",
+                [$kingdom_id]
+            )->fetch_assoc();
+
+            if (!$state || ((int)$state["input_resource"] === -1 && (float)$state["output_amount"] <= 0)) {
+                $this->db->rollback();
+                return "Keine Umwandlung aktiv.";
+            }
+
+            $unconverted = (int)$state["input_amount"];
+            if ($unconverted > 0 && (int)$state["input_resource"] !== -1) {
+                $k->modify_resource((int)$state["input_resource"], $unconverted);
             }
 
             $has_claimable = ((int)round((float)$state["output_amount"]) > 0);
             if ($has_claimable) {
-                $this->db->execute_query("
-                    UPDATE kingdom_alchemy 
-                    SET input_resource = -1, input_amount = 0, last_update = ?
-                    WHERE kingdom_id = ?
-                ", [time(), $kingdom_id]);
+                $this->db->execute_query(
+                    "UPDATE kingdom_alchemy SET input_resource = -1, input_amount = 0, last_update = ? WHERE kingdom_id = ?",
+                    [sprintf("%.4F", microtime(true)), $kingdom_id]
+                );
             } else {
                 $this->db->execute_query("DELETE FROM kingdom_alchemy WHERE kingdom_id = ?", [$kingdom_id]);
             }
 
             $this->db->commit();
             return null;
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->db->rollback();
-            return "Fehler beim Abbrechen: " . $e->getMessage();
+            Logger::get_instance()->error("Alchemy cancel error: " . $e->getMessage());
+            return "Fehler beim Abbrechen.";
         }
     }
+
+    private static function resource_to_cost_key(int $res_type): ?string
+    {
+        return match ($res_type) {
+            ResourceTypes::RESOURCE_TYPE_FOOD => "cost_food",
+            ResourceTypes::RESOURCE_TYPE_WOOD => "cost_wood",
+            ResourceTypes::RESOURCE_TYPE_STONE => "cost_stone",
+            ResourceTypes::RESOURCE_TYPE_GOLD => "cost_gold",
+            default => null
+        };
+    }
+
 }

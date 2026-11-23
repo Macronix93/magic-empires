@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$type = $_POST["type"] ?? $_GET["type"] ?? "private";
+$type = post_str("type") ?: get_str("type", "private");
 $allowed_types = ["private", "world", "guild"];
 if (!in_array($type, $allowed_types, true)) {
     echo json_encode(["error" => "Ungültiger Chat-Typ"]);
@@ -9,8 +9,9 @@ if (!in_array($type, $allowed_types, true)) {
 }
 
 $u_id = $user->get_user_id();
-$last_id = (int)($_GET["last_id"] ?? 0);
-$oldest_id = (int)($_GET["oldest_id"] ?? 0);
+$last_id = max(0, get_int("last_id"));
+$oldest_id = max(0, get_int("oldest_id"));
+$del_since = max(0, $last_id - 50);
 
 if ($type === "guild" && isset($_POST["mark_all_read"])) {
     $guild_id = $user->get_user_guild_id();
@@ -80,8 +81,8 @@ if ($type === "world") {
         }
 
         $del_res = $db_instance->execute_query(
-            "SELECT id FROM world_chat WHERE id > (? - 50) AND deleted = 1",
-            [$last_id]
+            "SELECT id FROM world_chat WHERE id > ? AND deleted = 1",
+            [$del_since]
         );
         while ($del_row = $del_res->fetch_assoc()) {
             $deleted_ids[] = (int)$del_row["id"];
@@ -125,8 +126,8 @@ if ($type === "world") {
         }
 
         $del_res = $db_instance->execute_query(
-            "SELECT id FROM guild_chat WHERE guild_id = ? AND id > (? - 50) AND deleted = 1",
-            [$guild_id, $last_id]
+            "SELECT id FROM guild_chat WHERE guild_id = ? AND id > ? AND deleted = 1",
+            [$guild_id, $del_since]
         );
         while ($del_row = $del_res->fetch_assoc()) {
             $deleted_ids[] = (int)$del_row["id"];
@@ -141,7 +142,7 @@ if ($type === "world") {
     $reaction_updates = Messages::get_batch_reaction_badges("guild_chat", $visible_ids, $user);
     $extra_data["guildUnread"] = new Messages($user)->get_unread_guild_count();
 } else {
-    $partner_id = (int)($_GET["s"] ?? 0);
+    $partner_id = get_int("s");
     if ($partner_id <= 0) {
         echo json_encode([
             "html" => "",
@@ -178,8 +179,8 @@ if ($type === "world") {
     }
 
     $del_res = $db_instance->execute_query(
-        "SELECT id FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND id > (? - 50) AND deleted = 1",
-        [$partner_id, $u_id, $u_id, $partner_id, $last_id]
+        "SELECT id FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND id > ? AND deleted = 1",
+        [$partner_id, $u_id, $u_id, $partner_id, $del_since]
     );
     while ($del_row = $del_res->fetch_assoc()) {
         $deleted_ids[] = (int)$del_row["id"];

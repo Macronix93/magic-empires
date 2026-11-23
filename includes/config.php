@@ -201,10 +201,37 @@ const SETTLER_CHANCE_STEP = 0.2;
 const MAX_SETTLER_CHANCE = 1.0;
 const PLAYER_KINGDOM_SCOUT_BOOST = 0.5;
 const RESOURCE_TILE_DEPLETED_THRESHOLD = 5;
-const MAX_SETTLER_WAGONS_PER_KINGDOM = 8;
-const MAX_CONQUERORS_PER_KINGDOM = 20;
-const MAX_RAIDERS_PER_KINGDOM = 800;
-const TROOP_LIMIT_EXEMPT = [Soldiers::SOLDIER_SETTLER_WAGON, Soldiers::SOLDIER_CONQUEROR, Soldiers::SOLDIER_RAIDER];
+const TROOP_LIMIT_EXEMPT = [
+    Soldiers::SOLDIER_SETTLER_WAGON,
+    Soldiers::SOLDIER_CONQUEROR,
+    Soldiers::SOLDIER_RAIDER
+];
+const SPECIAL_UNIT_LIMITS = [
+    Soldiers::SOLDIER_SETTLER_WAGON => [
+        "name" => "Gründungskarren",
+        "per_level" => 0.8,
+        "min" => 2,
+        "max" => 8
+    ],
+    Soldiers::SOLDIER_CONQUEROR => [
+        "name" => "Eroberer",
+        "per_level" => 2,
+        "min" => 2,
+        "max" => 20
+    ],
+    Soldiers::SOLDIER_RAIDER => [
+        "name" => "Räuber",
+        "per_level" => 80,
+        "min" => 80,
+        "max" => 800
+    ],
+    Soldiers::SOLDIER_THIEF => [
+        "name" => "Diebe",
+        "per_level" => 40,
+        "min" => 40,
+        "max" => 400
+    ]
+];
 
 // --- Techs ---
 const RESEARCH_FOOD_INC = 2500;
@@ -527,28 +554,22 @@ const ARENA_HERO_SKILLS = [
         "id" => 1,
         "name" => "Anti-Infanterie",
         "desc" => "Trifft gezielt Schwachstellen feindlicher Fußsoldaten.",
-        "icon" => "icon_sword",
         "target_cat" => 0,
-        "target_name" => "Infanterie",
-        "rps_base" => ARENA_HERO_RPS_BASE
+        "target_name" => "Infanterie"
     ],
     2 => [
         "id" => 2,
         "name" => "Anti-Kavallerie",
         "desc" => "Bricht mit schweren Piken den Ansturm berittener Einheiten.",
-        "icon" => "icon_shield",
         "target_cat" => 1,
-        "target_name" => "Kavallerie",
-        "rps_base" => ARENA_HERO_RPS_BASE
+        "target_name" => "Kavallerie"
     ],
     3 => [
         "id" => 3,
         "name" => "Anti-Fernkampf",
         "desc" => "Durchbricht mit hoher Geschwindigkeit feindliche Schützenreihen.",
-        "icon" => "icon_hero",
         "target_cat" => 2,
-        "target_name" => "Fernkampf",
-        "rps_base" => ARENA_HERO_RPS_BASE
+        "target_name" => "Fernkampf"
     ]
 ];
 

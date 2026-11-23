@@ -22,11 +22,7 @@ include_once("layout/head.php");
     foreach ($result as $row) {
         $username = e($row["username"]);
 
-        echo "<tr><td>
-                <a href='#' 
-                   data-on-click='pickUser' 
-                   data-username='" . e($username) . "'>" . e($username) . "</a>
-              </td></tr>";
+        echo "<tr><td><a href='#' data-on-click='pickUser' data-username='$username'>$username</a></td></tr>";
     }
     ?>
 </table>

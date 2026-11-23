@@ -5,7 +5,7 @@ $user->check_user_login();
 
 require_once("includes/content/halloffame_data.php");
 
-$active_cat = $_GET["cat"] ?? "ranking";
+$active_cat = get_str("cat", "ranking");
 if (!isset($categories[$active_cat])) {
     $active_cat = "ranking";
 }

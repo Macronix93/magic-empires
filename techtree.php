@@ -40,12 +40,12 @@ $view .= '<table class="table">
     </tr>';
 
 $building_count = count($buildings);
-for ($i = 0; $i < $building_count; $i++) {
+foreach ($buildings as $i => $building_obj) {
     $is_embassy = ($i === BuildingTypes::BUILDING_EMBASSY);
     $target_buildings = $is_embassy ? $main_buildings : $buildings;
 
     $current_building_level = $target_buildings[$i]->get_building_level();
-    $building_dependencies = $buildings[$i]->get_building_dependencies();
+    $building_dependencies = $building_obj->get_building_dependencies();
 
     if (!empty($building_dependencies)) {
         foreach ($building_dependencies as $dependency) {
@@ -62,8 +62,8 @@ for ($i = 0; $i < $building_count; $i++) {
     }
 
     $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?bid=" . e($i) . "' data-title='Gebäude-Info'>
-                <td class='td-center' style='width: 5%;'>" . $buildings[$i]->get_building_icon() . "</td>
-                <td style='width: 35%;'>" . $buildings[$i]->get_building_name() . " ($current_building_level)</td>
+                <td class='td-center' style='width: 5%;'>" . $building_obj->get_building_icon() . "</td>
+                <td style='width: 35%;'>" . $building_obj->get_building_name() . " ($current_building_level)</td>
                 <td class='techtree-requirements'>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td>
             </tr>";
 

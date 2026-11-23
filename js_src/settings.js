@@ -296,7 +296,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const sortList = document.getElementById("kingdom-sort-list");
     if (!sortList) return;
 
-    // Natives HTML5-Drag-Geisterbild deaktivieren
     sortList.addEventListener("dragstart", (e) => e.preventDefault());
 
     let draggedItem = null;
@@ -307,7 +306,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const onPointerMove = (e) => {
         if (!draggedItem) return;
 
-        // Element exakt an der Maus / am Finger führen
         draggedItem.style.left = (e.clientX - offsetX) + "px";
         draggedItem.style.top = (e.clientY - offsetY) + "px";
 

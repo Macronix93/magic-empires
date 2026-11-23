@@ -1,5 +1,3 @@
-let currentOverlayUrl = "";
-
 registerAction("openOverlay", (el, e) => {
     if (e) e.stopPropagation();
 
@@ -22,6 +20,22 @@ registerAction("mapJump", (el, e) => {
         redirectToMap(x, y);
     }
 });
+
+function clearOverlayLoader(modal) {
+    if (!modal) return;
+
+    if (modal._loaderTimer) {
+        clearTimeout(modal._loaderTimer);
+        modal._loaderTimer = null;
+    }
+
+    modal.querySelector(".overlay-loader")?.remove();
+
+    const body = modal.querySelector(".overlay-body, #overlay-content-body");
+    if (body) {
+        body.style.pointerEvents = "";
+    }
+}
 
 function getModalFocusableElements(modal) {
     if (!modal) return [];
@@ -124,27 +138,14 @@ function initOverlayDrag(modal) {
         modal.style.transform = `translate3d(${x}px, ${y}px, 0) translateX(-50%)`;
     }
 
-    function dragStart(e) {
-        if (e.target.closest(".overlay-close-btn")) return;
-        if (e.target !== dragItem && !dragItem.contains(e.target)) return;
-        if (window.getSelection) window.getSelection().removeAllRanges();
-        if (e.cancelable) e.preventDefault();
-        isDragging = true;
-
-        const clientX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
-        const clientY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
-        initialX = clientX - xOffset;
-        initialY = clientY - yOffset;
-    }
-
     function drag(e) {
         if (!isDragging) return;
         if (e.cancelable) e.preventDefault();
+
         const clientX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
         const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
         const x = clientX - initialX;
         const y = clientY - initialY;
-
         const rect = modal.getBoundingClientRect();
         const winW = window.innerWidth;
         const winH = window.innerHeight;
@@ -156,19 +157,49 @@ function initOverlayDrag(modal) {
 
         xOffset = Math.min(Math.max(x, minX), maxX);
         yOffset = Math.min(Math.max(y, minY), maxY);
+
         setTranslate(xOffset, yOffset);
+    }
+
+    function detachListeners() {
+        document.removeEventListener("mousemove", drag);
+        document.removeEventListener("mouseup", dragEnd);
+        document.removeEventListener("touchmove", drag);
+        document.removeEventListener("touchend", dragEnd);
+        document.removeEventListener("touchcancel", dragEnd);
     }
 
     function dragEnd() {
         isDragging = false;
+        detachListeners();
+    }
+
+    function dragStart(e) {
+        if (e.target.closest(".overlay-close-btn")) return;
+        if (e.target !== dragItem && !dragItem.contains(e.target)) return;
+        if (window.getSelection) window.getSelection().removeAllRanges();
+        if (e.cancelable) e.preventDefault();
+
+        isDragging = true;
+        const isTouch = e.type === "touchstart";
+        const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+        const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+        initialX = clientX - xOffset;
+        initialY = clientY - yOffset;
+
+        if (isTouch) {
+            document.addEventListener("touchmove", drag, {passive: false});
+            document.addEventListener("touchend", dragEnd);
+            document.addEventListener("touchcancel", dragEnd);
+        } else {
+            document.addEventListener("mousemove", drag);
+            document.addEventListener("mouseup", dragEnd);
+        }
     }
 
     dragItem.addEventListener("mousedown", dragStart);
-    document.addEventListener("mouseup", dragEnd);
-    document.addEventListener("mousemove", drag);
     dragItem.addEventListener("touchstart", dragStart, {passive: false});
-    document.addEventListener("touchmove", drag, {passive: false});
-    document.addEventListener("touchend", dragEnd);
+    modal._cleanupDrag = dragEnd;
 }
 
 function openOverlay(url, title = "", width = null, forceNew = false, sourceElement = null, isReload = false) {
@@ -181,27 +212,23 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
     }
 
     const openModals = Array.from(document.querySelectorAll('.overlay-modal')).filter(m => m.style.display !== "none");
-
     const targetUrlNorm = normalizeUrl(url);
     const isAlreadyOpenAnywhere = openModals.some(m => normalizeUrl(m.dataset.currentUrl) === targetUrlNorm);
-
     if (isAlreadyOpenAnywhere && !forceNew && !isReload) {
         return;
     }
 
     const sourceModal = sourceElement ? sourceElement.closest('.overlay-modal') : null;
-
     let targetModal = null;
     let isAlreadyOpen = false;
 
     if (openModals.length === 0 || !sourceModal) {
-        document.querySelectorAll('.stacked-overlay').forEach(m => m.remove());
+        document.querySelectorAll('.stacked-overlay').forEach(m => destroySingleOverlay(m));
         targetModal = document.getElementById("onpage-overlay");
         isAlreadyOpen = (targetModal && targetModal.style.display === "grid");
     } else {
         const currentUrl = sourceModal.dataset.currentUrl || "";
         const isSameScript = (getScriptPath(currentUrl) === getScriptPath(url));
-
         if (isSameScript && !forceNew) {
             targetModal = sourceModal;
             isAlreadyOpen = true;
@@ -222,7 +249,6 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
             `;
             document.body.appendChild(targetModal);
             targetModal.querySelectorAll('[data-on-click]').forEach(bindActions);
-
             initOverlayDrag(targetModal);
         }
     }
@@ -232,24 +258,44 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
     if (targetModal._abortController) {
         targetModal._abortController.abort();
     }
-    targetModal._abortController = new AbortController();
-    const signal = targetModal._abortController.signal;
+    clearOverlayLoader(targetModal);
+
+    const controller = new AbortController();
+    targetModal._abortController = controller;
+    const signal = controller.signal;
 
     const content = targetModal.querySelector(".overlay-body, #overlay-content-body");
     const overlayTitle = targetModal.querySelector(".overlay-title, #overlay-title");
 
-    if (isAlreadyOpen && content) {
-        content.style.minHeight = content.offsetHeight + "px";
-        content.style.transition = "opacity 0.15s ease";
-        content.style.opacity = "0";
-    }
-
     targetModal.dataset.currentUrl = url;
-    currentOverlayUrl = url;
+
+    let loaderShown = false;
 
     if (isAlreadyOpen && content) {
-        content.innerHTML = '<div class="spinner">Lade...</div>';
-        content.style.opacity = "1";
+        content.style.pointerEvents = "none";
+        targetModal._loaderTimer = setTimeout(() => {
+            if (signal.aborted || targetModal._abortController !== controller) return;
+            loaderShown = true;
+
+            content.style.minHeight = Math.max(content.offsetHeight, 100) + "px";
+            content.style.transition = "opacity 0.15s ease";
+            content.style.opacity = "0.25";
+
+            if (!targetModal.querySelector(".overlay-loader")) {
+                const header = targetModal.querySelector(".overlay-header");
+                const headerHeight = header ? header.offsetHeight : 0;
+                const loader = document.createElement("div");
+
+                loader.className = "overlay-loader";
+                loader.style.top = headerHeight + "px";
+                loader.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;">Lade...</div>`;
+                targetModal.appendChild(loader);
+
+                requestAnimationFrame(() => {
+                    loader.style.opacity = "1";
+                });
+            }
+        }, 250);
     }
 
     fetch(url, {
@@ -258,19 +304,27 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
         signal: signal
     })
         .then(response => {
+            if (signal.aborted || targetModal._abortController !== controller) return;
+
             const isJson = response.headers.get("content-type")?.includes("application/json");
             if (isJson) {
                 return response.json().then(data => {
+                    if (signal.aborted || targetModal._abortController !== controller) return;
+                    clearOverlayLoader(targetModal);
                     closeOverlay(targetModal);
-
                     if (data.error) {
                         showGameMessage(data.error, "error");
                     }
                 });
             }
+
             return response.text().then(html => {
+                if (signal.aborted || targetModal._abortController !== controller) return;
+                clearOverlayLoader(targetModal);
+
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
+
                 let customWidth = width;
                 let customTitle = title;
                 const titleData = doc.getElementById("modal-title-data");
@@ -283,6 +337,7 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                 if (customTitle?.trim() && overlayTitle) {
                     overlayTitle.innerText = customTitle;
                 }
+
                 if (customWidth) {
                     targetModal.style.maxWidth = customWidth;
                 } else {
@@ -297,18 +352,24 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
 
                 if (!isAlreadyOpen) {
                     document.body.classList.add("modal-open");
-                    document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+                    if (typeof hideGlobalPopup === "function") {
+                        hideGlobalPopup();
+                    } else {
+                        document.querySelectorAll('.popupbox').forEach(box => box.style.display = "none");
+                    }
                     targetModal.style.display = "grid";
-
                     applyOverlayStyles(targetModal);
                 }
 
-                content.style.transition = "none";
-                content.style.opacity = isAlreadyOpen ? "0" : "1";
-                content.innerHTML = doc.body.innerHTML;
-                content.style.minHeight = "";
-                content.scrollTop = 0;
-                content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+                if (content) {
+                    content.style.transition = "none";
+                    content.style.opacity = (isAlreadyOpen && loaderShown) ? "0" : "1";
+                    content.innerHTML = doc.body.innerHTML;
+                    content.style.minHeight = "";
+                    content.scrollTop = 0;
+
+                    content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
+                }
 
                 if (typeof setup === "function") {
                     setup();
@@ -318,30 +379,35 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                     setModalInitialFocus(targetModal);
                 }, 50);
 
-                if (isAlreadyOpen) {
+                if (isAlreadyOpen && loaderShown && content) {
                     setTimeout(() => {
+                        if (signal.aborted || targetModal._abortController !== controller) return;
                         content.style.transition = "opacity 0.15s ease";
                         content.style.opacity = "1";
                     }, 20);
-                } else {
-                    content.style.opacity = "1";
                 }
             });
         })
         .catch(err => {
-            if (err.name !== 'AbortError') {
-                showGameError("Overlay Fehler:" + err);
+            if (err.name === "AbortError" || targetModal._abortController !== controller) {
+                return;
+            }
 
-                if (content) {
-                    content.innerHTML = '<div class="info-box event-error" style="margin: 10px;"><span>Fehler beim Laden.</span></div>';
-                    content.style.opacity = "1";
-                }
+            clearOverlayLoader(targetModal);
+            showGameError("Overlay Fehler:" + err);
+
+            if (content) {
+                content.innerHTML = '<div class="info-box event-error" style="margin: 10px;"><span>Fehler beim Laden.</span></div>';
+                content.style.opacity = "1";
             }
         });
 }
 
 function destroySingleOverlay(modal) {
     if (!modal) return;
+
+    modal._cleanupDrag?.();
+    clearOverlayLoader(modal);
 
     if (modal._abortController) {
         modal._abortController.abort();
@@ -357,7 +423,6 @@ function destroySingleOverlay(modal) {
         modal.style.display = "none";
         modal.style.maxWidth = "";
         modal.dataset.currentUrl = "";
-        currentOverlayUrl = "";
     } else {
         modal.remove();
     }

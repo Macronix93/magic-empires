@@ -6,6 +6,7 @@ $user->check_user_login();
 $has_import = isset($_GET["import_monsters"]);
 $keep_sim = isset($_GET["keep_sim"]);
 $has_warsim_ach = $user->has_achievement(AchievementTypes::ACHIEVEMENT_SECRET_WARSIM);
+$_SESSION["warsim_opened"] = true;
 
 if (!$has_import && !$keep_sim) {
     setcookie("me_sim_tab", "", time() - 3600, "/");
@@ -413,7 +414,7 @@ $view .= '<div id="warsim-data"
                 data-armor_weight_exponent="' . ARMOR_WEIGHT_EXPONENT . '">
             </div>';
 
-$monster_import = $_GET["import_monsters"] ?? "";
+$monster_import = get_str("import_monsters");
 
 $view .= '<div id="monster-import-data" data-import="' . e($monster_import) . '"></div>';
 

@@ -118,9 +118,12 @@ Arena::check_and_broadcast_season_start();
 // Advent calendar
 if (AdventCalendar::is_active()) {
     $current_day = AdventCalendar::get_current_day();
-    
+
     if ($current_day <= ADVENT_CALENDAR_TOTAL_DAYS) {
         $spawned_count = new AdventCalendar()->spawn_day_for_all($current_day);
         echo "[" . date("H:i:s") . "] Adventskalender: Tag $current_day an $spawned_count Spieler verteilt.\n";
     }
 }
+
+// Ratelimits
+RateLimiter::cleanup();

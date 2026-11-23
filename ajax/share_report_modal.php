@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$msg_id = (int)($_GET["id"] ?? 0);
+$msg_id = get_int("id");
 $uid = $user->get_user_id();
 
 $res = $db_instance->execute_query(
@@ -28,7 +28,6 @@ $my_gid = $user->get_user_guild_id();
     <div style="text-align: center; margin-bottom: 15px;">
         <span style="font-size: 16px; color: var(--link-color);"><b>⚔️ <?= e($label) ?></b></span>
     </div>
-    <div id="share-coords-error" style="display: none; margin-bottom: 10px;"></div>
     <form id="form-share-coords" method="POST" action="ajax/share_coords_send.php"
           data-on-submit="submitShareCoords">
         <input type="hidden" name="report_msg_id" value="<?= $msg_id ?>">

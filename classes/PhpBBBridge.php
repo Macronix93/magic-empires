@@ -363,7 +363,7 @@ class PhpBBBridge
         }
 
         $now = time();
-        if (isset($_SESSION["forum_unread_cache"]) && ($now - $_SESSION["forum_unread_cache"]["time"]) < 60) {
+        if (isset($_SESSION["forum_unread_cache"]) && ($now - $_SESSION["forum_unread_cache"]["time"]) < 180) {
             return (int)$_SESSION["forum_unread_cache"]["count"];
         }
 

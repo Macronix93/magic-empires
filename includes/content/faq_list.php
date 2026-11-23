@@ -286,8 +286,9 @@
                     </ul>
                     <b>6. Nach dem Kampf (Beute & Eroberung):</b>
                     <ul style="margin: 5px 0 10px 0; padding-left: 20px;">
-                        <li><b>Diebe:</b> Haben die Angreifer gewonnen und Diebe überleben, stehlen sie ungeschützte
-                            Ressourcen.
+                        <li><b>Diebe:</b> Sollten Diebe überleben, stehlen sie ungeschützte
+                            Ressourcen. Diebe können auch unabhängig eines normalen Kampfes zum Stehlen von Ressourcen
+                            losgeschickt werden, sofern der Trupp nur aus Dieben besteht.
                         </li>
                         <li><b>Eroberer:</b> Besiegt die Angriffsarmee alle Verteidiger restlos und führt einen <i>Eroberer</i>
                             mit, besteht eine Chance, das Königreich

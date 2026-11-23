@@ -10,6 +10,7 @@ class User
     private int $current_kingdom;
     private ?array $cached_unread_counts = null;
     private ?array $user_row = null;
+    private ?int $cached_coin_limit = null;
 
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
@@ -40,9 +41,12 @@ class User
     public function register_user(string $name, string $email, string $pass): void
     {
         $password = password_hash($pass, PASSWORD_BCRYPT);
-        $activation_key = md5($email . $name);
+        $activation_key = bin2hex(random_bytes(16));
         $ip = $_SERVER["REMOTE_ADDR"];
-        $device_id = $_COOKIE["me_device_id"] ?? bin2hex(random_bytes(16));
+        $raw_device = $_COOKIE["me_device_id"] ?? null;
+        $device_id = (is_string($raw_device) && preg_match('/^[a-f0-9]{32}$/', $raw_device))
+            ? $raw_device
+            : bin2hex(random_bytes(16));
         $timestamp = time();
 
         if (!isset($_COOKIE["me_device_id"])) {
@@ -97,7 +101,10 @@ class User
 
         $this->user_id = $user_id;
 
-        $device_id = $_COOKIE["me_device_id"] ?? bin2hex(random_bytes(16));
+        $raw_device = $_COOKIE["me_device_id"] ?? null;
+        $device_id = (is_string($raw_device) && preg_match('/^[a-f0-9]{32}$/', $raw_device))
+            ? $raw_device
+            : bin2hex(random_bytes(16));
         setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
 
         // Fetch users data
@@ -129,6 +136,8 @@ class User
         Achievement::check($user_id);
 
         Logger::get_instance()->log_game("ACCOUNT", "LOGIN_SUCCESS");
+
+        get_csrf_token();
     }
 
     public function process_user_events(): void
@@ -386,8 +395,13 @@ class User
 
     public function set_last_upgraded_soldier(int $kingdom_id, string $name, int $count, int $category = 0): void
     {
-        if (!isset($_SESSION["last_upgraded"][$kingdom_id])) {
+        if (!isset($_SESSION["last_upgraded"])) {
             $_SESSION["last_upgraded"] = [];
+        }
+
+        $prev = $_SESSION["last_upgraded"][$kingdom_id] ?? null;
+        if ($prev && ($prev["name"] ?? "") === $name) {
+            $count += (int)($prev["count"] ?? 0);
         }
 
         $_SESSION["last_upgraded"][$kingdom_id] = [
@@ -549,23 +563,50 @@ class User
         return (int)($row["mainkingdom"] ?? 0);
     }
 
+    public function spend_user_coins(int $cost): bool
+    {
+        if ($cost <= 0) return true;
+
+        $this->mysqli->execute_query("UPDATE users SET coins = coins - ? WHERE id = ? AND coins >= ?",
+            [$cost, $this->user_id, $cost]
+        );
+
+        if ($this->mysqli->affected_rows !== 1) {
+            return false;
+        }
+
+        $fresh = (int)($this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?",
+            [$this->user_id])->fetch_column() ?? 0);
+
+        if ($this->user_row !== null) {
+            $this->user_row["coins"] = $fresh;
+        }
+
+        return true;
+    }
+
     public function give_user_coins(int $amount): void
     {
-        $current_coins = $this->get_user_coins();
+        if ($amount === 0) return;
+
         $limit = $this->get_coin_limit();
 
         if ($amount > 0) {
-            if ($current_coins >= $limit) {
-                return;
-            }
-
-            $new_coins = min($limit, $current_coins + $amount);
+            $this->mysqli->execute_query(
+                "UPDATE users SET coins = IF(coins >= ?, coins, LEAST(?, coins + ?)) WHERE id = ?",
+                [$limit, $limit, $amount, $this->user_id]
+            );
         } else {
-            $new_coins = max(0, $current_coins + $amount);
+            $this->mysqli->execute_query(
+                "UPDATE users SET coins = GREATEST(0, coins + ?) WHERE id = ?",
+                [$amount, $this->user_id]
+            );
         }
 
-        $this->mysqli->execute_query("UPDATE users SET coins = ? WHERE id = ?", [$new_coins, $this->user_id]);
-        $this->user_row["coins"] = $new_coins;
+        $fresh = (int)($this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->user_id])->fetch_column() ?? 0);
+        if ($this->user_row !== null) {
+            $this->user_row["coins"] = $fresh;
+        }
     }
 
     public function get_user_coins(): int
@@ -576,22 +617,31 @@ class User
 
     public function get_coin_limit(): int
     {
+        if ($this->cached_coin_limit !== null) {
+            return $this->cached_coin_limit;
+        }
+
         $result = $this->mysqli->execute_query("
-                SELECT MAX(b.buildinglevel) AS max_lvl 
-                FROM buildings b 
-                JOIN kingdoms k ON b.kingdomid = k.id 
-                WHERE k.userid = ? AND b.buildingid IN (?, ?, ?, ?)",
-            [$this->user_id, BuildingTypes::BUILDING_MILL, BuildingTypes::BUILDING_SAWMILL,
-                BuildingTypes::BUILDING_STONEMINE, BuildingTypes::BUILDING_GOLDMINE]);
+            SELECT MAX(b.buildinglevel) AS max_lvl 
+            FROM buildings b 
+            JOIN kingdoms k ON b.kingdomid = k.id 
+            WHERE k.userid = ? AND b.buildingid IN (?, ?, ?, ?)",
+            [$this->user_id, BuildingTypes::BUILDING_MILL, BuildingTypes::BUILDING_SAWMILL, BuildingTypes::BUILDING_STONEMINE,
+                BuildingTypes::BUILDING_GOLDMINE]
+        );
 
         $row = $result->fetch_assoc();
-
         if ($row["max_lvl"] === null) {
-            return BOOST_COIN_BASE;
+            return $this->cached_coin_limit = BOOST_COIN_BASE;
         }
 
         $max_lvl = (int)$row["max_lvl"];
-        return 2 * (BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $max_lvl - 1));
+        return $this->cached_coin_limit = 2 * (BOOST_COIN_BASE + BOOST_COIN_FACTOR * max(0, $max_lvl - 1));
+    }
+
+    public function invalidate_coin_limit_cache(): void
+    {
+        $this->cached_coin_limit = null;
     }
 
     public function get_guild_rank_id(): int
@@ -645,7 +695,13 @@ class User
 
         $cookie_value = $this->user_id . ':' . $random_token;
         $is_secure = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off");
-        setcookie("me_remember", $cookie_value, $expires, '/', '', $is_secure, true);
+        setcookie("me_remember", $cookie_value, [
+            "expires" => $expires,
+            "path" => "/",
+            "secure" => $is_secure,
+            "httponly" => true,
+            "samesite" => "Lax"
+        ]);
     }
 
     public function refresh_remember_me_token(string $raw_token, string $token_hash): void
@@ -659,7 +715,13 @@ class User
 
         $cookie_value = $this->user_id . ':' . $raw_token;
         $is_secure = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off");
-        setcookie("me_remember", $cookie_value, $expires, '/', '', $is_secure, true);
+        setcookie("me_remember", $cookie_value, [
+            "expires" => $expires,
+            "path" => "/",
+            "secure" => $is_secure,
+            "httponly" => true,
+            "samesite" => "Lax"
+        ]);
     }
 
     public function check_user_login_and_kingdom($building_type): array

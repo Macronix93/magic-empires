@@ -27,12 +27,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $action = $_POST["action"] ?? "";
+        $action = post_str("action");
 
         if ($action === "accept_offer") {
-            $offer_id = (int)($_POST["offer_id"] ?? 0);
-
+            $offer_id = post_int("offer_id");
             $res = $market->accept_offer($offer_id, $map);
+
             if (!$res["success"]) {
                 $error = $res["error"];
             } else {
@@ -40,12 +40,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 change_location("marketplace.php");
             }
-        }
-
-        if ($action === "delete_offer") {
-            $offer_id = (int)($_POST["offer_id"] ?? 0);
-
+        } else if ($action === "delete_offer") {
+            $offer_id = post_int("offer_id");
             $err = $market->cancel_offer($offer_id);
+
             if ($err) {
                 $error = $err;
             } else {
@@ -53,16 +51,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 change_location("marketplace.php");
             }
-        }
-
-        if ($action === "create_offer") {
-            $sv = (int)str_replace(['.', ','], '', $_POST["sv"] ?? "0");
-            $dv = (int)str_replace(['.', ','], '', $_POST["dv"] ?? "0");
-            $s = (int)($_POST["s"] ?? 0);
-            $d = (int)($_POST["d"] ?? 0);
+        } else if ($action === "create_offer") {
+            $raw_sv = str_replace(['.', ','], '', trim(post_str("sv", "0")));
+            $raw_dv = str_replace(['.', ','], '', trim(post_str("dv", "0")));
+            $sv = ctype_digit($raw_sv) ? (int)$raw_sv : 0;
+            $dv = ctype_digit($raw_dv) ? (int)$raw_dv : 0;
+            $s = post_int("s", -1);
+            $d = post_int("d", -1);
             $is_guild_only = !empty($_POST["guild_only"]) && $in_guild;
-
             $err = $market->create_offer($s, $sv, $d, $dv, $is_guild_only);
+
             if ($err) {
                 $error = $err;
             } else {
@@ -70,11 +68,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                 change_location("marketplace.php");
             }
-        }
+        } else if ($action === "send_internal") {
+            $target_k = post_int("target_k");
+            $raw_am = is_array($_POST["am"] ?? null) ? $_POST["am"] : [];
+            $amounts = [];
 
-        if ($action === "send_internal") {
-            $target_k = (int)($_POST["target_k"] ?? 0);
-            $amounts = $_POST["am"] ?? [];
+            foreach ([ResourceTypes::RESOURCE_TYPE_FOOD, ResourceTypes::RESOURCE_TYPE_WOOD, ResourceTypes::RESOURCE_TYPE_STONE, ResourceTypes::RESOURCE_TYPE_GOLD] as $rk) {
+                if (isset($raw_am[$rk]) && is_scalar($raw_am[$rk])) {
+                    $amounts[$rk] = (int)$raw_am[$rk];
+                }
+            }
 
             $res = $market->send_internal_transport($target_k, $amounts, $map);
             if (!$res["success"]) {
@@ -90,15 +93,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 // PAGINATION
 $rows_per_page = MAX_MARKETPLACE_OFFERS_PER_PAGE;
-$current_page = max(1, (int)($_GET["currentpage"] ?? 1));
-
-$num_rows = $db_instance->execute_query(
+$num_rows = (int)$db_instance->execute_query(
     "SELECT COUNT(*) FROM marketplace WHERE (guild_id = 0 OR (guild_id > 0 AND guild_id = ?))",
     [$my_guild_id]
 )->fetch_row()[0];
-
-$total_pages = ceil($num_rows / $rows_per_page);
-if ($current_page > $total_pages && $total_pages > 0) $current_page = $total_pages;
+$total_pages = max(1, (int)ceil($num_rows / $rows_per_page));
+$current_page = max(1, min($total_pages, get_int("currentpage", 1)));
 $offset = ($current_page - 1) * $rows_per_page;
 
 /*
@@ -186,8 +186,9 @@ $view .= '<form action="marketplace.php" method="POST"
             </div>
         </td>
     </tr>
+    </table>
 </form>
-</table><br>';
+<br>';
 
 $query = "
     SELECT m.*, k.mapx, k.mapy, u.guildid AS seller_guild_id
@@ -318,7 +319,6 @@ if ($result->num_rows > 0) {
         $range = 2;
         for ($x = ($current_page - $range); $x < (($current_page + $range) + 1); $x++) {
             if ($x > 0 && $x <= $total_pages) {
-                $active = ($x == $current_page) ? "active" : "";
                 if ($x == $current_page) {
                     $view .= "<span class='page-link active'>$x</span>";
                 } else {
@@ -354,7 +354,7 @@ $other_kingdoms_res = $db_instance->execute_query("
     [BuildingTypes::BUILDING_MARKETPLACE, $user->get_user_id(), $current_kingdom]
 );
 
-$last_selected_target = isset($_GET["target_k"]) ? (int)$_GET["target_k"] : -1;
+$last_selected_target = get_int("target_k", -1);
 $target_kingdoms_data = [];
 $arrival_times_cache = [];
 
@@ -476,8 +476,8 @@ if ($other_kingdoms_res->num_rows > 0) {
                             </div>
                         </td>
                     </tr>
-                    </table>
-                    </form>';
+                    </form>
+                    </table>';
 
         $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "' data-stocks='" . e(json_encode($target_kingdoms_data)) . "'></div>";
     }

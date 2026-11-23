@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$event_id = (int)($_GET["id"] ?? 0);
+$event_id = get_int("id");
 if ($event_id <= 0) {
     echo show_error_box("Ungültige Alarm-ID.");
     exit;

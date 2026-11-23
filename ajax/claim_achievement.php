@@ -3,7 +3,7 @@ require_once("../includes/ajax_core.php");
 require_post();
 
 $uid = $user->get_user_id();
-$ach_id = (int)($_POST["id"] ?? 0);
+$ach_id = post_int("id");
 
 if ($ach_id <= 0) {
     echo json_encode(["success" => false, "error" => "Ungültige ID."]);

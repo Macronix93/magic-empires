@@ -161,10 +161,6 @@ registerAction("openSuggestionComments", (el) => {
     const sugId = el.dataset.id;
 
     el.classList.remove("has-new-comments");
-    const dot = el.querySelector(".new-comment-dot");
-    if (dot) {
-        dot.remove();
-    }
 
     openOverlay(`ajax/suggestion_comments.php?id=${sugId}`, "Kommentare");
 });
@@ -216,6 +212,7 @@ registerAction("submitSuggestionComment", (form, e) => {
                 if (container) {
                     const realCount = container.dataset.totalComments;
                     const countBadge = document.getElementById(`comm_count_${sugId}`);
+
                     if (countBadge) {
                         countBadge.innerText = `${realCount}`;
                     }
@@ -331,8 +328,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const commBtn = targetCard.querySelector('.btn-comments');
             if (commBtn) {
                 commBtn.classList.remove("has-new-comments");
-                const dot = commBtn.querySelector(".new-comment-dot");
-                if (dot) dot.remove();
             }
             targetCard.scrollIntoView({behavior: "smooth", block: "center"});
         }

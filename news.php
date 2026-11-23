@@ -41,9 +41,9 @@ if ($is_admin) {
             $error = "Ungültiger Sicherheits-Token!";
         } else {
             if (isset($_POST["edit_news"])) {
-                $news_id = (int)$_POST["news_id"];
-                $raw_title = trim($_POST["title"] ?? "");
-                $raw_content = trim($_POST["content"] ?? "");
+                $news_id = post_int("news_id");
+                $raw_title = trim(post_str("title"));
+                $raw_content = trim(post_str("content"));
 
                 if (empty($raw_title) || empty($raw_content)) {
                     $error = "Bitte alle Felder ausfüllen!";
@@ -60,13 +60,13 @@ if ($is_admin) {
                         [$title, $content, time(), $news_id]
                     );
 
-                    $flash_box = show_passed_box("News-Beitrag aktualisiert!");
+                    $_SESSION["game_success"] = "News-Beitrag aktualisiert!";
                 }
-            }
 
-            if (isset($_POST["post_news"])) {
-                $raw_title = trim($_POST["title"] ?? "");
-                $raw_content = trim($_POST["content"] ?? "");
+                change_location("news.php");
+            } else if (isset($_POST["post_news"])) {
+                $raw_title = trim(post_str("title"));
+                $raw_content = trim(post_str("content"));
 
                 if (empty($raw_title) || empty($raw_content)) {
                     $error = "Bitte alle Felder ausfüllen!";
@@ -82,15 +82,17 @@ if ($is_admin) {
                         "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
                         [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
                     );
-                    $flash_box = show_passed_box("Neuigkeit veröffentlicht!");
+                    $_SESSION["game_success"] = "Neuigkeit veröffentlicht!";
                 }
-            }
 
-            if (isset($_POST["delete_news"])) {
-                $news_id = (int)$_POST["news_id"];
+                change_location("news.php");
+            } else if (isset($_POST["delete_news"])) {
+                $news_id = post_int("news_id");
                 $db_instance->execute_query("DELETE FROM news WHERE id = ?", [$news_id]);
 
-                $flash_box = show_passed_box("Eintrag gelöscht.");
+                $_SESSION["game_success"] = "Eintrag gelöscht.";
+
+                change_location("news.php");
             }
         }
     }
@@ -98,9 +100,9 @@ if ($is_admin) {
 
 // Pagination Setup
 $rows_per_page = 5;
-$current_page = max(1, (int)($_GET["currentpage"] ?? 1));
 $num_rows = $db_instance->execute_query("SELECT COUNT(*) FROM news")->fetch_row()[0];
-$total_pages = ceil($num_rows / $rows_per_page);
+$total_pages = max(1, (int)ceil($num_rows / $rows_per_page));
+$current_page = max(1, min($total_pages, get_int("currentpage", 1)));
 $offset = ($current_page - 1) * $rows_per_page;
 
 // Load News

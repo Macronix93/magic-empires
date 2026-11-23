@@ -5,6 +5,9 @@ class Map
     private object $mysqli;
     private User $user;
     private static array $path_cache = [];
+    private static ?array $map_cache = null;
+    private static array $origin_path_cache = [];
+
 
     // Constructor
     public function __construct(User $user)
@@ -147,16 +150,14 @@ class Map
 
         $actual_target_id = ($target_id !== null) ? $target_id : $this->get_field_kingdom_id($end_x, $end_y);
 
-        $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
-
-        if (empty($result) || !isset($result["totaltime"])) {
+        $base_total_time = $this->get_base_travel_time($start_x, $start_y, $end_x, $end_y);
+        if ($base_total_time === null) {
             return 999999;
         }
 
         $kid = ($origin_kingdom_id != -1) ? $origin_kingdom_id : $this->user->get_current_kingdom();
         $kingdom = new Kingdom($kid);
-
-        $modified_time = $result["totaltime"] * $kingdom->get_march_speed_multiplier();
+        $modified_time = $base_total_time * $kingdom->get_march_speed_multiplier();
 
         if ($is_support) {
             $g_sup_lvl = Guild::get_user_guild_tech_level($this->user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED);
@@ -194,24 +195,65 @@ class Map
         return (int)round($modified_time);
     }
 
+    private function get_base_travel_time(int $start_x, int $start_y, int $end_x, int $end_y): ?int
+    {
+        if ($start_x === $end_x && $start_y === $end_y) {
+            return 0;
+        }
+
+        $pair_key = "$start_x:$start_y:$end_x:$end_y";
+        if (isset(self::$path_cache[$pair_key])) {
+            return (int)self::$path_cache[$pair_key]["totaltime"];
+        }
+
+        $origin_key = "{$start_x}_$start_y";
+        $cache_file = sys_get_temp_dir() . "/me_paths_from_$origin_key.json";
+
+        if (!isset(self::$origin_path_cache[$origin_key])) {
+            if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 3600) {
+                $decoded = json_decode((string)file_get_contents($cache_file), true);
+
+                self::$origin_path_cache[$origin_key] = is_array($decoded) ? $decoded : [];
+            } else {
+                self::$origin_path_cache[$origin_key] = [];
+            }
+        }
+
+        $target_key = "$end_x:$end_y";
+        if (isset(self::$origin_path_cache[$origin_key][$target_key])) {
+            return (int)self::$origin_path_cache[$origin_key][$target_key];
+        }
+
+        $result = $this->calculate_path($start_x, $start_y, $end_x, $end_y);
+        if (empty($result) || !isset($result["totaltime"])) {
+            return null;
+        }
+
+        $total_time = (int)$result["totaltime"];
+        self::$origin_path_cache[$origin_key][$target_key] = $total_time;
+        @file_put_contents($cache_file, json_encode(self::$origin_path_cache[$origin_key]), LOCK_EX);
+
+        return $total_time;
+    }
+
     public function calculate_path(int $start_x, int $start_y, int $end_x, int $end_y): array
     {
         if ($start_x === $end_x && $start_y === $end_y) {
             return ["path" => [["x" => $start_x, "y" => $start_y, "traversaltime" => 0]], "totaltime" => 0];
         }
 
-        $cache_key = ($start_x * 1000000) + ($start_y * 10000) + ($end_x * 100) + $end_y;
-
+        $cache_key = "$start_x:$start_y:$end_x:$end_y";
         if (isset(self::$path_cache[$cache_key])) {
             return self::$path_cache[$cache_key];
         }
 
-        $map = $this->fetch_map_data();
+        $map_data = $this->fetch_map_data();
+        $costs = $map_data["costs"];
+        $min_cost = $map_data["min_cost"];
 
         $start_node = ($start_x * 1000) + $start_y;
         $end_node = ($end_x * 1000) + $end_y;
-
-        $h_start = (abs($start_x - $end_x) + abs($start_y - $end_y)) * 40;
+        $h_start = (abs($start_x - $end_x) + abs($start_y - $end_y)) * $min_cost;
 
         $open_queue = new SplPriorityQueue();
         $open_queue->setExtractFlags(SplPriorityQueue::EXTR_DATA);
@@ -223,100 +265,117 @@ class Map
 
         while (!$open_queue->isEmpty()) {
             $current_node = $open_queue->extract();
-
             if ($current_node === $end_node) {
                 $curr = $current_node;
                 $total_time = $g_scores[$end_node];
                 $path = [];
-
                 while (isset($came_from[$curr])) {
-                    $cx = (int)($curr / 1000);
+                    $cx = intdiv($curr, 1000);
                     $cy = $curr % 1000;
-                    $path[] = ["x" => $cx, "y" => $cy, "traversaltime" => $map[$cx][$cy]["traversaltime"] ?? 60];
+                    $path[] = ["x" => $cx, "y" => $cy, "traversaltime" => $costs[$curr] ?? 60];
                     $curr = $came_from[$curr];
                 }
-
                 $path[] = ["x" => $start_x, "y" => $start_y, "traversaltime" => 0];
                 $res = ["path" => array_reverse($path), "totaltime" => $total_time];
-
                 self::$path_cache[$cache_key] = $res;
                 return $res;
             }
-
             if (isset($closed[$current_node])) {
                 continue;
             }
             $closed[$current_node] = true;
-
-            $cx = (int)($current_node / 1000);
+            $cx = intdiv($current_node, 1000);
             $cy = $current_node % 1000;
             $current_g = $g_scores[$current_node];
 
-            $neighbors = [
-                (($cx) * 1000) + ($cy + 1),
-                (($cx) * 1000) + ($cy - 1),
-                (($cx + 1) * 1000) + ($cy),
-                (($cx - 1) * 1000) + ($cy)
-            ];
+            $neighbors = [];
+            if ($cy < MAX_Y) $neighbors[] = [$cx, $cy + 1, $current_node + 1];
+            if ($cy > 1) $neighbors[] = [$cx, $cy - 1, $current_node - 1];
+            if ($cx < MAX_X) $neighbors[] = [$cx + 1, $cy, $current_node + 1000];
+            if ($cx > 1) $neighbors[] = [$cx - 1, $cy, $current_node - 1000];
 
-            foreach ($neighbors as $n_node) {
+            foreach ($neighbors as [$nx, $ny, $n_node]) {
                 if (isset($closed[$n_node])) {
                     continue;
                 }
-
-                $nx = (int)($n_node / 1000);
-                $ny = $n_node % 1000;
-
-                if ($nx < 1 || $nx > MAX_X || $ny < 1 || $ny > MAX_Y) {
-                    continue;
-                }
-
-                $cost = $map[$nx][$ny]["traversaltime"] ?? 60;
+                $cost = $costs[$n_node] ?? 60;
                 $tentative_g = $current_g + $cost;
-
                 if (!isset($g_scores[$n_node]) || $tentative_g < $g_scores[$n_node]) {
                     $came_from[$n_node] = $current_node;
                     $g_scores[$n_node] = $tentative_g;
-
-                    $h = (abs($nx - $end_x) + abs($ny - $end_y)) * 40;
+                    $h = (abs($nx - $end_x) + abs($ny - $end_y)) * $min_cost;
                     $f_score = $tentative_g + $h;
-
                     $open_queue->insert($n_node, -$f_score);
                 }
             }
         }
-
         return [];
     }
 
     private function fetch_map_data(): array
     {
-        static $map_cache = null;
-        if ($map_cache !== null) return $map_cache;
+        if (self::$map_cache !== null) {
+            return self::$map_cache;
+        }
 
         $cache_file = sys_get_temp_dir() . "/me_world_traversals.json";
         if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 3600) {
-            $map_cache = json_decode(file_get_contents($cache_file), true);
-            return $map_cache;
+            $decoded = json_decode((string)file_get_contents($cache_file), true);
+            if (is_array($decoded) && isset($decoded["costs"], $decoded["min_cost"])) {
+                return self::$map_cache = $decoded;
+            }
         }
 
         $query = "SELECT m.mapx, m.mapy, f.traversaltime FROM map m JOIN field_types f ON m.fieldtype = f.fieldid";
         $result = $this->mysqli->execute_query($query);
-        $map = [];
+        $costs = [];
+        $min_cost = null;
 
         foreach ($result as $row) {
-            $map[$row["mapx"]][$row["mapy"]] = ["traversaltime" => $row["traversaltime"]];
+            $t = (int)$row["traversaltime"];
+            $node = ((int)$row["mapx"] * 1000) + (int)$row["mapy"];
+            $costs[$node] = $t;
+            if ($min_cost === null || $t < $min_cost) {
+                $min_cost = $t;
+            }
         }
 
-        file_put_contents($cache_file, json_encode($map));
-        $map_cache = $map;
-        return $map;
+        $data = [
+            "costs" => $costs,
+            "min_cost" => $min_cost ?? 40
+        ];
+        @file_put_contents($cache_file, json_encode($data), LOCK_EX);
+        return self::$map_cache = $data;
+    }
+
+    public static function clear_cache(): void
+    {
+        self::$map_cache = null;
+        self::$path_cache = [];
+        self::$origin_path_cache = [];
+
+        $cache_file = sys_get_temp_dir() . "/me_world_traversals.json";
+        if (file_exists($cache_file)) {
+            @unlink($cache_file);
+        }
+
+        $path_files = glob(sys_get_temp_dir() . "/me_paths_from_*.json");
+        if (!empty($path_files)) {
+            foreach ($path_files as $pf) {
+                if (is_file($pf)) {
+                    @unlink($pf);
+                }
+            }
+        }
     }
 
     public function get_field_kingdom_id(int $map_x, int $map_y): int
     {
-        $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
-        return $result->fetch_column();
+        $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?",
+            [$map_x, $map_y]
+        );
+        $val = $result->fetch_column();
+        return ($val !== false && $val !== null) ? (int)$val : MapFieldTypes::MAP_FIELD_EMPTY;
     }
 
     public function calculate_arrival_data(int $sx, int $sy, int $ex, int $ey, int $origin_id = -1, bool $is_caravan = false): array
@@ -328,18 +387,10 @@ class Map
         ];
     }
 
-    public static function clear_cache(): void
-    {
-        $cache_file = sys_get_temp_dir() . "/me_world_traversals.json";
-        if (file_exists($cache_file)) {
-            @unlink($cache_file);
-        }
-    }
-
     public static function require_valid_coordinates(): array
     {
-        $x = (int)($_GET["x"] ?? $_POST["x"] ?? 0);
-        $y = (int)($_GET["y"] ?? $_POST["y"] ?? 0);
+        $x = isset($_GET["x"]) ? get_int("x") : post_int("x");
+        $y = isset($_GET["y"]) ? get_int("y") : post_int("y");
 
         if ($x < 1 || $x > MAX_X || $y < 1 || $y > MAX_Y) {
             echo show_error_box("Ungültige Koordinaten.");

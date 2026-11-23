@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$target_uid = (int)($_GET["userid"] ?? 0);
+$target_uid = get_int("userid");
 if ($target_uid <= 0) {
     echo show_error_box("Ungültige Spieler-ID.");
     exit;
@@ -91,10 +91,16 @@ $winrate = $total_fights > 0 ? round(($wins / $total_fights) * 100, 1) : 0;
     <?php if (empty($res_history)): ?>
         <p style="text-align: center; opacity: 0.6; font-size: 13px;">Noch keine vergangenen Saisons aufgezeichnet.</p>
     <?php else: ?>
-        <table class="table" style="width: 100%; font-size: 13px; margin-bottom: 10px;">
+        <table class="table" style="width: 100%; margin-bottom: 10px; table-layout: fixed;">
+            <colgroup>
+                <col style="width: 24%;">
+                <col style="width: 16%;">
+                <col style="width: 28%;">
+                <col style="width: 32%;">
+            </colgroup>
             <tr>
                 <td class="td-gradient"><b>Saison</b></td>
-                <td class="td-gradient td-center"><b>Platz</b></td>
+                <td class="td-gradient td-center" style="padding: 5px 4px;"><b>Platz</b></td>
                 <td class="td-gradient td-center"><b>ELO</b></td>
                 <td class="td-gradient td-center"><b>Bilanz (S/N)</b></td>
             </tr>
@@ -110,7 +116,9 @@ $winrate = $total_fights > 0 ? round(($wins / $total_fights) * 100, 1) : 0;
                 ?>
                 <tr>
                     <td><b><?= e($month_label) ?></b></td>
-                    <td class="td-center <?= $r_class ?>">#<?= $h["rank_pos"] ?></td>
+                    <td class="td-center <?= $r_class ?>"
+                        style="font-weight: normal; font-size: inherit; white-space: nowrap;">
+                        #<?= $h["rank_pos"] ?></td>
                     <td class="td-center"><b><?= fnum($h["elo"]) ?></b></td>
                     <td class="td-center">
                         <span class="passed"><?= $h["wins"] ?></span> / <span class="error"><?= $h["losses"] ?></span>

@@ -23,8 +23,8 @@ if (!$is_season_active) {
     $player_data = $arena->get_player_data();
 
     $allowed_tabs = ["battle", "defense", "ranking", "logs"];
-    $active_tab = $_GET["tab"] ?? ($is_participating ? "battle" : "defense");
-    if (!in_array($active_tab, $allowed_tabs)) {
+    $active_tab = get_str("tab", $is_participating ? "battle" : "defense");
+    if (!in_array($active_tab, $allowed_tabs, true)) {
         $active_tab = "battle";
     }
 
@@ -33,7 +33,7 @@ if (!$is_season_active) {
     }
 
     // Load arena data
-    $arena_rank_page = max(1, (int)($_GET["page"] ?? 1));
+    $arena_rank_page = max(1, get_int("page", 1));
     $rank_per_page = 10;
 
     $total_rank_entries = $arena->get_leaderboard_count();
@@ -77,7 +77,7 @@ if (!$is_season_active) {
         $coins_display = (int)$player_data["coins"];
         $elo_display = fnum($player_data["elo"], true);
         $coin_timer_text = ($coins_display < ARENA_MAX_COINS)
-            ? "Nächster Coin in: <span class='js-countdown' 
+            ? "<br>Nächster Coin in: <span class='js-countdown' 
                                         data-seconds='$seconds_next_coin' 
                                         data-keep-params='true' 
                                         data-zero-text='00:00'>" . format_time_for_js($seconds_next_coin) . "</span>"
@@ -108,7 +108,7 @@ if (!$is_season_active) {
                         <span style='font-size: 22px; display: inline-flex; align-items: center; gap: 6px;'>
                             " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_ARENA_COINS) . " 
                             <b><span id='arena-coins-counter'>$coins_display</span> / " . ARENA_MAX_COINS . "</b>
-                        </span><br>
+                        </span>
                         <small style='opacity: 0.7;'>$coin_timer_text</small>
                     </div>
                     <div style='text-align: center;'>
@@ -459,7 +459,6 @@ if (!$is_season_active) {
         }
 
         for ($x = max(1, $arena_rank_page - 2); $x <= min($total_rank_pages, $arena_rank_page + 2); $x++) {
-            $active = ($x == $arena_rank_page) ? "active" : "";
             $view .= ($x == $arena_rank_page) ? "<span class='page-link active'>$x</span>" : "<a href='arena.php?tab=ranking&page=$x' class='page-link'>$x</a>";
         }
 

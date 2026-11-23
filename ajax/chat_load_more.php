@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$oldest_id = (int)($_GET["oldest_id"] ?? 0);
+$oldest_id = get_int("oldest_id");
 $u_id = $user->get_user_id();
 
 if ($oldest_id <= 0) {
@@ -9,7 +9,7 @@ if ($oldest_id <= 0) {
     exit;
 }
 
-$type = $_GET["type"] ?? "private";
+$type = get_str("type", "private");
 
 $allowed_types = ["private", "world", "guild", "server"];
 if (!in_array($type, $allowed_types, true)) {
@@ -18,7 +18,7 @@ if (!in_array($type, $allowed_types, true)) {
 }
 
 if ($type === "server") {
-    $category = (int)($_GET["category"] ?? -1);
+    $category = get_int("category", -1);
     $limit = SHOW_MESSAGES_LIMIT;
     $messages_obj = new Messages($user);
     $history = $messages_obj->get_server_history_paged($oldest_id, $category, $limit + 1);
@@ -75,8 +75,6 @@ if ($type === "server") {
 $rows = [];
 $has_more = false;
 $reaction_type = "chat";
-$recent_query = "";
-$recent_params = [];
 
 if ($type === "world") {
     $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
@@ -89,8 +87,6 @@ if ($type === "world") {
     $rows = array_reverse($rows);
 
     $reaction_type = "world_chat";
-    $recent_query = "SELECT id FROM world_chat ORDER BY id DESC LIMIT ?";
-    $recent_params = [MAX_WORLD_CHAT_MESSAGES_SHOWN];
 } else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
@@ -108,10 +104,8 @@ if ($type === "world") {
     $rows = array_reverse($rows);
 
     $reaction_type = "guild_chat";
-    $recent_query = "SELECT id FROM guild_chat WHERE guild_id = ? ORDER BY id DESC LIMIT ?";
-    $recent_params = [$guild_id, MAX_GUILD_CHAT_MESSAGES_SHOWN];
 } else {
-    $partner_id = (int)($_GET["s"] ?? 0);
+    $partner_id = get_int("s");
     if ($partner_id <= 0) {
         echo json_encode(["count" => 0, "hasMore" => false, "html" => ""]);
         exit;
@@ -126,38 +120,27 @@ if ($type === "world") {
     $rows = $history;
 
     $reaction_type = "chat";
-    $recent_query = "SELECT id FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) ORDER BY id DESC LIMIT ?";
-    $recent_params = [$partner_id, $u_id, $u_id, $partner_id, SHOW_MESSAGES_LIMIT];
 }
 
 // Render chat bubbles
+$row_ids = array_column($rows, "id");
+$reactions_map = Messages::fetch_reactions_for_ids($reaction_type, $row_ids, $u_id);
+
 $html = "";
 foreach ($rows as $row) {
+    $msg_id = (int)$row["id"];
     $sender_id = (int)($row["senderid"] ?? $row["userid"]);
     $sender_name = $row["sender"] ?? $row["username"];
 
     $html .= Messages::render_chat_bubble(
-        $type,
-        (int)$row["id"],
-        $sender_id,
-        $sender_name,
-        $row["message"],
-        (int)$row["date"],
-        $user
+        $type, $msg_id, $sender_id, $sender_name,
+        $row["message"], (int)$row["date"], $user, null,
+        $reactions_map[$msg_id] ?? []
     );
 }
 
-// Update reactions
-$reaction_updates = [];
-if (!empty($recent_query)) {
-    $res_recent = $db_instance->execute_query($recent_query, $recent_params);
-    $recent_ids = array_map("intval", array_column($res_recent->fetch_all(MYSQLI_ASSOC), "id"));
-    $reaction_updates = Messages::get_batch_reaction_badges($reaction_type, $recent_ids, $user);
-}
-
-echo json_encode([
+send_json([
     "html" => $html,
     "count" => count($rows),
-    "hasMore" => $has_more,
-    "reactionUpdates" => $reaction_updates
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    "hasMore" => $has_more
+]);

@@ -5,10 +5,16 @@ $uid = $user->get_user_id();
 $arena = new Arena($uid);
 $player_data = $arena->get_player_data();
 
-$defender_id = (int)($_GET["defender_id"] ?? 0);
+$defender_id = get_int("defender_id");
 $defender = $arena->get_player_data($defender_id);
 if (!$defender) {
     echo show_error_box("Gegner nicht gefunden.");
+    exit;
+}
+
+$allowed_opps = array_map("intval", $player_data["current_opponents"] ?? []);
+if (!in_array($defender_id, $allowed_opps, true)) {
+    echo show_error_box("Dieser Gegner befindet sich nicht in deiner aktuellen Auswahl.");
     exit;
 }
 

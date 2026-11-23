@@ -188,44 +188,42 @@ function initAlchemyLiveTicker() {
     const activeData = document.getElementById("alchemy-active-data");
     if (!activeData) return;
 
-    let inAmt = parseFloat(activeData.dataset.inAmt) || 0;
-    let outAmt = parseFloat(activeData.dataset.outAmt) || 0;
-    const inRate = parseFloat(activeData.dataset.inRate) || 0;
-    const outRate = parseFloat(activeData.dataset.outRate) || 0;
-    const capacity = parseFloat(activeData.dataset.capacity) || 1;
-    const maxOutput = parseFloat(activeData.dataset.maxOutput) || 50000;
-
-    const topUpInput = document.getElementById("top_up_amount");
-    const topUpMaxBtn = document.querySelector('[data-on-click="fillAlchemyTopUpMax"]');
-    const stock = parseFloat(activeData.dataset.stock) || 0;
-    const step = parseInt(activeData.dataset.step) || 1;
-
-    alchemyLiveInAmt = inAmt;
+    const initInAmt = parseInt(activeData.dataset.inAmt, 10) || 0;
+    const initOutAmt = parseInt(activeData.dataset.outAmt, 10) || 0;
+    const speedPerHour = parseInt(activeData.dataset.speedPerHour, 10) || 0;
+    const outputPerStep = parseInt(activeData.dataset.outputPerStep, 10) || 1;
+    const elapsedCarry = parseFloat(activeData.dataset.elapsedCarry) || 0;
+    const capacity = parseInt(activeData.dataset.capacity, 10) || 1;
+    const maxOutput = parseInt(activeData.dataset.maxOutput, 10) || 50000;
+    const stock = parseInt(activeData.dataset.stock, 10) || 0;
+    const step = parseInt(activeData.dataset.step, 10) || 1;
 
     const barEl = document.getElementById("alchemy-live-bar");
     const kettleEl = document.getElementById("live-kettle-in");
-    const freeSpaceEl = document.getElementById("live-free-space");
     const claimEl = document.getElementById("live-claim-val");
     const claimBtn = document.getElementById("btn-claim");
+    const topUpInput = document.getElementById("top_up_amount");
+    const topUpMaxBtn = document.querySelector('[data-on-click="fillAlchemyTopUpMax"]');
+    const countdownWrap = document.getElementById("alchemy-countdown-wrap");
+
+    const maxStepsByInput = Math.floor(initInAmt / step);
+    const maxStepsByBuffer = Math.floor(Math.max(0, maxOutput - initOutAmt) / outputPerStep);
+    const maxPossibleSteps = Math.min(maxStepsByInput, maxStepsByBuffer);
+
+    const startTimeMs = Date.now();
+    let inAmt = initInAmt;
+    let outAmt = initOutAmt;
+    alchemyLiveInAmt = inAmt;
 
     const updateUI = () => {
-        const rawFree = Math.max(0, Math.floor(capacity - inAmt));
+        const rawFree = Math.max(0, capacity - inAmt);
         const usableFree = rawFree - (rawFree % step);
-
         const percent = Math.min(100, Math.max(0, ((capacity - inAmt) / capacity) * 100));
+
         if (barEl) barEl.style.width = percent.toFixed(1) + "%";
-        if (kettleEl) kettleEl.innerText = Math.max(0, Math.round(inAmt)).toLocaleString("de-DE");
-        if (freeSpaceEl) freeSpaceEl.innerText = usableFree.toLocaleString("de-DE");
-
-        if (claimEl) {
-            const safeClaimable = Math.floor(Math.round(outAmt * 100) / 100);
-            claimEl.innerText = safeClaimable.toLocaleString("de-DE");
-        }
-
-        if (claimBtn && Math.floor(outAmt) > 0) {
-            claimBtn.disabled = false;
-        }
-
+        if (kettleEl) kettleEl.innerText = Math.max(0, inAmt).toLocaleString("de-DE");
+        if (claimEl) claimEl.innerText = outAmt.toLocaleString("de-DE");
+        if (claimBtn && outAmt > 0) claimBtn.disabled = false;
         if (topUpInput && stock > 0) {
             const hasRoom = usableFree >= step;
             topUpInput.disabled = !hasRoom;
@@ -236,87 +234,43 @@ function initAlchemyLiveTicker() {
     };
 
     updateUI();
+    if (maxPossibleSteps <= 0 || speedPerHour <= 0) return;
 
-    const targetMinIn = inAmt % step;
-    const convertibleInput = inAmt - targetMinIn;
+    const tick = () => {
+        const elapsedSec = ((Date.now() - startTimeMs) / 1000) + elapsedCarry;
+        const stepsDone = Math.min(
+            maxPossibleSteps,
+            Math.floor((elapsedSec * speedPerHour + 1e-6) / (step * 3600))
+        );
 
-    if (convertibleInput > 0 && inRate > 0) {
-        const secondsPerStep = (step * 3600) / (inRate * 3600);
-        const conversionRate = outRate / inRate;
-        const outputPerStep = Math.max(1, Math.round(step * conversionRate));
+        inAmt = initInAmt - (stepsDone * step);
+        outAmt = initOutAmt + (stepsDone * outputPerStep);
+        alchemyLiveInAmt = inAmt;
 
-        let stepTimer = 0;
+        updateUI();
 
-        const countdownWrap = document.getElementById("alchemy-countdown-wrap");
+        if (stepsDone >= maxPossibleSteps) {
+            clearInterval(tickerInterval);
 
-        const setBufferFull = () => {
-            if (typeof stopCountdown === "function") {
-                stopCountdown("alchemy-countdown");
-            }
+            if (typeof stopCountdown === "function") stopCountdown("alchemy-countdown");
             if (countdownWrap) {
-                countdownWrap.innerHTML = "<span class='error'>Puffer voll (Pausiert)</span>";
-            }
-        };
-
-        const tickerInterval = setInterval(() => {
-            const room = maxOutput - outAmt;
-
-            if (room < outputPerStep || inAmt < step) {
-                clearInterval(tickerInterval);
-
-                if (room < outputPerStep && inAmt >= step) {
-                    setBufferFull();
-                }
-                return;
-            }
-
-            stepTimer += 1.0;
-
-            while (stepTimer >= secondsPerStep && inAmt >= step && (maxOutput - outAmt) >= outputPerStep) {
-                stepTimer -= secondsPerStep;
-                inAmt -= step;
-                outAmt += outputPerStep;
-            }
-
-            const newRoom = maxOutput - outAmt;
-            if (newRoom < outputPerStep && inAmt >= step) {
-                clearInterval(tickerInterval);
-                setBufferFull();
-
-                alchemyLiveInAmt = inAmt;
-
-                updateUI();
-                return;
-            }
-
-            if (inAmt <= targetMinIn) {
-                inAmt = targetMinIn;
-                outAmt = Math.round(outAmt);
-
-                if (typeof stopCountdown === "function") {
-                    stopCountdown("alchemy-countdown");
-                }
-
-                if (countdownWrap) {
-                    if (inAmt === 0) {
-                        countdownWrap.innerHTML = "<span class='passed'>Kessel leer</span>";
-                    } else {
-                        countdownWrap.innerHTML = "<span class='warning'>Zu wenig im Kessel</span>";
-                    }
-                }
-
-                if (inAmt === 0) {
+                if ((maxOutput - outAmt) < outputPerStep && inAmt >= step) {
+                    countdownWrap.innerHTML = "<span class='error'>Puffer voll (Pausiert)</span>";
+                } else if (inAmt === 0) {
+                    countdownWrap.innerHTML = "<span class='passed'>Kessel leer</span>";
                     const cancelForm = document.getElementById("form-cancel-alchemy");
                     if (cancelForm) cancelForm.style.display = "none";
+                } else {
+                    countdownWrap.innerHTML = "<span class='warning'>Zu wenig im Kessel</span>";
                 }
-
-                clearInterval(tickerInterval);
             }
+        }
+    };
 
-            alchemyLiveInAmt = inAmt;
-            updateUI();
-        }, 1000);
-    }
+    const tickerInterval = setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") tick();
+    });
 }
 
 document.addEventListener("DOMContentLoaded", () => {

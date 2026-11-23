@@ -41,14 +41,18 @@ function make_secure(string $data): string
 {
     $data = trim($data);
     $data = stripslashes($data);
-    $data = preg_replace('/\s+/', '', $data);
-    return htmlspecialchars($data);
+    $data = preg_replace('/\s+/', '', $data) ?? '';
+    return htmlspecialchars($data, ENT_QUOTES, "UTF-8");
 }
 
 function sanitize_input(string $str): string
 {
-    $str = preg_replace('/\p{C}/u', '', $str);
-    $str = preg_replace('/\s+/u', ' ', $str);
+    if (!mb_check_encoding($str, "UTF-8")) {
+        $str = mb_scrub($str, "UTF-8");
+    }
+
+    $str = preg_replace('/\p{C}/u', '', $str) ?? '';
+    $str = preg_replace('/\s+/u', ' ', $str) ?? '';
     return trim($str);
 }
 
@@ -361,8 +365,8 @@ function check_image_content($temp_file_path): string
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, !(defined("IS_DEV") && IS_DEV));
 
     $response = curl_exec($ch);
 
@@ -528,8 +532,11 @@ function global_exception_handler($e): void
 /**
  * @throws ErrorException
  */
-function global_error_handler($err_no, $err_str, $err_file, $err_line)
+function global_error_handler($err_no, $err_str, $err_file, $err_line): false
 {
+    if (!(error_reporting() & $err_no)) {
+        return false;
+    }
     throw new ErrorException($err_str, 0, $err_no, $err_file, $err_line);
 }
 
@@ -767,29 +774,37 @@ function is_name_monotonous($name): bool
 
 function check_ip_proxy($ip): array|null
 {
-    if (IS_DEV) {
+    if (IS_DEV || empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
         return null;
     }
 
-    $api_url = "https://proxycheck.io/v2/" . $ip . "?vpn=1&asn=1";
+    $api_url = "https://proxycheck.io/v2/" . urlencode($ip) . "?vpn=1&asn=1";
     $context = stream_context_create(["http" => ["timeout" => 2]]);
     $response = @file_get_contents($api_url, false, $context);
-
     if ($response === false) {
         return null;
     }
 
     $details = json_decode($response);
-
     if (isset($details->$ip)) {
         $ip_info = $details->$ip;
+        $provider = trim((string)($ip_info->provider ?? $ip_info->organisation ?? ""));
+        $asn = trim((string)($ip_info->asn ?? ""));
+
+        if ($provider !== "" && $asn !== "" && !str_contains($provider, $asn)) {
+            $isp_display = "$provider ($asn)";
+        } else {
+            $isp_display = $provider !== "" ? $provider : ($asn !== "" ? $asn : "Unbekannt");
+        }
 
         return [
                 "proxy" => $ip_info->proxy ?? "no",
                 "type" => $ip_info->type ?? "none",
-                "isp" => $ip_info->is ?? $ip_info->asn ?? "Unbekannt"
+                "isp" => $isp_display,
+                "country" => $ip_info->country ?? ""
         ];
     }
+
     return null;
 }
 
@@ -939,10 +954,12 @@ function get_page_icon(string $key, string $css_class = "menu-icons", string $al
 function get_csrf_token(): string
 {
     $uid = $_SESSION["userid"] ?? 0;
-    $device_id = $_COOKIE["me_device_id"] ?? $_SESSION["device_id"] ?? '';
+    $cookie_dev = (isset($_COOKIE["me_device_id"]) && is_string($_COOKIE["me_device_id"])) ? $_COOKIE["me_device_id"] : '';
+    $sess_dev = (isset($_SESSION["device_id"]) && is_string($_SESSION["device_id"])) ? $_SESSION["device_id"] : '';
+    $device_id = $cookie_dev !== '' ? $cookie_dev : $sess_dev;
 
     if ($uid > 0 && !empty($device_id)) {
-        $_SESSION["csrf_token"] = hash_hmac("sha256", $uid . "_" . $device_id, AVATAR_SALT);
+        $_SESSION["csrf_token"] = hash_hmac("sha256", $uid . "_" . $device_id, APP_SECRET);
         return $_SESSION["csrf_token"];
     }
 
@@ -956,13 +973,20 @@ function verify_csrf_token(?string $token = null): bool
 {
     if ($token === null) {
         $token = $_POST["csrf_token"] ?? $_SERVER["HTTP_X_CSRF_TOKEN"] ?? null;
-
         if ($token === null && function_exists("getallheaders")) {
             $headers = array_change_key_case(getallheaders());
             $token = $headers["x-csrf-token"] ?? null;
         }
     }
-    return !empty($token) && !empty($_SESSION["csrf_token"]) && hash_equals($_SESSION["csrf_token"], (string)$token);
+
+    if (!is_string($token) || $token === "") {
+        return false;
+    }
+
+    if (empty($_SESSION["csrf_token"]) && !empty($_SESSION["userid"])) {
+        get_csrf_token();
+    }
+    return !empty($_SESSION["csrf_token"]) && hash_equals($_SESSION["csrf_token"], $token);
 }
 
 function csrf_input(): string
@@ -1002,22 +1026,44 @@ function render_loot_items(array $resources): array
     return $items;
 }
 
-function render_cost_legend(array $costs, Kingdom $kingdom): string
+function post_str(string $key, string $default = ""): string
 {
-    $res_map = [
-            ResourceTypes::RESOURCE_TYPE_FOOD => ["cost" => $costs["cost_food"] ?? 0, "current" => $kingdom->get_kingdom_food()],
-            ResourceTypes::RESOURCE_TYPE_WOOD => ["cost" => $costs["cost_wood"] ?? 0, "current" => $kingdom->get_kingdom_wood()],
-            ResourceTypes::RESOURCE_TYPE_STONE => ["cost" => $costs["cost_stone"] ?? 0, "current" => $kingdom->get_kingdom_stone()],
-            ResourceTypes::RESOURCE_TYPE_GOLD => ["cost" => $costs["cost_gold"] ?? 0, "current" => $kingdom->get_kingdom_gold()]
-    ];
-    $html = "";
-
-    foreach ($res_map as $type => $data) {
-        if ($data["cost"] > 0) {
-            $text = get_resource_text($data["cost"], $data["current"]);
-            $html .= "<div class='legend-item'>" . get_resource_icon($type) . " " . $text . "</div>";
-        }
+    if (!isset($_POST[$key]) || !is_scalar($_POST[$key])) {
+        return $default;
     }
 
-    return $html;
+    $val = (string)$_POST[$key];
+    if (!mb_check_encoding($val, "UTF-8")) {
+        $val = mb_scrub($val, "UTF-8");
+    }
+    return $val;
+}
+
+function post_int(string $key, int $default = 0): int
+{
+    return (isset($_POST[$key]) && is_scalar($_POST[$key])) ? (int)$_POST[$key] : $default;
+}
+
+function get_str(string $key, string $default = ""): string
+{
+    if (!isset($_GET[$key]) || !is_scalar($_GET[$key])) return $default;
+
+    $val = (string)$_GET[$key];
+    return mb_check_encoding($val, "UTF-8") ? $val : mb_scrub($val, "UTF-8");
+}
+
+function get_int(string $key, int $default = 0): int
+{
+    return (isset($_GET[$key]) && is_scalar($_GET[$key])) ? (int)$_GET[$key] : $default;
+}
+
+function resource_to_cost_key(int $res_type): ?string
+{
+    return match ($res_type) {
+        ResourceTypes::RESOURCE_TYPE_FOOD => "cost_food",
+        ResourceTypes::RESOURCE_TYPE_WOOD => "cost_wood",
+        ResourceTypes::RESOURCE_TYPE_STONE => "cost_stone",
+        ResourceTypes::RESOURCE_TYPE_GOLD => "cost_gold",
+        default => null
+    };
 }

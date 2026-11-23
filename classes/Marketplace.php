@@ -83,18 +83,8 @@ class Marketplace
 
     public function create_offer(int $supply, int $supply_value, int $demand, int $demand_value, bool $guild_only = false): ?string
     {
-        $daily = $this->get_daily_trades_info();
-        if ($daily["is_full"]) {
-            return "Du hast heute bereits {$daily["max"]} Angebote erstellt oder angenommen!";
-        }
-
-        $valid_trade_resources = [
-            ResourceTypes::RESOURCE_TYPE_FOOD,
-            ResourceTypes::RESOURCE_TYPE_WOOD,
-            ResourceTypes::RESOURCE_TYPE_STONE,
-            ResourceTypes::RESOURCE_TYPE_GOLD
-        ];
-        if (!in_array($supply, $valid_trade_resources, true) || !in_array($demand, $valid_trade_resources, true)) {
+        $supply_cost_key = resource_to_cost_key($supply);
+        if ($supply_cost_key === null || resource_to_cost_key($demand) === null) {
             return "Diese Ressource gibt es nicht!";
         }
         if ($supply === $demand) {
@@ -104,24 +94,9 @@ class Marketplace
             return "Die Mengen müssen größer als 0 sein!";
         }
 
-        $listing_fee = self::calculate_listing_fee($supply_value);
-        if ($this->user->get_user_coins() < $listing_fee) {
-            return "Du hast nicht genug Münzen für die Einstellgebühr (Benötigt: $listing_fee " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ")!";
-        }
-
         $max_capacity = $this->get_max_capacity();
         if ($supply_value > $max_capacity || $demand_value > $max_capacity) {
             return "Dein Marktplatz kann maximal " . fnum($max_capacity) . " Ressourcen pro Angebot handhaben!";
-        }
-
-        $stocks = [
-            ResourceTypes::RESOURCE_TYPE_FOOD => $this->kingdom->get_kingdom_food(),
-            ResourceTypes::RESOURCE_TYPE_WOOD => $this->kingdom->get_kingdom_wood(),
-            ResourceTypes::RESOURCE_TYPE_STONE => $this->kingdom->get_kingdom_stone(),
-            ResourceTypes::RESOURCE_TYPE_GOLD => $this->kingdom->get_kingdom_gold()
-        ];
-        if (($stocks[$supply] ?? 0) < $supply_value) {
-            return "Soviel Ressourcen kannst du nicht bieten!";
         }
 
         $ratio1 = $supply_value / $demand_value;
@@ -133,21 +108,34 @@ class Marketplace
 
         $kid = $this->kingdom->get_kingdom_id();
         $uid = $this->user->get_user_id();
-
-        $check_existing = $this->db->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$kid]);
-        if ($check_existing->num_rows > 0) {
-            return "Du hast bereits ein Angebot für dieses Königreich am laufen!";
-        }
-
         $my_guild_id = $this->user->get_user_guild_id();
         $offer_guild_id = ($guild_only && $my_guild_id > 0) ? $my_guild_id : 0;
+        $listing_fee = self::calculate_listing_fee($supply_value);
         $calculated_fee = self::calculate_market_fee($supply, $supply_value, $demand, $demand_value);
         $expires_at = time() + MARKET_OFFER_DURATION;
 
         $this->db->begin_transaction();
         try {
-            $this->user->give_user_coins(-$listing_fee);
-            $this->kingdom->modify_resource($supply, -$supply_value);
+            $this->db->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+            $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$kid]);
+
+            $daily = $this->get_daily_trades_info();
+            if ($daily["is_full"]) {
+                throw new RuntimeException("Du hast heute bereits {$daily["max"]} Angebote erstellt oder angenommen!");
+            }
+
+            $check_existing = $this->db->execute_query("SELECT offerid FROM marketplace WHERE kingdomid = ?", [$kid]);
+            if ($check_existing->num_rows > 0) {
+                throw new RuntimeException("Du hast bereits ein Angebot für dieses Königreich am laufen!");
+            }
+
+            if (!$this->user->spend_user_coins($listing_fee)) {
+                throw new RuntimeException("Du hast nicht genug Münzen für die Einstellgebühr (Benötigt: $listing_fee " . get_resource_icon(ResourceTypes::RESOURCE_TYPE_COINS) . ")!");
+            }
+
+            if (!$this->kingdom->pay_costs([$supply_cost_key => $supply_value])) {
+                throw new RuntimeException("Soviel Ressourcen kannst du nicht bieten!");
+            }
 
             $this->db->execute_query("
                 INSERT INTO marketplace (userid, username, kingdomid, supply, supplyvalue, demand, demandvalue, coins, expires_at, guild_id)
@@ -157,8 +145,8 @@ class Marketplace
                 $supply, $supply_value, $demand, $demand_value,
                 $calculated_fee, $expires_at, $offer_guild_id
             ]);
-
             $this->db->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$uid]);
+
             $this->db->commit();
 
             Logger::get_instance()->log_game("TRADE", "OFFER_CREATE", [
@@ -169,146 +157,132 @@ class Marketplace
                 "fee" => $calculated_fee,
                 "listing_fee_paid" => $listing_fee
             ], $kid);
-
             return null;
-        } catch (Exception $e) {
+        } catch (RuntimeException $e) {
             $this->db->rollback();
-            return "Fehler beim Einstellen: " . $e->getMessage();
+            return $e->getMessage();
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            Logger::get_instance()->error("Marketplace create_offer error: " . $e->getMessage());
+            return "Interner Fehler beim Einstellen des Angebots.";
         }
     }
 
     public function accept_offer(int $offer_id, Map $map): array
     {
-        $daily = $this->get_daily_trades_info();
-        if ($daily["is_full"]) {
-            return ["success" => false, "error" => "Du hast dein tägliches Limit von {$daily["max"]} Handelsaktionen bereits erreicht!"];
-        }
-
         $uid = $this->user->get_user_id();
         $kid = $this->kingdom->get_kingdom_id();
         $my_guild_id = $this->user->get_user_guild_id();
 
         $this->db->begin_transaction();
-        $result = $this->db->execute_query("
-            SELECT m.*, k.mapx, k.mapy, u.ip AS seller_ip, u.device_id AS seller_device, u.guildid AS seller_guild_id
-            FROM marketplace m 
-            JOIN kingdoms k ON m.kingdomid = k.id 
-            JOIN users u ON m.userid = u.id 
-            WHERE m.offerid = ? FOR UPDATE",
-            [$offer_id]
-        );
-        $row = $result->fetch_assoc();
-
-        if (!$row) {
-            $this->db->rollback();
-            return ["success" => false, "error" => "Dieses Angebot existiert nicht mehr oder wurde bereits von jemand anderem angenommen!"];
-        }
-
-        if ((int)$row["userid"] === $uid) {
-            $this->db->rollback();
-            return ["success" => false, "error" => "Du kannst dein eigenes Angebot nicht annehmen!"];
-        }
-
-        // Multi-Account Protection: Same IP
-        if ($row["seller_ip"] === $_SERVER["REMOTE_ADDR"]) {
-            Logger::get_instance()->log_game("TRADE", "SAME_IP_TRADE", [
-                "seller_id" => $row["userid"],
-                "buyer_id" => $uid,
-                "ip" => $_SERVER["REMOTE_ADDR"]
-            ]);
-        }
-
-        // Multi-Account Protection: Block same device id
-        $buyer_device = $_SESSION["device_id"] ?? '';
-        $is_same_device = (!empty($row["seller_device"]) && $row["seller_device"] === $buyer_device);
-        if ($is_same_device) {
-            $this->db->rollback();
-            return ["success" => false, "error" => "Handel zwischen Accounts am selben Gerät ist nicht gestattet!"];
-        }
-
-        // Guild Protection
-        $target_guild = (int)($row["guild_id"] ?? 0);
-        if ($target_guild > 0 && ($my_guild_id <= 0 || $my_guild_id !== $target_guild)) {
-            $this->db->rollback();
-            return ["success" => false, "error" => "Dieses Angebot ist ausschließlich für Mitglieder der entsprechenden Gilde reserviert!"];
-        }
-
-        $demand = (int)$row["demand"];
-        $demand_value = (int)$row["demandvalue"];
-        $has_resources = match ($demand) {
-            ResourceTypes::RESOURCE_TYPE_FOOD => $this->kingdom->get_kingdom_food() >= $demand_value,
-            ResourceTypes::RESOURCE_TYPE_WOOD => $this->kingdom->get_kingdom_wood() >= $demand_value,
-            ResourceTypes::RESOURCE_TYPE_STONE => $this->kingdom->get_kingdom_stone() >= $demand_value,
-            ResourceTypes::RESOURCE_TYPE_GOLD => $this->kingdom->get_kingdom_gold() >= $demand_value,
-            default => false
-        };
-
-        if (!$has_resources) {
-            $this->db->rollback();
-            return ["success" => false, "error" => "Du hast nicht genügend Ressourcen, um dieses Angebot zu erfüllen!"];
-        }
-
-        $coins_cost = (int)$row["coins"];
-        $is_ally_deal = ($my_guild_id > 0 && $row["seller_guild_id"] === $my_guild_id);
-
-        if ($is_ally_deal) {
-            $discount_lvl = Guild::get_user_guild_tech_level($uid, GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
-
-            if ($discount_lvl > 0) {
-                $coins_cost = max(1, (int)round($coins_cost * (1.0 - ($discount_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL))));
-            }
-        }
-
-        if ($this->user->get_user_coins() < $coins_cost) {
-            $this->db->rollback();
-            return ["success" => false, "error" => "Deine Münzen reichen nicht für das Handelsangebot!"];
-        }
-
         try {
+            $row = $this->db->execute_query("
+                SELECT m.*, k.mapx, k.mapy, u.ip AS seller_ip, u.device_id AS seller_device, u.guildid AS seller_guild_id
+                FROM marketplace m
+                JOIN kingdoms k ON m.kingdomid = k.id
+                JOIN users u ON m.userid = u.id
+                WHERE m.offerid = ? FOR UPDATE
+            ", [$offer_id])->fetch_assoc();
+
+            if (!$row) {
+                throw new RuntimeException("Dieses Angebot existiert nicht mehr oder wurde bereits von jemand anderem angenommen!");
+            }
+            if ((int)$row["userid"] === $uid) {
+                throw new RuntimeException("Du kannst dein eigenes Angebot nicht annehmen!");
+            }
+
+            $buyer_device = $_SESSION["device_id"] ?? '';
+            if (!empty($row["seller_device"]) && $row["seller_device"] === $buyer_device) {
+                throw new RuntimeException("Handel zwischen Accounts am selben Gerät ist nicht gestattet!");
+            }
+
+            $target_guild = (int)($row["guild_id"] ?? 0);
+            if ($target_guild > 0 && ($my_guild_id <= 0 || $my_guild_id !== $target_guild)) {
+                throw new RuntimeException("Dieses Angebot ist ausschließlich für Mitglieder der entsprechenden Gilde reserviert!");
+            }
+
+            $this->db->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+            $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$kid]);
+
+            $daily = $this->get_daily_trades_info();
+            if ($daily["is_full"]) {
+                throw new RuntimeException("Du hast dein tägliches Limit von {$daily["max"]} Handelsaktionen bereits erreicht!");
+            }
+
+            $demand = (int)$row["demand"];
+            $demand_value = (int)$row["demandvalue"];
+            $demand_cost_key = resource_to_cost_key($demand);
+            if ($demand_cost_key === null) {
+                throw new RuntimeException("Ungültige Handelsressource!");
+            }
+
+            $coins_cost = (int)$row["coins"];
+            $is_ally_deal = ($my_guild_id > 0 && (int)$row["seller_guild_id"] === $my_guild_id);
+            if ($is_ally_deal) {
+                $discount_lvl = Guild::get_user_guild_tech_level($uid, GuildTechTypes::GUILD_TECH_ALLY_TRADE_DISCOUNT);
+
+                if ($discount_lvl > 0) {
+                    $coins_cost = max(1, (int)round($coins_cost * (1.0 - ($discount_lvl * GUILD_BONUS_ALLY_TRADE_DISCOUNT_PER_LVL))));
+                }
+            }
+
+            // Reduce resources and coins
+            if (!$this->kingdom->pay_costs([$demand_cost_key => $demand_value])) {
+                throw new RuntimeException("Du hast nicht genügend Ressourcen, um dieses Angebot zu erfüllen!");
+            }
+
+            if (!$this->user->spend_user_coins($coins_cost)) {
+                throw new RuntimeException("Deine Münzen reichen nicht für das Handelsangebot!");
+            }
+
+            // Delete offer
             $this->db->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
-            $this->kingdom->modify_resource($demand, -$demand_value);
-            $this->user->give_user_coins(-$coins_cost);
 
             $now = time();
-
             $my_x = $this->kingdom->get_kingdom_map_x();
             $my_y = $this->kingdom->get_kingdom_map_y();
-
             $creator_id = (int)$row["userid"];
             $creator_name = $row["username"];
             $supply = (int)$row["supply"];
             $supply_value = (int)$row["supplyvalue"];
 
-            $buyer_seconds = $map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $kid, null, false, true, false, $is_ally_deal);
+            $buyer_seconds = $map->get_arrival_time($my_x, $my_y, (int)$row["mapx"], (int)$row["mapy"], $kid, null, false, true, false, $is_ally_deal);
             $buyer_arrival_time = $now + $buyer_seconds;
 
             $seller_user = new User($creator_id, $creator_name);
             $seller_map = new Map($seller_user);
-            $seller_seconds = $seller_map->get_arrival_time($my_x, $my_y, $row["mapx"], $row["mapy"], $row["kingdomid"], null, false, true, false, $is_ally_deal);
+            $seller_seconds = $seller_map->get_arrival_time($my_x, $my_y, (int)$row["mapx"], (int)$row["mapy"], (int)$row["kingdomid"], null, false, true, false, $is_ally_deal);
             $seller_arrival_time = $now + $seller_seconds;
 
             // Supply to buyer
-            $this->db->execute_query("
-                INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ", [ActionTypes::ACTION_RECEIVE_RESOURCES, $uid, $kid, $supply, $supply_value, TransportTypes::TRANSPORT_TYPE_TRADE_DELIVERY, $buyer_arrival_time]);
+            $this->db->execute_query(
+                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [ActionTypes::ACTION_RECEIVE_RESOURCES, $uid, $kid, $supply, $supply_value, TransportTypes::TRANSPORT_TYPE_TRADE_DELIVERY, $buyer_arrival_time]
+            );
 
             // Demand to seller
-            $this->db->execute_query("
-                INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ", [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, $row["kingdomid"], $demand, $demand_value, TransportTypes::TRANSPORT_TYPE_TRADE_PROCEEDS, $seller_arrival_time]);
+            $this->db->execute_query(
+                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildinglevel, buildingname, arrivaltime) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [ActionTypes::ACTION_RECEIVE_RESOURCES, $creator_id, (int)$row["kingdomid"], $demand, $demand_value, TransportTypes::TRANSPORT_TYPE_TRADE_PROCEEDS, $seller_arrival_time]
+            );
 
             $this->db->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + 1 WHERE id = ?", [$uid]);
+            $this->db->commit();
 
-            // Message to seller
-            $cost = [$demand => $demand_value];
+            if ($row["seller_ip"] === ($_SERVER["REMOTE_ADDR"] ?? "")) {
+                Logger::get_instance()->log_game("TRADE", "SAME_IP_TRADE", [
+                    "seller_id" => $creator_id,
+                    "buyer_id" => $uid,
+                    "ip" => $_SERVER["REMOTE_ADDR"] ?? ""
+                ]);
+            }
+
             $seller_json = [
                 "template" => "trade_accepted",
                 "buyer_name" => $this->user->get_user_name(),
                 "buyer_kname" => $this->kingdom->get_kingdom_name(),
                 "arrival_time" => $seller_seconds,
-                "cost" => $cost
+                "cost" => [$demand => $demand_value]
             ];
             Messages::send_server_message($creator_id, $creator_name, MessageCategories::CATEGORY_TRADE, $seller_json);
 
@@ -340,15 +314,17 @@ class Marketplace
             Stats::update_player_stat($creator_id, "trade_sent_" . $s_name, $supply_value);
             Stats::update_player_stat($creator_id, "trade_received_" . $d_name, $demand_value);
 
-            $this->db->commit();
-
             return [
                 "success" => true,
                 "arrival_str" => convert_sec_to_str($buyer_seconds)
             ];
-        } catch (Exception $e) {
+        } catch (RuntimeException $e) {
             $this->db->rollback();
-            return ["success" => false, "error" => "Fehler bei der Transaktion: " . $e->getMessage()];
+            return ["success" => false, "error" => $e->getMessage()];
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            Logger::get_instance()->error("Marketplace accept_offer error: " . $e->getMessage());
+            return ["success" => false, "error" => "Interner Fehler bei der Transaktion."];
         }
     }
 
@@ -358,36 +334,43 @@ class Marketplace
 
         $this->db->begin_transaction();
         try {
-            $result = $this->db->execute_query(
-                "SELECT supply, supplyvalue, kingdomid FROM marketplace WHERE offerid = ? AND userid = ? FOR UPDATE",
+            $row = $this->db->execute_query(
+                "SELECT supply, supplyvalue, kingdomid, expires_at FROM marketplace WHERE offerid = ? AND userid = ? FOR UPDATE",
                 [$offer_id, $uid]
-            );
-            $row = $result->fetch_assoc();
+            )->fetch_assoc();
 
-            if ($row) {
-                $origin_kingdom_id = (int)$row["kingdomid"];
-                $origin_kingdom = new Kingdom($origin_kingdom_id);
-
-                $this->db->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
-                $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
-
-                $this->db->execute_query("UPDATE users SET daily_trades_count = GREATEST(0, daily_trades_count - 1) WHERE id = ?", [$uid]);
-
-                Logger::get_instance()->log_game("TRADE", "OFFER_DELETE", [
-                    "offer_id" => $offer_id,
-                    "refund_res" => $row["supply"],
-                    "refund_amount" => $row["supplyvalue"]
-                ], $origin_kingdom_id);
-
-                $this->db->commit();
-                return null;
+            if (!$row) {
+                throw new RuntimeException("Dieses Angebot existiert nicht mehr oder wurde bereits angenommen!");
             }
 
+            $this->db->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
+            
+            $created_at_est = (int)$row["expires_at"] - MARKET_OFFER_DURATION;
+            if ($created_at_est >= strtotime("today midnight")) {
+                $this->db->execute_query("UPDATE users SET daily_trades_count = GREATEST(0, daily_trades_count - 1) WHERE id = ?",
+                    [$uid]
+                );
+            }
+
+            $origin_kingdom_id = (int)$row["kingdomid"];
+            $origin_kingdom = new Kingdom($origin_kingdom_id);
+            $origin_kingdom->modify_resource((int)$row["supply"], (int)$row["supplyvalue"]);
+
+            $this->db->commit();
+
+            Logger::get_instance()->log_game("TRADE", "OFFER_DELETE", [
+                "offer_id" => $offer_id,
+                "refund_res" => $row["supply"],
+                "refund_amount" => $row["supplyvalue"]
+            ], $origin_kingdom_id);
+            return null;
+        } catch (RuntimeException $e) {
             $this->db->rollback();
-            return "Dieses Angebot existiert nicht mehr oder wurde bereits angenommen!";
-        } catch (Exception $e) {
+            return $e->getMessage();
+        } catch (Throwable $e) {
             $this->db->rollback();
-            return "Fehler beim Abbrechen: " . $e->getMessage();
+            Logger::get_instance()->error("Marketplace cancel_offer error: " . $e->getMessage());
+            return "Interner Fehler beim Abbrechen des Angebots.";
         }
     }
 
@@ -397,38 +380,16 @@ class Marketplace
             if ((int)$v < 0) {
                 return ["success" => false, "error" => "Ungültige Ressourcenmenge!"];
             }
-
             $amounts[(int)$k] = (int)$v;
-        }
-
-        $target_market_lvl = (int)($this->db->execute_query(
-            "SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
-            [$target_id, BuildingTypes::BUILDING_MARKETPLACE]
-        )->fetch_column() ?? 0);
-
-        if ($target_market_lvl <= 0) {
-            return ["success" => false, "error" => "Das Zielkönigreich besitzt keinen Marktplatz!"];
         }
 
         $uid = $this->user->get_user_id();
         $kid = $this->kingdom->get_kingdom_id();
-
-        $res_target = $this->db->execute_query(
-            "SELECT id, mapx, mapy, kingdomname FROM kingdoms WHERE id = ? AND userid = ?",
-            [$target_id, $uid]
-        );
-        $target_row = $res_target->fetch_assoc();
-
-        if (!$target_row || $target_id === $kid) {
+        if ($target_id <= 0 || $target_id === $kid) {
             return ["success" => false, "error" => "Ungültiges Ziel-Königreich!"];
         }
 
-        $daily = $this->get_daily_trades_info();
-        if ($daily["is_full"]) {
-            return ["success" => false, "error" => "Du hast dein tägliches Limit von {$daily["max"]} Handelsaktionen bereits erreicht!"];
-        }
-
-        $total_sum = array_sum(array_map("intval", $amounts));
+        $total_sum = array_sum($amounts);
         if ($total_sum <= 0) {
             return ["success" => false, "error" => "Bitte gib eine Menge größer als 0 an!"];
         }
@@ -439,39 +400,62 @@ class Marketplace
         }
 
         $required_actions = (int)ceil($total_sum / $max_capacity);
-        $remaining_actions = max(0, $daily["max"] - $daily["current"]);
-
-        if ($required_actions > $remaining_actions) {
-            return [
-                "success" => false,
-                "error" => "Nicht genügend tägliche Handelsaktionen übrig! (Benötigt: $required_actions, Verfügbar: $remaining_actions)"
-            ];
-        }
-
-        $stocks = [
-            ResourceTypes::RESOURCE_TYPE_FOOD => $this->kingdom->get_kingdom_food(),
-            ResourceTypes::RESOURCE_TYPE_WOOD => $this->kingdom->get_kingdom_wood(),
-            ResourceTypes::RESOURCE_TYPE_STONE => $this->kingdom->get_kingdom_stone(),
-            ResourceTypes::RESOURCE_TYPE_GOLD => $this->kingdom->get_kingdom_gold()
-        ];
-        if (array_any($amounts, fn($val, $type) => (int)$val > ($stocks[(int)$type] ?? 0))) {
-            return ["success" => false, "error" => "Du hast nicht genug Ressourcen!"];
-        }
 
         $this->db->begin_transaction();
         try {
-            foreach ($amounts as $type => $val) {
-                if ((int)$val > 0) $this->kingdom->modify_resource((int)$type, -(int)$val);
+            $this->db->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+            $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$kid]);
+
+            $target_row = $this->db->execute_query(
+                "SELECT id, mapx, mapy, kingdomname FROM kingdoms WHERE id = ? AND userid = ?",
+                [$target_id, $uid]
+            )->fetch_assoc();
+
+            if (!$target_row) {
+                throw new RuntimeException("Ungültiges Ziel-Königreich!");
+            }
+
+            $target_market_lvl = (int)($this->db->execute_query(
+                "SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+                [$target_id, BuildingTypes::BUILDING_MARKETPLACE]
+            )->fetch_column() ?? 0);
+
+            if ($target_market_lvl <= 0) {
+                throw new RuntimeException("Das Zielkönigreich besitzt keinen Marktplatz!");
+            }
+
+            $daily = $this->get_daily_trades_info();
+            if ($daily["is_full"]) {
+                throw new RuntimeException("Du hast dein tägliches Limit von {$daily["max"]} Handelsaktionen bereits erreicht!");
+            }
+
+            $remaining_actions = max(0, $daily["max"] - $daily["current"]);
+            if ($required_actions > $remaining_actions) {
+                throw new RuntimeException("Nicht genügend tägliche Handelsaktionen übrig! (Benötigt: $required_actions, Verfügbar: $remaining_actions)");
+            }
+
+            $send_food = (int)($amounts[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0);
+            $send_wood = (int)($amounts[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0);
+            $send_stone = (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0);
+            $send_gold = (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0);
+
+            if (!$this->kingdom->pay_costs([
+                "cost_food" => $send_food,
+                "cost_wood" => $send_wood,
+                "cost_stone" => $send_stone,
+                "cost_gold" => $send_gold
+            ])) {
+                throw new RuntimeException("Du hast nicht genug Ressourcen!");
             }
 
             $my_x = $this->kingdom->get_kingdom_map_x();
             $my_y = $this->kingdom->get_kingdom_map_y();
-            $arrival_data = $map->calculate_arrival_data($my_x, $my_y, $target_row["mapx"], $target_row["mapy"], $kid, true);
+            $arrival_data = $map->calculate_arrival_data($my_x, $my_y, (int)$target_row["mapx"], (int)$target_row["mapy"], $kid, true);
             $seconds = $arrival_data["seconds"];
             $arrival_time = $arrival_data["timestamp"];
 
             $this->db->execute_query("
-                INSERT INTO events (actionid, userid, kingdomid, arrivaltime, targetid, targetx, targety, buildingtime, buildingname, loot_food, loot_wood, loot_stone, loot_gold) 
+                INSERT INTO events (actionid, userid, kingdomid, arrivaltime, targetid, targetx, targety, buildingtime, buildingname, loot_food, loot_wood, loot_stone, loot_gold)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ", [
                 ActionTypes::ACTION_RECEIVE_RESOURCES,
@@ -483,36 +467,40 @@ class Marketplace
                 $my_y,
                 time(),
                 TransportTypes::TRANSPORT_TYPE_INTERNAL,
-                (int)($amounts[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
-                (int)($amounts[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
-                (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
-                (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
+                $send_food,
+                $send_wood,
+                $send_stone,
+                $send_gold
             ]);
 
-            $this->db->execute_query("UPDATE users SET daily_trades_count = daily_trades_count + ? WHERE id = ?",
+            $this->db->execute_query(
+                "UPDATE users SET daily_trades_count = daily_trades_count + ? WHERE id = ?",
                 [$required_actions, $uid]
             );
 
+            $this->db->commit();
+
             Logger::get_instance()->log_game("TRADE", "INTERNAL_TRANSPORT", [
                 "target_kingdom" => $target_id,
-                "food" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_FOOD] ?? 0),
-                "wood" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_WOOD] ?? 0),
-                "stone" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_STONE] ?? 0),
-                "gold" => (int)($amounts[ResourceTypes::RESOURCE_TYPE_GOLD] ?? 0)
+                "food" => $send_food,
+                "wood" => $send_wood,
+                "stone" => $send_stone,
+                "gold" => $send_gold
             ], $kid);
-
             Achievement::unlock($uid, AchievementTypes::ACHIEVEMENT_INTERNAL_TRANSPORT);
-
-            $this->db->commit();
 
             return [
                 "success" => true,
                 "target_name" => $target_row["kingdomname"],
                 "arrival_str" => convert_sec_to_str($seconds)
             ];
-        } catch (Exception $e) {
+        } catch (RuntimeException $e) {
             $this->db->rollback();
-            return ["success" => false, "error" => "Fehler beim Transport: " . $e->getMessage()];
+            return ["success" => false, "error" => $e->getMessage()];
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            Logger::get_instance()->error("Marketplace send_internal_transport error: " . $e->getMessage());
+            return ["success" => false, "error" => "Interner Fehler beim Transport."];
         }
     }
 }

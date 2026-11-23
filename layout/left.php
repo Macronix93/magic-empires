@@ -14,18 +14,20 @@ $unread_forum = $unreads["forum"] ?? 0;
 
 $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 
-if ($current_page === 'messages.php' && ($_GET["action"] ?? '') === 'read' && !empty($_GET["s"])) {
+if ($current_page === 'messages.php' && get_str("action") === "read" && get_int("s") > 0) {
     $partner_unread = (int)($db_instance->execute_query(
             "SELECT COUNT(*) FROM messages WHERE senderid = ? AND receiverid = ? AND hasread = 0 AND deleted = 0",
-            [(int)$_GET["s"], $user->get_user_id()]
+            [get_int("s"), $user->get_user_id()]
     )->fetch_column() ?? 0);
 
     $inbox_only_unread = max(0, $inbox_only_unread - $partner_unread);
 }
+
 if ($current_page === "messages.php" && isset($_GET["worldchat"])) {
     $unread_world = 0;
 }
-$guild_tab = $_GET["tab"] ?? ($_COOKIE["me_guild_tab"] ?? "chat");
+
+$guild_tab = get_str("tab") ?: ($_COOKIE["me_guild_tab"] ?? "chat");
 if ($current_page === "guild.php" && $guild_tab === "chat") {
     $unread_guild = 0;
 }
@@ -119,11 +121,11 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
             </div>
             <div class="box<?= $current_page === 'achievements.php' ? ' active' : '' ?>" data-on-click="navigate"
                  data-url="achievements.php">
-                <?= get_page_icon("achievements.php") ?>
-                Errungenschaften
-                <?php if ($unread_achievements > 0): ?>
-                    <span class="msg-badge"><?= $messages->show_messages_indicator($unread_achievements) ?></span>
-                <?php endif; ?>
+                <?= get_page_icon("achievements.php") ?> Errungenschaften
+                <span class="msg-badge js-badge-achievements"
+                      style="<?= $unread_achievements > 0 ? '' : 'display: none;' ?>">
+                    <?= $messages->show_messages_indicator($unread_achievements) ?>
+                </span>
             </div>
             <div class="box<?= $current_page === 'halloffame.php' ? ' active' : '' ?>"
                  data-on-click="navigate" data-url="halloffame.php">

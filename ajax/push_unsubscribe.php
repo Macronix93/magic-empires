@@ -5,8 +5,8 @@ require_post();
 $raw = file_get_contents("php://input");
 $data = json_decode($raw, true);
 
-if (!isset($data["endpoint"])) {
-    echo json_encode(["success" => false, "error" => "Kein Endpunkt übergeben."]);
+if (!is_array($data) || !is_string($data["endpoint"] ?? null)) {
+    echo json_encode(["success" => false, "error" => "Kein gültiger Endpunkt übergeben."]);
     exit;
 }
 

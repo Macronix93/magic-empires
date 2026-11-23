@@ -142,7 +142,7 @@ class Tech
         $icon_path = "images/icons/icon_tech$this->tech_id.png";
         $disk_path = __DIR__ . "/../" . $icon_path;
 
-        if (isset($this->tech_id) && file_exists($icon_path)) {
+        if (isset($this->tech_id) && file_exists($disk_path)) {
             return "<img src='$icon_path' class='$class' alt='$this->t_name' title='$this->t_name'/>";
         } else {
             return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
@@ -359,6 +359,11 @@ class Tech
         return $error;
     }
 
+    public function meets_dependencies(array $buildings, array $techs): bool
+    {
+        return $this->check_dependencies($buildings, $techs) === "";
+    }
+
     public function calculate_research_seconds(int $level, float $speed_multiplier = 1.0): int
     {
         $base_sec = (int)round($this->t_time * pow($this->t_mult, $level));
@@ -368,5 +373,55 @@ class Tech
     public function is_max_level(): bool
     {
         return $this->get_tech_level() >= $this->get_tech_max_level();
+    }
+
+    public function start_research(Kingdom $kingdom, int $user_id, int $action_id, float $speed_multiplier): ?string
+    {
+        $db = Database::get_instance()->get_connection();
+        $kingdom_id = $kingdom->get_kingdom_id();
+        $costs = $this->calculate_tech_cost();
+
+        $db->begin_transaction();
+        try {
+            $db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$kingdom_id]);
+
+            $already_running = (int)$db->execute_query(
+                "SELECT COUNT(*) FROM events WHERE kingdomid = ? AND actionid = ?",
+                [$kingdom_id, $action_id]
+            )->fetch_column();
+            if ($already_running > 0) {
+                throw new RuntimeException("Du forschst bereits!");
+            }
+
+            $fresh_lvl = (int)($db->execute_query(
+                "SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+                [$kingdom_id, $this->tech_id]
+            )->fetch_column() ?? 0);
+            if ($fresh_lvl !== $this->t_level) {
+                throw new RuntimeException("Die Forschungsstufe hat sich gerade geändert. Bitte versuche es erneut.");
+            }
+
+            if (!$kingdom->pay_costs($costs)) {
+                throw new RuntimeException("Nicht genügend Ressourcen!");
+            }
+
+            $duration = $this->calculate_research_seconds($this->t_level, $speed_multiplier);
+            $tech_time = time() + $duration;
+
+            $db->execute_query(
+                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [$action_id, $user_id, $kingdom_id, $this->tech_id, $tech_time, $this->t_level, $this->t_name]
+            );
+
+            $db->commit();
+            return null;
+        } catch (RuntimeException $e) {
+            $db->rollback();
+            return $e->getMessage();
+        } catch (Throwable $e) {
+            $db->rollback();
+            Logger::get_instance()->error("Tech::start_research error: " . $e->getMessage());
+            return "Interner Fehler beim Starten der Forschung.";
+        }
     }
 }

@@ -14,42 +14,40 @@ $alchemy = new Alchemy();
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        if (isset($_POST["start_transmutation"])) {
-            $from_res = (int)$_POST["from_res"];
-            $to_res = (int)$_POST["to_res"];
-            $amount = (int)str_replace(['.', ','], '', $_POST["amount"] ?? "0");
+    } else if (isset($_POST["start_transmutation"])) {
+        $from_res = post_int("from_res", -1);
+        $to_res = post_int("to_res", -1);
+        $raw_amt = str_replace(['.', ','], '', trim(post_str("amount", "0")));
 
-            if ($amount <= 0) {
-                $error = "Bitte gib eine Menge größer als 0 an.";
-            } else {
-                $err = $alchemy->start_transmutation($current_kingdom, $from_res, $to_res, $amount, $lab_level, $kingdom);
-
-                if ($err) {
-                    $error = $err;
-                } else {
-                    $_SESSION["game_success"] = "Die Umwandlung wurde erfolgreich gestartet!";
-
-                    change_location("alchemylab.php");
-                }
-            }
-        }
-
-        if (isset($_POST["claim_output"])) {
-            $err = $alchemy->claim($current_kingdom, $lab_level, $kingdom);
+        if (!ctype_digit($raw_amt) || (int)$raw_amt <= 0) {
+            $error = "Bitte gib eine Menge größer als 0 an.";
+        } else {
+            $err = $alchemy->start_transmutation($current_kingdom, $from_res, $to_res, (int)$raw_amt, $lab_level, $kingdom);
 
             if ($err) {
                 $error = $err;
             } else {
-                $_SESSION["game_success"] = "Umgewandelte Ressourcen erfolgreich ins Lager transferiert!";
+                $_SESSION["game_success"] = "Die Umwandlung wurde erfolgreich gestartet!";
 
                 change_location("alchemylab.php");
             }
         }
+    } else if (isset($_POST["claim_output"])) {
+        $err = $alchemy->claim($current_kingdom, $lab_level, $kingdom);
+        if ($err) {
+            $error = $err;
+        } else {
+            $_SESSION["game_success"] = "Umgewandelte Ressourcen erfolgreich ins Lager transferiert!";
 
-        if (isset($_POST["top_up_input"])) {
-            $amount = (int)str_replace(['.', ','], '', $_POST["top_up_amount"] ?? "0");
-            $err = $alchemy->top_up($current_kingdom, $amount, $lab_level, $kingdom);
+            change_location("alchemylab.php");
+        }
+    } else if (isset($_POST["top_up_input"])) {
+        $raw_amt = str_replace(['.', ','], '', trim(post_str("top_up_amount", "0")));
+
+        if (!ctype_digit($raw_amt) || (int)$raw_amt <= 0) {
+            $error = "Bitte gib eine Menge größer als 0 an.";
+        } else {
+            $err = $alchemy->top_up($current_kingdom, (int)$raw_amt, $lab_level, $kingdom);
 
             if ($err) {
                 $error = $err;
@@ -59,17 +57,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 change_location("alchemylab.php");
             }
         }
+    } else if (isset($_POST["cancel_transmutation"])) {
+        $err = $alchemy->cancel($current_kingdom, $lab_level, $kingdom);
 
-        if (isset($_POST["cancel_transmutation"])) {
-            $err = $alchemy->cancel($current_kingdom, $lab_level, $kingdom);
+        if ($err) {
+            $error = $err;
+        } else {
+            $_SESSION["game_success"] = "Prozess abgebrochen. Verbleibende Rohstoffe wurden zurückerstattet.";
 
-            if ($err) {
-                $error = $err;
-            } else {
-                $_SESSION["game_success"] = "Prozess abgebrochen. Verbleibende Rohstoffe wurden zurückerstattet.";
-
-                change_location("alchemylab.php");
-            }
+            change_location("alchemylab.php");
         }
     }
 }
@@ -123,7 +119,10 @@ if ($has_active_process) {
 
     $speed = Alchemy::get_speed_per_hour($lab_level, $in_res);
     $usable_input = $in_amt - ($in_amt % $step);
-    $rem_time_sec = ($speed > 0 && $usable_input > 0 && !$is_paused) ? (int)ceil(($usable_input / $speed) * 3600) : 0;
+    $elapsed_carry = max(0.0, microtime(true) - (float)$state["last_update"]);
+    $rem_time_sec = ($speed > 0 && $usable_input > 0 && !$is_paused)
+        ? max(1, (int)ceil((($usable_input / $speed) * 3600.0) - $elapsed_carry))
+        : 0;
 
     $stock = ($in_res !== -1) ? ($stocks[$in_res] ?? 0) : 0;
     $free_space = max(0, $capacity - $in_amt);
@@ -223,17 +222,17 @@ if ($has_active_process) {
 
     $view .= "</div></div>";
 
-    $view .= "
-    <div id='alchemy-active-data' 
-         data-in-amt='$in_amt' 
-         data-out-amt='{$state["output_amount"]}' 
-         data-in-rate='$input_per_sec' 
-         data-out-rate='$output_per_sec' 
-         data-capacity='$capacity'
-         data-stock='$stock'
-         data-max-output='$max_output_buffer'
-         data-step='$step'
-         style='display: none;'></div>";
+    $view .= " <div id='alchemy-active-data'
+                data-in-amt='$in_amt'
+                data-out-amt='$ready_to_claim'
+                data-speed-per-hour='$speed'
+                data-output-per-step='$output_per_step'
+                data-elapsed-carry='" . number_format($elapsed_carry, 3, '.', '') . "'
+                data-capacity='$capacity'
+                data-stock='$stock'
+                data-max-output='$max_output_buffer'
+                data-step='$step'
+                style='display: none;'></div>";
 } else {
     $view .= "
     <div class='box-container' style='max-width: 450px; margin: 0 auto;'>

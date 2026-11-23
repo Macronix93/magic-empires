@@ -2,45 +2,72 @@
 require_once("../includes/ajax_core.php");
 require_post();
 
+if (!SUGGESTIONS_ENABLED) {
+    send_json(["success" => false, "error" => "Deaktiviert."], 403);
+}
+
 session_write_close();
 
-$sug_id = (int)($_POST["id"] ?? 0);
-$type = $_POST["type"] ?? ""; // "up" or "down"
+$sug_id = post_int("id");
+$type = post_str("type"); // "up" or "down"
 $uid = $user->get_user_id();
 
-if ($sug_id <= 0 || !in_array($type, ["up", "down"])) {
+if ($sug_id <= 0 || $sug_id > PHP_INT_MAX || !in_array($type, ["up", "down"], true)) {
     echo json_encode(["success" => false, "error" => "Ungültige Eingabe"]);
     exit;
 }
 
 $vote_val = ($type === "up") ? 1 : -1;
+$my_vote = 0;
 
-$res_existing = $db_instance->execute_query(
-    "SELECT vote FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
-    [$sug_id, $uid]
-);
-$existing = $res_existing->fetch_assoc();
+$db_instance->begin_transaction();
+try {
+    $db_instance->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
 
-if ($existing) {
-    if ((int)$existing["vote"] === $vote_val) {
-        $db_instance->execute_query(
-            "DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
-            [$sug_id, $uid]
-        );
-        $my_vote = 0;
+    $exists = $db_instance->execute_query("SELECT 1 FROM suggestions WHERE id = ? LIMIT 1", [$sug_id]);
+    if (!$exists || $exists->num_rows === 0) {
+        $db_instance->rollback();
+
+        echo json_encode(["success" => false, "error" => "Dieser Vorschlag existiert nicht."]);
+        exit;
+    }
+
+    $existing = $db_instance->execute_query(
+        "SELECT vote FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
+        [$sug_id, $uid]
+    )->fetch_assoc();
+
+    if ($existing) {
+        if ((int)$existing["vote"] === $vote_val) {
+            $db_instance->execute_query(
+                "DELETE FROM suggestion_votes WHERE suggestion_id = ? AND user_id = ?",
+                [$sug_id, $uid]
+            );
+
+            $my_vote = 0;
+        } else {
+            $db_instance->execute_query(
+                "UPDATE suggestion_votes SET vote = ? WHERE suggestion_id = ? AND user_id = ?",
+                [$vote_val, $sug_id, $uid]
+            );
+
+            $my_vote = $vote_val;
+        }
     } else {
         $db_instance->execute_query(
-            "UPDATE suggestion_votes SET vote = ? WHERE suggestion_id = ? AND user_id = ?",
-            [$vote_val, $sug_id, $uid]
+            "INSERT INTO suggestion_votes (suggestion_id, user_id, vote, created_at) VALUES (?, ?, ?, ?)",
+            [$sug_id, $uid, $vote_val, time()]
         );
+
         $my_vote = $vote_val;
     }
-} else {
-    $db_instance->execute_query(
-        "INSERT INTO suggestion_votes (suggestion_id, user_id, vote, created_at) VALUES (?, ?, ?, ?)",
-        [$sug_id, $uid, $vote_val, time()]
-    );
-    $my_vote = $vote_val;
+
+    $db_instance->commit();
+} catch (Throwable $e) {
+    $db_instance->rollback();
+    Logger::get_instance()->error("suggestion_vote error: " . $e->getMessage());
+    echo json_encode(["success" => false, "error" => "Fehler beim Abstimmen."]);
+    exit;
 }
 
 $res_counts = $db_instance->execute_query("

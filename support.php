@@ -7,38 +7,19 @@ $support = new Support($user);
 $is_staff = ($user->get_user_admin_level() > 0);
 $uid = $user->get_user_id();
 
-function get_support_error($text): ?string
-{
-    $text_plain = trim(strip_tags($text));
-    $line_breaks_count = substr_count($text, "\n");
-    $text_without_line_breaks = preg_replace('/<br\s*\/?>/i', '', $text);
-
-    if (empty($text_plain)) {
-        return "Bitte eine Nachricht eingeben!";
-    } else if (mb_strlen($text_without_line_breaks, "UTF-8") > MAX_MESSAGE_LENGTH) {
-        return "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
-    } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
-        return "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
-    }
-
-    return null;
-}
-
 // --- ACTIONS ---
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
-        if (isset($_POST["open_ticket"]) && !$support->has_active_ticket($uid)) {
-            $raw_subject = trim($_POST["subject"] ?? "");
-            $raw_text = $_POST["text"] ?? "";
-
-            $sub_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject);
+        if (isset($_POST["open_ticket"])) {
+            $raw_subject = trim(post_str("subject"));
+            $raw_text = post_str("text");
+            $sub_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject) ?? '';
             $sub_clean = trim($sub_clean);
-            $text_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text);
+            $text_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text) ?? '';
             $text_clean = trim($text_clean);
-
-            $val_error = get_support_error($raw_text);
+            $val_error = Support::validate_message_text($raw_text);
 
             if (empty($raw_subject)) {
                 $error = "Bitte einen Betreff angeben!";
@@ -47,7 +28,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             } else {
                 // Rate Limit Check
                 $current_time = time();
-
                 if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
                     $_SESSION["message_count"] = 0;
                     $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
@@ -62,19 +42,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 } else if (mb_strlen($raw_subject) > MAX_SUPPORT_TICKET_SUBJECT_LENGTH) {
                     $error = "Der Betreff ist zu lang (max. " . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . " Zeichen)!";
                 } else {
-                    $sub = e(mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH));
+                    $sub = mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH);
                     $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
 
-                    $_SESSION["message_count"]++;
-                    $support->create_ticket($sub, $msg);
+                    $db_instance->begin_transaction();
+                    try {
+                        $db_instance->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
 
-                    change_location("support.php");
+                        if ($support->has_active_ticket($uid)) {
+                            throw new RuntimeException("Du hast bereits ein offenes Support-Ticket!");
+                        }
+
+                        $support->create_ticket($sub, $msg);
+                        $db_instance->commit();
+
+                        $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
+
+                        change_location("support.php");
+                    } catch (RuntimeException $e) {
+                        $db_instance->rollback();
+                        $error = $e->getMessage();
+                    } catch (Throwable $e) {
+                        $db_instance->rollback();
+                        $logger->error("support open_ticket error: " . $e->getMessage());
+                        $error = "Interner Fehler beim Erstellen des Tickets.";
+                    }
                 }
             }
-        }
-
-        if (isset($_POST["close_ticket"]) && is_numeric($_POST["tid"])) {
-            $tid = (int)$_POST["tid"];
+        } else if (isset($_POST["close_ticket"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
+            $tid = post_int("tid");
             $res = $db_instance->execute_query("SELECT userid FROM support_tickets WHERE id = ?", [$tid]);
             $ticket_data = $res->fetch_assoc();
 
@@ -84,25 +80,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
 
             change_location("support.php");
-        }
-
-        if (isset($_POST["delete_ticket"]) && is_numeric($_POST["tid"])) {
-            $tid = (int)$_POST["tid"];
+        } else if (isset($_POST["delete_ticket"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
+            $tid = post_int("tid");
             $support->delete_ticket($tid);
 
             change_location("support.php");
-        }
-
-        // Send message in existing ticket
-        if (isset($_POST["send_msg"]) && is_numeric($_POST["tid"])) {
-            $tid = (int)$_POST["tid"];
-            $raw_text = $_POST["text"] ?? "";
+        } // Send message in existing ticket
+        else if (isset($_POST["send_msg"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
+            $tid = post_int("tid");
+            $raw_text = post_str("text");
 
             // Check access
             $res = $db_instance->execute_query("SELECT userid, status FROM support_tickets WHERE id = ?", [$tid]);
             $t_check = $res->fetch_assoc();
 
-            $val_error = get_support_error($raw_text);
+            $val_error = Support::validate_message_text($raw_text);
 
             if (!$t_check) {
                 $error = "Das Ticket existiert nicht mehr oder wurde gelöscht.";
@@ -125,7 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $error = "Du schickst zu viele Nachrichten! Bitte warte kurz.";
                 } else {
                     $msg = Messages::filter_chat_message(nl2br(e($raw_text)));
-                    $_SESSION["message_count"]++;
+                    $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
 
                     $is_acting_as_staff = ($is_staff && (int)$t_check["userid"] !== $uid);
                     $support->add_message($tid, $msg, $is_acting_as_staff);
@@ -142,11 +134,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
  */
 $title = "Support";
 $header = "Support-System";
-$script_files = ["support"];
+$script_files = ["timer", "support", "userinfo"];
 
 if (isset($_GET["tid"])) {
     // TICKET DETAILS
-    $tid = (int)$_GET["tid"];
+    $tid = get_int("tid");
+
     $res = $db_instance->execute_query("
                         SELECT t.*, u.username, a.username AS assigned_admin 
                         FROM support_tickets t 
@@ -164,75 +157,83 @@ if (isset($_GET["tid"])) {
 
         if ($is_acting_as_staff) {
             if ($ticket["assigned_admin"] && $ticket["assigned_to"] != $uid) {
-                $view .= show_warning_box("Dieses Ticket wird bereits von <b>" . e($ticket["assigned_admin"]) . "</b> bearbeitet.");
+                $view .= show_warning_box("Dieses Ticket wird bereits von <b>" . e($ticket["assigned_admin"]) . "</b> bearbeitet.") . "<br>";
             }
         }
 
-        $db_instance->execute_query("UPDATE support_messages SET hasread = 1 WHERE ticketid = ? AND senderid != ?", [$tid, $uid]);
+        $msgs = $db_instance->execute_query(
+            "SELECT m.*, u.username FROM support_messages m JOIN users u ON m.senderid = u.id WHERE m.ticketid = ? ORDER BY m.id",
+            [$tid]
+        )->fetch_all(MYSQLI_ASSOC);
+
+        $db_instance->execute_query(
+            "UPDATE support_messages SET hasread = 1 WHERE ticketid = ? AND senderid != ? AND hasread = 0",
+            [$tid, $uid]
+        );
 
         if (!$ticket["status"]) {
-            $view .= show_warning_box("Dieses Ticket ist geschlossen (" . e($ticket["close_reason"]) . ").");
+            $view .= show_warning_box("Dieses Ticket ist geschlossen (" . e($ticket["close_reason"]) . ").") . "<br>";
         }
 
+        $view .= "<div class='info-box event-error' id='support-chat-error' style='display: none;'></div>";
         $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='navigate' data-url='support.php'>Zurück</button>";
         $view .= "<h3 style='margin: 0; flex: 1;'>Ticket #$tid: " . e($ticket["subject"]) . "</h3>";
 
         if ($ticket["status"]) {
             $view .= "<div><button class='btn-delete' style='width: auto; padding: 5px 10px;' data-on-click='confirmCloseTicket' data-id='$tid'>Ticket schließen</button></div>";
         }
+
         $view .= "</div>";
 
-        $view .= "<div id='messages-section' style='max-height: 400px; overflow-y: auto; display: flex; flex-direction: column;'>";
-        $msgs = $db_instance->execute_query("SELECT m.*, u.username FROM support_messages m JOIN users u ON m.senderid = u.id WHERE m.ticketid = ? ORDER BY m.created_at",
-            [$tid]);
+        $last_msg_id = 0;
+        $unread_line_shown = false;
+
+        $view .= "<div id='chat-loading-wrapper'>";
+        $view .= "<div id='messages-section' data-chat-type='support' data-ticket-id='$tid' data-ticket-open='" . (int)$ticket["status"] . "'>";
 
         foreach ($msgs as $m) {
-            $is_me = ($m["senderid"] == $uid);
-            $class = $is_me ? "receiver-bubble" : "sender-bubble";
-            $display_name = $is_me ? "Du" : e($m["username"]);
-            $support_label = ($m["is_admin_reply"]) ? " <small style='color: var(--link-color)'>(Support)</small>" : "";
+            $last_msg_id = (int)$m["id"];
+            $is_unread_foreign = ((int)$m["senderid"] !== $uid && empty($m["hasread"]));
 
-            $sender_user = new User($m["senderid"], $m["username"]);
-            $avatar_path = $sender_user->get_avatar();
+            if ($is_unread_foreign && !$unread_line_shown) {
+                $unread_line_shown = true;
+                $view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", (int)$m["created_at"]) . "</div>";
+            }
 
-            $view .= "<div class='$class' id='msg-{$m["id"]}'>
-                        <div class='message-border'>
-                            <span class='msg-header-left'>
-                                <img class='user-image' src='" . e($avatar_path) . "' alt='Avatar'>
-                                <span>$display_name $support_label am " . date("d.m.Y \u\m H:i:s", $m["created_at"]) . "</span>
-                            </span>
-                        </div>
-                        {$m["message"]}
-                    </div>";
+            $view .= Support::render_message_bubble($m, $user, $is_staff);
         }
-        $view .= "</div>";
+
+        $view .= "</div></div>";
+        $view .= "<div id='support-chat-meta' data-last-id='$last_msg_id' style='display: none;'></div>";
 
         if ($ticket["status"]) {
-            $view .= "<div id='newmessage-section'>
-                        <form method='POST' action='support.php' id='newmessage'>
-                            <input type='hidden' name='tid' value='$tid'>
-                            <input type='hidden' name='send_msg' value='1'>
-                            <textarea id='message-input' name='text' rows='3' placeholder='Deine Antwort...' required style='margin-right: 10px;'></textarea>
-                            <div class=\"emoji-picker-container\">
-                                <div id=\"emoji-menu\" class=\"emoji-menu\">";
-            foreach (Messages::get_chat_emojis() as $emoji) {
-                $view .= "<span data-on-click=\"pickEmoji\">$emoji</span>";
-            }
-            $view .= "          </div>
-                                <button type=\"button\" class=\"emoji-trigger\" data-on-click=\"toggleEmojis\" title=\"Emoji einfügen\">🙂</button>
-                            </div>
+            $view .= "
+                <div id='newmessage-section'>
+                    <form method='POST' action='support.php' id='newmessage'>
+                        <input type='hidden' name='tid' value='$tid'>
+                        <input type='hidden' name='send_msg' value='1'>
+                        <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' placeholder='Deine Antwort...' required style='resize: vertical; margin-right: 10px;'></textarea>
+                        <div class='emoji-picker-container'>
+                            <div id='emoji-menu' class='emoji-menu'>";
 
-                            <input type='submit' name='send_msg' value='Absenden'>
-                        </form>
-                      </div>";
+            foreach (Messages::get_chat_emojis() as $emoji) {
+                $view .= "<span data-on-click='pickEmoji'>$emoji</span>";
+            }
+
+            $view .= "      </div>
+                            <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
+                        </div>
+                        <input type='submit' name='send_msg' value=\"Absenden\n[ENTER]\">
+                    </form>
+                </div>";
         }
     }
 } else {
     // TICKET LIST
     $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button></div>";
 
-    $active_tab = $_GET["tab"] ?? ($is_staff ? "all" : "my");
-    if (!in_array($active_tab, ["all", "my"])) {
+    $active_tab = get_str("tab", $is_staff ? "all" : "my");
+    if (!in_array($active_tab, ["all", "my"], true)) {
         $active_tab = $is_staff ? "all" : "my";
     }
 
@@ -250,13 +251,17 @@ if (isset($_GET["tid"])) {
     $render_tickets_table = function (mysqli_result $tickets, bool $is_my_view) {
         $html = "<table class='table' style='max-width: 700px;'>
             <tr>
-                <td class='td-center td-gradient' style='width: 8%;'><b>Status</b></td>
-                <td class='td-center td-gradient'><b>Betreff</b></td>
+                <td class='td-center td-gradient' colspan='2'><b>Betreff</b></td>
                 " . (!$is_my_view ? "<td class='td-center td-gradient'><b>User</b></td>" : "") . "
                 <td class='td-center td-gradient' colspan='2' style='width: 35%;'><b>Letztes Update</b></td>
             </tr>";
 
         foreach ($tickets as $t) {
+            $unread = (int)($t["unread_count"] ?? 0);
+            $unread_badge = ($unread > 0)
+                ? "<span class='msg-badge' style='margin-left: 8px; flex-shrink: 0;'>" . ($unread > 9 ? "9+" : $unread) . "</span>"
+                : "";
+
             $closed_ticket = !$t["status"] ? " tr-inactive" : "";
             $status = $t["status"]
                 ? "<img src='images/icons/icon_question.png' class='ressource-icons' alt='Offen'>"
@@ -270,7 +275,12 @@ if (isset($_GET["tid"])) {
 
             $html .= "<tr class='tr-hover$closed_ticket'>
                 <td class='td-cursor td-center' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>$status</td>
-                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["subject"]) . "$assigned_info</td>
+                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; gap: 6px;'>
+                        <div>" . e($t["subject"]) . "$assigned_info</div>
+                        $unread_badge
+                    </div>
+                </td>
                 " . (!$is_my_view ? "<td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["username"]) . "</td>" : "") . "
                 <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>am " . date("d.m.Y \u\m H:i:s", $t["updated_at"]) . "</td>
                 <td class='td-center' style='width: 40px;'>
@@ -313,17 +323,21 @@ if (isset($_GET["tid"])) {
 
     // --- TAB: ALL TICKETS (Only for staff) ---
     if ($is_staff) {
-        $all_page = max(1, (int)($_GET["currentpage"] ?? 1));
+        $all_page = max(1, get_int("currentpage", 1));
         $all_offset = ($all_page - 1) * $rows_per_page;
         $total_all = (int)$db_instance->execute_query("SELECT COUNT(*) FROM support_tickets")->fetch_row()[0];
         $total_all_pages = (int)ceil($total_all / $rows_per_page);
 
-        $sql_all = "SELECT t.*, u.username, a.username AS assigned_admin 
-                    FROM support_tickets t 
-                    JOIN users u ON t.userid = u.id 
-                    LEFT JOIN users a ON t.assigned_to = a.id 
-                    ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
-        $res_all = $db_instance->execute_query($sql_all, [$all_offset, $rows_per_page]);
+        $sql_all = "SELECT t.*, u.username, a.username AS assigned_admin,
+                    (SELECT COUNT(*) FROM support_messages sm
+                     WHERE sm.ticketid = t.id AND sm.hasread = 0 AND sm.senderid != ?
+                       AND ((sm.is_admin_reply = 0 AND t.status = 1 AND t.userid != ?)
+                         OR (sm.is_admin_reply = 1 AND t.userid = ?))) AS unread_count
+                    FROM support_tickets t
+                    JOIN users u ON t.userid = u.id
+                    LEFT JOIN users a ON t.assigned_to = a.id
+                    ORDER BY t.status DESC, unread_count DESC, t.updated_at DESC LIMIT ?, ?";
+        $res_all = $db_instance->execute_query($sql_all, [$uid, $uid, $uid, $all_offset, $rows_per_page]);
 
         $view .= "<div id='support_tab_all' class='js-support-tab' style='display: " . ($active_tab === "all" ? "block" : "none") . ";'>";
         $view .= "<div class='title-border'>Eingegangene Support-Anfragen</div>";
@@ -339,17 +353,19 @@ if (isset($_GET["tid"])) {
     }
 
     // --- TAB: MY TICKETS ---
-    $my_page = max(1, (int)($_GET["mypage"] ?? 1));
+    $my_page = max(1, get_int("mypage", 1));
     $my_offset = ($my_page - 1) * $rows_per_page;
     $total_my = (int)$db_instance->execute_query("SELECT COUNT(*) FROM support_tickets WHERE userid = ?", [$uid])->fetch_row()[0];
     $total_my_pages = (int)ceil($total_my / $rows_per_page);
 
-    $sql_my = "SELECT t.*, u.username 
-               FROM support_tickets t 
-               JOIN users u ON t.userid = u.id 
-               WHERE t.userid = ? 
-               ORDER BY t.status DESC, t.updated_at DESC LIMIT ?, ?";
-    $res_my = $db_instance->execute_query($sql_my, [$uid, $my_offset, $rows_per_page]);
+    $sql_my = "SELECT t.*, u.username,
+                (SELECT COUNT(*) FROM support_messages sm
+                 WHERE sm.ticketid = t.id AND sm.hasread = 0 AND sm.senderid != ? AND sm.is_admin_reply = 1) AS unread_count
+                FROM support_tickets t
+                JOIN users u ON t.userid = u.id
+                WHERE t.userid = ?
+                ORDER BY t.status DESC, unread_count DESC, t.updated_at DESC LIMIT ?, ?";
+    $res_my = $db_instance->execute_query($sql_my, [$uid, $uid, $my_offset, $rows_per_page]);
 
     $view .= "<div id='support_tab_my' class='js-support-tab' style='display: " . ($active_tab === "my" ? "block" : "none") . ";'>";
 

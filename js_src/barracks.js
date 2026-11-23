@@ -207,7 +207,7 @@ function updateRecruitCosts(input) {
     if (selectedUpgrade) {
         rawTimePerUnit = parseInt(selectedUpgrade.dataset.utime) || 0;
     }
-    let discountedUnitTime = Math.round(rawTimePerUnit * smithyMultiplier);
+    let discountedUnitTime = rawTimePerUnit > 0 ? Math.max(1, Math.round(rawTimePerUnit * smithyMultiplier)) : 0;
 
     const timeEl = document.getElementById(`time-${id}`);
     if (timeEl) {
@@ -264,7 +264,7 @@ function updateRecruitCosts(input) {
     const unitLimit = input.dataset.unitLimit ? parseInt(input.dataset.unitLimit, 10) : null;
     const unitTotal = input.dataset.unitTotal ? parseInt(input.dataset.unitTotal, 10) : 0;
     const isUnitLimitReached = unitLimit !== null && (unitTotal >= unitLimit);
-    const wouldExceedUnitLimit = unitLimit !== null && (unitTotal + amount > unitLimit);
+    const wouldExceedUnitLimit = amount > 0 && unitLimit !== null && (unitTotal + amount > unitLimit);
 
     const noUnitsToUpgrade = isUpgrade && (parseInt(input.dataset.owned) <= 0);
     const spaceBlocked = (!isUpgrade && !isSpaceExempt && kRes.spaceLeft <= 0);

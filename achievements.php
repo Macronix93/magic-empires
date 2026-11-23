@@ -94,7 +94,6 @@ foreach ($grouped as $catKey => $items) {
                 <div id='claim-wrap-{$ach["id"]}' style='display: flex; flex-direction: column; align-items: center; gap: 5px;'>
                     $reward_text_and_coin
                     <button type='button' 
-                            class='btn-accept' 
                             data-on-click='claimAchievement' 
                             data-id='{$ach["id"]}' 
                             data-reward='$reward'>

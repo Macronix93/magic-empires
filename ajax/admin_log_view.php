@@ -6,21 +6,15 @@ if (!$user->is_admin()) {
 }
 
 $log_dir = __DIR__ . "/../logs/";
-$sub_dir = $_GET["sub"] ?? "";
+$sub_dir = get_str("sub");
 
 $allowed_system_files = ["admin.log", "error.log", "security.log"];
-$file = $_GET["file"] ?? '';
+$file = get_str("file");
 if ($file !== basename($file)) die("Ungültige Datei.");
 
-$page = max(1, (int)($_GET["page"] ?? 1));
-$per_page = 50;
-
-$is_system_log = in_array($file, $allowed_system_files);
-$is_chat_backup = ($sub_dir === "chat_backups" && str_starts_with($file, "chat_log_"));
-
-if (!$is_system_log && !$is_chat_backup) {
-    die("Ungültige Datei.");
-}
+$is_system_log = ($sub_dir === "" && in_array($file, $allowed_system_files, true));
+$is_chat_backup = ($sub_dir === "chat_backups" && preg_match('/^chat_log_\d+_vs_\d+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log$/', $file));
+if (!$is_system_log && !$is_chat_backup) die("Ungültige Datei.");
 
 $file_path = $log_dir . ($sub_dir ? $sub_dir . "/" : "") . $file;
 if (!file_exists($file_path)) {
@@ -37,9 +31,11 @@ if ($sub_dir !== "chat_backups") {
     $all_lines = array_reverse($all_lines);
 }
 
-$total_pages = ceil($total_lines / $per_page);
-
+$per_page = 50;
+$total_pages = max(1, (int)ceil($total_lines / $per_page));
+$page = max(1, min($total_pages, get_int("page", 1)));
 $offset = ($page - 1) * $per_page;
+
 $lines_to_show = array_slice($all_lines, $offset, $per_page);
 
 $current_page_display = ($total_lines > 0) ? $page : 0;

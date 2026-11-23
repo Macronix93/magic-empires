@@ -1,10 +1,10 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$id = (int)($_GET["id"] ?? 0);
-$hash = $_GET["h"] ?? '';
+$id = get_int("id");
+$hash = get_str("h");
 
-$expected = substr(hash_hmac("sha256", (string)$id, AVATAR_SALT), 0, 8);
+$expected = substr(hash_hmac("sha256", (string)$id, APP_SECRET), 0, 8);
 if (!hash_equals($expected, $hash)) {
     echo show_error_box("Ungültiger oder abgelaufener Link.");
     exit;
@@ -18,34 +18,22 @@ $res = $db_instance->execute_query(
 );
 $row = $res->fetch_assoc();
 
-if ($row) {
-    $data = json_decode($row["data_json"] ?? "{}", true);
-    $date = (int)$row["created_at"];
-    $is_owner = ($current_uid === (int)$row["shared_by_user_id"]);
-} else {
-    $res_legacy = $db_instance->execute_query(
-            "SELECT receiverid, data_json, message, date FROM server_messages WHERE id = ? AND category IN (?, ?)",
-            [$id, MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE]
-    );
-    $row_legacy = $res_legacy->fetch_assoc();
-
-    if (!$row_legacy) {
-        echo show_error_box("Dieser geteilte Kampfbericht existiert nicht mehr.");
-        exit;
-    }
-
-    $data = json_decode($row_legacy["data_json"] ?? "{}", true);
-    $date = (int)$row_legacy["date"];
-    $is_owner = ($current_uid === (int)$row_legacy["receiverid"]);
+if (!$row) {
+    echo show_error_box("Dieser geteilte Kampfbericht ist abgelaufen oder existiert nicht mehr.");
+    exit;
 }
 
-if (!empty($data)) {
+$data = json_decode($row["data_json"] ?? "{}", true);
+$date = (int)$row["created_at"];
+$is_owner = ($current_uid === (int)$row["shared_by_user_id"]);
+
+if (!empty($data) && is_array($data)) {
     $data["msg_date"] = $date;
     $data["is_shared_view"] = !$is_owner;
 
     $content = Messages::render_message_template($data);
 } else {
-    $content = $row_legacy["message"] ?? "Bericht nicht lesbar.";
+    $content = "Bericht nicht lesbar.";
 }
 
 $date_str = date("d.m.Y H:i:s", $date);

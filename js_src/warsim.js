@@ -664,7 +664,7 @@ function calculateWarOutcome(soldierTypes) {
     // Armor Calculation
     const avgOwnDef = totalOwnUnits > 0 ? (totalOwnDef / totalOwnUnits) : 1;
     const avgEnemyDef = totalEnemyUnits > 0 ? (totalEnemyDef / totalEnemyUnits) : 1;
-    const exp = W_CONF.armorWeightExponent; // z.B. 0.5
+    const exp = W_CONF.armorWeightExponent;
 
     soldierTypes.forEach(type => {
         let oIn = document.getElementById(`${type}_own`);

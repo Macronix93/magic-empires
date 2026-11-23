@@ -15,6 +15,7 @@ class Building
     private int $b_goldcost;
     private string $b_description;
     private array $b_dependencies = [];
+    private static array $icon_exists_cache = [];
 
     public static function get_building_file(int $building_id): string
     {
@@ -143,13 +144,18 @@ class Building
     public function get_building_icon(string $class = "buildable-icons"): string
     {
         $icon_path = "images/icons/icon_building$this->building_id.png";
-        $disk_path = __DIR__ . "/../" . $icon_path;
 
-        if (isset($this->building_id) && file_exists($disk_path)) {
-            return "<img src='$icon_path' class='$class' alt='$this->b_name' title='$this->b_name'/>";
-        } else {
-            return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
+        if (isset($this->building_id)) {
+            if (!isset(self::$icon_exists_cache[$this->building_id])) {
+                self::$icon_exists_cache[$this->building_id] = file_exists(__DIR__ . "/../" . $icon_path);
+            }
+
+            if (self::$icon_exists_cache[$this->building_id]) {
+                return "<img src='$icon_path' class='$class' alt='$this->b_name' title='$this->b_name'/>";
+            }
         }
+
+        return "<img src='images/icons/icon_error.png' class='buildable-icons' alt='Fehler' title='Icon nicht vorhanden'/>";
     }
 
     public function fill_from_row(array $row, int $building_id, int $kingdom_id): void

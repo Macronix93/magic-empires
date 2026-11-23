@@ -24,17 +24,6 @@ registerAction("filterSendTroops", (el) => {
     url.searchParams.set("cat", category);
     window.history.replaceState({}, '', url);
 });
-
-function getSelectedTroopCountExcept(skipInput = null) {
-    let sum = 0;
-    document.querySelectorAll(".js-unit-input").forEach(inp => {
-        if (inp !== skipInput) {
-            sum += parseInt(inp.value) || 0;
-        }
-    });
-    return sum;
-}
-
 registerAction("fillMaxAndRefresh", (el) => {
     const targetId = el.dataset.target;
     const maxValue = parseInt(el.dataset.value) || 0;
@@ -55,6 +44,19 @@ registerAction("fillMaxAndRefresh", (el) => {
                 const allowed = Math.max(0, quotaLimit - otherUnits);
 
                 valToSet = Math.min(valToSet, allowed);
+            }
+
+            if (form && form.dataset.isStation === "true") {
+                const exemptIds = getExemptUnitIds(form);
+
+                if (!exemptIds.includes(String(input.dataset.id))) {
+                    const stationLimit = parseInt(form.dataset.stationLimit, 10);
+
+                    if (!isNaN(stationLimit)) {
+                        const otherNonExempt = getSelectedTroopCountExcept(input, exemptIds);
+                        valToSet = Math.min(valToSet, Math.max(0, stationLimit - otherNonExempt));
+                    }
+                }
             }
         }
 
@@ -89,6 +91,10 @@ registerAction("selectAllTroops", () => {
 
     const isMine = form && form.dataset.isMine === "true";
     const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
+    const isStation = form && form.dataset.isStation === "true";
+    const stationLimitVal = isStation ? parseInt(form.dataset.stationLimit, 10) : NaN;
+    let remainingStationQuota = (isStation && !isNaN(stationLimitVal)) ? stationLimitVal : Infinity;
+    const exemptIds = isStation ? getExemptUnitIds(form) : [];
     let hasNormalUnitsAvailable = false;
 
     if (isMine) {
@@ -107,10 +113,18 @@ registerAction("selectAllTroops", () => {
         }
 
         const max = parseInt(input.dataset.max) || 0;
-        if (max > 0 && remainingQuota > 0) {
-            const take = Math.min(max, remainingQuota);
+        const isExempt = exemptIds.includes(String(input.dataset.id));
+        const capByStation = (isStation && !isExempt) ? remainingStationQuota : Infinity;
+        const effectiveRemaining = Math.min(remainingQuota, capByStation);
+
+        if (max > 0 && effectiveRemaining > 0) {
+            const take = Math.min(max, effectiveRemaining);
             input.value = take > 0 ? take : "";
             remainingQuota -= take;
+
+            if (isStation && !isExempt) {
+                remainingStationQuota -= take;
+            }
         } else {
             input.value = "";
         }
@@ -131,12 +145,6 @@ registerAction("submitSendTroopsForm", (form, e) => {
         submitBtn.value = "Wird entsendet...";
     }
     form.dataset.submitting = "true";
-
-    const errorContainer = document.getElementById("sendtroops-ajax-error");
-    if (errorContainer) {
-        errorContainer.style.display = "none";
-        errorContainer.innerHTML = "";
-    }
 
     const formData = new FormData(form);
     formData.append("from_page", window.location.pathname);
@@ -186,17 +194,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
                     refreshMapDataSilently(true);
                 }
             } else {
-                if (errorContainer) {
-                    errorContainer.innerHTML = `<div class="info-box event-error" style="margin-bottom: 15px;"><img src="images/icons/icon_error.png" alt="Fehler"><span>${data.error || "Fehler beim Absenden."}</span></div>`;
-                    errorContainer.style.display = "block";
-
-                    const modalBody = document.getElementById("overlay-content-body");
-                    if (modalBody) {
-                        modalBody.scrollTo({top: 0, behavior: "smooth"});
-                    }
-                } else {
-                    showGameError(data.error || "Fehler beim Absenden.");
-                }
+                showGameError(data.error || "Fehler beim Absenden.");
 
                 if (submitBtn) {
                     submitBtn.disabled = false;
@@ -215,6 +213,28 @@ registerAction("submitSendTroopsForm", (form, e) => {
             }
         });
 });
+
+function getExemptUnitIds(form) {
+    if (!form || !form.dataset.exemptIds) return [];
+
+    try {
+        return JSON.parse(form.dataset.exemptIds).map(String);
+    } catch (e) {
+        return [];
+    }
+}
+
+function getSelectedTroopCountExcept(skipInput = null, exemptIds = []) {
+    let sum = 0;
+
+    document.querySelectorAll(".js-unit-input").forEach(inp => {
+        if (inp !== skipInput && !exemptIds.includes(String(inp.dataset.id))) {
+            sum += parseInt(inp.value) || 0;
+        }
+    });
+
+    return sum;
+}
 
 function getEffectiveQuotaLimit(form) {
     if (!form) return null;
@@ -244,9 +264,12 @@ function updateTroopSummary() {
     const summaryContainer = document.getElementById("troop-summary-container");
     const actionButtons = document.getElementById("troop-action-buttons");
     const form = document.getElementById("send-troops-form");
+    const isStation = !!(form && form.dataset.isStation === "true");
+    const selectedStationUnits = new Map();
 
     const scoutId = String(form?.dataset.scoutId || "12");
     const thiefId = String(form?.dataset.thiefId || "11");
+    const exemptIds = getExemptUnitIds(form);
 
     if (form && form.dataset.isMine === "true") {
         const scoutInput = document.getElementById("sol_" + scoutId);
@@ -295,6 +318,7 @@ function updateTroopSummary() {
     let badgesHtml = "";
     let totalUnits = 0;
     let totalMiningUnits = 0;
+    let nonExemptUnits = 0;
     let totalAtk = 0;
     let totalDef = 0;
     let scoutCount = 0;
@@ -346,6 +370,18 @@ function updateTroopSummary() {
             if (input.dataset.id !== scoutId) {
                 totalMiningUnits += val;
             }
+
+            if (!exemptIds.includes(uId)) {
+                nonExemptUnits += val;
+            }
+
+            if (isStation) {
+                selectedStationUnits.set(uId, {
+                    count: val,
+                    name: name,
+                    iconPath: iconPath
+                });
+            }
         }
     });
 
@@ -368,13 +404,73 @@ function updateTroopSummary() {
         }
     }
 
-    summaryList.innerHTML = badgesHtml;
+    if (isStation) {
+        summaryList.innerHTML = "";
+        summaryTotals.innerHTML = "";
+        summaryContainer.style.display = "none";
 
-    if (totalUnits > 0) {
-        const atkTitle = totalAtk >= 100000 ? ` title="${totalAtk.toLocaleString("de-DE")}" style="cursor:help;"` : "";
-        const defTitle = totalDef >= 100000 ? ` title="${totalDef.toLocaleString("de-DE")}" style="cursor:help;"` : "";
+        const targetList = document.getElementById("target-kingdom-troops-list");
+        const emptyMsg = document.getElementById("target-kingdom-empty-msg");
+        if (targetList) {
+            targetList.querySelectorAll(".js-station-added-badge").forEach(el => el.remove());
 
-        summaryTotals.innerHTML = `
+            const existingBadges = targetList.querySelectorAll(".unit-badge[data-base-count]");
+            existingBadges.forEach(badge => {
+                const sid = String(badge.dataset.soldierId);
+                const baseCount = parseInt(badge.dataset.baseCount, 10) || 0;
+                const baseName = badge.dataset.name || "";
+                const bEl = badge.querySelector("b");
+                const added = selectedStationUnits.get(sid);
+
+                if (added && added.count > 0) {
+                    const newTotal = baseCount + added.count;
+                    if (bEl) {
+                        bEl.textContent = formatNumJS(newTotal);
+                        bEl.classList.add("passed");
+                    }
+                    badge.title = `${baseName} (${baseCount.toLocaleString("de-DE")} + ${added.count.toLocaleString("de-DE")})`;
+                    selectedStationUnits.delete(sid);
+                } else {
+                    if (bEl) {
+                        bEl.textContent = formatNumJS(baseCount);
+                        bEl.classList.remove("passed");
+                    }
+                    badge.title = baseName;
+                }
+            });
+
+            selectedStationUnits.forEach((u, sid) => {
+                const badge = document.createElement("div");
+                badge.className = "unit-badge js-station-added-badge";
+                badge.dataset.soldierId = sid;
+                badge.title = `${u.name} (+${u.count.toLocaleString("de-DE")})`;
+
+                const img = document.createElement("img");
+                img.src = u.iconPath;
+                img.className = "ressource-icons";
+                img.alt = u.name;
+
+                const b = document.createElement("b");
+                b.className = "passed";
+                b.textContent = formatNumJS(u.count);
+
+                badge.append(img, b);
+                targetList.appendChild(badge);
+            });
+
+            if (emptyMsg) {
+                const hasAnyVisibleBadge = targetList.querySelectorAll(".unit-badge").length > 0;
+                emptyMsg.style.display = hasAnyVisibleBadge ? "none" : "";
+            }
+        }
+    } else {
+        summaryList.innerHTML = badgesHtml;
+
+        if (totalUnits > 0) {
+            const atkTitle = totalAtk >= 100000 ? ` title="${totalAtk.toLocaleString("de-DE")}" style="cursor:help;"` : "";
+            const defTitle = totalDef >= 100000 ? ` title="${totalDef.toLocaleString("de-DE")}" style="cursor:help;"` : "";
+
+            summaryTotals.innerHTML = `
             <div style="min-width: 250px; padding: 8px; display: flex; justify-content: center; gap: 20px; font-weight: bold; background-color: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-gold);
                     border-radius: 5px;">
                 <div style="display: flex; align-items: center; gap: 5px;" title="Gesamt-Angriff">
@@ -386,11 +482,12 @@ function updateTroopSummary() {
                     <span${defTitle}>${formatNumJS(totalDef)}</span>
                 </div>
             </div>`;
-    } else {
-        summaryTotals.innerHTML = "";
-    }
+        } else {
+            summaryTotals.innerHTML = "";
+        }
 
-    summaryContainer.style.display = (totalUnits > 0) ? "flex" : "none";
+        summaryContainer.style.display = (totalUnits > 0) ? "flex" : "none";
+    }
 
     const summaryCountEl = document.getElementById("troop-summary-count");
     if (summaryCountEl) {
@@ -426,12 +523,29 @@ function updateTroopSummary() {
         supportCapDisplay.innerHTML = `<b>${totalWithTroops}</b>${addedHtml}`;
     }
 
+    const stationCapDisplay = document.getElementById("station-capacity-display");
+    if (stationCapDisplay && form && form.dataset.isStation === "true") {
+        const stationCurrent = parseInt(form.dataset.stationCurrent, 10) || 0;
+        const stationMax = parseInt(form.dataset.stationMax, 10) || 0;
+        const totalWithTroops = stationCurrent + nonExemptUnits;
+        const isOver = totalWithTroops > stationMax;
+        const isFull = totalWithTroops >= stationMax;
+        const addedHtml = nonExemptUnits > 0
+            ? ` <span class="${isOver ? "error" : (isFull ? "warning" : "passed")}">(+${nonExemptUnits.toLocaleString("de-DE")})</span>`
+            : "";
+
+        stationCapDisplay.className = isOver ? "error" : (isFull ? "warning" : "passed");
+        stationCapDisplay.innerHTML = `<b>${totalWithTroops.toLocaleString("de-DE")}</b>${addedHtml}`;
+    }
+
     if (form && form.dataset.mineRemWork !== undefined) {
         const workTotal = parseFloat(form.dataset.mineWorkTotal) || 0;
         const curAtk = parseFloat(form.dataset.mineCurrentAtk) || 0;
         const rateFactor = parseFloat(form.dataset.mineWorkFactor) || 0.0075;
         const mineMinDuration = parseInt(form.dataset.mineMinDuration) || 1800;
         const maxRate = workTotal / mineMinDuration;
+        const workRem = parseFloat(form.dataset.mineRemWork) || workTotal;
+        const isFriendly = form.dataset.mineFriendly === "true";
 
         const rateDisplay = document.getElementById("mine-rate-display");
         const durDisplay = document.getElementById("mine-duration-display");
@@ -471,7 +585,10 @@ function updateTroopSummary() {
 
             if (durDisplay) {
                 if (totalRate > 0 && workTotal > 0) {
-                    const estSec = Math.max(mineMinDuration, Math.ceil(workTotal / totalRate));
+                    const estSec = isFriendly
+                        ? Math.ceil(workRem / totalRate)
+                        : Math.max(mineMinDuration, Math.ceil(workTotal / totalRate));
+
                     durDisplay.innerHTML = `ca. ${formatMineDuration(estSec)}`;
                 } else {
                     durDisplay.innerHTML = `<i>Keine Truppen gewählt</i>`;
@@ -501,6 +618,14 @@ function updateTroopSummary() {
                 const supportMax = parseInt(form.dataset.supportMax) || 0;
 
                 if ((supportCurrent + totalUnits) > supportMax) {
+                    disabled = true;
+                }
+            }
+
+            if (form && form.dataset.isStation === "true") {
+                const stationLimit = parseInt(form.dataset.stationLimit, 10);
+
+                if (!isNaN(stationLimit) && nonExemptUnits > stationLimit) {
                     disabled = true;
                 }
             }
@@ -549,17 +674,28 @@ document.addEventListener("input", (e) => {
         }
 
         const quotaLimit = getEffectiveQuotaLimit(form);
+        let cap = parseInt(e.target.dataset.max) || 0;
 
         if (quotaLimit !== null) {
             const otherUnits = getSelectedTroopCountExcept(e.target);
             const allowedForThis = Math.max(0, quotaLimit - otherUnits);
-            const maxOwn = parseInt(e.target.dataset.max) || 0;
-            let rawVal = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
-            const cap = Math.min(maxOwn, allowedForThis);
+            cap = Math.min(cap, allowedForThis);
+        }
 
-            if (rawVal > cap) {
-                e.target.value = cap > 0 ? cap : "";
+        if (form && form.dataset.isStation === "true") {
+            const exemptIds = getExemptUnitIds(form);
+            if (!exemptIds.includes(String(e.target.dataset.id))) {
+                const stationLimit = parseInt(form.dataset.stationLimit, 10);
+                if (!isNaN(stationLimit)) {
+                    const otherNonExempt = getSelectedTroopCountExcept(e.target, exemptIds);
+                    cap = Math.min(cap, Math.max(0, stationLimit - otherNonExempt));
+                }
             }
+        }
+
+        let rawVal = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+        if (rawVal > cap) {
+            e.target.value = cap > 0 ? cap : "";
         }
 
         updateTroopSummary();

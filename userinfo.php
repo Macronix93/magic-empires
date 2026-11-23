@@ -2,7 +2,7 @@
 require_once("includes/core.php");
 
 $user->check_user_login();
-$user_id = (int)($_GET["userid"] ?? 0);
+$user_id = get_int("userid");
 
 if ($user_id) {
     $now = time();

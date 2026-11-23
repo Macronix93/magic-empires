@@ -1,4 +1,8 @@
 let previousArenaHeaderHtml = null;
+let arenaAttackInProgress = false;
+let isArenaLeavingPage = false;
+const BATTLE_ANIM_GIF_PATH = "images/swords.webp";
+const BATTLE_ANIM_DURATION_MS = 1160;
 
 registerAction("changeArenaAttackSkill", (select) => {
     const opt = select.selectedOptions[0];
@@ -251,7 +255,7 @@ registerAction("saveArenaDefense", (form, e) => {
             }
         });
 });
-registerAction("executeArenaAttack", (form, e) => {
+registerAction("executeArenaAttack", async (form, e) => {
     if (e) e.preventDefault();
     const btn = document.getElementById("btn-start-arena-attack");
     if (btn) {
@@ -283,60 +287,76 @@ registerAction("executeArenaAttack", (form, e) => {
     formData.append("troops", JSON.stringify(troops));
     formData.append("techs", JSON.stringify(techs));
 
-    fetch("ajax/arena_actions.php", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Requested-With": "XMLHttpRequest"
-        },
-        body: formData.toString()
-    })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                closeOverlay();
+    arenaAttackInProgress = true;
+    const anim = showArenaBattleAnimation();
 
-                const inlineContainer = document.getElementById("arena-attack-inline-container");
-                const boxHeader = document.querySelector(".middle-container .big-box-header");
+    try {
+        const response = await fetch("ajax/arena_actions.php", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: formData.toString()
+        });
+        const data = await response.json();
 
-                if (inlineContainer) {
-                    if (boxHeader) {
-                        boxHeader.innerHTML = `<img src="images/icons/icon_arena.png" class="header-icon" alt=""> Duellbericht`;
-                    }
+        if (!data.success) {
+            arenaAttackInProgress = false;
+            await anim.close(true);
 
-                    inlineContainer.innerHTML = data.battle_html;
-
-                    if (typeof bindActions === "function") {
-                        inlineContainer.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
-                    }
-                    if (typeof setup === "function") {
-                        setup();
-                    }
-
-                    const middleContainer = document.querySelector(".middle-container");
-                    if (middleContainer) {
-                        middleContainer.scrollIntoView({behavior: "smooth", block: "start"});
-                    }
-                } else {
-                    window.location.reload();
-                }
-            } else {
-                showGameError(data.error || "Fehler beim Ausführen des Kampfes.");
-
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerText = "⚔️ Kampf beginnen (1 Münze)";
-                }
-            }
-        })
-        .catch(() => {
-            showGameError("Netzwerkfehler beim Kampf.");
+            showGameError(data.error || "Fehler beim Ausführen des Kampfes.");
 
             if (btn) {
                 btn.disabled = false;
                 btn.innerText = "⚔️ Kampf beginnen (1 Münze)";
             }
-        });
+            return;
+        }
+
+        await anim.donePromise;
+        await anim.close(false);
+        arenaAttackInProgress = false;
+
+        closeOverlay();
+
+        const inlineContainer = document.getElementById("arena-attack-inline-container");
+        const boxHeader = document.querySelector(".middle-container .big-box-header");
+
+        if (inlineContainer) {
+            if (boxHeader) {
+                boxHeader.innerHTML = `<img src="images/icons/icon_arena.png" class="header-icon" alt=""> Duellbericht`;
+            }
+            inlineContainer.innerHTML = data.battle_html;
+
+            if (typeof bindActions === "function") {
+                inlineContainer.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
+            }
+            if (typeof setup === "function") {
+                setup();
+            }
+
+            const middleContainer = document.querySelector(".middle-container");
+            if (middleContainer) {
+                middleContainer.scrollIntoView({behavior: "smooth", block: "start"});
+            }
+        } else {
+            window.location.reload();
+        }
+    } catch {
+        await anim.close(true);
+
+        if (!isArenaLeavingPage && !isPageUnloading) {
+            arenaAttackInProgress = false;
+
+            showGameError("Netzwerkfehler beim Kampf.");
+        }
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "⚔️ Kampf beginnen (1 Münze)";
+        }
+    }
 });
 registerAction("resetArenaDefense", () => {
     const form = document.getElementById("arena-defense-form");
@@ -390,6 +410,86 @@ registerAction("selectHeroSkill", (btn, e) => {
             btn.disabled = false;
         });
 });
+
+function showArenaBattleAnimation() {
+    document.getElementById("arena-battle-anim-overlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "arena-battle-anim-overlay";
+    overlay.className = "arena-battle-anim-overlay";
+
+    const img = document.createElement("img");
+    img.className = "arena-battle-anim-gif";
+    img.alt = "Kampf...";
+
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+        overlay.classList.add("open");
+    });
+
+    const openedAt = Date.now();
+    let isSkipped = false;
+    let resolveDone = null;
+    let durationTimer = null;
+    let fallbackTimer = null;
+
+    const finish = () => {
+        clearTimeout(durationTimer);
+        clearTimeout(fallbackTimer);
+        if (resolveDone) {
+            resolveDone();
+            resolveDone = null;
+        }
+    };
+
+    const donePromise = new Promise((resolve) => {
+        resolveDone = resolve;
+        let started = false;
+
+        const startTimer = () => {
+            if (started || isSkipped) return;
+            started = true;
+            durationTimer = setTimeout(finish, BATTLE_ANIM_DURATION_MS);
+        };
+
+        img.onload = startTimer;
+        img.onerror = startTimer;
+        img.src = `${BATTLE_ANIM_GIF_PATH}?t=${Date.now()}`;
+
+        if (img.complete) startTimer();
+        fallbackTimer = setTimeout(startTimer, 800);
+    });
+
+    overlay.addEventListener("click", () => {
+        if (Date.now() - openedAt < 250) return;
+        isSkipped = true;
+        finish();
+    });
+
+    const close = (immediate = false) => {
+        clearTimeout(durationTimer);
+        clearTimeout(fallbackTimer);
+
+        if (!overlay.parentNode) return Promise.resolve();
+
+        if (immediate || isSkipped) {
+            overlay.remove();
+            return Promise.resolve();
+        }
+
+        overlay.classList.remove("open");
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                overlay.remove();
+                resolve();
+            }, 250);
+        });
+    };
+
+    return {donePromise, close};
+}
 
 function updateHeroSkillUI(selectedSkillId) {
     const selectedIdStr = String(selectedSkillId);
@@ -724,5 +824,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const defForm = document.getElementById("arena-defense-form");
     if (defForm) {
         initArenaForm(defForm);
+    }
+});
+
+window.addEventListener("pagehide", () => {
+    isArenaLeavingPage = true;
+    document.getElementById("arena-battle-anim-overlay")?.remove();
+});
+
+window.addEventListener("pageshow", (e) => {
+    isArenaLeavingPage = false;
+
+    if (e.persisted) {
+        document.getElementById("arena-battle-anim-overlay")?.remove();
+
+        if (arenaAttackInProgress) {
+            window.location.reload();
+        }
     }
 });

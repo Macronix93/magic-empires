@@ -68,33 +68,50 @@ class ResourceBuilding
         if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
             if (!verify_csrf_token()) {
                 $error = "Ungültiger Sicherheits-Token!";
+            } else if ($lvl <= 0) {
+                $error = "Gebäude nicht vorhanden!";
             } else {
-                if ($ticks_left == 0) {
-                    if ($user->get_user_coins() >= $boost_cost) {
-                        $user->give_user_coins(-$boost_cost);
-                        $hourly_boost = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
+                $db_instance->begin_transaction();
+                try {
+                    $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
 
-                        $db_instance->execute_query(
-                            "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
-                         VALUES (?, ?, ?, ?) 
-                         ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
-                            [$current_kingdom, $res_type, $boost_duration_ticks, $hourly_boost]
-                        );
+                    $active = $db_instance->execute_query(
+                        "SELECT ticks_remaining FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
+                        [$current_kingdom, $res_type]
+                    )->fetch_assoc();
 
-                        Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
-
-                        $_SESSION["game_success"] = "Ertrags-Boost erfolgreich aktiviert!";
-
-                        change_location($page_file);
-                    } else {
-                        $error = "Zu wenig Münzen!";
+                    if ($active && (int)$active["ticks_remaining"] > 0) {
+                        throw new RuntimeException("Der Boost ist bereits aktiv!");
                     }
-                } else {
-                    $error = "Der Boost ist bereits aktiv!";
+
+                    if (!$user->spend_user_coins($boost_cost)) {
+                        throw new RuntimeException("Zu wenig Münzen!");
+                    }
+
+                    $hourly_boost = BOOST_BASE_AMOUNT + ($lvl * BOOST_AMOUNT_PER_LEVEL);
+                    $db_instance->execute_query(
+                        "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount)
+                         VALUES (?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
+                        [$current_kingdom, $res_type, $boost_duration_ticks, $hourly_boost]
+                    );
+                    $db_instance->commit();
+
+                    Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+
+                    $_SESSION["game_success"] = "Ertrags-Boost erfolgreich aktiviert!";
+
+                    change_location($page_file);
+                } catch (RuntimeException $e) {
+                    $db_instance->rollback();
+                    $error = $e->getMessage();
+                } catch (Throwable $e) {
+                    $db_instance->rollback();
+                    Logger::get_instance()->error("ResourceBuilding boost error: " . $e->getMessage());
+                    $error = "Interner Fehler beim Aktivieren des Boosts.";
                 }
             }
         }
-
         /*
          * HTML Content Part
          */

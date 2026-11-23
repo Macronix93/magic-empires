@@ -515,14 +515,17 @@ class Arena
 
     public function save_defense_setup(array $troops, array $techs, int $reward_kingdom_id = 0): ?string
     {
-        $error = self::validate_setup($troops, $techs);
-        if ($error !== null) {
-            return $error;
+        $validated = self::normalize_and_validate_setup($troops, $techs);
+        if ($validated["error"] !== null) {
+            return $validated["error"];
         }
 
+        $clean_troops = $validated["troops"];
+        $clean_techs = $validated["techs"];
+
         $now = time();
-        $troops_json = json_encode($troops);
-        $techs_json = json_encode($techs);
+        $troops_json = json_encode($clean_troops);
+        $techs_json = json_encode($clean_techs);
 
         $valid_reward_kid = null;
         if ($reward_kingdom_id > 0) {
@@ -571,45 +574,70 @@ class Arena
         return null;
     }
 
-    public static function validate_setup(array $troops, array $techs): ?string
+    public static function normalize_and_validate_setup(array $troops, array $techs): array
     {
+        $clean_troops = [];
         $total_units = 0;
 
         foreach ($troops as $id => $count) {
-            $cnt = max(0, (int)$count);
-
-            if (!in_array((int)$id, ARENA_ALLOWED_SOLDIER_IDS)) {
-                return "Ungültige Einheit gewählt.";
+            $id_str = (string)$id;
+            if (!ctype_digit($id_str) || (string)(int)$id_str !== $id_str) {
+                return ["error" => "Ungültige Einheiten-ID."];
             }
 
+            $sid = (int)$id_str;
+            if (!in_array($sid, ARENA_ALLOWED_SOLDIER_IDS, true) || isset($clean_troops[$sid])) {
+                return ["error" => "Ungültige oder doppelte Einheit gewählt."];
+            }
+
+            if (!is_int($count) && !(is_string($count) && ctype_digit($count))) {
+                return ["error" => "Ungültige Einheitenanzahl."];
+            }
+
+            $cnt = (int)$count;
+            if ($cnt < 0 || $cnt > ARENA_ARMY_UNIT_LIMIT) {
+                return ["error" => "Ungültige Einheitenanzahl."];
+            }
+
+            $clean_troops[$sid] = $cnt;
             $total_units += $cnt;
         }
 
         if ($total_units !== ARENA_ARMY_UNIT_LIMIT) {
-            return "Du musst exakt " . fnum(ARENA_ARMY_UNIT_LIMIT) . " Einheiten aufstellen (Aktuell: " . fnum($total_units) . ").";
+            return ["error" => "Du musst exakt " . fnum(ARENA_ARMY_UNIT_LIMIT) . " Einheiten aufstellen."];
         }
 
+        $clean_techs = [];
         $total_tech_points = 0;
-
         foreach ($techs as $id => $lvl) {
-            $level = max(0, (int)$lvl);
-
-            if (!in_array((int)$id, ARENA_ALLOWED_TECH_IDS)) {
-                return "Ungültige Technologie gewählt.";
+            $id_str = (string)$id;
+            if (!ctype_digit($id_str) || (string)(int)$id_str !== $id_str) {
+                return ["error" => "Ungültige Technologie-ID."];
             }
 
-            if ($level > ARENA_MAX_TECH_LEVEL) {
-                return "Eine Technologie darf maximal Stufe " . ARENA_MAX_TECH_LEVEL . " haben.";
+            $tid = (int)$id_str;
+            if (!in_array($tid, ARENA_ALLOWED_TECH_IDS, true) || isset($clean_techs[$tid])) {
+                return ["error" => "Ungültige oder doppelte Technologie gewählt."];
             }
 
+            if (!is_int($lvl) && !(is_string($lvl) && ctype_digit($lvl))) {
+                return ["error" => "Ungültige Technologie-Stufe."];
+            }
+
+            $level = (int)$lvl;
+            if ($level < 0 || $level > ARENA_MAX_TECH_LEVEL) {
+                return ["error" => "Eine Technologie darf maximal Stufe " . ARENA_MAX_TECH_LEVEL . " haben."];
+            }
+
+            $clean_techs[$tid] = $level;
             $total_tech_points += $level;
         }
 
         if ($total_tech_points > ARENA_MAX_TECH_POINTS) {
-            return "Du hast zu viele Technologie-Punkte verteilt (Maximal " . ARENA_MAX_TECH_POINTS . ").";
+            return ["error" => "Du hast zu viele Technologie-Punkte verteilt (Maximal " . ARENA_MAX_TECH_POINTS . ")."];
         }
 
-        return null;
+        return ["error" => null, "troops" => $clean_troops, "techs" => $clean_techs];
     }
 
     public function get_seconds_until_next_coin(): int
@@ -727,6 +755,77 @@ class Arena
         return $this->fetch_opponents_by_ids($selected_ids);
     }
 
+    public function reroll_opponents_locked(): array
+    {
+        $this->db->begin_transaction();
+        try {
+            $row = $this->db->execute_query(
+                "SELECT daily_rerolls, last_reroll_reset, current_opponents, defense_troops FROM arena_players WHERE user_id = ? FOR UPDATE",
+                [$this->user_id]
+            )->fetch_assoc();
+
+            if (!$row || empty($row["defense_troops"])) {
+                $this->db->rollback();
+                return ["success" => false, "error" => "Du musst zuerst eine eigene Verteidigung aufstellen!"];
+            }
+
+            $now = time();
+            $today_start = strtotime("today midnight");
+            $used = (int)$row["daily_rerolls"];
+            $current_ids = json_decode($row["current_opponents"] ?? "[]", true);
+            if (!is_array($current_ids)) $current_ids = [];
+
+            if ((int)$row["last_reroll_reset"] < $today_start) {
+                $used = 0;
+                $current_ids = [];
+                $this->db->execute_query(
+                    "UPDATE arena_players SET daily_rerolls = 0, last_reroll_reset = ?, current_opponents = NULL WHERE user_id = ?",
+                    [$now, $this->user_id]
+                );
+            }
+
+            $rerolls_left = max(0, ARENA_MAX_REROLLS_PER_DAY - $used);
+            if ($rerolls_left <= 0) {
+                $this->db->rollback();
+                return [
+                    "success" => false,
+                    "error" => "Du hast deine " . ARENA_MAX_REROLLS_PER_DAY . " täglichen Rerolls bereits aufgebraucht!",
+                    "rerolls_left" => 0,
+                    "max_rerolls" => ARENA_MAX_REROLLS_PER_DAY
+                ];
+            }
+
+            if (!$this->has_more_opponents($current_ids)) {
+                $this->db->rollback();
+                return [
+                    "success" => false,
+                    "error" => "Es sind aktuell keine weiteren Gegner in der Arena verfügbar.",
+                    "has_more_opponents" => false,
+                    "rerolls_left" => $rerolls_left
+                ];
+            }
+
+            $opponents = $this->get_or_roll_opponents(true);
+            $this->db->commit();
+
+            $new_rerolls_left = $this->get_rerolls_left();
+            $has_more = $this->has_more_opponents($opponents);
+            $html = $this->render_opponents_html($opponents);
+
+            return [
+                "success" => true,
+                "html" => $html,
+                "rerolls_left" => $new_rerolls_left,
+                "max_rerolls" => ARENA_MAX_REROLLS_PER_DAY,
+                "has_more_opponents" => $has_more
+            ];
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            Logger::get_instance()->error("Arena reroll error: " . $e->getMessage());
+            return ["success" => false, "error" => "Fehler beim Suchen neuer Gegner."];
+        }
+    }
+
     private function fetch_opponents_by_ids(array $ids): array
     {
         if (empty($ids)) return [];
@@ -758,21 +857,8 @@ class Arena
             return ["success" => false, "error" => "Du musst zuerst eine eigene Verteidigung aufstellen!"];
         }
 
-        $attacker = $this->get_player_data();
-        if ((int)$attacker["coins"] < 1) {
-            return ["success" => false, "error" => "Du hast keine Arena-Coins mehr!"];
-        }
-
         if ($defender_id === $this->user_id) {
             return ["success" => false, "error" => "Du kannst dich nicht selbst herausfordern."];
-        }
-
-        $cooldown_left = $this->get_opponent_cooldown_left($defender_id);
-        if ($cooldown_left > 0) {
-            return [
-                "success" => false,
-                "error" => "Du kannst diesen Herrscher erst in " . convert_sec_to_str($cooldown_left) . " wieder herausfordern!"
-            ];
         }
 
         $defender = $this->get_player_data($defender_id);
@@ -780,50 +866,26 @@ class Arena
             return ["success" => false, "error" => "Dieser Gegner ist nicht mehr verfügbar."];
         }
 
-        $val_error = self::validate_setup($attack_troops, $attack_techs);
-        if ($val_error !== null) {
-            return ["success" => false, "error" => $val_error];
+        $validated = self::normalize_and_validate_setup($attack_troops, $attack_techs);
+        if ($validated["error"] !== null) {
+            return ["success" => false, "error" => $validated["error"]];
         }
+
+        $attack_troops = $validated["troops"];
+        $attack_techs = $validated["techs"];
+
+        // Load defender hero
+        $def_arena = new Arena($defender_id);
+        $def_data = $def_arena->get_hero_full_data();
+        $def_hero = $def_data["hero"];
+        $def_skill = $def_data["active_skill"];
 
         $res_soldiers = $this->db->query("SELECT id, soldiername, category, attack, defense, icon FROM soldier_list");
         $soldier_meta = [];
         while ($s = $res_soldiers->fetch_assoc()) {
             $soldier_meta[(int)$s["id"]] = $s;
         }
-
-        $atk_prepared = $this->prepare_combat_units($attack_troops, $attack_techs, $soldier_meta);
         $def_prepared = $this->prepare_combat_units($defender["defense_troops"], $defender["defense_techs"], $soldier_meta);
-
-        $attack_skill_id = ($skill_id !== null && isset(ARENA_HERO_SKILLS[$skill_id]))
-            ? $skill_id
-            : (int)($attacker["active_hero_skill_id"] ?? 1);
-
-        // Load Hero
-        $atk_data = $this->get_hero_full_data();
-        $atk_hero = $atk_data["hero"];
-        $atk_skill = $atk_data["skills"][$attack_skill_id] ?? $atk_data["active_skill"];
-
-        $def_arena = new Arena($defender_id);
-        $def_data = $def_arena->get_hero_full_data();
-        $def_hero = $def_data["hero"];
-        $def_skill = $def_data["active_skill"];
-
-        // Add attacker hero
-        $atk_prepared[] = [
-            "id" => "hero_1",
-            "key" => "atk_hero",
-            "count" => 1,
-            "category" => SoldierTypes::SOLDIER_TYPE_SPECIAL,
-            "atk" => (int)$atk_hero["atk"],
-            "def" => (int)$atk_hero["def"],
-            "target_cat" => (int)$atk_skill["target_cat"],
-            "rps_bonus" => (float)$atk_skill["rps_bonus"],
-            "target_focus" => 1.0,
-            "h_lvl" => (int)$atk_hero["level"],
-            "s_id" => (int)$atk_skill["id"]
-        ];
-
-        // Add defender hero
         $def_prepared[] = [
             "id" => "hero_1",
             "key" => "def_hero",
@@ -838,42 +900,92 @@ class Arena
             "s_id" => (int)$def_skill["id"]
         ];
 
-        $combat_result = CombatEngine::calculate_pvp($atk_prepared, $def_prepared, 0, ARENA_ARMOR_EXPONENT);
-
-        // Get winner
-        $winner_id = 0;
-
-        Stats::update_player_stat($this->user_id, "arena_battles");
-        Stats::update_player_stat($defender_id, "arena_battles");
-
-        if ($combat_result["attacker_won"]) {
-            $winner_id = $this->user_id;
-
-            Stats::update_player_stat($this->user_id, "arena_wins");
-            Stats::update_player_stat($defender_id, "arena_losses");
-        } else if ($combat_result["defender_won"]) {
-            $winner_id = $defender_id;
-
-            Stats::update_player_stat($defender_id, "arena_wins");
-            Stats::update_player_stat($this->user_id, "arena_losses");
-        }
-
-        // Calculate elo
-        [$atk_elo_change, $def_elo_change] = self::calculate_elo(
-            (int)$attacker["elo"],
-            (int)$defender["elo"],
-            $winner_id,
-            $this->user_id
-        );
-
-        $min_elo = ARENA_MIN_ELO;
-        $new_atk_elo = max($min_elo, (int)$attacker["elo"] + $atk_elo_change);
-        $new_def_elo = max($min_elo, (int)$defender["elo"] + $def_elo_change);
-
         $this->db->begin_transaction();
         try {
-            $now = time();
+            $lock_ids = [$this->user_id, $defender_id];
+            sort($lock_ids);
+            $this->db->execute_query(
+                "SELECT user_id FROM arena_players WHERE user_id IN (?, ?) ORDER BY user_id FOR UPDATE",
+                $lock_ids
+            );
+            $defender["elo"] = (int)$this->db->execute_query(
+                "SELECT elo FROM arena_players WHERE user_id = ?",
+                [$defender_id]
+            )->fetch_column();
 
+            $res_atk = $this->db->execute_query("
+                SELECT ap.*, u.username 
+                FROM arena_players ap 
+                JOIN users u ON ap.user_id = u.id 
+                WHERE ap.user_id = ? FOR UPDATE
+            ", [$this->user_id]);
+            $attacker = $res_atk->fetch_assoc();
+            if (!$attacker) {
+                $this->db->rollback();
+                return ["success" => false, "error" => "Arena-Profil nicht gefunden."];
+            }
+
+            $allowed_opps = array_map("intval", json_decode($attacker["current_opponents"] ?? "[]", true));
+            if (!in_array($defender_id, $allowed_opps, true)) {
+                $this->db->rollback();
+                return ["success" => false, "error" => "Dieser Gegner befindet sich nicht in deiner aktuellen Auswahl!"];
+            }
+
+            if ((int)$attacker["coins"] < 1) {
+                $this->db->rollback();
+                return ["success" => false, "error" => "Du hast keine Arena-Coins mehr!"];
+            }
+
+            $cooldown_left = $this->get_opponent_cooldown_left($defender_id);
+            if ($cooldown_left > 0) {
+                $this->db->rollback();
+                return [
+                    "success" => false,
+                    "error" => "Du kannst diesen Herrscher erst in " . convert_sec_to_str($cooldown_left) . " wieder herausfordern!"
+                ];
+            }
+
+            $atk_prepared = $this->prepare_combat_units($attack_troops, $attack_techs, $soldier_meta);
+            $attack_skill_id = ($skill_id !== null && isset(ARENA_HERO_SKILLS[$skill_id])) ? $skill_id : (int)($attacker["active_hero_skill_id"] ?? 1);
+
+            $atk_data = $this->get_hero_full_data();
+            $atk_hero = $atk_data["hero"];
+            $atk_skill = $atk_data["skills"][$attack_skill_id] ?? $atk_data["active_skill"];
+            $atk_prepared[] = [
+                "id" => "hero_1",
+                "key" => "atk_hero",
+                "count" => 1,
+                "category" => SoldierTypes::SOLDIER_TYPE_SPECIAL,
+                "atk" => (int)$atk_hero["atk"],
+                "def" => (int)$atk_hero["def"],
+                "target_cat" => (int)$atk_skill["target_cat"],
+                "rps_bonus" => (float)$atk_skill["rps_bonus"],
+                "target_focus" => 1.0,
+                "h_lvl" => (int)$atk_hero["level"],
+                "s_id" => (int)$atk_skill["id"]
+            ];
+
+            $combat_result = CombatEngine::calculate_pvp($atk_prepared, $def_prepared, 0, ARENA_ARMOR_EXPONENT);
+
+            $winner_id = 0;
+            if ($combat_result["attacker_won"]) {
+                $winner_id = $this->user_id;
+            } else if ($combat_result["defender_won"]) {
+                $winner_id = $defender_id;
+            }
+
+            [$atk_elo_change, $def_elo_change] = self::calculate_elo(
+                (int)$attacker["elo"],
+                $defender["elo"],
+                $winner_id,
+                $this->user_id
+            );
+
+            $min_elo = ARENA_MIN_ELO;
+            $new_atk_elo = max($min_elo, (int)$attacker["elo"] + $atk_elo_change);
+            $new_def_elo = max($min_elo, $defender["elo"] + $def_elo_change);
+
+            $now = time();
             $new_coins = (int)$attacker["coins"] - 1;
             $new_update_time = ((int)$attacker["coins"] >= ARENA_MAX_COINS) ? $now : (int)$attacker["last_coin_update"];
 
@@ -1007,6 +1119,18 @@ class Arena
 
             $this->db->commit();
 
+            // Stats
+            Stats::update_player_stat($this->user_id, "arena_battles");
+            Stats::update_player_stat($defender_id, "arena_battles");
+
+            if ($combat_result["attacker_won"]) {
+                Stats::update_player_stat($this->user_id, "arena_wins");
+                Stats::update_player_stat($defender_id, "arena_losses");
+            } else if ($combat_result["defender_won"]) {
+                Stats::update_player_stat($defender_id, "arena_wins");
+                Stats::update_player_stat($this->user_id, "arena_losses");
+            }
+
             // Prepare unit badges
             $atk_cards = self::build_battle_cards($atk_prepared, $combat_result["attacker_losses"]);
             $def_cards = self::build_battle_cards($def_prepared, $combat_result["defender_losses"]);
@@ -1072,7 +1196,8 @@ class Arena
             ];
         } catch (Throwable $e) {
             $this->db->rollback();
-            return ["success" => false, "error" => "Fehler bei der Kampfabwicklung: " . $e->getMessage()];
+            Logger::get_instance()->error("Arena attack_opponent error: " . $e->getMessage());
+            return ["success" => false, "error" => "Interner Fehler bei der Kampfabwicklung."];
         }
     }
 

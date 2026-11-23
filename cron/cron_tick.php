@@ -45,22 +45,21 @@ $query = "SELECT e.*, u.username
           WHERE (e.is_processing = 0 OR e.is_processing < " . (time() - 60) . ")
           AND (
               (e.actionid IN ($action_building_list) AND e.buildingtime > 0 AND e.buildingtime <= ?) 
-              OR
-              (e.actionid IN ($action_movement_list) AND e.arrivaltime > 0 AND e.arrivaltime <= ?)
-              OR 
-              (e.actionid = " . ActionTypes::ACTION_BUILD_TROOPS . " AND (e.buildingtime + ((e.recruittime - e.buildingtime) / GREATEST(1, e.soldiergoal))) <= ?)
-              OR
-              (e.actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . " AND e.recruittime > 0 AND e.recruittime <= ?)
+              OR (e.actionid IN ($action_movement_list) AND e.arrivaltime > 0 AND e.arrivaltime <= ?)
+              OR (e.actionid = " . ActionTypes::ACTION_BUILD_TROOPS . " AND (e.buildingtime + ((e.recruittime - e.buildingtime) / GREATEST(1, e.soldiergoal))) <= ?)
+              OR (e.actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . " AND (
+                  (e.buildingtime > 0 AND (e.buildingtime + ((e.recruittime - e.buildingtime) / GREATEST(1, e.soldiergoal))) <= ?)
+                  OR (e.buildingtime <= 0 AND e.recruittime > 0 AND e.recruittime <= ?)
+              ))
           )";
-
-$result = $db_instance->execute_query($query, [$now, $now, $now, $now]);
+$result = $db_instance->execute_query($query, [$now, $now, $now, $now, $now]);
 
 $count = 0;
 foreach ($result as $row) {
     // Locking
     $db->execute_query(
-        "UPDATE events SET is_processing = ? WHERE eventid = ? AND (is_processing = 0 OR is_processing = ? OR is_processing < ?)",
-        [$now, $row["eventid"], $row["is_processing"], ($now - 60)]
+        "UPDATE events SET is_processing = ? WHERE eventid = ? AND (is_processing = 0 OR is_processing < ?)",
+        [$now, $row["eventid"], ($now - 60)]
     );
 
     if ($db->affected_rows > 0) {
@@ -126,36 +125,22 @@ while ($ev = $finished_events->fetch_assoc()) {
                     }
 
                     // Soldiers & Score
-                    $units_data = [];
-                    $total_score_gain = 0;
+                    $delivery = Kingdom::deliver_reward_troops($u_id, $actual_target_kid, $loot["soldiers"]);
 
-                    foreach ($loot["soldiers"] as $s) {
-                        $db_instance->execute_query("
-                            INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
-                            SELECT ?, id, soldiername, ? FROM soldier_list WHERE id = ?
-                            ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)
-                        ", [$actual_target_kid, $s["count"], $s["id"]]);
-
-                        $unit_data = $db_instance->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$s["id"]])->fetch_assoc();
-                        $total_score_gain += ($s["count"] * (int)$unit_data["scoregain"]);
-
-                        $units_data[] = [
-                            "id" => (int)$s["id"],
-                            "count" => (int)$s["count"]
-                        ];
-                    }
-
-                    if ($total_score_gain > 0) {
-                        $db_instance->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_score_gain, $u_id]);
-
+                    if ($delivery["score_gain"] > 0) {
+                        $db_instance->execute_query(
+                            "UPDATE users SET score = score + ? WHERE id = ?",
+                            [$delivery["score_gain"], $u_id]
+                        );
                         Achievement::check($u_id, AchievementTypes::ACHIEVEMENT_SCORE);
                     }
 
                     $hp_reward_json = [
                         "template" => "world_event_hp_reward",
                         "kingdom_name" => $target_k_obj->get_kingdom_name(),
-                        "units" => $units_data,
-                        "resources" => $loot["resources"]
+                        "units" => $delivery["units"],
+                        "resources" => $loot["resources"],
+                        "redirected_units" => $delivery["redirects"]
                     ];
 
                     Messages::send_server_message($u_id, $u_name, MessageCategories::CATEGORY_EVENT, $hp_reward_json);

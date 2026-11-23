@@ -11,31 +11,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
         if (isset($_POST["sendpm"])) {
-            $raw_receiver = trim($_POST["receiver"] ?? "");
-            $receiver_name = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_receiver);
+            $raw_receiver = trim(post_str("receiver"));
+            $receiver_name = (strlen($raw_receiver) <= MAX_USERNAME_LENGTH * 4)
+                ? (preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_receiver) ?? '')
+                : '';
 
-            $raw_text = $_POST["text"] ?? "";
-            $cleaned_text = preg_replace([
-                '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-                '/[ \t]+/u',
-                '/^[ \t]+/m',
-                '/[ \t]+$/m'
-            ], ['', ' ', '', ''], $raw_text);
-            $cleaned_text = trim($cleaned_text);
-
-            $text_only = preg_replace('/\[\/?quote.*?]/i', '', $cleaned_text);
-            $line_breaks_count = substr_count($cleaned_text, "\n");
-            $length = mb_strlen($cleaned_text, "UTF-8");
+            $validation = Messages::clean_and_validate_chat_text(post_str("text"));
 
             if (empty($receiver_name)) {
-                $error = "Bitte einen Empfänger angeben!";
-            } else if (empty($cleaned_text) || empty(trim($text_only))) {
-                $error = "Bitte eine Nachricht eingeben!";
-            } else if ($length > MAX_MESSAGE_LENGTH) {
-                $error = "Die Nachricht darf maximal " . MAX_MESSAGE_LENGTH . " Zeichen lang sein!";
-            } else if ($line_breaks_count > MAX_LINE_BREAK_COUNT) {
-                $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten!";
+                $error = "Bitte einen gültigen Empfänger angeben!";
+            } else if (isset($validation["error"])) {
+                $error = $validation["error"];
             } else {
+                $cleaned_text = $validation["text"];
                 $sender_id = $user->get_user_id();
                 $sender_name = $user->get_user_name();
 
@@ -79,10 +67,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     }
                 }
             }
-        }
-
-        if (isset($_POST["delete_conversation"])) {
-            $chat_partner_id = (int)($_POST["partner_id"] ?? 0);
+        } else if (isset($_POST["delete_conversation"])) {
+            $chat_partner_id = post_int("partner_id");
             $user_id = $user->get_user_id();
 
             if (empty($chat_partner_id)) {
@@ -155,9 +141,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 }
 
 if (isset($_GET["action"])) {
-    if ($_GET["action"] == "new") {
-        $receiver_value = isset($_GET["receiver"]) ? e($_GET["receiver"]) : (isset($_POST["receiver"]) ? e($_POST["receiver"]) : "");
-        $message = isset($_POST["text"]) ? e($_POST["text"]) : "";
+    $msg_action = get_str("action");
+
+    if ($msg_action === "new") {
+        $receiver_value = isset($_GET["receiver"]) ? e(get_str("receiver")) : e(post_str("receiver"));
+        $message = e(post_str("text"));
 
         if (isset($_POST["text"]) && empty($error)) {
             $view = $messages->show_private_inbox();
@@ -204,13 +192,13 @@ if (isset($_GET["action"])) {
                         </form>
             ";
         }
-    } else if ($_GET["action"] == "read") {
+    } else if ($msg_action === "read") {
         $inbox_header = "Privatnachrichten";
 
         if (!isset($_GET["s"])) {
             change_location("messages.php?privmsgs");
         } else {
-            $sender_id = (int)$_GET["s"];
+            $sender_id = get_int("s");
 
             if ($sender_id <= 0) {
                 $error = "Der Spieler existiert nicht!";
@@ -255,7 +243,7 @@ if (isset($_GET["action"])) {
                                               name='text' 
                                               rows='3'
                                               maxlength='" . MAX_MESSAGE_LENGTH . "'
-                                              style='resize: vertical; margin-right: 10px;'>" . (isset($_POST["text"]) ? e($_POST["text"]) : '') . "</textarea>
+                                              style='resize: vertical; margin-right: 10px;'>" . e(post_str("text")) . "</textarea>
                                         <div class='emoji-picker-container'>
                                         <div id='emoji-menu' class='emoji-menu'>";
 

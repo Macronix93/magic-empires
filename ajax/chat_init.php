@@ -1,21 +1,21 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$type = $_GET["type"] ?? "private";
+$type = get_str("type", "private");
 $messages = new Messages($user);
 $chat_data = ["html" => "", "last_id" => 0];
 
 if ($type === "private") {
-    $sender_id = (int)$_GET["s"];
-    $token = $_GET["token"] ?? "";
-    $chat_partner = $_GET["partner_name"] ?? "Unbekannt";
+    $sender_id = get_int("s");
+    $token = get_str("token");
+    $session_token = $_SESSION["active_chat_token"] ?? "";
 
-    if ($token !== $_SESSION["active_chat_token"]) {
+    if ($sender_id <= 0 || $session_token === "" || !hash_equals($session_token, $token)) {
         echo json_encode(["error" => "redirect"]);
         exit;
     }
 
-    $chat_data = $messages->get_private_history_html($sender_id, $chat_partner);
+    $chat_data = $messages->get_private_history_html($sender_id);
 } else if ($type === "world") {
     $chat_data = $messages->get_world_history_html();
 } else if ($type === "guild") {
@@ -30,12 +30,18 @@ if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT && time() < ($_S
     $rate_limit_rem = $_SESSION["message_timeframe_end"] - time();
 }
 
-echo json_encode([
+send_json([
     "html" => $chat_data["html"],
     "lastId" => (int)$chat_data["last_id"],
-    "privUnread" => $inbox_only,
-    "worldUnread" => (int)$unreads["world"],
-    "guildUnread" => (int)$unreads["guild"],
-    "achievementsUnread" => (int)($unreads["achievements"] ?? 0),
-    "rateLimitSeconds" => $rate_limit_rem
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    "rateLimitSeconds" => $rate_limit_rem,
+    "badges" => [
+        "priv" => $inbox_only,
+        "world" => (int)$unreads["world"],
+        "guild" => (int)$unreads["guild"],
+        "suggestions" => (int)($unreads["suggestions"] ?? 0),
+        "achievements" => (int)($unreads["achievements"] ?? 0),
+        "arena" => (int)($unreads["arena"] ?? 0),
+        "arena_coins" => Arena::has_available_coins($user->get_user_id()),
+        "forum" => (int)($unreads["forum"] ?? 0)
+    ]
+]);

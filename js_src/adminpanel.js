@@ -1,3 +1,16 @@
+registerAction("resetRateLimitDialog", (el) => {
+    const uid = el.dataset.userid;
+    const name = el.dataset.username;
+
+    showConfirmationDialog(
+        `Möchtest du das Login-/Passwort-Rate-Limit für ${name} wirklich zurücksetzen?`,
+        "Ja, zurücksetzen",
+        "Abbrechen",
+        () => {
+            submitAdminPost({reset_user_rate_limit: "1", user_id: uid});
+        }
+    );
+});
 registerAction("banIpDialog", (el) => {
     const uid = el.dataset.userid;
     const ip = el.dataset.ip;

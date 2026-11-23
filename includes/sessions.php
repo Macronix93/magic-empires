@@ -1,8 +1,16 @@
 <?php
+$flash_and_logout = function (string $key, string $msg, int $status_code, string $ajax_msg): void {
+    setcookie("me_remember", '', time() - 3600, '/');
+    $_SESSION = [];
+    session_regenerate_id(true);
+    $_SESSION["auth_flash"] = [$key => $msg];
+    change_location("index.php", 0, $status_code, $ajax_msg);
+};
+
 // Cookie/Remember Me Check
 $is_logging_out = isset($_POST["logout"]) || isset($_GET["logout"]);
 
-if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"])) {
+if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"]) && is_string($_COOKIE["me_remember"])) {
     if (str_contains($_COOKIE["me_remember"], ':')) {
         list($uid, $token) = explode(':', $_COOKIE["me_remember"], 2);
         $uid = (int)$uid;
@@ -17,9 +25,8 @@ if (!$is_logging_out && !$user->is_logged_in() && isset($_COOKIE["me_remember"])
             $u_vac = $db_instance->execute_query("SELECT is_vacation, vacation_until FROM users WHERE id = ?", [$row["userid"]])->fetch_assoc();
 
             if (!empty($u_vac["is_vacation"]) && $u_vac["vacation_until"] > time()) {
-                setcookie("me_remember", '', time() - 3600, '/');
-
-                change_location("index.php?vacation_locked=1");
+                $date_str = date("d.m.Y \u\m H:i", (int)$u_vac["vacation_until"]);
+                $flash_and_logout("warning", "Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.", 403, "Urlaubsmodus aktiv.");
             }
 
             $user->login_user((int)$row["userid"]);
@@ -77,7 +84,7 @@ if ($user->is_logged_in()) {
     if (!$user_status || $user_status["sessionid"] !== session_id()) {
         $has_valid_remember = false;
 
-        if (isset($_COOKIE["me_remember"]) && str_contains($_COOKIE["me_remember"], ':')) {
+        if (isset($_COOKIE["me_remember"]) && is_string($_COOKIE["me_remember"]) && str_contains($_COOKIE["me_remember"], ':')) {
             list(, $token) = explode(':', $_COOKIE["me_remember"], 2);
             $token_hash = hash("sha256", $token);
 
@@ -90,8 +97,7 @@ if ($user->is_logged_in()) {
         }
 
         if (!$has_valid_remember) {
-            session_destroy();
-            change_location("index.php?logout=session", 0, 401, "Session abgelaufen.");
+            $flash_and_logout("warning", "Deine Session ist abgelaufen. Bitte logge dich erneut ein!", 401, "Session abgelaufen.");
         }
     }
 
@@ -102,12 +108,10 @@ if ($user->is_logged_in()) {
         if ($ban_until > 0 && $ban_until <= time()) {
             $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?", [$current_uid]);
         } else {
-            $reason = $user_status["ban_reason"] ?? "Dein Account wurde gesperrt.";
-
-            setcookie("me_remember", '', time() - 3600, '/');
-            session_destroy();
-
-            change_location("index.php?banned=" . urlencode($reason) . "&until=" . $ban_until, 0, 403, "Account gesperrt.");
+            $reason = trim((string)($user_status["ban_reason"] ?? ""));
+            $reason_text = !empty($reason) ? "<br />Grund: " . e($reason) : "";
+            $until_text = ($ban_until > time()) ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", $ban_until) . " Uhr" : "<br />Dauer: Permanent";
+            $flash_and_logout("error", "Dein Account wurde gesperrt!" . $reason_text . $until_text, 403, "Account gesperrt.");
         }
     }
 
@@ -116,14 +120,12 @@ if ($user->is_logged_in()) {
         "SELECT reason FROM banned_ips WHERE ip = ? LIMIT 1",
         [$current_ip]
     );
+
     if ($res_ip_ban && $res_ip_ban->num_rows > 0) {
         $ip_ban_row = $res_ip_ban->fetch_assoc();
-        $reason = $ip_ban_row["reason"] ?? "Deine IP-Adresse wurde gesperrt.";
-
-        setcookie("me_remember", '', time() - 3600, '/');
-        session_destroy();
-
-        change_location("index.php?banned=" . urlencode($reason), 0, 403, "IP gesperrt.");
+        $reason = trim((string)($ip_ban_row["reason"] ?? ""));
+        $reason_text = !empty($reason) ? "<br />Grund: " . e($reason) : "";
+        $flash_and_logout("error", "Deine IP-Adresse wurde gesperrt!" . $reason_text, 403, "IP gesperrt.");
     }
 
     // Kingdom doesn't exist anymore
@@ -161,8 +163,6 @@ if ($user->is_logged_in()) {
         }
     } else {
         if (!MAINTENANCE_MODE || $user->is_admin()) {
-            $_SESSION["lastactivity"] = $timestamp;
-
             $is_ajax = is_ajax_request();
             $current_script = basename($_SERVER["PHP_SELF"] ?? '');
             $is_background_poll = $is_ajax
@@ -170,9 +170,12 @@ if ($user->is_logged_in()) {
                 && in_array($current_script, ["badge_counts.php", "chat_update.php", "map_full_load.php"], true);
 
             if (!$is_background_poll) {
+                $_SESSION["lastactivity"] = $timestamp;
+
                 if (!isset($_SESSION["last_db_update"])) {
                     $_SESSION["last_db_update"] = 0;
                 }
+
                 if ($timestamp - $_SESSION["last_db_update"] > USER_UPDATE_TICK) {
                     $db_instance->execute_query("UPDATE users SET lastactivity = ? WHERE id = ?", [$timestamp, $user->get_user_id()]);
                     $_SESSION["last_db_update"] = $timestamp;
@@ -181,11 +184,7 @@ if ($user->is_logged_in()) {
 
             if (!$is_ajax) {
                 // Process all events for the user
-                if ($timestamp - ($_SESSION["last_events_processed"] ?? 0) >= 2) {
-                    $user->process_user_events();
-
-                    $_SESSION["last_events_processed"] = $timestamp;
-                }
+                $user->process_user_events();
 
                 // Spawn advent calendar gifts
                 if ($_SERVER["REQUEST_METHOD"] === "GET") {

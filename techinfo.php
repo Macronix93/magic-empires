@@ -3,10 +3,10 @@ require_once("includes/core.php");
 
 $user->check_user_login();
 
-$building_id = isset($_GET["bid"]) ? (int)$_GET["bid"] : null;
-$tech_id = isset($_GET["tid"]) ? (int)$_GET["tid"] : null;
-$soldier_id = isset($_GET["sid"]) ? (int)$_GET["sid"] : null;
-$guild_tech_id = isset($_GET["gtid"]) ? (int)$_GET["gtid"] : null;
+$building_id = isset($_GET["bid"]) ? get_int("bid", -1) : null;
+$tech_id = isset($_GET["tid"]) ? get_int("tid", -1) : null;
+$soldier_id = isset($_GET["sid"]) ? get_int("sid", -1) : null;
+$guild_tech_id = isset($_GET["gtid"]) ? get_int("gtid", -1) : null;
 
 $row = null;
 $current_level_value = 0;
@@ -266,7 +266,7 @@ if ($row) {
                 </tr>";
 
         for ($i = 0; $i < $max_lvl_to_show; $i++) {
-            $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
+            $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2);'" : "";
             $time_val = convert_sec_to_str((int)round($row[$time_key] * pow($m, $i)));
 
             $view .= "<tr><td class='td-center' $style>$i &rarr; " . ($i + 1) . "</td>";
@@ -533,12 +533,12 @@ if ($row) {
             $view .= "<td class='td-center td-gradient'>" . get_resource_icon($res_id) . "</td>";
         }
 
-        $view .= "              <td class='td-center td-gradient' style='width: 30%;'>" . get_resource_icon($time_icon_type) . "</td>
-                            </tr>";
+        $view .= "<td class='td-center td-gradient' style='width: 30%;'>" . get_resource_icon($time_icon_type) . "</td>
+                </tr>";
 
         for ($i = 0; $i < $max_lvl_to_show; $i++) {
             $target_lvl = $i + 1;
-            $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2); font-weight: bold;'" : "";
+            $style = ($i == $current_level_value) ? "style='background-color: rgba(11, 218, 81, 0.2);'" : "";
             $time_val = convert_sec_to_str((int)round($row[$time_key] * pow($m, $i)));
 
             $view .= "<tr><td class='td-center' $style>$i &rarr; " . ($i + 1) . "</td>";
@@ -549,7 +549,7 @@ if ($row) {
 
                 $is_current_row = ($i == $current_level_value);
                 $uni_lvl_display = $is_current_row
-                    ? "<b class='" . ($cur_uni_lvl >= $req_uni ? "passed" : "error") . "'>($req_uni)</b>"
+                    ? "<span class='" . ($cur_uni_lvl >= $req_uni ? "passed" : "error") . "'>($req_uni)</span>"
                     : "($req_uni)";
 
                 $req_display = "<span class='popup' id='$p_uni' style='display: flex; align-items: center; gap: 3px;'>$uni_icon $uni_lvl_display<div id='{$p_uni}_box' class='popupbox'>Universität</div></span>";
@@ -559,7 +559,7 @@ if ($row) {
                     $p_wt = "req_wt_{$tech_id}_$target_lvl";
 
                     $wt_lvl_display = $is_current_row
-                        ? "<b class='" . ($cur_wt_lvl >= $req_wt ? "passed" : "error") . "'>($req_wt)</b>"
+                        ? "<span class='" . ($cur_wt_lvl >= $req_wt ? "passed" : "error") . "'>($req_wt)</span>"
                         : "($req_wt)";
 
                     $req_display .= "<span class='popup' id='$p_wt' style='display: flex; align-items: center; gap: 3px;'>$wt_icon $wt_lvl_display<div id='{$p_wt}_box' class='popupbox'>Wachturm</div></span>";
@@ -567,7 +567,7 @@ if ($row) {
                     $p_wall = "req_wall_{$tech_id}_$target_lvl";
 
                     $wall_lvl_display = $is_current_row
-                        ? "<b class='" . ($cur_wall_lvl >= 2 ? "passed" : "error") . "'>(2)</b>"
+                        ? "<span class='" . ($cur_wall_lvl >= 2 ? "passed" : "error") . "'>(2)</span>"
                         : "(2)";
 
                     $req_display .= "<span class='popup' id='$p_wall' style='display: flex; align-items: center; gap: 3px;'>$wall_icon $wall_lvl_display<div id='{$p_wall}_box' class='popupbox'>Mauer</div></span>";
@@ -575,7 +575,7 @@ if ($row) {
                     $req_barracks = ($target_lvl >= 3) ? 10 : 9;
                     $p_barracks = "req_barracks_{$tech_id}_$target_lvl";
 
-                    $barracks_lvl_display = $is_current_row ? "<b class='" . ($cur_barracks_lvl >= $req_barracks ? "passed" : "error") . "'>($req_barracks)</b>" : "($req_barracks)";
+                    $barracks_lvl_display = $is_current_row ? "<span class='" . ($cur_barracks_lvl >= $req_barracks ? "passed" : "error") . "'>($req_barracks)</span>" : "($req_barracks)";
 
                     $req_display .= "<span class='popup' id='$p_barracks' style='display: flex; align-items: center; gap: 3px;'>$barracks_icon $barracks_lvl_display<div id='{$p_barracks}_box' class='popupbox'>Kaserne</div></span>";
                 }
@@ -591,7 +591,7 @@ if ($row) {
                 $is_current_row = ($i == $current_level_value);
 
                 $sm_lvl_display = $is_current_row
-                    ? "<b class='" . ($cur_smithy_lvl >= $req_sm ? "passed" : "error") . "'>($req_sm)</b>"
+                    ? "<span class='" . ($cur_smithy_lvl >= $req_sm ? "passed" : "error") . "'>($req_sm)</span>"
                     : "($req_sm)";
 
                 $req_display = "<span class='popup' id='$p_sm' style='display: flex; align-items: center; gap: 3px;'>$smithy_icon $sm_lvl_display<div id='{$p_sm}_box' class='popupbox'>Schmiede</div></span>";

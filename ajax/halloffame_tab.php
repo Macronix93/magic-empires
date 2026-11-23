@@ -1,7 +1,7 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$cat = $_GET["cat"] ?? "";
+$cat = get_str("cat");
 require_once("../includes/content/halloffame_data.php");
 
 if (!isset($categories[$cat])) {

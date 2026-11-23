@@ -13,7 +13,7 @@ $german_months = [
 $months_res = $db->query("SELECT DISTINCT season_month FROM arena_season_history ORDER BY season_month DESC");
 $available_months = array_column($months_res->fetch_all(MYSQLI_ASSOC), "season_month");
 
-$selected_month = $_GET["month"] ?? ($available_months[0] ?? date("Y-m"));
+$selected_month = get_str("month", $available_months[0] ?? date("Y-m"));
 
 $entries = [];
 if (!empty($available_months)) {

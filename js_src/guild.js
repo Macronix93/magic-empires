@@ -244,13 +244,10 @@ const executeGuildAction = (action, targetId) => {
         .then(data => {
             if (data.success) {
                 if (action === "invite") {
-                    const contentBody = document.getElementById("overlay-content-body");
+                    const contentBody = getActiveModalBody();
 
                     if (contentBody && contentBody.offsetParent !== null) {
-                        const oldBox = contentBody.querySelector('.info-box');
-                        if (oldBox) oldBox.remove();
-
-                        contentBody.insertAdjacentHTML("afterbegin", data.html);
+                        showGameSuccess("Einladung wurde erfolgreich verschickt!");
                     } else {
                         location.reload();
                     }

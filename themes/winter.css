@@ -112,7 +112,7 @@ html.theme-winter .arena-power-sticky {
     border-color: var(--border-gold) !important;
 }
 
-/* --- BUTTONS (Synchron zu styles.css) --- */
+/* --- BUTTONS --- */
 html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept),
 html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept),
 html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down) {
@@ -139,7 +139,7 @@ html.theme-winter button:focus-visible {
     border-color: var(--link-color) !important;
 }
 
-/* Reindrück-Effekt (:active) exakt wie in styles.css */
+/* BUTTON EFFECTS */
 html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
 html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
 html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {

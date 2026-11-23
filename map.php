@@ -105,6 +105,7 @@ $settle_limit_reached = ($current_settled + $ongoing_foundations) >= $max_allowe
 $can_research_imperium = ($max_allowed_slots < GLOBAL_SETTLEMENT_MAX);
 
 $js_config = [
+    "userId" => $uid,
     "useAutoTiling" => MAP_USE_AUTOTILING,
     "autoTilingRadius" => MAP_AUTOTILING_RADIUS,
     "autoTilingPadding" => MAP_AUTOTILING_PADDING,
@@ -146,11 +147,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $x = (int)($_POST["mine_x"] ?? 0);
-        $y = (int)($_POST["mine_y"] ?? 0);
+        $x = post_int("mine_x");
+        $y = post_int("mine_y");
 
-        $target_kid = isset($_POST["kingdom_id"]) ? (int)$_POST["kingdom_id"] : $current_k_id;
-        $recall_kingdom = new Kingdom($target_kid);
+        $recall_kingdom = new Kingdom(isset($_POST["kingdom_id"]) ? post_int("kingdom_id") : $current_k_id);
 
         if ($recall_kingdom->get_kingdom_owner_id() === $uid) {
             if ($recall_kingdom->recall_mine_troops($x, $y)) {
@@ -165,25 +165,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])
 ob_start();
 
 // Coordinate logic
-$get_x = $_GET["startx"] ?? null;
-$get_y = $_GET["starty"] ?? null;
-$coords_valid = false;
-
-if (is_numeric($get_x) && is_numeric($get_y)) {
-    $get_x = (int)$get_x;
-    $get_y = (int)$get_y;
-
-    if ($get_x >= 1 && $get_x <= MAX_X && $get_y >= 1 && $get_y <= MAX_Y) {
-        $coords_valid = true;
-        $x = $get_x;
-        $y = $get_y;
-    }
-}
-
-if (!$coords_valid) {
-    $field_id = $user->get_current_kingdom();
-    $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$field_id]);
+$get_x = get_int("startx");
+$get_y = get_int("starty");
+$coords_valid = ($get_x >= 1 && $get_x <= MAX_X && $get_y >= 1 && $get_y <= MAX_Y);
+if ($coords_valid) {
+    $x = $get_x;
+    $y = $get_y;
+} else {
+    $result = $db_instance->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$user->get_current_kingdom()]);
     $row = $result->fetch_assoc();
+
     $x = $row["mapx"] ?? 1;
     $y = $row["mapy"] ?? 1;
 }

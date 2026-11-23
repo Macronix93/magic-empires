@@ -4,49 +4,57 @@ require_post();
 
 $uid = $user->get_user_id();
 
-$target = $_POST["share_target"] ?? "world";
-$raw_msg = trim($_POST["message"] ?? "");
-$recipient_name = trim($_POST["recipient"] ?? "");
-$report_msg_id = (int)($_POST["report_msg_id"] ?? 0);
+$target = post_str("share_target", "world");
+$raw_msg = trim(post_str("message"));
+$recipient_name = trim(post_str("recipient"));
+$report_msg_id = post_int("report_msg_id");
 
 if ($report_msg_id > 0) {
     $res = $db_instance->execute_query(
         "SELECT data_json, date FROM server_messages WHERE id = ? AND receiverid = ? AND category IN (?, ?)",
         [$report_msg_id, $uid, MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE]
     );
-
     $row = $res->fetch_assoc();
-    if ($row) {
-        $data = json_decode($row["data_json"] ?? "{}", true);
-        $label = Messages::get_report_share_label($data) ?? "Kampfbericht";
-        $now = time();
-        $original_battle_date = (int)$row["date"];
-        $expires_at = $now + (SHARED_REPORT_RETENTION_DAYS * 86400);
-
-        $res_shared = $db_instance->execute_query(
-            "SELECT id FROM shared_battle_reports WHERE original_message_id = ? AND shared_by_user_id = ? AND expires_at > ?",
-            [$report_msg_id, $uid, $now]
-        );
-        $existing = $res_shared->fetch_assoc();
-
-        if ($existing) {
-            $shared_id = (int)$existing["id"];
-            $db_instance->execute_query("UPDATE shared_battle_reports SET expires_at = ? WHERE id = ?", [$expires_at, $shared_id]);
-        } else {
-            $report_type = $data["template"] ?? "battle";
-            $data_json = json_encode($data, JSON_UNESCAPED_UNICODE);
-
-            $db_instance->execute_query(
-                "INSERT INTO shared_battle_reports (shared_by_user_id, original_message_id, report_type, data_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
-                [$uid, $report_msg_id, $report_type, $data_json, $original_battle_date, $expires_at]
-            );
-
-            $shared_id = (int)$db_instance->insert_id;
-        }
-
-        $hash = substr(hash_hmac('sha256', (string)$shared_id, AVATAR_SALT), 0, 8);
-        $raw_msg = "[report:$shared_id:$hash|$label]";
+    
+    if (!$row) {
+        echo json_encode(["success" => false, "error" => "Kampfbericht nicht gefunden oder keine Berechtigung."]);
+        exit;
     }
+
+    $data = json_decode($row["data_json"] ?? "{}", true);
+    if (!is_array($data) || !Messages::is_report_shareable($data["template"] ?? null)) {
+        echo json_encode(["success" => false, "error" => "Diese Art von Bericht kann nicht geteilt werden."]);
+        exit;
+    }
+
+    $label = Messages::get_report_share_label($data) ?? "Kampfbericht";
+    $now = time();
+    $original_battle_date = (int)$row["date"];
+    $expires_at = $now + (SHARED_REPORT_RETENTION_DAYS * 86400);
+
+    $res_shared = $db_instance->execute_query(
+        "SELECT id FROM shared_battle_reports WHERE original_message_id = ? AND shared_by_user_id = ? AND expires_at > ?",
+        [$report_msg_id, $uid, $now]
+    );
+    $existing = $res_shared->fetch_assoc();
+
+    if ($existing) {
+        $shared_id = (int)$existing["id"];
+        $db_instance->execute_query("UPDATE shared_battle_reports SET expires_at = ? WHERE id = ?", [$expires_at, $shared_id]);
+    } else {
+        $report_type = $data["template"] ?? "battle";
+        $data_json = json_encode($data, JSON_UNESCAPED_UNICODE);
+
+        $db_instance->execute_query(
+            "INSERT INTO shared_battle_reports (shared_by_user_id, original_message_id, report_type, data_json, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+            [$uid, $report_msg_id, $report_type, $data_json, $original_battle_date, $expires_at]
+        );
+
+        $shared_id = (int)$db_instance->insert_id;
+    }
+
+    $hash = substr(hash_hmac('sha256', (string)$shared_id, APP_SECRET), 0, 8);
+    $raw_msg = "[report:$shared_id:$hash|$label]";
 }
 
 if (empty($raw_msg)) {

@@ -86,19 +86,15 @@ class EventManager
                     ActionTypes::ACTION_SMITHY_UPGRADE])
                 && $row["buildingtime"] <= $now) $is_due = true;
 
-//            if ($row["actionid"] == ActionTypes::ACTION_BUILD_TROOPS) {
-//                $soldiers_stats = $this->load_soldier_data();
-//                $s_id = $row["soldierid"];
-//                $time_per_unit = $soldiers_stats[$s_id]->get_soldier_time();
-//
-//                $next_unit_ready = $row["recruittime"] - (($row["soldiergoal"] - 1) * $time_per_unit);
-//
-//                if ($now >= $next_unit_ready) $is_due = true;
-//            }
-
-            if ($row["actionid"] == ActionTypes::ACTION_BUILD_TROOPS) {
-                $unit_duration = ($row["recruittime"] - $row["buildingtime"]) / max(1, (int)$row["soldiergoal"]);
-                if ($now >= ($row["buildingtime"] + $unit_duration)) $is_due = true;
+            if (in_array((int)$row["actionid"], [
+                ActionTypes::ACTION_BUILD_TROOPS,
+                ActionTypes::ACTION_UPGRADE_TROOPS], true)) {
+                if ((int)$row["buildingtime"] > 0) {
+                    $unit_duration = ($row["recruittime"] - $row["buildingtime"]) / max(1, (int)$row["soldiergoal"]);
+                    if ($now >= ($row["buildingtime"] + $unit_duration)) $is_due = true;
+                } else {
+                    $is_due = true; // Fallback
+                }
             }
 
             if (in_array($row["actionid"], [
@@ -106,7 +102,6 @@ class EventManager
                     ActionTypes::ACTION_RETURN_TROOPS,
                     ActionTypes::ACTION_RECEIVE_RESOURCES,
                     ActionTypes::ACTION_RETURN_RESOURCES,
-                    ActionTypes::ACTION_UPGRADE_TROOPS,
                     ActionTypes::ACTION_STATION_TROOPS,
                     ActionTypes::ACTION_SUPPORT_RETURN])
                 && $row["arrivaltime"] <= $now) $is_due = true;
@@ -513,11 +508,6 @@ class EventManager
         $home_kingdom = new Kingdom($row["kingdomid"]);
         $return_time = (int)($row["arrivaltime"] - $row["buildingtime"]);
 
-//        $conquest = new Conquest();
-//        $conquest->set_event_id($row["eventid"]);
-//        $conquest->fetch_sent_troops();
-//        $conquest->initialize_soldier_types();
-
         // Check for troop composition
         $res = $this->mysqli->execute_query(
             "SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?",
@@ -767,7 +757,7 @@ class EventManager
                 $incoming_troops = $res_sent->fetch_all(MYSQLI_ASSOC);
 
                 $src_k = new Kingdom((int)$row["kingdomid"]);
-                $src_kname = e($src_k->get_kingdom_name());
+                $src_kname = $src_k->get_kingdom_name();
                 $sx = $src_k->get_kingdom_map_x();
                 $sy = $src_k->get_kingdom_map_y();
 
@@ -1097,7 +1087,7 @@ class EventManager
                 $key = $d["username"] . " (" . $d["kingdomname"] . ")";
                 $def_players[$key] = true;
             }
-            $def_list = !empty($def_players) ? e(implode(", ", array_keys($def_players))) : "Unbekannt";
+            $def_list = !empty($def_players) ? implode(", ", array_keys($def_players)) : "Unbekannt";
 
             if ($attacker_wins) {
                 // ATTACKER WINS - MINE OVERTAKEN
@@ -2858,30 +2848,32 @@ class EventManager
             $total_support_atk = 0;
             $total_support_def = 0;
 
-            $calc_unit_power = function (int $sid, int $cnt) use ($sol_meta_map, $def_techs, $def_atk_shrine, &$total_garrison_atk, &$total_garrison_def): array {
+            $calc_unit_power = function (int $sid) use ($sol_meta_map, $def_techs, $def_atk_shrine): array {
                 if (!isset($sol_meta_map[$sid])) {
                     return ["atk" => 0, "def" => 0];
                 }
-
                 $sm = $sol_meta_map[$sid];
                 $cat = (int)$sm["category"];
                 $b_atk = $def_techs[$cat]["a"] ?? 0;
                 $b_def = $def_techs[$cat]["d"] ?? 0;
+
                 $u_atk = (int)round(($sm["attack"] * $def_atk_shrine) + $b_atk);
                 $u_def = (int)round($sm["defense"] + $b_def);
-                $total_garrison_atk += ($cnt * $u_atk);
-                $total_garrison_def += ($cnt * $u_def);
+
                 return ["atk" => $u_atk, "def" => $u_def];
             };
 
             $troops = [];
             $t_res = $this->mysqli->execute_query(
-                "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldiercount > 0", [$enemy_k->get_kingdom_id()]
+                "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldiercount > 0",
+                [$enemy_k->get_kingdom_id()]
             );
             while ($t = $t_res->fetch_assoc()) {
                 $sid = (int)$t["soldierid"];
                 $cnt = (int)$t["soldiercount"];
-                $power = $calc_unit_power($sid, $cnt);
+                $power = $calc_unit_power($sid);
+                $total_garrison_atk += ($cnt * $power["atk"]);
+                $total_garrison_def += ($cnt * $power["def"]);
                 $troops[] = [
                     "id" => $sid,
                     "count" => $cnt,
@@ -2898,13 +2890,13 @@ class EventManager
                  WHERE target_kingdom_id = ? 
                  GROUP BY soldier_id 
                  HAVING total_count > 0 
-                 ORDER BY soldier_id", [$enemy_k->get_kingdom_id()]
+                 ORDER BY soldier_id",
+                [$enemy_k->get_kingdom_id()]
             );
-
             while ($st = $st_res->fetch_assoc()) {
                 $sid = (int)$st["soldier_id"];
                 $cnt = (int)$st["total_count"];
-                $power = $calc_unit_power($sid, $cnt);
+                $power = $calc_unit_power($sid);
                 $total_support_atk += ($cnt * $power["atk"]);
                 $total_support_def += ($cnt * $power["def"]);
                 $support_troops[] = [
@@ -2928,13 +2920,22 @@ class EventManager
         // TIER 4: Techs
         if ($survivors >= SPY_INTEL_THRESHOLD_TECHS) {
             $techs = [];
-
             $t_res = $this->mysqli->execute_query(
-                "SELECT techid, techname, techlevel FROM techs WHERE kingdomid = ? ORDER BY techlevel DESC",
+                "SELECT t.techid, t.techname, t.techlevel, tl.origin_building
+                 FROM techs t
+                 JOIN tech_list tl ON t.techid = tl.id
+                 WHERE t.kingdomid = ? AND t.techlevel > 0
+                 ORDER BY tl.origin_building, t.techlevel DESC, t.techid",
                 [$enemy_k->get_kingdom_id()]
             );
+
             while ($t = $t_res->fetch_assoc()) {
-                $techs[] = ["id" => (int)$t["techid"], "name" => $t["techname"], "level" => (int)$t["techlevel"]];
+                $techs[] = [
+                    "id" => (int)$t["techid"],
+                    "name" => $t["techname"],
+                    "level" => (int)$t["techlevel"],
+                    "origin_building" => (int)$t["origin_building"]
+                ];
             }
 
             $intel["techs"] = $techs;
@@ -3075,7 +3076,7 @@ class EventManager
         // Score & Wall-Updates
         $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_my_score_loss(), $attacker_id]);
         $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_enemy_score_loss(), $enemy_user_id]);
-        $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$wall_after, $enemy_kingdom->get_kingdom_id()]);
+        $enemy_kingdom->set_wall_hp($wall_after);
 
         // Event-Handling: Delete troops or send back
         if ($conquest->get_initial_soldier_count() == $conquest->get_my_loss_count()) {
@@ -3277,7 +3278,7 @@ class EventManager
                 WHERE b.kingdomid = ? AND b.buildingid != " . BuildingTypes::BUILDING_EMBASSY, [$enemy_kingdom->get_kingdom_id()]);
             $village_building_score = (int)($res_b_score->fetch_assoc()["loss"] ?? 0);
 
-            // Get alle Techs for score loss
+            // Get all techs for score loss
             $res_t_score = $this->mysqli->execute_query("
                 SELECT SUM((t.techlevel * (t.techlevel + 1) / 2) * tl.techscore) AS loss 
                 FROM techs t 
@@ -3601,7 +3602,26 @@ class EventManager
                 $this->handle_resource_transfer($row);
                 break;
             case ActionTypes::ACTION_RETURN_RESOURCES:
+                $owner_id = (int)$row["userid"];
                 $origin_kingdom_id = (int)$row["kingdomid"];
+
+                $current_owner = (int)($this->mysqli->execute_query("SELECT userid FROM kingdoms WHERE id = ?",
+                    [$origin_kingdom_id]
+                )->fetch_column() ?? 0);
+
+                if ($current_owner !== $owner_id) {
+                    $main_kid = (int)($this->mysqli->execute_query("SELECT mainkingdom FROM users WHERE id = ?",
+                        [$owner_id]
+                    )->fetch_column() ?? 0);
+
+                    if ($main_kid > 0 && $main_kid !== $origin_kingdom_id) {
+                        $origin_kingdom_id = $main_kid;
+                    } else {
+                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                        break;
+                    }
+                }
+
                 $kingdom = new Kingdom($origin_kingdom_id);
                 $returned_resources = [];
 
@@ -3712,11 +3732,7 @@ class EventManager
                 new Kingdom($kingdom_id)->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_STORAGE_INC:
-                $kingdom = new Kingdom($kingdom_id);
-                $kingdom->set_kingdom_max_food($kingdom->get_kingdom_max_food() + RESEARCH_STORAGE_INC);
-                $kingdom->set_kingdom_max_wood($kingdom->get_kingdom_max_wood() + RESEARCH_STORAGE_INC);
-                $kingdom->set_kingdom_max_stone($kingdom->get_kingdom_max_stone() + RESEARCH_STORAGE_INC);
-                $kingdom->set_kingdom_max_gold($kingdom->get_kingdom_max_gold() + RESEARCH_STORAGE_INC);
+                new Kingdom($kingdom_id)->recalculate_storage_capacity();
                 break;
             case TechTypes::TECH_TYPE_WALL_HP_INC:
                 $kingdom = new Kingdom($kingdom_id);
@@ -3728,8 +3744,8 @@ class EventManager
                 break;
             case TechTypes::TECH_TYPE_WEIGHT:
                 $res_recruit = $this->mysqli->execute_query(
-                    "SELECT eventid, soldierid, buildingtime, soldiergoal FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1 FOR UPDATE",
-                    [$kingdom_id, ActionTypes::ACTION_BUILD_TROOPS]
+                    "SELECT eventid, actionid, soldierid, buildingtime, recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid IN (?, ?) LIMIT 1 FOR UPDATE",
+                    [$kingdom_id, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_UPGRADE_TROOPS]
                 );
 
                 if ($rec_ev = $res_recruit->fetch_assoc()) {
@@ -3740,20 +3756,21 @@ class EventManager
                         $new_weight_lvl = (int)$row["buildinglevel"] + 1;
                         $discount = 1 - ($new_weight_lvl * SMITHY_WEIGHT_REDUCTION);
                         $new_unit_time = max(1, (int)round($soldiers_stats[$s_id]->get_soldier_time() * $discount));
-                        $new_recruittime = (int)$rec_ev["buildingtime"] + ((int)$rec_ev["soldiergoal"] * $new_unit_time);
 
+                        $base_start = (int)$rec_ev["buildingtime"];
+                        if ($base_start <= 0) {
+                            $old_discount = 1 - ((int)$row["buildinglevel"] * SMITHY_WEIGHT_REDUCTION);
+                            $old_unit_time = max(1, (int)round($soldiers_stats[$s_id]->get_soldier_time() * $old_discount));
+                            $base_start = (int)$rec_ev["recruittime"] - ((int)$rec_ev["soldiergoal"] * $old_unit_time);
+                        }
+
+                        $new_recruittime = $base_start + ((int)$rec_ev["soldiergoal"] * $new_unit_time);
                         $this->mysqli->execute_query(
-                            "UPDATE events SET recruittime = ? WHERE eventid = ?",
-                            [$new_recruittime, $rec_ev["eventid"]]
+                            "UPDATE events SET buildingtime = ?, recruittime = ? WHERE eventid = ?",
+                            [$base_start, $new_recruittime, $rec_ev["eventid"]]
                         );
                     }
                 }
-                break;
-            case TechTypes::TECH_TYPE_CARTOGRAPHY:
-            case TechTypes::TECH_TYPE_PLUNDER:
-            case TechTypes::TECH_TYPE_ARCANE_INTEL:
-            case TechTypes::TECH_TYPE_MAINTENANCE:
-            case TechTypes::TECH_TYPE_ARCHITECTURE:
                 break;
         }
 
@@ -3841,6 +3858,16 @@ class EventManager
         // Special effects for a building after construction
         $this->apply_building_effects($row["buildingid"], $row["buildinglevel"], $row["kingdomid"]);
 
+        // Invalidate coin cache (rare bug occasion)
+        if (in_array((int)$row["buildingid"], [
+            BuildingTypes::BUILDING_MILL,
+            BuildingTypes::BUILDING_SAWMILL,
+            BuildingTypes::BUILDING_STONEMINE,
+            BuildingTypes::BUILDING_GOLDMINE
+        ], true)) {
+            $this->user->invalidate_coin_limit_cache();
+        }
+
         Logger::get_instance()->log_game("ECONOMY", "BUILDING_UPGRADE", [
             "building_id" => (int)$row["buildingid"],
             "level" => (int)$row["buildinglevel"] + 1
@@ -3874,11 +3901,7 @@ class EventManager
                 $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$hp, $kid]);
                 break;
             case BuildingTypes::BUILDING_STORAGE:
-                $new_level = $lvl + 1;
-                $new_max = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $new_level - 1));
-
-                $this->mysqli->execute_query("UPDATE kingdoms SET maxfood = ?, maxwood = ?, maxstone = ?, maxgold = ? WHERE id = ?",
-                    [$new_max, $new_max, $new_max, $new_max, $kid]);
+                new Kingdom($kid)->recalculate_storage_capacity();
                 break;
             case BuildingTypes::BUILDING_MILL:
                 $this->update_production($kid, "foodrate", BASE_FOOD_GAIN, "foodperhour");
@@ -3952,7 +3975,7 @@ class EventManager
                 );
 
                 $vill_total = $units_to_deliver * $soldiers[$s_id]->get_soldier_villager_cost();
-                $this->mysqli->execute_query("UPDATE kingdoms SET villager = villager - ? WHERE id = ?",
+                $this->mysqli->execute_query("UPDATE kingdoms SET villager = GREATEST(0, villager - ?) WHERE id = ?",
                     [$vill_total, $row["kingdomid"]]);
 
                 $this->mysqli->execute_query(
@@ -4178,7 +4201,10 @@ class EventManager
 
         // Coins
         if ($loot_coins > 0) {
-            $this->user->give_user_coins($loot_coins);
+            $coin_recipient = ($owner_id === $this->user->get_user_id())
+                ? $this->user
+                : new User($owner_id, $u_name);
+            $coin_recipient->give_user_coins($loot_coins);
         }
 
         // Special Resources for guild
@@ -4362,10 +4388,21 @@ class EventManager
     private function handle_upgrade_finish(array $row): void
     {
         $now = time();
-        $kingdom_id = $row["kingdomid"];
-        $from_id = $row["buildingid"];
-        $to_id = $row["soldierid"];
-        $goal = $row["soldiergoal"];
+        $fresh_res = $this->mysqli->execute_query(
+            "SELECT * FROM events WHERE eventid = ? FOR UPDATE",
+            [$row["eventid"]]
+        );
+
+        $fresh_row = $fresh_res->fetch_assoc();
+        if (!$fresh_row) {
+            return;
+        }
+        $row = $fresh_row;
+
+        $kingdom_id = (int)$row["kingdomid"];
+        $from_id = (int)$row["buildingid"];
+        $to_id = (int)$row["soldierid"];
+        $goal = (int)$row["soldiergoal"];
 
         $res_to = $this->mysqli->execute_query("SELECT soldiername, requiredtime, scoregain, category FROM soldier_list WHERE id = ?", [$to_id]);
         $target_data = $res_to->fetch_assoc();
@@ -4382,24 +4419,31 @@ class EventManager
         $s_name = $target_data["soldiername"];
         $target_score = $target_data["scoregain"];
 
-        $total_duration = $goal * $unit_time;
-        $start_time = $row["recruittime"] - $total_duration;
+        $start_time = ((int)$row["buildingtime"] > 0)
+            ? (int)$row["buildingtime"]
+            : ((int)$row["recruittime"] - ($goal * $unit_time));
 
-        $units_finished_total = floor(($now - $start_time) / $unit_time);
+        $elapsed = max(0, $now - $start_time);
+        $units_finished_total = (int)floor($elapsed / $unit_time);
         $units_to_add = min($goal, $units_finished_total);
 
         if ($units_to_add > 0) {
             $this->mysqli->execute_query(
                 "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
-             VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
+                 VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
                 [$kingdom_id, $to_id, $s_name, $units_to_add, $units_to_add]
             );
 
-            $this->mysqli->execute_query("UPDATE events SET soldiergoal = soldiergoal - ? WHERE eventid = ?", [$units_to_add, $row["eventid"]]);
-
+            if ($units_to_add < $goal) {
+                $new_buildingtime = $start_time + ($units_to_add * $unit_time);
+                $this->mysqli->execute_query(
+                    "UPDATE events SET soldiergoal = soldiergoal - ?, buildingtime = ? WHERE eventid = ?",
+                    [$units_to_add, $new_buildingtime, $row["eventid"]]
+                );
+            }
             $this->user->set_last_upgraded_soldier($kingdom_id, $s_name, $units_to_add, $target_data["category"]);
-            $score_difference = ($target_score - $source_score) * $units_to_add;
 
+            $score_difference = ($target_score - $source_score) * $units_to_add;
             if ($score_difference != 0) {
                 $this->update_user_score((int)$score_difference, $this->user);
             }
@@ -4409,6 +4453,11 @@ class EventManager
 
         if ($units_to_add >= $goal) {
             $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        } else if ((int)$row["buildingtime"] <= 0) {
+            $this->mysqli->execute_query(
+                "UPDATE events SET buildingtime = ?, is_processing = 0 WHERE eventid = ?",
+                [$start_time, $row["eventid"]]
+            );
         } else {
             $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
         }
@@ -4431,7 +4480,7 @@ class EventManager
         $data = $this->mysqli->execute_query($query, [$sender_id, $target_kid])->fetch_assoc();
 
         if (!$data) {
-            $this->turn_back_support($row, "target_lost", "Das Ziel-Königreich existiert nicht mehr.");
+            $this->turn_back_support($row, "target_lost", $row["targetx"] . ":" . $row["targety"]);
             return;
         }
 
@@ -4450,7 +4499,7 @@ class EventManager
         $incoming_count = array_sum(array_column($incoming_troops, 'soldiercount'));
 
         if (($current_support + $incoming_count) > $support_limit) {
-            $this->turn_back_support($row, "storage_full", "Das Unterstützungslager in <b>{$data["target_name"]}</b> ist bereits voll belegt.");
+            $this->turn_back_support($row, "storage_full", $data["target_name"]);
             return;
         }
 
@@ -4491,7 +4540,7 @@ class EventManager
         $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
     }
 
-    private function turn_back_support(array $row, string $reason_short, string $long_text): void
+    private function turn_back_support(array $row, string $reason_short, string $target_name): void
     {
         $now = time();
         $duration = max(60, (int)($row["arrivaltime"] - $row["buildingtime"]));
@@ -4512,7 +4561,7 @@ class EventManager
         $turn_back_json = [
             "template" => "support_turned_back",
             "reason" => $reason_short,
-            "target_name" => $long_text
+            "target_name" => $target_name
         ];
 
         Messages::send_server_message((int)$row["userid"], $s_name, MessageCategories::CATEGORY_GUILD, $turn_back_json);
@@ -4677,31 +4726,14 @@ class EventManager
         $cal = new AdventCalendar();
         $loot = $cal->generate_gift_loot($user_id, $day);
 
+        $redirects = [];
         if (!empty($loot["troops"])) {
-            $soldier_meta = $this->load_soldier_data();
-            $insert_vals = [];
-            $params = [];
-            $score_add = 0;
+            $delivery = Kingdom::deliver_reward_troops($user_id, $home_kid, $loot["troops"]);
+            $redirects = $delivery["redirects"];
 
-            foreach ($loot["troops"] as $t) {
-                $sid = (int)$t["id"];
-                $cnt = (int)$t["count"];
-                if (!isset($soldier_meta[$sid]) || $cnt <= 0) continue;
+            if ($delivery["score_gain"] > 0) {
+                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$delivery["score_gain"], $user_id]);
 
-                $insert_vals[] = "(?, ?, ?, ?)";
-                array_push($params, $home_kid, $sid, $soldier_meta[$sid]->get_soldier_name(), $cnt);
-                $score_add += $soldier_meta[$sid]->get_soldier_score_gain() * $cnt;
-            }
-
-            if (!empty($insert_vals)) {
-                $this->mysqli->execute_query(
-                    "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) VALUES " . implode(", ", $insert_vals) . "
-                            ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)",
-                    $params
-                );
-            }
-            if ($score_add > 0) {
-                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$score_add, $user_id]);
                 Achievement::check($user_id, AchievementTypes::ACHIEVEMENT_SCORE);
             }
         }
@@ -4730,7 +4762,8 @@ class EventManager
             "home_name" => $home_k->get_kingdom_name(),
             "coins" => $loot["coins"],
             "resources" => $loot["resources"],
-            "troops" => $loot["troops"]
+            "troops" => $loot["troops"],
+            "redirected_units" => $redirects
         ];
         Messages::send_server_message($user_id, $this->user->get_user_name(), MessageCategories::CATEGORY_EVENT, $advent_json);
 

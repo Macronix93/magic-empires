@@ -36,35 +36,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $step_percent = (int)$_POST["repair_percent"];
+        $step_percent = post_int("repair_percent");
 
-        if ($step_percent === 100) {
-            $hp_to_repair = $hp_difference;
+        if (!in_array($step_percent, [10, 25, 100], true)) {
+            $error = "Ungültige Reparatur-Option!";
         } else {
-            $hp_to_repair = (int)($wall_max_hp * ($step_percent / 100));
-        }
+            $db_instance->begin_transaction();
+            try {
+                $locked_k = $db_instance->execute_query(
+                    "SELECT wallhp, stone FROM kingdoms WHERE id = ? FOR UPDATE",
+                    [$current_kingdom]
+                )->fetch_assoc();
 
-        $actual_repair = min($hp_to_repair, $hp_difference);
-        $repair_cost = (int)round($actual_repair * BASE_WALL_REPAIR_COST * $maintenance_mult);
+                $cur_hp = (int)($locked_k["wallhp"] ?? 0);
+                $cur_stone = (int)($locked_k["stone"] ?? 0);
+                $cur_hp_diff = max(0, $wall_max_hp - $cur_hp);
 
-        if ($actual_repair <= 0) {
-            $error = "Die Mauer ist bereits vollständig repariert!";
-        } else if ($kingdom_stone < $repair_cost) {
-            $error = "Nicht genügend Stein vorhanden!";
-        } else {
-            $kingdom->give_kingdom_stone(-$repair_cost);
-            $new_hp = $wall_hp + $actual_repair;
-            $kingdom->set_wall_hp($new_hp);
+                if ($step_percent === 100) {
+                    $hp_to_repair = $cur_hp_diff;
+                } else {
+                    $hp_to_repair = (int)($wall_max_hp * ($step_percent / 100));
+                }
 
-            $logger->log_game("ECONOMY", "WALL_REPAIR", [
-                "hp_gained" => $actual_repair,
-                "cost_stone" => $repair_cost,
-                "percent_step" => $step_percent
-            ], $current_kingdom);
+                $actual_repair = min($hp_to_repair, $cur_hp_diff);
+                $repair_cost = (int)round($actual_repair * BASE_WALL_REPAIR_COST * $maintenance_mult);
 
-            $_SESSION["game_success"] = "Die Mauer wurde um " . fnum($actual_repair) . " HP repariert.";
+                if ($actual_repair <= 0) {
+                    throw new RuntimeException("Die Mauer ist bereits vollständig repariert!");
+                }
+                if ($cur_stone < $repair_cost) {
+                    throw new RuntimeException("Nicht genügend Stein vorhanden!");
+                }
 
-            change_location("wall.php");
+                $db_instance->execute_query(
+                    "UPDATE kingdoms SET stone = stone - ?, wallhp = LEAST(?, wallhp + ?) WHERE id = ?",
+                    [$repair_cost, $wall_max_hp, $actual_repair, $current_kingdom]
+                );
+
+                $db_instance->commit();
+
+                $logger->log_game("ECONOMY", "WALL_REPAIR", [
+                    "hp_gained" => $actual_repair,
+                    "cost_stone" => $repair_cost,
+                    "percent_step" => $step_percent
+                ], $current_kingdom);
+
+                $_SESSION["game_success"] = "Die Mauer wurde um " . fnum($actual_repair) . " HP repariert.";
+
+                change_location("wall.php");
+            } catch (RuntimeException $e) {
+                $db_instance->rollback();
+                $error = $e->getMessage();
+            } catch (Throwable $e) {
+                $db_instance->rollback();
+                $logger->error("wall repair error: " . $e->getMessage());
+                $error = "Interner Fehler bei der Reparatur.";
+            }
         }
     }
 }
@@ -84,7 +111,7 @@ $view .= "<div style='display: flex; flex-direction: column; gap: 15px; align-it
                     <span>" . fnum($wall_hp) . " / " . fnum($wall_max_hp) . "</span>
                 </div>
                 <div class='wall-hp-bar'>
-                    <div style='width: " . (($wall_hp / $wall_max_hp) * 100) . "%; height: 100%; background: linear-gradient(90deg, #15803b, #2ecc71); transition: width 0.5s;'></div>
+                    <div style='width: " . ($wall_max_hp > 0 ? (($wall_hp / $wall_max_hp) * 100) : 0) . "%; height: 100%; background: linear-gradient(90deg, #15803b, #2ecc71); transition: width 0.5s;'></div>
                 </div>
             </div>
             <div class='title-border'>Reparatur-Optionen</div>

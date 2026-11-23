@@ -46,8 +46,6 @@ $preset_msg = "$x:$y - $location_desc";
         <span style="font-size: 16px; color: var(--link-color);"><b>(<?= $x ?>:<?= $y ?>)</b> – <?= $location_desc ?></span>
     </div>
 
-    <div id="share-coords-error" style="display: none; margin-bottom: 10px;"></div>
-
     <form id="form-share-coords" method="POST" action="ajax/share_coords_send.php"
           data-on-submit="submitShareCoords">
         <input type="hidden" name="x" value="<?= $x ?>">

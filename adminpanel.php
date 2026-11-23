@@ -9,13 +9,15 @@ $user_id = -1;
 if (!$user->is_admin()) {
     $error = "Du bist kein Administrator!";
 } else {
+    $is_full_admin = ($user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN);
+
     $system_log_section = "";
     $chat_backup_section = "";
     $game_logs_table = "";
     $user_info_html = "";
 
     $allowed_tabs = ['system', 'users', 'logs', 'gamelogs'];
-    $active_tab = $_GET['tab'] ?? null;
+    $active_tab = isset($_GET["tab"]) ? get_str("tab") : null;
 
     if ($active_tab === null) {
         if (isset($_GET['userid'])) {
@@ -61,7 +63,7 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["spawn_test_advent_user"])) {
-            $tname = trim($_POST["test_username"] ?? "");
+            $tname = trim(post_str("test_username"));
 
             $target_u = $db_instance->execute_query("SELECT id FROM users WHERE username = ? LIMIT 1", [$tname])->fetch_assoc();
 
@@ -120,7 +122,7 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["update_fixed_march"])) {
-            $seconds = max(0, min(86400, (int)$_POST["fixed_seconds"]));
+            $seconds = max(0, min(86400, post_int("fixed_seconds")));
 
             $db_instance->execute_query(
                 "UPDATE system_settings SET value = ? WHERE name = 'debug_fixed_march_seconds'",
@@ -139,7 +141,7 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["update_noob_protection"])) {
-            $raw_mult = str_replace(',', '.', trim($_POST["noob_mult"] ?? "0"));
+            $raw_mult = str_replace(',', '.', trim(post_str("noob_mult", "0")));
             $mult = max(0.0, min(1.0, round((float)$raw_mult, 2)));
 
             $db_instance->execute_query(
@@ -156,6 +158,12 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["reset_round"])) {
+            if (!$is_full_admin) {
+                $_SESSION["game_error"] = "Nur Full-Admins dürfen einen Runden-Reset durchführen!";
+
+                change_location("adminpanel.php?tab=system");
+            }
+
             $logger->admin("ROUND RESET STARTED by Admin " . $user->get_user_name() . " (ID " . $user->get_user_id() . ")");
 
             // Set maintenance mode
@@ -248,7 +256,13 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["spawn_map_entities"])) {
-            $spawn_type = $_POST["spawn_type"];
+            $spawn_type = post_str("spawn_type");
+
+            if (!in_array($spawn_type, ["all", "resources", "monsters", "mines"], true)) {
+                $_SESSION["game_error"] = "Ungültiger Spawn-Typ!";
+                change_location("adminpanel.php?tab=system");
+            }
+
             $spawner = new MapSpawner($db_instance);
             $report = [];
 
@@ -274,7 +288,7 @@ if (!$user->is_admin()) {
 
         if (isset($_POST["toggle_maintenance"])) {
             $enable_maintenance = !MAINTENANCE_MODE;
-            $reason = $_POST["maintenance_reason"] ?? "Geplante Wartungsarbeiten";
+            $reason = post_str("maintenance_reason", "Geplante Wartungsarbeiten");
 
             $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_mode'", [$enable_maintenance ? "1" : "0"]);
             $db_instance->execute_query("UPDATE system_settings SET value = ? WHERE name = 'maintenance_reason'", [$reason]);
@@ -299,45 +313,53 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["toggle_ban"])) {
-            $uid = (int)($_POST["user_id"] ?? 0);
-            $ban_status = !empty($_POST["ban_status"]);
+            $target_admin_lvl = (int)($db_instance->execute_query("SELECT adminlevel FROM users WHERE id = ?",
+                [$user_id]
+            )->fetch_column() ?? 0);
 
-            if ($ban_status) {
-                $reason = trim($_POST["reason"] ?? "Verstoß gegen die Regeln");
-                $ban_hours = max(0, (int)($_POST["ban_hours"] ?? 0));
-                $ban_until = ($ban_hours > 0) ? (time() + ($ban_hours * 3600)) : 0;
-                $duration_log = ($ban_until > 0) ? "until " . date("d.m.Y H:i", $ban_until) : "PERMANENT";
-
-                $db_instance->execute_query(
-                    "UPDATE users SET is_banned = 1, ban_reason = ?, ban_until = ? WHERE id = ?",
-                    [$reason, $ban_until, $uid]
-                );
-
-                $logger->admin("BANNED USER ID $uid ($duration_log). Reason: $reason");
-
-                $_SESSION["game_success"] = "Benutzer ID $uid wurde gebannt (" . ($ban_until > 0 ? "bis " . date("d.m.Y H:i", $ban_until) : "Permanent") . ")!";
+            if (!$is_full_admin && $target_admin_lvl >= $user->get_user_admin_level()) {
+                $error = "Du kannst keinen Account mit gleichem oder höherem Admin-Level bearbeiten!";
             } else {
-                $db_instance->execute_query(
-                    "UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?",
-                    [$uid]
-                );
 
-                $logger->admin("UNBANNED USER ID $uid");
+                $uid = post_int("user_id");
+                $ban_status = !empty($_POST["ban_status"]);
 
-                $_SESSION["game_success"] = "Benutzer ID $uid wurde entsperrt!";
+                if ($ban_status) {
+                    $reason = trim(post_str("reason", "Verstoß gegen die Regeln"));
+                    $ban_hours = max(0, min(876000, post_int("ban_hours")));
+                    $ban_until = ($ban_hours > 0) ? (time() + ($ban_hours * 3600)) : 0;
+                    $duration_log = ($ban_until > 0) ? "until " . date("d.m.Y H:i", $ban_until) : "PERMANENT";
+
+                    $db_instance->execute_query(
+                        "UPDATE users SET is_banned = 1, ban_reason = ?, ban_until = ? WHERE id = ?",
+                        [$reason, $ban_until, $uid]
+                    );
+
+                    $logger->admin("BANNED USER ID $uid ($duration_log). Reason: $reason");
+
+                    $_SESSION["game_success"] = "Benutzer ID $uid wurde gebannt (" . ($ban_until > 0 ? "bis " . date("d.m.Y H:i", $ban_until) : "Permanent") . ")!";
+                } else {
+                    $db_instance->execute_query(
+                        "UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?",
+                        [$uid]
+                    );
+
+                    $logger->admin("UNBANNED USER ID $uid");
+
+                    $_SESSION["game_success"] = "Benutzer ID $uid wurde entsperrt!";
+                }
             }
-
             change_location("adminpanel.php?userid=" . $uid . "&tab=users");
         }
 
         if (isset($_POST["toggle_ip_ban"])) {
-            $target_ip = trim($_POST["ip"] ?? "");
+            $target_ip = trim(post_str("ip"));
+            $target_uid = post_int("user_id");
             $ban_status = !empty($_POST["ip_ban_status"]);
-            $target_uid = (int)($_POST["user_id"] ?? 0);
 
             if (filter_var($target_ip, FILTER_VALIDATE_IP)) {
                 if ($ban_status) {
-                    $reason = trim($_POST["reason"] ?? "Verstoß gegen die Regeln");
+                    $reason = trim(post_str("reason", "Verstoß gegen die Regeln"));
 
                     $db_instance->execute_query(
                         "INSERT INTO banned_ips (ip, reason, banned_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason)",
@@ -361,9 +383,35 @@ if (!$user->is_admin()) {
             change_location("adminpanel.php?userid=" . $target_uid . "&tab=users");
         }
 
+        if (isset($_POST["reset_user_rate_limit"])) {
+            $target_uid = post_int("user_id");
+
+            $u_row = $db_instance->execute_query("SELECT id, username, email, ip, device_id FROM users WHERE id = ?",
+                [$target_uid]
+            )->fetch_assoc();
+
+            if ($u_row) {
+                RateLimiter::clear_user_limits(
+                    $u_row["ip"] ?? "",
+                    $u_row["username"] ?? "",
+                    $u_row["email"] ?? "",
+                    (int)$u_row["id"],
+                    (string)($u_row["device_id"] ?? "")
+                );
+
+                $logger->admin("Reset auth rate limits for user ID $target_uid ({$u_row["username"]})");
+
+                $_SESSION["game_success"] = "Auth Rate-Limit für <b>" . e($u_row["username"]) . "</b> wurde zurückgesetzt!";
+            } else {
+                $_SESSION["game_error"] = "Benutzer nicht gefunden.";
+            }
+
+            change_location("adminpanel.php?userid=" . $target_uid . "&tab=users");
+        }
+
         if (isset($_POST["delete_log"])) {
-            $log_id = (int)($_POST["log_id"] ?? 0);
-            $page = (int)($_POST["logpage"] ?? 1);
+            $log_id = post_int("log_id");
+            $page = post_int("logpage", 1);
 
             $db_instance->execute_query("DELETE FROM game_logs WHERE id = ?", [$log_id]);
             $logger->admin("Deleted log entry ID $log_id");
@@ -374,8 +422,8 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["delete_event"])) {
-            $event_id = (int)($_POST["event_id"] ?? 0);
-            $target_uid = (int)($_POST["user_id"] ?? 0);
+            $event_id = post_int("event_id");
+            $target_uid = post_int("user_id");
 
             $db_instance->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
             $logger->admin("Deleted event ID $event_id");
@@ -387,10 +435,10 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["clear_log"]) && isset($_POST["log_to_clear"])) {
-            $f = $_POST["log_to_clear"];
+            $f = post_str("log_to_clear");
             $allowed_files = ["admin.log", "error.log", "security.log"];
 
-            if (in_array($f, $allowed_files) && $user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN) {
+            if (in_array($f, $allowed_files, true) && $user->get_user_admin_level() >= ADMIN_LEVEL_FULL_ADMIN) {
                 file_put_contents(__DIR__ . "/logs/" . $f, "");
 
                 $logger->admin("Log-Datei $f wurde über das Adminpanel geleert.");
@@ -402,7 +450,7 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["delete_user"])) {
-            $user_id = (int)($_POST["user_id"] ?? 0);
+            $user_id = post_int("user_id");
             $username = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
 
             $err = User::delete_account($user_id);
@@ -419,10 +467,10 @@ if (!$user->is_admin()) {
         }
 
         if (isset($_POST["field"])) {
-            $field = $_POST["field"];
-            $old_value = $_POST["old_value"];
-            $new_value = $_POST["new_value"];
-            $user_id = $_POST["user_id"];
+            $field = post_str("field");
+            $old_value = post_str("old_value");
+            $new_value = post_str("new_value");
+            $user_id = post_int("user_id");
 
             $result = false;
 
@@ -430,19 +478,30 @@ if (!$user->is_admin()) {
                 $old_filename = basename($old_value);
                 $new_filename = basename($new_value);
 
-                $file_path = UPLOADS_FILE_PATH . $old_filename;
-                $new_file_path = UPLOADS_FILE_PATH . $new_filename;
-
-                if (!empty($old_filename) && file_exists($file_path)) {
-                    if (rename($file_path, $new_file_path)) {
-                        $result = true;
-                    } else {
-                        $error = "Fehler beim Umbenennen der Datei!";
-                    }
-                } else if (file_exists($new_file_path)) {
-                    $result = true;
+                if (in_array($old_filename, ["", ".", ".."], true) || in_array($new_filename, ["", ".", ".."], true)) {
+                    $error = "Ungültiger Dateiname!";
                 } else {
-                    $error = "Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!";
+                    $allowed_ext = ["jpg", "jpeg", "png", "gif"];
+                    $new_ext = strtolower(pathinfo($new_filename, PATHINFO_EXTENSION));
+
+                    if (!in_array($new_ext, $allowed_ext, true)) {
+                        $error = "Ungültige Dateiendung für Avatar!";
+                    } else {
+                        $file_path = UPLOADS_FILE_PATH . $old_filename;
+                        $new_file_path = UPLOADS_FILE_PATH . $new_filename;
+
+                        if (!empty($old_filename) && is_file($file_path) && file_exists($file_path)) {
+                            if (rename($file_path, $new_file_path)) {
+                                $result = true;
+                            } else {
+                                $error = "Fehler beim Umbenennen der Datei!";
+                            }
+                        } else if (file_exists($new_file_path)) {
+                            $result = true;
+                        } else {
+                            $error = "Datei '$new_filename' wurde im Ordner " . UPLOADS_FILE_PATH . " nicht gefunden!";
+                        }
+                    }
                 }
             } else {
                 $allowed_editable_fields = [
@@ -458,13 +517,17 @@ if (!$user->is_admin()) {
                     $error = "Ungültiges oder geschütztes Feld!";
                 } else {
                     if ($field === "password") {
-                        $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
+                        if (!$is_full_admin) {
+                            $error = "Nur Full-Admins dürfen dieses Feld bearbeiten!";
+                        } else {
+                            $new_value_db = password_hash(trim($new_value ?? ""), PASSWORD_BCRYPT);
 
-                        $result = $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_value_db, $user_id]);
-                        $target_uname = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
+                            $result = $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_value_db, $user_id]);
+                            $target_uname = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
 
-                        if ($target_uname) {
-                            PhpBBBridge::update_password($target_uname, $new_value_db);
+                            if ($target_uname) {
+                                PhpBBBridge::update_password($target_uname, $new_value_db);
+                            }
                         }
                     } else if ($field === "score") {
                         $score_val = (int)$new_value;
@@ -475,7 +538,13 @@ if (!$user->is_admin()) {
                     } else if ($field === "linked_user_id" && (empty($new_value) || (int)$new_value <= 0)) {
                         $result = $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$user_id]);
                     } else {
-                        $result = $db_instance->execute_query("UPDATE users SET `$field` = ? WHERE id = ?", [$new_value, $user_id]);
+                        if ($field === "adminlevel" && !$is_full_admin) {
+                            $error = "Nur Full-Admins dürfen dieses Feld bearbeiten!";
+                        }
+
+                        if (empty($error)) {
+                            $result = $db_instance->execute_query("UPDATE users SET `$field` = ? WHERE id = ?", [$new_value, $user_id]);
+                        }
                     }
                 }
             }
@@ -497,7 +566,7 @@ if (!$user->is_admin()) {
 
     // Show user related info if clicked on a user
     if (isset($_GET["userid"])) {
-        $user_id = $_GET["userid"];
+        $user_id = get_int("userid");
 
         $query = "SELECT 
                     users.*, 
@@ -529,6 +598,13 @@ if (!$user->is_admin()) {
                 // Process user information only once (for display purposes)
                 if (empty($user_info)) {
                     $adm_user = new User($row["id"], $row["username"]);
+                    $rl_status = RateLimiter::get_user_status(
+                        $row["ip"] ?? "",
+                        $row["username"] ?? "",
+                        $row["email"] ?? "",
+                        (int)$row["id"],
+                        (string)($row["device_id"] ?? "")
+                    );
 
                     $user_info = [
                         'Name' => ['field' => 'username', 'value' => $row['username'], 'editable' => true],
@@ -552,7 +628,7 @@ if (!$user->is_admin()) {
                         'Handels-Zähler' => ['field' => 'daily_trades_count', 'value' => $row['daily_trades_count'] ?? 0, 'editable' => true],
                         'Nachrichten-Zähler' => ['field' => 'msgcount', 'value' => $row['msgcount'], 'editable' => true],
                         'Rate-Limit Ende' => ['field' => 'lastsentmsgend', 'value' => $row['lastsentmsgend'], 'editable' => true],
-                        // REINE ANZEIGEFELDER (Nicht editierbar):
+                        'Auth Rate-Limit' => ['field' => 'auth_rate_limit', 'value' => $rl_status, 'editable' => false],
                         'IP' => ['field' => 'ip', 'value' => $row['ip'], 'editable' => false],
                         'Device-ID' => ['field' => 'device_id', 'value' => $row['device_id'] ?? '-', 'editable' => false],
                         'Registriert am' => ['field' => 'registerdate', 'value' => $row['registerdate'], 'editable' => false],
@@ -598,6 +674,14 @@ if (!$user->is_admin()) {
                     $display_value = ((int)$raw_value > 0) ? date("d.m.Y H:i:s", (int)$raw_value) : "-";
                 } else if ($label === "Punkte") {
                     $display_value = fnum($raw_value);
+                } else if ($label === "Auth Rate-Limit") {
+                    if ($raw_value["max_wait"] > 0) {
+                        $display_value = "<b class='error'>Blockiert (noch " . convert_sec_to_str($raw_value["max_wait"]) . ")</b>";
+                    } else if ($raw_value["has_entries"]) {
+                        $display_value = "<span class='warning'>Aktiv (max. {$raw_value["max_attempts"]} Fehlversuche)</span>";
+                    } else {
+                        $display_value = "<span class='passed'>Keine Sperre</span>";
+                    }
                 } else {
                     $display_value = e((string)$raw_value);
                 }
@@ -637,6 +721,14 @@ if (!$user->is_admin()) {
                                 </a>';
                 }
 
+                $rl_action = '';
+                if ($label === "Auth Rate-Limit" && !empty($raw_value["has_entries"])) {
+                    $rl_action = '
+                    <a href="#" data-on-click="resetRateLimitDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '">
+                        <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Reset" title="Auth Rate-Limit zurücksetzen">
+                    </a>';
+                }
+
                 $user_info_html .= '<tr>
                                     <td style="width: 30%;">' . $label . ':</td>
                                     <td id="td_' . $field_id . '">' . $display_value . '</td>
@@ -651,7 +743,7 @@ if (!$user->is_admin()) {
                     </a> <a href="#" data-on-click="userDeletionDialog" data-userid="' . e($user_id) . '" data-username="' . e($row["username"]) . '">
                         <img src="images/icons/icon_delete.png" class="ressource-icons" alt="Löschen">
                     </a>' : '')
-                    . $ip_action . '
+                    . $ip_action . $rl_action . '
                                     </td>
                                 </tr>';
             }
@@ -733,7 +825,9 @@ if (!$user->is_admin()) {
                 } else {
                     $user_info_html .= '<span class="passed">Kein Proxy erkannt</span><br>';
                 }
-                $user_info_html .= '<small>Provider: ' . e($proxy_data["isp"]) . '</small>';
+
+                $country = !empty($proxy_data["country"]) ? ' [' . e($proxy_data["country"]) . ']' : '';
+                $user_info_html .= '<small>Provider: ' . e($proxy_data["isp"]) . $country . '</small>';
             } else {
                 $user_info_html .= '<i>Check momentan nicht verfügbar.</i>';
             }
@@ -749,7 +843,7 @@ if (!$user->is_admin()) {
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
                     $target_url = "adminpanel.php?userid=" . e($user_id) . "&kingdomid=" . e($kingdom_id);
 
-                    $user_info_html .= '<div class="box' . (isset($_GET["kingdomid"]) && $_GET["kingdomid"] == $kingdom_id ? ' active' : '') . '" 
+                    $user_info_html .= '<div class="box' . (isset($_GET["kingdomid"]) && get_int("kingdomid") === (int)$kingdom_id ? ' active' : '') . '" 
                                    data-on-click="navigate" 
                                    data-url="' . $target_url . '">
                     <div style="width: 50px; text-align: center;">
@@ -768,8 +862,10 @@ if (!$user->is_admin()) {
 
             // Display kingdom data and event data for kingdom
             if (isset($_GET['kingdomid'])) {
+                $req_kid = get_int("kingdomid");
+
                 foreach ($kingdoms as $kingdom_id => $kingdom_data) {
-                    if ($kingdom_id == $_GET['kingdomid']) {
+                    if ((int)$kingdom_id === $req_kid) {
                         $user_info_html .= '<h3>Königreich-Info</h3>';
                         $user_info_html .= '<table class="table">
                                 <tr>
@@ -1045,7 +1141,7 @@ if (!$user->is_admin()) {
 
     foreach ($result as $row) {
         $user_url = "adminpanel.php?userid=" . e($row["id"]);
-        $user_list .= '<div class="box' . (isset($_GET["userid"]) && $_GET["userid"] == $row["id"] ? ' active' : '') . '" 
+        $user_list .= '<div class="box' . (isset($_GET["userid"]) && get_int("userid") === (int)$row["id"] ? ' active' : '') . '"
                             data-on-click="navigate" 
                             data-url="' . $user_url . '">
                     <div style="width: 50px;">
@@ -1061,7 +1157,7 @@ if (!$user->is_admin()) {
     $game_logs_table .= "<div id='logs' class='title-border'>Game Logs</div>";
 
     $rows_per_page_logs = ADMIN_LOGS_PER_PAGE;
-    $current_page_logs = max(1, (int)($_GET["logpage"] ?? 1));
+    $current_page_logs = max(1, get_int("logpage", 1));
 
     // Get total number of logs
     $total_logs = $db_instance->execute_query("SELECT COUNT(*) FROM game_logs")->fetch_row()[0];
@@ -1141,7 +1237,7 @@ if (!$user->is_admin()) {
         for ($i = ($current_page_logs - $range); $i <= ($current_page_logs + $range); $i++) {
             if ($i > 0 && $i <= $total_pages_logs) {
                 $get_params['logpage'] = $i;
-                $active = ($i == $current_page_logs) ? "active" : "";
+
                 if ($i == $current_page_logs) {
                     $game_logs_table .= "<span class='page-link active'>$i</span>";
                 } else {

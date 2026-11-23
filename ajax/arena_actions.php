@@ -4,84 +4,86 @@ require_post();
 
 $uid = $user->get_user_id();
 $arena = new Arena($uid);
-$action = $_POST["action"] ?? "";
+$action = post_str("action");
 
 switch ($action) {
     case "save_defense":
-        $troops = json_decode($_POST["troops"] ?? "{}", true);
-        $techs = json_decode($_POST["techs"] ?? "{}", true);
-        $reward_kid = isset($_POST["reward_kingdom_id"]) ? (int)$_POST["reward_kingdom_id"] : 0;
+        if (!Arena::is_season_active()) {
+            echo json_encode(["success" => false, "error" => "Die Arena befindet sich in der Saisonpause."]);
+            exit;
+        }
 
-        $err = $arena->save_defense_setup($troops, $techs, $reward_kid);
+        $raw_troops = post_str("troops", "{}");
+        $raw_techs = post_str("techs", "{}");
+        if (strlen($raw_troops) > 4096 || strlen($raw_techs) > 4096) {
+            echo json_encode(["success" => false, "error" => "Aufstellungsdaten zu groß."]);
+            exit;
+        }
+
+        $troops = json_decode($raw_troops, true);
+        $techs = json_decode($raw_techs, true);
+        if (!is_array($troops) || !is_array($techs)) {
+            echo json_encode(["success" => false, "error" => "Ungültige Aufstellungsdaten."]);
+            exit;
+        }
+
+        $err = $arena->save_defense_setup($troops, $techs, post_int("reward_kingdom_id"));
         if ($err !== null) {
             echo json_encode(["success" => false, "error" => $err]);
         } else {
             echo json_encode(["success" => true, "message" => "Verteidigung erfolgreich aufgestellt!"]);
         }
         break;
-    case "select_skill":
-        $skill_id = (int)($_POST["skill_id"] ?? 1);
 
+    case "select_skill":
+        if (!Arena::is_season_active()) {
+            echo json_encode(["success" => false, "error" => "Die Arena befindet sich in der Saisonpause."]);
+            exit;
+        }
+
+        $skill_id = post_int("skill_id", 1);
         if ($arena->select_hero_skill($skill_id)) {
             echo json_encode(["success" => true]);
         } else {
             echo json_encode(["success" => false, "error" => "Ungültige Fähigkeit gewählt."]);
         }
         break;
+
     case "reroll_opponents":
         if (!Arena::is_season_active()) {
             echo json_encode(["success" => false, "error" => "Die Arena befindet sich in der Saisonpause."]);
             exit;
         }
 
-        $arena->check_daily_reset();
-
-        $rerolls_left = $arena->get_rerolls_left();
-        if ($rerolls_left <= 0) {
-            echo json_encode(["success" => false, "error" => "Du hast deine " . ARENA_MAX_REROLLS_PER_DAY . " täglichen Rerolls bereits aufgebraucht!"]);
-            exit;
-        }
-
-        $player = $arena->get_player_data();
-        $current_ids = $player["current_opponents"] ?? [];
-        if (!$arena->has_more_opponents($current_ids)) {
-            echo json_encode([
-                "success" => false,
-                "error" => "Es sind aktuell keine weiteren Gegner in der Arena verfügbar.",
-                "has_more_opponents" => false,
-                "rerolls_left" => $rerolls_left
-            ]);
-            exit;
-        }
-
-        $opponents = $arena->get_or_roll_opponents(true);
-        $new_rerolls_left = $arena->get_rerolls_left();
-        $has_more = $arena->has_more_opponents($opponents);
-        $html = $arena->render_opponents_html($opponents);
-
-        echo json_encode([
-            "success" => true,
-            "html" => $html,
-            "rerolls_left" => $new_rerolls_left,
-            "max_rerolls" => ARENA_MAX_REROLLS_PER_DAY,
-            "has_more_opponents" => $has_more
-        ]);
+        echo json_encode($arena->reroll_opponents_locked());
         break;
+
     case "attack":
         if (!Arena::is_season_active()) {
             echo json_encode(["success" => false, "error" => "Die Arena befindet sich in der Saisonpause."]);
             exit;
         }
 
-        $defender_id = (int)($_POST["defender_id"] ?? 0);
-        $troops = json_decode($_POST["troops"] ?? "{}", true);
-        $techs = json_decode($_POST["techs"] ?? "{}", true);
-        $skill_id = isset($_POST["skill_id"]) ? (int)$_POST["skill_id"] : null;
+        $raw_troops = post_str("troops", "{}");
+        $raw_techs = post_str("techs", "{}");
+        if (strlen($raw_troops) > 4096 || strlen($raw_techs) > 4096) {
+            echo json_encode(["success" => false, "error" => "Aufstellungsdaten zu groß."]);
+            exit;
+        }
 
+        $troops = json_decode($raw_troops, true);
+        $techs = json_decode($raw_techs, true);
+        if (!is_array($troops) || !is_array($techs)) {
+            echo json_encode(["success" => false, "error" => "Ungültige Aufstellungsdaten."]);
+            exit;
+        }
+
+        $defender_id = post_int("defender_id");
+        $skill_id = isset($_POST["skill_id"]) ? post_int("skill_id") : null;
         $result = $arena->attack_opponent($defender_id, $troops, $techs, $skill_id);
-
         echo json_encode($result);
         break;
+
     default:
         echo json_encode(["success" => false, "error" => "Unbekannte Aktion"]);
         break;

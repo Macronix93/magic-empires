@@ -42,7 +42,7 @@ registerAction("checkMarket", (form, event) => {
         const confirmMsg = `${overflowMsg}Das Erstellen dieses Angebots kostet dich sofort ${listingFee} ${coinString}.\n\nMöchtest du das Angebot jetzt veröffentlichen?`;
 
         showConfirmationDialog(confirmMsg, "Ja, Erstellen", "Abbrechen", () => {
-            form.submit();
+            submitMarketForm(form);
         });
     } else {
         resType = form.dataset.resType;
@@ -56,11 +56,11 @@ registerAction("checkMarket", (form, event) => {
                 "Ja, Annehmen",
                 "Abbrechen",
                 () => {
-                    form.submit();
+                    submitMarketForm(form);
                 }
             );
         } else {
-            form.submit();
+            submitMarketForm(form);
         }
     }
 });
@@ -123,11 +123,21 @@ registerAction("checkInternalTransport", (form, event) => {
             "Trotzdem senden",
             "Abbrechen",
             () => {
-                form.submit();
+                submitMarketForm(form);
             }
         );
     }
 });
+
+function submitMarketForm(form) {
+    if (!form || form.dataset.isSubmitting === "true") return;
+
+    form.dataset.isSubmitting = "true";
+    form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+        btn.disabled = true;
+    });
+    form.submit();
+}
 
 function getOverflowWarning(resType, amount) {
     const storageData = window.curKingdomStorage;

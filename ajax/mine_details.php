@@ -1,8 +1,8 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$x = (int)($_GET["x"] ?? 0);
-$y = (int)($_GET["y"] ?? 0);
+$x = get_int("x");
+$y = get_int("y");
 $uid = $user->get_user_id();
 
 $mine = $db_instance->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ?", [$x, $y])->fetch_assoc();

@@ -6,13 +6,12 @@ $rows_per_page = MAX_ROWS_PER_RANKING_PAGE;
 $now = time();
 
 // Load Data
-$active_tab = $_GET["tab"] ?? "players";
-if (!in_array($active_tab, ["players", "guilds"])) {
+$active_tab = get_str("tab", "players");
+if (!in_array($active_tab, ["players", "guilds"], true)) {
     $active_tab = "players";
 }
-
-$current_page_players = ($active_tab === "players") ? max(1, (int)($_GET["currentpage"] ?? 1)) : 1;
-$current_page_guilds = ($active_tab === "guilds") ? max(1, (int)($_GET["currentpage"] ?? 1)) : 1;
+$current_page_players = ($active_tab === "players") ? max(1, get_int("currentpage", 1)) : 1;
+$current_page_guilds = ($active_tab === "guilds") ? max(1, get_int("currentpage", 1)) : 1;
 
 $offset_players = ($current_page_players - 1) * $rows_per_page;
 $offset_guilds = ($current_page_guilds - 1) * $rows_per_page;
@@ -73,7 +72,7 @@ $view .= '<table class="table ranking-table">
             ' . $ranking_colgroup . '
             <tr>
                 <td class="td-center td-gradient"><b>#</b></td>
-                <td class="td-center td-gradient"><b>Spieler</b></td>
+                <td class="td-center td-gradient" style="text-align: left;"><b>Spieler</b></td>
                 <td class="td-center td-gradient"><b>Punkte</b></td>
             </tr>';
 
@@ -113,7 +112,7 @@ foreach ($players_res as $row) {
 
     $sword_icon = "";
     if ($is_attackable) {
-        $sword_icon = " <span class='ranking-attack-sword' title='Angreifbar'>
+        $sword_icon = "<span class='ranking-attack-sword' title='Angreifbar'>
                 <img src='images/icons/icon_sword.png' alt='Angreifbar'>
             </span>";
     }
@@ -142,7 +141,7 @@ foreach ($players_res as $row) {
             guild_id: (int)$user_guild_id,
             extra_badge: $vacation_badge
         ) . "</td>
-            <td class='td-score'>" . fnum($row["score"], true) . " $sword_icon</td>
+            <td class='td-score'>" . fnum($row["score"], true) . "$sword_icon</td>
         </tr>";
     $pos++;
 }

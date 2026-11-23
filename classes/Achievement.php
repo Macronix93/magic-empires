@@ -49,6 +49,12 @@ class Achievement
     {
         if ($user_id <= 0) return [];
 
+        static $full_cache = [];
+
+        if ($filter_req_type === null && isset($full_cache[$user_id])) {
+            return $full_cache[$user_id];
+        }
+
         $db = Database::get_instance()->get_connection();
 
         if ($filter_req_type === AchievementTypes::ACHIEVEMENT_SCORE) {
@@ -110,7 +116,7 @@ class Achievement
             "SELECT hero_level FROM arena_players WHERE user_id = ?", [$user_id]
         )->fetch_column() ?? 1);
 
-        return [
+        $result = [
             // kingdoms
             AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT => $k_metrics[AchievementTypes::ACHIEVEMENT_KINGDOMS_COUNT],
             AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS => $k_metrics[AchievementTypes::ACHIEVEMENT_FOUNDED_KINGDOMS],
@@ -144,6 +150,7 @@ class Achievement
             AchievementTypes::ACHIEVEMENT_ARENA_TOP5 => (int)($p_stats["arena_top5_count"] ?? 0),
             AchievementTypes::ACHIEVEMENT_ARENA_HERO_LEVEL => $hero_lvl
         ];
+        return $full_cache[$user_id] = $result;
     }
 
     private static function get_kingdom_metrics(mysqli $db, int $user_id): array

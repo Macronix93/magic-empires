@@ -90,7 +90,7 @@ class MapSpawner
     {
         $now = time();
 
-        // Delete mines that aren't on the map anymore (1:1 aus cron_spawn_entities.php)
+        // Delete mines that aren't on the map anymore
         $this->db->execute_query("DELETE FROM mines WHERE expires_at < ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
         $this->db->execute_query(
             "UPDATE map SET kingdomid = ? WHERE kingdomid = ? AND (mapx, mapy) NOT IN (SELECT mapx, mapy FROM mines)",
@@ -231,7 +231,7 @@ class MapSpawner
     {
         $now = time();
 
-        // Delete camps that aren't on the map anymore (1:1 aus cron_daily.php)
+        // Delete camps that aren't on the map anymore
         $expired_camps_res = $this->db->execute_query("SELECT mapx, mapy FROM monster_camps WHERE expires_at < ?", [$now]);
         $camps_to_delete = $expired_camps_res->fetch_all(MYSQLI_ASSOC);
 
@@ -427,6 +427,8 @@ class MapSpawner
         foreach (array_chunk($insert_values, 1000) as $chunk) {
             $this->db->query("INSERT INTO map (mapx, mapy, fieldtype, kingdomid) VALUES " . implode(',', $chunk));
         }
+
+        Map::clear_cache();
 
         return count($insert_values);
     }

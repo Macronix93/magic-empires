@@ -5,12 +5,7 @@ require_once("includes/core.php");
     "current_kingdom" => $current_kingdom,
     "building" => $building,
     "building_name" => $building_name,
-    "kingdom" => $kingdom,
-    "k_wood" => $kingdom_wood,
-    "k_food" => $kingdom_food,
-    "k_stone" => $kingdom_stone,
-    "k_gold" => $kingdom_gold,
-    "k_villager" => $kingdom_villager
+    "kingdom" => $kingdom
 ] = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_TOWNCENTER);
 
 // Fetch all buildings and their dependencies
@@ -25,95 +20,115 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
     } else {
-        $build_id = (int)($_POST["bid"] ?? 0);
-        $action = $_POST["action"];
+        $build_id = post_int("bid", -1);
+        $action = post_str("action");
 
-        if ($build_id >= BuildingTypes::BUILDING_TOWNCENTER && $build_id < $building_count) {
+        if (isset($buildings[$build_id])) {
             $building_level = $buildings[$build_id]->get_building_level();
             $costs = $buildings[$build_id]->calculate_building_cost();
-            $cost_wood = $costs["cost_wood"];
-            $cost_food = $costs["cost_food"];
-            $cost_stone = $costs["cost_stone"];
-            $cost_gold = $costs["cost_gold"];
 
-            // The action that was set is "building"
             if ($action === "build") {
                 $max_allowed_for_this_building = Building::get_max_building_level($build_id);
 
                 if ($building_level >= $max_allowed_for_this_building) {
                     $error = "Das Gebäude ist schon maximal ausgebaut!";
                 } else {
-                    if ($kingdom_is_building) {
-                        $error = "Du baust bereits!";
-                    } else {
-                        if ($cost_wood > $kingdom_wood || $cost_food > $kingdom_food || $cost_stone > $kingdom_stone || $cost_gold > $kingdom_gold) {
-                            $error = "Nicht genügend Ressourcen!";
-                        } else {
-                            if ($build_id == BuildingTypes::BUILDING_EMBASSY) {
-                                if ($current_kingdom != $user->get_main_kingdom()) {
-                                    $error = "Dieses Gebäude kannst du nur auf deinem Hauptkönigreich ausbauen!";
-                                }
-                                if ($building_level >= 1) {
-                                    $error = "Die Botschaft kann maximal auf Stufe 1 ausgebaut werden!";
-                                }
+                    if ($build_id == BuildingTypes::BUILDING_EMBASSY) {
+                        if ($current_kingdom != $user->get_main_kingdom()) {
+                            $error = "Dieses Gebäude kannst du nur auf deinem Hauptkönigreich ausbauen!";
+                        }
+                        if ($building_level >= 1) {
+                            $error = "Die Botschaft kann maximal auf Stufe 1 ausgebaut werden!";
+                        }
+                    }
+
+                    $target_level = $building_level + 1;
+                    $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
+                    if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $max_allowed_level) {
+                        $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe " . ($build_id == BuildingTypes::BUILDING_STORAGE ? $target_level - 1 : $target_level) . " benötigt)";
+                    }
+
+                    $building_dependencies = $buildings[$build_id]->get_building_dependencies();
+                    foreach ($building_dependencies as $dependency) {
+                        $dep_id = $dependency["dependencyid"];
+                        if (isset($buildings[$dep_id]) && $dependency["dependencylevel"] > $buildings[$dep_id]->get_building_level()) {
+                            $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dep_id]->get_building_name() . " Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
+                        }
+                    }
+
+                    if (empty($error)) {
+                        $db_instance->begin_transaction();
+                        try {
+                            $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
+
+                            $already_building = (int)$db_instance->execute_query(
+                                "SELECT COUNT(*) FROM events WHERE kingdomid = ? AND actionid = ?",
+                                [$current_kingdom, ActionTypes::ACTION_BUILD_BUILDING]
+                            )->fetch_column();
+                            if ($already_building > 0) {
+                                throw new RuntimeException("Du baust bereits!");
                             }
 
-                            $target_level = $building_level + 1;
-                            $max_allowed_level = ($build_id == BuildingTypes::BUILDING_STORAGE) ? ($tc_level + 1) : $tc_level;
-
-                            if ($build_id != BuildingTypes::BUILDING_TOWNCENTER && $target_level > $max_allowed_level) {
-                                $error = "Dein Dorfzentrum ist zu niedrig! (Dorfzentrum Stufe " . ($build_id == BuildingTypes::BUILDING_STORAGE ? $target_level - 1 : $target_level) . " benötigt)";
+                            $fresh_lvl = (int)($db_instance->execute_query(
+                                "SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+                                [$current_kingdom, $build_id]
+                            )->fetch_column() ?? 0);
+                            if ($fresh_lvl !== $building_level) {
+                                throw new RuntimeException("Die Gebäudestufe hat sich gerade geändert. Bitte versuche es erneut.");
                             }
 
-                            $building_dependencies = $buildings[$build_id]->get_building_dependencies();
-
-                            foreach ($building_dependencies as $dependency) {
-                                if ($dependency["dependencylevel"] > $buildings[$dependency["dependencyid"]]->get_building_level()) {
-                                    $error .= $buildings[$build_id]->get_building_name() . " setzt " . $buildings[$dependency["dependencyid"]]->get_building_name() . " 
-                                            Stufe " . $dependency["dependencylevel"] . " voraus!<br>";
-                                }
+                            if (!$kingdom->pay_costs($costs)) {
+                                throw new RuntimeException("Nicht genügend Ressourcen!");
                             }
 
-                            // Dependency check passed - build/upgrade building!
-                            if (empty($error)) {
-                                $reduction = $kingdom->get_construction_time_multiplier();
-                                $base_time = round($buildings[$build_id]->get_building_time() * pow($buildings[$build_id]->get_building_mult(), $building_level));
-                                $building_time = time() + (int)round($base_time * $reduction);
+                            $reduction = $kingdom->get_construction_time_multiplier();
+                            $base_time = round($buildings[$build_id]->get_building_time() * pow($buildings[$build_id]->get_building_mult(), $building_level));
+                            $building_time = time() + (int)round($base_time * $reduction);
 
-                                // Subtract building costs from kingdom resources
-                                $kingdom->give_kingdom_wood(-$cost_wood);
-                                $kingdom->give_kingdom_food(-$cost_food);
-                                $kingdom->give_kingdom_stone(-$cost_stone);
-                                $kingdom->give_kingdom_gold(-$cost_gold);
+                            $db_instance->execute_query(
+                                "INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                                [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $building_level, $buildings[$build_id]->get_building_name()]
+                            );
 
-                                $db_instance->execute_query("INSERT INTO events (actionid, userid, kingdomid, buildingid, buildingtime, buildinglevel, buildingname) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                                    [ActionTypes::ACTION_BUILD_BUILDING, $user->get_user_id(), $current_kingdom, $build_id, $building_time, $buildings[$build_id]->get_building_level(), $buildings[$build_id]->get_building_name()]);
+                            $db_instance->commit();
 
-                                $kingdom_is_building = true;
-                                $kingdom_building_id = $build_id;
-
-                                change_location("towncenter.php");
-                            }
+                            change_location("towncenter.php");
+                        } catch (RuntimeException $e) {
+                            $db_instance->rollback();
+                            $error = $e->getMessage();
+                        } catch (Throwable $e) {
+                            $db_instance->rollback();
+                            $logger->error("towncenter build error: " . $e->getMessage());
+                            $error = "Interner Fehler beim Starten des Baus.";
                         }
                     }
                 }
-            } else if ($action === "cancel") { // The action that was set is "cancel building"
-                if ($kingdom_is_building && $kingdom_building_id === $build_id) {
+            } else if ($action === "cancel") {
+                $db_instance->begin_transaction();
+                try {
+                    $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
                     $db_instance->execute_query(
-                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ?",
+                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ? AND is_processing = 0",
                         [$user->get_user_id(), $build_id, $current_kingdom, ActionTypes::ACTION_BUILD_BUILDING]
                     );
-                    
-                    if ($db_instance->affected_rows === 1) {
-                        $kingdom_is_building = false;
-                        $kingdom_building_id = -1;
-                        $kingdom->refund_costs($costs);
-                        $logger->log_game("ECONOMY", "BUILDING_CANCEL", ["building_id" => $build_id, "refund" => $costs], $current_kingdom);
+
+                    if ($db_instance->affected_rows !== 1) {
+                        throw new RuntimeException("Du baust gerade nichts oder der Bau ist bereits abgeschlossen!");
                     }
 
+                    $kingdom->refund_costs($costs);
+                    $db_instance->commit();
+
+                    $logger->log_game("ECONOMY", "BUILDING_CANCEL", ["building_id" => $build_id, "refund" => $costs], $current_kingdom);
+
                     change_location("towncenter.php");
-                } else {
-                    $error = "Du baust gerade nichts!";
+                } catch (RuntimeException $e) {
+                    $db_instance->rollback();
+                    $error = $e->getMessage();
+                } catch (Throwable $e) {
+                    $db_instance->rollback();
+                    $logger->error("towncenter cancel error: " . $e->getMessage());
+                    $error = "Interner Fehler beim Abbrechen des Baus.";
                 }
             } else {
                 $error = "Diese Aktion existiert nicht!";
@@ -123,6 +138,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
         }
     }
 }
+
 $last_built_building = $user->get_last_built_building($current_kingdom);
 
 if (!empty($last_built_building)) {
@@ -149,19 +165,19 @@ $view .= '<table class="table building-table">
                         <b>Aktion</b></td>
                 </tr>';
 
-for ($i = 0; $i < $building_count; $i++) {
-    $building_id = $buildings[$i]->get_building_id();
+foreach ($buildings as $i => $building_obj) {
+    $building_id = $building_obj->get_building_id();
 
     if ($building_id == BuildingTypes::BUILDING_EMBASSY && $current_kingdom != $user->get_main_kingdom()) {
         continue;
     }
 
-    $level = (int)$buildings[$i]->get_building_level();
+    $level = (int)$building_obj->get_building_level();
     $max_allowed_for_this_building = Building::get_max_building_level($building_id);
     $is_maxed = ($level >= $max_allowed_for_this_building);
 
     $show_building = true;
-    $building_dependencies = $buildings[$i]->get_building_dependencies();
+    $building_dependencies = $building_obj->get_building_dependencies();
 
     foreach ($building_dependencies as $dependency) {
         $dep_id = (int)$dependency["dependencyid"];
@@ -184,8 +200,8 @@ for ($i = 0; $i < $building_count; $i++) {
     if ($is_maxed) {
         $text_build = "<b class='passed'>MAX</b>";
     } else {
-        $costs = $buildings[$i]->calculate_building_cost();
-        $resource_costs = render_cost_legend($costs, $kingdom);
+        $costs = $building_obj->calculate_building_cost();
+        $resource_costs = $kingdom->render_cost_legend($costs);
 
         if ($kingdom_is_building) {
             if ($kingdom_building_id == $i) {
@@ -228,18 +244,18 @@ for ($i = 0; $i < $building_count; $i++) {
             }
         }
 
-        $base_sec = round($buildings[$i]->get_building_time() * pow($buildings[$i]->get_building_mult(), $level));
+        $base_sec = round($building_obj->get_building_time() * pow($building_obj->get_building_mult(), $level));
         $time_text = convert_sec_to_str((int)round($base_sec * $kingdom->get_construction_time_multiplier()));
     }
 
     $view .= "<tr>
         <td>
             <div class='map-legend' style='justify-content: left;'>
-                <div class='legend-item'>" . $buildings[$i]->get_building_icon() . "</div>
+                <div class='legend-item'>" . $building_obj->get_building_icon() . "</div>
                 <div class='legend-item'>
-                    <b class='popup' id='description" . $i . "'>" . $buildings[$i]->get_building_name() . " (" . $buildings[$i]->get_building_level() . ")
+                    <b class='popup' id='description" . $i . "'>" . $building_obj->get_building_name() . " (" . $building_obj->get_building_level() . ")
                         <div id='description" . $i . "_box' class='popupbox'>
-                            " . $buildings[$i]->get_building_description() . "
+                            " . $building_obj->get_building_description() . "
                         </div>
                     </b>
                 </div>

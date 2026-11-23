@@ -22,30 +22,46 @@ $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . fnum($boost_
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
+    } else if ($level < BOOST_MIN_BUILDING_LEVEL) {
+        $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
     } else {
-        if ($level < BOOST_MIN_BUILDING_LEVEL) {
-            $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
-        } else if ($ticks_left == 0) {
-            if ($user->get_user_coins() >= $boost_cost) {
-                $user->give_user_coins(-$boost_cost);
+        $db_instance->begin_transaction();
+        try {
+            $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
 
-                $db_instance->execute_query(
-                    "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount) 
-                 VALUES (?, ?, ?, ?) 
-                 ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
-                    [$current_kingdom, ResourceTypes::RESOURCE_TYPE_VILLAGER, $boost_duration_ticks, $boost_villager_amount]
-                );
+            $active = $db_instance->execute_query(
+                "SELECT ticks_remaining FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
+                [$current_kingdom, ResourceTypes::RESOURCE_TYPE_VILLAGER]
+            )->fetch_assoc();
 
-                Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
-
-                $_SESSION["game_success"] = "Dorfbewohner-Boost erfolgreich aktiviert!";
-
-                change_location("manor.php");
-            } else {
-                $error = "Zu wenig Münzen!";
+            if ($active && (int)$active["ticks_remaining"] > 0) {
+                throw new RuntimeException("Der Boost ist bereits aktiv!");
             }
-        } else {
-            $error = "Der Boost ist bereits aktiv!";
+
+            if (!$user->spend_user_coins($boost_cost)) {
+                throw new RuntimeException("Zu wenig Münzen!");
+            }
+
+            $db_instance->execute_query(
+                "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
+                [$current_kingdom, ResourceTypes::RESOURCE_TYPE_VILLAGER, $boost_duration_ticks, $boost_villager_amount]
+            );
+            $db_instance->commit();
+
+            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+
+            $_SESSION["game_success"] = "Dorfbewohner-Boost erfolgreich aktiviert!";
+
+            change_location("manor.php");
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
+            $error = $e->getMessage();
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("manor boost error: " . $e->getMessage());
+            $error = "Interner Fehler beim Aktivieren des Boosts.";
         }
     }
 }

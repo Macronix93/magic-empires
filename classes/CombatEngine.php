@@ -229,7 +229,8 @@ class CombatEngine
             "total_def_units" => $total_def,
             "attacker_raw_atk" => $raw_atk,
             "defender_def_no_wall" => 0,
-            "attacker_won" => ($total_atk > 0 && $total_def === 0)
+            "attacker_won" => ($total_atk > 0 && $total_def === 0),
+            "defender_won" => ($total_def > 0 && $total_atk === 0)
         ];
     }
 
@@ -278,14 +279,6 @@ class CombatEngine
         $raw_damping = pow(1.0 - $clamped, PVP_DAMPING_EXPONENT);
 
         return max($min_factor, $raw_damping);
-    }
-
-    public static function get_pvp_damping(float $opposing_power, float $incoming_power): float
-    {
-        $range = max(0.01, PVP_DAMPING_MAX_RATIO - PVP_DAMPING_THRESHOLD);
-        $base_min = 1.0 - PVP_DAMPING_BASE_DISCOUNT;
-        $hard_min = 1.0 - PVP_DAMPING_MAX_DISCOUNT;
-        return self::calculate_pvp_damping($opposing_power, $incoming_power, $range, $base_min, $hard_min, PVP_DAMPING_SLOPE);
     }
 
     public static function calculate_stealth(
