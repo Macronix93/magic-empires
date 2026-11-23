@@ -112,6 +112,18 @@ if ($row) {
             $chance_info .= "Belegte Siedlungs-Slots: <b>$curr_founded / $limit</b><br>";
             $chance_info .= "Aktuelles Limit: <b>$limit</b> (Maximal: " . GLOBAL_SETTLEMENT_MAX . ")<br>";
             $chance_info .= "<i style='opacity: 0.7;'>Eroberte Dörfer zählen nicht gegen dieses Limit.</i>";
+        } else if ($soldier_id === Soldiers::SOLDIER_RAM) {
+            $siege_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SIEGE);
+            $current_ram_dmg = RAM_FLAT_DAMAGE * (1 + ($siege_lvl * SMITHY_SIEGE_BONUS));
+            $siege_step_perc = fdec(SMITHY_SIEGE_BONUS * 100);
+
+            $chance_info = "<br>Der Rammbock richtet vor dem Kampf einen Basisschaden von <b>" . fnum(RAM_FLAT_DAMAGE) . " HP</b> pro Einheit an der gegnerischen Mauer an. "
+                . "Durch die Schmiede-Verbesserung <i>„Belagerung“</i> steigt dieser Schaden um <b>+$siege_step_perc%</b> pro Stufe.";
+
+            if ($siege_lvl > 0) {
+                $chance_info .= "<br><br><b>Aktueller Mauerschaden:</b> <span class='passed'>" . fdec($current_ram_dmg) . " HP / Einheit</span> "
+                    . "<small>(Stufe $siege_lvl: +" . fdec($siege_lvl * SMITHY_SIEGE_BONUS * 100) . "%)</small>";
+            }
         }
 
         $active_res = [];

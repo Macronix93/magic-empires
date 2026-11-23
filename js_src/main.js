@@ -10,17 +10,37 @@ const UPDATE_MSG_BADGES_INTERVAL = 60000;
 const UPDATE_MSG_BADGES_LAST_FETCH = 30000;
 let isPageUnloading = false;
 let cachedChatEmojis = null;
-let kingdomLoaderTimer = null;
 let globalPopupBox = null;
 let lastPopupTouchTime = 0;
 window.ME_CLOCK_ANCHOR = Date.now();
 const clockSubscribers = new Set();
 let globalClockTimeout = null;
+let actionLoaderTimer = null;
+let activeLoaderState = null;
 
 window.addEventListener("beforeunload", () => {
     isPageUnloading = true;
 });
 
+registerAction("navigate", (el) => {
+    const url = el.dataset.url;
+    if (url) {
+        showActionLoader("Lade Seite...");
+        window.location.href = url;
+    }
+});
+registerAction("redirect", (el) => {
+    const url = el.dataset.url;
+    if (url) {
+        const forbiddenProtocols = ["javascript:", "data:", "vbscript:"];
+        const isForbidden = forbiddenProtocols.some(proto => url.trim().toLowerCase().startsWith(proto));
+
+        if (!isForbidden) {
+            showActionLoader("Lade Seite...");
+            window.location.href = url;
+        }
+    }
+});
 registerAction("closeAdventModal", (el) => {
     const targetUrl = el?.getAttribute("href") && el.getAttribute("href") !== "#"
         ? el.getAttribute("href") : null;
@@ -626,68 +646,246 @@ function updateSidebarAndHeaderDOM(data) {
     }
 }
 
+function showActionLoader(text = "Bitte warten...", targetContainer = null, delayMs = 500) {
+    hideActionLoader();
+
+    const modal = targetContainer?.classList?.contains("overlay-modal")
+        ? targetContainer
+        : (targetContainer?.closest?.(".overlay-modal") || null);
+
+    // MOBILE & CO
+    if (!modal && !targetContainer && window.innerWidth <= 1392) {
+        activeLoaderState = {
+            container: document.body,
+            contentEl: null,
+            isModal: false,
+            isFullscreen: true,
+            shown: false
+        };
+
+        const renderFullscreen = () => {
+            if (!activeLoaderState || !activeLoaderState.isFullscreen) return;
+            activeLoaderState.shown = true;
+
+            document.querySelector(".js-fullscreen-action-loader")?.remove();
+            const loader = document.createElement("div");
+            loader.className = "js-action-loader js-fullscreen-action-loader";
+            loader.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;"></div>`;
+            loader.querySelector(".loader-text").textContent = text;
+            document.body.appendChild(loader);
+
+            if (delayMs <= 0) {
+                loader.classList.add("open");
+            } else {
+                requestAnimationFrame(() => loader.classList.add("open"));
+            }
+        };
+
+        if (delayMs <= 0) {
+            renderFullscreen();
+        } else {
+            actionLoaderTimer = setTimeout(renderFullscreen, delayMs);
+        }
+        return;
+    }
+
+    // DESKTOP
+    const container = modal || targetContainer || document.querySelector(".middle-container .big-box-container");
+    if (!container) return;
+
+    const isModal = container.classList.contains("overlay-modal");
+    const contentEl = isModal
+        ? container.querySelector(".overlay-body, #overlay-content-body")
+        : container.querySelector(".big-box-content");
+
+    if (!isModal && window.getComputedStyle(container).position === "static") {
+        container.style.position = "relative";
+    }
+    container.style.pointerEvents = "none";
+
+    activeLoaderState = {container, contentEl, isModal, isFullscreen: false, shown: false};
+
+    const renderContainerLoader = () => {
+        if (!activeLoaderState || activeLoaderState.container !== container) return;
+        activeLoaderState.shown = true;
+
+        if (contentEl) {
+            contentEl.style.opacity = "0.25";
+        }
+
+        container.querySelector(".js-action-loader")?.remove();
+        const loader = document.createElement("div");
+        loader.className = "js-action-loader";
+        loader.style.cssText =
+            "position: absolute; inset: 0; z-index: 500; pointer-events: all; " +
+            "opacity: 0;";
+
+        const inner = document.createElement("div");
+        inner.style.cssText =
+            "display: flex; flex-direction: column; align-items: center; justify-content: center; " +
+            "width: 100%; padding: 20px; box-sizing: border-box;";
+        inner.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;"></div>`;
+        inner.querySelector(".loader-text").textContent = text;
+
+        if (isModal) {
+            const header = container.querySelector(".overlay-header");
+
+            loader.style.top = (header ? header.offsetHeight : 0) + "px";
+            loader.style.display = "flex";
+            loader.style.alignItems = "center";
+            loader.style.justifyContent = "center";
+            loader.appendChild(inner);
+        } else {
+            const rect = container.getBoundingClientRect();
+
+            if (rect.height > window.innerHeight * 0.85) {
+                const visibleTop = Math.max(0, -rect.top);
+                const visibleBottom = Math.min(rect.height, window.innerHeight - rect.top);
+                const centerY = Math.max(60, Math.min(rect.height - 60, (visibleTop + visibleBottom) / 2));
+                inner.style.position = "absolute";
+                inner.style.top = centerY + "px";
+                inner.style.left = "0";
+                inner.style.transform = "translateY(-50%)";
+            } else {
+                loader.style.display = "flex";
+                loader.style.alignItems = "center";
+                loader.style.justifyContent = "center";
+            }
+            loader.appendChild(inner);
+        }
+
+        container.appendChild(loader);
+        if (delayMs <= 0) {
+            loader.style.opacity = "1";
+        } else {
+            requestAnimationFrame(() => {
+                loader.style.opacity = "1";
+            });
+        }
+    };
+
+    if (delayMs <= 0) {
+        renderContainerLoader();
+    } else {
+        actionLoaderTimer = setTimeout(renderContainerLoader, delayMs);
+    }
+}
+
+function hideActionLoader() {
+    clearTimeout(actionLoaderTimer);
+    actionLoaderTimer = null;
+
+    if (activeLoaderState) {
+        const {container, contentEl} = activeLoaderState;
+        container.querySelector(".js-action-loader")?.remove();
+        container.style.pointerEvents = "";
+
+        if (contentEl) {
+            contentEl.style.opacity = "";
+            contentEl.style.transition = "";
+        }
+
+        activeLoaderState = null;
+    }
+
+    document.querySelectorAll(".js-action-loader").forEach(el => el.remove());
+}
+
+window.showActionLoader = showActionLoader;
+window.hideActionLoader = hideActionLoader;
+
 function showKingdomSwitchLoader() {
     document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
         el.style.pointerEvents = "none";
     });
 
-    if (typeof window.closeMobileMenus === "function") {
-        window.closeMobileMenus();
-    }
+    showActionLoader("Wechsle Königreich...");
+    setTimeout(() => {
+        if (activeLoaderState?.shown) {
+            document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = true);
 
-    const bigBox = document.querySelector(".middle-container .big-box-container");
-    if (bigBox) {
-        bigBox.style.position = "relative";
-        bigBox.style.pointerEvents = "none";
-    }
-
-    clearTimeout(kingdomLoaderTimer);
-    kingdomLoaderTimer = setTimeout(() => {
-        document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = true);
-        document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
-            el.style.opacity = "0.5";
-        });
-
-        if (bigBox) {
-            const content = bigBox.querySelector(".big-box-content");
-            if (content) {
-                content.style.opacity = "0.25";
-            }
-
-            if (!document.getElementById("kingdom-switch-loader")) {
-                const loader = document.createElement("div");
-                loader.id = "kingdom-switch-loader";
-                loader.style.cssText = "position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; " +
-                    "z-index: 500; pointer-events: all; opacity: 0; transition: opacity 0.2s ease;";
-                loader.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;">Wechsle Königreich...</div>`;
-                bigBox.appendChild(loader);
-
-                requestAnimationFrame(() => {
-                    loader.style.opacity = "1";
+            if (!activeLoaderState.isFullscreen) {
+                document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
+                    el.style.opacity = "0.5";
                 });
             }
         }
-    }, 250);
+    }, 260);
 }
 
 function resetKingdomSwitchLoader() {
     isKingdomSwitching = false;
-    clearTimeout(kingdomLoaderTimer);
+    hideActionLoader();
 
-    document.getElementById("kingdom-switch-loader")?.remove();
     document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = false);
     document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
         el.style.pointerEvents = "";
         el.style.opacity = "";
     });
-
-    const bigBox = document.querySelector(".middle-container .big-box-container");
-    if (bigBox) {
-        bigBox.style.pointerEvents = "";
-        const content = bigBox.querySelector(".big-box-content");
-        if (content) content.style.opacity = "";
-    }
 }
+
+// function showKingdomSwitchLoader() {
+//     document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
+//         el.style.pointerEvents = "none";
+//     });
+//
+//     if (typeof window.closeMobileMenus === "function") {
+//         window.closeMobileMenus();
+//     }
+//
+//     const bigBox = document.querySelector(".middle-container .big-box-container");
+//     if (bigBox) {
+//         bigBox.style.position = "relative";
+//         bigBox.style.pointerEvents = "none";
+//     }
+//
+//     clearTimeout(kingdomLoaderTimer);
+//     kingdomLoaderTimer = setTimeout(() => {
+//         document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = true);
+//         document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
+//             el.style.opacity = "0.5";
+//         });
+//
+//         if (bigBox) {
+//             const content = bigBox.querySelector(".big-box-content");
+//             if (content) {
+//                 content.style.opacity = "0.25";
+//             }
+//
+//             if (!document.getElementById("kingdom-switch-loader")) {
+//                 const loader = document.createElement("div");
+//                 loader.id = "kingdom-switch-loader";
+//                 loader.style.cssText = "position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; " +
+//                     "z-index: 500; pointer-events: all; opacity: 0; transition: opacity 0.2s ease;";
+//                 loader.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;">Wechsle Königreich...</div>`;
+//                 bigBox.appendChild(loader);
+//
+//                 requestAnimationFrame(() => {
+//                     loader.style.opacity = "1";
+//                 });
+//             }
+//         }
+//     }, 250);
+// }
+//
+// function resetKingdomSwitchLoader() {
+//     isKingdomSwitching = false;
+//     clearTimeout(kingdomLoaderTimer);
+//
+//     document.getElementById("kingdom-switch-loader")?.remove();
+//     document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = false);
+//     document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
+//         el.style.pointerEvents = "";
+//         el.style.opacity = "";
+//     });
+//
+//     const bigBox = document.querySelector(".middle-container .big-box-container");
+//     if (bigBox) {
+//         bigBox.style.pointerEvents = "";
+//         const content = bigBox.querySelector(".big-box-content");
+//         if (content) content.style.opacity = "";
+//     }
+// }
 
 function switchKingdomById(kingdomId) {
     if (isKingdomSwitching) return;
@@ -1138,7 +1336,7 @@ function updateKingdom(selectElement) {
     switchKingdomById(selectElement.value);
 }
 
-function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonYesAction) {
+function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonYesAction, inputConfig = null) {
     if (document.getElementById("info-box-overlay")) {
         return;
     }
@@ -1152,27 +1350,66 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
     const infoBoxTextBox = document.createElement("p");
     const buttonYes = document.createElement("button");
 
+    const isMultiInput = Array.isArray(inputConfig);
+    const fieldsConfig = inputConfig ? (isMultiInput ? inputConfig : [inputConfig]) : [];
+    const inputMap = new Map();
+    let firstInput = null;
+
     const closeAndCleanup = () => {
         document.removeEventListener("keydown", handleKeyDown);
-
         if (infoBoxBg.parentNode) infoBoxBg.remove();
         if (infoBoxOverlay.parentNode) infoBoxOverlay.remove();
+    };
+
+    const confirmAndRun = () => {
+        if (fieldsConfig.length > 0) {
+            for (const cfg of fieldsConfig) {
+                const key = cfg.name || "value";
+                const inp = inputMap.get(key);
+
+                if (!inp) continue;
+
+                if (cfg.required && inp.value.trim() === "") {
+                    inp.classList.add("input-error");
+                    inp.focus();
+                    return;
+                }
+
+                inp.classList.remove("input-error");
+            }
+
+            let payload;
+            if (isMultiInput) {
+                payload = {};
+
+                fieldsConfig.forEach(cfg => {
+                    const key = cfg.name || "value";
+                    payload[key] = inputMap.get(key)?.value ?? "";
+                });
+            } else {
+                const key = fieldsConfig[0].name || "value";
+                payload = inputMap.get(key)?.value ?? "";
+            }
+
+            closeAndCleanup();
+            buttonYesAction(payload);
+        } else {
+            closeAndCleanup();
+            buttonYesAction();
+        }
     };
 
     const handleKeyDown = (e) => {
         if (e.key === "Enter") {
             e.preventDefault();
-            buttonYesAction();
-            closeAndCleanup();
+            confirmAndRun();
         } else if (e.key === "Escape") {
             closeAndCleanup();
         }
     };
 
-    buttonYes.onclick = () => {
-        buttonYesAction();
-        closeAndCleanup();
-    };
+    buttonYes.type = "button";
+    buttonYes.onclick = confirmAndRun;
     buttonYes.innerText = buttonYesText;
 
     infoBoxTextBox.innerText = dialogText;
@@ -1180,24 +1417,74 @@ function showConfirmationDialog(dialogText, buttonYesText, buttonNoText, buttonY
 
     infoBoxBg.id = "info-box-bg";
     infoBoxBg.classList.add("info-box-bg");
-
     infoBoxOverlay.id = "info-box-overlay";
     infoBoxOverlay.classList.add("info-box-overlay");
-    infoBoxOverlay.append(infoBoxTextBox, buttonYes);
+
+    infoBoxOverlay.append(infoBoxTextBox);
+
+    if (fieldsConfig.length > 0) {
+        const inputsWrap = document.createElement("div");
+        inputsWrap.className = "info-box-overlay-inputs";
+
+        fieldsConfig.forEach((cfg, idx) => {
+            const fieldWrap = document.createElement("div");
+            fieldWrap.className = "info-box-overlay-field";
+
+            const key = cfg.name || `field_${idx}`;
+            const inputId = `dialog-input-${key}`;
+
+            if (cfg.label) {
+                const label = document.createElement("label");
+                label.htmlFor = inputId;
+                label.innerText = cfg.label;
+                fieldWrap.appendChild(label);
+            }
+
+            const input = document.createElement("input");
+            input.id = inputId;
+            input.type = cfg.type || "text";
+            input.value = cfg.defaultValue ?? "";
+
+            if (cfg.placeholder) input.placeholder = cfg.placeholder;
+            if (cfg.maxLength) input.maxLength = cfg.maxLength;
+            if (cfg.inputmode) input.setAttribute("inputmode", cfg.inputmode);
+            if (cfg.numericOnly) {
+                input.addEventListener("input", () => {
+                    input.value = input.value.replace(/\D/g, "");
+                });
+            }
+
+            input.addEventListener("input", () => input.classList.remove("input-error"));
+
+            inputMap.set(cfg.name || "value", input);
+            if (!firstInput) firstInput = input;
+
+            fieldWrap.appendChild(input);
+            inputsWrap.appendChild(fieldWrap);
+        });
+
+        infoBoxOverlay.appendChild(inputsWrap);
+    }
+
+    infoBoxOverlay.append(buttonYes);
 
     if (buttonNoText && buttonNoText.trim() !== "") {
         const buttonNo = document.createElement("button");
-
+        buttonNo.type = "button";
         buttonNo.onclick = closeAndCleanup;
         buttonNo.innerText = buttonNoText;
-
         infoBoxOverlay.append(buttonNo);
     }
 
     document.addEventListener("keydown", handleKeyDown);
     document.body.append(infoBoxBg, infoBoxOverlay);
 
-    buttonYes.focus();
+    if (firstInput) {
+        firstInput.focus();
+        firstInput.select();
+    } else {
+        buttonYes.focus();
+    }
 }
 
 document.addEventListener("visibilitychange", () => {
@@ -1215,7 +1502,6 @@ document.addEventListener("submit", (e) => {
     const method = (form.getAttribute("method") || "GET").toUpperCase();
     const action = form.getAttribute("action") || "";
     if (method !== "POST" || action.startsWith("javascript:")) return;
-
     if (form.dataset.isSubmitting === "true") {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -1223,7 +1509,6 @@ document.addEventListener("submit", (e) => {
     }
 
     form.dataset.isSubmitting = "true";
-
     const submitter = e.submitter;
     if (submitter && submitter.name) {
         const hidden = document.createElement("input");
@@ -1236,12 +1521,66 @@ document.addEventListener("submit", (e) => {
     form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
         btn.disabled = true;
     });
+
+    if (form.dataset.noLoader !== "true") {
+        const loaderText = submitter?.dataset?.loaderText || form.dataset.loaderText || "Bitte warten...";
+        showActionLoader(loaderText, form.closest(".overlay-modal"));
+    }
 });
 
+const nativeFormSubmit = HTMLFormElement.prototype.submit;
+HTMLFormElement.prototype.submit = function () {
+    const method = (this.getAttribute("method") || "GET").toUpperCase();
+
+    if (method === "POST" && this.dataset.noLoader !== "true") {
+        const loaderText = this.dataset.loaderText || "Bitte warten...";
+        showActionLoader(loaderText, this.closest?.(".overlay-modal") || null);
+    }
+    return nativeFormSubmit.call(this);
+};
+
+// document.addEventListener("submit", (e) => {
+//     const form = e.target;
+//     if (!form || form.tagName !== "FORM") return;
+//     if (e.defaultPrevented) return;
+//
+//     const method = (form.getAttribute("method") || "GET").toUpperCase();
+//     const action = form.getAttribute("action") || "";
+//     if (method !== "POST" || action.startsWith("javascript:")) return;
+//
+//     if (form.dataset.isSubmitting === "true") {
+//         e.preventDefault();
+//         e.stopImmediatePropagation();
+//         return;
+//     }
+//
+//     form.dataset.isSubmitting = "true";
+//
+//     const submitter = e.submitter;
+//     if (submitter && submitter.name) {
+//         const hidden = document.createElement("input");
+//         hidden.type = "hidden";
+//         hidden.name = submitter.name;
+//         hidden.value = submitter.value;
+//         form.appendChild(hidden);
+//     }
+//
+//     form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+//         btn.disabled = true;
+//     });
+// });
+
 window.addEventListener("pageshow", (e) => {
+    hideActionLoader();
     if (e.persisted) {
         resetKingdomSwitchLoader();
-        window.resyncGlobalClock();
+
+        if (typeof window.closeMobileMenus === "function") {
+            document.body.classList.add("no-transition");
+            window.closeMobileMenus();
+            void document.body.offsetHeight;
+            document.body.classList.remove("no-transition");
+        }
 
         document.querySelectorAll('form[data-is-submitting="true"]').forEach(form => {
             delete form.dataset.isSubmitting;
@@ -1381,6 +1720,35 @@ window.addEventListener("DOMContentLoaded", function () {
         if (!e.target.closest('.reaction-container')) {
             document.querySelectorAll('.reaction-picker').forEach(p => p.style.display = "none");
         }
+
+        if (e.defaultPrevented) return;
+        if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+
+        const link = e.target.closest("a[href]");
+        if (!link) return;
+        if (link.target && link.target !== "_self") return;
+        if (link.hasAttribute("download")) return;
+        if (link.dataset.onClick || link.dataset.noLoader === "true") return;
+
+        const rawHref = (link.getAttribute("href") || "").trim();
+        if (!rawHref || rawHref.startsWith("#") || rawHref.toLowerCase().startsWith("javascript:") || rawHref.startsWith("mailto:")) {
+            return;
+        }
+
+        try {
+            const targetUrl = new URL(link.href, window.location.href);
+            if (targetUrl.origin === window.location.origin &&
+                targetUrl.pathname === window.location.pathname &&
+                targetUrl.search === window.location.search &&
+                targetUrl.hash) {
+                return;
+            }
+        } catch (_) {
+            return;
+        }
+
+        closeMenus();
+        showActionLoader("Lade Seite...");
     });
 
     document.addEventListener("mousedown", function (e) {

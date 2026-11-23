@@ -244,9 +244,11 @@ document.addEventListener("DOMContentLoaded", () => {
         monster3: 'icon_dragon_small.png',  // Level 8-10
         ruin: 'icon_ruins.png',
         mine: 'icon_mine.png',
-        gift: 'icon_gift.png',
-        winterHat: 'icon_winter_hat.png'
+        gift: 'icon_gift.png'
     };
+    if (isWinter) {
+        iconSources.winterHat = 'icon_winter_hat.png';
+    }
 
     let loadedCount = 0;
     const totalIcons = Object.keys(iconSources).length;

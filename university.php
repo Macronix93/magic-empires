@@ -161,7 +161,7 @@ if ($gold_inc_lvl > 0) {
 
 $storage_inc_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_STORAGE_INC);
 if ($storage_inc_lvl > 0) {
-    $val = fnum($storage_inc_lvl * RESEARCH_STORAGE_INC);
+    $val = fnum($storage_inc_lvl * RESEARCH_STORAGE_INC, true);
     $boni_view .= "<tr><td>Raumlogistik:</td><td class='passed'>+$val Kapazität</td></tr>";
 }
 

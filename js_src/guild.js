@@ -64,6 +64,7 @@ registerAction("changeMemberRank", (el) => {
                     if (data.success) {
                         location.reload();
                     } else {
+                        hideActionLoader();
                         showGameError(data.error);
                     }
                 });
@@ -90,6 +91,7 @@ registerAction("confirmLeaveGuild", (el) => {
                     if (data.success) {
                         location.reload();
                     } else {
+                        hideActionLoader();
                         showGameError(data.error);
                     }
                 });
@@ -122,6 +124,7 @@ registerAction("confirmCancelInvite", (el) => {
                     if (data.success) {
                         location.reload();
                     } else {
+                        hideActionLoader();
                         showGameError(data.error);
                     }
                 });
@@ -221,10 +224,17 @@ registerAction("toggleSettingsInviteOnly", (el) => {
 });
 
 function postGuildAction(data) {
+    const activeModal = (typeof getActiveModalBody === "function")
+        ? getActiveModalBody()?.closest(".overlay-modal")
+        : null;
+    showActionLoader(loaderText, activeModal);
+
     const formData = new URLSearchParams();
+
     for (const [key, val] of Object.entries(data)) {
         formData.append(key, val);
     }
+
     return fetch("ajax/guild_actions.php", {
         method: "POST",
         headers: {
@@ -232,12 +242,18 @@ function postGuildAction(data) {
             "X-Requested-With": "XMLHttpRequest"
         },
         body: formData.toString()
-    }).then(r => r.json());
+    })
+        .then(r => r.json())
+        .catch(err => {
+            hideActionLoader();
+            showGameError("Netzwerkfehler: " + err);
+            throw err;
+        });
 }
 
 const executeGuildAction = (action, targetId) => {
     const payload = {action: action};
-    if (action === 'join') payload.guild_id = targetId;
+    if (action === "join") payload.guild_id = targetId;
     else payload.target_id = targetId;
 
     postGuildAction(payload)
@@ -247,6 +263,7 @@ const executeGuildAction = (action, targetId) => {
                     const contentBody = getActiveModalBody();
 
                     if (contentBody && contentBody.offsetParent !== null) {
+                        hideActionLoader();
                         showGameSuccess("Einladung wurde erfolgreich verschickt!");
                     } else {
                         location.reload();
@@ -255,8 +272,11 @@ const executeGuildAction = (action, targetId) => {
                     location.reload();
                 }
             } else {
+                hideActionLoader();
                 showGameError(data.error);
             }
+        })
+        .catch(() => {
         });
 };
 

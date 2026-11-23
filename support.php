@@ -253,7 +253,7 @@ if (isset($_GET["tid"])) {
             <tr>
                 <td class='td-center td-gradient' colspan='2'><b>Betreff</b></td>
                 " . (!$is_my_view ? "<td class='td-center td-gradient'><b>User</b></td>" : "") . "
-                <td class='td-center td-gradient' colspan='2' style='width: 35%;'><b>Letztes Update</b></td>
+                <td class='td-center td-gradient' colspan='2' style='width: 50%;'><b>Letztes Update</b></td>
             </tr>";
 
         foreach ($tickets as $t) {
@@ -275,7 +275,7 @@ if (isset($_GET["tid"])) {
 
             $html .= "<tr class='tr-hover$closed_ticket'>
                 <td class='td-cursor td-center' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>$status</td>
-                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>
+                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}' style='width: 58%;'>
                     <div style='display: flex; justify-content: space-between; align-items: center; gap: 6px;'>
                         <div>" . e($t["subject"]) . "$assigned_info</div>
                         $unread_badge
@@ -376,8 +376,8 @@ if (isset($_GET["tid"])) {
                 <div class='box-content box-content-bg' style='padding: 15px;'>
                     <form method='POST' action='support.php' id='newticketform'>
                         <input type='hidden' name='open_ticket' value='1'>
-                        <input type='text' name='subject' placeholder='Betreff' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' style='width: 100%; margin-bottom: 10px;' required>
-                        <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' required></textarea>
+                        <input type='text' name='subject' placeholder='Betreff' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' enterkeyhint='next' style='width: 100%; margin-bottom: 10px;' required>
+                        <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' enterkeyhint='enter' required></textarea>
                         <input type='submit' value='Absenden' style='margin-top: 15px;'>
                     </form>
                 </div>

@@ -146,11 +146,12 @@ registerAction("submitSendTroopsForm", (form, e) => {
     }
     form.dataset.submitting = "true";
 
+    showActionLoader("Entsende Truppen...", form.closest(".overlay-modal"));
+
     const formData = new FormData(form);
     formData.append("from_page", window.location.pathname);
 
     const targetUrl = form.dataset.ajaxUrl || "ajax/send_troops.php";
-
     fetch(targetUrl, {
         method: "POST",
         headers: {"X-Requested-With": "XMLHttpRequest"},
@@ -161,16 +162,17 @@ registerAction("submitSendTroopsForm", (form, e) => {
             delete form.dataset.submitting;
 
             if (data.success) {
+                if (window.location.pathname.includes("events.php") || window.location.pathname.includes("barracks.php")) {
+                    window.location.reload();
+                    return;
+                }
+
+                hideActionLoader();
                 closeOverlay(form);
 
                 const mapPopup = document.getElementById("field-popup-box");
                 if (mapPopup) {
                     mapPopup.style.display = "none";
-                }
-
-                if (window.location.pathname.includes("events.php") || window.location.pathname.includes("barracks.php")) {
-                    window.location.reload();
-                    return;
                 }
 
                 showGameMessage(data.message || "Truppen erfolgreich gesendet!", "passed");
@@ -194,6 +196,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
                     refreshMapDataSilently(true);
                 }
             } else {
+                hideActionLoader();
                 showGameError(data.error || "Fehler beim Absenden.");
 
                 if (submitBtn) {
@@ -205,6 +208,7 @@ registerAction("submitSendTroopsForm", (form, e) => {
         .catch(err => {
             delete form.dataset.submitting;
 
+            hideActionLoader();
             showGameError("Fehler beim Truppenversand: " + err);
 
             if (submitBtn) {

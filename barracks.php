@@ -1043,6 +1043,18 @@ foreach ($soldiers as $i => $soldier_obj) {
                 $capacity_text .= "<br><small>(Erhöhbar durch 'Imperium' Forschung)</small>";
             }
             break;
+        case Soldiers::SOLDIER_RAM:
+            $siege_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_SIEGE);
+            $current_wall_dmg = RAM_FLAT_DAMAGE * (1 + ($siege_lvl * SMITHY_SIEGE_BONUS));
+
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'><b>Aktueller Mauerschaden:</b> " . fdec($current_wall_dmg) . " HP / Einheit</span>";
+
+            if ($siege_lvl > 0) {
+                $capacity_text .= "<br><small style='opacity: 0.7;'>(Inkl. " . fdec($siege_lvl * SMITHY_SIEGE_BONUS * 100) . "% Schmiede-Bonus)</small>";
+            } else {
+                $capacity_text .= "<br><small>(Erhöhbar durch 'Belagerungsgerät' in der Schmiede)</small>";
+            }
+            break;
     }
 
     if ($is_hero) {

@@ -17,16 +17,25 @@ registerAction("banIpDialog", (el) => {
     const shouldBan = el.dataset.status === "1";
 
     if (shouldBan) {
-        const reason = prompt(`Grund für die Sperrung der IP ${ip}:`, "Verstoß gegen die Regeln");
-        if (reason !== null) {
-            submitAdminPost({
-                toggle_ip_ban: "1",
-                user_id: uid,
-                ip: ip,
-                ip_ban_status: "1",
-                reason: reason
-            });
-        }
+        showConfirmationDialog(
+            `IP ${ip} sperren:`,
+            "Sperren",
+            "Abbrechen",
+            (reason) => {
+                submitAdminPost({
+                    toggle_ip_ban: "1",
+                    user_id: uid,
+                    ip: ip,
+                    ip_ban_status: "1",
+                    reason: reason
+                });
+            },
+            {
+                label: "Grund:",
+                defaultValue: "Verstoß gegen die Regeln",
+                placeholder: "Sperrgrund eingeben..."
+            }
+        );
     } else {
         showConfirmationDialog(
             `Möchtest du die IP ${ip} wirklich wieder entsperren?`,
@@ -86,25 +95,39 @@ registerAction("banUserDialog", (el) => {
             }
         );
     } else {
-        const reason = prompt(`Grund für den Bann von ${name}:`, "Verstoß gegen die Regeln");
-
-        if (reason !== null) {
-            const hoursInput = prompt(`Bann-Dauer in Stunden eingeben (0 oder leer lassen für PERMANENT):`, "0");
-
-            if (hoursInput !== null) {
-                const hours = parseInt(hoursInput.replace(/\D/g, ''), 10) || 0;
-
+        showConfirmationDialog(
+            `Benutzer "${name}" sperren:`,
+            "Bannen",
+            "Abbrechen",
+            (values) => {
+                const hours = parseInt((values.ban_hours || "").replace(/\D/g, ""), 10) || 0;
                 submitAdminPost({
                     toggle_ban: "1",
                     user_id: uid,
                     ban_status: "1",
-                    reason: reason,
+                    reason: values.reason,
                     ban_hours: hours
                 });
-            }
-        }
+            },
+            [
+                {
+                    name: "reason",
+                    label: "Bann-Grund:",
+                    defaultValue: "Verstoß gegen die Regeln",
+                    placeholder: "Grund eingeben..."
+                },
+                {
+                    name: "ban_hours",
+                    label: "Dauer in Stunden (0 oder leer = PERMANENT):",
+                    defaultValue: "0",
+                    inputmode: "numeric",
+                    numericOnly: true
+                }
+            ]
+        );
     }
 });
+
 registerAction("confirmDeleteNews", (el) => {
     const newsId = el.dataset.id;
 
@@ -190,16 +213,23 @@ registerAction("confirmResetRound", (el) => {
 });
 registerAction("confirmMaintenance", (el) => {
     const isCurrentlyOn = el.value === "Deaktivieren";
-
     if (isCurrentlyOn) {
         el.closest('form').submit();
     } else {
-        const reason = prompt("Bitte gib einen Grund für die Wartung an:", "Wartungsarbeiten & Updates");
-
-        if (reason !== null) {
-            document.getElementById('maint_reason_input').value = reason;
-            el.closest('form').submit();
-        }
+        showConfirmationDialog(
+            "Wartungsmodus aktivieren:",
+            "Aktivieren",
+            "Abbrechen",
+            (reason) => {
+                document.getElementById('maint_reason_input').value = reason;
+                el.closest('form').submit();
+            },
+            {
+                label: "Grund für die Wartung:",
+                defaultValue: "Wartungsarbeiten & Updates",
+                placeholder: "Wartungsgrund..."
+            }
+        );
     }
 });
 registerAction("confirmClearLog", (el) => {

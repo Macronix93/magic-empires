@@ -31,6 +31,8 @@ registerAction("openArenaAttackInline", (btn) => {
     btn.disabled = true;
     btn.innerText = "Lade Duell...";
 
+    showActionLoader("Lade Duell...");
+
     fetch(`ajax/arena_attack_modal.php?defender_id=${oppId}&name=${encodeURIComponent(oppName)}&elo=${oppElo}`, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
@@ -89,6 +91,8 @@ registerAction("openArenaAttackInline", (btn) => {
         .finally(() => {
             btn.disabled = false;
             btn.innerHTML = originalBtnHtml;
+
+            hideActionLoader();
         });
 });
 
@@ -167,6 +171,8 @@ registerAction("rerollArenaOpponents", (btn) => {
     const currentCounterText = counterEl ? counterEl.innerText : "";
     btn.innerHTML = `Suche... (<span id='arena-rerolls-counter'>${currentCounterText}</span>)`;
 
+    showActionLoader("Suche neue Gegner...");
+
     fetch("ajax/arena_actions.php", {
         method: "POST",
         headers: {
@@ -210,6 +216,9 @@ registerAction("rerollArenaOpponents", (btn) => {
         .catch(() => {
             btn.disabled = false;
             btn.innerHTML = `Neue Gegner suchen (<span id='arena-rerolls-counter'>${currentCounterText}</span>)`;
+        })
+        .finally(() => {
+            hideActionLoader();
         });
 });
 registerAction("saveArenaDefense", (form, e) => {
@@ -237,6 +246,8 @@ registerAction("saveArenaDefense", (form, e) => {
     formData.append("techs", JSON.stringify(techs));
     formData.append("reward_kingdom_id", rewardKid);
 
+    showActionLoader("Speichere Verteidigung...");
+
     fetch("ajax/arena_actions.php", {
         method: "POST",
         headers: {
@@ -250,9 +261,16 @@ registerAction("saveArenaDefense", (form, e) => {
             if (data.success) {
                 window.location.href = "arena.php?tab=defense";
             } else {
+                hideActionLoader();
                 showGameError(data.error || "Fehler beim Speichern.");
+
                 if (btn) btn.disabled = false;
             }
+        })
+        .catch(() => {
+            hideActionLoader();
+
+            if (btn) btn.disabled = false;
         });
 });
 registerAction("executeArenaAttack", async (form, e) => {

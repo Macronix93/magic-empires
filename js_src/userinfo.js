@@ -229,12 +229,16 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
     } else {
         const currentUrl = sourceModal.dataset.currentUrl || "";
         const isSameScript = (getScriptPath(currentUrl) === getScriptPath(url));
+
         if (isSameScript && !forceNew) {
             targetModal = sourceModal;
+
             isAlreadyOpen = true;
         } else {
             isAlreadyOpen = false;
+
             const depth = openModals.length;
+
             targetModal = document.createElement("div");
             targetModal.className = "overlay-modal stacked-overlay";
             targetModal.id = `overlay-modal-stack-${depth}`;
@@ -247,8 +251,10 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                 </div>
                 <div class="overlay-body" id="overlay-content-body-stack-${depth}"></div>
             `;
+
             document.body.appendChild(targetModal);
             targetModal.querySelectorAll('[data-on-click]').forEach(bindActions);
+
             initOverlayDrag(targetModal);
         }
     }

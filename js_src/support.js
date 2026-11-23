@@ -17,6 +17,7 @@ registerAction("confirmCloseTicket", (el) => {
             submitSupportPostAction(el.dataset.id, "close_ticket");
         });
 });
+
 registerAction("switchSupportTab", (el) => {
     const tabName = el.dataset.tab;
     document.querySelectorAll('#support-tabs .tablinks').forEach(tab => tab.classList.remove("active"));
@@ -60,36 +61,6 @@ function submitSupportPostAction(tid, actionName) {
     form.submit();
 }
 
-window.addEventListener("load", scrollSupportToBottom);
-
-document.addEventListener("DOMContentLoaded", () => {
-    const input = document.getElementById("message-input");
-    const form = document.getElementById("newmessage");
-
-    if (input && form) {
-        input.addEventListener("keydown", e => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-
-                form.requestSubmit();
-            }
-        });
-    }
-
-    const newTokenInput = document.getElementById("new-ticket-text");
-    const newTokenForm = document.getElementById("newticketform");
-
-    if (newTokenInput && newTokenForm) {
-        newTokenInput.addEventListener("keydown", e => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-
-                newTokenForm.requestSubmit();
-            }
-        });
-    }
-});
-
 function setSupportSendLocked(locked) {
     isSupportRateLimited = locked;
     const btn = document.querySelector('#newmessage input[type="submit"]');
@@ -128,7 +99,6 @@ function showSupportChatError(message, seconds = undefined) {
 
 function scrollSupportToBottom(force = false) {
     const section = document.getElementById("messages-section");
-
     if (!section) return;
 
     if (force) {
@@ -170,7 +140,6 @@ function sendSupportMessageAjax(form) {
     const submitBtn = form.querySelector('input[type="submit"]');
 
     isSendingSupport = true;
-
     if (submitBtn) submitBtn.disabled = true;
 
     const formData = new URLSearchParams();
@@ -189,7 +158,6 @@ function sendSupportMessageAjax(form) {
         .then(data => {
             if (data.error) {
                 showSupportChatError(data.error, data.counter);
-
                 if (data.closed) {
                     document.getElementById("newmessage-section")?.remove();
                 }
@@ -206,7 +174,6 @@ function sendSupportMessageAjax(form) {
 
                 if (data.lastId && data.lastId > supportLastId) supportLastId = data.lastId;
                 input.value = "";
-
                 scrollSupportToBottom(true);
             }
         })
@@ -217,7 +184,6 @@ function sendSupportMessageAjax(form) {
         })
         .finally(() => {
             isSendingSupport = false;
-
             if (submitBtn && !isSupportRateLimited && !isPageUnloading) submitBtn.disabled = false;
         });
 }
@@ -250,7 +216,6 @@ function pollSupportChat() {
                 temp.querySelectorAll("[id^='support-msg-']").forEach(b => insertSupportBubble(section, b));
 
                 if (data.lastId && data.lastId > supportLastId) supportLastId = data.lastId;
-
                 scrollSupportToBottom(wasAtBottom);
             } else {
                 document.getElementById("new-message-line")?.remove();
@@ -259,7 +224,6 @@ function pollSupportChat() {
             if (data.status === 0) {
                 section.dataset.ticketOpen = "0";
                 document.getElementById("newmessage-section")?.remove();
-
                 showGameWarning("Dieses Ticket wurde geschlossen" + (data.closeReason ? ` (${data.closeReason})` : "") + ".");
             }
         })
@@ -293,6 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
             e.preventDefault();
             sendSupportMessageAjax(form);
         });
+
         input.addEventListener("keydown", e => {
             if (e.key === "Enter" && !e.shiftKey) {
                 if (isSupportRateLimited) {
@@ -309,16 +274,35 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const newTicketInput = document.getElementById("new-ticket-text");
     const newTicketForm = document.getElementById("newticketform");
-    if (newTicketInput && newTicketForm) {
-        newTicketInput.addEventListener("keydown", e => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                const isMobile = window.innerWidth <= 600 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-                if (isMobile) return;
+    const newTicketSubject = newTicketForm?.querySelector('input[name="subject"]');
+    const newTicketText = document.getElementById("new-ticket-text");
 
+    if (newTicketForm && newTicketSubject && newTicketText) {
+        const submitBtn = newTicketForm.querySelector('input[type="submit"], button[type="submit"]');
+        let lastBtnPointerDown = 0;
+
+        if (submitBtn) {
+            submitBtn.addEventListener("pointerdown", () => {
+                lastBtnPointerDown = Date.now();
+            });
+        }
+
+        newTicketSubject.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.keyCode === 13) {
                 e.preventDefault();
-                newTicketForm.requestSubmit();
+                newTicketText.focus();
+            }
+        });
+
+        newTicketForm.addEventListener("submit", (e) => {
+            const clickedSubmit = (Date.now() - lastBtnPointerDown < 500) || (document.activeElement === submitBtn);
+            if (!clickedSubmit) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (document.activeElement === newTicketSubject) {
+                    newTicketText.focus();
+                }
             }
         });
     }
