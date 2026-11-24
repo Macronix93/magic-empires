@@ -406,13 +406,30 @@ class Kingdom
         return $this->tech_id;
     }
 
+    private function modify_resource_column(string $col, string $max_col, int &$prop, int $max_prop, int $amount): void
+    {
+        if ($amount > 0) {
+            $this->mysqli->execute_query(
+                "UPDATE kingdoms SET `$col` = IF(`$col` >= `$max_col`, `$col`, LEAST(`$max_col`, `$col` + ?)) WHERE id = ?",
+                [$amount, $this->kingdom_id]
+            );
+
+            if ($prop < $max_prop) {
+                $prop = min($max_prop, $prop + $amount);
+            }
+        } else if ($amount < 0) {
+            $sub = abs($amount);
+            $this->mysqli->execute_query(
+                "UPDATE kingdoms SET `$col` = GREATEST(0, `$col` - ?) WHERE id = ?",
+                [$sub, $this->kingdom_id]
+            );
+            $prop = max(0, $prop - $sub);
+        }
+    }
+
     public function give_kingdom_wood(int $amount): void
     {
-        if ($this->wood + $amount > $this->get_kingdom_max_wood()) {
-            $amount = $this->get_kingdom_max_wood() - $this->get_kingdom_wood();
-        }
-        $this->wood += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET wood = wood + ? WHERE id = ?", [$amount, $this->kingdom_id]);
+        $this->modify_resource_column("wood", "maxwood", $this->wood, $this->max_wood, $amount);
     }
 
     public function get_kingdom_max_wood(): int
@@ -427,11 +444,7 @@ class Kingdom
 
     public function give_kingdom_food(int $amount): void
     {
-        if ($this->food + $amount > $this->get_kingdom_max_food()) {
-            $amount = $this->get_kingdom_max_food() - $this->get_kingdom_food();
-        }
-        $this->food += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET food = food + ? WHERE id = ?", [$amount, $this->kingdom_id]);
+        $this->modify_resource_column("food", "maxfood", $this->food, $this->max_food, $amount);
     }
 
     public function get_kingdom_max_food(): int
@@ -446,11 +459,7 @@ class Kingdom
 
     public function give_kingdom_stone(int $amount): void
     {
-        if ($this->stone + $amount > $this->get_kingdom_max_stone()) {
-            $amount = $this->get_kingdom_max_stone() - $this->get_kingdom_stone();
-        }
-        $this->stone += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET stone = stone + ? WHERE id = ?", [$amount, $this->kingdom_id]);
+        $this->modify_resource_column("stone", "maxstone", $this->stone, $this->max_stone, $amount);
     }
 
     public function get_kingdom_max_stone(): int
@@ -465,11 +474,7 @@ class Kingdom
 
     public function give_kingdom_gold(int $amount): void
     {
-        if ($this->gold + $amount > $this->get_kingdom_max_gold()) {
-            $amount = $this->get_kingdom_max_gold() - $this->get_kingdom_gold();
-        }
-        $this->gold += $amount;
-        $this->mysqli->execute_query("UPDATE kingdoms SET gold = gold + ? WHERE id = ?", [$amount, $this->kingdom_id]);
+        $this->modify_resource_column("gold", "maxgold", $this->gold, $this->max_gold, $amount);
     }
 
     public function get_kingdom_max_gold(): int
@@ -1453,5 +1458,104 @@ class Kingdom
         $min = (int)($cfg["min"] ?? 1);
         $max = (int)($cfg["max"] ?? $scaled);
         return max($min, min($max, $scaled));
+    }
+
+    public function get_away_unit_counts(array $soldier_ids = []): array
+    {
+        $kid = $this->kingdom_id;
+        $owner_id = $this->kingdom_owner_id;
+        if ($kid <= 0 || $owner_id <= 0) {
+            return [];
+        }
+
+        $filter_sent = "";
+        $filter_stationed = "";
+        $filter_mine = "";
+        $extra_params_sent = [];
+        $extra_params_stationed = [];
+        $extra_params_mine = [];
+
+        if (!empty($soldier_ids)) {
+            $soldier_ids = array_values(array_unique(array_map("intval", $soldier_ids)));
+            $ph = implode(",", array_fill(0, count($soldier_ids), "?"));
+            $filter_sent = " AND st.soldierid IN ($ph)";
+            $filter_stationed = " AND soldier_id IN ($ph)";
+            $filter_mine = " AND soldier_id IN ($ph)";
+            $extra_params_sent = $soldier_ids;
+            $extra_params_stationed = $soldier_ids;
+            $extra_params_mine = $soldier_ids;
+        }
+
+        $query = "
+            SELECT soldierid, SUM(cnt) AS total_away FROM (
+                SELECT st.soldierid, st.soldiercount AS cnt
+                FROM sent_troops st
+                JOIN events e ON st.eventid = e.eventid
+                WHERE st.source_kingdom_id = ? AND e.userid = ? $filter_sent
+                UNION ALL
+                SELECT soldier_id AS soldierid, soldiercount AS cnt
+                FROM stationed_troops
+                WHERE source_kingdom_id = ? AND owner_id = ? $filter_stationed
+                UNION ALL
+                SELECT soldier_id AS soldierid, soldiercount AS cnt
+                FROM mine_stationed_troops
+                WHERE kingdom_id = ? AND user_id = ? $filter_mine
+            ) t
+            GROUP BY soldierid
+        ";
+
+        $params = array_merge(
+            [$kid, $owner_id], $extra_params_sent,
+            [$kid, $owner_id], $extra_params_stationed,
+            [$kid, $owner_id], $extra_params_mine
+        );
+
+        $res = $this->mysqli->execute_query($query, $params);
+        $counts = [];
+        while ($row = $res->fetch_assoc()) {
+            $counts[(int)$row["soldierid"]] = (int)$row["total_away"];
+        }
+        return $counts;
+    }
+
+    public function activate_boost(User $user, int $resource_type, int $cost, int $duration_ticks, int $boost_amount): ?string
+    {
+        $this->mysqli->begin_transaction();
+        try {
+            $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$this->kingdom_id]);
+
+            $active = $this->mysqli->execute_query(
+                "SELECT ticks_remaining FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
+                [$this->kingdom_id, $resource_type]
+            )->fetch_assoc();
+
+            if ($active && (int)$active["ticks_remaining"] > 0) {
+                throw new RuntimeException("Der Boost ist bereits aktiv!");
+            }
+
+            if (!$user->spend_user_coins($cost)) {
+                throw new RuntimeException("Zu wenig Münzen!");
+            }
+
+            $this->mysqli->execute_query(
+                "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
+                [$this->kingdom_id, $resource_type, $duration_ticks, $boost_amount]
+            );
+
+            $this->mysqli->commit();
+            $this->active_boosts_cache = null;
+            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
+
+            return null;
+        } catch (RuntimeException $e) {
+            $this->mysqli->rollback();
+            return $e->getMessage();
+        } catch (Throwable $e) {
+            $this->mysqli->rollback();
+            Logger::get_instance()->error("Kingdom::activate_boost error: " . $e->getMessage());
+            return "Interner Fehler beim Aktivieren des Boosts.";
+        }
     }
 }

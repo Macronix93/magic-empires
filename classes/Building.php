@@ -50,11 +50,6 @@ class Building
         };
     }
 
-    public function get_building_kingdom_id(): int
-    {
-        return $this->kingdom_id;
-    }
-
     public function get_building_id(): int
     {
         return $this->building_id;
@@ -179,54 +174,19 @@ class Building
         $this->b_name = $name;
     }
 
-    public function set_building_score(int $score): void
-    {
-        $this->b_score = $score;
-    }
-
-    public function set_building_wood_cost(int $cost): void
-    {
-        $this->b_woodcost = $cost;
-    }
-
-    public function set_building_food_cost(int $cost): void
-    {
-        $this->b_foodcost = $cost;
-    }
-
-    public function set_building_stone_cost(int $cost): void
-    {
-        $this->b_stonecost = $cost;
-    }
-
-    public function set_building_gold_cost(int $cost): void
-    {
-        $this->b_goldcost = $cost;
-    }
-
-    public function set_building_mult(float $mult): void
-    {
-        $this->b_mult = $mult;
-    }
-
-    public function set_building_time(int $time): void
-    {
-        $this->b_time = $time;
-    }
-
     public function set_building_level(int $level): void
     {
         $this->b_level = $level;
     }
 
-    public function set_building_description(string $description): void
-    {
-        $this->b_description = $description;
-    }
-
     public function set_building_kingdom_id(int $id): void
     {
         $this->kingdom_id = $id;
+    }
+
+    public function get_building_kingdom_id(): int
+    {
+        return $this->kingdom_id;
     }
 
     public static function get_user_max_building_avg(int $user_id): float

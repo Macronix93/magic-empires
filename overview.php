@@ -131,6 +131,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("overview.php");
+    }
 }
 
 $limit = OVERVIEW_PAGESIZE_DEFAULT;
@@ -406,21 +411,29 @@ $user_b_res = $db_instance->execute_query("
     WHERE k.userid = ?
 ", [$uid]);
 
+$visible_k_ids = array_map(fn($uk) => (int)$uk["id"], $user_kingdoms);
 $kingdom_buildings = [];
-while ($rb = $user_b_res->fetch_assoc()) {
-    $kingdom_buildings[(int)$rb["kingdomid"]][(int)$rb["buildingid"]] = (int)$rb["buildinglevel"];
-}
-
-$user_t_res = $db_instance->execute_query("
-    SELECT t.kingdomid, t.techid, t.techlevel 
-    FROM techs t
-    JOIN kingdoms k ON t.kingdomid = k.id
-    WHERE k.userid = ?
-", [$uid]);
-
 $kingdom_techs = [];
-while ($rt = $user_t_res->fetch_assoc()) {
-    $kingdom_techs[(int)$rt["kingdomid"]][(int)$rt["techid"]] = (int)$rt["techlevel"];
+if (!empty($visible_k_ids)) {
+    $ph_vis = implode(',', array_fill(0, count($visible_k_ids), '?'));
+
+    $user_b_res = $db_instance->execute_query(
+        "SELECT kingdomid, buildingid, buildinglevel FROM buildings WHERE kingdomid IN ($ph_vis)",
+        $visible_k_ids
+    );
+
+    while ($rb = $user_b_res->fetch_assoc()) {
+        $kingdom_buildings[(int)$rb["kingdomid"]][(int)$rb["buildingid"]] = (int)$rb["buildinglevel"];
+    }
+
+    $user_t_res = $db_instance->execute_query(
+        "SELECT kingdomid, techid, techlevel FROM techs WHERE kingdomid IN ($ph_vis)",
+        $visible_k_ids
+    );
+
+    while ($rt = $user_t_res->fetch_assoc()) {
+        $kingdom_techs[(int)$rt["kingdomid"]][(int)$rt["techid"]] = (int)$rt["techlevel"];
+    }
 }
 
 $main_kingdom_id = $user->get_main_kingdom();
@@ -970,6 +983,8 @@ if (!empty($all_tp_entries)) {
             $target_coords = "<a href='#' data-on-click='mapJump' data-x='" . e($event_data["targetx"]) . "' data-y='" . e($event_data["targety"]) . "'>" . e($event_data["targetx"]) . ":" . e($event_data["targety"]) . "</a>";
 
             if ($is_target_my_kingdom) {
+                $coords_str = $target_coords;
+
                 if (!empty($event_data["target_kingdom_name"])) {
                     $coords_str = e($event_data["target_kingdom_name"]) . "<br><small>$target_coords</small>";
                 }
@@ -977,7 +992,7 @@ if (!empty($all_tp_entries)) {
                 $target_k_name = !empty($event_data["target_kingdom_name"]) ? e($event_data["target_kingdom_name"]) . "<br>" : "";
                 $coords_str = $target_k_name . "<small>$target_coords (" . e($event_data["target_username"]) . ")</small>";
             } else {
-                $coords_str = "$target_coords";
+                $coords_str = $target_coords;
             }
 
             $action_counter = "<span class='js-countdown' 

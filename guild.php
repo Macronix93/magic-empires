@@ -34,6 +34,7 @@ $is_invite_only = !empty($_POST["g_invite_only"]);
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         $error = "Ungültiger Sicherheits-Token!";
+        change_location("guild.php");
     } else {
         if ($my_guild_id === -1) {
             if (isset($_POST["create_guild"])) {
@@ -845,29 +846,29 @@ if ($my_guild_id === -1) {
     ", [$my_guild_id]);
     $active_miners_count = (int)($res_miner_count->fetch_column() ?? 0);
 
-    $view .= "<div class='title-border' style='margin-top: 20px;'>Aktive Schürfvorgänge ($active_miners_count)</div>";
-
     $mines_per_page = NUM_MINES_PER_PAGE;
     $current_mine_page = max(1, get_int("minepage", 1));
     $mine_offset = ($current_mine_page - 1) * $mines_per_page;
 
     $active_mines_res = $db_instance->execute_query("
-        SELECT  
+        SELECT
             mn.id AS mine_id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total, mn.last_update,
             mn.stone, mn.gold, mn.coal, mn.iron, mn.sapphire, mn.diamond,
             (SELECT IFNULL(SUM(mst_all.soldiercount * mst_all.unit_atk), 0) FROM mine_stationed_troops mst_all WHERE mst_all.mine_id = mn.id) AS total_mine_atk,
-            COUNT(*) OVER() AS total_count 
-        FROM mine_stationed_troops mst 
-        JOIN users u ON mst.user_id = u.id 
-        JOIN mines mn ON mst.mine_id = mn.id 
-        WHERE u.guildid = ? 
+            COUNT(*) OVER() AS total_count
+        FROM mine_stationed_troops mst
+        JOIN users u ON mst.user_id = u.id
+        JOIN mines mn ON mst.mine_id = mn.id
+        WHERE u.guildid = ?
         GROUP BY mn.id, mn.mapx, mn.mapy, mn.level, mn.work_done, mn.work_total, mn.last_update, mn.stone, mn.gold, mn.coal, mn.iron, mn.sapphire, mn.diamond
-        ORDER BY mn.level DESC, mn.mapx 
-        LIMIT ?, ? 
+        ORDER BY mn.level DESC, mn.mapx
+        LIMIT ?, ?
     ", [$my_guild_id, $mine_offset, $mines_per_page])->fetch_all(MYSQLI_ASSOC);
 
     $total_active_mines = !empty($active_mines_res) ? (int)$active_mines_res[0]["total_count"] : 0;
     $total_mine_pages = ceil($total_active_mines / $mines_per_page);
+
+    $view .= "<div class='title-border' style='margin-top: 20px;'>Aktive Schürfvorgänge ($total_active_mines)</div>";
 
     if (!empty($active_mines_res)) {
         $mine_ids = array_column($active_mines_res, "mine_id");

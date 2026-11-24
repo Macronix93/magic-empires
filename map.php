@@ -11,8 +11,11 @@ $map = new Map($user);
 // Load biomes
 $res_fts = $db_instance->query("SELECT * FROM field_types ORDER BY fieldid");
 $field_types_data = [];
+$field_meta = [];
 while ($ft = $res_fts->fetch_assoc()) {
-    $field_types_data[(int)$ft["fieldid"]] = $ft;
+    $fid = (int)$ft["fieldid"];
+    $field_types_data[$fid] = $ft;
+    $field_meta[$fid] = (int)$ft["traversaltime"];
 }
 
 $biomes_to_show = [5, 2, 3, 4, 1];
@@ -59,13 +62,6 @@ $res_troops = $db_instance->execute_query("SELECT soldierid, soldiercount FROM s
 $user_troops = [];
 while ($t = $res_troops->fetch_assoc()) {
     $user_troops[(int)$t["soldierid"]] = (int)$t["soldiercount"];
-}
-
-// Load marching times
-$res_ft_meta = $db_instance->query("SELECT fieldid, traversaltime FROM field_types");
-$field_meta = [];
-while ($ft = $res_ft_meta->fetch_assoc()) {
-    $field_meta[(int)$ft["fieldid"]] = (int)$ft["traversaltime"];
 }
 
 $use_map_popup = (($_COOKIE["me_map_popup"] ?? "1") === "1");
@@ -145,7 +141,8 @@ $js_config = [
 // --- RECALL TROOPS FROM MINES ---
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])) {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
+        $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
+        change_location("map.php");
     } else {
         $x = post_int("mine_x");
         $y = post_int("mine_y");

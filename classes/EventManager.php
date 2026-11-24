@@ -49,33 +49,31 @@ class EventManager
             ActionTypes::ACTION_SUPPORT_RETURN
         ]);
 
-        $query = "
-            SELECT e.*
-            FROM events e
-            LEFT JOIN kingdoms k ON e.targetid = k.id
-            WHERE (
-                e.userid = ?
-                OR k.userid = ?
-                OR (e.guild_id > 0 AND e.guild_id = (SELECT guildid FROM users WHERE id = ? LIMIT 1))
-                OR (
-                    e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . "
-                    AND EXISTS (
-                        SELECT 1 FROM mines mn
-                        JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
-                        WHERE mn.mapx = e.targetx
-                        AND mn.mapy = e.targety
-                        AND mst.user_id = ?
-                    )
-                )
-            )
-            AND (
+        $due_condition = "
+            (
                 (e.actionid IN ($time_actions_buildings) AND e.buildingtime <= ?)
                 OR (e.actionid IN ($time_actions_movements) AND e.arrivaltime <= ?)
                 OR (e.actionid IN (" . ActionTypes::ACTION_BUILD_TROOPS . ", " . ActionTypes::ACTION_UPGRADE_TROOPS . "))
             )
         ";
-
-        $result = $this->mysqli->execute_query($query, [$uid, $uid, $uid, $uid, $now, $now]);
+        $query = "
+            SELECT e.* FROM events e WHERE e.userid = ? AND $due_condition
+            UNION
+            SELECT e.* FROM events e JOIN kingdoms k ON e.targetid = k.id WHERE k.userid = ? AND e.userid != ? AND $due_condition
+            UNION
+            SELECT e.* FROM events e JOIN users u ON e.guild_id = u.guildid WHERE u.id = ? AND e.guild_id > 0 AND $due_condition
+            UNION
+            SELECT e.* FROM events e
+            JOIN mines mn ON mn.mapx = e.targetx AND mn.mapy = e.targety
+            JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
+            WHERE e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . " AND mst.user_id = ? AND $due_condition
+        ";
+        $result = $this->mysqli->execute_query($query, [
+            $uid, $now, $now,
+            $uid, $uid, $now, $now,
+            $uid, $now, $now,
+            $uid, $now, $now
+        ]);
 
         foreach ($result as $row) {
             $is_due = false;
@@ -3393,6 +3391,19 @@ class EventManager
                         }
                     }
                 }
+
+                $fallback_kid = !empty($new_main_id) ? (int)$new_main_id : $enemy_user->get_main_kingdom();
+                if ($fallback_kid > 0 && $fallback_kid !== $conquered_kid) {
+                    $this->mysqli->execute_query(
+                        "UPDATE mine_stationed_troops SET kingdom_id = ? WHERE user_id = ? AND kingdom_id = ?",
+                        [$fallback_kid, $old_owner_id, $conquered_kid]
+                    );
+
+                    $this->mysqli->execute_query(
+                        "UPDATE marketplace SET kingdomid = ? WHERE userid = ? AND kingdomid = ?",
+                        [$fallback_kid, $old_owner_id, $conquered_kid]
+                    );
+                }
             } else {
                 // Give attacker score
                 $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
@@ -3418,6 +3429,18 @@ class EventManager
                     Messages::send_server_message((int)$host["host_uid"], $host["host_name"], MessageCategories::CATEGORY_GUILD, $disband_json);
                 }
                 $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE owner_id = ?", [$enemy_user->get_user_id()]);
+                $this->mysqli->execute_query("DELETE FROM marketplace WHERE userid = ?", [$enemy_user->get_user_id()]);
+                $this->mysqli->execute_query(
+                    "UPDATE mines m SET
+                        m.claimed_user_id = (SELECT mst.user_id FROM mine_stationed_troops mst WHERE mst.mine_id = m.id AND mst.user_id != ? LIMIT 1),
+                        m.claimed_guild_id = IF(
+                            EXISTS(SELECT 1 FROM mine_stationed_troops mst WHERE mst.mine_id = m.id AND mst.user_id != ?),
+                            m.claimed_guild_id,
+                            NULL
+                        )
+                     WHERE m.claimed_user_id = ?",
+                    [$enemy_user->get_user_id(), $enemy_user->get_user_id(), $enemy_user->get_user_id()]
+                );
                 $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE user_id = ?", [$enemy_user->get_user_id()]);
 
                 $new_k_id = new Kingdom()->create_kingdom($enemy_user->get_user_id(), $enemy_user->get_user_name());
@@ -3428,12 +3451,10 @@ class EventManager
             }
 
             // Safety Deletion for Embassy and Imperial for the conquered Kingdom
-            $this->mysqli->execute_query(
-                "DELETE FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+            $this->mysqli->execute_query("DELETE FROM buildings WHERE kingdomid = ? AND buildingid = ?",
                 [$enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_EMBASSY]
             );
-            $this->mysqli->execute_query(
-                "DELETE FROM techs WHERE kingdomid = ? AND techid = ?",
+            $this->mysqli->execute_query("DELETE FROM techs WHERE kingdomid = ? AND techid = ?",
                 [$enemy_kingdom->get_kingdom_id(), TechTypes::TECH_TYPE_IMPERIAL]
             );
 
@@ -4579,6 +4600,8 @@ class EventManager
             ActionTypes::ACTION_RETURN_RESOURCES => "Ressourcen-Rückkehr",
             ActionTypes::ACTION_UPGRADE_TROOPS => "Truppen-Upgrade",
             ActionTypes::ACTION_SMITHY_UPGRADE => "Schmiede-Verbesserung",
+            ActionTypes::ACTION_STATION_TROOPS => "Stationierung",
+            ActionTypes::ACTION_SUPPORT_RETURN => "Support-Rückzug",
             default => "Unbekannt"
         };
     }

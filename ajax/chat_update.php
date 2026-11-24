@@ -95,8 +95,6 @@ if ($type === "world") {
 
     $visible_ids = $get_visible_ids("world_chat");
     $reaction_updates = Messages::get_batch_reaction_badges("world_chat", $visible_ids, $user);
-    $extra_data["worldUnread"] = new Messages($user)->get_unread_world_count();
-
 } else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
@@ -148,8 +146,7 @@ if ($type === "world") {
             "html" => "",
             "lastId" => $last_id,
             "messagesToDelete" => [],
-            "reactionUpdates" => [],
-            "error" => ""
+            "reactionUpdates" => []
         ]);
         exit;
     }
@@ -188,13 +185,11 @@ if ($type === "world") {
 
     $visible_ids = $get_visible_ids("messages", "(senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)", [$partner_id, $u_id, $u_id, $partner_id]);
     $reaction_updates = Messages::get_batch_reaction_badges("chat", $visible_ids, $user);
-    $extra_data["chatPartner"] = $partner_id;
 }
 
 echo json_encode(array_merge([
     "html" => $html,
     "lastId" => $new_last_id,
     "messagesToDelete" => $deleted_ids,
-    "reactionUpdates" => $reaction_updates,
-    "error" => ""
+    "reactionUpdates" => $reaction_updates
 ], $extra_data), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

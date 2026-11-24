@@ -61,8 +61,6 @@ foreach ($result as $row) {
     $kingdom_soldiers[$soldier->get_soldier_id()] = 0;
 }
 
-$soldiers_count = count($soldiers);
-
 // Get ALL soldiers from the kingdom
 $total_kingdom_soldiers = [];
 $res_total_units = $db_instance->execute_query("
@@ -503,6 +501,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("barracks.php?cat=$active_cat");
+    }
 }
 
 /*
@@ -652,9 +655,14 @@ $atk_class = ($total_smithy_atk > 0 || $total_shrine_atk > 0) ? "passed" : "";
 $def_class = ($total_smithy_def > 0) ? "passed" : "";
 $limit_class = ($total_occupied_space > $troop_limit) ? "error" : "";
 
-$res_support_sum = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$current_kingdom]);
-$total_support_units = (int)$res_support_sum->fetch_row()[0];
-$support_limit = $kingdom->get_support_limit();
+$total_support_units = 0;
+$support_limit = 0;
+
+if ($show_support_feature) {
+    $res_support_sum = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$current_kingdom]);
+    $total_support_units = (int)$res_support_sum->fetch_row()[0];
+    $support_limit = $kingdom->get_support_limit();
+}
 
 $inf_cat = SoldierTypes::SOLDIER_TYPE_INFANTRY;
 $cav_cat = SoldierTypes::SOLDIER_TYPE_CAVALRY;
@@ -1026,7 +1034,7 @@ foreach ($soldiers as $i => $soldier_obj) {
             $step = fdec(MIN_CONQUEST_CHANCE * 100);
             $max = fdec(MAX_CONQUEST_CHANCE * 100);
 
-            $capacity_text = "<br><br><span style='font-size: 0.9em;'>Erfolg: <b>$base%</b> Basis-Chance</span>";
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'><b>Eroberungschance:</b> $base%</span>";
             $capacity_text .= "<br><small>(+$step% je weiteren Eroberer, max. $max%)</small>";
             break;
         case Soldiers::SOLDIER_SETTLER_WAGON:
@@ -1034,8 +1042,8 @@ foreach ($soldiers as $i => $soldier_obj) {
 
             $base_chance = fdec(BASE_SETTLER_CHANCE * 100);
 
-            $capacity_text = "<br><br><span style='font-size: 0.9em;'>Chance: <b>$base_chance%</b> Erfolgsrate</span>";
-            $capacity_text .= "<br><span style='font-size: 0.9em;'>Imperium: <b>$curr_founded / $current_limit</b> gegründeten Siedlungen</span>";
+            $capacity_text = "<br><br><span style='font-size: 0.9em;'><b>Gründungschance:</b> $base_chance% Erfolgsrate</span>";
+            $capacity_text .= "<br><span style='font-size: 0.9em;'><b>Imperium:</b> $curr_founded / $current_limit gegründeten Siedlungen</span>";
 
             if ($curr_founded >= $current_limit) {
                 $capacity_text .= "<br><small class='error'>(Maximales Limit erreicht)</small>";

@@ -290,6 +290,13 @@ function updateTroopSummary() {
             const container = inp.closest("div");
             const buttons = container ? container.querySelectorAll("input[type='button']") : [];
 
+            const maxCap = parseInt(inp.dataset.max, 10) || 0;
+            if (maxCap <= 0) {
+                inp.disabled = true;
+                buttons.forEach(b => b.disabled = true);
+                return;
+            }
+
             if (inp.id === "sol_" + scoutId) {
                 if (hasNormalVal) {
                     inp.disabled = true;
@@ -339,7 +346,7 @@ function updateTroopSummary() {
 
         if (val > max) {
             val = max;
-            input.value = max;
+            input.value = max > 0 ? max : "";
         } else if (rawValue !== cleanValue) {
             input.value = cleanValue;
         }

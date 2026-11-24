@@ -10,7 +10,6 @@ require_once("includes/core.php");
 
 // Fetch all buildings and their dependencies
 $buildings = $kingdom->fetch_all_kingdom_buildings();
-$building_count = count($buildings);
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
 $kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
@@ -136,6 +135,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
         } else {
             $error = "Dieses Gebäude existiert nicht!";
         }
+    }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("towncenter.php");
     }
 }
 

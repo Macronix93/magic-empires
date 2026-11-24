@@ -94,6 +94,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $error = "Interner Fehler beim Ablegen der Gesinnung.";
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("shrine.php");
+    }
 }
 
 /*

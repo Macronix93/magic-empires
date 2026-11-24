@@ -478,7 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (val !== '') {
                     let num = parseInt(val);
-                    if (num > 100) val = '100';
+                    if (num > MAP_DIMENSION) val = '100';
                     if (num < 1 && val.length >= 1) val = '1';
                 }
 
@@ -768,7 +768,8 @@ function draw() {
         const filterMines = document.getElementById("filter-mines")?.checked;
 
         mapData.forEach(tile => {
-            const [x, y, , kid, level, isBurning, monsterLevel, , , , owner_id, , myTroopIcon, enemyGuildId, , mineInfo, giftDay] = tile;
+            const [x, y, , kid = -1, level = 0, isBurning = false, monsterLevel = 0, , , ,
+                owner_id = 0, , myTroopIcon = "", enemyGuildId = -1, , mineInfo = null, giftDay = 0] = tile;
 
             if (kid === -1 && giftDay === 0 && !myTroopIcon) return;
 
@@ -1161,7 +1162,8 @@ function selectField(x, y, shouldCenter = false) {
     const tile = mapData.find(t => t[0] === x && t[1] === y);
     if (!tile) return;
 
-    const [tx, ty, fieldtype, kid, level, , m_lvl, owner, kname, score, ownerId, expiresAt, , enemyGuildId, hasOutgoing] = tile;
+    const [tx, ty, fieldtype, kid = -1, level = 0, , m_lvl = 0, owner = "", kname = "",
+        score = 0, ownerId = 0, expiresAt = 0, , enemyGuildId = -1, hasOutgoing = false] = tile;
     const BIOME_NAMES = {1: "Gebirge", 2: "Küste", 3: "Wald", 4: "Wüste", 5: "Hochland"};
     const fieldName = BIOME_NAMES[fieldtype] || "Unbekannt";
 
@@ -1627,9 +1629,6 @@ function selectField(x, y, shouldCenter = false) {
     if (typeof initAutomaticCountdowns === "function") {
         initAutomaticCountdowns();
     }
-    if (typeof setup === "function") {
-        setup();
-    }
 
     draw();
 }
@@ -1821,7 +1820,7 @@ function calculatePathLocal(sx, sy, ex, ey) {
         ];
 
         for (let n of neighbors) {
-            if (n.x < 1 || n.x > 100 || n.y < 1 || n.y > 100) continue;
+            if (n.x < 1 || n.x > MAX_X || n.y < 1 || n.y > MAX_Y) continue;
             if (closedList.has(encode(n))) continue;
 
             let moveCost = getCost(n);

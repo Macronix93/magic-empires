@@ -339,21 +339,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         send_json(["success" => false, "error" => "Deine entsendete Armee darf das Kasernenlimit von " . fnum($troop_limit, true) . " Einheiten nicht überschreiten!"]);
     }
 
-    foreach (SPECIAL_UNIT_LIMITS as $sp_id => $sp_info) {
-        $sent_sp = (int)($clean_soldiers[$sp_id] ?? 0);
-
-        if ($sent_sp > 0) {
-            $sp_limit = $kingdom->get_special_unit_limit($sp_id);
-
-            if ($sp_limit !== null && $sent_sp > $sp_limit) {
-                send_json([
-                    "success" => false,
-                    "error" => "Du darfst maximal " . fnum($sp_limit) . " {$sp_info["name"]} aus diesem Königreich entsenden (aktuell gewählt: " . fnum($sent_sp) . ")!"
-                ]);
-            }
-        }
-    }
-
     if ($is_gift && $total_units_in_request > ADVENT_CALENDAR_MAX_UNITS) {
         send_json(["success" => false, "error" => "Zu einem Geschenk kann maximal eine Einheit entsandt werden!"]);
     }
@@ -427,6 +412,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         foreach ($clean_soldiers as $soldier_id => $soldier_count) {
             if ($soldier_count > ($kingdom_soldiers[$soldier_id] ?? 0)) {
                 throw new RuntimeException("Du hast zu wenig Soldaten vom Typ " . $soldiers[$soldier_id]->get_soldier_name() . "!");
+            }
+        }
+
+        $away_special_counts = $kingdom->get_away_unit_counts(array_keys(SPECIAL_UNIT_LIMITS));
+        foreach (SPECIAL_UNIT_LIMITS as $sp_id => $sp_info) {
+            $sent_sp = (int)($clean_soldiers[$sp_id] ?? 0);
+
+            if ($sent_sp > 0) {
+                $sp_limit = $kingdom->get_special_unit_limit($sp_id);
+
+                if ($sp_limit !== null) {
+                    $already_away = $away_special_counts[$sp_id] ?? 0;
+
+                    if (($already_away + $sent_sp) > $sp_limit) {
+                        $remaining_sendable = max(0, $sp_limit - $already_away);
+
+                        if ($already_away > 0) {
+                            throw new RuntimeException(
+                                "Du darfst insgesamt maximal " . fnum($sp_limit, true) . " {$sp_info["name"]} gleichzeitig aus diesem Königreich entsenden " .
+                                "(aktuell unterwegs: " . fnum($already_away, true) . ", noch möglich: " . fnum($remaining_sendable, true) . ")!"
+                            );
+                        }
+
+                        throw new RuntimeException(
+                            "Du darfst maximal " . fnum($sp_limit, true) . " {$sp_info["name"]} aus diesem Königreich entsenden " .
+                            "(aktuell gewählt: " . fnum($sent_sp, true) . ")!"
+                        );
+                    }
+                }
             }
         }
 
@@ -992,42 +1006,48 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
 
     $view .= '<div id="stealth-warning-box" style="display: none; margin-bottom: 10px;"></div>
                 <div class="title-border">Königreich-Info (' . $field_name . ')</div>
-                      <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">
-                          <tr>
-                              <td class="td-mapinfo"><b>Koordinaten</b></td>
-                              <td>' . $target_x . ':' . $target_y . '</td>
-                          </tr>';
-    if ($is_ally) {
-        $load_class = ($current_support_load >= $total_support_limit) ? "class='error'" : "class='passed'";
+                      <table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">';
 
-        $view .= '<tr>
-                <td class="td-mapinfo"><b>Kapazität Hilfe</b></td>
-                <td><span id="support-capacity-display" ' . $load_class . '>' . fnum($current_support_load) . '</span> / ' . fnum($total_support_limit) . '</td>
-              </tr>';
-    } else if ($is_self_station) {
+    if ($is_self_station) {
         $cap_class = ($target_occupied >= $target_limit) ? "class='error'" : "class='passed'";
 
         $view .= '<tr>
-            <td class="td-mapinfo"><b>Kapazität</b></td>
-            <td><span id="station-capacity-display" ' . $cap_class . '>' . fnum($target_occupied) . '</span> / ' . fnum($target_limit) . '</td>
-        </tr>';
+                      <td class="td-mapinfo"><b>Königreich</b></td>
+                      <td>' . e($row["kingdomname"]) . ' <span style="white-space: nowrap;">(' . $target_x . ':' . $target_y . ')</span></td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Kapazität</b></td>
+                      <td><span id="station-capacity-display" ' . $cap_class . '>' . fnum($target_occupied) . '</span> / ' . fnum($target_limit) . '</td>
+                  </tr>';
+    } else {
+        $view .= '<tr>
+                      <td class="td-mapinfo"><b>Koordinaten</b></td>
+                      <td>' . $target_x . ':' . $target_y . '</td>
+                  </tr>';
+
+        if ($is_ally) {
+            $load_class = ($current_support_load >= $total_support_limit) ? "class='error'" : "class='passed'";
+
+            $view .= '<tr>
+                        <td class="td-mapinfo"><b>Kapazität Hilfe</b></td>
+                        <td><span id="support-capacity-display" ' . $load_class . '>' . fnum($current_support_load) . '</span> / ' . fnum($total_support_limit) . '</td>
+                      </tr>';
+        }
+
+        $view .= '<tr>
+                      <td class="td-mapinfo"><b>Königreich</b></td>
+                      <td>' . e($row["kingdomname"]) . '</td>
+                  </tr>
+                  <tr>
+                      <td class="td-mapinfo"><b>Besitzer</b></td>
+                      <td><a href="#" 
+                           data-on-click="openOverlay" 
+                           data-url="userinfo.php?userid=' . e($enemy_user_id) . '" 
+                           data-title="Spieler-Info">' . e($row["username"]) . '</a></td>
+                  </tr>';
     }
 
     $view .= '<tr>
-                  <td class="td-mapinfo"><b>Königreich</b></td>
-                  <td>' . $row["kingdomname"] . '</td>
-              </tr>
-              ' . ($enemy_user_id === $user->get_user_id()
-            ? ''
-            : '<tr>
-              <td class="td-mapinfo"><b>Besitzer</b></td>
-              <td><a href="#" 
-                   data-on-click="openOverlay" 
-                   data-url="userinfo.php?userid=' . e($enemy_user_id) . '" 
-                   data-title="Spieler-Info">' . e($row["username"]) . '</a></td>
-          </tr>'
-        ) . '
-              <tr>
                   <td class="td-mapinfo"><b>Ankunftszeit</b></td>
                   <td>' . convert_sec_to_str($arrival_time) . '</td>
               </tr>
@@ -1108,29 +1128,43 @@ if ($is_self_station) {
 }
 
 
+$away_special_counts = $kingdom->get_away_unit_counts(array_keys(SPECIAL_UNIT_LIMITS));
 $category_counts = SoldierTypes::get_empty_category_map();
-
 $total_units_available = 0;
+$has_sendable_unit = false;
+$effective_max_by_soldier = [];
 
 foreach ($soldiers as $soldier_id => $s_obj) {
     $count = $kingdom_soldiers[$soldier_id] ?? 0;
 
     if ($count > 0) {
+        if ($is_founding && $soldier_id !== Soldiers::SOLDIER_SETTLER_WAGON) {
+            continue;
+        }
+
         if ($only_scouts_allowed && $soldier_id !== Soldiers::SOLDIER_SCOUT) {
             continue;
         }
 
-        if (($kingdom_id == MapFieldTypes::MAP_FIELD_MINE
-                && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
-                && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) ||
-            $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE
-            && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_RAIDER
+        if (($kingdom_id == MapFieldTypes::MAP_FIELD_MINE && $s_obj->get_soldier_category() == SoldierTypes::SOLDIER_TYPE_SPECIAL
+                && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT)
+            || $kingdom_id == MapFieldTypes::MAP_FIELD_RESOURCE_TILE && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_RAIDER
             && $s_obj->get_soldier_id() !== Soldiers::SOLDIER_SCOUT) {
             continue;
         }
 
         $category_counts[$s_obj->get_soldier_category()] += $count;
         $total_units_available += $count;
+
+        $sp_limit = isset(SPECIAL_UNIT_LIMITS[$soldier_id]) ? $kingdom->get_special_unit_limit($soldier_id) : null;
+        $sp_away = ($sp_limit !== null) ? ($away_special_counts[$soldier_id] ?? 0) : 0;
+        $sp_remaining = ($sp_limit !== null) ? max(0, $sp_limit - $sp_away) : null;
+        $eff_max = ($sp_remaining !== null) ? min($count, $sp_remaining) : $count;
+        $effective_max_by_soldier[$soldier_id] = $eff_max;
+
+        if ($eff_max > 0) {
+            $has_sendable_unit = true;
+        }
     }
 }
 
@@ -1217,6 +1251,7 @@ if ($barracks_level > 0) {
         $gift_attrs = $is_gift ? ' data-is-gift="true" data-max-units="1"' : '';
         $ajax_query_extra = $is_gift ? "&mode=gift&day=$gift_day" : "";
         $unit_ids_attr = ' data-scout-id="' . Soldiers::SOLDIER_SCOUT . '" data-thief-id="' . Soldiers::SOLDIER_THIEF . '"';
+        $action_btns_disabled = $has_sendable_unit ? "" : "disabled";
 
         $view .= '<form action="javascript:void(0);" data-ajax-url="ajax/send_troops.php?x=' . $target_x . '&y=' . $target_y . $ajax_query_extra . '" 
                         method="POST" id="send-troops-form" data-on-submit="submitSendTroopsForm"' . $troop_limit_attr . $unit_ids_attr . $mine_attrs . $support_attrs . $gift_attrs . $station_attrs . '>
@@ -1229,12 +1264,12 @@ if ($barracks_level > 0) {
                         </div>
                         <div id="troop-action-buttons" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 20px;">
                             <input type="submit" value="' . $button_label . '" disabled>
-                            <input type="button" value="Alle wählen" data-on-click="selectAllTroops" title="Alle verfügbaren Truppen auswählen">
+                            <input type="button" value="Alle wählen" data-on-click="selectAllTroops" title="Alle verfügbaren Truppen auswählen" ' . $action_btns_disabled . '>
                             <input type="button" 
                                    value="X" 
                                    data-on-click="clearAllTroops" 
                                    title="Alle Eingaben löschen" 
-                                   style="width: 32px;">
+                                   style="width: 32px;" ' . $action_btns_disabled . '>
                         </div>';
 
         $categories = SoldierTypes::get_labels();
@@ -1318,6 +1353,9 @@ if ($barracks_level > 0) {
                 continue;
             }
 
+            $effective_max = $effective_max_by_soldier[$soldier_id] ?? $owned_count;
+            $disabled_attr = ($effective_max <= 0) ? "disabled" : "";
+
             if ($prev_cat !== $unit_cat) {
                 $cat_label = $category_names[$unit_cat] ?? "";
                 $divider_style = $show_all_checked ? "" : "display: none;";
@@ -1377,27 +1415,30 @@ if ($barracks_level > 0) {
                                                name='soldiers[$soldier_id]' 
                                                size='5' 
                                                maxlength='6'
-                                               inputmode='numeric' pattern='[0-9]*'
+                                               inputmode='numeric'
+                                               pattern='[0-9]*'
                                                class='js-unit-input' 
                                                data-name='" . e($soldier_name) . "' 
                                                data-id='$soldier_id'
                                                data-icon='$icon_name'
-                                               data-max='$owned_count'
+                                               data-max='$effective_max'
                                                data-atk='$real_atk' 
-                                               data-def='$real_def'>
+                                               data-def='$real_def'
+                                               $disabled_attr>
                                         <input type='button' 
                                                value='Max.' 
                                                data-on-click='fillMaxAndRefresh' 
                                                data-target='sol_$soldier_id' 
-                                               data-value='$owned_count'
-                                               tabindex='-1'>
-                                        <input type='button'
-                                               value='X' 
+                                               data-value='$effective_max'
+                                               tabindex='-1'
+                                               $disabled_attr>
+                                        <input type='button' value='X' 
                                                title='Feld leeren'
                                                data-on-click='resetUnitAndRefresh' 
                                                data-target='sol_$soldier_id'
                                                style='width: 32px;'
-                                               tabindex='-1'>       
+                                               tabindex='-1'
+                                               $disabled_attr>
                                     </div>
                                 </td>
                               </tr>";

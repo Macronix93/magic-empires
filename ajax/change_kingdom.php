@@ -15,10 +15,6 @@ if (is_numeric($chosen)) {
 
         setcookie("me_last_kid", (string)$chosen, time() + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, true);
 
-        if (!empty($_POST["light"])) {
-            send_json(["success" => true]);
-        }
-
         $k = new Kingdom($chosen);
         $cmd_stats = $k->get_command_stats();
 
@@ -43,16 +39,10 @@ if (is_numeric($chosen)) {
         $kingdom = $k;
         include(__DIR__ . "/../layout/right.php");
         $sidebar_html_desk = ob_get_clean();
-
-        ob_start();
-        $side_prefix = "mob_";
-        $kingdom = $k;
-        include(__DIR__ . "/../layout/right.php");
-        $sidebar_html_mob = ob_get_clean();
+        $sidebar_html_mob = str_replace("desk_boost_info_", "mob_boost_info_", $sidebar_html_desk);
 
         echo json_encode([
             "success" => true,
-            "sidebar_html" => $sidebar_html_desk,
             "sidebar_html_desk" => $sidebar_html_desk,
             "sidebar_html_mob" => $sidebar_html_mob,
             "has_any_alchemy_ready" => !empty($sidebar_data["has_any_alchemy_ready"]),

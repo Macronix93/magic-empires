@@ -167,7 +167,7 @@ class User
         $avatar = $this->get_avatar();
         static $avatar_render_counter = 0;
         $avatar_render_counter++;
-        $pop_id = $popup_id ? ($popup_id . "_" . $avatar_render_counter) : ("av_pop_" . $this->user_id . "_" . $avatar_render_counter . "_" . mt_rand(100, 999));
+        $pop_id = $popup_id ? ($popup_id . "_" . $avatar_render_counter) : ("av_pop_" . $this->user_id . "_" . $avatar_render_counter);
         $now = time();
 
         if ($show_last_activity && $status_color === null) {
@@ -182,7 +182,8 @@ class User
             if ($show_last_activity) {
                 $act = $last_activity_timestamp ?? (int)($this->load_user_row()["lastactivity"] ?? 0);
                 $act_str = $exact_time ? ($act === 0 ? "Nicht verfügbar" : date("d.m.Y \u\m H:i:s", $act) . " Uhr") : format_relative_activity($act, $now);
-                $link_pop_id = "act_link_" . $this->user_id . "_" . mt_rand(100, 999);
+                $link_pop_id = "act_link_" . $this->user_id . "_" . $avatar_render_counter;
+
                 $content = "<a href='#' data-on-click='openOverlay'  
                                         data-url='userinfo.php?userid=$this->user_id'  
                                         data-title='Spieler-Info'  
@@ -748,12 +749,7 @@ class User
             "building" => $building,
             "building_name" => $building->get_building_name(),
             "kingdom" => $kingdom,
-            "level" => $building->get_building_level(),
-            "k_wood" => $kingdom->get_kingdom_wood(),
-            "k_food" => $kingdom->get_kingdom_food(),
-            "k_stone" => $kingdom->get_kingdom_stone(),
-            "k_gold" => $kingdom->get_kingdom_gold(),
-            "k_villager" => $kingdom->get_kingdom_villager()
+            "level" => $building->get_building_level()
         ];
     }
 

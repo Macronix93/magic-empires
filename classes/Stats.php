@@ -171,10 +171,10 @@ class Stats
                 SUM(k.foodperhour) as ph_f, SUM(k.woodperhour) as ph_w, SUM(k.stoneperhour) as ph_s, SUM(k.goldperhour) as ph_g,
                 SUM(k.villager) as total_pop,
                 -- Resource Fields
-                (SELECT IFNULL(SUM(food), 0) FROM resource_tiles_data) as map_food,
-                (SELECT IFNULL(SUM(wood), 0) FROM resource_tiles_data) as map_wood,
-                (SELECT IFNULL(SUM(stone), 0) FROM resource_tiles_data) as map_stone,
-                (SELECT IFNULL(SUM(gold), 0) FROM resource_tiles_data) as map_gold,
+                (SELECT IFNULL(SUM(food), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_food,
+                (SELECT IFNULL(SUM(wood), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_wood,
+                (SELECT IFNULL(SUM(stone), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_stone,
+                (SELECT IFNULL(SUM(gold), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_gold,
                 (SELECT IFNULL(SUM(food + wood + stone + gold), 0) FROM resource_tiles_data WHERE expires_at > UNIX_TIMESTAMP()) as map_total,
                 -- Player Data
                 (SELECT COUNT(*) FROM users WHERE status = 1) as total_users,
@@ -186,7 +186,10 @@ class Stats
                 (SELECT COUNT(*) FROM monster_camps WHERE expires_at > UNIX_TIMESTAMP()) as monster_camps,
                 (SELECT COUNT(*) FROM mines WHERE expires_at > UNIX_TIMESTAMP()) as active_mines,
                 -- Military
-                ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers) + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)) as total_soldiers,
+                ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers)
+                + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)
+                + (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops)
+                + (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops)) as total_soldiers,
                 (SELECT IFNULL(AVG(buildinglevel), 0) FROM buildings) as avg_building_lvl,
                 (SELECT IFNULL(SUM(techlevel), 0) FROM techs) as total_tech_lvls,
                 (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_fallen_soldiers') as total_fallen,

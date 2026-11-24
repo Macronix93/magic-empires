@@ -456,7 +456,8 @@ if (!$user->is_admin()) {
             $err = User::delete_account($user_id);
 
             if ($err !== null) {
-                $error .= $err;
+                $_SESSION["game_error"] = $err;
+                change_location("adminpanel.php?userid=$user_id&tab=users");
             } else {
                 $logger->admin("DELETED USER: $username (ID: $user_id)");
 
@@ -537,6 +538,25 @@ if (!$user->is_admin()) {
                         $result = $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$user_id]);
                     } else if ($field === "linked_user_id" && (empty($new_value) || (int)$new_value <= 0)) {
                         $result = $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$user_id]);
+                    } else if ($field === "username") {
+                        $new_uname = trim((string)$new_value);
+                        $old_uname = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
+
+                        if ($new_uname === "") {
+                            $error = "Benutzername darf nicht leer sein!";
+                        } else {
+                            $dup = $db_instance->execute_query("SELECT id FROM users WHERE username = ? AND id != ?", [$new_uname, $user_id]);
+
+                            if ($dup->num_rows > 0 || PhpBBBridge::username_exists($new_uname)) {
+                                $error = "Dieser Benutzername ist bereits vergeben!";
+                            } else {
+                                $result = $db_instance->execute_query("UPDATE users SET username = ? WHERE id = ?", [$new_uname, $user_id]);
+
+                                if ($result && $old_uname && $old_uname !== $new_uname) {
+                                    PhpBBBridge::update_username($old_uname, $new_uname);
+                                }
+                            }
+                        }
                     } else {
                         if ($field === "adminlevel" && !$is_full_admin) {
                             $error = "Nur Full-Admins dürfen dieses Feld bearbeiten!";
@@ -557,8 +577,9 @@ if (!$user->is_admin()) {
 
                 change_location("adminpanel.php?userid=$user_id&tab=users");
             } else {
-                if (empty($view)) {
-                    $error = "Fehler beim Aktualisieren! Feld: $field";
+                if (empty($error)) {
+                    $_SESSION["game_error"] = !empty($error) ? $error : "Fehler beim Aktualisieren! Feld: $field";
+                    change_location("adminpanel.php?userid=$user_id&tab=users");
                 }
             }
         }
@@ -803,7 +824,7 @@ if (!$user->is_admin()) {
             } else {
                 $user_info_html .= '<span class="passed">Keine Treffer</span>';
             }
-            $user_info_html .= '<tr><td style="width: 30%;">Gleiche Device-ID:</td><td>';
+            $user_info_html .= '</td></tr><tr><td style="width: 30%;">Gleiche Device-ID:</td><td>';
 
             if ($multi_device->num_rows > 0) {
                 foreach ($multi_device as $d) {
@@ -1017,7 +1038,8 @@ if (!$user->is_admin()) {
         <div class='box-content box-content-bg' style='padding: 15px; text-align: center;'>
             <p style='margin-top: 0;'>Setzt alle Arena-Wertungen und Helden zurück.</p>
             <form method='POST'>
-                <input type='submit' name='reset_arena_season' value='Arena Saison-Reset jetzt durchführen' onclick='return confirm(\"Bist du sicher? Alle Belohnungen werden ausgeschüttet und eine neue Saison gestartet!\");'>
+                <input type='hidden' name='reset_arena_season' value='1'>
+                <input type='button' data-on-click='confirmResetArenaSeason' value='Arena Saison-Reset jetzt durchführen'>
             </form>
         </div>
     </div>";

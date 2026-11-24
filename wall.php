@@ -94,6 +94,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
             }
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("wall.php");
+    }
 }
 
 /*

@@ -39,7 +39,6 @@ $view .= '<table class="table">
             <b>Voraussetzungen</b></td>
     </tr>';
 
-$building_count = count($buildings);
 foreach ($buildings as $i => $building_obj) {
     $is_embassy = ($i === BuildingTypes::BUILDING_EMBASSY);
     $target_buildings = $is_embassy ? $main_buildings : $buildings;

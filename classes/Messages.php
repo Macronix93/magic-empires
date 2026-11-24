@@ -811,7 +811,6 @@ class Messages
         if ($has_more) {
             $html .= "<button id='load-more-server-btn' 
                           data-on-click='loadMoreServerMsgs' 
-                          class='msg-load-more' 
                           style='margin: 10px auto; display: block;'>Ältere Berichte laden</button>";
         }
 
@@ -2902,13 +2901,6 @@ class Messages
         };
     }
 
-    public function get_unread_world_count(): int
-    {
-        $uid = $this->user->get_user_id();
-        $query = "SELECT COUNT(*) FROM world_chat WHERE id > (SELECT last_world_chat_id FROM users WHERE id = ?) AND userid != ? AND deleted = 0";
-        return (int)$this->mysqli->execute_query($query, [$uid, $uid])->fetch_row()[0];
-    }
-
     public function get_unread_guild_count(): int
     {
         $guild_id = $this->user->get_user_guild_id();
@@ -2955,7 +2947,7 @@ class Messages
         $has_more = count($result) > $limit;
         if ($has_more) array_shift($result);
 
-        $html = "<button id='load-older-btn' data-on-click='loadOlderChat' data-partnerid='" . e($sender_id) . "' class='msg-load-more' style='display: " . ($has_more ? 'block' : 'none') . "'>Ältere Nachrichten laden</button>";
+        $html = "<button id='load-older-btn' data-on-click='loadOlderChat' data-partnerid='" . e($sender_id) . "' style='display: " . ($has_more ? 'block' : 'none') . "'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? 'true' : 'false') . "'></div>";
 
         if (empty($result)) {
@@ -3073,7 +3065,7 @@ class Messages
 
         $rows = array_reverse($rows);
 
-        $html = "<button id='load-older-btn' data-on-click='loadOlderWorldChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
+        $html = "<button id='load-older-btn' data-on-click='loadOlderWorldChat' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
 
         $last_id = 0;
@@ -3169,7 +3161,7 @@ class Messages
         if ($has_more) array_pop($rows);
         $rows = array_reverse($rows);
 
-        $html = "<button id='load-older-btn' data-on-click='loadOlderGuildChat' class='msg-load-more' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
+        $html = "<button id='load-older-btn' data-on-click='loadOlderGuildChat' style='display: " . ($has_more ? "block" : "none") . ";'>Ältere Nachrichten laden</button>";
         $html .= "<div id='chat-config' data-has-more='" . ($has_more ? "true" : "false") . "'></div>";
 
         $last_id = 0;
@@ -3213,5 +3205,84 @@ class Messages
             "html" => $html,
             "last_id" => $last_id
         ];
+    }
+
+    public static function render_share_modal_form(string $header_html, array $hidden_fields, int $my_guild_id): string
+    {
+        $hidden_html = "";
+        foreach ($hidden_fields as $name => $value) {
+            $hidden_html .= "<input type='hidden' name='" . e((string)$name) . "' value='" . e((string)$value) . "'>\n";
+        }
+
+        $guild_radio = ($my_guild_id > 0) ? "
+        <label style='display: flex; align-items: center; gap: 6px;'>
+            <input type='radio' name='share_target' value='guild' data-on-change='toggleShareTarget'>
+            <span>Gilden-Chat</span>
+        </label>" : "";
+
+        return "
+        <div style='padding: 10px; text-align: left; max-width: 440px; margin: 0 auto;'>
+            <div style='text-align: center; margin-bottom: 15px;'>
+                <span style='font-size: 16px; color: var(--link-color);'>" . self::wrap_emojis($header_html) . "</span>
+            </div>
+    
+            <form id='form-share-coords' method='POST' action='ajax/share_coords_send.php' data-on-submit='submitShareCoords'>
+                $hidden_html
+                <label style='display: block; margin-bottom: 6px;'><b>Wo teilen?</b></label>
+                <div style='display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; font-size: 14px;'>
+                    <label style='display: flex; align-items: center; gap: 6px;'>
+                        <input type='radio' name='share_target' value='world' checked data-on-change='toggleShareTarget'>
+                        <span>Welt-Chat</span>
+                    </label>
+                    $guild_radio
+                    <label style='display: flex; align-items: center; gap: 6px;'>
+                        <input type='radio' name='share_target' value='private' data-on-change='toggleShareTarget'>
+                        <span>Privatnachricht</span>
+                    </label>
+                </div>
+    
+                <div id='share-recipient-wrap' style='display: none; margin-bottom: 15px;'>
+                    <label style='display: block; margin-bottom: 4px; font-size: 14px;'><b>Empfänger (Spielername):</b></label>
+                    <div style='display: flex; gap: 6px; align-items: center;'>
+                        <label for='share-recipient-input'></label>
+                        <input type='text' name='recipient' id='share-recipient-input' placeholder='Name eingeben...' maxlength='" . MAX_USERNAME_LENGTH . "' style='flex: 1;'>
+                        <button type='button' data-on-click='openOverlay' data-url='userlist.php' data-title='Spielerliste' style='white-space: nowrap; padding: 5px 10px;'>
+                            Spielerliste
+                        </button>
+                    </div>
+                </div>
+    
+                <div style='display: flex; justify-content: center; gap: 10px;'>
+                    <input type='submit' id='btn-share-submit' value='In Chat einfügen' style='padding: 6px 25px;'>
+                    <button type='button' data-on-click='closeOverlay'>Abbrechen</button>
+                </div>
+            </form>
+        </div>";
+    }
+
+    public static function is_valid_reaction_type(string $type): bool {
+        return in_array($type, ["news", "world_chat", "chat", "guild_chat"], true);
+    }
+
+    public static function can_access_reaction_entity(string $type, int $id, User $user): bool {
+        if (!self::is_valid_reaction_type($type) || $id <= 0) {
+            return false;
+        }
+
+        $db = Database::get_instance()->get_connection();
+        $uid = $user->get_user_id();
+        $gid = $user->get_user_guild_id();
+
+        return match ($type) {
+            "news" => (bool)$db->execute_query("SELECT 1 FROM news WHERE id = ? LIMIT 1",
+                [$id])->fetch_column(),
+            "world_chat" => (bool)$db->execute_query("SELECT 1 FROM world_chat WHERE id = ? AND deleted = 0 LIMIT 1",
+                [$id])->fetch_column(),
+            "chat" => (bool)$db->execute_query("SELECT 1 FROM messages WHERE id = ? AND (senderid = ? OR receiverid = ?) AND deleted = 0 LIMIT 1",
+                [$id, $uid, $uid])->fetch_column(),
+            "guild_chat" => ($gid > 0) && (bool)$db->execute_query("SELECT 1 FROM guild_chat WHERE id = ? AND guild_id = ? AND deleted = 0 LIMIT 1",
+                    [$id, $gid])->fetch_column(),
+            default => false
+        };
     }
 }

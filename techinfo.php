@@ -313,7 +313,9 @@ if ($row) {
     } else {
         $m = $row["multiplicator"];
         $current_bid = $building_id ?? (int)($row["id"] ?? -1);
-        $calc_cost = fn(int $base, int $lvl) => Building::calculate_cost($current_bid, $base, $lvl, $m);
+        $calc_cost = ($building_id !== null)
+            ? fn(int $base, int $lvl) => Building::calculate_cost($building_id, $base, $lvl, $m)
+            : fn(int $base, int $lvl) => ($base <= 0) ? 0 : (int)round($base * pow($m, $lvl));
 
         $biome_info = "";
         $is_prod_building = in_array($building_id, [
@@ -503,17 +505,11 @@ if ($row) {
         $is_uni_tech = ($tech_id !== null && (int)($row["origin_building"] ?? 0) === BuildingTypes::BUILDING_UNIVERSITY);
         $is_smithy_tech = ($tech_id !== null && (int)($row["origin_building"] ?? 0) === BuildingTypes::BUILDING_SMITHY);
 
-        $cur_uni_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_UNIVERSITY);
-        $cur_smithy_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_SMITHY);
-        $cur_wt_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
-        $cur_wall_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
-        $cur_barracks_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
-
-        $uni_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_UNIVERSITY . ".png' class='ressource-icons' alt='Universität' title='Universität'>";
-        $smithy_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_SMITHY . ".png' class='ressource-icons' alt='Schmiede' title='Schmiede'>";
-        $wt_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WATCHTOWER . ".png' class='ressource-icons' alt='Wachturm' title='Wachturm'>";
-        $wall_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WALL . ".png' class='ressource-icons' alt='Mauer' title='Mauer'>";
-        $barracks_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_BARRACKS . ".png' class='ressource-icons' alt='Kaserne' title='Kaserne'>";
+        $cur_uni_lvl = 0;
+        $cur_smithy_lvl = 0;
+        $cur_wt_lvl = 0;
+        $cur_wall_lvl = 0;
+        $cur_barracks_lvl = 0;
 
         $icon_filename = ($building_id !== null) ? "icon_building$building_id.png" : "icon_tech$tech_id.png";
 
@@ -532,6 +528,18 @@ if ($row) {
                                 <td class='td-center td-gradient' style='width: 15%;'>Lvl</td>";
 
         if ($is_uni_tech || $is_smithy_tech) {
+            $cur_uni_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_UNIVERSITY);
+            $cur_smithy_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_SMITHY);
+            $cur_wt_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WATCHTOWER);
+            $cur_wall_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_WALL);
+            $cur_barracks_lvl = $kingdom->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
+
+            $uni_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_UNIVERSITY . ".png' class='ressource-icons' alt='Universität' title='Universität'>";
+            $smithy_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_SMITHY . ".png' class='ressource-icons' alt='Schmiede' title='Schmiede'>";
+            $wt_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WATCHTOWER . ".png' class='ressource-icons' alt='Wachturm' title='Wachturm'>";
+            $wall_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_WALL . ".png' class='ressource-icons' alt='Mauer' title='Mauer'>";
+            $barracks_icon = "<img src='images/icons/icon_building" . BuildingTypes::BUILDING_BARRACKS . ".png' class='ressource-icons' alt='Kaserne' title='Kaserne'>";
+
             $view .= "<td class='td-center td-gradient' style='width: 15%;'>Gebäude</td>";
         }
 

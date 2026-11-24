@@ -377,10 +377,6 @@ function openOverlay(url, title = "", width = null, forceNew = false, sourceElem
                     content.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
                 }
 
-                if (typeof setup === "function") {
-                    setup();
-                }
-
                 setTimeout(() => {
                     setModalInitialFocus(targetModal);
                 }, 50);

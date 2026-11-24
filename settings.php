@@ -602,6 +602,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             change_location("settings.php?tab=profile");
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("settings.php?tab=" . urlencode($active_tab));
+    }
 }
 
 

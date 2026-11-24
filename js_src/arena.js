@@ -66,9 +66,8 @@ registerAction("openArenaAttackInline", (btn) => {
             if (typeof bindActions === "function") {
                 inlineContainer.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
             }
-            if (typeof setup === "function") {
-                setup();
-            }
+            getGlobalPopupBox();
+            cleanupPopups();
 
             const attackForm = inlineContainer.querySelector("#arena-attack-form");
             if (attackForm && typeof initArenaForm === "function") {
@@ -113,10 +112,6 @@ registerAction("closeArenaAttackInline", () => {
 
     if (mainView) {
         mainView.style.display = "block";
-    }
-
-    if (typeof setup === "function") {
-        setup();
     }
 });
 registerAction("openArenaUserModal", (el, e) => {
@@ -336,8 +331,6 @@ registerAction("executeArenaAttack", async (form, e) => {
         await anim.close(false);
         arenaAttackInProgress = false;
 
-        closeOverlay();
-
         const inlineContainer = document.getElementById("arena-attack-inline-container");
         const boxHeader = document.querySelector(".middle-container .big-box-header");
 
@@ -349,9 +342,6 @@ registerAction("executeArenaAttack", async (form, e) => {
 
             if (typeof bindActions === "function") {
                 inlineContainer.querySelectorAll('[data-on-click], [data-on-submit]').forEach(bindActions);
-            }
-            if (typeof setup === "function") {
-                setup();
             }
 
             const middleContainer = document.querySelector(".middle-container");

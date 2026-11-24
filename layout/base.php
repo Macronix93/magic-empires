@@ -135,25 +135,7 @@ $right_menu_mob_html = str_replace("desk_boost_info_", "mob_boost_info_", $right
     </div>
     <div class="middle-container">
         <div id="middle-flash-container" class="middle-flash-container">
-            <?php
-            if (!empty($_SESSION["game_success"])) {
-                echo show_passed_box($_SESSION["game_success"]);
-                unset($_SESSION["game_success"]);
-            }
-
-            if (!empty($_SESSION["game_error"])) {
-                echo show_error_box($_SESSION["game_error"]);
-                unset($_SESSION["game_error"]);
-            }
-
-            if (!empty($flash_box)) {
-                echo $flash_box;
-            }
-
-            if (!empty($error)) {
-                echo show_error_box($error);
-            }
-            ?>
+            <?= render_game_flashes($flash_box ?? null, $error ?? "") ?>
         </div>
         <div class="big-box-container">
             <div class="big-box-header">

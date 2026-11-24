@@ -226,7 +226,6 @@ if (!$is_season_active) {
 
     $hero_info = $arena->get_hero_full_data();
     $h_data = $hero_info["hero"];
-    $active_skill = $hero_info["active_skill"];
     $all_skills = $hero_info["skills"];
 
     $hero_atk = $h_data["atk"];

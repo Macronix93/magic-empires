@@ -87,6 +87,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             $error = "Diese Forschung existiert nicht!";
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("blacksmith.php");
+    }
 }
 
 $flash_box = $user->consume_last_researched_flash($current_kingdom, BuildingTypes::BUILDING_SMITHY);

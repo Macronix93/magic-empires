@@ -89,6 +89,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        $redir = (!empty($target_k) && $target_k > 0) ? "marketplace.php?target_k=$target_k" : "marketplace.php";
+        change_location($redir);
+    }
 }
 
 // PAGINATION

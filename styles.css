@@ -1700,13 +1700,6 @@ a.box {
     text-decoration: none;
 }
 
-a.box span {
-    position: relative;
-    visibility: hidden;
-    padding: 10px;
-    text-decoration: none;
-}
-
 a {
     text-decoration: none;
     color: rgb(240, 240, 240);
@@ -2167,11 +2160,6 @@ tr:first-child td.td-gradient {
     align-items: center;
     gap: 5px;
     width: max-content;
-}
-
-.legend-entity-item {
-    width: 20px;
-    height: 20px;
 }
 
 .map-legend-item {
@@ -2774,10 +2762,6 @@ body.modal-open footer {
 }
 
 .arrow-left {
-    transform: scaleX(-1);
-}
-
-.arrow-left:hover {
     transform: scaleX(-1);
 }
 
@@ -3845,7 +3829,6 @@ img[data-on-click] {
 
 }
 
-.overlay-body.userinfo-overlay,
 .overlay-body:has(.userinfo-table) {
     scrollbar-gutter: auto !important;
 }
@@ -6390,8 +6373,7 @@ button.btn-logout:not(:disabled):active {
 
     .legend-own-kingdom,
     .legend-ally-kingdom,
-    .legend-enemy-guild-kingdom,
-    .legend-entity-item {
+    .legend-enemy-guild-kingdom {
         width: 12px;
         height: 12px;
     }

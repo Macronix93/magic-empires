@@ -370,15 +370,9 @@ $view .= '</div>';
 $view .= '</div>';
 
 // --- BUTTONS & DATA ---
-$shrine_atk_mult = 1.0;
-if ($kingdom->get_kingdom_alignment() == AlignmentTypes::ALIGN_WAR) {
-    $shrine_atk_mult += $kingdom->calculate_shrine_bonus($kingdom->get_shrine_modifier());
-}
-
 $view .= '<div id="warsim-data" 
                 data-current-kid="' . $user->get_current_kingdom() . '"
                 data-soldiers="' . e(json_encode(array_map(fn($s) => $s->get_soldier_name(), $soldiers))) . '"
-                data-shrine-atk-mult="' . $shrine_atk_mult . '"
                 data-has-sim-ach="' . ($has_warsim_ach ? 'true' : 'false') . '"></div> 
           <div id="warsim-const" 
                 data-inf_atk="' . SMITHY_INF_ATK_BONUS . '" data-inf_def="' . SMITHY_INF_DEF_BONUS . '"

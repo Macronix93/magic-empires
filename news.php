@@ -38,7 +38,8 @@ $process_content = function ($raw) {
 if ($is_admin) {
     if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (!verify_csrf_token()) {
-            $error = "Ungültiger Sicherheits-Token!";
+            $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
+            change_location("news.php");
         } else {
             if (isset($_POST["edit_news"])) {
                 $news_id = post_int("news_id");
@@ -46,11 +47,11 @@ if ($is_admin) {
                 $raw_content = trim(post_str("content"));
 
                 if (empty($raw_title) || empty($raw_content)) {
-                    $error = "Bitte alle Felder ausfüllen!";
+                    $_SESSION["game_error"] = "Bitte alle Felder ausfüllen!";
                 } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-                    $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
+                    $_SESSION["game_error"] = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
                 } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-                    $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
+                    $_SESSION["game_error"] = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
                 } else {
                     $title = e($raw_title);
                     $content = $process_content($raw_content);
@@ -69,11 +70,11 @@ if ($is_admin) {
                 $raw_content = trim(post_str("content"));
 
                 if (empty($raw_title) || empty($raw_content)) {
-                    $error = "Bitte alle Felder ausfüllen!";
+                    $_SESSION["game_error"] = "Bitte alle Felder ausfüllen!";
                 } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-                    $error = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
+                    $_SESSION["game_error"] = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
                 } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-                    $error = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
+                    $_SESSION["game_error"] = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
                 } else {
                     $title = e($raw_title);
                     $content = $process_content($raw_content);

@@ -1185,13 +1185,6 @@ class Arena
 
             return [
                 "success" => true,
-                "winner_id" => $winner_id,
-                "attacker_won" => ($winner_id === $this->user_id),
-                "is_draw" => ($winner_id === 0),
-                "atk_elo_change" => $atk_elo_change,
-                "def_elo_change" => $def_elo_change,
-                "new_coins" => $new_coins,
-                "battle_details" => $battle_details,
                 "battle_html" => $battle_html
             ];
         } catch (Throwable $e) {
@@ -1574,14 +1567,12 @@ class Arena
             $key = $u["key"] ?? $u["id"];
             $cards[] = [
                 "id" => $u["id"],
-                "key" => $key,
                 "initial" => (int)($u["initial"] ?? $u["count"] ?? 0),
                 "losses" => (int)($losses[$key] ?? 0),
                 "atk" => (int)($u["atk"] ?? 0),
                 "def" => (int)($u["def"] ?? 0),
                 "h_lvl" => $u["h_lvl"] ?? null,
-                "s_id" => $u["s_id"] ?? null,
-                "is_fictional" => false
+                "s_id" => $u["s_id"] ?? null
             ];
         }
 

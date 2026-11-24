@@ -143,7 +143,8 @@ class Achievement
             AchievementTypes::ACHIEVEMENT_ALCHEMY_CLAIMED => (int)($p_stats["alchemy_claimed"] ?? 0),
             AchievementTypes::ACHIEVEMENT_MILITARY_UNITS_PRODUCED => (int)($p_stats["military_units_produced"] ?? 0),
             AchievementTypes::ACHIEVEMENT_TROOPS_SENT_COMBAT => (int)($p_stats["troops_sent_combat"] ?? 0),
-            AchievementTypes::ACHIEVEMENT_BALANCED_ARMY => self::check_balanced_army($user_id) ? 1 : 0,
+            AchievementTypes::ACHIEVEMENT_BALANCED_ARMY => (self::has($user_id, AchievementTypes::ACHIEVEMENT_BALANCED_ARMY)
+                || self::check_balanced_army($user_id)) ? 1 : 0,
             AchievementTypes::ACHIEVEMENT_ARENA_BATTLES => (int)($p_stats["arena_battles"] ?? 0),
             AchievementTypes::ACHIEVEMENT_ARENA_WINS => (int)($p_stats["arena_wins"] ?? 0),
             AchievementTypes::ACHIEVEMENT_ARENA_TOP3 => (int)($p_stats["arena_top3_count"] ?? 0),

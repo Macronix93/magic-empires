@@ -195,7 +195,7 @@ class PhpBBBridge
     }
 
     /**
-     * Synchronize user name
+     * Synchronize username
      */
     public static function update_username(string $old_username, string $new_username): void
     {
@@ -213,7 +213,7 @@ class PhpBBBridge
     }
 
     /**
-     * Deletes account and keeps posts as Guest
+     * Deletes account and keeps posts as guest
      */
     public static function delete_forum_user(string $username): bool
     {

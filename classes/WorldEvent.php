@@ -76,7 +76,7 @@ class WorldEvent
 
             $server_power = (int)$this->mysqli->query($query)->fetch_column();
 
-            if ($server_power < (WORLD_EVENT_MIN_SERVER_POWER / 10)) $server_power = WORLD_EVENT_MIN_SERVER_POWER;
+            if ($server_power < WORLD_EVENT_MIN_SERVER_POWER) $server_power = WORLD_EVENT_MIN_SERVER_POWER;
 
             $total_hp = (int)($server_power * WORLD_EVENT_POWER_FACTOR);
         }

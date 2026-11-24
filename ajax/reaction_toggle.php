@@ -12,12 +12,8 @@ if (!in_array($mode, ["full", "btn_only", "badges_only"], true)) {
     $mode = "full";
 }
 
-$uid = $user->get_user_id();
-
-$allowed_types = ["news", "world_chat", "chat", "guild_chat"];
-if (!in_array($type, $allowed_types, true) || $id <= 0 || empty($emoji)) {
-    echo json_encode(["error" => "Ungültige Daten"]);
-    exit;
+if (!Messages::is_valid_reaction_type($type) || $id <= 0 || empty($emoji)) {
+    send_json(["success" => false, "error" => "Ungültige Daten"]);
 }
 
 $allowed_emojis = Messages::get_chat_emojis();
@@ -26,21 +22,11 @@ if (!in_array($emoji, $allowed_emojis, true)) {
     exit;
 }
 
-$has_access = match ($type) {
-    "news" => (bool)$db_instance->execute_query("SELECT 1 FROM news WHERE id = ? LIMIT 1",
-        [$id])->fetch_column(),
-    "world_chat" => (bool)$db_instance->execute_query("SELECT 1 FROM world_chat WHERE id = ? AND deleted = 0 LIMIT 1",
-        [$id])->fetch_column(),
-    "chat" => (bool)$db_instance->execute_query("SELECT 1 FROM messages WHERE id = ? AND (senderid = ? OR receiverid = ?) AND deleted = 0 LIMIT 1",
-        [$id, $uid, $uid])->fetch_column(),
-    "guild_chat" => ($user->get_user_guild_id() > 0) && $db_instance->execute_query("SELECT 1 FROM guild_chat WHERE id = ? AND guild_id = ? AND deleted = 0 LIMIT 1",
-            [$id, $user->get_user_guild_id()])->fetch_column(),
-    default => false
-};
-if (!$has_access) {
-    echo json_encode(["success" => false, "error" => "Kein Zugriff auf diese Nachricht."]);
-    exit;
+if (!Messages::can_access_reaction_entity($type, $id, $user)) {
+    send_json(["success" => false, "error" => "Kein Zugriff auf diese Nachricht."]);
 }
+
+$uid = $user->get_user_id();
 
 $db_instance->begin_transaction();
 try {

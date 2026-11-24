@@ -290,6 +290,16 @@ registerAction("confirmStopAdvent", () => {
         }
     );
 });
+registerAction("confirmResetArenaSeason", (el) => {
+    showConfirmationDialog(
+        "Bist du sicher? Alle Belohnungen werden ausgeschüttet und eine neue Saison gestartet!",
+        "Ja, zurücksetzen",
+        "Abbrechen",
+        () => {
+            el.closest("form").submit();
+        }
+    );
+});
 
 if (window.location.href.indexOf("adminpanel.php") > -1) {
     if ("scrollRestoration" in history) {

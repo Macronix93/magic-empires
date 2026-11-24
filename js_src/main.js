@@ -473,21 +473,26 @@ function bindActions(el) {
 }
 
 const observer = new MutationObserver((mutations) => {
+    let shouldCheckPopup = false;
+
     mutations.forEach((mutation) => {
+        if (mutation.removedNodes.length > 0) {
+            shouldCheckPopup = true;
+        }
+
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === 1) {
                 if (node.dataset.onClick || node.dataset.onSubmit || node.dataset.onChange || node.dataset.onInput) {
                     bindActions(node);
                 }
-
                 node.querySelectorAll('[data-on-click], [data-on-submit], [data-on-change], [data-on-input]').forEach(bindActions);
-
-                if (node.classList.contains("popup") || node.querySelector('.popup')) {
-                    setup();
-                }
             }
         });
     });
+
+    if (shouldCheckPopup && activeHoverPopup && !document.body.contains(activeHoverPopup.trigger)) {
+        hideGlobalPopup();
+    }
 });
 
 observer.observe(document.body, {
@@ -639,10 +644,6 @@ function updateSidebarAndHeaderDOM(data) {
             }
         });
         mobTitle.innerHTML = `${pos} - ${data.kingdom.name} <span style="font-size: 10px; opacity: 0.7;">▾</span>`;
-    }
-
-    if (typeof setup === "function") {
-        setup();
     }
 }
 
@@ -823,69 +824,6 @@ function resetKingdomSwitchLoader() {
         el.style.opacity = "";
     });
 }
-
-// function showKingdomSwitchLoader() {
-//     document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
-//         el.style.pointerEvents = "none";
-//     });
-//
-//     if (typeof window.closeMobileMenus === "function") {
-//         window.closeMobileMenus();
-//     }
-//
-//     const bigBox = document.querySelector(".middle-container .big-box-container");
-//     if (bigBox) {
-//         bigBox.style.position = "relative";
-//         bigBox.style.pointerEvents = "none";
-//     }
-//
-//     clearTimeout(kingdomLoaderTimer);
-//     kingdomLoaderTimer = setTimeout(() => {
-//         document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = true);
-//         document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
-//             el.style.opacity = "0.5";
-//         });
-//
-//         if (bigBox) {
-//             const content = bigBox.querySelector(".big-box-content");
-//             if (content) {
-//                 content.style.opacity = "0.25";
-//             }
-//
-//             if (!document.getElementById("kingdom-switch-loader")) {
-//                 const loader = document.createElement("div");
-//                 loader.id = "kingdom-switch-loader";
-//                 loader.style.cssText = "position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; " +
-//                     "z-index: 500; pointer-events: all; opacity: 0; transition: opacity 0.2s ease;";
-//                 loader.innerHTML = `<div class="loading-spinner"></div><div class="loader-text" style="font-size: 16px;">Wechsle Königreich...</div>`;
-//                 bigBox.appendChild(loader);
-//
-//                 requestAnimationFrame(() => {
-//                     loader.style.opacity = "1";
-//                 });
-//             }
-//         }
-//     }, 250);
-// }
-//
-// function resetKingdomSwitchLoader() {
-//     isKingdomSwitching = false;
-//     clearTimeout(kingdomLoaderTimer);
-//
-//     document.getElementById("kingdom-switch-loader")?.remove();
-//     document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = false);
-//     document.querySelectorAll(".arrow-nav, .mobile-nav-arrow, .mobile-kingdom-display, .mobile-trigger").forEach(el => {
-//         el.style.pointerEvents = "";
-//         el.style.opacity = "";
-//     });
-//
-//     const bigBox = document.querySelector(".middle-container .big-box-container");
-//     if (bigBox) {
-//         bigBox.style.pointerEvents = "";
-//         const content = bigBox.querySelector(".big-box-content");
-//         if (content) content.style.opacity = "";
-//     }
-// }
 
 function switchKingdomById(kingdomId) {
     if (isKingdomSwitching) return;
@@ -1221,11 +1159,6 @@ function showGlobalPopup(trigger, e) {
     activeHoverPopup = {box, trigger};
 }
 
-function setup() {
-    getGlobalPopupBox();
-    cleanupPopups();
-}
-
 function cleanupPopups() {
     if (activeHoverPopup && !document.body.contains(activeHoverPopup.trigger)) hideGlobalPopup();
 }
@@ -1241,14 +1174,13 @@ function getMouseLocation(e) {
 }
 
 function adjustUsernameDisplay() {
-    let usernameContainer = document.getElementById("usernameContainer");
+    document.querySelectorAll(".username-text").forEach(div => {
+        const container = div.closest(".username-container");
 
-    /** @type {HTMLElement} */
-    let usernameDiv = document.getElementById("username");
-
-    if (usernameDiv && usernameDiv.scrollWidth > usernameContainer.clientWidth) {
-        usernameDiv.style.textOverflow = "ellipsis";
-    }
+        if (container && div.scrollWidth > container.clientWidth) {
+            div.style.textOverflow = "ellipsis";
+        }
+    });
 }
 
 function updateServerTime(initialServerTimestamp) {
@@ -1539,37 +1471,6 @@ HTMLFormElement.prototype.submit = function () {
     return nativeFormSubmit.call(this);
 };
 
-// document.addEventListener("submit", (e) => {
-//     const form = e.target;
-//     if (!form || form.tagName !== "FORM") return;
-//     if (e.defaultPrevented) return;
-//
-//     const method = (form.getAttribute("method") || "GET").toUpperCase();
-//     const action = form.getAttribute("action") || "";
-//     if (method !== "POST" || action.startsWith("javascript:")) return;
-//
-//     if (form.dataset.isSubmitting === "true") {
-//         e.preventDefault();
-//         e.stopImmediatePropagation();
-//         return;
-//     }
-//
-//     form.dataset.isSubmitting = "true";
-//
-//     const submitter = e.submitter;
-//     if (submitter && submitter.name) {
-//         const hidden = document.createElement("input");
-//         hidden.type = "hidden";
-//         hidden.name = submitter.name;
-//         hidden.value = submitter.value;
-//         form.appendChild(hidden);
-//     }
-//
-//     form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
-//         btn.disabled = true;
-//     });
-// });
-
 window.addEventListener("pageshow", (e) => {
     hideActionLoader();
     if (e.persisted) {
@@ -1775,7 +1676,8 @@ window.addEventListener("DOMContentLoaded", function () {
         sessionStorage.removeItem("keepRightMenuOpen");
     }
 
-    setup();
+    getGlobalPopupBox();
+    cleanupPopups();
     adjustUsernameDisplay();
 
     window.ME_CLOCK_ANCHOR = Date.now();

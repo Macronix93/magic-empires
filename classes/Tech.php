@@ -62,16 +62,6 @@ class Tech
         $this->tech_id = $id;
     }
 
-    public function get_tech_time(): int
-    {
-        return $this->t_time;
-    }
-
-    public function get_tech_mult(): float
-    {
-        return $this->t_mult;
-    }
-
     public function get_tech_name(): string
     {
         return $this->t_name;

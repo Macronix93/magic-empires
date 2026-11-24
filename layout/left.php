@@ -40,8 +40,8 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
     <div class="box-container left-right-container">
         <div class="box-header">
             <?php
-            echo "<div style='width: 100%; padding: 0 12px; display: flex; justify-content: space-between; align-items: center;' id='usernameContainer'>
-                <div style='overflow: hidden; white-space: nowrap;' id='username'>";
+            echo "<div style='width: 100%; padding: 0 12px; display: flex; justify-content: space-between; align-items: center;' class='username-container'>
+                <div style='overflow: hidden; white-space: nowrap;' class='username'>";
             echo e($user->get_user_name());
             echo "</div>
                     <form method='POST' action='index.php' style='margin: 0; display: inline;'>

@@ -24,51 +24,25 @@ $ticks_left = $this_boost["ticks"];
 
 $boost_display = ($boost_amount > 0) ? " <span class='passed'>(+" . convert_sec_to_str($boost_amount, false, false) . ")</span>" : "";
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["activate_boost"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else if ($level < BOOST_MIN_BUILDING_LEVEL) {
-        $error = "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!";
-    } else {
-        $db_instance->begin_transaction();
-        try {
-            $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
-
-            $active = $db_instance->execute_query(
-                "SELECT ticks_remaining FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
-                [$current_kingdom, ResourceTypes::RESOURCE_TYPE_WATCHTOWER]
-            )->fetch_assoc();
-
-            if ($active && (int)$active["ticks_remaining"] > 0) {
-                throw new RuntimeException("Der Boost ist bereits aktiv!");
-            }
-
-            if (!$user->spend_user_coins($boost_cost)) {
-                throw new RuntimeException("Zu wenig Münzen!");
-            }
-
-            $db_instance->execute_query(
-                "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount)
-                 VALUES (?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
-                [$current_kingdom, ResourceTypes::RESOURCE_TYPE_WATCHTOWER, $boost_duration_ticks, $boost_seconds]
-            );
-            $db_instance->commit();
-
-            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
-
-            $_SESSION["game_success"] = "Sichtweitenboost erfolgreich aktiviert!";
-
-            change_location("watchtower.php");
-        } catch (RuntimeException $e) {
-            $db_instance->rollback();
-            $error = $e->getMessage();
-        } catch (Throwable $e) {
-            $db_instance->rollback();
-            $logger->error("watchtower boost error: " . $e->getMessage());
-            $error = "Interner Fehler beim Aktivieren des Boosts.";
-        }
+        change_location("watchtower.php", error: "Ungültiger Sicherheits-Token!");
     }
+
+    if (isset($_POST["activate_boost"])) {
+        if ($level < BOOST_MIN_BUILDING_LEVEL) {
+            change_location("watchtower.php", error: "$building_name Stufe " . BOOST_MIN_BUILDING_LEVEL . " benötigt!");
+        }
+
+        $err = $kingdom->activate_boost($user, ResourceTypes::RESOURCE_TYPE_WATCHTOWER, $boost_cost, $boost_duration_ticks, $boost_seconds);
+        if ($err !== null) {
+            change_location("watchtower.php", error: $err);
+        }
+
+        change_location("watchtower.php", success: "Sichtweitenboost erfolgreich aktiviert!");
+    }
+
+    change_location("watchtower.php");
 }
 
 $next_level_text = "";

@@ -110,13 +110,16 @@ $result = $db_instance->execute_query($query, [
 $map_data = [];
 
 while ($row = $result->fetch_assoc()) {
+    $kid = (int)$row["kingdomid"];
+    $gift_day = (int)($row["gift_day"] ?? 0);
+
     $troop_icon_display = $row["my_troop_icon"] ?? "";
     if (empty($troop_icon_display) && (int)$row["kingdomid"] === MapFieldTypes::MAP_FIELD_MINE && (int)($row["my_mine_troops"] ?? 0) > 0) {
         $troop_icon_display = $row["my_mine_troop_icon"] ?? "";
     }
 
     $mine_info = null;
-    if ((int)$row["kingdomid"] === MapFieldTypes::MAP_FIELD_MINE) {
+    if ($kid === MapFieldTypes::MAP_FIELD_MINE) {
         $w_done = (int)$row["work_done"];
         $w_total = max(1, (int)$row["work_total"]);
         $m_atk = (int)$row["current_mine_atk"];
@@ -136,25 +139,33 @@ while ($row = $result->fetch_assoc()) {
         ];
     }
 
-    $map_data[] = [
-        (int)$row["mapx"],
-        (int)$row["mapy"],
-        (int)$row["fieldtype"],
-        (int)$row["kingdomid"],
-        (int)$row["buildinglevel"],
-        (bool)$row["is_burning"],
-        (int)$row["monsterlevel"],
-        $row["username"] ?? "",
-        $row["kingdomname"] ?? "",
-        (int)($row["score"] ?? 0),
-        (int)($row["owner_id"] ?? 0),
-        (int)($row["expires_at"] ?? 0),
-        $troop_icon_display,
-        (int)($row["guildid"] ?? -1),
-        (bool)($row["has_outgoing_event"] ?? false),
-        $mine_info,
-        (int)($row["gift_day"] ?? 0)
-    ];
+    if ($kid === MapFieldTypes::MAP_FIELD_EMPTY && $gift_day === 0 && $troop_icon_display === "") {
+        $map_data[] = [
+            (int)$row["mapx"],
+            (int)$row["mapy"],
+            (int)$row["fieldtype"]
+        ];
+    } else {
+        $map_data[] = [
+            (int)$row["mapx"],
+            (int)$row["mapy"],
+            (int)$row["fieldtype"],
+            $kid,
+            (int)$row["buildinglevel"],
+            (bool)$row["is_burning"],
+            (int)$row["monsterlevel"],
+            $row["username"] ?? "",
+            $row["kingdomname"] ?? "",
+            (int)($row["score"] ?? 0),
+            (int)($row["owner_id"] ?? 0),
+            (int)($row["expires_at"] ?? 0),
+            $troop_icon_display,
+            (int)($row["guildid"] ?? -1),
+            (bool)($row["has_outgoing_event"] ?? false),
+            $mine_info,
+            $gift_day
+        ];
+    }
 }
 
 $world_event_manager = new WorldEvent();

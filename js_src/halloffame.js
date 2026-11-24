@@ -57,10 +57,6 @@ function switchHofTab(category, tabBtn) {
         target.style.display = "block";
         target.setAttribute("data-active", "true");
         container.style.minHeight = "";
-
-        if (typeof setup === "function") {
-            setup();
-        }
     });
 }
 
@@ -92,10 +88,6 @@ function prefetchHofTab(category) {
         target.innerHTML = html;
         target.dataset.loaded = "true";
         prefetching.delete(category);
-
-        if (typeof setup === "function") {
-            setup();
-        }
     });
 }
 

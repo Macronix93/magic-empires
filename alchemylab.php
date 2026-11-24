@@ -68,6 +68,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             change_location("alchemylab.php");
         }
     }
+
+    if (!empty($error)) {
+        $_SESSION["game_error"] = $error;
+        change_location("alchemylab.php");
+    }
 }
 
 $state = $alchemy->get_state($current_kingdom, $lab_level);

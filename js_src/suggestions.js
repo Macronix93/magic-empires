@@ -26,10 +26,6 @@ registerAction("switchSuggestionTab", (el) => {
             }
 
             window.history.pushState({}, '', targetUrl);
-
-            if (typeof setup === "function") {
-                setup();
-            }
         })
         .catch(err => showGameError("Fehler beim Tab-Wechsel:" + err));
 });

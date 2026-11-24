@@ -106,11 +106,86 @@ function send_json(array|string $data, int $status_code = 200): void
     exit;
 }
 
-#[NoReturn]
-function change_location(string $url, int $seconds = 0, ?int $ajax_status_code = null, ?string $ajax_error = null): void
+function flash_success(string $message): void
 {
-    $is_absolute = str_starts_with($url, "https://") || str_starts_with($url, "//");
+    $_SESSION["game_success"] = $message;
+}
 
+function flash_error(string $message): void
+{
+    $_SESSION["game_error"] = $message;
+}
+
+function flash_warning(string $message): void
+{
+    $_SESSION["game_warning"] = $message;
+}
+
+function set_auth_flash(array $data): void
+{
+    $_SESSION["auth_flash"] = $data;
+}
+
+function consume_auth_flash(): array
+{
+    $flash = $_SESSION["auth_flash"] ?? [];
+    unset($_SESSION["auth_flash"]);
+    return is_array($flash) ? $flash : [];
+}
+
+function set_form_flash(string $key, array $data): void
+{
+    $_SESSION["form_flash"][$key] = $data;
+}
+
+function consume_form_flash(string $key): array
+{
+    $data = $_SESSION["form_flash"][$key] ?? [];
+    unset($_SESSION["form_flash"][$key]);
+    return is_array($data) ? $data : [];
+}
+
+function render_game_flashes(?string $extra_flash_box = null, string $inline_error = ""): string
+{
+    $html = "";
+    $map = [
+            "game_success" => "show_passed_box",
+            "game_error" => "show_error_box",
+            "game_warning" => "show_warning_box",
+    ];
+
+    foreach ($map as $key => $renderer) {
+        if (!empty($_SESSION[$key])) {
+            $html .= $renderer((string)$_SESSION[$key]);
+            unset($_SESSION[$key]);
+        }
+    }
+
+    if (!empty($extra_flash_box)) {
+        $html .= $extra_flash_box;
+    }
+
+    if ($inline_error !== "") {
+        $html .= show_error_box($inline_error);
+    }
+    return $html;
+}
+
+#[NoReturn]
+function change_location(string  $url, int $seconds = 0, ?int $ajax_status_code = null, ?string $ajax_error = null,
+                         ?string $success = null, ?string $error = null, ?string $warning = null): void
+{
+    if ($success !== null && $success !== "") {
+        flash_success($success);
+    }
+    if ($error !== null && $error !== "") {
+        flash_error($error);
+    }
+    if ($warning !== null && $warning !== "") {
+        flash_warning($warning);
+    }
+
+    $is_absolute = str_starts_with($url, "https://") || str_starts_with($url, "//");
     if ($is_absolute) {
         $full_url = $url;
     } else if (defined("BASE_URL") && BASE_URL !== "/" && str_starts_with($url, BASE_URL)) {
@@ -231,7 +306,8 @@ function fnum($number, bool $simple_format = false, bool $is_barracks = false): 
         return $short;
     }
 
-    $uid = "val_" . substr(md5(mt_rand()), 0, 6);
+    static $val_counter = 0;
+    $uid = "val_" . (++$val_counter);
 
     return "<span class='popup' id='$uid'>$short<div id='{$uid}_box' class='popupbox' style='display: none;'>$full</div></span>";
 }
