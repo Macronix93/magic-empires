@@ -13,68 +13,60 @@ $alchemy = new Alchemy();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else if (isset($_POST["start_transmutation"])) {
+        change_location("alchemylab.php", error: "Ungültiger Sicherheits-Token!");
+    }
+
+    if (isset($_POST["start_transmutation"])) {
         $from_res = post_int("from_res", -1);
         $to_res = post_int("to_res", -1);
         $raw_amt = str_replace(['.', ','], '', trim(post_str("amount", "0")));
 
         if (!ctype_digit($raw_amt) || (int)$raw_amt <= 0) {
-            $error = "Bitte gib eine Menge größer als 0 an.";
-        } else {
-            $err = $alchemy->start_transmutation($current_kingdom, $from_res, $to_res, (int)$raw_amt, $lab_level, $kingdom);
-
-            if ($err) {
-                $error = $err;
-            } else {
-                $_SESSION["game_success"] = "Die Umwandlung wurde erfolgreich gestartet!";
-
-                change_location("alchemylab.php");
-            }
+            change_location("alchemylab.php", error: "Bitte gib eine Menge größer als 0 an.");
         }
-    } else if (isset($_POST["claim_output"])) {
+
+        $err = $alchemy->start_transmutation($current_kingdom, $from_res, $to_res, (int)$raw_amt, $lab_level, $kingdom);
+        if ($err) {
+            change_location("alchemylab.php", error: $err);
+        }
+
+        change_location("alchemylab.php", success: "Die Umwandlung wurde erfolgreich gestartet!");
+    }
+
+    if (isset($_POST["claim_output"])) {
         $err = $alchemy->claim($current_kingdom, $lab_level, $kingdom);
         if ($err) {
-            $error = $err;
-        } else {
-            $_SESSION["game_success"] = "Umgewandelte Ressourcen erfolgreich ins Lager transferiert!";
-
-            change_location("alchemylab.php");
+            change_location("alchemylab.php", error: $err);
         }
-    } else if (isset($_POST["top_up_input"])) {
+
+        change_location("alchemylab.php", success: "Umgewandelte Ressourcen erfolgreich ins Lager transferiert!");
+    }
+
+    if (isset($_POST["top_up_input"])) {
         $raw_amt = str_replace(['.', ','], '', trim(post_str("top_up_amount", "0")));
-
         if (!ctype_digit($raw_amt) || (int)$raw_amt <= 0) {
-            $error = "Bitte gib eine Menge größer als 0 an.";
-        } else {
-            $err = $alchemy->top_up($current_kingdom, (int)$raw_amt, $lab_level, $kingdom);
-
-            if ($err) {
-                $error = $err;
-            } else {
-                $_SESSION["game_success"] = "Ressourcen erfolgreich in den Kessel nachgelegt!";
-
-                change_location("alchemylab.php");
-            }
+            change_location("alchemylab.php", error: "Bitte gib eine Menge größer als 0 an.");
         }
-    } else if (isset($_POST["cancel_transmutation"])) {
-        $err = $alchemy->cancel($current_kingdom, $lab_level, $kingdom);
 
+        $err = $alchemy->top_up($current_kingdom, (int)$raw_amt, $lab_level, $kingdom);
         if ($err) {
-            $error = $err;
-        } else {
-            $_SESSION["game_success"] = "Prozess abgebrochen. Verbleibende Rohstoffe wurden zurückerstattet.";
-
-            change_location("alchemylab.php");
+            change_location("alchemylab.php", error: $err);
         }
+
+        change_location("alchemylab.php", success: "Ressourcen erfolgreich in den Kessel nachgelegt!");
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        change_location("alchemylab.php");
+    if (isset($_POST["cancel_transmutation"])) {
+        $err = $alchemy->cancel($current_kingdom, $lab_level, $kingdom);
+        if ($err) {
+            change_location("alchemylab.php", error: $err);
+        }
+
+        change_location("alchemylab.php", success: "Prozess abgebrochen. Verbleibende Rohstoffe wurden zurückerstattet.");
     }
+
+    change_location("alchemylab.php");
 }
-
 $state = $alchemy->get_state($current_kingdom, $lab_level);
 
 $res_names = [

@@ -684,7 +684,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $is_world_event = ($kingdom_id == MapFieldTypes::MAP_FIELD_WORLD_EVENT);
     $from_page = post_str("from_page", $_SERVER["HTTP_REFERER"] ?? '');
     if (str_contains($from_page, "events.php") || str_contains($from_page, "barracks.php") || $is_world_event) {
-        $_SESSION["game_success"] = "Truppen erfolgreich gesendet!";
+        flash_success("Truppen erfolgreich gesendet!");
     }
 
     $success_msg = $lost_protection

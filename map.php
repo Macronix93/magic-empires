@@ -139,24 +139,24 @@ $js_config = [
 ];
 
 // --- RECALL TROOPS FROM MINES ---
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["recall_mine_troops"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
-        change_location("map.php");
-    } else {
+        change_location("map.php", error: "Ungültiger Sicherheits-Token!");
+    }
+
+    if (isset($_POST["recall_mine_troops"])) {
         $x = post_int("mine_x");
         $y = post_int("mine_y");
-
         $recall_kingdom = new Kingdom(isset($_POST["kingdom_id"]) ? post_int("kingdom_id") : $current_k_id);
 
-        if ($recall_kingdom->get_kingdom_owner_id() === $uid) {
-            if ($recall_kingdom->recall_mine_troops($x, $y)) {
-                $_SESSION["game_success"] = "Deine Schürfer haben die Mine verlassen und befinden sich mit der Beute auf dem Heimweg!";
-            }
+        if ($recall_kingdom->get_kingdom_owner_id() === $uid && $recall_kingdom->recall_mine_troops($x, $y)) {
+            change_location("map.php?startx=$x&starty=$y", success: "Deine Schürfer haben die Mine verlassen und befinden sich mit der Beute auf dem Heimweg!");
         }
 
         change_location("map.php?startx=$x&starty=$y");
     }
+
+    change_location("map.php");
 }
 
 ob_start();

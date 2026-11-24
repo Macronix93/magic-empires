@@ -15,7 +15,7 @@ if ($report_msg_id > 0) {
         [$report_msg_id, $uid, MessageCategories::CATEGORY_PVP, MessageCategories::CATEGORY_PVE]
     );
     $row = $res->fetch_assoc();
-    
+
     if (!$row) {
         echo json_encode(["success" => false, "error" => "Kampfbericht nicht gefunden oder keine Berechtigung."]);
         exit;
@@ -59,6 +59,15 @@ if ($report_msg_id > 0) {
 
 if (empty($raw_msg)) {
     echo json_encode(["success" => false, "error" => "Keine Nachricht übergeben."]);
+    exit;
+}
+
+if ($target === "copy") {
+    echo json_encode([
+        "success" => true,
+        "message" => $raw_msg,
+        "copied" => true
+    ]);
     exit;
 }
 

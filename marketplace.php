@@ -25,76 +25,64 @@ $in_guild = ($my_guild_id > 0);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        $action = post_str("action");
+        change_location("marketplace.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-        if ($action === "accept_offer") {
-            $offer_id = post_int("offer_id");
-            $res = $market->accept_offer($offer_id, $map);
+    $action = post_str("action");
+    if ($action === "accept_offer") {
+        $res = $market->accept_offer(post_int("offer_id"), $map);
+        if (!$res["success"]) {
+            change_location("marketplace.php", error: $res["error"]);
+        }
 
-            if (!$res["success"]) {
-                $error = $res["error"];
-            } else {
-                $_SESSION["game_success"] = "Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $res["arrival_str"];
+        change_location("marketplace.php", success: "Handel akzeptiert! Die Karawanen sind unterwegs.<br>Ankunft in " . $res["arrival_str"]);
+    }
 
-                change_location("marketplace.php");
-            }
-        } else if ($action === "delete_offer") {
-            $offer_id = post_int("offer_id");
-            $err = $market->cancel_offer($offer_id);
+    if ($action === "delete_offer") {
+        $err = $market->cancel_offer(post_int("offer_id"));
+        if ($err) {
+            change_location("marketplace.php", error: $err);
+        }
 
-            if ($err) {
-                $error = $err;
-            } else {
-                $_SESSION["game_success"] = "Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.";
+        change_location("marketplace.php", success: "Angebot gelöscht. Die Ressourcen wurden an das Ursprungskönigreich zurückgegeben.");
+    }
 
-                change_location("marketplace.php");
-            }
-        } else if ($action === "create_offer") {
-            $raw_sv = str_replace(['.', ','], '', trim(post_str("sv", "0")));
-            $raw_dv = str_replace(['.', ','], '', trim(post_str("dv", "0")));
-            $sv = ctype_digit($raw_sv) ? (int)$raw_sv : 0;
-            $dv = ctype_digit($raw_dv) ? (int)$raw_dv : 0;
-            $s = post_int("s", -1);
-            $d = post_int("d", -1);
-            $is_guild_only = !empty($_POST["guild_only"]) && $in_guild;
-            $err = $market->create_offer($s, $sv, $d, $dv, $is_guild_only);
+    if ($action === "create_offer") {
+        $raw_sv = str_replace(['.', ','], '', trim(post_str("sv", "0")));
+        $raw_dv = str_replace(['.', ','], '', trim(post_str("dv", "0")));
+        $sv = ctype_digit($raw_sv) ? (int)$raw_sv : 0;
+        $dv = ctype_digit($raw_dv) ? (int)$raw_dv : 0;
+        $err = $market->create_offer(post_int("s", -1), $sv, post_int("d", -1), $dv, !empty($_POST["guild_only"]) && $in_guild);
 
-            if ($err) {
-                $error = $err;
-            } else {
-                $_SESSION["game_success"] = "Handelsangebot erfolgreich eingestellt!";
+        if ($err) {
+            change_location("marketplace.php", error: $err);
+        }
 
-                change_location("marketplace.php");
-            }
-        } else if ($action === "send_internal") {
-            $target_k = post_int("target_k");
-            $raw_am = is_array($_POST["am"] ?? null) ? $_POST["am"] : [];
-            $amounts = [];
+        change_location("marketplace.php", success: "Handelsangebot erfolgreich eingestellt!");
+    }
 
-            foreach ([ResourceTypes::RESOURCE_TYPE_FOOD, ResourceTypes::RESOURCE_TYPE_WOOD, ResourceTypes::RESOURCE_TYPE_STONE, ResourceTypes::RESOURCE_TYPE_GOLD] as $rk) {
-                if (isset($raw_am[$rk]) && is_scalar($raw_am[$rk])) {
-                    $amounts[$rk] = (int)$raw_am[$rk];
-                }
-            }
+    if ($action === "send_internal") {
+        $target_k = post_int("target_k");
+        $raw_am = is_array($_POST["am"] ?? null) ? $_POST["am"] : [];
+        $amounts = [];
 
-            $res = $market->send_internal_transport($target_k, $amounts, $map);
-            if (!$res["success"]) {
-                $error = $res["error"];
-            } else {
-                $_SESSION["game_success"] = "Transport nach <b>" . e($res["target_name"]) . "</b> gestartet!<br>Ankunft in " . $res["arrival_str"];
-
-                change_location("marketplace.php");
+        foreach ([ResourceTypes::RESOURCE_TYPE_FOOD, ResourceTypes::RESOURCE_TYPE_WOOD, ResourceTypes::RESOURCE_TYPE_STONE, ResourceTypes::RESOURCE_TYPE_GOLD] as $rk) {
+            if (isset($raw_am[$rk]) && is_scalar($raw_am[$rk])) {
+                $amounts[$rk] = (int)$raw_am[$rk];
             }
         }
+
+        $res = $market->send_internal_transport($target_k, $amounts, $map);
+        $redir = ($target_k > 0) ? "marketplace.php?target_k=$target_k" : "marketplace.php";
+
+        if (!$res["success"]) {
+            change_location($redir, error: $res["error"]);
+        }
+
+        change_location("marketplace.php", success: "Transport nach <b>" . e($res["target_name"]) . "</b> gestartet!<br>Ankunft in " . $res["arrival_str"]);
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        $redir = (!empty($target_k) && $target_k > 0) ? "marketplace.php?target_k=$target_k" : "marketplace.php";
-        change_location($redir);
-    }
+    change_location("marketplace.php");
 }
 
 // PAGINATION

@@ -19,7 +19,8 @@ if ($type === "private") {
 } else if ($type === "world") {
     $chat_data = $messages->get_world_history_html();
 } else if ($type === "guild") {
-    $chat_data = $messages->get_guild_history_html();
+    $mark_read = (get_str("mark_read", "1") !== "0");
+    $chat_data = $messages->get_guild_history_html($mark_read);
 }
 
 $unreads = $user->get_unread_counts();

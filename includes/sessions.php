@@ -3,7 +3,7 @@ $flash_and_logout = function (string $key, string $msg, int $status_code, string
     setcookie("me_remember", '', time() - 3600, '/');
     $_SESSION = [];
     session_regenerate_id(true);
-    $_SESSION["auth_flash"] = [$key => $msg];
+    set_auth_flash([$key => $msg]);
     change_location("index.php", 0, $status_code, $ajax_msg);
 };
 

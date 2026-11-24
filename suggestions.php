@@ -16,152 +16,147 @@ $db_instance->execute_query(
     [$latest_sug_id, $uid]
 );
 
-$post_title = e(post_str("title"));
-$post_content = e(post_str("content"));
+$sug_draft = consume_form_flash("suggestion");
+$post_title = e((string)($sug_draft["title"] ?? ""));
+$post_content = e((string)($sug_draft["content"] ?? ""));
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        if (isset($_POST["submit_suggestion"])) {
-            $title = sanitize_input(post_str("title"));
-            $content = trim(post_str("content"));
+        change_location("suggestions.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-            if (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
-                $error = "Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.";
-            } else if (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
-                $error = "Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.";
-            } else {
-                $res_last = $db_instance->execute_query(
-                    "SELECT created_at FROM suggestions WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-                    [$uid]
+    if (isset($_POST["submit_suggestion"])) {
+        $raw_title = post_str("title");
+        $raw_content = post_str("content");
+        $title = sanitize_input($raw_title);
+        $content = trim($raw_content);
+
+        $fail_submit = function (string $msg) use ($raw_title, $raw_content): never {
+            set_form_flash("suggestion", ["title" => $raw_title, "content" => $raw_content]);
+            change_location("suggestions.php", error: $msg);
+        };
+
+        if (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
+            $fail_submit("Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.");
+        }
+        if (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
+            $fail_submit("Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.");
+        }
+
+        $res_last = $db_instance->execute_query("SELECT created_at FROM suggestions WHERE user_id = ? ORDER BY id DESC LIMIT 1", [$uid]);
+        $wait = ((int)($res_last->fetch_column() ?? 0) + SUGGESTION_COOLDOWN_SECONDS) - time();
+        if ($wait > 0 && !$is_admin) {
+            $fail_submit("Bitte warte noch " . convert_sec_to_str($wait) . ", bevor du einen neuen Vorschlag einreichst.");
+        }
+
+        $clean_content = Messages::filter_chat_message(nl2br(e($content)));
+        $db_instance->execute_query(
+            "INSERT INTO suggestions (user_id, username, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
+            [$uid, $user->get_user_name(), $title, $clean_content, time()]
+        );
+
+        change_location("suggestions.php", success: "Vorschlag erfolgreich eingereicht! Andere Herrscher können nun dafür abstimmen.");
+    }
+
+    if (isset($_POST["edit_suggestion"])) {
+        $sug_id = post_int("suggestion_id");
+        $title = sanitize_input(post_str("title"));
+        $content = trim(post_str("content"));
+        $res_check = $db_instance->execute_query("SELECT user_id, status FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
+
+        if (!$res_check) {
+            change_location("suggestions.php", error: "Dieser Vorschlag existiert nicht mehr.");
+        }
+        if (!$is_admin && ((int)$res_check["user_id"] !== $uid || (int)$res_check["status"] !== 0)) {
+            change_location("suggestions.php", error: "Dieser Vorschlag kann nicht mehr bearbeitet werden, da die Abstimmungs-/Prüfungsphase bereits abgeschlossen ist.");
+        }
+        if (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
+            change_location("suggestions.php", error: "Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.");
+        }
+        if (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
+            change_location("suggestions.php", error: "Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.");
+        }
+
+        $clean_content = Messages::filter_chat_message(nl2br(e($content)));
+        $db_instance->execute_query("UPDATE suggestions SET title = ?, content = ?, updated_at = ? WHERE id = ?", [$title, $clean_content, time(), $sug_id]);
+
+        change_location("suggestions.php", success: "Dein Vorschlag wurde erfolgreich aktualisiert.");
+    }
+
+    if (isset($_POST["admin_update_status"])) {
+        if (!$is_admin) {
+            change_location("suggestions.php", error: "Keine Berechtigung!");
+        }
+
+        $sug_id = post_int("suggestion_id");
+        $status = post_int("status");
+        $comment = trim(post_str("admin_comment"));
+
+        if ($status < 0 || $status > 3) {
+            change_location("suggestions.php", error: "Ungültiger Status!");
+        }
+
+        $sug_info = $db_instance->execute_query("SELECT user_id, title, status FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
+
+        $db_instance->execute_query(
+            "UPDATE suggestions SET status = ?, admin_comment = ? WHERE id = ?",
+            [$status, $comment, $sug_id]
+        );
+
+        if ($sug_info && (int)$sug_info["status"] !== $status) {
+            $author_id = (int)$sug_info["user_id"];
+            $author_name = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$author_id])->fetch_column();
+
+            $status_labels = [
+                0 => "In Prüfung",
+                1 => "Geplant",
+                2 => "Umgesetzt",
+                3 => "Abgelehnt"
+            ];
+            $status_label = $status_labels[$status] ?? "Aktualisiert";
+            $res_type = match ($status) {
+                2 => "success",
+                3 => "error",
+                default => "neutral"
+            };
+
+            $note = !empty($comment) ? "<br><br><b>Notiz der Spielleitung:</b> <i>" . e($comment) . "</i>" : "";
+
+            $status_json = [
+                "template" => "outcome_box",
+                "title" => "Vorschlag: Status aktualisiert",
+                "main_text" => "Dein Vorschlag <b>„" . e($sug_info["title"]) . "“</b> wurde auf den Status <b class='passed'>$status_label</b> gesetzt!$note",
+                "sub_text" => "Vielen Dank für dein Feedback zur Weiterentwicklung von Magic Empires.",
+                "result_type" => $res_type
+            ];
+
+            if (is_string($author_name) && $author_name !== "") {
+                Messages::send_server_message($author_id, $author_name, MessageCategories::CATEGORY_DEFAULT, $status_json);
+
+                send_user_push(
+                    $author_id,
+                    "📜 Vorschlags-Update: $status_label",
+                    "Dein Vorschlag „{$sug_info["title"]}“ wurde auf „{$status_label}“ gesetzt!",
+                    "events",
+                    "suggestions.php"
                 );
-                $last_created = (int)($res_last->fetch_column() ?? 0);
-                $wait = ($last_created + SUGGESTION_COOLDOWN_SECONDS) - time();
-
-                if ($wait > 0 && !$is_admin) {
-                    $error = "Bitte warte noch " . convert_sec_to_str($wait) . ", bevor du einen neuen Vorschlag einreichst.";
-                } else {
-                    $clean_content = Messages::filter_chat_message(nl2br(e($content)));
-                    $clean_title = $title;
-
-                    $db_instance->execute_query(
-                        "INSERT INTO suggestions (user_id, username, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
-                        [$uid, $user->get_user_name(), $clean_title, $clean_content, time()]
-                    );
-
-                    $post_title = "";
-                    $post_content = "";
-
-                    $_SESSION["game_success"] = "Vorschlag erfolgreich eingereicht! Andere Herrscher können nun dafür abstimmen.";
-
-                    change_location("suggestions.php");
-                }
-            }
-        } else if (isset($_POST["edit_suggestion"])) {
-            $sug_id = post_int("suggestion_id");
-            $title = sanitize_input(post_str("title"));
-            $content = trim(post_str("content"));
-
-            $res_check = $db_instance->execute_query(
-                "SELECT user_id, status FROM suggestions WHERE id = ?",
-                [$sug_id]
-            )->fetch_assoc();
-
-            if (!$res_check) {
-                $error = "Dieser Vorschlag existiert nicht mehr.";
-            } elseif (!$is_admin && ((int)$res_check["user_id"] !== $uid || (int)$res_check["status"] !== 0)) {
-                $error = "Dieser Vorschlag kann nicht mehr bearbeitet werden, da die Abstimmungs-/Prüfungsphase bereits abgeschlossen ist.";
-            } elseif (mb_strlen($title) < SUGGESTION_TITLE_MIN_LENGTH || mb_strlen($title) > SUGGESTION_TITLE_MAX_LENGTH) {
-                $error = "Der Titel muss zwischen " . SUGGESTION_TITLE_MIN_LENGTH . " und " . SUGGESTION_TITLE_MAX_LENGTH . " Zeichen lang sein.";
-            } elseif (mb_strlen($content) < SUGGESTION_DESC_MIN_LENGTH || mb_strlen($content) > SUGGESTION_DESC_MAX_LENGTH) {
-                $error = "Die Beschreibung muss zwischen " . SUGGESTION_DESC_MIN_LENGTH . " und " . SUGGESTION_DESC_MAX_LENGTH . " Zeichen lang sein.";
-            } else {
-                $clean_content = Messages::filter_chat_message(nl2br(e($content)));
-                $clean_title = $title;
-
-                $db_instance->execute_query(
-                    "UPDATE suggestions SET title = ?, content = ?, updated_at = ? WHERE id = ?",
-                    [$clean_title, $clean_content, time(), $sug_id]
-                );
-
-                $_SESSION["game_success"] = "Dein Vorschlag wurde erfolgreich aktualisiert.";
-
-                change_location("suggestions.php");
-            }
-        } else if (isset($_POST["admin_update_status"])) {
-            if ($is_admin) {
-                $sug_id = post_int("suggestion_id");
-                $status = post_int("status");
-                $comment = trim(post_str("admin_comment"));
-
-                if ($status < 0 || $status > 3) {
-                    $error = "Ungültiger Status!";
-                } else {
-                    $sug_info = $db_instance->execute_query("SELECT user_id, title, status FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
-
-                    $db_instance->execute_query(
-                        "UPDATE suggestions SET status = ?, admin_comment = ? WHERE id = ?",
-                        [$status, $comment, $sug_id]
-                    );
-
-                    if ($sug_info && (int)$sug_info["status"] !== $status) {
-                        $author_id = (int)$sug_info["user_id"];
-                        $author_name = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$author_id])->fetch_column();
-
-                        $status_labels = [
-                            0 => "In Prüfung",
-                            1 => "Geplant",
-                            2 => "Umgesetzt",
-                            3 => "Abgelehnt"
-                        ];
-                        $status_label = $status_labels[$status] ?? "Aktualisiert";
-                        $res_type = match ($status) {
-                            2 => "success",
-                            3 => "error",
-                            default => "neutral"
-                        };
-
-                        $note = !empty($comment) ? "<br><br><b>Notiz der Spielleitung:</b> <i>" . e($comment) . "</i>" : "";
-
-                        $status_json = [
-                            "template" => "outcome_box",
-                            "title" => "Vorschlag: Status aktualisiert",
-                            "main_text" => "Dein Vorschlag <b>„" . e($sug_info["title"]) . "“</b> wurde auf den Status <b class='passed'>$status_label</b> gesetzt!$note",
-                            "sub_text" => "Vielen Dank für dein Feedback zur Weiterentwicklung von Magic Empires.",
-                            "result_type" => $res_type
-                        ];
-
-                        if (is_string($author_name) && $author_name !== "") {
-                            Messages::send_server_message($author_id, $author_name, MessageCategories::CATEGORY_DEFAULT, $status_json);
-
-                            send_user_push(
-                                $author_id,
-                                "📜 Vorschlags-Update: $status_label",
-                                "Dein Vorschlag „{$sug_info["title"]}“ wurde auf „{$status_label}“ gesetzt!",
-                                "events",
-                                "suggestions.php"
-                            );
-                        }
-                    }
-
-                    $_SESSION["game_success"] = "Status des Vorschlags aktualisiert.";
-
-                    change_location("suggestions.php");
-                }
-            }
-        } else if (isset($_POST["delete_suggestion"])) {
-            if ($is_admin) {
-                $sug_id = post_int("suggestion_id");
-
-                $db_instance->execute_query("DELETE FROM suggestions WHERE id = ?", [$sug_id]);
-                $db_instance->execute_query("DELETE FROM suggestion_votes WHERE suggestion_id = ?", [$sug_id]);
-
-                $_SESSION["game_success"] = "Vorschlag wurde gelöscht.";
-
-                change_location("suggestions.php");
             }
         }
+
+        change_location("suggestions.php", success: "Status des Vorschlags aktualisiert.");
+    }
+
+    if (isset($_POST["delete_suggestion"])) {
+        if (!$is_admin) {
+            change_location("suggestions.php", error: "Keine Berechtigung!");
+        }
+
+        $sug_id = post_int("suggestion_id");
+
+        $db_instance->execute_query("DELETE FROM suggestions WHERE id = ?", [$sug_id]);
+        $db_instance->execute_query("DELETE FROM suggestion_votes WHERE suggestion_id = ?", [$sug_id]);
+
+        change_location("suggestions.php", success: "Vorschlag wurde gelöscht.");
     }
 }
 

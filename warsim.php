@@ -3,7 +3,9 @@ require_once("includes/core.php");
 
 $user->check_user_login();
 
-$has_import = isset($_GET["import_monsters"]);
+$has_monster_import = isset($_GET["import_monsters"]);
+$has_player_import = isset($_GET["import_players"]);
+$has_import = ($has_monster_import || $has_player_import);
 $keep_sim = isset($_GET["keep_sim"]);
 $has_warsim_ach = $user->has_achievement(AchievementTypes::ACHIEVEMENT_SECRET_WARSIM);
 $_SESSION["warsim_opened"] = true;
@@ -11,11 +13,15 @@ $_SESSION["warsim_opened"] = true;
 if (!$has_import && !$keep_sim) {
     setcookie("me_sim_tab", "", time() - 3600, "/");
     $active_sim_tab = "players";
+} else if ($has_monster_import) {
+    $active_sim_tab = "monsters";
+} else if ($has_player_import) {
+    $active_sim_tab = "players";
 } else {
-    $active_sim_tab = $has_import ? "monsters" : ($_COOKIE["me_sim_tab"] ?? "players");
+    $active_sim_tab = $_COOKIE["me_sim_tab"] ?? "players";
 }
-$is_monster_mode = ($active_sim_tab === "monsters");
 
+$is_monster_mode = ($active_sim_tab === "monsters");
 $kingdom = new Kingdom($user->get_current_kingdom());
 
 $mil_tech_ids_attacker = [
@@ -322,8 +328,15 @@ foreach ($soldiers as $s) {
                     </div>
                 </td>
                 <td class='td-center' style='width: 80px;'>
-                    <input type='text' id='{$name}_enemy' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' 
-                            data-on-input='updateLivePower' style='width: 100%;'>
+                    <input type='text' id='{$name}_enemy' 
+                            class='js-enemy-unit-input' 
+                            data-soldier-id='{$s->get_soldier_id()}' 
+                            maxlength='5' 
+                            inputmode='numeric' 
+                            pattern='[0-9]*' 
+                            placeholder='0' 
+                            data-on-input='updateLivePower' 
+                            style='width: 100%;'>
                 </td>
               </tr>";
 }
@@ -409,8 +422,9 @@ $view .= '<div id="warsim-data"
             </div>';
 
 $monster_import = get_str("import_monsters");
-
+$player_import = get_str("import_players");
 $view .= '<div id="monster-import-data" data-import="' . e($monster_import) . '"></div>';
+$view .= '<div id="player-import-data" data-import="' . e($player_import) . '"></div>';
 
 /*
  * HTML Section

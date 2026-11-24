@@ -21,592 +21,570 @@ if (!in_array($active_tab, $allowed_tabs, true)) {
     $active_tab = "profile";
 }
 
+$redir = "settings.php?tab=" . urlencode($active_tab);
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     // Validate CSRF token
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        if (isset($_POST['submit_avatar'])) {
-            if (isset($_FILES['image']) && is_string($_FILES['image']['name'] ?? null)
-                && is_string($_FILES['image']['tmp_name'] ?? null)) {
-                $days_since_avatar = ($now - $user_data['last_avatar_change']) / 86400;
+        change_location($redir, error: "Ungültiger Sicherheits-Token!");
+    }
 
-                if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS && !$user->is_admin()) {
-                    $wait = (int)ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
+    if (isset($_POST['submit_avatar'])) {
+        $tab_url = "settings.php?tab=profile";
 
-                    $error = "Du kannst dein Profilbild erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder ändern.";
-                } else {
-                    $file_name = $_FILES['image']['name'];
-                    $file_tmp = $_FILES['image']['tmp_name'];
-                    $file_size = $_FILES['image']['size'];
-                    $file_error = $_FILES['image']['error'];
-                    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
-                    $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes
+        if (!isset($_FILES['image']) || !is_string($_FILES['image']['name'] ?? null) || !is_string($_FILES['image']['tmp_name'] ?? null)) {
+            change_location($tab_url, error: "Keine Datei ausgewählt!");
+        }
 
-                    if ($file_error !== 0) {
-                        $error = "Es ist ein Fehler beim Hochladen aufgetreten!";
-                    } else if ($file_size > $max_file_size) {
-                        $error = "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!";
-                    } else {
-                        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+        $days_since_avatar = ($now - $user_data['last_avatar_change']) / 86400;
+        if ($days_since_avatar < AVATAR_CHANGE_COOLDOWN_DAYS && !$user->is_admin()) {
+            $wait = (int)ceil(AVATAR_CHANGE_COOLDOWN_DAYS - $days_since_avatar);
+            change_location($tab_url, error: "Du kannst dein Profilbild erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder ändern.");
+        }
 
-                        if (!in_array($file_ext, $allowed_extensions)) {
-                            $error = "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.";
-                        } else {
-                            $finfo = new finfo(FILEINFO_MIME_TYPE);
-                            $mime_type = $finfo->file($file_tmp);
-                            $allowed_mimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/gif'];
+        $file_name = $_FILES['image']['name'];
+        $file_tmp = $_FILES['image']['tmp_name'];
+        $file_size = $_FILES['image']['size'];
+        $file_error = $_FILES['image']['error'];
+        $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+        $max_file_size = MAX_UPLOAD_FILE_SIZE * 1024; // Bytes
 
-                            if (!in_array($mime_type, $allowed_mimes)) {
-                                $error = "Der Datei-Inhalt entspricht keinem gültigen Bild!";
-                            } else if (@getimagesize($file_tmp) === false) {
-                                $error = "Die Bild-Datei ist beschädigt oder manipuliert!";
-                            } else {
-                                $check_result = check_image_content($file_tmp);
+        if ($file_error !== 0) {
+            change_location($tab_url, error: "Es ist ein Fehler beim Hochladen aufgetreten!");
+        }
+        if ($file_size > $max_file_size) {
+            change_location($tab_url, error: "Datei-Größe überschreitet die maximal erlaubte Größe von " . MAX_UPLOAD_FILE_SIZE . " KB!");
+        }
 
-                                if ($check_result === "loading") {
-                                    $error = "Sicherheitsprüfung lädt noch... Bitte in 15 Sekunden erneut versuchen.";
-                                } else if (str_starts_with($check_result, "error")) {
-                                    $error = "Technischer Fehler bei der Bildprüfung: " . htmlspecialchars($check_result);
-                                } else if ($check_result === "blocked") {
-                                    $error = "Dein Bild wurde als unangemessen eingestuft und ist nicht erlaubt.";
-                                } else if ($check_result !== "ok") {
-                                    $error = "Bild konnte nicht verifiziert werden (" . htmlspecialchars($check_result) . ").";
-                                } else {
-                                    $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
-                                    $file_path = UPLOADS_FILE_PATH . $hashed_name;
-                                    $old_files = glob(UPLOADS_FILE_PATH . $hashed_name . ".*");
+        $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+        if (!in_array($file_ext, $allowed_extensions)) {
+            change_location($tab_url, error: "Ungültiger Datei-Typ! Erlaubt sind JPG, JPEG, PNG, oder GIF.");
+        }
 
-                                    if (is_array($old_files)) {
-                                        foreach ($old_files as $old_file) {
-                                            if (is_file($old_file)) {
-                                                @unlink($old_file);
-                                            }
-                                        }
-                                    }
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime_type = $finfo->file($file_tmp);
+        $allowed_mimes = ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/gif'];
+        if (!in_array($mime_type, $allowed_mimes)) {
+            change_location($tab_url, error: "Der Datei-Inhalt entspricht keinem gültigen Bild!");
+        }
+        if (@getimagesize($file_tmp) === false) {
+            change_location($tab_url, error: "Die Bild-Datei ist beschädigt oder manipuliert!");
+        }
 
-                                    if (move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
-                                        $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [$now, $uid]);
+        $check_result = check_image_content($file_tmp);
+        if ($check_result === "loading") {
+            change_location($tab_url, error: "Sicherheitsprüfung lädt noch... Bitte in 15 Sekunden erneut versuchen.");
+        }
+        if (str_starts_with($check_result, "error")) {
+            change_location($tab_url, error: "Technischer Fehler bei der Bildprüfung: " . htmlspecialchars($check_result));
+        }
+        if ($check_result === "blocked") {
+            change_location($tab_url, error: "Dein Bild wurde als unangemessen eingestuft und ist nicht erlaubt.");
+        }
+        if ($check_result !== "ok") {
+            change_location($tab_url, error: "Bild konnte nicht verifiziert werden (" . htmlspecialchars($check_result) . ").");
+        }
 
-                                        $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
-                                            "filename" => $file_name,
-                                            "extension" => $file_ext,
-                                            "mime" => $mime_type,
-                                            "size" => $file_size
-                                        ]);
-
-                                        $_SESSION["game_success"] = "Nutzerbild wurde erfolgreich hochgeladen!";
-
-                                        change_location("settings.php?tab=profile");
-                                    } else {
-                                        $error = "Fehler beim Hochladen der Datei auf den Server!";
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                $error = "Keine Datei ausgewählt!";
-            }
-        } // Change Name
-        else if (isset($_POST['change_username'])) {
-            $raw_name = post_str("new_username");
-            $confirm_pw = post_str("confirm_pw_name");
-
-            $res = $db_instance->execute_query("SELECT password, last_username_change FROM users WHERE id = ?", [$uid]);
-            $u_data = $res->fetch_assoc();
-
-            if (!$u_data) {
-                $error = "Benutzer nicht gefunden.";
-            } else {
-                $days_since_change = ($now - (int)$u_data['last_username_change']) / 86400;
-
-                if (!password_verify($confirm_pw, $u_data['password'])) {
-                    $error = "Passwort-Bestätigung fehlgeschlagen.";
-                } else if ($days_since_change < USERNAME_CHANGE_COOLDOWN_DAYS) {
-                    $wait = (int)ceil(USERNAME_CHANGE_COOLDOWN_DAYS - $days_since_change);
-
-                    $error = "Du kannst deinen Namen erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder ändern.";
-                } else if (strlen($raw_name) > MAX_USERNAME_LENGTH * 4) {
-                    $error = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
-                } else if (preg_match('/\s/', $raw_name)) {
-                    $error = "Benutzername darf keine Leerzeichen enthalten!";
-                } else {
-                    $clean_name = preg_replace('/\p{C}/u', '', $raw_name) ?? '';
-                    $clean_name = preg_replace('/\s+/u', ' ', $clean_name) ?? '';
-                    $new_name = trim($clean_name);
-
-                    if (empty($new_name)) {
-                        $error = "Bitte einen Benutzernamen angeben!";
-                    } else if (mb_strlen($new_name, "UTF-8") < MIN_USERNAME_LENGTH || mb_strlen($new_name, "UTF-8") > MAX_USERNAME_LENGTH) {
-                        $error = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
-                    } else if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $new_name)) {
-                        $error = "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -";
-                    } else if (is_name_monotonous($new_name)) {
-                        $error = "Dieser Benutzername ist zu eintönig!";
-                    } else {
-                        $bad_names_list = get_bad_names();
-                        $bad_names_lower = array_map(fn($w) => mb_strtolower(trim($w), "UTF-8"), $bad_names_list);
-                        $is_exact_bad = in_array(mb_strtolower($new_name, "UTF-8"), $bad_names_lower, true);
-
-                        if ($is_exact_bad) {
-                            $error = "Dieser Name ist reserviert oder nicht erlaubt!";
-                        } else if (contains_bad_words($new_name, $bad_names_list) || preg_match_all(regex_pattern(), $new_name, $matches)) {
-                            $error = "Dieser Benutzername ist nicht erlaubt!";
-                        } else {
-                            $check = $db_instance->execute_query("SELECT id FROM users WHERE username = ? AND id != ?", [$new_name, $uid]);
-
-                            if ($check->num_rows > 0 || PhpBBBridge::username_exists($new_name)) {
-                                $error = "Dieser Name ist bereits vergeben.";
-                            } else {
-                                try {
-                                    $db_instance->execute_query(
-                                        "UPDATE users SET username = ?, last_username_change = ? WHERE id = ?",
-                                        [$new_name, $now, $uid]
-                                    );
-
-                                    $old_name = $user->get_user_name();
-                                    PhpBBBridge::update_username($old_name, $new_name);
-
-                                    $logger->log_game("ACCOUNT", "USERNAME_CHANGE", ["new_name" => $new_name]);
-
-                                    $_SESSION["game_success"] = "Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.";
-
-                                    change_location("settings.php?tab=account");
-                                } catch (mysqli_sql_exception) {
-                                    $error = "Dieser Name ist bereits vergeben.";
-                                }
-                            }
-                        }
-                    }
+        $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
+        $file_path = UPLOADS_FILE_PATH . $hashed_name;
+        $old_files = glob(UPLOADS_FILE_PATH . $hashed_name . ".*");
+        if (is_array($old_files)) {
+            foreach ($old_files as $old_file) {
+                if (is_file($old_file)) {
+                    @unlink($old_file);
                 }
             }
-        } // Change Password
-        else if (isset($_POST['change_password'])) {
-            $old_pw = trim(post_str("old_pw"));
-            $new_pw = trim(post_str("new_pw"));
-            $new_pw_confirm = trim(post_str("new_pw_confirm"));
-
-            $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
-            $current_hash = $res->fetch_column();
-
-            if (!password_verify($old_pw, $current_hash)) {
-                $error = "Dein aktuelles Passwort ist nicht korrekt.";
-            } else if (strlen($new_pw) < MIN_PASSWORD_LENGTH || strlen($new_pw) > MAX_PASSWORD_LENGTH) {
-                $error .= "Das neue Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
-            } else if ($new_pw !== $new_pw_confirm) {
-                $error = "Die neuen Passwörter stimmen nicht überein.";
-            } else {
-                $new_hash = password_hash($new_pw, PASSWORD_BCRYPT);
-
-                $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_hash, $uid]);
-                $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ?", [$uid]);
-                session_regenerate_id(true);
-                $db_instance->execute_query("UPDATE users SET sessionid = ? WHERE id = ?", [session_id(), $uid]);
-
-                PhpBBBridge::update_password($user->get_user_name(), $new_hash);
-
-                $logger->log_game("ACCOUNT", "PASSWORD_CHANGE");
-
-                $_SESSION["game_success"] = "Passwort erfolgreich geändert!";
-
-                change_location("settings.php?tab=account");
-            }
-        } // Change Mail
-        else if (isset($_POST['change_email'])) {
-            $new_email = trim(post_str("new_email"));
-            $confirm_pw = post_str("confirm_pw_email");
-
-            $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
-            $current_hash = $res->fetch_column();
-
-            if (!password_verify($confirm_pw, $current_hash)) {
-                $error = "Passwort-Bestätigung fehlgeschlagen.";
-            } else if (empty($new_email)) {
-                $error = "Bitte eine neue E-Mail Adresse angeben.";
-            } else if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
-                $error = "Falsches E-Mail Format!";
-            } else if (strlen($new_email) > MAX_EMAIL_LENGTH) {
-                $error = "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!";
-            } else {
-                $lower_mail = strtolower($new_email);
-
-                if (str_ends_with($lower_mail, "@magic-empires.de") || str_ends_with($lower_mail, "@sylvan-giese.de")) {
-                    $error = "Diese E-Mail-Adresse ist nicht gestattet!";
-                } else {
-                    $domain = substr(strrchr($new_email, "@"), 1);
-
-                    if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
-                        $error = "Die E-Mail Domain existiert nicht oder kann keine Mails empfangen!";
-                    } else {
-                        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$new_email, $now]);
-
-                        if ($res_block->num_rows > 0) {
-                            $row_block = $res_block->fetch_assoc();
-                            $wait_until = date("d.m.Y", $row_block["blocked_until"]);
-                            $error = "Diese E-Mail Adresse ist noch bis zum $wait_until gesperrt.";
-                        } else {
-                            $check_unique = $db_instance->execute_query("SELECT id FROM users WHERE email = ? AND id != ?", [$new_email, $uid]);
-
-                            if ($check_unique->num_rows > 0) {
-                                $error = "Diese E-Mail Adresse wird bereits von einem anderen Account verwendet.";
-                            } else {
-                                try {
-                                    $db_instance->execute_query("UPDATE users SET email = ? WHERE id = ?", [$new_email, $uid]);
-
-                                    PhpBBBridge::update_email($user->get_user_name(), $new_email);
-
-                                    $logger->log_game("ACCOUNT", "EMAIL_CHANGE", ["new_email" => $new_email]);
-
-                                    $_SESSION["game_success"] = "Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.";
-
-                                    change_location("settings.php?tab=account");
-                                } catch (mysqli_sql_exception) {
-                                    $error = "Diese E-Mail ist bereits vergeben.";
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } // Change Kingdom Name
-        else if (isset($_POST['rename_kingdom'])) {
-            $raw_input = post_str("new_kingdom_name");
-
-            $clean_name = preg_replace('/\p{C}/u', '', $raw_input) ?? '';
-            $clean_name = preg_replace('/\s+/u', ' ', $clean_name) ?? '';
-            $new_k_name = trim($clean_name);
-
-            $current_k_id = $user->get_current_kingdom();
-
-            $res_k = $db_instance->execute_query(
-                "SELECT last_name_change, kingdomname FROM kingdoms WHERE id = ? AND userid = ?",
-                [$current_k_id, $uid]
-            );
-            $k_data = $res_k->fetch_assoc();
-
-            $days_since_k_change = ($now - $k_data['last_name_change']) / 86400;
-            if (!$k_data) {
-                $error = "Königreich nicht gefunden.";
-            } else if ($days_since_k_change < KINGDOM_NAME_CHANGE_COOLDOWN_DAYS) {
-                $wait_k = (int)ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
-
-                $error = "Dieses Königreich wurde erst kürzlich umbenannt. Du musst noch $wait_k " . ($wait_k === 1 ? "Tag" : "Tage") . " warten.";
-            } else if (mb_strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || mb_strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
-                $error = "Der Name muss zwischen " . MIN_KINGDOM_NAME_LENGTH . " und " . MAX_KINGDOM_NAME_LENGTH . " Zeichen lang sein.";
-            } else if (contains_bad_words($new_k_name)) {
-                $error = "Der Name enthält unzulässige Begriffe.";
-            } else if (is_name_monotonous($new_k_name)) {
-                $error = "Der Name ist zu eintönig oder enthält zu viele Wiederholungen.";
-            } else if (!preg_match('/^[a-zA-Z0-9äöüÄÖÜß\s\[\]\-_.]+$/u', $new_k_name)) {
-                $error = "Der Name enthält ungültige Sonderzeichen. Erlaubt sind: [ ] - _ .";
-            } else {
-                $db_instance->execute_query("UPDATE kingdoms SET kingdomname = ?, last_name_change = ? WHERE id = ?",
-                    [$new_k_name, $now, $current_k_id]);
-                $logger->log_game("ECONOMY", "KINGDOM_RENAME", ["new_name" => $new_k_name], $current_k_id);
-
-                Achievement::unlock($uid, AchievementTypes::ACHIEVEMENT_SECRET_RENAME);
-
-                $_SESSION["game_success"] = "Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!";
-
-                change_location("settings.php?tab=game");
-            }
-        } // Save Kingdom Order
-        else if (isset($_POST['save_kingdom_order'])) {
-            $order_ids = $_POST['kingdom_order'] ?? [];
-
-            if (is_array($order_ids) && count($order_ids) > 1) {
-                $res_k = $db_instance->execute_query(
-                    "SELECT id, created_at FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
-                    [$uid]
-                );
-
-                $existing_kingdoms = $res_k->fetch_all(MYSQLI_ASSOC);
-                $valid_ids = array_map('intval', array_column($existing_kingdoms, 'id'));
-                $timestamps = array_map('intval', array_column($existing_kingdoms, 'created_at'));
-
-                sort($timestamps);
-                for ($i = 1; $i < count($timestamps); $i++) {
-                    if ($timestamps[$i] <= $timestamps[$i - 1]) {
-                        $timestamps[$i] = $timestamps[$i - 1] + 1;
-                    }
-                }
-
-                $clean_ids = [];
-                foreach ($order_ids as $kid) {
-                    if (!is_scalar($kid)) continue;
-
-                    $kid = (int)$kid;
-
-                    if (in_array($kid, $valid_ids, true) && !in_array($kid, $clean_ids, true)) {
-                        $clean_ids[] = $kid;
-                    }
-                }
-
-                if (count($clean_ids) !== count($valid_ids)) {
-                    $_SESSION["game_error"] = "Ungültige Königreich-Reihenfolge.";
-
-                    change_location("settings.php?tab=game");
-                }
-
-                $db_instance->begin_transaction();
-                try {
-                    foreach ($clean_ids as $idx => $kid) {
-                        $db_instance->execute_query(
-                            "UPDATE kingdoms SET created_at = ? WHERE id = ? AND userid = ?",
-                            [$timestamps[$idx], $kid, $uid]
-                        );
-                    }
-                    $db_instance->commit();
-                    $_SESSION["game_success"] = "Die Reihenfolge deiner Königreiche wurde gespeichert!";
-                } catch (Throwable) {
-                    $db_instance->rollback();
-                    $_SESSION["game_error"] = "Fehler beim Speichern der Reihenfolge.";
-                }
-
-                change_location("settings.php?tab=game");
-            }
-        } // IP Sharing Partner
-        else if (isset($_POST['update_sharing'])) {
-            $partner_input = trim(post_str("partner_name"));
-
-            if (empty($partner_input)) {
-                $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$uid]);
-
-                $user_data['linked_user_id'] = null;
-                $user_data['partner_name'] = null;
-
-                $_SESSION["game_success"] = "IP-Sharing Partner wurde entfernt.";
-
-                change_location("settings.php?tab=game");
-            } else {
-                $partner_res = $db_instance->execute_query(
-                    "SELECT id, username FROM users WHERE username = ? LIMIT 1",
-                    [$partner_input]
-                );
-                $partner_data = $partner_res->fetch_assoc();
-
-                if (!$partner_data) {
-                    $error = "Ein Spieler mit dem Namen '" . e($partner_input) . "' existiert nicht!";
-                } else if ((int)$partner_data['id'] === $uid) {
-                    $error = "Du kannst dich nicht selbst als Partner eintragen!";
-                } else {
-                    $partner_id = (int)$partner_data['id'];
-
-                    $db_instance->execute_query(
-                        "UPDATE users SET linked_user_id = ? WHERE id = ?",
-                        [$partner_id, $uid]
-                    );
-
-                    $user_data['linked_user_id'] = $partner_id;
-                    $user_data['partner_name'] = $partner_data['username'];
-
-                    $_SESSION["game_success"] = "Partner '" . e($partner_data['username']) . "' wurde erfolgreich hinterlegt.";
-
-                    change_location("settings.php?tab=game");
-                }
-            }
-        } // Update display settings
-        else if (isset($_POST['update_display_settings'])) {
-            $raw_pagesize = trim(post_str("overview_pagesize"));
-
-            if (!is_numeric($raw_pagesize)) {
-                $pagesize = OVERVIEW_PAGESIZE_DEFAULT;
-            } else {
-                $pagesize = (int)$raw_pagesize;
-                $pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $pagesize));
-            }
-
-            $list_view = isset($_POST["use_list_view"]) ? "1" : "0";
-            $map_popup = isset($_POST["use_map_popup"]) ? "1" : "0";
-            $filter_val = isset($_POST["chat_filter"]) ? 1 : 0;
-            $autofocus_troops = isset($_POST["autofocus_troops"]) ? "1" : "0";
-
-            $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
-            $_SESSION["chat_filter"] = (bool)$filter_val;
-
-            setcookie("me_overview_pagesize", (string)$pagesize, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-            setcookie("me_list_view", $list_view, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-            setcookie("me_map_popup", $map_popup, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-            setcookie("me_autofocus_troops", $autofocus_troops, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-
-            $_COOKIE["me_overview_pagesize"] = (string)$pagesize;
-            $_COOKIE["me_list_view"] = $list_view;
-            $_COOKIE["me_map_popup"] = $map_popup;
-            $_COOKIE["me_autofocus_troops"] = $autofocus_troops;
-
-            if ($server_winter) {
-                $disable_special = isset($_POST["disable_special_theme"]) ? "1" : "0";
-                setcookie("me_disable_special_theme", $disable_special, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-                $_COOKIE["me_disable_special_theme"] = $disable_special;
-
-                $theme_pref = ($disable_special === "1") ? "default" : "auto";
-                setcookie("me_theme_pref", $theme_pref, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-                $_COOKIE["me_theme_pref"] = $theme_pref;
-
-                if ($disable_special !== "1") {
-                    $show_snow = isset($_POST["show_snow"]) ? "1" : "0";
-                    setcookie("me_show_snow", $show_snow, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
-                    $_COOKIE["me_show_snow"] = $show_snow;
-                }
-            }
-
-            $_SESSION["game_success"] = "Anzeige-Einstellungen erfolgreich gespeichert.";
-
-            change_location("settings.php?tab=game");
-        } // Activate Vacation Mode
-        else if (isset($_POST['activate_vacation'])) {
-            $confirm_pw = post_str("confirm_pw_vacation");
-            $days = max(MIN_VACATION_DAYS, min(MAX_VACATION_DAYS, post_int("vacation_days", 2)));
-
-            $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
-            $current_hash = $res->fetch_column();
-
-            if (!password_verify($confirm_pw, $current_hash)) {
-                $error = "Passwort-Bestätigung fehlgeschlagen.";
-            } else {
-                $vac_until = $now + ($days * 86400);
-
-                $db_instance->begin_transaction();
-                try {
-                    $db_instance->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
-                    $db_instance->execute_query("SELECT id FROM kingdoms WHERE userid = ? ORDER BY id FOR UPDATE", [$uid]);
-
-                    $vac_errors = $user->check_vacation_eligibility();
-                    if (!empty($vac_errors)) {
-                        $db_instance->rollback();
-                        $error = "Urlaubsmodus kann nicht aktiviert werden:<br>• " . implode("<br>• ", $vac_errors);
-                    } else {
-                        $res_offers = $db_instance->execute_query(
-                            "SELECT offerid, kingdomid, supply, supplyvalue FROM marketplace WHERE userid = ? FOR UPDATE",
-                            [$uid]
-                        );
-
-                        while ($off = $res_offers->fetch_assoc()) {
-                            $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$off["offerid"]]);
-                            $k_temp = new Kingdom((int)$off["kingdomid"]);
-                            $k_temp->modify_resource((int)$off["supply"], (int)$off["supplyvalue"]);
-                        }
-
-                        $db_instance->execute_query("UPDATE users SET is_vacation = 1, vacation_until = ? WHERE id = ?", [$vac_until, $uid]);
-                        $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ?", [$uid]);
-                        $db_instance->commit();
-
-                        $logger->log_game("ACCOUNT", "VACATION_START", ["until" => $vac_until, "days" => $days]);
-                        setcookie("me_remember", '', $now - 3600, '/');
-                        $_SESSION = [];
-                        session_regenerate_id(true);
-                        $_SESSION["auth_flash"] = [
-                            "success" => "Urlaubsmodus erfolgreich bis zum <b>" . date("d.m.Y \u\m H:i", $vac_until) . " Uhr</b> aktiviert!"
-                        ];
-
-                        change_location("index.php");
-                    }
-                } catch (Throwable $e) {
-                    $db_instance->rollback();
-                    $logger->error("activate_vacation error: " . $e->getMessage());
-                    $error = "Interner Fehler beim Aktivieren des Urlaubsmodus.";
-                }
-            }
-        } // Remove all Push Devices
-        else if (isset($_POST['delete_all_push_devices'])) {
-            $db_instance->execute_query("DELETE FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
-
-            $_SESSION["game_success"] = "Alle registrierten Push-Geräte wurden erfolgreich abgemeldet.";
-
-            change_location("settings.php?tab=account");
-        } else if (isset($_POST['save_push_settings'])) {
-            $p_combat = isset($_POST['push_combat']) ? 1 : 0;
-            $p_troops = isset($_POST['push_troops']) ? 1 : 0;
-            $p_building = isset($_POST['push_building']) ? 1 : 0;
-            $p_storage = isset($_POST['push_storage']) ? 1 : 0;
-            $p_messages = isset($_POST['push_messages']) ? 1 : 0;
-            $p_events = isset($_POST['push_events']) ? 1 : 0;
-
-            $db_instance->execute_query("
-                INSERT INTO user_push_settings (user_id, combat, troops, building, storage, messages, events)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    combat = VALUES(combat),
-                    troops = VALUES(troops),
-                    building = VALUES(building),
-                    storage = VALUES(storage),
-                    messages = VALUES(messages),
-                    events = VALUES(events)
-            ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages, $p_events]);
-
-            $_SESSION["game_success"] = "Push-Einstellungen erfolgreich gespeichert.";
-
-            change_location("settings.php?tab=account");
-        } // Delete Account
-        else if (isset($_POST['delete_account'])) {
-            $confirm_pw = post_str("confirm_pw_delete");
-            $confirm_word = post_str("confirm_word");
-
-            $res = $db_instance->execute_query("SELECT password, username, email FROM users WHERE id = ?", [$uid]);
-            $u_data = $res->fetch_assoc();
-
-            if (!$u_data) {
-                $error = "Benutzer nicht gefunden.";
-            } else if (!password_verify($confirm_pw, $u_data['password'])) {
-                $error = "Passwort-Bestätigung zur Löschung fehlgeschlagen.";
-            } else if ($confirm_word !== "LOESCHEN") {
-                $error = "Bestätigungswort falsch.";
-            } else {
-                $err = User::delete_account($uid, true);
-
-                if ($err !== null) {
-                    $error = $err;
-                } else {
-                    $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $u_data['username'], "email" => $u_data['email']]);
-
-                    $token = bin2hex(random_bytes(16));
-                    setcookie("me_remember", '', $now - 3600, "/");
-                    setcookie("logout_verify", $token, $now + 30, "/", "", false, true);
-                    session_destroy();
-
-                    change_location("index.php?logout=deleted&v=" . $token);
-                }
-            }
-        } // Change User Title and Salutation
-        else if (isset($_POST['save_salutation_and_title'])) {
-            $new_gender = (post_str("gender") === 'f') ? 'f' : 'm';
-            $raw_title_id = post_int("active_title_id");
-
-            $valid_title_id = 0;
-            if ($raw_title_id === -1) {
-                $valid_title_id = -1;
-            } else if ($raw_title_id > 0) {
-                $check = $db_instance->execute_query(
-                    "SELECT 1 FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
-                    [$uid, $raw_title_id]
-                );
-
-                if ($check->num_rows > 0) {
-                    $valid_title_id = $raw_title_id;
-                }
-            }
-
+        }
+
+        if (!move_uploaded_file($file_tmp, $file_path . "." . $file_ext)) {
+            change_location($tab_url, error: "Fehler beim Hochladen der Datei auf den Server!");
+        }
+
+        $db_instance->execute_query("UPDATE users SET last_avatar_change = ? WHERE id = ?", [$now, $uid]);
+        $logger->log_game("ACCOUNT", "AVATAR_UPLOAD", [
+            "filename" => $file_name,
+            "extension" => $file_ext,
+            "mime" => $mime_type,
+            "size" => $file_size
+        ]);
+
+        change_location($tab_url, success: "Nutzerbild wurde erfolgreich hochgeladen!");
+    }
+
+    // Change Name
+    if (isset($_POST['change_username'])) {
+        $tab_url = "settings.php?tab=account";
+        $raw_name = post_str("new_username");
+        $confirm_pw = post_str("confirm_pw_name");
+        $res = $db_instance->execute_query("SELECT username, password, last_username_change FROM users WHERE id = ?", [$uid]);
+        $u_data = $res->fetch_assoc();
+
+        if (!$u_data) {
+            change_location($tab_url, error: "Benutzer nicht gefunden.");
+        }
+        if (!password_verify($confirm_pw, $u_data['password'])) {
+            change_location($tab_url, error: "Passwort-Bestätigung fehlgeschlagen.");
+        }
+
+        $days_since_change = ($now - (int)$u_data['last_username_change']) / 86400;
+        if ($days_since_change < USERNAME_CHANGE_COOLDOWN_DAYS) {
+            $wait = (int)ceil(USERNAME_CHANGE_COOLDOWN_DAYS - $days_since_change);
+            change_location($tab_url, error: "Du kannst deinen Namen erst in $wait " . ($wait === 1 ? "Tag" : "Tagen") . " wieder ändern.");
+        }
+        if (strlen($raw_name) > MAX_USERNAME_LENGTH * 4) {
+            change_location($tab_url, error: "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!");
+        }
+        if (preg_match('/\s/', $raw_name)) {
+            change_location($tab_url, error: "Benutzername darf keine Leerzeichen enthalten!");
+        }
+
+        $clean_name = preg_replace('/\p{C}/u', '', $raw_name) ?? '';
+        $clean_name = preg_replace('/\s+/u', ' ', $clean_name) ?? '';
+        $new_name = trim($clean_name);
+
+        if (empty($new_name)) {
+            change_location($tab_url, error: "Bitte einen Benutzernamen angeben!");
+        }
+        if (mb_strlen($new_name, "UTF-8") < MIN_USERNAME_LENGTH || mb_strlen($new_name, "UTF-8") > MAX_USERNAME_LENGTH) {
+            change_location($tab_url, error: "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!");
+        }
+        if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $new_name)) {
+            change_location($tab_url, error: "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -");
+        }
+        if (is_name_monotonous($new_name)) {
+            change_location($tab_url, error: "Dieser Benutzername ist zu eintönig!");
+        }
+
+        $bad_names_list = get_bad_names();
+        $bad_names_lower = array_map(fn($w) => mb_strtolower(trim($w), "UTF-8"), $bad_names_list);
+        if (in_array(mb_strtolower($new_name, "UTF-8"), $bad_names_lower, true)) {
+            change_location($tab_url, error: "Dieser Name ist reserviert oder nicht erlaubt!");
+        }
+        if (contains_bad_words($new_name, $bad_names_list) || preg_match_all(regex_pattern(), $new_name, $matches)) {
+            change_location($tab_url, error: "Dieser Benutzername ist nicht erlaubt!");
+        }
+
+        $check = $db_instance->execute_query("SELECT id FROM users WHERE username = ? AND id != ?", [$new_name, $uid]);
+        if ($check->num_rows > 0 || PhpBBBridge::username_exists($new_name)) {
+            change_location($tab_url, error: "Dieser Name ist bereits vergeben.");
+        }
+
+        try {
             $db_instance->execute_query(
-                "UPDATE users SET gender = ?, active_title_id = ? WHERE id = ?",
-                [$new_gender, $valid_title_id, $uid]
+                "UPDATE users SET username = ?, last_username_change = ? WHERE id = ?",
+                [$new_name, $now, $uid]
             );
+            PhpBBBridge::update_username($u_data['username'], $new_name);
+            $logger->log_game("ACCOUNT", "USERNAME_CHANGE", ["new_name" => $new_name]);
 
-            if ($valid_title_id === 0) {
-                $_SESSION["game_success"] = "Einstellungen gespeichert: Es wird kein Titel angezeigt.";
-            } else {
-                $_SESSION["game_success"] = "Anrede und Titel erfolgreich aktualisiert!";
-            }
-
-            change_location("settings.php?tab=profile");
+            change_location($tab_url, success: "Dein Name wurde erfolgreich in '" . e($new_name) . "' geändert.");
+        } catch (mysqli_sql_exception) {
+            change_location($tab_url, error: "Dieser Name ist bereits vergeben.");
         }
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        change_location("settings.php?tab=" . urlencode($active_tab));
+    // Change Password
+    if (isset($_POST['change_password'])) {
+        $tab_url = "settings.php?tab=account";
+        $old_pw = trim(post_str("old_pw"));
+        $new_pw = trim(post_str("new_pw"));
+        $new_pw_confirm = trim(post_str("new_pw_confirm"));
+        $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
+        $current_hash = $res->fetch_column();
+
+        if (!password_verify($old_pw, $current_hash)) {
+            change_location($tab_url, error: "Dein aktuelles Passwort ist nicht korrekt.");
+        }
+        if (strlen($new_pw) < MIN_PASSWORD_LENGTH || strlen($new_pw) > MAX_PASSWORD_LENGTH) {
+            change_location($tab_url, error: "Das neue Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!");
+        }
+        if ($new_pw !== $new_pw_confirm) {
+            change_location($tab_url, error: "Die neuen Passwörter stimmen nicht überein.");
+        }
+
+        $new_hash = password_hash($new_pw, PASSWORD_BCRYPT);
+        $db_instance->execute_query("UPDATE users SET password = ? WHERE id = ?", [$new_hash, $uid]);
+        $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ?", [$uid]);
+        session_regenerate_id(true);
+        $db_instance->execute_query("UPDATE users SET sessionid = ? WHERE id = ?", [session_id(), $uid]);
+
+        PhpBBBridge::update_password($user->get_user_name(), $new_hash);
+
+        $logger->log_game("ACCOUNT", "PASSWORD_CHANGE");
+
+        change_location($tab_url, success: "Passwort erfolgreich geändert!");
     }
+
+    // Change Mail
+    if (isset($_POST['change_email'])) {
+        $tab_url = "settings.php?tab=account";
+        $new_email = trim(post_str("new_email"));
+        $confirm_pw = post_str("confirm_pw_email");
+        $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
+        $current_hash = $res->fetch_column();
+
+        if (!password_verify($confirm_pw, $current_hash)) {
+            change_location($tab_url, error: "Passwort-Bestätigung fehlgeschlagen.");
+        }
+        if (empty($new_email)) {
+            change_location($tab_url, error: "Bitte eine neue E-Mail Adresse angeben.");
+        }
+        if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+            change_location($tab_url, error: "Falsches E-Mail Format!");
+        }
+        if (strlen($new_email) > MAX_EMAIL_LENGTH) {
+            change_location($tab_url, error: "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!");
+        }
+
+        $lower_mail = strtolower($new_email);
+        if (str_ends_with($lower_mail, "@magic-empires.de") || str_ends_with($lower_mail, "@sylvan-giese.de")) {
+            change_location($tab_url, error: "Diese E-Mail-Adresse ist nicht gestattet!");
+        }
+
+        $domain = substr(strrchr($new_email, "@"), 1);
+        if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
+            change_location($tab_url, error: "Die E-Mail Domain existiert nicht oder kann keine Mails empfangen!");
+        }
+
+        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$new_email, $now]);
+        if ($res_block->num_rows > 0) {
+            $row_block = $res_block->fetch_assoc();
+            $wait_until = date("d.m.Y", $row_block["blocked_until"]);
+
+            change_location($tab_url, error: "Diese E-Mail Adresse ist noch bis zum $wait_until gesperrt.");
+        }
+
+        $check_unique = $db_instance->execute_query("SELECT id FROM users WHERE email = ? AND id != ?", [$new_email, $uid]);
+        if ($check_unique->num_rows > 0) {
+            change_location($tab_url, error: "Diese E-Mail Adresse wird bereits von einem anderen Account verwendet.");
+        }
+
+        try {
+            $db_instance->execute_query("UPDATE users SET email = ? WHERE id = ?", [$new_email, $uid]);
+            PhpBBBridge::update_email($user->get_user_name(), $new_email);
+            $logger->log_game("ACCOUNT", "EMAIL_CHANGE", ["new_email" => $new_email]);
+
+            change_location($tab_url, success: "Deine E-Mail Adresse wurde erfolgreich auf " . e($new_email) . " geändert.");
+        } catch (mysqli_sql_exception) {
+            change_location($tab_url, error: "Diese E-Mail ist bereits vergeben.");
+        }
+    }
+
+    // Change Kingdom Name
+    if (isset($_POST['rename_kingdom'])) {
+        $tab_url = "settings.php?tab=game";
+        $raw_input = post_str("new_kingdom_name");
+        $clean_name = preg_replace('/\p{C}/u', '', $raw_input) ?? '';
+        $clean_name = preg_replace('/\s+/u', ' ', $clean_name) ?? '';
+        $new_k_name = trim($clean_name);
+        $current_k_id = $user->get_current_kingdom();
+
+        $res_k = $db_instance->execute_query(
+            "SELECT last_name_change, kingdomname FROM kingdoms WHERE id = ? AND userid = ?",
+            [$current_k_id, $uid]
+        );
+        $k_data = $res_k->fetch_assoc();
+
+        if (!$k_data) {
+            change_location($tab_url, error: "Königreich nicht gefunden.");
+        }
+
+        $days_since_k_change = ($now - $k_data['last_name_change']) / 86400;
+        if ($days_since_k_change < KINGDOM_NAME_CHANGE_COOLDOWN_DAYS) {
+            $wait_k = (int)ceil(KINGDOM_NAME_CHANGE_COOLDOWN_DAYS - $days_since_k_change);
+            change_location($tab_url, error: "Dieses Königreich wurde erst kürzlich umbenannt. Du musst noch $wait_k " . ($wait_k === 1 ? "Tag" : "Tage") . " warten.");
+        }
+        if (mb_strlen($new_k_name) < MIN_KINGDOM_NAME_LENGTH || mb_strlen($new_k_name) > MAX_KINGDOM_NAME_LENGTH) {
+            change_location($tab_url, error: "Der Name muss zwischen " . MIN_KINGDOM_NAME_LENGTH . " und " . MAX_KINGDOM_NAME_LENGTH . " Zeichen lang sein.");
+        }
+        if (contains_bad_words($new_k_name)) {
+            change_location($tab_url, error: "Der Name enthält unzulässige Begriffe.");
+        }
+        if (is_name_monotonous($new_k_name)) {
+            change_location($tab_url, error: "Der Name ist zu eintönig oder enthält zu viele Wiederholungen.");
+        }
+        if (!preg_match('/^[a-zA-Z0-9äöüÄÖÜß\s\[\]\-_.]+$/u', $new_k_name)) {
+            change_location($tab_url, error: "Der Name enthält ungültige Sonderzeichen. Erlaubt sind: [ ] - _ .");
+        }
+
+        $db_instance->execute_query("UPDATE kingdoms SET kingdomname = ?, last_name_change = ? WHERE id = ?", [$new_k_name, $now, $current_k_id]);
+        $logger->log_game("ECONOMY", "KINGDOM_RENAME", ["new_name" => $new_k_name], $current_k_id);
+
+        Achievement::unlock($uid, AchievementTypes::ACHIEVEMENT_SECRET_RENAME);
+
+        change_location($tab_url, success: "Dein Königreich wurde erfolgreich in '" . e($new_k_name) . "' umbenannt!");
+    }
+
+    // Save Kingdom Order
+    if (isset($_POST['save_kingdom_order'])) {
+        $tab_url = "settings.php?tab=game";
+        $order_ids = $_POST['kingdom_order'] ?? [];
+
+        if (!is_array($order_ids) || count($order_ids) <= 1) {
+            change_location($tab_url);
+        }
+
+        $res_k = $db_instance->execute_query(
+            "SELECT id, created_at FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
+            [$uid]
+        );
+        $existing_kingdoms = $res_k->fetch_all(MYSQLI_ASSOC);
+        $valid_ids = array_map('intval', array_column($existing_kingdoms, 'id'));
+        $timestamps = array_map('intval', array_column($existing_kingdoms, 'created_at'));
+        sort($timestamps);
+
+        for ($i = 1; $i < count($timestamps); $i++) {
+            if ($timestamps[$i] <= $timestamps[$i - 1]) {
+                $timestamps[$i] = $timestamps[$i - 1] + 1;
+            }
+        }
+
+        $clean_ids = [];
+        foreach ($order_ids as $kid) {
+            if (!is_scalar($kid)) continue;
+
+            $kid = (int)$kid;
+            if (in_array($kid, $valid_ids, true) && !in_array($kid, $clean_ids, true)) {
+                $clean_ids[] = $kid;
+            }
+        }
+
+        if (count($clean_ids) !== count($valid_ids)) {
+            change_location($tab_url, error: "Ungültige Königreich-Reihenfolge.");
+        }
+
+        $db_instance->begin_transaction();
+        try {
+            foreach ($clean_ids as $idx => $kid) {
+                $db_instance->execute_query(
+                    "UPDATE kingdoms SET created_at = ? WHERE id = ? AND userid = ?",
+                    [$timestamps[$idx], $kid, $uid]
+                );
+            }
+            $db_instance->commit();
+
+            change_location($tab_url, success: "Die Reihenfolge deiner Königreiche wurde gespeichert!");
+        } catch (Throwable) {
+            $db_instance->rollback();
+
+            change_location($tab_url, error: "Fehler beim Speichern der Reihenfolge.");
+        }
+    }
+
+    // IP Sharing Partner
+    if (isset($_POST['update_sharing'])) {
+        $tab_url = "settings.php?tab=game";
+        $partner_input = trim(post_str("partner_name"));
+
+        if (empty($partner_input)) {
+            $db_instance->execute_query("UPDATE users SET linked_user_id = NULL WHERE id = ?", [$uid]);
+            change_location($tab_url, success: "IP-Sharing Partner wurde entfernt.");
+        }
+
+        $partner_res = $db_instance->execute_query(
+            "SELECT id, username FROM users WHERE username = ? LIMIT 1",
+            [$partner_input]
+        );
+        $partner_data = $partner_res->fetch_assoc();
+
+        if (!$partner_data) {
+            change_location($tab_url, error: "Ein Spieler mit dem Namen '" . e($partner_input) . "' existiert nicht!");
+        }
+        if ((int)$partner_data['id'] === $uid) {
+            change_location($tab_url, error: "Du kannst dich nicht selbst als Partner eintragen!");
+        }
+
+        $partner_id = (int)$partner_data['id'];
+        $db_instance->execute_query("UPDATE users SET linked_user_id = ? WHERE id = ?", [$partner_id, $uid]);
+
+        change_location($tab_url, success: "Partner '" . e($partner_data['username']) . "' wurde erfolgreich hinterlegt.");
+    }
+
+    // Update display settings
+    if (isset($_POST['update_display_settings'])) {
+        $raw_pagesize = trim(post_str("overview_pagesize"));
+        if (!is_numeric($raw_pagesize)) {
+            $pagesize = OVERVIEW_PAGESIZE_DEFAULT;
+        } else {
+            $pagesize = (int)$raw_pagesize;
+            $pagesize = max(OVERVIEW_PAGESIZE_MIN, min(OVERVIEW_PAGESIZE_MAX, $pagesize));
+        }
+
+        $list_view = isset($_POST["use_list_view"]) ? "1" : "0";
+        $map_popup = isset($_POST["use_map_popup"]) ? "1" : "0";
+        $filter_val = isset($_POST["chat_filter"]) ? 1 : 0;
+        $autofocus_troops = isset($_POST["autofocus_troops"]) ? "1" : "0";
+
+        $db_instance->execute_query("UPDATE users SET chat_filter = ? WHERE id = ?", [$filter_val, $uid]);
+        $_SESSION["chat_filter"] = (bool)$filter_val;
+
+        setcookie("me_overview_pagesize", (string)$pagesize, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+        setcookie("me_list_view", $list_view, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+        setcookie("me_map_popup", $map_popup, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+        setcookie("me_autofocus_troops", $autofocus_troops, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+
+        if ($server_winter) {
+            $disable_special = isset($_POST["disable_special_theme"]) ? "1" : "0";
+            setcookie("me_disable_special_theme", $disable_special, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+            $theme_pref = ($disable_special === "1") ? "default" : "auto";
+            setcookie("me_theme_pref", $theme_pref, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+
+            if ($disable_special !== "1") {
+                $show_snow = isset($_POST["show_snow"]) ? "1" : "0";
+                setcookie("me_show_snow", $show_snow, $now + COOKIE_LIFETIME_ONE_YEAR, "/", "", false, false);
+            }
+        }
+
+        change_location("settings.php?tab=game", success: "Anzeige-Einstellungen erfolgreich gespeichert.");
+    }
+
+    // Activate Vacation Mode
+    if (isset($_POST['activate_vacation'])) {
+        $tab_url = "settings.php?tab=account";
+        $confirm_pw = post_str("confirm_pw_vacation");
+        $days = max(MIN_VACATION_DAYS, min(MAX_VACATION_DAYS, post_int("vacation_days", 2)));
+        $res = $db_instance->execute_query("SELECT password FROM users WHERE id = ?", [$uid]);
+        $current_hash = $res->fetch_column();
+
+        if (!password_verify($confirm_pw, $current_hash)) {
+            change_location($tab_url, error: "Passwort-Bestätigung fehlgeschlagen.");
+        }
+
+        $vac_until = $now + ($days * 86400);
+        $db_instance->begin_transaction();
+        try {
+            $db_instance->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+            $db_instance->execute_query("SELECT id FROM kingdoms WHERE userid = ? ORDER BY id FOR UPDATE", [$uid]);
+
+            $vac_errors = $user->check_vacation_eligibility();
+            if (!empty($vac_errors)) {
+                throw new RuntimeException("Urlaubsmodus kann nicht aktiviert werden:<br>• " . implode("<br>• ", $vac_errors));
+            }
+
+            $res_offers = $db_instance->execute_query(
+                "SELECT offerid, kingdomid, supply, supplyvalue FROM marketplace WHERE userid = ? FOR UPDATE",
+                [$uid]
+            );
+            while ($off = $res_offers->fetch_assoc()) {
+                $db_instance->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$off["offerid"]]);
+                $k_temp = new Kingdom((int)$off["kingdomid"]);
+                $k_temp->modify_resource((int)$off["supply"], (int)$off["supplyvalue"]);
+            }
+
+            $db_instance->execute_query("UPDATE users SET is_vacation = 1, vacation_until = ? WHERE id = ?", [$vac_until, $uid]);
+            $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ?", [$uid]);
+            $db_instance->commit();
+
+            $logger->log_game("ACCOUNT", "VACATION_START", ["until" => $vac_until, "days" => $days]);
+            setcookie("me_remember", '', $now - 3600, '/');
+            $_SESSION = [];
+            session_regenerate_id(true);
+            set_auth_flash([
+                "success" => "Urlaubsmodus erfolgreich bis zum <b>" . date("d.m.Y \u\m H:i", $vac_until) . " Uhr</b> aktiviert!"
+            ]);
+
+            change_location("index.php");
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
+
+            change_location($tab_url, error: $e->getMessage());
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("activate_vacation error: " . $e->getMessage());
+
+            change_location($tab_url, error: "Interner Fehler beim Aktivieren des Urlaubsmodus.");
+        }
+    }
+
+    // Remove all Push Devices
+    if (isset($_POST['delete_all_push_devices'])) {
+        $db_instance->execute_query("DELETE FROM user_push_subscriptions WHERE user_id = ?", [$uid]);
+        change_location("settings.php?tab=account", success: "Alle registrierten Push-Geräte wurden erfolgreich abgemeldet.");
+    }
+
+    if (isset($_POST['save_push_settings'])) {
+        $p_combat = isset($_POST['push_combat']) ? 1 : 0;
+        $p_troops = isset($_POST['push_troops']) ? 1 : 0;
+        $p_building = isset($_POST['push_building']) ? 1 : 0;
+        $p_storage = isset($_POST['push_storage']) ? 1 : 0;
+        $p_messages = isset($_POST['push_messages']) ? 1 : 0;
+        $p_events = isset($_POST['push_events']) ? 1 : 0;
+
+        $db_instance->execute_query("
+            INSERT INTO user_push_settings (user_id, combat, troops, building, storage, messages, events)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                combat = VALUES(combat), troops = VALUES(troops), building = VALUES(building),
+                storage = VALUES(storage), messages = VALUES(messages), events = VALUES(events)
+        ", [$uid, $p_combat, $p_troops, $p_building, $p_storage, $p_messages, $p_events]);
+
+        change_location("settings.php?tab=account", success: "Push-Einstellungen erfolgreich gespeichert.");
+    }
+
+    // Delete Account
+    if (isset($_POST['delete_account'])) {
+        $tab_url = "settings.php?tab=account";
+        $confirm_pw = post_str("confirm_pw_delete");
+        $confirm_word = post_str("confirm_word");
+        $res = $db_instance->execute_query("SELECT password, username, email FROM users WHERE id = ?", [$uid]);
+        $u_data = $res->fetch_assoc();
+
+        if (!$u_data) {
+            change_location($tab_url, error: "Benutzer nicht gefunden.");
+        }
+        if (!password_verify($confirm_pw, $u_data['password'])) {
+            change_location($tab_url, error: "Passwort-Bestätigung zur Löschung fehlgeschlagen.");
+        }
+        if ($confirm_word !== "LOESCHEN") {
+            change_location($tab_url, error: "Bestätigungswort falsch.");
+        }
+
+        $err = User::delete_account($uid, true);
+        if ($err !== null) {
+            change_location($tab_url, error: $err);
+        }
+
+        $logger->log_game("ACCOUNT", "SELF_DELETION", ["username" => $u_data['username'], "email" => $u_data['email']]);
+        $token = bin2hex(random_bytes(16));
+        setcookie("me_remember", '', $now - 3600, "/");
+        setcookie("logout_verify", $token, $now + 30, "/", "", false, true);
+        session_destroy();
+
+        change_location("index.php?logout=deleted&v=" . $token);
+    }
+
+    // Change User Title and Salutation
+    if (isset($_POST['save_salutation_and_title'])) {
+        $new_gender = (post_str("gender") === 'f') ? 'f' : 'm';
+        $raw_title_id = post_int("active_title_id");
+        $valid_title_id = 0;
+
+        if ($raw_title_id === -1) {
+            $valid_title_id = -1;
+        } else if ($raw_title_id > 0) {
+            $check = $db_instance->execute_query(
+                "SELECT 1 FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
+                [$uid, $raw_title_id]
+            );
+
+            if ($check->num_rows > 0) {
+                $valid_title_id = $raw_title_id;
+            }
+        }
+
+        $db_instance->execute_query(
+            "UPDATE users SET gender = ?, active_title_id = ? WHERE id = ?",
+            [$new_gender, $valid_title_id, $uid]
+        );
+
+        $msg = ($valid_title_id === 0)
+            ? "Einstellungen gespeichert: Es wird kein Titel angezeigt."
+            : "Anrede und Titel erfolgreich aktualisiert!";
+
+        change_location("settings.php?tab=profile", success: $msg);
+    }
+
+    change_location($redir);
 }
 
 

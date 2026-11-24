@@ -10,43 +10,60 @@ if (empty($token)) {
     change_location("index.php");
 }
 
-$error = "";
-$success = "";
+$flash = consume_auth_flash();
+$error = $flash["error"] ?? "";
+$success = $flash["success"] ?? "";
 $token_valid = false;
 $user_data = null;
 
-if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
-    $error = "Der Link ist ungültig oder abgelaufen.";
-} else {
-    $result = $db_instance->execute_query(
-            "SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ? LIMIT 1",
-            [$token, time()]
-    );
-    
-    if ($result && $result->num_rows > 0) {
-        $token_valid = true;
-        $user_data = $result->fetch_assoc();
-    } else {
+if ($success === "" && $error === "") {
+    if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
         $error = "Der Link ist ungültig oder abgelaufen.";
+    } else {
+        $result = $db_instance->execute_query("SELECT id, username FROM users WHERE reset_token = ? AND reset_expires > ? LIMIT 1",
+                [$token, time()]
+        );
+
+        if ($result && $result->num_rows > 0) {
+            $token_valid = true;
+            $user_data = $result->fetch_assoc();
+        } else {
+            $error = "Der Link ist ungültig oder abgelaufen.";
+        }
     }
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $token_valid) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $redir = "resetpassword.php?token=" . urlencode($token);
+
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
+        set_auth_flash(["error" => "Ungültiger Sicherheits-Token!"]);
+        change_location($redir);
+    }
+
+    if (isset($_POST["reset_now"])) {
+        if (!$token_valid) {
+            set_auth_flash(["error" => "Der Link ist ungültig oder abgelaufen."]);
+            change_location($redir);
+        }
+
         $new_plain_password = generate_safe_password(8);
         $new_hash = password_hash($new_plain_password, PASSWORD_BCRYPT);
-
-        $db_instance->execute_query("UPDATE users SET sessionid = '', password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?", [$new_hash, $user_data["id"]]);
+        $db_instance->execute_query(
+                "UPDATE users SET sessionid = '', password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?",
+                [$new_hash, $user_data["id"]]
+        );
         $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ?", [$user_data["id"]]);
 
         PhpBBBridge::update_password($user_data["username"] ?? "", $new_hash);
 
-        $success = "Dein neues Passwort lautet: <br><br><b style='font-size: 24px; color: var(--link-color); border: 1px dashed; padding: 5px;'>$new_plain_password</b><br><br>Bitte notiere es dir sofort und logge dich damit ein!";
-
-        $token_valid = false;
+        set_auth_flash([
+                "success" => "Dein neues Passwort lautet: <br><br><b style='font-size: 24px; color: var(--link-color); border: 1px dashed; padding: 5px;'>" . e($new_plain_password) . "</b><br><br>Bitte notiere es dir sofort und logge dich damit ein!"
+        ]);
+        change_location($redir);
     }
+
+    change_location($redir);
 }
 ?>
 <!DOCTYPE html>
@@ -54,26 +71,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["reset_now"]) && $toke
 <?php include_once("layout/head.php"); ?>
 <body>
 <?php include_once("layout/banner.html"); ?>
-
 <div class="form">
     <form class="login-register" method="POST" action="resetpassword.php?token=<?= e($token) ?>">
         <fieldset>
             <legend><b>Passwort zurücksetzen</b></legend>
             <?php
-            if (!empty($success)) {
-                echo show_passed_box($success);
-            }
+            if (!empty($success)) echo show_passed_box($success);
             if (!empty($error)) echo show_error_box($error);
             ?>
             <?php if ($token_valid && empty($success)): ?>
                 <p style="margin-top: 0;">Klicke auf den Button, um ein neues, sicheres Passwort für deinen Account zu
                     generieren.</p>
-
                 <div style="margin: 20px 0;">
                     <input type="submit" name="reset_now" value="Passwort jetzt generieren"
                            style="width:220px; height:50px; cursor: pointer; font-weight: bold;"/>
                 </div>
-
                 <p style="font-size: 13px; opacity: 0.8;">
                     <i>Hinweis: Das System erstellt ein zufälliges Passwort und zeigt es dir im nächsten Schritt an.</i>
                 </p>

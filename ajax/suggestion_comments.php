@@ -39,24 +39,29 @@ if ($max_comm_id_this_sug > 0) {
 
 $new_suggestions_unread = $user->get_unread_counts()["suggestions"];
 
-$error = "";
+$comment_error = "";
+$override_cpage = null;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (isset($_POST["delete_comment"])) {
-        $cid = post_int("comment_id");
-        $c_row = $db_instance->execute_query("SELECT user_id FROM suggestion_comments WHERE id = ?", [$cid])->fetch_assoc();
+    $comment_error = (static function () use ($db_instance, $uid, $sug_id, $user, &$override_cpage): string {
+        if (isset($_POST["delete_comment"])) {
+            $cid = post_int("comment_id");
+            $c_row = $db_instance->execute_query("SELECT user_id FROM suggestion_comments WHERE id = ?", [$cid])->fetch_assoc();
 
-        if ($c_row && ((int)$c_row["user_id"] === $uid || $user->is_admin())) {
+            if (!$c_row || ((int)$c_row["user_id"] !== $uid && !$user->is_admin())) {
+                return "Du hast keine Berechtigung, diesen Kommentar zu löschen!";
+            }
+
             $db_instance->execute_query("DELETE FROM suggestion_comments WHERE id = ?", [$cid]);
-        } else {
-            $error = "Du hast keine Berechtigung, diesen Kommentar zu löschen!";
+            return "";
         }
-    } else if (isset($_POST["add_comment"])) {
-        $raw = trim(post_str("comment"));
 
-        if (strlen($raw) > SUGGESTION_COMMENT_MAX_LENGTH * 8) {
-            $error = "Dein Kommentar ist zu lang.";
-        } else {
+        if (isset($_POST["add_comment"])) {
+            $raw = trim(post_str("comment"));
+            if (strlen($raw) > SUGGESTION_COMMENT_MAX_LENGTH * 8) {
+                return "Dein Kommentar ist zu lang.";
+            }
+
             $clean = preg_replace([
                     '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
                     '/[ \t]+/u',
@@ -64,71 +69,74 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     '/[ \t]+$/m'
             ], ['', ' ', '', ''], $raw);
             $clean = trim($clean ?? "");
-
             $len = mb_strlen($clean, "UTF-8");
             $line_breaks = substr_count($clean, "\n");
 
-            $res_last = $db_instance->execute_query(
+            $last_time = (int)($db_instance->execute_query(
                     "SELECT created_at FROM suggestion_comments WHERE user_id = ? ORDER BY id DESC LIMIT 1",
                     [$uid]
-            );
-            $last_time = (int)($res_last->fetch_column() ?? 0);
+            )->fetch_column() ?? 0);
             $wait = ($last_time + SUGGESTION_COMMENT_COOLDOWN_SECONDS) - time();
 
             if ($wait > 0 && !$user->is_admin()) {
-                $error = "Bitte warte noch " . $wait . "s, bevor du erneut kommentierst.";
-            } else if ($len < SUGGESTION_COMMENT_MIN_LENGTH) {
-                $error = "Dein Kommentar muss mindestens " . SUGGESTION_COMMENT_MIN_LENGTH . " Zeichen lang sein.";
-            } else if ($len > SUGGESTION_COMMENT_MAX_LENGTH) {
-                $error = "Dein Kommentar darf maximal " . SUGGESTION_COMMENT_MAX_LENGTH . " Zeichen lang sein.";
-            } else if ($line_breaks > MAX_LINE_BREAK_COUNT) {
-                $error = "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten.";
-            } else {
-                $filtered = Messages::filter_chat_message(nl2br(e($clean)));
-                $db_instance->execute_query(
-                        "INSERT INTO suggestion_comments (suggestion_id, user_id, username, comment, created_at) VALUES (?, ?, ?, ?, ?)",
-                        [$sug_id, $uid, $user->get_user_name(), $filtered, time()]
-                );
-
-                $res_author = $db_instance->execute_query("SELECT user_id, title FROM suggestions WHERE id = ?", [$sug_id]);
-                if ($author_row = $res_author->fetch_assoc()) {
-                    $author_id = (int)$author_row["user_id"];
-
-                    if ($author_id !== $uid) {
-                        $author_name = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$author_id])->fetch_column();
-
-                        $notif_json = [
-                                "template" => "outcome_box",
-                                "title" => "Neuer Kommentar zu deiner Idee",
-                                "main_text" => "<b>" . e($user->get_user_name()) . "</b> hat einen Kommentar zu deinem Vorschlag <i>„" . e($author_row["title"]) . "“</i> 
-                                        verfasst:<br><br><i>&bdquo;" . Messages::wrap_emojis($filtered) . "&ldquo;</i>",
-                                "sub_text" => "<a href='suggestions.php?open_comments=$sug_id'>Klicke hier, um zum Kommentar zu gelangen.</a>",
-                                "result_type" => "neutral"
-                        ];
-                        Messages::send_server_message($author_id, $author_name, MessageCategories::CATEGORY_DEFAULT, $notif_json);
-
-                        send_user_push(
-                                $author_id,
-                                "💬 Neuer Kommentar zu deiner Idee",
-                                "{$user->get_user_name()} hat deinen Vorschlag „{$author_row["title"]}“ kommentiert.",
-                                "messages",
-                                "suggestions.php"
-                        );
-                    }
-                }
-
-                $total_comments = (int)$db_instance->execute_query("SELECT COUNT(*) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id])->fetch_column();
-                $_GET["cpage"] = max(1, (int)ceil($total_comments / MAX_SUGGESTION_COMMENTS_PER_PAGE));
+                return "Bitte warte noch " . $wait . "s, bevor du erneut kommentierst.";
             }
+            if ($len < SUGGESTION_COMMENT_MIN_LENGTH) {
+                return "Dein Kommentar muss mindestens " . SUGGESTION_COMMENT_MIN_LENGTH . " Zeichen lang sein.";
+            }
+            if ($len > SUGGESTION_COMMENT_MAX_LENGTH) {
+                return "Dein Kommentar darf maximal " . SUGGESTION_COMMENT_MAX_LENGTH . " Zeichen lang sein.";
+            }
+            if ($line_breaks > MAX_LINE_BREAK_COUNT) {
+                return "Dein Text darf maximal " . MAX_LINE_BREAK_COUNT . " Zeilenumbrüche beinhalten.";
+            }
+
+            $filtered = Messages::filter_chat_message(nl2br(e($clean)));
+            $db_instance->execute_query(
+                    "INSERT INTO suggestion_comments (suggestion_id, user_id, username, comment, created_at) VALUES (?, ?, ?, ?, ?)",
+                    [$sug_id, $uid, $user->get_user_name(), $filtered, time()]
+            );
+
+            $author_row = $db_instance->execute_query("SELECT user_id, title FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
+            if ($author_row) {
+                $author_id = (int)$author_row["user_id"];
+
+                if ($author_id !== $uid) {
+                    $author_name = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$author_id])->fetch_column();
+
+                    $notif_json = [
+                            "template" => "outcome_box",
+                            "title" => "Neuer Kommentar zu deiner Idee",
+                            "main_text" => "<b>" . e($user->get_user_name()) . "</b> hat einen Kommentar zu deinem Vorschlag <i>„" . e($author_row["title"]) . "“</i> verfasst:<br><br><i>&bdquo;" . Messages::wrap_emojis($filtered) . "&ldquo;</i>",
+                            "sub_text" => "<a href='suggestions.php?open_comments=$sug_id'>Klicke hier, um zum Kommentar zu gelangen.</a>",
+                            "result_type" => "neutral"
+                    ];
+
+                    Messages::send_server_message($author_id, $author_name, MessageCategories::CATEGORY_DEFAULT, $notif_json);
+
+                    send_user_push(
+                            $author_id,
+                            "💬 Neuer Kommentar zu deiner Idee",
+                            "{$user->get_user_name()} hat deinen Vorschlag „{$author_row["title"]}“ kommentiert.",
+                            "messages",
+                            "suggestions.php"
+                    );
+                }
+            }
+
+            $total_comments = (int)$db_instance->execute_query("SELECT COUNT(*) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id])->fetch_column();
+            $override_cpage = max(1, (int)ceil($total_comments / MAX_SUGGESTION_COMMENTS_PER_PAGE));
         }
-    }
+
+        return "";
+    })();
 }
 
 // --- PAGINATION ---
 $per_page = MAX_SUGGESTION_COMMENTS_PER_PAGE;
 $total_comments = (int)$db_instance->execute_query("SELECT COUNT(*) FROM suggestion_comments WHERE suggestion_id = ?", [$sug_id])->fetch_column();
 $total_pages = max(1, (int)ceil($total_comments / $per_page));
-$current_page = max(1, min($total_pages, get_int("cpage", 1)));
+$current_page = max(1, min($total_pages, $override_cpage ?? get_int("cpage", 1)));
 $offset = ($current_page - 1) * $per_page;
 
 $comments = $db_instance->execute_query(
@@ -143,8 +151,8 @@ $comments = $db_instance->execute_query(
         <?= e($sug["title"]) ?>
     </h3>
 
-    <?php if (!empty($error)): ?>
-        <?= show_error_box($error) ?>
+    <?php if ($comment_error !== ""): ?>
+        <?= show_error_box($comment_error) ?>
     <?php endif; ?>
 
     <div id="comments-list"

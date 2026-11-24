@@ -3147,7 +3147,7 @@ class Messages
         return $html;
     }
 
-    public function get_guild_history_html(): array
+    public function get_guild_history_html(bool $mark_read = true): array
     {
         $guild_id = $this->user->get_user_guild_id();
         $limit = MAX_GUILD_CHAT_MESSAGES_SHOWN;
@@ -3197,7 +3197,7 @@ class Messages
             );
         }
 
-        if ($last_id > 0) {
+        if ($mark_read && $last_id > 0) {
             $this->mysqli->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$last_id, $u_id]);
         }
 
@@ -3207,7 +3207,8 @@ class Messages
         ];
     }
 
-    public static function render_share_modal_form(string $header_html, array $hidden_fields, int $my_guild_id): string
+    public static function render_share_modal_form(string $header_html, array $hidden_fields, int $my_guild_id,
+                                                   bool   $allow_copy = false): string
     {
         $hidden_html = "";
         foreach ($hidden_fields as $name => $value) {
@@ -3220,16 +3221,26 @@ class Messages
             <span>Gilden-Chat</span>
         </label>" : "";
 
+        $copy_btn = $allow_copy
+            ? "<button type='button' id='btn-share-copy' data-on-click='copyShareReport'>" . self::wrap_emojis("📋") . " Kopieren</button>"
+            : "";
+
+        $copy_fallback = $allow_copy
+            ? "<div id='share-copy-fallback' style='display: none; margin-top: 12px;'>
+               <small style='display: block; opacity: 0.8; margin-bottom: 4px;'>Code zum Kopieren:</small>
+               <input type='text' id='share-copy-output' readonly style='width: 100%;'>
+           </div>"
+            : "";
+
         return "
         <div style='padding: 10px; text-align: left; max-width: 440px; margin: 0 auto;'>
             <div style='text-align: center; margin-bottom: 15px;'>
                 <span style='font-size: 16px; color: var(--link-color);'>" . self::wrap_emojis($header_html) . "</span>
             </div>
-    
             <form id='form-share-coords' method='POST' action='ajax/share_coords_send.php' data-on-submit='submitShareCoords'>
                 $hidden_html
                 <label style='display: block; margin-bottom: 6px;'><b>Wo teilen?</b></label>
-                <div style='display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; font-size: 14px;'>
+                <div style='display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center;'>
                     <label style='display: flex; align-items: center; gap: 6px;'>
                         <input type='radio' name='share_target' value='world' checked data-on-change='toggleShareTarget'>
                         <span>Welt-Chat</span>
@@ -3240,7 +3251,6 @@ class Messages
                         <span>Privatnachricht</span>
                     </label>
                 </div>
-    
                 <div id='share-recipient-wrap' style='display: none; margin-bottom: 15px;'>
                     <label style='display: block; margin-bottom: 4px; font-size: 14px;'><b>Empfänger (Spielername):</b></label>
                     <div style='display: flex; gap: 6px; align-items: center;'>
@@ -3251,20 +3261,22 @@ class Messages
                         </button>
                     </div>
                 </div>
-    
                 <div style='display: flex; justify-content: center; gap: 10px;'>
-                    <input type='submit' id='btn-share-submit' value='In Chat einfügen' style='padding: 6px 25px;'>
-                    <button type='button' data-on-click='closeOverlay'>Abbrechen</button>
+                    <input type='submit' id='btn-share-submit' value='In Chat einfügen'>
+                    $copy_btn
                 </div>
+                $copy_fallback
             </form>
         </div>";
     }
 
-    public static function is_valid_reaction_type(string $type): bool {
+    public static function is_valid_reaction_type(string $type): bool
+    {
         return in_array($type, ["news", "world_chat", "chat", "guild_chat"], true);
     }
 
-    public static function can_access_reaction_entity(string $type, int $id, User $user): bool {
+    public static function can_access_reaction_entity(string $type, int $id, User $user): bool
+    {
         if (!self::is_valid_reaction_type($type) || $id <= 0) {
             return false;
         }
@@ -3280,7 +3292,7 @@ class Messages
                 [$id])->fetch_column(),
             "chat" => (bool)$db->execute_query("SELECT 1 FROM messages WHERE id = ? AND (senderid = ? OR receiverid = ?) AND deleted = 0 LIMIT 1",
                 [$id, $uid, $uid])->fetch_column(),
-            "guild_chat" => ($gid > 0) && (bool)$db->execute_query("SELECT 1 FROM guild_chat WHERE id = ? AND guild_id = ? AND deleted = 0 LIMIT 1",
+            "guild_chat" => ($gid > 0) && $db->execute_query("SELECT 1 FROM guild_chat WHERE id = ? AND guild_id = ? AND deleted = 0 LIMIT 1",
                     [$id, $gid])->fetch_column(),
             default => false
         };

@@ -1,16 +1,14 @@
 <?php
-
 require_once("includes/core.php");
 
 $maintenance_text = "Der Server befindet sich im Wartungsmodus!";
-
 if (!empty(MAINTENANCE_REASON)) {
     $maintenance_text .= "<br><b>Grund:</b> " . e(MAINTENANCE_REASON);
 }
 
-$success = "";
-$error = "";
-$warning = "";
+$auth_success = "";
+$auth_error = "";
+$auth_warning = "";
 $mode = (get_str("action", "login") === "register") ? "register" : "login";
 $now = time();
 
@@ -20,13 +18,12 @@ $old_accept_rules = false;
 $is_post_feedback = false;
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
-    if (isset($_SESSION["auth_flash"])) {
-        $flash = $_SESSION["auth_flash"];
-        unset($_SESSION["auth_flash"]);
+    $flash = consume_auth_flash();
 
-        $success = $flash["success"] ?? "";
-        $error = $flash["error"] ?? "";
-        $warning = $flash["warning"] ?? "";
+    if (!empty($flash)) {
+        $auth_success = $flash["success"] ?? "";
+        $auth_error = $flash["error"] ?? "";
+        $auth_warning = $flash["warning"] ?? "";
         $old_username = $flash["username"] ?? "";
         $old_email = $flash["email"] ?? "";
         $old_accept_rules = !empty($flash["accept_rules"]);
@@ -39,61 +36,63 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $raw_key = get_str("key");
     if ($raw_key !== "") {
         if (!preg_match('/^[a-f0-9]{32}$/', $raw_key)) {
-            $error = "Ungültiger oder abgelaufener Aktivierungsschlüssel.";
-        } else {
-            $result = $db_instance->execute_query("SELECT id, username, status, email, password FROM users WHERE activationkey = ? LIMIT 1",
-                    [$raw_key]
-            );
-
-            if ($result && $result->num_rows > 0) {
-                $user_data = $result->fetch_assoc();
-                $user_id = $user_data["id"];
-                $username = $user_data["username"];
-
-                if (!$user_data["status"]) {
-                    $max_news_id = $db_instance->query("SELECT MAX(date) FROM news")->fetch_row()[0] ?? 0;
-                    $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
-                    $max_sug_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
-                    $max_comm_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
-
-                    $db_instance->execute_query(
-                            "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ?, last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
-                            [$max_news_id, $max_chat_id, $max_sug_id, $max_comm_id, $user_id]
-                    );
-
-                    $kingdom = new Kingdom();
-                    $main_kingdom = $kingdom->create_kingdom($user_id, $username);
-
-                    if ($main_kingdom) {
-                        // Update last rank
-                        $query_rank = "UPDATE users JOIN (SELECT id, (@rank := @rank + 1) AS new_rank 
-                        FROM (SELECT id FROM users ORDER BY score DESC) 
-                        AS ranked_users CROSS JOIN (SELECT @rank := 0) AS init) AS r ON users.id = r.id 
-                        SET users.lastrank = r.new_rank 
-                        WHERE users.id = ?
-                ";
-                        $db_instance->execute_query($query_rank, [$user_id]);
-                        $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $user_id]);
-
-                        if (!IS_DEV) {
-                            PhpBBBridge::create_forum_user($username, $user_data["email"], $user_data["password"]);
-                        }
-
-                        if (AdventCalendar::is_active()) {
-                            new AdventCalendar()->ensure_user_gifts($user_id);
-                        }
-
-                        $success = "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen.";
-                    } else {
-                        $error = "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de";
-                    }
-                } else {
-                    $error = "Dieser Account ist bereits aktiviert.";
-                }
-            } else {
-                $error = "Ungültiger oder abgelaufener Aktivierungsschlüssel.";
-            }
+            set_auth_flash(["error" => "Ungültiger oder abgelaufener Aktivierungsschlüssel."]);
+            change_location("index.php");
         }
+
+        $result = $db_instance->execute_query(
+                "SELECT id, username, status, email, password FROM users WHERE activationkey = ? LIMIT 1",
+                [$raw_key]
+        );
+
+        if (!$result || $result->num_rows === 0) {
+            set_auth_flash(["error" => "Ungültiger oder abgelaufener Aktivierungsschlüssel."]);
+            change_location("index.php");
+        }
+
+        $user_data = $result->fetch_assoc();
+        if ($user_data["status"]) {
+            set_auth_flash(["error" => "Dieser Account ist bereits aktiviert."]);
+            change_location("index.php");
+        }
+
+        $user_id = $user_data["id"];
+        $username = $user_data["username"];
+        $max_news_id = $db_instance->query("SELECT MAX(date) FROM news")->fetch_row()[0] ?? 0;
+        $max_chat_id = $db_instance->query("SELECT MAX(id) FROM world_chat")->fetch_row()[0] ?? 0;
+        $max_sug_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestions")->fetch_row()[0] ?? 0);
+        $max_comm_id = (int)($db_instance->query("SELECT MAX(id) FROM suggestion_comments")->fetch_row()[0] ?? 0);
+
+        $db_instance->execute_query(
+                "UPDATE users SET status = true, activationkey = '', last_news_read = ?, last_world_chat_id = ?, last_suggestion_read = ?, last_suggestion_comment_read = ? WHERE id = ?",
+                [$max_news_id, $max_chat_id, $max_sug_id, $max_comm_id, $user_id]
+        );
+
+        $kingdom = new Kingdom();
+        $main_kingdom = $kingdom->create_kingdom($user_id, $username);
+        if (!$main_kingdom) {
+            set_auth_flash(["error" => "Account aktiviert, aber kein freier Platz<br>auf der Karte gefunden. Support kontaktieren!<br>support@magic-empires.de"]);
+            change_location("index.php");
+        }
+
+        // Update last rank
+        $query_rank = "UPDATE users JOIN (SELECT id, (@rank := @rank + 1) AS new_rank 
+                       FROM (SELECT id FROM users ORDER BY score DESC) 
+                       AS ranked_users CROSS JOIN (SELECT @rank := 0) AS init) AS r ON users.id = r.id 
+                       SET users.lastrank = r.new_rank 
+                       WHERE users.id = ?";
+        $db_instance->execute_query($query_rank, [$user_id]);
+        $db_instance->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$main_kingdom, $user_id]);
+
+        if (!IS_DEV) {
+            PhpBBBridge::create_forum_user($username, $user_data["email"], $user_data["password"]);
+        }
+        if (AdventCalendar::is_active()) {
+            new AdventCalendar()->ensure_user_gifts($user_id);
+        }
+
+        set_auth_flash(["success" => "Dein Account wurde erfolgreich aktiviert!<br>Du kannst dich jetzt einloggen."]);
+        change_location("index.php");
     }
 }
 
@@ -102,41 +101,42 @@ $is_post_logout = ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["logout
 $is_get_logout = isset($_GET["logout"]);
 
 if ($is_post_logout || $is_get_logout) {
-    $mode = "login";
     $logout_type = get_str("logout");
     $url_hash = get_str("v");
     $cookie_hash = is_string($_COOKIE["logout_verify"] ?? null) ? $_COOKIE["logout_verify"] : "";
     $is_system_logout = ($url_hash !== "" && $cookie_hash !== "" && hash_equals($cookie_hash, $url_hash));
 
+    $logout_success = "";
+    $logout_warning = "";
     if ($is_system_logout) {
         if ($logout_type === "inactive") {
-            $warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
+            $logout_warning = "Du wurdest aus Inaktivitätsgründen automatisch ausgeloggt!";
         } else if ($logout_type === "session") {
-            $warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
+            $logout_warning = "Deine Session ist abgelaufen. Bitte logge dich erneut ein!";
         } else if ($logout_type === "maintenance") {
-            $warning = $maintenance_text;
+            $logout_warning = $maintenance_text;
         } else if ($logout_type === "deleted") {
-            $success = "Dein Account wurde erfolgreich gelöscht!";
+            $logout_success = "Dein Account wurde erfolgreich gelöscht!";
         }
     } else if ($is_post_logout) {
-        $success = "Du hast dich erfolgreich ausgeloggt!";
+        $logout_success = "Du hast dich erfolgreich ausgeloggt!";
     }
 
     if ($user->is_logged_in() && ($is_post_logout || $is_system_logout)) {
         if (isset($_COOKIE["me_remember"]) && is_string($_COOKIE["me_remember"]) && str_contains($_COOKIE["me_remember"], ':')) {
             list($uid, $token) = explode(':', $_COOKIE["me_remember"], 2);
             $token_hash = hash("sha256", $token);
-
             $db_instance->execute_query("DELETE FROM user_remember_tokens WHERE userid = ? AND token_hash = ?", [(int)$uid, $token_hash]);
-
             setcookie("me_remember", '', time() - 3600, '/', '', true, true);
             setcookie("me_remember", '', time() - 3600, '/');
             unset($_COOKIE["me_remember"]);
         }
 
         // DB Cleanup
-        $db_instance->execute_query("UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?",
-                [$_SESSION["message_count"] ?? 0, $_SESSION["message_timeframe_end"] ?? 0, $user->get_user_id()]);
+        $db_instance->execute_query(
+                "UPDATE users SET msgcount = ?, lastsentmsgend = ? WHERE id = ?",
+                [$_SESSION["message_count"] ?? 0, $_SESSION["message_timeframe_end"] ?? 0, $user->get_user_id()]
+        );
 
         // Stop Session safely
         $_SESSION = [];
@@ -145,26 +145,28 @@ if ($is_post_logout || $is_get_logout) {
 
     setcookie("logout_verify", "", $now - 3600, "/");
 
-    if (!empty($success) || !empty($warning)) {
-        $_SESSION["auth_flash"] = [
-                "success" => $success,
-                "warning" => $warning
-        ];
+    if ($logout_success !== "" || $logout_warning !== "") {
+        set_auth_flash([
+                "success" => $logout_success,
+                "warning" => $logout_warning
+        ]);
     }
 
     change_location("index.php");
-} else {
-    if ($user->is_logged_in()) {
-        change_location("overview.php");
-    }
+} else if ($user->is_logged_in()) {
+    change_location("overview.php");
 }
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $is_auth_post = isset($_POST["login"]) || isset($_POST["register"]);
+    $redirect_url = ($mode === "register") ? "index.php?action=register" : "index.php";
 
     if ($is_auth_post && !verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token! Bitte lade die Seite neu.";
-    } else if (isset($_POST["login"])) { // LOGIN
+        set_auth_flash(["error" => "Ungültiger Sicherheits-Token! Bitte lade die Seite neu."]);
+        change_location($redirect_url);
+    }
+
+    if (isset($_POST["login"])) {
         $name = make_secure(post_str("username"));
         $pass = trim(post_str("password"));
         $ip = $_SERVER["REMOTE_ADDR"] ?? "0.0.0.0";
@@ -172,313 +174,240 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $device_key = (is_string($raw_device) && preg_match('/^[a-f0-9]{32}$/', $raw_device)) ? $raw_device : "";
         $target_ident = $ip . ":" . mb_strtolower($name, "UTF-8");
 
+        $fail_login = static function (string $msg, string $type = "error"): never {
+            set_auth_flash([$type => $msg]);
+            change_location("index.php");
+        };
+
         if (empty($name) || empty($pass)) {
-            $error .= "Bitte beide Felder ausfüllen!";
-        } else {
-            $wait = max(
-                    RateLimiter::is_blocked("login_ip", $ip),
-                    RateLimiter::is_blocked("login_target", $target_ident),
-                    $device_key !== "" ? RateLimiter::is_blocked("login_device", $device_key) : 0
-            );
-            if ($wait > 0) {
-                $error .= "Zu viele fehlgeschlagene Login-Versuche! Bitte warte noch:</br>" . convert_sec_to_str($wait);
-            } else {
-                $result = $db_instance->execute_query("SELECT id, password, status, adminlevel, is_banned, ban_reason, ban_until,
-                        is_vacation, vacation_until FROM users WHERE username = ? OR email = ? LIMIT 1",
-                        [$name, $name]
-                );
-                $row = ($result && $result->num_rows > 0) ? $result->fetch_assoc() : null;
+            $fail_login("Bitte beide Felder ausfüllen!");
+        }
 
-                $uid_wait = $row ? RateLimiter::is_blocked("login_uid", $ip . ":" . (int)$row["id"]) : 0;
+        $wait = max(
+                RateLimiter::is_blocked("login_ip", $ip),
+                RateLimiter::is_blocked("login_target", $target_ident),
+                $device_key !== "" ? RateLimiter::is_blocked("login_device", $device_key) : 0
+        );
+        if ($wait > 0) {
+            $fail_login("Zu viele fehlgeschlagene Login-Versuche! Bitte warte noch:</br>" . convert_sec_to_str($wait));
+        }
 
-                if ($uid_wait > 0) {
-                    $error .= "Zu viele fehlgeschlagene Login-Versuche! Bitte warte noch:</br>" . convert_sec_to_str($uid_wait);
-                } else if (!$row || !password_verify($pass, $row["password"])) {
-                    $logger->security("Login failed for user: $name");
+        $result = $db_instance->execute_query(
+                "SELECT id, password, status, adminlevel, is_banned, ban_reason, ban_until, is_vacation, vacation_until FROM users WHERE username = ? OR email = ? LIMIT 1",
+                [$name, $name]
+        );
+        $row = ($result && $result->num_rows > 0) ? $result->fetch_assoc() : null;
+        $uid_wait = $row ? RateLimiter::is_blocked("login_uid", $ip . ":" . (int)$row["id"]) : 0;
 
-                    RateLimiter::hit("login_ip", $ip, 10, 900, 900);
-                    RateLimiter::hit("login_target", $target_ident, 5, 900, 900);
+        if ($uid_wait > 0) {
+            $fail_login("Zu viele fehlgeschlagene Login-Versuche! Bitte warte noch:</br>" . convert_sec_to_str($uid_wait));
+        }
 
-                    if ($device_key !== "") {
-                        RateLimiter::hit("login_device", $device_key, 5, 900, 900);
-                    }
+        if (!$row || !password_verify($pass, $row["password"])) {
+            $logger->security("Login failed for user: $name");
 
-                    if ($row) {
-                        RateLimiter::hit("login_uid", $ip . ":" . (int)$row["id"], 5, 900, 900);
-                    }
+            RateLimiter::hit("login_ip", $ip, 5, 900, 900);
+            RateLimiter::hit("login_target", $target_ident, 5, 900, 900);
 
-                    $error .= "Nutzername oder Passwort ist falsch!";
-                } else {
-                    if (!empty($row["is_vacation"])) {
-                        if ($row["vacation_until"] > $now) {
-                            $date_str = date("d.m.Y \u\m H:i", $row["vacation_until"]);
-
-                            $error .= "Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.<br />Ein Login ist bis dahin gesperrt!";
-                        } else {
-                            $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$row["id"]]);
-                        }
-                    }
-
-                    if (empty($error)) {
-                        if ($row["is_banned"]) {
-                            if (!empty($row["ban_until"]) && (int)$row["ban_until"] <= $now) {
-                                $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?", [$row["id"]]);
-                                $row["is_banned"] = false;
-                            } else {
-                                $ban_reason = trim($row["ban_reason"] ?? "");
-                                $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
-                                $until_text = (!empty($row["ban_until"]) && $row["ban_until"] > $now)
-                                        ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", (int)$row["ban_until"]) . " Uhr"
-                                        : "<br />Dauer: Permanent";
-
-                                $error .= "Dein Account wurde gesperrt!" . $reason_text . $until_text;
-                            }
-                        } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
-                            $warning = $maintenance_text;
-                        } else {
-                            if (!$row["status"]) {
-                                $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
-                            } else {
-                                RateLimiter::clear("login_uid", $ip . ":" . (int)$row["id"]);
-                                RateLimiter::clear("login_target", $target_ident);
-
-                                $keep_logged_in = isset($_POST["remember_me"]);
-                                unset($_POST);
-                                $user->login_user($row["id"]);
-
-                                if ($keep_logged_in) {
-                                    $user->create_remember_me_token();
-                                }
-
-                                change_location("overview.php");
-                            }
-                        }
-                    }
-                }
+            if ($device_key !== "") {
+                RateLimiter::hit("login_device", $device_key, 5, 900, 900);
             }
 
-//                if ($result && $result->num_rows > 0) {
-//                    $row = $result->fetch_assoc();
-//
-//                    if (!password_verify($pass, $row["password"])) {
-//                        $logger->security("Login failed for user: $name");
-//
-//                        RateLimiter::hit("login_ip", $ip, 15, 900, 900);
-//                        RateLimiter::hit("login_target", $target_ident, 5, 900, 900);
-//
-//                        $error .= "Nutzername oder Passwort ist falsch!";
-//                    } else {
-//                        if (!empty($row["is_vacation"])) {
-//                            if ($row["vacation_until"] > $now) {
-//                                $date_str = date("d.m.Y \u\m H:i", $row["vacation_until"]);
-//
-//                                $error .= "Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.<br />Ein Login ist bis dahin gesperrt!";
-//                            } else {
-//                                $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$row["id"]]);
-//                            }
-//                        }
-//
-//                        if (empty($error)) {
-//                            if ($row["is_banned"]) {
-//                                if (!empty($row["ban_until"]) && (int)$row["ban_until"] <= $now) {
-//                                    $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?", [$row["id"]]);
-//                                    $row["is_banned"] = false;
-//                                } else {
-//                                    $ban_reason = trim($row["ban_reason"] ?? "");
-//                                    $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
-//                                    $until_text = (!empty($row["ban_until"]) && $row["ban_until"] > $now)
-//                                            ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", (int)$row["ban_until"]) . " Uhr"
-//                                            : "<br />Dauer: Permanent";
-//
-//                                    $error .= "Dein Account wurde gesperrt!" . $reason_text . $until_text;
-//                                }
-//                            } else if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
-//                                $warning = $maintenance_text;
-//                            } else {
-//                                if (!$row["status"]) {
-//                                    $error .= "Account noch nicht aktiviert durch Aktivierungslink!";
-//                                } else {
-//                                    RateLimiter::clear("login_uid", $ip . ":" . (int)$row["id"]);
-//                                    RateLimiter::clear("login_target", $target_ident);
-//
-//                                    $keep_logged_in = isset($_POST["remember_me"]);
-//                                    unset($_POST);
-//                                    $user->login_user($row["id"]);
-//
-//                                    if ($keep_logged_in) {
-//                                        $user->create_remember_me_token();
-//                                    }
-//
-//                                    change_location("overview.php");
-//                                }
-//                            }
-//                        }
-//                    }
-//                } else {
-//                    $logger->security("Login failed for user: $name");
-//
-//                    RateLimiter::hit("login_ip", $ip, 15, 900, 900);
-//                    RateLimiter::hit("login_target", $target_ident, 5, 900, 900);
-//
-//                    $error .= "Nutzername oder Passwort ist falsch!";
-//                }
+            if ($row) {
+                RateLimiter::hit("login_uid", $ip . ":" . (int)$row["id"], 5, 900, 900);
+            }
+
+            $fail_login("Nutzername oder Passwort ist falsch!");
         }
-    } else if (isset($_POST["register"])) { // REGISTER
-        $mode = "register";
+
+        if (!empty($row["is_vacation"])) {
+            if ($row["vacation_until"] > $now) {
+                $date_str = date("d.m.Y \u\m H:i", $row["vacation_until"]);
+                $fail_login("Dein Account befindet sich bis zum <b>$date_str Uhr</b> im Urlaubsmodus.<br />Ein Login ist bis dahin gesperrt!");
+            }
+
+            $db_instance->execute_query("UPDATE users SET is_vacation = 0, vacation_until = 0 WHERE id = ?", [$row["id"]]);
+        }
+
+        if ($row["is_banned"]) {
+            if (!empty($row["ban_until"]) && (int)$row["ban_until"] <= $now) {
+                $db_instance->execute_query("UPDATE users SET is_banned = 0, ban_reason = NULL, ban_until = 0 WHERE id = ?", [$row["id"]]);
+            } else {
+                $ban_reason = trim($row["ban_reason"] ?? "");
+                $reason_text = !empty($ban_reason) ? "<br />Grund: " . e($ban_reason) : "";
+                $until_text = (!empty($row["ban_until"]) && $row["ban_until"] > $now)
+                        ? "<br />Dauer: bis " . date("d.m.Y \u\m H:i", (int)$row["ban_until"]) . " Uhr"
+                        : "<br />Dauer: Permanent";
+
+                $fail_login("Dein Account wurde gesperrt!" . $reason_text . $until_text);
+            }
+        }
+
+        if (MAINTENANCE_MODE && $row["adminlevel"] <= ADMIN_LEVEL_SUPPORTER) {
+            $fail_login($maintenance_text, "warning");
+        }
+
+        if (!$row["status"]) {
+            $fail_login("Account noch nicht aktiviert durch Aktivierungslink!");
+        }
+
+        RateLimiter::clear("login_uid", $ip . ":" . (int)$row["id"]);
+        RateLimiter::clear("login_target", $target_ident);
+        $keep_logged_in = isset($_POST["remember_me"]);
+        unset($_POST);
+        $user->login_user($row["id"]);
+
+        if ($keep_logged_in) {
+            $user->create_remember_me_token();
+        }
+
+        change_location("overview.php");
+    }
+
+    if (isset($_POST["register"])) {
         $current_ip = $_SERVER["REMOTE_ADDR"];
+        $check_data = $db_instance->execute_query("
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE status = 1) AS active_players,
+                (SELECT 1 FROM banned_ips WHERE ip = ? LIMIT 1) AS is_ip_banned
+        ", [$current_ip])->fetch_assoc();
 
-        $query_check = "
-            SELECT 
-            (SELECT COUNT(*) FROM users WHERE status = 1) AS active_players,
-            (SELECT 1 FROM banned_ips WHERE ip = ? LIMIT 1) AS is_ip_banned
-        ";
-        $res_check = $db_instance->execute_query($query_check, [$current_ip]);
-        $check_data = $res_check->fetch_assoc();
+        $fail_register = static function (string $err_msg): never {
+            set_auth_flash([
+                    "error" => $err_msg,
+                    "username" => post_str("username"),
+                    "email" => post_str("email"),
+                    "accept_rules" => isset($_POST["accept_rules"])
+            ]);
+            change_location("index.php?action=register");
+        };
 
-        $current_active_players = (int)($check_data["active_players"] ?? 0);
-        $is_ip_banned = !empty($check_data["is_ip_banned"]);
+        if (!empty($check_data["is_ip_banned"])) {
+            $fail_register("Deine IP-Adresse ist für Neuregistrierungen gesperrt!");
+        }
+        if ((int)($check_data["active_players"] ?? 0) >= MAX_PLAYER_LIMIT) {
+            $fail_register("Das Spielerlimit von " . MAX_PLAYER_LIMIT . " wurde erreicht. Aktuell sind leider keine Neuanmeldungen möglich.");
+        }
 
-        if ($is_ip_banned) {
-            $error .= "Deine IP-Adresse ist für Neuregistrierungen gesperrt!<br>";
-        } else if ($current_active_players >= MAX_PLAYER_LIMIT) {
-            $error .= "Das Spielerlimit von " . MAX_PLAYER_LIMIT . " wurde erreicht. Aktuell sind leider keine Neuanmeldungen möglich.<br>";
+        $reg_errors = [];
+        if (!isset($_POST["accept_rules"])) {
+            $reg_errors[] = "Du musst die Spielregeln akzeptieren!";
+        }
+
+        if (empty($_SESSION["captcha_passed"])) {
+            $recaptcha_token = post_str("g-recaptcha-response");
+            $ctx = stream_context_create([
+                    "http" => [
+                            "method" => "POST",
+                            "header" => "Content-Type: application/x-www-form-urlencoded\r\n",
+                            "content" => http_build_query([
+                                    "secret" => (string)getenv("SERVER_KEY"),
+                                    "response" => $recaptcha_token,
+                                    "remoteip" => $_SERVER["REMOTE_ADDR"] ?? ""
+                            ]),
+                            "timeout" => 5
+                    ]
+            ]);
+            $json = @file_get_contents("https://www.google.com/recaptcha/api/siteverify", false, $ctx);
+            $data = is_string($json) ? json_decode($json) : null;
+
+            if (!empty($data->success)) {
+                $_SESSION["captcha_passed"] = true;
+            } else {
+                $reg_errors[] = "Bitte den Botschutz akzeptieren!";
+            }
+        }
+
+        $raw_name = post_str("username");
+        $name = make_secure($raw_name);
+        $email = make_secure(post_str("email"));
+        $pass = trim(post_str("password"));
+        $pass_repeat = trim(post_str("password_repeat"));
+
+        if (preg_match('/\s/', $raw_name)) {
+            $reg_errors[] = "Benutzername darf keine Leerzeichen enthalten!";
+        } else if (empty($name)) {
+            $reg_errors[] = "Bitte einen Benutzernamen angeben!";
+        } else if (mb_strlen($name, "UTF-8") < MIN_USERNAME_LENGTH || mb_strlen($name, "UTF-8") > MAX_USERNAME_LENGTH) {
+            $reg_errors[] = "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!";
+        } else if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $name)) {
+            $reg_errors[] = "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -";
         } else {
-            if (!isset($_POST["accept_rules"])) {
-                $error .= "Du musst die Spielregeln akzeptieren!<br>";
+            $bad_names_list = get_bad_names();
+            $bad_names_lower = array_map(fn($w) => mb_strtolower(trim($w), "UTF-8"), $bad_names_list);
+            $is_exact_bad = in_array(mb_strtolower($name, "UTF-8"), $bad_names_lower, true);
+
+            if ($is_exact_bad || contains_bad_words($name, $bad_names_list) || preg_match_all(regex_pattern(), $name)) {
+                $reg_errors[] = "Dieser Benutzername ist nicht erlaubt!";
+            } else if (is_name_monotonous($name)) {
+                $reg_errors[] = "Dieser Benutzername ist zu eintönig!";
             }
+        }
 
-            if (empty($_SESSION["captcha_passed"])) {
-                $recaptcha_token = post_str("g-recaptcha-response");
-                $ctx = stream_context_create([
-                        "http" => [
-                                "method" => "POST",
-                                "header" => "Content-Type: application/x-www-form-urlencoded\r\n",
-                                "content" => http_build_query([
-                                        "secret" => (string)getenv("SERVER_KEY"),
-                                        "response" => $recaptcha_token,
-                                        "remoteip" => $_SERVER["REMOTE_ADDR"] ?? ""
-                                ]),
-                                "timeout" => 5
-                        ]
-                ]);
-                $json = @file_get_contents("https://www.google.com/recaptcha/api/siteverify", false, $ctx);
-                $data = is_string($json) ? json_decode($json) : null;
+        if (empty($email)) {
+            $reg_errors[] = "Bitte E-Mail angeben!";
+        } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $reg_errors[] = "Falsches E-Mail Format!";
+        } else if (strlen($email) > MAX_EMAIL_LENGTH) {
+            $reg_errors[] = "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!";
+        } else if (str_ends_with(strtolower($email), "@magic-empires.de") || str_ends_with(strtolower($email), "@sylvan-giese.de")) {
+            $reg_errors[] = "Diese E-Mail-Adresse ist nicht gestattet!";
+        } else {
+            $domain = substr(strrchr($email, "@"), 1);
 
-                if (!empty($data->success)) {
-                    $_SESSION["captcha_passed"] = true;
-                } else {
-                    $error .= "Bitte den Botschutz akzeptieren!<br>";
-                }
-            }
-
-            $raw_name = post_str("username");
-            $name = make_secure($raw_name);
-            $email = make_secure(post_str("email"));
-            $pass = trim(post_str("password"));
-            $pass_repeat = trim(post_str("password_repeat"));
-
-            if (preg_match('/\s/', $raw_name)) {
-                $error .= "Benutzername darf keine Leerzeichen enthalten!<br>";
+            if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
+                $reg_errors[] = "Die E-Mail existiert nicht oder kann keine Mails empfangen!";
             } else {
-                if (empty($name)) {
-                    $error .= "Bitte einen Benutzernamen angeben!<br>";
-                } else if (mb_strlen($name, "UTF-8") < MIN_USERNAME_LENGTH || mb_strlen($name, "UTF-8") > MAX_USERNAME_LENGTH) {
-                    $error .= "Benutzername muss zwischen " . MIN_USERNAME_LENGTH . " und " . MAX_USERNAME_LENGTH . " Zeichen lang sein!<br>";
-                } else if (!preg_match("/^[a-zA-Z0-9äöüÄÖÜß_-]+$/u", $name)) {
-                    $error .= "Erlaubte Zeichen: Buchstaben, Zahlen, _ und -<br>";
-                } else {
-                    $bad_names_list = get_bad_names();
-                    $bad_names_lower = array_map(fn($w) => mb_strtolower(trim($w), "UTF-8"), $bad_names_list);
-                    $is_exact_bad = in_array(mb_strtolower($name, "UTF-8"), $bad_names_lower, true);
+                $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$email, $now]);
 
-                    if ($is_exact_bad || contains_bad_words($name, $bad_names_list) || preg_match_all(regex_pattern(), $name)) {
-                        $error .= "Dieser Benutzername ist nicht erlaubt!<br>";
-                    } else if (is_name_monotonous($name)) {
-                        $error .= "Dieser Benutzername ist zu eintönig!<br>";
-                    }
-                }
-            }
-
-            if (empty($email)) {
-                $error .= "Bitte E-Mail angeben!<br>";
-            } else if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $error .= "Falsches E-Mail Format!<br>";
-            } else if (strlen($email) > MAX_EMAIL_LENGTH) {
-                $error .= "Die E-Mail Adresse ist zu lang (max. " . MAX_EMAIL_LENGTH . " Zeichen)!<br>";
-            } else {
-                if (str_ends_with(strtolower($email), "@magic-empires.de") ||
-                        str_ends_with(strtolower($email), "@sylvan-giese.de")) {
-                    $error .= "Diese E-Mail-Adresse ist nicht gestattet!<br>";
-                } else {
-                    $domain = substr(strrchr($email, "@"), 1);
-
-                    if (!checkdnsrr($domain) && !checkdnsrr($domain, "A")) {
-                        $error .= "Die E-Mail existiert nicht oder kann keine Mails empfangen!<br>";
-                    } else {
-                        $res_block = $db_instance->execute_query("SELECT blocked_until FROM blocked_emails WHERE email = ? AND blocked_until > ?", [$email, $now]);
-
-                        if ($res_block->num_rows > 0) {
-                            $row_block = $res_block->fetch_assoc();
-                            $wait_until = date("d.m.Y", $row_block["blocked_until"]);
-
-                            $error .= "Diese E-Mail Adresse ist noch bis zum $wait_until gesperrt.<br>";
-                        }
-                    }
-                }
-            }
-
-            if (empty($pass)) {
-                $error .= "Bitte ein Passwort angeben!<br>";
-            } else if ($pass !== $pass_repeat) {
-                $error .= "Die Passwörter stimmen nicht überein!<br>";
-            } else if (strlen($pass) < MIN_PASSWORD_LENGTH || strlen($pass) > MAX_PASSWORD_LENGTH) {
-                $error .= "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!<br>";
-            }
-
-            if (empty($error)) {
-                $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? OR email = ?", [$name, $email]);
-
-                if ($result->num_rows > 0 || PhpBBBridge::username_exists($name)) {
-                    $error .= "Benutzername oder E-Mail existiert bereits!<br>";
-                } else {
-                    try {
-                        $user->register_user($name, $email, $pass);
-
-                        $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
-                        $success = $user->get_reg_status();
-                        $mode = "login";
-                    } catch (Throwable $e) {
-                        $logger->error("Registrierung fehlgeschlagen (RandomException): " . $e->getMessage());
-                        $error .= "Ein interner Systemfehler ist aufgetreten. Bitte versuche es in wenigen Minuten erneut.<br>";
-                        $mode = "register";
-                    }
+                if ($res_block->num_rows > 0) {
+                    $wait_until = date("d.m.Y", $res_block->fetch_assoc()["blocked_until"]);
+                    $reg_errors[] = "Diese E-Mail Adresse ist noch bis zum $wait_until gesperrt.";
                 }
             }
         }
+
+        if (empty($pass)) {
+            $reg_errors[] = "Bitte ein Passwort angeben!";
+        } else if ($pass !== $pass_repeat) {
+            $reg_errors[] = "Die Passwörter stimmen nicht überein!";
+        } else if (strlen($pass) < MIN_PASSWORD_LENGTH || strlen($pass) > MAX_PASSWORD_LENGTH) {
+            $reg_errors[] = "Passwort muss zwischen " . MIN_PASSWORD_LENGTH . " und " . MAX_PASSWORD_LENGTH . " Zeichen lang sein!";
+        }
+
+        if (!empty($reg_errors)) {
+            $fail_register(implode("<br>", $reg_errors));
+        }
+
+        $result = $db_instance->execute_query("SELECT id FROM users WHERE username = ? OR email = ?", [$name, $email]);
+        if ($result->num_rows > 0 || PhpBBBridge::username_exists($name)) {
+            $fail_register("Benutzername oder E-Mail existiert bereits!");
+        }
+
+        try {
+            $user->register_user($name, $email, $pass);
+            $logger->log_game("ACCOUNT", "REGISTER", ["email" => $email, "username" => $name]);
+            set_auth_flash(["success" => $user->get_reg_status()]);
+
+            change_location("index.php");
+        } catch (Throwable $e) {
+            $logger->error("Registrierung fehlgeschlagen (RandomException): " . $e->getMessage());
+
+            $fail_register("Ein interner Systemfehler ist aufgetreten. Bitte versuche es in wenigen Minuten erneut.");
+        }
     }
 
-    if ($is_auth_post) {
-        $_SESSION["auth_flash"] = [
-                "success" => $success,
-                "error" => $error,
-                "warning" => $warning,
-                "username" => post_str("username"),
-                "email" => post_str("email"),
-                "accept_rules" => isset($_POST["accept_rules"])
-        ];
-
-        $redirect_url = ($mode === "register") ? "index.php?action=register" : "index.php";
-        change_location($redirect_url);
-    }
+    change_location($redirect_url);
 }
 
 if (MAINTENANCE_MODE) {
-    if (empty($warning)) {
-        $warning = $maintenance_text;
-    } else if (!str_contains($warning, "Wartungsmodus")) {
-        $warning .= "<br>" . $maintenance_text;
+    if (empty($auth_warning)) {
+        $auth_warning = $maintenance_text;
+    } else if (!str_contains($auth_warning, "Wartungsmodus")) {
+        $auth_warning .= "<br>" . $maintenance_text;
     }
 }
+
 $online_limit = $now - ONLINE_MAX_SECONDS;
 $res_online = $db_instance->execute_query("SELECT COUNT(*) FROM users WHERE lastactivity > ? AND status = 1", [$online_limit]);
 $count_online = $res_online->fetch_row()[0];
@@ -493,14 +422,15 @@ $count_online = $res_online->fetch_row()[0];
 
 <div class="middle-container" style="margin: auto; width: 1100px; max-width: 90%;">
     <div id="middle-flash-container" class="middle-flash-container landing-flash">
-        <?php if (!empty($success)): ?>
-            <?= (str_contains($success, "info-box")) ? $success : show_passed_box($success) ?>
+        <?php if (!empty($auth_success)): ?>
+            <?= (str_contains($auth_success, "info-box")) ? $auth_success : show_passed_box($auth_success) ?>
         <?php endif; ?>
 
-        <?php if (!empty($error)): ?>
+        <?php if (!empty($auth_error)): ?>
             <div id="desktop-only-errors" style="width: 100%;">
                 <?php
-                $errors = explode("<br>", $error);
+                $errors = explode("<br>", $auth_error);
+
                 foreach ($errors as $e) {
                     if (trim($e) !== "") echo show_error_box($e);
                 }
@@ -510,9 +440,9 @@ $count_online = $res_online->fetch_row()[0];
     </div>
 
     <div class="big-box-container">
-        <?php if (!empty($warning)): ?>
+        <?php if (!empty($auth_warning)): ?>
             <div class="landing-warning-wrap">
-                <?= show_warning_box($warning) ?>
+                <?= show_warning_box($auth_warning) ?>
             </div>
         <?php endif; ?>
 
@@ -557,19 +487,19 @@ $count_online = $res_online->fetch_row()[0];
                 <div class="form auth-modal-container" id="auth-modal" style="padding: 0;">
                     <div class="auth-modal-backdrop js-close-auth"></div>
                     <div class="auth-modal-content">
-                        <?php if (!empty($error) || (!empty($warning) && $_SERVER["REQUEST_METHOD"] === "POST")): ?>
+                        <?php if (!empty($auth_error) || (!empty($auth_warning) && $is_post_feedback)): ?>
                             <div class="modal-auth-errors">
                                 <?php
-                                if (!empty($error)) {
-                                    $errors = explode("<br>", $error);
+                                if (!empty($auth_error)) {
+                                    $errors = explode("<br>", $auth_error);
 
                                     foreach ($errors as $e) {
                                         if (trim($e) !== "") echo show_error_box($e);
                                     }
                                 }
 
-                                if (!empty($warning) && $is_post_feedback) {
-                                    echo show_warning_box($warning);
+                                if (!empty($auth_warning) && $is_post_feedback) {
+                                    echo show_warning_box($auth_warning);
                                 }
                                 ?>
                             </div>
@@ -809,7 +739,7 @@ $count_online = $res_online->fetch_row()[0];
             });
         });
 
-        <?php if (!empty($error) || !empty($warning)): ?>
+        <?php if (!empty($auth_error) || !empty($auth_warning)): ?>
         if (window.innerWidth <= 600 && modal) {
             modal.classList.add("open");
         }

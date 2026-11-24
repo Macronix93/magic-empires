@@ -102,7 +102,9 @@ if ($type === "world") {
         exit;
     }
 
-    if ($last_id > 0) {
+    $mark_read = (get_str("mark_read", "1") !== "0");
+
+    if ($last_id >= 0) {
         $result = $db_instance->execute_query(
             "SELECT * FROM guild_chat WHERE guild_id = ? AND id > ? AND deleted = 0 ORDER BY id LIMIT ?",
             [$guild_id, $last_id, MAX_GUILD_CHAT_MESSAGES_SHOWN]
@@ -113,25 +115,22 @@ if ($type === "world") {
             if ((int)$row["userid"] === $u_id) continue;
 
             $html .= Messages::render_chat_bubble(
-                "guild",
-                (int)$row["id"],
-                (int)$row["userid"],
-                $row["username"],
-                $row["message"],
-                (int)$row["date"],
-                $user
+                "guild", (int)$row["id"], (int)$row["userid"], $row["username"], $row["message"], (int)$row["date"], $user
             );
         }
 
-        $del_res = $db_instance->execute_query(
-            "SELECT id FROM guild_chat WHERE guild_id = ? AND id > ? AND deleted = 1",
-            [$guild_id, $del_since]
-        );
-        while ($del_row = $del_res->fetch_assoc()) {
-            $deleted_ids[] = (int)$del_row["id"];
+        if ($last_id > 0) {
+            $del_res = $db_instance->execute_query(
+                "SELECT id FROM guild_chat WHERE guild_id = ? AND id > ? AND deleted = 1",
+                [$guild_id, $del_since]
+            );
+
+            while ($del_row = $del_res->fetch_assoc()) {
+                $deleted_ids[] = (int)$del_row["id"];
+            }
         }
 
-        if ($new_last_id > $last_id) {
+        if ($mark_read && $new_last_id > $last_id) {
             $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$new_last_id, $u_id]);
         }
     }

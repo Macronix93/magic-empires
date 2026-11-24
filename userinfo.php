@@ -275,4 +275,6 @@ if ($user_id) {
         </tr>
     </table>
     <?php
+} else {
+    echo show_error_box("Ungültige Spieler-ID.");
 }

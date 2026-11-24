@@ -32,72 +32,64 @@ if ($wall_level < MAX_BUILDING_LEVEL) {
         </div>";
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["repair_step"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        $step_percent = post_int("repair_percent");
-
-        if (!in_array($step_percent, [10, 25, 100], true)) {
-            $error = "Ungültige Reparatur-Option!";
-        } else {
-            $db_instance->begin_transaction();
-            try {
-                $locked_k = $db_instance->execute_query(
-                    "SELECT wallhp, stone FROM kingdoms WHERE id = ? FOR UPDATE",
-                    [$current_kingdom]
-                )->fetch_assoc();
-
-                $cur_hp = (int)($locked_k["wallhp"] ?? 0);
-                $cur_stone = (int)($locked_k["stone"] ?? 0);
-                $cur_hp_diff = max(0, $wall_max_hp - $cur_hp);
-
-                if ($step_percent === 100) {
-                    $hp_to_repair = $cur_hp_diff;
-                } else {
-                    $hp_to_repair = (int)($wall_max_hp * ($step_percent / 100));
-                }
-
-                $actual_repair = min($hp_to_repair, $cur_hp_diff);
-                $repair_cost = (int)round($actual_repair * BASE_WALL_REPAIR_COST * $maintenance_mult);
-
-                if ($actual_repair <= 0) {
-                    throw new RuntimeException("Die Mauer ist bereits vollständig repariert!");
-                }
-                if ($cur_stone < $repair_cost) {
-                    throw new RuntimeException("Nicht genügend Stein vorhanden!");
-                }
-
-                $db_instance->execute_query(
-                    "UPDATE kingdoms SET stone = stone - ?, wallhp = LEAST(?, wallhp + ?) WHERE id = ?",
-                    [$repair_cost, $wall_max_hp, $actual_repair, $current_kingdom]
-                );
-
-                $db_instance->commit();
-
-                $logger->log_game("ECONOMY", "WALL_REPAIR", [
-                    "hp_gained" => $actual_repair,
-                    "cost_stone" => $repair_cost,
-                    "percent_step" => $step_percent
-                ], $current_kingdom);
-
-                $_SESSION["game_success"] = "Die Mauer wurde um " . fnum($actual_repair) . " HP repariert.";
-
-                change_location("wall.php");
-            } catch (RuntimeException $e) {
-                $db_instance->rollback();
-                $error = $e->getMessage();
-            } catch (Throwable $e) {
-                $db_instance->rollback();
-                $logger->error("wall repair error: " . $e->getMessage());
-                $error = "Interner Fehler bei der Reparatur.";
-            }
-        }
+        change_location("wall.php", error: "Ungültiger Sicherheits-Token!");
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
+    if (!isset($_POST["repair_step"])) {
         change_location("wall.php");
+    }
+
+    $step_percent = post_int("repair_percent");
+    if (!in_array($step_percent, [10, 25, 100], true)) {
+        change_location("wall.php", error: "Ungültige Reparatur-Option!");
+    }
+
+    $db_instance->begin_transaction();
+    try {
+        $locked_k = $db_instance->execute_query(
+            "SELECT wallhp, stone FROM kingdoms WHERE id = ? FOR UPDATE",
+            [$current_kingdom]
+        )->fetch_assoc();
+
+        $cur_hp = (int)($locked_k["wallhp"] ?? 0);
+        $cur_stone = (int)($locked_k["stone"] ?? 0);
+        $cur_hp_diff = max(0, $wall_max_hp - $cur_hp);
+
+        $hp_to_repair = ($step_percent === 100) ? $cur_hp_diff : (int)($wall_max_hp * ($step_percent / 100));
+        $actual_repair = min($hp_to_repair, $cur_hp_diff);
+        $repair_cost = (int)round($actual_repair * BASE_WALL_REPAIR_COST * $maintenance_mult);
+
+        if ($actual_repair <= 0) {
+            throw new RuntimeException("Die Mauer ist bereits vollständig repariert!");
+        }
+        if ($cur_stone < $repair_cost) {
+            throw new RuntimeException("Nicht genügend Stein vorhanden!");
+        }
+
+        $db_instance->execute_query(
+            "UPDATE kingdoms SET stone = stone - ?, wallhp = LEAST(?, wallhp + ?) WHERE id = ?",
+            [$repair_cost, $wall_max_hp, $actual_repair, $current_kingdom]
+        );
+        $db_instance->commit();
+
+        $logger->log_game("ECONOMY", "WALL_REPAIR", [
+            "hp_gained" => $actual_repair,
+            "cost_stone" => $repair_cost,
+            "percent_step" => $step_percent
+        ], $current_kingdom);
+
+        change_location("wall.php", success: "Die Mauer wurde um " . fnum($actual_repair) . " HP repariert.");
+    } catch (RuntimeException $e) {
+        $db_instance->rollback();
+
+        change_location("wall.php", error: $e->getMessage());
+    } catch (Throwable $e) {
+        $db_instance->rollback();
+        $logger->error("wall repair error: " . $e->getMessage());
+
+        change_location("wall.php", error: "Interner Fehler bei der Reparatur.");
     }
 }
 

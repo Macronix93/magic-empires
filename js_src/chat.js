@@ -70,6 +70,12 @@ function setChatSendLocked(locked) {
     });
 }
 
+function isGuildChatVisible() {
+    const guildChatTab = document.getElementById("guild_tab_chat");
+    if (!guildChatTab) return true;
+    return window.getComputedStyle(guildChatTab).display !== "none";
+}
+
 function sendChatMessage(chatType, extraParams = {}) {
     if (isSendingChat || isChatRateLimited) return;
 
@@ -382,11 +388,13 @@ function updateChat(chatPartner) {
     });
 
     const safeLastId = Math.max(lastSeenId, highestDomId);
-    if (safeLastId <= 0) return;
+    if (safeLastId <= 0 && chatType !== "guild") return;
 
     let queryParams = `?type=${encodeURIComponent(chatType)}&last_id=${safeLastId}&oldest_id=${oldestDomId}`;
     if (chatType === "private") {
         queryParams += `&s=${encodeURIComponent(effectivePartner)}`;
+    } else if (chatType === "guild" && !isGuildChatVisible()) {
+        queryParams += `&mark_read=0`;
     }
 
     isUpdatingChat = true;
@@ -425,18 +433,31 @@ function updateChat(chatPartner) {
 
             const newMessageLine = document.getElementById("new-message-line");
             if (!data.html) {
-                if (newMessageLine) messageSection.removeChild(newMessageLine);
+                if (newMessageLine && (chatType !== "guild" || isGuildChatVisible())) {
+                    messageSection.removeChild(newMessageLine);
+                }
             } else {
                 removeEmptyPlaceholder();
 
                 const wasAtBottom = (messageSection.scrollHeight - messageSection.scrollTop - messageSection.clientHeight) < 150;
                 let temp = document.createElement("div");
                 temp.innerHTML = data.html;
-
                 let newBubbles = temp.querySelectorAll("[id^='msg-'], [id^='world-msg-'], [id^='guild-msg-']");
-                newBubbles.forEach(bubble => insertChatBubbleSorted(messageSection, bubble));
 
-                if (wasAtBottom) scrollDown(true); else scrollDown();
+                if (chatType === "guild" && !isGuildChatVisible() && !newMessageLine && newBubbles.length > 0) {
+                    const line = document.createElement("div");
+                    line.id = "new-message-line";
+                    line.className = "error";
+                    line.textContent = "Neue Gilden-Nachrichten";
+
+                    messageSection.appendChild(line);
+                }
+
+                newBubbles.forEach(bubble => insertChatBubbleSorted(messageSection, bubble));
+                if (chatType !== "guild" || isGuildChatVisible()) {
+                    if (wasAtBottom) scrollDown(true);
+                    else scrollDown();
+                }
             }
 
             if (data.messagesToDelete) {
@@ -473,10 +494,10 @@ function updateChat(chatPartner) {
 
             if (data.guildUnread !== undefined) {
                 const guildTabBadge = document.getElementById("badge-guild-tab");
-                const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
+                const chatTabActive = isGuildChatVisible();
 
-                if (guildTabBadge && !chatTabActive) {
-                    if (data.guildUnread > 0) {
+                if (guildTabBadge) {
+                    if (!chatTabActive && data.guildUnread > 0) {
                         guildTabBadge.innerText = data.guildUnread > 9 ? "9+" : data.guildUnread;
                         guildTabBadge.style.display = "inline-flex";
                     } else {
@@ -487,11 +508,11 @@ function updateChat(chatPartner) {
 
             if (chatType === "world") {
                 document.querySelectorAll(".js-badge-world").forEach(b => b.style.display = "none");
-            }
-            if (chatType === "guild") {
-                const chatTabActive = document.getElementById("guild_tab_chat")?.style.display !== "none";
-                if (chatTabActive) {
-                    document.querySelectorAll(".js-badge-guild, #badge-guild-tab").forEach(b => b.style.display = "none");
+            } else if (chatType === "guild") {
+                document.querySelectorAll(".js-badge-guild").forEach(b => b.style.display = "none");
+
+                if (isGuildChatVisible()) {
+                    document.querySelectorAll("#badge-guild-tab").forEach(b => b.style.display = "none");
                 }
             }
 
@@ -673,6 +694,8 @@ function initializeChat() {
         params.append("s", messageSection.dataset.partnerId || "0");
         params.append("token", messageSection.dataset.token || "");
         params.append("partner_name", messageSection.dataset.partnerName || "");
+    } else if (chatType === "guild" && !isGuildChatVisible()) {
+        params.append("mark_read", "0");
     }
 
     fetch(`ajax/chat_init.php?${params.toString()}`, {

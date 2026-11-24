@@ -40,7 +40,6 @@ class ResourceBuilding
         }
 
         $db_instance = Database::get_instance()->get_connection();
-        $error = "";
         $view = "";
 
         $cfg = self::CONFIG[$building_type];

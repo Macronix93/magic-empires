@@ -87,4 +87,6 @@ elseif ($type === "skill"):
             ?>
         </table>
     </div>
+<?php else: ?>
+    <?= show_error_box("Ungültiger Progression-Typ.") ?>
 <?php endif; ?>

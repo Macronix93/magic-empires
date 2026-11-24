@@ -21,11 +21,13 @@ $res_any_barracks = $db_instance->execute_query(
 );
 $has_any_barracks = ((int)$res_any_barracks->fetch_column() > 0);
 
-if ($active_event && $_SERVER["REQUEST_METHOD"] === "POST") {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
+        change_location("events.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-        change_location("events.php");
+    if (!$active_event) {
+        change_location("events.php", error: "Derzeit findet kein Welt-Event statt!");
     }
 
     if (isset($_POST["set_reward_kingdom"])) {
@@ -38,37 +40,32 @@ if ($active_event && $_SERVER["REQUEST_METHOD"] === "POST") {
                 ON DUPLICATE KEY UPDATE reward_kingdom_id = NULL
             ", [$active_event["id"], $user_id]);
 
-            $_SESSION["game_success"] = "Beute-Ziel auf 'Automatisch' gesetzt!";
+            change_location("events.php", success: "Beute-Ziel auf 'Automatisch' gesetzt!");
+        }
 
-            change_location("events.php");
-        } else {
-            $check_k = $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?", [$chosen_kid, $user_id]);
+        $check_k = $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?", [$chosen_kid, $user_id]);
+        if ($check_k->num_rows <= 0) {
+            change_location("events.php", error: "Ungültiges Königreich!");
+        }
 
-            if ($check_k->num_rows > 0) {
-                $db_instance->execute_query("
+        $db_instance->execute_query("
                     INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage, reward_kingdom_id)
                     VALUES (?, ?, 0, 0, 0, 0, ?)
                     ON DUPLICATE KEY UPDATE reward_kingdom_id = VALUES(reward_kingdom_id)
                 ", [$active_event["id"], $user_id, $chosen_kid]);
 
-                $_SESSION["game_success"] = "Beute-Zielkönigreich erfolgreich festgelegt!";
+        change_location("events.php", success: "Beute-Zielkönigreich erfolgreich festgelegt!");
+    }
 
-                change_location("events.php");
-            }
-        }
-    } else if (isset($_POST["attack_all_kingdoms"])) {
+    if (isset($_POST["attack_all_kingdoms"])) {
         if (!$has_any_barracks) {
-            $_SESSION["game_error"] = "Befehl verweigert: Du besitzt in keinem deiner Königreiche eine Kaserne!";
-
-            change_location("events.php");
+            change_location("events.php", error: "Befehl verweigert: Du besitzt in keinem deiner Königreiche eine Kaserne!");
         }
 
         $arrival_delay = $world_event_manager->get_current_duration();
         $time_left = $active_event["end_time"] - time();
         if ($time_left < $arrival_delay) {
-            $_SESSION["game_error"] = "Befehl verweigert: Der Anmarsch dauert " . convert_sec_to_str($arrival_delay) . ", aber das Event endet bereits in " . convert_sec_to_str($time_left) . "!";
-
-            change_location("events.php");
+            change_location("events.php", error: "Befehl verweigert: Der Anmarsch dauert " . convert_sec_to_str($arrival_delay) . ", aber das Event endet bereits in " . convert_sec_to_str($time_left) . "!");
         }
 
         $exclude_specials = isset($_POST["exclude_specials"]);
@@ -159,21 +156,21 @@ if ($active_event && $_SERVER["REQUEST_METHOD"] === "POST") {
 
             Stats::update_player_stat($user_id, "troops_sent_combat");
 
-            $_SESSION["game_success"] = "Massenmobilisierung erfolgreich! Eine riesige Armee formiert sich.";
+            change_location("events.php", success: "Massenmobilisierung erfolgreich! Eine riesige Armee formiert sich.");
         } catch (RuntimeException $e) {
             $db_instance->rollback();
 
-            $_SESSION["game_error"] = $e->getMessage();
+            change_location("events.php", error: $e->getMessage());
         } catch (Throwable $e) {
             $db_instance->rollback();
 
             $logger->error("Mass attack DB error: " . $e->getMessage());
 
-            $_SESSION["game_error"] = "Ein interner Fehler ist aufgetreten.";
+            change_location("events.php", error: "Ein interner Fehler ist aufgetreten.");
         }
-
-        change_location("events.php");
     }
+
+    change_location("events.php");
 }
 
 if (!$active_event) {

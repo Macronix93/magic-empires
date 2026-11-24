@@ -22,6 +22,114 @@ window.addEventListener("beforeunload", () => {
     isPageUnloading = true;
 });
 
+async function copyTextFallback(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (_) {
+        }
+    }
+
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+
+    let ok;
+    try {
+        ok = document.execCommand("copy");
+    } catch (_) {
+        ok = false;
+    }
+    ta.remove();
+    return ok;
+}
+
+registerAction("copyShareReport", async (btn) => {
+    const form = document.getElementById("form-share-coords");
+    if (!form) return;
+
+    btn.disabled = true;
+    const origHtml = btn.innerHTML;
+    btn.innerText = "Kopiere...";
+
+    const formData = new FormData(form);
+    formData.set("share_target", "copy");
+
+    let reportPromise = null;
+    const getReportCodeOnce = () => {
+        if (!reportPromise) {
+            reportPromise = fetch("ajax/share_coords_send.php", {
+                method: "POST",
+                headers: {"X-Requested-With": "XMLHttpRequest"},
+                body: formData
+            }).then(r => r.json());
+        }
+        return reportPromise;
+    };
+
+    let copied = false;
+
+    // Start synchronous with click (for iOS/Safari)
+    try {
+        if (navigator.clipboard && typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+            const textBlobPromise = getReportCodeOnce().then(data => {
+                if (!data.success || !data.message) {
+                    throw new Error(data.error || "Fehler beim Generieren.");
+                }
+                return new Blob([data.message], {type: "text/plain"});
+            });
+            await navigator.clipboard.write([new ClipboardItem({"text/plain": textBlobPromise})]);
+            copied = true;
+        }
+    } catch (_) {
+        copied = false;
+    }
+
+    try {
+        const data = await getReportCodeOnce();
+        if (!data.success || !data.message) {
+            showGameError(data.error || "Fehler beim Generieren des Berichts-Codes.");
+
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            return;
+        }
+
+        if (!copied) {
+            copied = await copyTextFallback(data.message);
+        }
+
+        if (copied) {
+            closeOverlay(form);
+            showGameSuccess("Berichts-Code in die Zwischenablage kopiert!");
+        } else {
+            const fbWrap = document.getElementById("share-copy-fallback");
+            const fbInput = document.getElementById("share-copy-output");
+
+            if (fbWrap && fbInput) {
+                fbWrap.style.display = "block";
+                fbInput.value = data.message;
+                fbInput.focus();
+                fbInput.select();
+            }
+
+            showGameWarning("Automatisches Kopieren blockiert – bitte manuell aus dem Feld kopieren.");
+
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    } catch (_) {
+        showGameError("Netzwerkfehler.");
+
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
 registerAction("navigate", (el) => {
     const url = el.dataset.url;
     if (url) {
@@ -1884,9 +1992,23 @@ function updateSidebarBadges(counts) {
         counts.world = 0;
     }
 
-    const isGuildChatActive = (activeChatType === "guild") ||
-        (window.location.pathname.includes("guild.php") && document.getElementById("guild_tab_chat")?.style.display !== "none");
-    if (isGuildChatActive) {
+    const isOnGuildPage = window.location.pathname.includes("guild.php");
+    const guildChatTab = document.getElementById("guild_tab_chat");
+    const isGuildChatActive = isOnGuildPage
+        ? (guildChatTab !== null && window.getComputedStyle(guildChatTab).display !== "none")
+        : (activeChatType === "guild");
+
+    const guildTabBadge = document.getElementById("badge-guild-tab");
+    if (guildTabBadge && counts.guild !== undefined) {
+        if (!isGuildChatActive && counts.guild > 0) {
+            guildTabBadge.innerText = counts.guild > 9 ? "9+" : counts.guild;
+            guildTabBadge.style.display = "inline-flex";
+        } else {
+            guildTabBadge.style.display = "none";
+        }
+    }
+
+    if (isOnGuildPage || isGuildChatActive) {
         counts.guild = 0;
     }
 

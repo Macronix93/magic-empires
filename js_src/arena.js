@@ -2,7 +2,7 @@ let previousArenaHeaderHtml = null;
 let arenaAttackInProgress = false;
 let isArenaLeavingPage = false;
 const BATTLE_ANIM_GIF_PATH = "images/swords.webp";
-const BATTLE_ANIM_DURATION_MS = 1160;
+const BATTLE_ANIM_DURATION_MS = 1050;
 
 registerAction("changeArenaAttackSkill", (select) => {
     const opt = select.selectedOptions[0];

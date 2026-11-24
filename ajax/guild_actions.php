@@ -25,11 +25,11 @@ switch ($action) {
         $res = $guild_logic->join_guild($invite_id, true);
 
         if ($res === null) {
-            $_SESSION["game_success"] = "Willkommen in der Gilde!";
+            flash_success("Willkommen in der Gilde!");
 
             $guild_logic->delete_invite_msg($db_instance, $user->get_user_id());
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;
@@ -39,21 +39,22 @@ switch ($action) {
         $res = $guild_logic->decline_invite($invite_id);
 
         if ($res === null) {
-            $_SESSION["game_success"] = "Du hast die Einladung abgelehnt.";
+            flash_success("Du hast die Einladung abgelehnt.");
 
             $guild_logic->delete_invite_msg($db_instance, $user->get_user_id());
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;
 
     case "leave":
         $res = $guild_logic->leave_guild();
+
         if ($res === null) {
-            $_SESSION["game_success"] = "Du hast die Gilde erfolgreich verlassen.";
+            flash_success("Du hast die Gilde erfolgreich verlassen.");
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;
@@ -63,9 +64,9 @@ switch ($action) {
         $res = $guild_logic->kick_member($target_id);
 
         if ($res === null) {
-            $_SESSION["game_success"] = "Das Mitglied wurde aus der Gilde entfernt.";
+            flash_success("Das Mitglied wurde aus der Gilde entfernt.");
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;
@@ -76,9 +77,9 @@ switch ($action) {
         $res = $guild_logic->set_member_rank($target_id, $rank_id);
 
         if ($res === null) {
-            $_SESSION["game_success"] = "Der Rang wurde erfolgreich angepasst.";
+            flash_success("Der Rang wurde erfolgreich angepasst.");
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;
@@ -88,9 +89,9 @@ switch ($action) {
         $res = $guild_logic->join_guild($guild_id);
 
         if ($res === null) {
-            $_SESSION["game_success"] = "Willkommen in der Gilde!";
+            flash_success("Willkommen in der Gilde!");
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;
@@ -100,9 +101,9 @@ switch ($action) {
         $res = $guild_logic->cancel_invite($invite_id);
 
         if ($res === null) {
-            $_SESSION["game_success"] = "Die Einladung wurde erfolgreich zurückgezogen.";
+            flash_success("Die Einladung wurde erfolgreich zurückgezogen.");
         } else {
-            $_SESSION["game_error"] = $res;
+            flash_error($res);
         }
         $response["success"] = true;
         break;

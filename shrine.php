@@ -8,64 +8,68 @@ $building = $result['building'];
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else if (isset($_POST["choose_align"])) {
+        change_location("shrine.php", error: "Ungültiger Sicherheits-Token!");
+    }
+
+    if (isset($_POST["choose_align"])) {
         $choice = post_int("choose_align", -1);
-        $res_check = $db_instance->execute_query("SELECT required_level FROM shrine_alignments WHERE id = ?", [$choice]);
-        $req_lvl = $res_check->fetch_column();
+        $req_lvl = $db_instance->execute_query("SELECT required_level FROM shrine_alignments WHERE id = ?", [$choice])->fetch_column();
 
         if ($req_lvl === false || $req_lvl === null) {
-            $error = "Ungültige Gesinnung gewählt!";
-        } else if ($building->get_building_level() < (int)$req_lvl) {
-            $error = "Dein Schrein hat eine zu niedrige Stufe für diese Gesinnung!";
-        } else {
-            $db_instance->begin_transaction();
-            try {
-                $locked_k = $db_instance->execute_query(
-                    "SELECT alignment, gold FROM kingdoms WHERE id = ? FOR UPDATE",
-                    [$current_kingdom]
-                )->fetch_assoc();
-
-                $fresh_align = (int)($locked_k["alignment"] ?? 0);
-                $fresh_gold = (int)($locked_k["gold"] ?? 0);
-
-                if ($choice === $fresh_align && $choice !== AlignmentTypes::ALIGN_NONE) {
-                    throw new RuntimeException("Diese Gesinnung ist bereits aktiv!");
-                }
-
-                if ($choice === AlignmentTypes::ALIGN_NONE && $fresh_align === AlignmentTypes::ALIGN_NONE) {
-                    throw new RuntimeException("Derzeit ist keine Gesinnung aktiv!");
-                }
-
-                if ($fresh_gold < SHRINE_CHANGE_COST) {
-                    throw new RuntimeException("Du hast nicht genug Gold für das Opferritual!");
-                }
-
-                $db_instance->execute_query("UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?",
-                    [$choice, SHRINE_CHANGE_COST, $current_kingdom]
-                );
-
-                $kingdom->set_kingdom_alignment($choice);
-                $kingdom->recalculate_production();
-                $db_instance->commit();
-
-                $logger->log_game("ECONOMY", "SHRINE_ALIGNMENT_CHANGE", ["alignment" => $choice], $current_kingdom);
-
-                Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SHRINE_ALIGNMENT);
-
-                $_SESSION["game_success"] = "Das Opferritual war erfolgreich! Die Gesinnung ist nun aktiv.";
-
-                change_location("shrine.php");
-            } catch (RuntimeException $e) {
-                $db_instance->rollback();
-                $error = $e->getMessage();
-            } catch (Throwable $e) {
-                $db_instance->rollback();
-                $logger->error("shrine choose_align error: " . $e->getMessage());
-                $error = "Interner Fehler beim Opferritual.";
-            }
+            change_location("shrine.php", error: "Ungültige Gesinnung gewählt!");
         }
-    } else if (isset($_POST["reset_align"])) {
+        if ($building->get_building_level() < (int)$req_lvl) {
+            change_location("shrine.php", error: "Dein Schrein hat eine zu niedrige Stufe für diese Gesinnung!");
+        }
+
+        $db_instance->begin_transaction();
+        try {
+            $locked_k = $db_instance->execute_query(
+                "SELECT alignment, gold FROM kingdoms WHERE id = ? FOR UPDATE",
+                [$current_kingdom]
+            )->fetch_assoc();
+
+            $fresh_align = (int)($locked_k["alignment"] ?? 0);
+            $fresh_gold = (int)($locked_k["gold"] ?? 0);
+
+            if ($choice === $fresh_align && $choice !== AlignmentTypes::ALIGN_NONE) {
+                throw new RuntimeException("Diese Gesinnung ist bereits aktiv!");
+            }
+            if ($choice === AlignmentTypes::ALIGN_NONE && $fresh_align === AlignmentTypes::ALIGN_NONE) {
+                throw new RuntimeException("Derzeit ist keine Gesinnung aktiv!");
+            }
+            if ($fresh_gold < SHRINE_CHANGE_COST) {
+                throw new RuntimeException("Du hast nicht genug Gold für das Opferritual!");
+            }
+
+            $db_instance->execute_query(
+                "UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?",
+                [$choice, SHRINE_CHANGE_COST, $current_kingdom]
+            );
+
+            $kingdom->set_kingdom_alignment($choice);
+            $kingdom->recalculate_production();
+
+            $db_instance->commit();
+
+            $logger->log_game("ECONOMY", "SHRINE_ALIGNMENT_CHANGE", ["alignment" => $choice], $current_kingdom);
+
+            Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SHRINE_ALIGNMENT);
+
+            change_location("shrine.php", success: "Das Opferritual war erfolgreich! Die Gesinnung ist nun aktiv.");
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
+
+            change_location("shrine.php", error: $e->getMessage());
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("shrine choose_align error: " . $e->getMessage());
+
+            change_location("shrine.php", error: "Interner Fehler beim Opferritual.");
+        }
+    }
+
+    if (isset($_POST["reset_align"])) {
         $db_instance->begin_transaction();
         try {
             $locked_k = $db_instance->execute_query(
@@ -78,27 +82,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
 
             $db_instance->execute_query("UPDATE kingdoms SET alignment = 0 WHERE id = ?", [$current_kingdom]);
+
             $kingdom->set_kingdom_alignment(AlignmentTypes::ALIGN_NONE);
             $kingdom->recalculate_production();
+
             $db_instance->commit();
 
-            $_SESSION["game_success"] = "Die Gesinnung wurde abgelegt. Deine Produktion ist wieder neutral.";
-
-            change_location("shrine.php");
+            change_location("shrine.php", success: "Die Gesinnung wurde abgelegt. Deine Produktion ist wieder neutral.");
         } catch (RuntimeException $e) {
             $db_instance->rollback();
-            $error = $e->getMessage();
+
+            change_location("shrine.php", error: $e->getMessage());
         } catch (Throwable $e) {
             $db_instance->rollback();
             $logger->error("shrine reset_align error: " . $e->getMessage());
-            $error = "Interner Fehler beim Ablegen der Gesinnung.";
+
+            change_location("shrine.php", error: "Interner Fehler beim Ablegen der Gesinnung.");
         }
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        change_location("shrine.php");
-    }
+    change_location("shrine.php");
 }
 
 /*

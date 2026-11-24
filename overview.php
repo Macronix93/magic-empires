@@ -25,117 +25,104 @@ $count_wp = (int)$db_instance->execute_query("
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        if (isset($_POST["recall_mine_troops"])) {
-            $x = post_int("mine_x");
-            $y = post_int("mine_y");
+        change_location("overview.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-            if ($kingdom->recall_mine_troops($x, $y)) {
-                $_SESSION["game_success"] = "Deine Schürfer treten mit der Beute den Rückweg an!";
+    if (isset($_POST["recall_mine_troops"])) {
+        $x = post_int("mine_x");
+        $y = post_int("mine_y");
+
+        if ($kingdom->recall_mine_troops($x, $y)) {
+            change_location("overview.php", success: "Deine Schürfer treten mit der Beute den Rückweg an!");
+        }
+
+        change_location("overview.php");
+    } else if (isset($_POST["cancel_event"])) {
+        $event_id = post_int("eid");
+
+        $db_instance->begin_transaction();
+        try {
+            $result = $db_instance->execute_query(
+                "SELECT * FROM events WHERE eventid = ? AND userid = ? FOR UPDATE",
+                [$event_id, $user->get_user_id()]
+            );
+            if (!$result || $result->num_rows === 0) {
+                throw new RuntimeException("Diese Aktion ist ungültig!");
             }
 
-            change_location("overview.php");
-        } else if (isset($_POST["cancel_event"])) {
-            $event_id = post_int("eid");
+            $event = $result->fetch_assoc();
+            if ($event["is_processing"] > 0) {
+                throw new RuntimeException("Truppen sind bereits am Ziel angekommen oder in ein Gefecht verwickelt!");
+            }
 
-            $db_instance->begin_transaction();
-            try {
-                $result = $db_instance->execute_query(
-                    "SELECT * FROM events WHERE eventid = ? AND userid = ? FOR UPDATE",
-                    [$event_id, $user->get_user_id()]
+            if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
+                $total_duration = $event["arrivaltime"] - $event["buildingtime"];
+                $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
+                $new_arrival_time = $now + $already_marched;
+
+                $db_instance->execute_query(
+                    "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0, is_processing = 0 WHERE eventid = ? AND is_processing = 0",
+                    [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
+                );
+                if ($db_instance->affected_rows !== 1) {
+                    throw new RuntimeException("Truppen konnten nicht zurückgerufen werden (bereits am Ziel angekommen).");
+                }
+
+                $db_instance->commit();
+                $logger->log_game("COMBAT", "ATTACK_RECALL", [
+                    "event_id" => $event_id,
+                    "target_x" => $event["targetx"],
+                    "target_y" => $event["targety"]
+                ], $event["kingdomid"]);
+
+                change_location("overview.php", success: "Der Marschbefehl wurde abgebrochen. Deine Truppen treten den Rückmarsch an!");
+            }
+
+            if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == TransportTypes::TRANSPORT_TYPE_INTERNAL) {
+                $return_target_kid = (int)$event["targetid"];
+                $origin_owner = (int)($db_instance->execute_query("SELECT userid FROM kingdoms WHERE id = ?",
+                    [$return_target_kid]
+                )->fetch_column() ?? 0);
+
+                if ($origin_owner !== $uid) {
+                    $return_target_kid = $user->get_main_kingdom();
+                    if ($return_target_kid <= 0) {
+                        throw new RuntimeException("Das Ursprungskönigreich existiert nicht mehr!");
+                    }
+                }
+
+                $total_duration = $event["arrivaltime"] - $event["buildingtime"];
+                $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
+                $new_arrival_time = $now + $already_marched;
+
+                $db_instance->execute_query(
+                    "UPDATE events SET actionid = ?, kingdomid = ?, targetid = ?, arrivaltime = ?, buildingname = ? WHERE eventid = ? AND is_processing = 0",
+                    [ActionTypes::ACTION_RETURN_RESOURCES, $return_target_kid, $event["kingdomid"], $new_arrival_time, TransportTypes::TRANSPORT_TYPE_TRADE_RETURN, $event_id]
                 );
 
-                if (!$result || $result->num_rows === 0) {
-                    throw new RuntimeException("Diese Aktion ist ungültig!");
+                if ($db_instance->affected_rows !== 1) {
+                    throw new RuntimeException("Warenlieferung ist bereits eingetroffen!");
                 }
 
-                $event = $result->fetch_assoc();
-                if ($event["is_processing"] > 0) {
-                    throw new RuntimeException("Truppen sind bereits am Ziel angekommen oder in ein Gefecht verwickelt!");
-                }
+                $db_instance->commit();
 
-                if ($event["actionid"] == ActionTypes::ACTION_SEND_TROOPS || $event["actionid"] == ActionTypes::ACTION_STATION_TROOPS) {
-                    $total_duration = $event["arrivaltime"] - $event["buildingtime"];
-                    $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
-                    $new_arrival_time = $now + $already_marched;
-
-                    $db_instance->execute_query(
-                        "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = 0, loot_wood = 0, loot_stone = 0, loot_gold = 0, is_processing = 0
-                        WHERE eventid = ? AND is_processing = 0",
-                        [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival_time, $event_id]
-                    );
-                    if ($db_instance->affected_rows !== 1) {
-                        throw new RuntimeException("Truppen konnten nicht zurückgerufen werden (bereits am Ziel angekommen).");
-                    }
-
-                    $db_instance->commit();
-                    $logger->log_game("COMBAT", "ATTACK_RECALL", [
-                        "event_id" => $event_id,
-                        "target_x" => $event["targetx"],
-                        "target_y" => $event["targety"]
-                    ], $event["kingdomid"]);
-
-                    $_SESSION["game_success"] = "Der Marschbefehl wurde abgebrochen. Deine Truppen treten den Rückmarsch an!";
-
-                    change_location("overview.php");
-                } else if ($event["actionid"] == ActionTypes::ACTION_RECEIVE_RESOURCES && $event["buildingname"] == TransportTypes::TRANSPORT_TYPE_INTERNAL) {
-                    $return_target_kid = (int)$event["targetid"];
-                    $origin_owner = (int)($db_instance->execute_query(
-                        "SELECT userid FROM kingdoms WHERE id = ?",
-                        [$return_target_kid]
-                    )->fetch_column() ?? 0);
-
-                    if ($origin_owner !== $uid) {
-                        $return_target_kid = $user->get_main_kingdom();
-
-                        if ($return_target_kid <= 0) {
-                            throw new RuntimeException("Das Ursprungskönigreich existiert nicht mehr!");
-                        }
-                    }
-
-                    $total_duration = $event["arrivaltime"] - $event["buildingtime"];
-                    $already_marched = max(0, min($now - $event["buildingtime"], $total_duration));
-                    $new_arrival_time = $now + $already_marched;
-                    $db_instance->execute_query(
-                        "UPDATE events SET actionid = ?, kingdomid = ?, targetid = ?, arrivaltime = ?, buildingname = ? WHERE eventid = ? AND is_processing = 0",
-                        [
-                            ActionTypes::ACTION_RETURN_RESOURCES,
-                            $return_target_kid,
-                            $event["kingdomid"],
-                            $new_arrival_time,
-                            TransportTypes::TRANSPORT_TYPE_TRADE_RETURN,
-                            $event_id
-                        ]
-                    );
-
-                    if ($db_instance->affected_rows !== 1) {
-                        throw new RuntimeException("Warenlieferung ist bereits eingetroffen!");
-                    }
-
-                    $db_instance->commit();
-
-                    $_SESSION["game_success"] = "Der Warentransport wurde abgebrochen. Die Karawane kehrt mit den Rohstoffen um!";
-
-                    change_location("overview.php");
-                } else {
-                    throw new RuntimeException("Diese Aktion kann nicht abgebrochen werden!");
-                }
-            } catch (RuntimeException $e) {
-                $db_instance->rollback();
-                $error = $e->getMessage();
-            } catch (Throwable $e) {
-                $db_instance->rollback();
-                $logger->error("overview cancel_event error: " . $e->getMessage());
-                $error = "Interner Fehler beim Abbrechen der Aktion.";
+                change_location("overview.php", success: "Der Warentransport wurde abgebrochen. Die Karawane kehrt mit den Rohstoffen um!");
             }
+
+            throw new RuntimeException("Diese Aktion kann nicht abgebrochen werden!");
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
+
+            change_location("overview.php", error: $e->getMessage());
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("overview cancel_event error: " . $e->getMessage());
+
+            change_location("overview.php", error: "Interner Fehler beim Abbrechen der Aktion.");
         }
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        change_location("overview.php");
-    }
+    change_location("overview.php");
 }
 
 $limit = OVERVIEW_PAGESIZE_DEFAULT;

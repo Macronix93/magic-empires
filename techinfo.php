@@ -652,6 +652,6 @@ if ($row) {
         $view .= "</div></div>";
     }
 } else {
-    $error = "Nichts zum Anzeigen gefunden!";
+    $view = show_error_box("Nichts zum Anzeigen gefunden!");
 }
 echo $view;

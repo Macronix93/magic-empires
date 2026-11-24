@@ -19,79 +19,76 @@ $buildings = $kingdom->fetch_all_kingdom_buildings();
 $kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
 $kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        $tech_id = post_int("tid", -1);
-        $action = post_str("action");
+        change_location("blacksmith.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-        if (isset($techs[$tech_id])) {
-            $selected_tech = $techs[$tech_id];
-            $tech_level = $selected_tech->get_tech_level();
-            $costs = $selected_tech->calculate_tech_cost();
+    $tech_id = post_int("tid", -1);
+    $action = post_str("action");
+    if (!isset($techs[$tech_id])) {
+        change_location("blacksmith.php", error: "Diese Forschung existiert nicht!");
+    }
 
-            if ($action === "research") {
-                if ($selected_tech->is_max_level()) {
-                    $error = "Die Forschung ist schon maximal erforscht!";
-                } else {
-                    $target_level = $tech_level + 1;
-                    $current_smithy_lvl = $building->get_building_level();
-                    $required_smithy_lvl = Tech::get_required_smithy_level($tech_id, $target_level);
+    $selected_tech = $techs[$tech_id];
+    $tech_level = $selected_tech->get_tech_level();
+    $costs = $selected_tech->calculate_tech_cost();
 
-                    if ($current_smithy_lvl < $required_smithy_lvl) {
-                        $error = "Für Stufe $target_level benötigst du Schmiede Stufe $required_smithy_lvl!";
-                    } else {
-                        $error .= $selected_tech->check_dependencies($buildings, $all_techs_for_check);
-                    }
+    if ($action === "research") {
+        if ($selected_tech->is_max_level()) {
+            change_location("blacksmith.php", error: "Die Forschung ist schon maximal erforscht!");
+        }
 
-                    if (empty($error)) {
-                        $err = $selected_tech->start_research($kingdom, $user->get_user_id(), ActionTypes::ACTION_SMITHY_UPGRADE, $kingdom->get_smithy_research_multiplier());
+        $target_level = $tech_level + 1;
+        $current_smithy_lvl = $building->get_building_level();
+        $required_smithy_lvl = Tech::get_required_smithy_level($tech_id, $target_level);
+        if ($current_smithy_lvl < $required_smithy_lvl) {
+            change_location("blacksmith.php", error: "Für Stufe $target_level benötigst du Schmiede Stufe $required_smithy_lvl!");
+        }
 
-                        if ($err !== null) {
-                            $error = $err;
-                        } else {
-                            change_location("blacksmith.php");
-                        }
-                    }
-                }
-            } else if ($action === "cancel") {
-                $db_instance->begin_transaction();
-                try {
-                    $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
-                    $db_instance->execute_query(
-                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ? AND is_processing = 0",
-                        [$user->get_user_id(), $tech_id, $current_kingdom, ActionTypes::ACTION_SMITHY_UPGRADE]
-                    );
+        $dep_err = $selected_tech->check_dependencies($buildings, $all_techs_for_check);
+        if ($dep_err !== "") {
+            change_location("blacksmith.php", error: $dep_err);
+        }
 
-                    if ($db_instance->affected_rows !== 1) {
-                        throw new RuntimeException("Du forschst gerade nichts oder die Forschung ist bereits abgeschlossen!");
-                    }
+        $err = $selected_tech->start_research($kingdom, $user->get_user_id(), ActionTypes::ACTION_SMITHY_UPGRADE, $kingdom->get_smithy_research_multiplier());
+        if ($err !== null) {
+            change_location("blacksmith.php", error: $err);
+        }
 
-                    $kingdom->refund_costs($costs);
-                    $db_instance->commit();
+        change_location("blacksmith.php");
+    }
 
-                    change_location("blacksmith.php");
-                } catch (RuntimeException $e) {
-                    $db_instance->rollback();
-                    $error = $e->getMessage();
-                } catch (Throwable $e) {
-                    $db_instance->rollback();
-                    $logger->error("blacksmith cancel error: " . $e->getMessage());
-                    $error = "Interner Fehler beim Abbrechen der Forschung.";
-                }
-            } else {
-                $error = "Diese Aktion existiert nicht!";
+    if ($action === "cancel") {
+        $db_instance->begin_transaction();
+        try {
+            $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
+            $db_instance->execute_query(
+                "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ? AND is_processing = 0",
+                [$user->get_user_id(), $tech_id, $current_kingdom, ActionTypes::ACTION_SMITHY_UPGRADE]
+            );
+
+            if ($db_instance->affected_rows !== 1) {
+                throw new RuntimeException("Du forschst gerade nichts oder die Forschung ist bereits abgeschlossen!");
             }
-        } else {
-            $error = "Diese Forschung existiert nicht!";
+
+            $kingdom->refund_costs($costs);
+            $db_instance->commit();
+
+            change_location("blacksmith.php");
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
+
+            change_location("blacksmith.php", error: $e->getMessage());
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("blacksmith cancel error: " . $e->getMessage());
+
+            change_location("blacksmith.php", error: "Interner Fehler beim Abbrechen der Forschung.");
         }
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        change_location("blacksmith.php");
-    }
+    change_location("blacksmith.php", error: "Diese Aktion existiert nicht!");
 }
 
 $flash_box = $user->consume_last_researched_flash($current_kingdom, BuildingTypes::BUILDING_SMITHY);

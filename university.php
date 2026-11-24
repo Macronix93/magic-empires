@@ -30,109 +30,107 @@ $imp_data = $db_instance->execute_query("
 
 $curr_founded = (int)($imp_data["founded_count"] ?? 1);
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        $tech_id = post_int("tid", -1);
-        $action = post_str("action");
+        change_location("university.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-        if (isset($techs[$tech_id])) {
-            $selected_tech = $techs[$tech_id];
-            $tech_level = $selected_tech->get_tech_level();
-            $costs = $selected_tech->calculate_tech_cost();
+    $tech_id = post_int("tid", -1);
+    $action = post_str("action");
+    if (!isset($techs[$tech_id])) {
+        change_location("university.php", error: "Diese Forschung existiert nicht!");
+    }
 
-            if ($action === "research") {
-                if ($selected_tech->is_max_level()) {
-                    $error = "Die Forschung ist schon maximal erforscht!";
-                } else {
-                    if ($tech_id == TechTypes::TECH_TYPE_IMPERIAL) {
-                        $max_imp_lvl = max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
+    $selected_tech = $techs[$tech_id];
+    $tech_level = $selected_tech->get_tech_level();
+    $costs = $selected_tech->calculate_tech_cost();
 
-                        if ($current_kingdom != $main_kid) {
-                            $error = "Die Imperium-Forschung kann nur in deinem Hauptkönigreich durchgeführt werden!";
-                        } else if ($tech_level >= $max_imp_lvl) {
-                            $error = "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungen ist bereits erreicht!";
-                        }
-                    }
+    if ($action === "research") {
+        if ($selected_tech->is_max_level()) {
+            change_location("university.php", error: "Die Forschung ist schon maximal erforscht!");
+        }
 
-                    if (empty($error)) {
-                        $target_level = $tech_level + 1;
-                        $current_uni_lvl = $buildings[BuildingTypes::BUILDING_UNIVERSITY]->get_building_level();
-                        $required_uni_lvl = Tech::get_required_university_level($tech_id, $target_level);
-
-                        if ($current_uni_lvl < $required_uni_lvl) {
-                            $error = "Für Stufe $target_level benötigst du Universität Stufe $required_uni_lvl!";
-                        }
-
-                        if ($tech_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
-                            $required_wt_lvl = $target_level + 1;
-                            $current_wt_lvl = $buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level();
-                            if ($current_wt_lvl < $required_wt_lvl) {
-                                $error .= "Für Stufe $target_level benötigst du Wachturm Stufe $required_wt_lvl!<br>";
-                            }
-                        }
-
-                        if ($tech_id == TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
-                            $required_barracks_lvl = ($target_level >= 3) ? 10 : 9;
-                            $current_barracks_lvl = $buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level();
-                            if ($current_barracks_lvl < $required_barracks_lvl) {
-                                $error .= "Für Stufe $target_level benötigst du Kaserne Stufe $required_barracks_lvl!<br>";
-                            }
-                        }
-
-                        // Check for dependencies
-                        $error .= $selected_tech->check_dependencies($buildings, $all_techs_for_check);
-
-                        if (empty($error)) {
-                            $err = $selected_tech->start_research($kingdom, $user->get_user_id(), ActionTypes::ACTION_RESEARCH_TECH, $kingdom->get_university_research_multiplier());
-
-                            if ($err !== null) {
-                                $error = $err;
-                            } else {
-                                change_location("university.php");
-                            }
-                        }
-                    }
-                }
-            } else if ($action === "cancel") {
-                $db_instance->begin_transaction();
-                try {
-                    $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
-
-                    $db_instance->execute_query(
-                        "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ? AND is_processing = 0",
-                        [$user->get_user_id(), $tech_id, $current_kingdom, ActionTypes::ACTION_RESEARCH_TECH]
-                    );
-
-                    if ($db_instance->affected_rows !== 1) {
-                        throw new RuntimeException("Du forschst gerade nichts oder die Forschung ist bereits abgeschlossen!");
-                    }
-
-                    $kingdom->refund_costs($costs);
-                    $db_instance->commit();
-
-                    change_location("university.php");
-                } catch (RuntimeException $e) {
-                    $db_instance->rollback();
-                    $error = $e->getMessage();
-                } catch (Throwable $e) {
-                    $db_instance->rollback();
-                    $logger->error("university cancel error: " . $e->getMessage());
-                    $error = "Interner Fehler beim Abbrechen der Forschung.";
-                }
-            } else {
-                $error = "Diese Aktion existiert nicht!";
+        if ($tech_id == TechTypes::TECH_TYPE_IMPERIAL) {
+            $max_imp_lvl = max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
+            
+            if ($current_kingdom != $main_kid) {
+                change_location("university.php", error: "Die Imperium-Forschung kann nur in deinem Hauptkönigreich durchgeführt werden!");
             }
-        } else {
-            $error = "Diese Forschung existiert nicht!";
+
+            if ($tech_level >= $max_imp_lvl) {
+                change_location("university.php", error: "Das maximale Imperiums-Limit von " . GLOBAL_SETTLEMENT_MAX . " Siedlungen ist bereits erreicht!");
+            }
+        }
+
+        $lock_errors = [];
+        $target_level = $tech_level + 1;
+        $current_uni_lvl = $buildings[BuildingTypes::BUILDING_UNIVERSITY]->get_building_level();
+        $required_uni_lvl = Tech::get_required_university_level($tech_id, $target_level);
+        if ($current_uni_lvl < $required_uni_lvl) {
+            $lock_errors[] = "Für Stufe $target_level benötigst du Universität Stufe $required_uni_lvl!";
+        }
+
+        if ($tech_id == TechTypes::TECH_TYPE_ARCANE_INTEL) {
+            $required_wt_lvl = $target_level + 1;
+            if ($buildings[BuildingTypes::BUILDING_WATCHTOWER]->get_building_level() < $required_wt_lvl) {
+                $lock_errors[] = "Für Stufe $target_level benötigst du Wachturm Stufe $required_wt_lvl!";
+            }
+        }
+
+        if ($tech_id == TechTypes::TECH_TYPE_BARRACKS_EXPANSION) {
+            $required_barracks_lvl = ($target_level >= 3) ? 10 : 9;
+            if ($buildings[BuildingTypes::BUILDING_BARRACKS]->get_building_level() < $required_barracks_lvl) {
+                $lock_errors[] = "Für Stufe $target_level benötigst du Kaserne Stufe $required_barracks_lvl!";
+            }
+        }
+
+        $dep_err = $selected_tech->check_dependencies($buildings, $all_techs_for_check);
+        if ($dep_err !== "") {
+            $lock_errors[] = $dep_err;
+        }
+
+        if (!empty($lock_errors)) {
+            change_location("university.php", error: implode("<br>", $lock_errors));
+        }
+
+        $err = $selected_tech->start_research($kingdom, $user->get_user_id(), ActionTypes::ACTION_RESEARCH_TECH, $kingdom->get_university_research_multiplier());
+        if ($err !== null) {
+            change_location("university.php", error: $err);
+        }
+
+        change_location("university.php");
+    }
+
+    if ($action === "cancel") {
+        $db_instance->begin_transaction();
+        try {
+            $db_instance->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$current_kingdom]);
+            $db_instance->execute_query(
+                "DELETE FROM events WHERE userid = ? AND buildingid = ? AND kingdomid = ? AND actionid = ? AND is_processing = 0",
+                [$user->get_user_id(), $tech_id, $current_kingdom, ActionTypes::ACTION_RESEARCH_TECH]
+            );
+
+            if ($db_instance->affected_rows !== 1) {
+                throw new RuntimeException("Du forschst gerade nichts oder die Forschung ist bereits abgeschlossen!");
+            }
+
+            $kingdom->refund_costs($costs);
+            $db_instance->commit();
+
+            change_location("university.php");
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
+
+            change_location("university.php", error: $e->getMessage());
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("university cancel error: " . $e->getMessage());
+
+            change_location("university.php", error: "Interner Fehler beim Abbrechen der Forschung.");
         }
     }
 
-    if (!empty($error)) {
-        $_SESSION["game_error"] = $error;
-        change_location("university.php");
-    }
+    change_location("university.php", error: "Diese Aktion existiert nicht!");
 }
 
 $flash_box = $user->consume_last_researched_flash($current_kingdom, BuildingTypes::BUILDING_UNIVERSITY);

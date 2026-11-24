@@ -10,123 +10,123 @@ $uid = $user->get_user_id();
 // --- ACTIONS ---
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
-        $error = "Ungültiger Sicherheits-Token!";
-    } else {
-        if (isset($_POST["open_ticket"])) {
-            $raw_subject = trim(post_str("subject"));
-            $raw_text = post_str("text");
-            $sub_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject) ?? '';
-            $sub_clean = trim($sub_clean);
-            $text_clean = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text) ?? '';
-            $text_clean = trim($text_clean);
-            $val_error = Support::validate_message_text($raw_text);
+        change_location("support.php", error: "Ungültiger Sicherheits-Token!");
+    }
 
-            if (empty($raw_subject)) {
-                $error = "Bitte einen Betreff angeben!";
-            } else if ($val_error) {
-                $error = $val_error;
-            } else {
-                // Rate Limit Check
-                $current_time = time();
-                if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
-                    $_SESSION["message_count"] = 0;
-                    $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-                }
+    if (isset($_POST["open_ticket"])) {
+        $raw_subject = trim(post_str("subject"));
+        $raw_text = post_str("text");
+        $sub_clean = trim(preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject) ?? '');
+        $text_clean = trim(preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text) ?? '');
+        $val_error = Support::validate_message_text($raw_text);
 
-                if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
-                    $error = "Du schickst zu viele Nachrichten! Bitte warte kurz.";
-                } else if (empty($sub_clean) || mb_strlen($sub_clean) < 3) {
-                    $error = "Bitte einen gültigen Betreff angeben!";
-                } else if (empty($text_clean) || mb_strlen($text_clean) < 10) {
-                    $error = "Deine Nachricht ist zu kurz!";
-                } else if (mb_strlen($raw_subject) > MAX_SUPPORT_TICKET_SUBJECT_LENGTH) {
-                    $error = "Der Betreff ist zu lang (max. " . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . " Zeichen)!";
-                } else {
-                    $sub = mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH);
-                    $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
+        $fail_open = function (string $msg) use ($raw_subject, $raw_text): never {
+            set_form_flash("support_ticket", ["subject" => $raw_subject, "text" => $raw_text]);
+            change_location("support.php?tab=my", error: $msg);
+        };
 
-                    $db_instance->begin_transaction();
-                    try {
-                        $db_instance->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+        if (empty($raw_subject)) $fail_open("Bitte einen Betreff angeben!");
+        if ($val_error) $fail_open($val_error);
 
-                        if ($support->has_active_ticket($uid)) {
-                            throw new RuntimeException("Du hast bereits ein offenes Support-Ticket!");
-                        }
+        $current_time = time();
+        if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
+            $_SESSION["message_count"] = 0;
+            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+        }
+        if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
+            $fail_open("Du schickst zu viele Nachrichten! Bitte warte kurz.");
+        }
+        if (empty($sub_clean) || mb_strlen($sub_clean) < 3) $fail_open("Bitte einen gültigen Betreff angeben!");
+        if (empty($text_clean) || mb_strlen($text_clean) < 10) $fail_open("Deine Nachricht ist zu kurz!");
+        if (mb_strlen($raw_subject) > MAX_SUPPORT_TICKET_SUBJECT_LENGTH) {
+            $fail_open("Der Betreff ist zu lang (max. " . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . " Zeichen)!");
+        }
 
-                        $support->create_ticket($sub, $msg);
-                        $db_instance->commit();
+        $sub = mb_substr($sub_clean, 0, MAX_SUPPORT_TICKET_SUBJECT_LENGTH);
+        $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
 
-                        $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
+        $db_instance->begin_transaction();
+        try {
+            $db_instance->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
 
-                        change_location("support.php");
-                    } catch (RuntimeException $e) {
-                        $db_instance->rollback();
-                        $error = $e->getMessage();
-                    } catch (Throwable $e) {
-                        $db_instance->rollback();
-                        $logger->error("support open_ticket error: " . $e->getMessage());
-                        $error = "Interner Fehler beim Erstellen des Tickets.";
-                    }
-                }
+            if ($support->has_active_ticket($uid)) {
+                throw new RuntimeException("Du hast bereits ein offenes Support-Ticket!");
             }
-        } else if (isset($_POST["close_ticket"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
-            $tid = post_int("tid");
-            $res = $db_instance->execute_query("SELECT userid FROM support_tickets WHERE id = ?", [$tid]);
-            $ticket_data = $res->fetch_assoc();
 
-            if ($is_staff || ($ticket_data && $ticket_data["userid"] == $uid)) {
-                $reason = $is_staff ? "Durch Support" : "Durch Benutzer";
-                $support->close_ticket($tid, $reason);
-            }
+            $support->create_ticket($sub, $msg);
+
+            $db_instance->commit();
+            $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
 
             change_location("support.php");
-        } else if (isset($_POST["delete_ticket"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
-            $tid = post_int("tid");
-            $support->delete_ticket($tid);
+        } catch (RuntimeException $e) {
+            $db_instance->rollback();
 
-            change_location("support.php");
-        } // Send message in existing ticket
-        else if (isset($_POST["send_msg"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
-            $tid = post_int("tid");
-            $raw_text = post_str("text");
+            $fail_open($e->getMessage());
+        } catch (Throwable $e) {
+            $db_instance->rollback();
+            $logger->error("support open_ticket error: " . $e->getMessage());
 
-            // Check access
-            $res = $db_instance->execute_query("SELECT userid, status FROM support_tickets WHERE id = ?", [$tid]);
-            $t_check = $res->fetch_assoc();
-
-            $val_error = Support::validate_message_text($raw_text);
-
-            if (!$t_check) {
-                $error = "Das Ticket existiert nicht mehr oder wurde gelöscht.";
-            } else if (!$is_staff && $t_check["userid"] != $uid) {
-                $error = "Zugriff verweigert!";
-            } else if (!$t_check["status"]) {
-                $error = "Dieses Ticket ist bereits geschlossen!";
-            } else if ($val_error) {
-                $error = $val_error;
-            } else {
-                // Rate Limit Check
-                $current_time = time();
-
-                if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
-                    $_SESSION["message_count"] = 0;
-                    $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-                }
-
-                if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
-                    $error = "Du schickst zu viele Nachrichten! Bitte warte kurz.";
-                } else {
-                    $msg = Messages::filter_chat_message(nl2br(e($raw_text)));
-                    $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
-
-                    $is_acting_as_staff = ($is_staff && (int)$t_check["userid"] !== $uid);
-                    $support->add_message($tid, $msg, $is_acting_as_staff);
-
-                    change_location("support.php?tid=$tid");
-                }
-            }
+            $fail_open("Interner Fehler beim Erstellen des Tickets.");
         }
     }
+
+    if (isset($_POST["close_ticket"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
+        $tid = post_int("tid");
+        $ticket_data = $db_instance->execute_query("SELECT userid FROM support_tickets WHERE id = ?", [$tid])->fetch_assoc();
+
+        if ($is_staff || ($ticket_data && $ticket_data["userid"] == $uid)) {
+            $support->close_ticket($tid, $is_staff ? "Durch Support" : "Durch Benutzer");
+        }
+
+        change_location("support.php");
+    }
+
+    if (isset($_POST["delete_ticket"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
+        $support->delete_ticket(post_int("tid"));
+
+        change_location("support.php");
+    }
+
+    if (isset($_POST["send_msg"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
+        $tid = post_int("tid");
+        $raw_text = post_str("text");
+        $t_check = $db_instance->execute_query("SELECT userid, status FROM support_tickets WHERE id = ?", [$tid])->fetch_assoc();
+        $val_error = Support::validate_message_text($raw_text);
+
+        if (!$t_check) {
+            change_location("support.php", error: "Das Ticket existiert nicht mehr oder wurde gelöscht.");
+        }
+        if (!$is_staff && $t_check["userid"] != $uid) {
+            change_location("support.php", error: "Zugriff verweigert!");
+        }
+        if (!$t_check["status"]) {
+            change_location("support.php?tid=$tid", error: "Dieses Ticket ist bereits geschlossen!");
+        }
+        if ($val_error) {
+            change_location("support.php?tid=$tid", error: $val_error);
+        }
+
+        $current_time = time();
+        if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
+            $_SESSION["message_count"] = 0;
+            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+        }
+
+        if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
+            change_location("support.php?tid=$tid", error: "Du schickst zu viele Nachrichten! Bitte warte kurz.");
+        }
+
+        $msg = Messages::filter_chat_message(nl2br(e($raw_text)));
+        $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
+        $is_acting_as_staff = ($is_staff && (int)$t_check["userid"] !== $uid);
+
+        $support->add_message($tid, $msg, $is_acting_as_staff);
+
+        change_location("support.php?tid=$tid");
+    }
+
+    change_location("support.php");
 }
 
 /*
@@ -149,84 +149,86 @@ if (isset($_GET["tid"])) {
     $ticket = $res->fetch_assoc();
 
     if (!$ticket) {
-        $error = "Dieses Ticket wurde gelöscht oder existiert nicht.";
-    } else if (!$is_staff && $ticket["userid"] != $uid) {
-        $error = "Zugriff verweigert.";
-    } else {
-        $is_acting_as_staff = ($is_staff && (int)$ticket["userid"] !== $uid);
+        change_location("support.php", error: "Dieses Ticket wurde gelöscht oder existiert nicht.");
+    }
 
-        if ($is_acting_as_staff) {
-            if ($ticket["assigned_admin"] && $ticket["assigned_to"] != $uid) {
-                $view .= show_warning_box("Dieses Ticket wird bereits von <b>" . e($ticket["assigned_admin"]) . "</b> bearbeitet.") . "<br>";
-            }
+    if (!$is_staff && $ticket["userid"] != $uid) {
+        change_location("support.php", error: "Zugriff verweigert.");
+    }
+
+    $is_acting_as_staff = ($is_staff && (int)$ticket["userid"] !== $uid);
+
+    if ($is_acting_as_staff) {
+        if ($ticket["assigned_admin"] && $ticket["assigned_to"] != $uid) {
+            $view .= show_warning_box("Dieses Ticket wird bereits von <b>" . e($ticket["assigned_admin"]) . "</b> bearbeitet.") . "<br>";
+        }
+    }
+
+    $msgs = $db_instance->execute_query(
+        "SELECT m.*, u.username FROM support_messages m JOIN users u ON m.senderid = u.id WHERE m.ticketid = ? ORDER BY m.id",
+        [$tid]
+    )->fetch_all(MYSQLI_ASSOC);
+
+    $db_instance->execute_query(
+        "UPDATE support_messages SET hasread = 1 WHERE ticketid = ? AND senderid != ? AND hasread = 0",
+        [$tid, $uid]
+    );
+
+    if (!$ticket["status"]) {
+        $view .= show_warning_box("Dieses Ticket ist geschlossen (" . e($ticket["close_reason"]) . ").") . "<br>";
+    }
+
+    $view .= "<div class='info-box event-error' id='support-chat-error' style='display: none;'></div>";
+    $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='navigate' data-url='support.php'>Zurück</button>";
+    $view .= "<h3 style='margin: 0; flex: 1;'>Ticket #$tid: " . e($ticket["subject"]) . "</h3>";
+
+    if ($ticket["status"]) {
+        $view .= "<div><button class='btn-delete' style='width: auto; padding: 5px 10px;' data-on-click='confirmCloseTicket' data-id='$tid'>Ticket schließen</button></div>";
+    }
+
+    $view .= "</div>";
+
+    $last_msg_id = 0;
+    $unread_line_shown = false;
+
+    $view .= "<div id='chat-loading-wrapper'>";
+    $view .= "<div id='messages-section' data-chat-type='support' data-ticket-id='$tid' data-ticket-open='" . (int)$ticket["status"] . "'>";
+
+    foreach ($msgs as $m) {
+        $last_msg_id = (int)$m["id"];
+        $is_unread_foreign = ((int)$m["senderid"] !== $uid && empty($m["hasread"]));
+
+        if ($is_unread_foreign && !$unread_line_shown) {
+            $unread_line_shown = true;
+            $view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", (int)$m["created_at"]) . "</div>";
         }
 
-        $msgs = $db_instance->execute_query(
-            "SELECT m.*, u.username FROM support_messages m JOIN users u ON m.senderid = u.id WHERE m.ticketid = ? ORDER BY m.id",
-            [$tid]
-        )->fetch_all(MYSQLI_ASSOC);
+        $view .= Support::render_message_bubble($m, $user, $is_staff);
+    }
 
-        $db_instance->execute_query(
-            "UPDATE support_messages SET hasread = 1 WHERE ticketid = ? AND senderid != ? AND hasread = 0",
-            [$tid, $uid]
-        );
+    $view .= "</div></div>";
+    $view .= "<div id='support-chat-meta' data-last-id='$last_msg_id' style='display: none;'></div>";
 
-        if (!$ticket["status"]) {
-            $view .= show_warning_box("Dieses Ticket ist geschlossen (" . e($ticket["close_reason"]) . ").") . "<br>";
+    if ($ticket["status"]) {
+        $view .= "
+            <div id='newmessage-section'>
+                <form method='POST' action='support.php' id='newmessage'>
+                    <input type='hidden' name='tid' value='$tid'>
+                    <input type='hidden' name='send_msg' value='1'>
+                    <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' placeholder='Deine Antwort...' required style='resize: vertical; margin-right: 10px;'></textarea>
+                    <div class='emoji-picker-container'>
+                        <div id='emoji-menu' class='emoji-menu'>";
+
+        foreach (Messages::get_chat_emojis() as $emoji) {
+            $view .= "<span data-on-click='pickEmoji'>$emoji</span>";
         }
 
-        $view .= "<div class='info-box event-error' id='support-chat-error' style='display: none;'></div>";
-        $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='navigate' data-url='support.php'>Zurück</button>";
-        $view .= "<h3 style='margin: 0; flex: 1;'>Ticket #$tid: " . e($ticket["subject"]) . "</h3>";
-
-        if ($ticket["status"]) {
-            $view .= "<div><button class='btn-delete' style='width: auto; padding: 5px 10px;' data-on-click='confirmCloseTicket' data-id='$tid'>Ticket schließen</button></div>";
-        }
-
-        $view .= "</div>";
-
-        $last_msg_id = 0;
-        $unread_line_shown = false;
-
-        $view .= "<div id='chat-loading-wrapper'>";
-        $view .= "<div id='messages-section' data-chat-type='support' data-ticket-id='$tid' data-ticket-open='" . (int)$ticket["status"] . "'>";
-
-        foreach ($msgs as $m) {
-            $last_msg_id = (int)$m["id"];
-            $is_unread_foreign = ((int)$m["senderid"] !== $uid && empty($m["hasread"]));
-
-            if ($is_unread_foreign && !$unread_line_shown) {
-                $unread_line_shown = true;
-                $view .= "<div id='new-message-line' class='error'>Neue Nachrichten seit " . date("d.m.Y H:i", (int)$m["created_at"]) . "</div>";
-            }
-
-            $view .= Support::render_message_bubble($m, $user, $is_staff);
-        }
-
-        $view .= "</div></div>";
-        $view .= "<div id='support-chat-meta' data-last-id='$last_msg_id' style='display: none;'></div>";
-
-        if ($ticket["status"]) {
-            $view .= "
-                <div id='newmessage-section'>
-                    <form method='POST' action='support.php' id='newmessage'>
-                        <input type='hidden' name='tid' value='$tid'>
-                        <input type='hidden' name='send_msg' value='1'>
-                        <textarea id='message-input' name='text' rows='3' maxlength='" . MAX_MESSAGE_LENGTH . "' placeholder='Deine Antwort...' required style='resize: vertical; margin-right: 10px;'></textarea>
-                        <div class='emoji-picker-container'>
-                            <div id='emoji-menu' class='emoji-menu'>";
-
-            foreach (Messages::get_chat_emojis() as $emoji) {
-                $view .= "<span data-on-click='pickEmoji'>$emoji</span>";
-            }
-
-            $view .= "      </div>
-                            <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
-                        </div>
-                        <input type='submit' name='send_msg' value=\"Absenden\n[ENTER]\">
-                    </form>
-                </div>";
-        }
+        $view .= "</div>
+                        <button type='button' class='emoji-trigger' data-on-click='toggleEmojis' title='Emoji einfügen'>🙂</button>
+                    </div>
+                    <input type='submit' name='send_msg' value=\"Absenden\n[ENTER]\">
+                </form>
+            </div>";
     }
 } else {
     // TICKET LIST
@@ -370,14 +372,18 @@ if (isset($_GET["tid"])) {
     $view .= "<div id='support_tab_my' class='js-support-tab' style='display: " . ($active_tab === "my" ? "block" : "none") . ";'>";
 
     if (!$support->has_active_ticket($uid)) {
+        $ticket_draft = consume_form_flash("support_ticket");
+        $draft_subject = e((string)($ticket_draft["subject"] ?? ""));
+        $draft_text = e((string)($ticket_draft["text"] ?? ""));
+
         $view .= "
             <div class='box-container' style='max-width: 600px; margin: 0 auto 20px auto;'>
                 <div class='box-header'>Neues Support-Ticket</div>
                 <div class='box-content box-content-bg' style='padding: 15px;'>
                     <form method='POST' action='support.php' id='newticketform'>
                         <input type='hidden' name='open_ticket' value='1'>
-                        <input type='text' name='subject' placeholder='Betreff' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' enterkeyhint='next' style='width: 100%; margin-bottom: 10px;' required>
-                        <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' enterkeyhint='enter' required></textarea>
+                        <input type='text' name='subject' placeholder='Betreff' value='$draft_subject' maxlength='" . MAX_SUPPORT_TICKET_SUBJECT_LENGTH . "' enterkeyhint='next' style='width: 100%; margin-bottom: 10px;' required>
+                        <textarea name='text' id='new-ticket-text' rows='4' placeholder='Beschreibe dein Problem...' enterkeyhint='enter' required>$draft_text</textarea>
                         <input type='submit' value='Absenden' style='margin-top: 15px;'>
                     </form>
                 </div>

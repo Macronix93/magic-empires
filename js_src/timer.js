@@ -2,17 +2,22 @@ const countdownRegistry = new Map();
 
 function onQueueUnitFinished(element) {
     const villCost = parseInt(element.dataset.villagerCost, 10) || 0;
+
     if (villCost > 0) {
         document.querySelectorAll("img[src*='icon_villager']").forEach(img => {
             const container = img.closest('.split-content');
+
             if (container) {
                 const span = container.querySelector("span");
+
                 if (span && span.innerText.includes("/")) {
                     const parts = span.innerText.split("/");
                     const currentVal = parseInt(parts[0].replace(/\D/g, ''), 10) || 0;
                     const maxVal = parseInt(parts[1].replace(/\D/g, ''), 10) || 0;
                     const newVal = Math.max(0, currentVal - villCost);
+
                     span.innerText = `${newVal.toLocaleString("de-DE")} / ${parts[1].trim()}`;
+
                     if (maxVal > 0) {
                         span.className = (newVal >= maxVal) ? "over-limit" : "under-limit";
                     }
@@ -136,7 +141,7 @@ function tickAllCountdowns(now = Date.now()) {
                 for (let u = 0; u < goal; u++) {
                     onQueueUnitFinished(timer.element);
                 }
-                
+
                 goal = 0;
             }
 

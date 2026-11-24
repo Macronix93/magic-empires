@@ -35,68 +35,54 @@ $process_content = function ($raw) {
     return preg_replace($cleanup_patterns, $cleanup_replace, $content);
 };
 
-if ($is_admin) {
-    if ($_SERVER["REQUEST_METHOD"] === "POST") {
-        if (!verify_csrf_token()) {
-            $_SESSION["game_error"] = "Ungültiger Sicherheits-Token!";
-            change_location("news.php");
-        } else {
-            if (isset($_POST["edit_news"])) {
-                $news_id = post_int("news_id");
-                $raw_title = trim(post_str("title"));
-                $raw_content = trim(post_str("content"));
+$validate_and_format_news = static function () use ($process_content): array {
+    $raw_title = trim(post_str("title"));
+    $raw_content = trim(post_str("content"));
 
-                if (empty($raw_title) || empty($raw_content)) {
-                    $_SESSION["game_error"] = "Bitte alle Felder ausfüllen!";
-                } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-                    $_SESSION["game_error"] = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
-                } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-                    $_SESSION["game_error"] = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
-                } else {
-                    $title = e($raw_title);
-                    $content = $process_content($raw_content);
-
-                    $db_instance->execute_query(
-                        "UPDATE news SET title = ?, content = ?, date = ? WHERE id = ?",
-                        [$title, $content, time(), $news_id]
-                    );
-
-                    $_SESSION["game_success"] = "News-Beitrag aktualisiert!";
-                }
-
-                change_location("news.php");
-            } else if (isset($_POST["post_news"])) {
-                $raw_title = trim(post_str("title"));
-                $raw_content = trim(post_str("content"));
-
-                if (empty($raw_title) || empty($raw_content)) {
-                    $_SESSION["game_error"] = "Bitte alle Felder ausfüllen!";
-                } else if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
-                    $_SESSION["game_error"] = "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!";
-                } else if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
-                    $_SESSION["game_error"] = "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!";
-                } else {
-                    $title = e($raw_title);
-                    $content = $process_content($raw_content);
-
-                    $db_instance->execute_query(
-                        "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
-                        [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
-                    );
-                    $_SESSION["game_success"] = "Neuigkeit veröffentlicht!";
-                }
-
-                change_location("news.php");
-            } else if (isset($_POST["delete_news"])) {
-                $news_id = post_int("news_id");
-                $db_instance->execute_query("DELETE FROM news WHERE id = ?", [$news_id]);
-
-                $_SESSION["game_success"] = "Eintrag gelöscht.";
-
-                change_location("news.php");
-            }
-        }
+    if (empty($raw_title) || empty($raw_content)) {
+        change_location("news.php", error: "Bitte alle Felder ausfüllen!");
     }
+    if (mb_strlen($raw_title) > MAX_NEWS_TITLE_LENGTH) {
+        change_location("news.php", error: "Der Titel ist zu lang (max. " . MAX_NEWS_TITLE_LENGTH . " Zeichen)!");
+    }
+    if (mb_strlen($raw_content) > MAX_NEWS_CONTENT_LENGTH) {
+        change_location("news.php", error: "Die Nachricht ist zu lang (max. " . MAX_NEWS_CONTENT_LENGTH . " Zeichen)!");
+    }
+
+    return [e($raw_title), $process_content($raw_content)];
+};
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (!$is_admin) {
+        change_location("news.php");
+    }
+    if (!verify_csrf_token()) {
+        change_location("news.php", error: "Ungültiger Sicherheits-Token!");
+    }
+
+    if (isset($_POST["edit_news"])) {
+        [$title, $content] = $validate_and_format_news();
+        $db_instance->execute_query(
+            "UPDATE news SET title = ?, content = ?, date = ? WHERE id = ?",
+            [$title, $content, time(), post_int("news_id")]
+        );
+
+        change_location("news.php", success: "News-Beitrag aktualisiert!");
+    } else if (isset($_POST["post_news"])) {
+        [$title, $content] = $validate_and_format_news();
+        $db_instance->execute_query(
+            "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
+            [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
+        );
+        
+        change_location("news.php", success: "Neuigkeit veröffentlicht!");
+    } else if (isset($_POST["delete_news"])) {
+        $db_instance->execute_query("DELETE FROM news WHERE id = ?", [post_int("news_id")]);
+
+        change_location("news.php", success: "Eintrag gelöscht.");
+    }
+
+    change_location("news.php");
 }
 
 // Pagination Setup

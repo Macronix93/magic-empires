@@ -227,7 +227,7 @@ function postGuildAction(data) {
     const activeModal = (typeof getActiveModalBody === "function")
         ? getActiveModalBody()?.closest(".overlay-modal")
         : null;
-    showActionLoader(loaderText, activeModal);
+    showActionLoader("Bitte warten...", activeModal);
 
     const formData = new URLSearchParams();
 

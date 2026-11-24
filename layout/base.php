@@ -161,10 +161,15 @@ $right_menu_mob_html = str_replace("desk_boost_info_", "mob_boost_info_", $right
     </div>
     <?php if ($user->is_logged_in()):
         $has_mobile_alert = (!empty($show_attack_alert) || !empty($show_support_alert));
+        $nav_unread_total = $user->get_unread_messages();
+
+        if (basename($_SERVER["PHP_SELF"]) === "guild.php") {
+            $nav_unread_total = max(0, $nav_unread_total - ($user->get_unread_counts()["guild"] ?? 0));
+        }
         ?>
         <span class="nav-notification-dot" id="mobile-nav-dot"
               data-has-alert="<?= $has_mobile_alert ? "true" : "false" ?>"
-              style="<?= ($user->get_unread_messages() > 0 || $has_mobile_alert) ? '' : "display: none;" ?>">
+              style="<?= ($nav_unread_total > 0 || $has_mobile_alert) ? '' : "display: none;" ?>">
         </span>
     <?php endif; ?>
 </div>

@@ -460,6 +460,57 @@ class BattleReportRenderer
             $html .= "</div>";
         }
 
+        $sim_units = [];
+        foreach (($intel["troops"] ?? []) as $t) {
+            $sid = (int)($t["id"] ?? 0);
+            $cnt = (int)($t["count"] ?? 0);
+            if ($cnt > 0) {
+                $sim_units[$sid] = ($sim_units[$sid] ?? 0) + $cnt;
+            }
+        }
+        foreach (($intel["support_troops"] ?? []) as $st) {
+            $sid = (int)($st["id"] ?? 0);
+            $cnt = (int)($st["count"] ?? 0);
+            if ($cnt > 0) {
+                $sim_units[$sid] = ($sim_units[$sid] ?? 0) + $cnt;
+            }
+        }
+
+        if (!empty($sim_units)) {
+            $allowed_sim_techs = [
+                TechTypes::TECH_TYPE_WALL_HP_INC,
+                TechTypes::TECH_TYPE_ANCESTRAL_RITES,
+                TechTypes::TECH_TYPE_BLADES,
+                TechTypes::TECH_TYPE_SHIELDWALL,
+                TechTypes::TECH_TYPE_LANCE_RIDING,
+                TechTypes::TECH_TYPE_CUIRASS,
+                TechTypes::TECH_TYPE_ARROWHEADS,
+                TechTypes::TECH_TYPE_DOUBLET,
+            ];
+            $sim_techs = [];
+            foreach (($intel["techs"] ?? []) as $t) {
+                $tid = (int)($t["id"] ?? -1);
+                if (in_array($tid, $allowed_sim_techs, true)) {
+                    $sim_techs[$tid] = (int)($t["level"] ?? 0);
+                }
+            }
+
+            $sim_payload = [
+                "troops" => $sim_units,
+                "wall" => [
+                    "lvl" => (int)($intel["wall"]["level"] ?? 0),
+                    "hp" => (int)($intel["wall"]["hp"] ?? 0),
+                ],
+                "techs" => $sim_techs,
+            ];
+            $encoded = urlencode(json_encode($sim_payload));
+            $html .= "<div style='text-align: center; margin-top: 15px;'>
+                <a href='warsim.php?import_players=$encoded'>
+                    <button type='button'>⚔️ Werte in War Simulator übertragen</button>
+                </a>
+            </div>";
+        }
+
         return $html;
     }
 

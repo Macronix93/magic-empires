@@ -273,9 +273,7 @@ class PhpBBBridge
         $user->check_user_login();
 
         if (!self::is_enabled()) {
-            $_SESSION["game_error"] = "Das Forum ist in der Entwicklungsumgebung deaktiviert.";
-
-            change_location("overview.php");
+            change_location("overview.php", error: "Das Forum ist in der Entwicklungsumgebung deaktiviert.");
         }
 
         $uid = $user->get_user_id();

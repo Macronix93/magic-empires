@@ -1947,6 +1947,7 @@ tr:first-child td.td-gradient {
 .guild-research-icon {
     width: 19px;
     height: 19px;
+    font-size: 10px;
 }
 
 .menu-icons {
@@ -6284,6 +6285,7 @@ button.btn-logout:not(:disabled):active {
     .guild-research-icon {
         width: 14px;
         height: 14px;
+        font-size: 8px;
     }
 
     textarea {

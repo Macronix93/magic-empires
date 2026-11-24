@@ -27,8 +27,7 @@ if ($current_page === "messages.php" && isset($_GET["worldchat"])) {
     $unread_world = 0;
 }
 
-$guild_tab = get_str("tab") ?: ($_COOKIE["me_guild_tab"] ?? "chat");
-if ($current_page === "guild.php" && $guild_tab === "chat") {
+if ($current_page === "guild.php") {
     $unread_guild = 0;
 }
 
