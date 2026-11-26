@@ -159,8 +159,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     change_location("map.php");
 }
 
-ob_start();
-
 // Coordinate logic
 $get_x = get_int("startx");
 $get_y = get_int("starty");
@@ -176,17 +174,47 @@ if ($coords_valid) {
     $y = $row["mapy"] ?? 1;
 }
 
+// Winter theme icons
+$is_winter = defined("WINTER_THEME_ACTIVE") && WINTER_THEME_ACTIVE;
+$get_map_icon = static function (string $filename) use ($is_winter): string {
+    if ($is_winter) {
+
+        $winter_rel = "images/winter/icons/" . $filename;
+        if (file_exists(__DIR__ . "/" . $winter_rel)) {
+            return $winter_rel;
+        }
+    }
+    return "images/icons/" . $filename;
+};
+
+$town_icon = $get_map_icon("icon_town.png");
+$gems_icon = $get_map_icon("icon_gems.png");
+$goblin_icon = $get_map_icon("icon_goblin.png");
+$mine_icon = $get_map_icon("icon_mine.png");
+
+$monster_legend_icon = "<img src='$goblin_icon' alt='' class='map-legend-entity-item'>";
+if ($is_winter) {
+    $hat_icon = $get_map_icon("icon_winter_hat.png");
+
+    if (file_exists(__DIR__ . "/" . $hat_icon)) {
+        $monster_legend_icon = "<span style='position: relative; display: inline-flex; line-height: 0;'>
+            $monster_legend_icon
+            <img src='$hat_icon' alt='' style='position: absolute; left: 30%; top: -8%; width: 42%; height: 42%; pointer-events: none;'>
+        </span>";
+    }
+}
+
 // Map legend
-echo "<div class='map-toolbar'>
+$view .= "<div class='map-toolbar'>
         <div class='legend-group'>
             $biome_html
         </div>
         <div class='legend-divider'></div>
         <div class='legend-group'>
-            <div class='map-legend-item'><img src='images/icons/icon_town.png' alt='' class='map-legend-entity-item'> Spieler</div>
-            <div class='map-legend-item'><img src='images/icons/icon_gems.png' alt='' class='map-legend-entity-item'> Lager</div>
-            <div class='map-legend-item'><img src='images/icons/icon_goblin.png' alt='' class='map-legend-entity-item'> Monster</div>
-            <div class='map-legend-item'><img src='images/icons/icon_mine.png' alt='' class='map-legend-entity-item'> Minen</div>
+            <div class='map-legend-item'><img src='$town_icon' alt='' class='map-legend-entity-item'> Spieler</div>
+            <div class='map-legend-item'><img src='$gems_icon' alt='' class='map-legend-entity-item'> Lager</div>
+            <div class='map-legend-item'>$monster_legend_icon Monster</div>
+            <div class='map-legend-item'><img src='$mine_icon' alt='' class='map-legend-entity-item'> Minen</div>
             <div class='map-legend-item' title='Eigenes Königreich'><span class='map-legend-inner-item legend-own-kingdom'></span> Eigene</div>
             <div class='map-legend-item' title='Allianz / Eigene Gilde'><span class='map-legend-inner-item legend-ally-kingdom'></span> Allianz</div>
             <div class='map-legend-item' title='Feindliche Gilde'><span class='map-legend-inner-item legend-enemy-guild-kingdom'></span> Gegner</div>
@@ -196,7 +224,7 @@ echo "<div class='map-toolbar'>
 // Search
 $show_path_checked = (isset($_COOKIE["me_map_show_path"]) && $_COOKIE["me_map_show_path"] === "1") ? "checked" : "";
 
-echo '<div class="map-options">
+$view .= '<div class="map-options">
         <form id="update-map" style="display: inline-flex; align-items: center; gap: 6px; margin: 0;">
             <button type="button" data-on-click="jumpToHome" title="Zum aktuellen Königreich springen" style="margin-right: 15px;">Home</button>
             <b>X:</b><input type="text" inputmode="numeric" id="startx" name="startx" size="2" maxlength="3" value="' . $x . '" style="width: 37px; text-align: center;">
@@ -221,17 +249,17 @@ echo '<div class="map-options">
 // Map Container
 $cmd_color = $commands_full ? "color: #ff4d4d;" : "";
 
-echo '<div id="map-container" 
+$view .= '<div id="map-container" 
             data-start-x="' . $x . '" 
             data-start-y="' . $y . '" 
             data-config=\'' . json_encode($js_config) . '\'
             style="height: var(--map-viewport-height); overflow: hidden;">';
-echo '<div id="map-sync-indicator" class="map-sync-spinner" style="display: none;" title="Karte wird aktualisiert"></div>';
-echo '<div id="map-loader">
+$view .= '<div id="map-sync-indicator" class="map-sync-spinner" style="display: none;" title="Karte wird aktualisiert"></div>';
+$view .= '<div id="map-loader">
             <div class="loading-spinner"></div>
             <div class="loader-text">Kartograph zeichnet Karte...</div>
           </div>';
-echo '<div id="coords-display" class="map-coords-overlay" style="display: flex; align-items: center; gap: 8px;">
+$view .= '<div id="coords-display" class="map-coords-overlay" style="display: flex; align-items: center; gap: 8px;">
         <span id="coords-text">X: ' . $x . ' | Y: ' . $y . '</span>
         <span>|</span>
         <span id="map-commands-display" title="Aktive Truppenbewegungen" style="display: inline-flex; align-items: center; gap: 8px; ' . $cmd_color . '">
@@ -239,19 +267,17 @@ echo '<div id="coords-display" class="map-coords-overlay" style="display: flex; 
             <span id="map-commands-count">' . $occupied_commands . '/' . $max_commands . '</span>
         </span>
       </div>';
-echo '<div class="map-viewport" id="map-viewport">
+$view .= '<div class="map-viewport" id="map-viewport">
             <canvas id="map-canvas" style="display: block;"></canvas>
           </div>';
-echo '<div id="field-popup-box" class="map-floating-popup"></div>';
-echo '</div>';
+$view .= '<div id="field-popup-box" class="map-floating-popup"></div>';
+$view .= '</div>';
 
 // Info Box
-echo '<div id="field-info" style="' . ($use_map_popup ? "display: none;" : "margin-top: 20px;") . '">';
-$map->render_field_info();
-echo '</div>';
+$view .= '<div id="field-info" style="' . ($use_map_popup ? "display: none;" : "margin-top: 20px;") . '"></div>';
 
 // Key Shortcut Info
-echo '<div class="map-key-legend">
+$view .= '<div class="map-key-legend">
     <div class="map-key-item">
         <kbd class="key-badge">W</kbd><kbd class="key-badge">A</kbd><kbd class="key-badge">S</kbd><kbd class="key-badge">D</kbd>
         <span>Bewegen</span>
@@ -267,8 +293,6 @@ echo '<div class="map-key-legend">
         <span>Home</span>
     </div>
 </div>';
-
-$view = ob_get_clean();
 
 /*
  * HTML Section

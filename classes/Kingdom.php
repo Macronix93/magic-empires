@@ -2,7 +2,7 @@
 
 class Kingdom
 {
-    private object $mysqli;
+    private mysqli $db;
     private int $kingdom_id;
     private int $food;
     private int $max_food;
@@ -39,11 +39,11 @@ class Kingdom
     private int $protection_until = 0;
     private ?array $tech_levels_cache = null;
     private ?array $active_boosts_cache = null;
-    private array $kingdom_buildings_cache = [];
+    private ?array $kingdom_buildings_cache = null;
 
     public function __construct(int $kingdom_id = -1)
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
         $this->kingdom_id = -1;
         $this->alignment = 0;
         $this->wall_hp = 0;
@@ -53,7 +53,7 @@ class Kingdom
         $this->kingdom_owner_id = -1;
 
         if ($kingdom_id != -1) {
-            $result = $this->mysqli->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
+            $result = $this->db->execute_query("SELECT * FROM kingdoms WHERE id = ?", [$kingdom_id]);
 
             if ($result && $result->num_rows > 0) {
                 $row = $result->fetch_assoc();
@@ -129,7 +129,7 @@ class Kingdom
                                    int $map_x = -1, int $map_y = -1): false|int
     {
         if ($map_x >= 1 && $map_y >= 1 && $map_x <= MAX_X && $map_y <= MAX_Y) {
-            $result = $this->mysqli->execute_query("SELECT fieldtype FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
+            $result = $this->db->execute_query("SELECT fieldtype FROM map WHERE mapx = ? AND mapy = ?", [$map_x, $map_y]);
             $row = $result->fetch_assoc();
 
             if (!$row) return false;
@@ -137,7 +137,7 @@ class Kingdom
             return $this->found_free_field($row["fieldtype"], $map_x, $map_y, $user_id, $user_name, $creation_method);
         } else {
             // Select a random map entry and deny registration, if no map entry was found
-            $result = $this->mysqli->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1");
+            $result = $this->db->execute_query("SELECT mapx, mapy, fieldtype FROM map WHERE kingdomid = -1 ORDER BY RAND() LIMIT 1");
             $row = $result->fetch_assoc();
 
             if (!$row) {
@@ -152,7 +152,7 @@ class Kingdom
                                      int $creation_method = KingdomCreationTypes::KINGDOM_CREATION_INITIAL): int
     {
         // Get resource gain rates based on fieldtype
-        $result = $this->mysqli->execute_query("SELECT foodrate, woodrate, stonerate, goldrate FROM field_types WHERE fieldid = ?", [$field_type]);
+        $result = $this->db->execute_query("SELECT foodrate, woodrate, stonerate, goldrate FROM field_types WHERE fieldid = ?", [$field_type]);
         $row = $result->fetch_object();
 
         $food_rate = BASE_FOOD_GAIN * $row->foodrate;
@@ -174,13 +174,13 @@ class Kingdom
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id;
         ";
 
-        $result_kingdom = $this->mysqli->execute_query($query, [$random_name, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
+        $result_kingdom = $this->db->execute_query($query, [$random_name, $user_id, $user_name, $rand_x, $rand_y, STARTING_FOOD, STARTING_FOOD,
             STARTING_WOOD, STARTING_WOOD, STARTING_STONE, STARTING_STONE, STARTING_GOLD, STARTING_GOLD, $food_rate, $wood_rate, $stone_rate, $gold_rate, DEFAULT_WALL_HP,
             $food_rate, $gold_rate, $stone_rate, $wood_rate, $creation_method, time(), $protection_until]);
         $insert_id = $result_kingdom->fetch_assoc()["id"];
 
         // Update map properties of x and y
-        $this->mysqli->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [$insert_id, $rand_x, $rand_y]);
+        $this->db->execute_query("UPDATE map SET kingdomid = ? WHERE mapx = ? AND mapy = ?", [$insert_id, $rand_x, $rand_y]);
 
         // Insert standard buildings for this kingdom
         $query = "
@@ -190,7 +190,7 @@ class Kingdom
             WHERE id IN (?, ?, ?)
         ";
 
-        $this->mysqli->execute_query($query, [
+        $this->db->execute_query($query, [
             $insert_id,
             BuildingTypes::BUILDING_TOWNCENTER,
             BuildingTypes::BUILDING_WALL,
@@ -233,79 +233,74 @@ class Kingdom
         return $this->map_y;
     }
 
-    public function get_kingdom_buildings(int $kingdom_id): array
+    public function get_kingdom_buildings(): array
     {
-        if (isset($this->kingdom_buildings_cache[$kingdom_id])) {
-            return $this->kingdom_buildings_cache[$kingdom_id];
+        if ($this->kingdom_buildings_cache !== null) {
+            return $this->kingdom_buildings_cache;
         }
 
         $kingdom_buildings = [];
-        $result = $this->mysqli->execute_query(
-            "SELECT buildingid, buildingname FROM buildings WHERE kingdomid = ?",
-            [$kingdom_id]
+        $result = $this->db->execute_query("SELECT buildingid, buildingname FROM buildings WHERE kingdomid = ?",
+            [$this->kingdom_id]
         );
 
-        if ($result->num_rows != 0) {
-            foreach ($result as $row) {
-                $building_id = $row["buildingid"];
-                $kingdom_buildings[] = [
-                    "buildingid" => $building_id,
-                    "buildingname" => $row["buildingname"],
-                    "buildingfile" => Building::get_building_file($building_id),
-                ];
-            }
+        foreach ($result as $row) {
+            $building_id = (int)$row["buildingid"];
+            $kingdom_buildings[] = [
+                "buildingid" => $building_id,
+                "buildingname" => $row["buildingname"],
+                "buildingfile" => Building::get_building_file($building_id),
+            ];
         }
-
-        return $this->kingdom_buildings_cache[$kingdom_id] = $kingdom_buildings;
+        return $this->kingdom_buildings_cache = $kingdom_buildings;
     }
 
-    function fetch_kingdom_building(int $kingdom_id, int $building_id): ?Building
+    public function fetch_kingdom_building(int $building_id): ?Building
     {
-        $result = $this->mysqli->execute_query("SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
-            [$kingdom_id, $building_id]);
+        $result = $this->db->execute_query(
+            "SELECT buildingname, buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+            [$this->kingdom_id, $building_id]
+        );
         $row = $result->fetch_assoc();
 
-        if (!$row) {
-            return null;
-        }
+        if (!$row) return null;
 
         $building = new Building();
-        $building->set_building_name($row['buildingname']);
-        $building->set_building_level($row['buildinglevel']);
+        $building->set_building_name($row["buildingname"]);
+        $building->set_building_level((int)$row["buildinglevel"]);
         $building->set_building_id($building_id);
-        $building->set_building_kingdom_id($kingdom_id);
-
+        $building->set_building_kingdom_id($this->kingdom_id);
         return $building;
     }
 
-    function fetch_kingdom_tech(int $kingdom_id, int $tech_id): ?Tech
+    public function fetch_kingdom_tech(int $tech_id): ?Tech
     {
-        $result = $this->mysqli->execute_query("SELECT techname, techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
-            [$kingdom_id, $tech_id]);
+        $result = $this->db->execute_query("SELECT techname, techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
+            [$this->kingdom_id, $tech_id]
+        );
         $row = $result->fetch_assoc();
 
-        if (!$row) {
-            return null;
-        }
+        if (!$row) return null;
 
         $tech = new Tech();
-        $tech->set_tech_name($row['techname']);
-        $tech->set_tech_level((int)$row['techlevel']);
+        $tech->set_tech_name($row["techname"]);
+        $tech->set_tech_level((int)$row["techlevel"]);
         $tech->set_tech_id($tech_id);
-        $tech->set_tech_kingdom_id($kingdom_id);
-
+        $tech->set_tech_kingdom_id($this->kingdom_id);
         return $tech;
     }
 
-    public function is_kingdom_recruiting(int $kingdom_id): bool
+    public function is_kingdom_recruiting(): bool
     {
-        $result = $this->mysqli->execute_query("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
-            [$kingdom_id, ActionTypes::ACTION_BUILD_TROOPS]);
-        $row = $result->fetch_assoc();
-        if ($row) {
-            $this->recruiting_id = $row["soldierid"];
+        $result = $this->db->execute_query("SELECT soldierid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$this->kingdom_id, ActionTypes::ACTION_BUILD_TROOPS]
+        );
+
+        if ($row = $result->fetch_assoc()) {
+            $this->recruiting_id = (int)$row["soldierid"];
+            return true;
         }
-        return $result->num_rows > 0;
+        return false;
     }
 
     public function get_kingdom_recruiting_id(): int
@@ -313,15 +308,18 @@ class Kingdom
         return $this->recruiting_id;
     }
 
-    public function is_kingdom_building(int $kingdom_id): bool
+
+    public function is_kingdom_building(): bool
     {
-        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
-            [$kingdom_id, ActionTypes::ACTION_BUILD_BUILDING]);
-        $row = $result->fetch_assoc();
-        if ($row) {
-            $this->building_id = $row["buildingid"];
+        $result = $this->db->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$this->kingdom_id, ActionTypes::ACTION_BUILD_BUILDING]
+        );
+
+        if ($row = $result->fetch_assoc()) {
+            $this->building_id = (int)$row["buildingid"];
+            return true;
         }
-        return $result->num_rows > 0;
+        return false;
     }
 
     public function get_kingdom_building_id(): int
@@ -333,7 +331,7 @@ class Kingdom
     {
         if ($this->building_levels_cache === null) {
             $this->building_levels_cache = [];
-            $res = $this->mysqli->execute_query(
+            $res = $this->db->execute_query(
                 "SELECT buildingid, buildinglevel FROM buildings WHERE kingdomid = ?",
                 [$this->kingdom_id]
             );
@@ -345,26 +343,30 @@ class Kingdom
         return $this->building_levels_cache[$building_id] ?? 0;
     }
 
-    public function is_kingdom_researching(int $kingdom_id): bool
+    public function is_kingdom_researching(): bool
     {
-        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
-            [$kingdom_id, ActionTypes::ACTION_RESEARCH_TECH]);
-        $row = $result->fetch_assoc();
-        if ($row) {
-            $this->tech_id = $row["buildingid"];
+        $result = $this->db->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$this->kingdom_id, ActionTypes::ACTION_RESEARCH_TECH]
+        );
+
+        if ($row = $result->fetch_assoc()) {
+            $this->tech_id = (int)$row["buildingid"];
+            return true;
         }
-        return $result->num_rows > 0;
+        return false;
     }
 
-    public function is_kingdom_smithing(int $kingdom_id): bool
+    public function is_kingdom_smithing(): bool
     {
-        $result = $this->mysqli->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
-            [$kingdom_id, ActionTypes::ACTION_SMITHY_UPGRADE]);
-        $row = $result->fetch_assoc();
-        if ($row) {
-            $this->tech_id = $row["buildingid"];
+        $result = $this->db->execute_query("SELECT buildingid FROM events WHERE kingdomid = ? AND actionid = ? LIMIT 1",
+            [$this->kingdom_id, ActionTypes::ACTION_SMITHY_UPGRADE]
+        );
+
+        if ($row = $result->fetch_assoc()) {
+            $this->tech_id = (int)$row["buildingid"];
+            return true;
         }
-        return $result->num_rows > 0;
+        return false;
     }
 
     public function get_shrine_modifier(): float
@@ -387,7 +389,7 @@ class Kingdom
             return $this->shrine_cache;
         }
 
-        $res = $this->mysqli->execute_query("SELECT * FROM shrine_alignments WHERE id = ?", [$this->alignment]);
+        $res = $this->db->execute_query("SELECT * FROM shrine_alignments WHERE id = ?", [$this->alignment]);
         $this->shrine_cache = $res->fetch_assoc();
 
         return $this->shrine_cache;
@@ -409,7 +411,7 @@ class Kingdom
     private function modify_resource_column(string $col, string $max_col, int &$prop, int $max_prop, int $amount): void
     {
         if ($amount > 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE kingdoms SET `$col` = IF(`$col` >= `$max_col`, `$col`, LEAST(`$max_col`, `$col` + ?)) WHERE id = ?",
                 [$amount, $this->kingdom_id]
             );
@@ -419,7 +421,7 @@ class Kingdom
             }
         } else if ($amount < 0) {
             $sub = abs($amount);
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE kingdoms SET `$col` = GREATEST(0, `$col` - ?) WHERE id = ?",
                 [$sub, $this->kingdom_id]
             );
@@ -530,7 +532,7 @@ class Kingdom
     public function set_wall_hp(int $wall_hp): void
     {
         $this->wall_hp = $wall_hp;
-        $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$wall_hp, $this->kingdom_id]);
+        $this->db->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$wall_hp, $this->kingdom_id]);
     }
 
     public function get_wall_max_hp(?int $wall_level = null): int
@@ -551,7 +553,7 @@ class Kingdom
         if ($this->active_boosts_cache === null) {
             $this->active_boosts_cache = [];
 
-            $res = $this->mysqli->execute_query(
+            $res = $this->db->execute_query(
                 "SELECT resource_type, boost_amount, ticks_remaining 
              FROM kingdom_boosts 
              WHERE kingdomid = ? AND ticks_remaining > 0",
@@ -608,7 +610,7 @@ class Kingdom
             $s_per_hour *= (1 - $malus);
         }
 
-        $this->mysqli->execute_query("
+        $this->db->execute_query("
         UPDATE kingdoms 
         SET foodperhour = ?, woodperhour = ?, stoneperhour = ?, goldperhour = ?
         WHERE id = ?",
@@ -634,7 +636,7 @@ class Kingdom
         $new_max = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $storage_lvl - 1))
             + ($tech_lvl * RESEARCH_STORAGE_INC);
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "UPDATE kingdoms SET maxfood = ?, maxwood = ?, maxstone = ?, maxgold = ? WHERE id = ?",
             [$new_max, $new_max, $new_max, $new_max, $this->kingdom_id]
         );
@@ -645,7 +647,7 @@ class Kingdom
         $this->max_gold = $new_max;
     }
 
-    function fetch_all_kingdom_buildings(): array
+    public function fetch_all_kingdom_buildings(): array
     {
         $buildings = [];
 
@@ -655,7 +657,7 @@ class Kingdom
             LEFT JOIN buildings bl ON bl.buildingid = b.id AND bl.kingdomid = ?
             ORDER BY b.id
         ";
-        $result = $this->mysqli->execute_query($query, [$this->kingdom_id]);
+        $result = $this->db->execute_query($query, [$this->kingdom_id]);
 
         foreach ($result as $row) {
             $building_id = (int)$row["id"];
@@ -664,7 +666,7 @@ class Kingdom
             $buildings[$building_id] = $building;
         }
 
-        $res_deps = $this->mysqli->execute_query("SELECT buildingid, dependencyid, dependencylevel FROM building_deps");
+        $res_deps = $this->db->execute_query("SELECT buildingid, dependencyid, dependencylevel FROM building_deps");
         while ($d = $res_deps->fetch_assoc()) {
             $bid = (int)$d["buildingid"];
 
@@ -681,7 +683,7 @@ class Kingdom
         if ($this->tech_levels_cache === null) {
             $this->tech_levels_cache = [];
 
-            $res = $this->mysqli->execute_query(
+            $res = $this->db->execute_query(
                 "SELECT techid, techlevel FROM techs WHERE kingdomid = ?",
                 [$this->kingdom_id]
             );
@@ -693,7 +695,7 @@ class Kingdom
         return $this->tech_levels_cache[$tech_id] ?? 0;
     }
 
-    public function fetch_all_kingdom_techs(?int $origin_building = null): array
+    public function fetch_all_kingdom_techs(): array
     {
         $techs = [];
 
@@ -701,11 +703,7 @@ class Kingdom
         $query = "SELECT t.*, tl.techlevel FROM tech_list t
               LEFT JOIN techs tl ON tl.techid = t.id AND tl.kingdomid = ?";
 
-        if ($origin_building !== null) {
-            $query .= " WHERE t.origin_building = " . $origin_building;
-        }
-
-        $result_techs = $this->mysqli->execute_query($query, [$this->kingdom_id]);
+        $result_techs = $this->db->execute_query($query, [$this->kingdom_id]);
 
         foreach ($result_techs as $row) {
             $tech = new Tech();
@@ -716,7 +714,7 @@ class Kingdom
 
         // Building dependencies
         $query_building_deps = "SELECT * FROM tech_building_deps";
-        $result_building_deps = $this->mysqli->execute_query($query_building_deps);
+        $result_building_deps = $this->db->execute_query($query_building_deps);
 
         foreach ($result_building_deps as $row) {
             $tech_id = $row["techid"];
@@ -732,7 +730,7 @@ class Kingdom
 
         // Tech dependencies
         $query_tech_deps = "SELECT * FROM tech_deps";
-        $result_tech_deps = $this->mysqli->execute_query($query_tech_deps);
+        $result_tech_deps = $this->db->execute_query($query_tech_deps);
 
         foreach ($result_tech_deps as $row) {
             $tech_id = $row["techid"];
@@ -824,106 +822,57 @@ class Kingdom
 
     public function get_current_troop_count(bool $include_queue = true, bool $include_incoming = false): int
     {
-        $kid = $this->kingdom_id;
-        $exempt_ids = implode(',', TROOP_LIMIT_EXEMPT);
-
-        // Own troops (barracks + sent + stationed + mines + upgrading)
-        $query_own = "SELECT (
-            (SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers WHERE kingdomid = ? AND soldierid NOT IN ($exempt_ids)) +
-            (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops WHERE source_kingdom_id = ? AND soldierid NOT IN ($exempt_ids)) +
-            (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ? AND soldier_id NOT IN ($exempt_ids)) +
-            (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE kingdom_id = ? AND soldier_id NOT IN ($exempt_ids)) +
-            (SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . " AND soldierid NOT IN ($exempt_ids))
-        ) AS total";
-
-        $res_own = $this->mysqli->execute_query($query_own, [$kid, $kid, $kid, $kid, $kid]);
-        $total = (int)$res_own->fetch_row()[0];
-
-        // Troops currently recruiting
-        if ($include_queue) {
-            $res_training = $this->mysqli->execute_query(
-                "SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid NOT IN ($exempt_ids)",
-                [$kid, ActionTypes::ACTION_BUILD_TROOPS]
-            );
-            $total += (int)$res_training->fetch_row()[0];
-        }
-
-        // Station Troops
-        if ($include_incoming) {
-            $query_incoming = "
-                SELECT IFNULL(SUM(st.soldiercount), 0) 
-                FROM sent_troops st 
-                JOIN events e ON st.eventid = e.eventid 
-                WHERE e.targetid = ? 
-                  AND e.actionid = ? 
-                  AND e.kingdomid != ? 
-                  AND e.userid = (SELECT userid FROM kingdoms WHERE id = ?)
-                  AND st.soldierid NOT IN ($exempt_ids)
-            ";
-            $res_incoming = $this->mysqli->execute_query($query_incoming, [
-                $kid,
-                ActionTypes::ACTION_SEND_TROOPS,
-                $kid,
-                $kid
-            ]);
-            $total += (int)$res_incoming->fetch_row()[0];
-        }
-
-        return $total;
+        return Soldier::get_kingdom_troop_sum($this->kingdom_id, [
+            "include_upgrading" => true,
+            "include_queue" => $include_queue,
+            "include_incoming_station" => $include_incoming,
+            "exclude_soldier_ids" => TROOP_LIMIT_EXEMPT,
+        ]);
     }
 
     public function get_unit_total_count(int $soldier_id, bool $include_queue = true, bool $include_incoming = false): int
     {
-        $kid = $this->kingdom_id;
-        $query = "
-            SELECT SUM(cnt) FROM (
-                SELECT soldiercount AS cnt FROM soldiers WHERE kingdomid = ? AND soldierid = ?
-                UNION ALL
-                SELECT soldiercount AS cnt FROM sent_troops WHERE source_kingdom_id = ? AND soldierid = ?
-                UNION ALL
-                SELECT soldiercount AS cnt FROM stationed_troops WHERE source_kingdom_id = ? AND soldier_id = ?
-                UNION ALL
-                SELECT soldiercount AS cnt FROM mine_stationed_troops WHERE kingdom_id = ? AND soldier_id = ?
-            ) t
-        ";
-        $total = (int)$this->mysqli->execute_query($query, [$kid, $soldier_id, $kid, $soldier_id, $kid, $soldier_id, $kid, $soldier_id])->fetch_column();
+        return Soldier::get_kingdom_unit_counts($this->kingdom_id, [
+            "include_queue" => $include_queue,
+            "include_incoming_station" => $include_incoming,
+            "soldier_ids" => [$soldier_id],
+        ])[$soldier_id] ?? 0;
+    }
 
-        if ($include_queue) {
-            $queued = (int)$this->mysqli->execute_query(
-                "SELECT IFNULL(SUM(soldiergoal), 0) FROM events WHERE kingdomid = ? AND actionid = ? AND soldierid = ?",
-                [$kid, ActionTypes::ACTION_BUILD_TROOPS, $soldier_id]
-            )->fetch_column();
-
-            $total += $queued;
+    public function get_away_unit_counts(array $soldier_ids = []): array
+    {
+        if ($this->kingdom_id <= 0 || $this->kingdom_owner_id <= 0) {
+            return [];
         }
+        return Soldier::get_kingdom_unit_counts($this->kingdom_id, [
+            "user_id" => $this->kingdom_owner_id,
+            "include_garrison" => false,
+            "soldier_ids" => $soldier_ids,
+        ]);
+    }
 
-        if ($include_incoming) {
-            $incoming = (int)$this->mysqli->execute_query("
-                SELECT IFNULL(SUM(st.soldiercount), 0)
-                FROM sent_troops st
-                JOIN events e ON st.eventid = e.eventid
-                WHERE e.targetid = ?
-                  AND e.actionid = ?
-                  AND e.kingdomid != ?
-                  AND e.userid = (SELECT userid FROM kingdoms WHERE id = ?)
-                  AND st.soldierid = ?
-            ", [$kid, ActionTypes::ACTION_SEND_TROOPS, $kid, $kid, $soldier_id])->fetch_column();
+    public function get_command_stats(): array
+    {
+        $tc_level = $this->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
+        $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
+        $occupied = Soldier::get_kingdom_command_count($this->kingdom_id);
 
-            $total += $incoming;
-        }
-
-        return $total;
+        return [
+            "occupied" => $occupied,
+            "max" => $max_commands,
+            "is_full" => ($occupied >= $max_commands)
+        ];
     }
 
     public function recall_mine_troops(int $mine_x, int $mine_y): bool
     {
         $now = time();
-        $this->mysqli->begin_transaction();
+        $this->db->begin_transaction();
 
         try {
-            $mine = $this->mysqli->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ? FOR UPDATE", [$mine_x, $mine_y])->fetch_assoc();
+            $mine = $this->db->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ? FOR UPDATE", [$mine_x, $mine_y])->fetch_assoc();
             if (!$mine) {
-                $this->mysqli->rollback();
+                $this->db->rollback();
                 return false;
             }
 
@@ -932,31 +881,31 @@ class Kingdom
 
             $last_update = (int)($mine["last_update"] ?: $now);
             $elapsed = max(0, $now - $last_update);
-            $current_atk = (float)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
+            $current_atk = (float)$this->db->execute_query("SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
 
             if ($elapsed > 0 && $current_atk > 0) {
                 $max_rate = (float)$mine["work_total"] / MINE_MIN_DURATION_SECONDS;
                 $effective_rate = min($current_atk * MINE_WORK_RATE_FACTOR, $max_rate);
                 $work_delta = $effective_rate * $elapsed;
 
-                $this->mysqli->execute_query("
-                UPDATE mine_stationed_troops 
-                SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
-                WHERE mine_id = ?
-            ", [$work_delta, $current_atk, $mine_id]);
+                $this->db->execute_query("
+                    UPDATE mine_stationed_troops 
+                    SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
+                    WHERE mine_id = ?
+                ", [$work_delta, $current_atk, $mine_id]);
 
                 $mine["work_done"] += $work_delta;
-                $this->mysqli->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$mine["work_done"], $now, $mine_id]);
+                $this->db->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$mine["work_done"], $now, $mine_id]);
             }
 
-            $my_troops = $this->mysqli->execute_query("
-            SELECT * FROM mine_stationed_troops 
-            WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
-            FOR UPDATE
-        ", [$mine_id, $this->kingdom_owner_id, $kid])->fetch_all(MYSQLI_ASSOC);
+            $my_troops = $this->db->execute_query("
+                SELECT * FROM mine_stationed_troops 
+                WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
+                FOR UPDATE
+            ", [$mine_id, $this->kingdom_owner_id, $kid])->fetch_all(MYSQLI_ASSOC);
 
             if (empty($my_troops)) {
-                $this->mysqli->rollback();
+                $this->db->rollback();
                 return false;
             }
 
@@ -984,23 +933,23 @@ class Kingdom
                 MapFieldTypes::MAP_FIELD_MINE
             );
 
-            $this->mysqli->execute_query("
-            INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, 
-                                loot_food, loot_wood, loot_stone, loot_gold, loot_coal, loot_iron, loot_sapphire, loot_diamond, buildingname)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
-        ", [
+            $this->db->execute_query("
+                INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, 
+                                    loot_food, loot_wood, loot_stone, loot_gold, loot_coal, loot_iron, loot_sapphire, loot_diamond, buildingname)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
+            ", [
                 ActionTypes::ACTION_RETURN_TROOPS, $this->kingdom_owner_id, $kid,
                 MapFieldTypes::MAP_FIELD_MINE, $mine_x, $mine_y, $now + $travel_time, $now,
                 $loot_stone, $loot_gold, $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond, "Minen-Rückzug"
             ]);
-            $ret_id = $this->mysqli->insert_id;
+            $ret_id = $this->db->insert_id;
 
-            $grouped_troops = $this->mysqli->execute_query("
-            SELECT soldier_id, SUM(soldiercount) as soldiercount 
-            FROM mine_stationed_troops 
-            WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
-            GROUP BY soldier_id
-        ", [$mine_id, $this->kingdom_owner_id, $kid])->fetch_all(MYSQLI_ASSOC);
+            $grouped_troops = $this->db->execute_query("
+                SELECT soldier_id, SUM(soldiercount) as soldiercount 
+                FROM mine_stationed_troops 
+                WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
+                GROUP BY soldier_id
+            ", [$mine_id, $this->kingdom_owner_id, $kid])->fetch_all(MYSQLI_ASSOC);
 
             $insert_troops = [];
             foreach ($grouped_troops as $t) {
@@ -1010,38 +959,38 @@ class Kingdom
             }
 
             if (!empty($insert_troops)) {
-                $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
+                $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
             }
 
-            $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?", [$mine_id, $this->kingdom_owner_id, $kid]);
-            $this->mysqli->execute_query("
-            UPDATE mines SET 
-                stone = GREATEST(0, stone - ?),
-                gold = GREATEST(0, gold - ?),
-                coal = GREATEST(0, coal - ?),
-                iron = GREATEST(0, iron - ?),
-                sapphire = GREATEST(0, sapphire - ?),
-                diamond = GREATEST(0, diamond - ?),
-                last_update = ?
-            WHERE id = ?
-        ", [
+            $this->db->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?", [$mine_id, $this->kingdom_owner_id, $kid]);
+            $this->db->execute_query("
+                UPDATE mines SET 
+                    stone = GREATEST(0, stone - ?),
+                    gold = GREATEST(0, gold - ?),
+                    coal = GREATEST(0, coal - ?),
+                    iron = GREATEST(0, iron - ?),
+                    sapphire = GREATEST(0, sapphire - ?),
+                    diamond = GREATEST(0, diamond - ?),
+                    last_update = ?
+                WHERE id = ?
+            ", [
                 $loot_stone, $loot_gold,
                 $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond,
                 $now, $mine_id
             ]);
-            $rem_troops = (int)$this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
+            $rem_troops = (int)$this->db->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id])->fetch_column();
 
             if ($rem_troops > 0) {
                 if ((int)$mine["claimed_user_id"] === $this->kingdom_owner_id) {
-                    $user_still_here = (int)$this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mine_id, $this->kingdom_owner_id])->fetch_column();
+                    $user_still_here = (int)$this->db->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE mine_id = ? AND user_id = ?", [$mine_id, $this->kingdom_owner_id])->fetch_column();
 
                     if ($user_still_here === 0) {
-                        $new_claimer = (int)$this->mysqli->execute_query("SELECT user_id FROM mine_stationed_troops WHERE mine_id = ? LIMIT 1", [$mine_id])->fetch_column();
-                        $this->mysqli->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$new_claimer, $mine_id]);
+                        $new_claimer = (int)$this->db->execute_query("SELECT user_id FROM mine_stationed_troops WHERE mine_id = ? LIMIT 1", [$mine_id])->fetch_column();
+                        $this->db->execute_query("UPDATE mines SET claimed_user_id = ? WHERE id = ?", [$new_claimer, $mine_id]);
                     }
                 }
             } else {
-                $this->mysqli->execute_query("UPDATE mines SET claimed_guild_id = NULL, claimed_user_id = NULL WHERE id = ?", [$mine_id]);
+                $this->db->execute_query("UPDATE mines SET claimed_guild_id = NULL, claimed_user_id = NULL WHERE id = ?", [$mine_id]);
             }
 
             Logger::get_instance()->log_game("ECONOMY", "MINE_RECALL", [
@@ -1052,43 +1001,13 @@ class Kingdom
                 ]
             ], $kid);
 
-            $this->mysqli->commit();
+            $this->db->commit();
             return true;
         } catch (Throwable $e) {
-            $this->mysqli->rollback();
+            $this->db->rollback();
             Logger::get_instance()->error("Kingdom::recall_mine_troops error: " . $e->getMessage());
             return false;
         }
-    }
-
-    public function get_command_stats(): array
-    {
-        $tc_level = $this->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER);
-        $max_commands = BASE_SEND_TROOPS_LIMIT + $tc_level;
-
-        $res = $this->mysqli->execute_query("
-            SELECT 
-                (SELECT COUNT(*) FROM events 
-                 WHERE kingdomid = ? AND actionid IN (?, ?, ?, ?)) AS active_events,
-                (SELECT COUNT(DISTINCT mine_id) FROM mine_stationed_troops 
-                 WHERE kingdom_id = ?) AS active_mines
-        ", [
-            $this->kingdom_id,
-            ActionTypes::ACTION_SEND_TROOPS,
-            ActionTypes::ACTION_RETURN_TROOPS,
-            ActionTypes::ACTION_STATION_TROOPS,
-            ActionTypes::ACTION_SUPPORT_RETURN,
-            $this->kingdom_id
-        ]);
-
-        $row = $res->fetch_assoc();
-        $occupied = (int)($row["active_events"] ?? 0) + (int)($row["active_mines"] ?? 0);
-
-        return [
-            "occupied" => $occupied,
-            "max" => $max_commands,
-            "is_full" => ($occupied >= $max_commands)
-        ];
     }
 
     public static function convert_user_kingdoms_to_ruins(int $user_id): void
@@ -1228,14 +1147,14 @@ class Kingdom
             return true;
         }
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "UPDATE kingdoms
          SET food = food - ?, wood = wood - ?, stone = stone - ?, gold = gold - ?
          WHERE id = ? AND food >= ? AND wood >= ? AND stone >= ? AND gold >= ?",
             [$food, $wood, $stone, $gold, $this->kingdom_id, $food, $wood, $stone, $gold]
         );
 
-        if ($this->mysqli->affected_rows !== 1) {
+        if ($this->db->affected_rows !== 1) {
             return false;
         }
 
@@ -1273,7 +1192,7 @@ class Kingdom
     public function remove_protection(): void
     {
         $this->protection_until = 0;
-        $this->mysqli->execute_query("UPDATE kingdoms SET protection_until = 0 WHERE id = ?", [$this->kingdom_id]);
+        $this->db->execute_query("UPDATE kingdoms SET protection_until = 0 WHERE id = ?", [$this->kingdom_id]);
     }
 
     public static function deliver_reward_troops(int $user_id, int $preferred_kid, array $troops): array
@@ -1418,7 +1337,7 @@ class Kingdom
         ];
     }
 
-    function render_cost_legend(array $costs): string
+    public function render_cost_legend(array $costs): string
     {
         $res_map = [
             ResourceTypes::RESOURCE_TYPE_FOOD => ["cost" => $costs["cost_food"] ?? 0, "current" => $this->get_kingdom_food()],
@@ -1460,71 +1379,13 @@ class Kingdom
         return max($min, min($max, $scaled));
     }
 
-    public function get_away_unit_counts(array $soldier_ids = []): array
-    {
-        $kid = $this->kingdom_id;
-        $owner_id = $this->kingdom_owner_id;
-        if ($kid <= 0 || $owner_id <= 0) {
-            return [];
-        }
-
-        $filter_sent = "";
-        $filter_stationed = "";
-        $filter_mine = "";
-        $extra_params_sent = [];
-        $extra_params_stationed = [];
-        $extra_params_mine = [];
-
-        if (!empty($soldier_ids)) {
-            $soldier_ids = array_values(array_unique(array_map("intval", $soldier_ids)));
-            $ph = implode(",", array_fill(0, count($soldier_ids), "?"));
-            $filter_sent = " AND st.soldierid IN ($ph)";
-            $filter_stationed = " AND soldier_id IN ($ph)";
-            $filter_mine = " AND soldier_id IN ($ph)";
-            $extra_params_sent = $soldier_ids;
-            $extra_params_stationed = $soldier_ids;
-            $extra_params_mine = $soldier_ids;
-        }
-
-        $query = "
-            SELECT soldierid, SUM(cnt) AS total_away FROM (
-                SELECT st.soldierid, st.soldiercount AS cnt
-                FROM sent_troops st
-                JOIN events e ON st.eventid = e.eventid
-                WHERE st.source_kingdom_id = ? AND e.userid = ? $filter_sent
-                UNION ALL
-                SELECT soldier_id AS soldierid, soldiercount AS cnt
-                FROM stationed_troops
-                WHERE source_kingdom_id = ? AND owner_id = ? $filter_stationed
-                UNION ALL
-                SELECT soldier_id AS soldierid, soldiercount AS cnt
-                FROM mine_stationed_troops
-                WHERE kingdom_id = ? AND user_id = ? $filter_mine
-            ) t
-            GROUP BY soldierid
-        ";
-
-        $params = array_merge(
-            [$kid, $owner_id], $extra_params_sent,
-            [$kid, $owner_id], $extra_params_stationed,
-            [$kid, $owner_id], $extra_params_mine
-        );
-
-        $res = $this->mysqli->execute_query($query, $params);
-        $counts = [];
-        while ($row = $res->fetch_assoc()) {
-            $counts[(int)$row["soldierid"]] = (int)$row["total_away"];
-        }
-        return $counts;
-    }
-
     public function activate_boost(User $user, int $resource_type, int $cost, int $duration_ticks, int $boost_amount): ?string
     {
-        $this->mysqli->begin_transaction();
+        $this->db->begin_transaction();
         try {
-            $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$this->kingdom_id]);
+            $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$this->kingdom_id]);
 
-            $active = $this->mysqli->execute_query(
+            $active = $this->db->execute_query(
                 "SELECT ticks_remaining FROM kingdom_boosts WHERE kingdomid = ? AND resource_type = ?",
                 [$this->kingdom_id, $resource_type]
             )->fetch_assoc();
@@ -1537,23 +1398,23 @@ class Kingdom
                 throw new RuntimeException("Zu wenig Münzen!");
             }
 
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "INSERT INTO kingdom_boosts (kingdomid, resource_type, ticks_remaining, boost_amount)
              VALUES (?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE ticks_remaining = VALUES(ticks_remaining), boost_amount = VALUES(boost_amount)",
                 [$this->kingdom_id, $resource_type, $duration_ticks, $boost_amount]
             );
 
-            $this->mysqli->commit();
+            $this->db->commit();
             $this->active_boosts_cache = null;
             Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_BOOST_ACTIVATED);
 
             return null;
         } catch (RuntimeException $e) {
-            $this->mysqli->rollback();
+            $this->db->rollback();
             return $e->getMessage();
         } catch (Throwable $e) {
-            $this->mysqli->rollback();
+            $this->db->rollback();
             Logger::get_instance()->error("Kingdom::activate_boost error: " . $e->getMessage());
             return "Interner Fehler beim Aktivieren des Boosts.";
         }

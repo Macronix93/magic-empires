@@ -11,8 +11,7 @@ if ($opened_at > 0 && ($now - $opened_at) >= ($required_seconds - 1)) {
 
     unset($_SESSION["faq_opened_at"]);
 
-    echo json_encode(["success" => true]);
-    exit;
+    send_json(["success" => true]);
 }
 
-echo json_encode(["success" => false]);
+send_json(["success" => false]);

@@ -13,7 +13,7 @@ if (AdventCalendar::is_active()) {
 $show_advent = AdventCalendar::should_show_intro($uid);
 $advent_html = $show_advent ? AdventCalendar::render_intro_modal() : "";
 
-echo json_encode([
+send_json([
     "success" => true,
     "show_advent" => $show_advent,
     "advent_html" => $advent_html

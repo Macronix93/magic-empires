@@ -2,17 +2,29 @@
 
 class WorldEvent
 {
-    private object $mysqli;
+    private mysqli $db;
+    private ?array $active_event_cache = null;
+    private bool $active_event_loaded = false;
 
     public function __construct()
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
     }
 
-    public function get_active_event(): ?array
+    public function get_active_event(bool $force_refresh = false): ?array
     {
-        $res = $this->mysqli->execute_query("SELECT * FROM world_events WHERE is_active = 1 AND end_time > ? LIMIT 1", [time()]);
-        return $res->fetch_assoc();
+        if (!$force_refresh && $this->active_event_loaded) {
+            return $this->active_event_cache;
+        }
+
+        $res = $this->db->execute_query(
+            "SELECT * FROM world_events WHERE is_active = 1 AND end_time > ? LIMIT 1",
+            [time()]
+        );
+
+        $this->active_event_cache = $res->fetch_assoc();
+        $this->active_event_loaded = true;
+        return $this->active_event_cache;
     }
 
     public function spawn_event(string $event_type): void
@@ -21,7 +33,7 @@ class WorldEvent
         $end_time = $now + WORLD_EVENT_DURATION;
 
         // Event Reset
-        $this->mysqli->query("UPDATE world_events SET is_active = 0 WHERE is_active = 1");
+        $this->db->query("UPDATE world_events SET is_active = 0 WHERE is_active = 1");
 
         // Random monster
         $monster_index = array_rand($this->get_monster_pool());
@@ -30,15 +42,17 @@ class WorldEvent
         $total_hp = 0;
 
         if ($event_type === "BOSS_HP") {
-            $res_shrine_bonus = $this->mysqli->execute_query(
+            $res_shrine_bonus = $this->db->execute_query(
                 "SELECT base_bonus FROM shrine_alignments WHERE id = ?",
                 [AlignmentTypes::ALIGN_WAR]
             );
             $war_shrine_base = (float)($res_shrine_bonus->fetch_column() ?: SHRINE_WAR_DEFAULT_BONUS);
 
+            [$all_units_sql, $all_units_params] = Soldier::build_owned_units_sql(["include_upgrading" => true]);
+
             $query = "
                 SELECT SUM(
-                    combined.count * (
+                    combined.cnt * (
                         ROUND(sl.attack * (CASE 
                             WHEN k.alignment = " . AlignmentTypes::ALIGN_WAR . " AND IFNULL(b_shrine.buildinglevel, 0) > 0
                             THEN (1.0 + $war_shrine_base + (IFNULL(t_shrine.techlevel, 0) * " . SHRINE_TECH_STEP . ")) 
@@ -52,21 +66,9 @@ class WorldEvent
                         END)
                     )
                 ) as total_power
-                FROM (
-                    SELECT kingdomid, soldierid, soldiercount AS count FROM soldiers
-                    UNION ALL
-                    SELECT st.source_kingdom_id AS kingdomid, st.soldierid, st.soldiercount AS count 
-                    FROM sent_troops st JOIN events e ON st.eventid = e.eventid
-                    UNION ALL
-                    SELECT source_kingdom_id AS kingdomid, soldier_id AS soldierid, soldiercount AS count FROM stationed_troops
-                    UNION ALL
-                    SELECT kingdom_id AS kingdomid, soldier_id AS soldierid, soldiercount AS count FROM mine_stationed_troops
-                    UNION ALL
-                    SELECT kingdomid, buildingid AS soldierid, soldiergoal AS count 
-                    FROM events WHERE actionid = " . ActionTypes::ACTION_UPGRADE_TROOPS . "
-                ) as combined
+                FROM ($all_units_sql) as combined
                 JOIN soldier_list sl ON combined.soldierid = sl.id
-                JOIN kingdoms k ON combined.kingdomid = k.id
+                JOIN kingdoms k ON combined.kingdom_id = k.id
                 LEFT JOIN buildings b_shrine ON b_shrine.kingdomid = k.id AND b_shrine.buildingid = " . BuildingTypes::BUILDING_SHRINE . "
                 LEFT JOIN techs t_inf ON t_inf.kingdomid = k.id AND t_inf.techid = " . TechTypes::TECH_TYPE_BLADES . "
                 LEFT JOIN techs t_cav ON t_cav.kingdomid = k.id AND t_cav.techid = " . TechTypes::TECH_TYPE_LANCE_RIDING . "
@@ -74,17 +76,19 @@ class WorldEvent
                 LEFT JOIN techs t_shrine ON t_shrine.kingdomid = k.id AND t_shrine.techid = " . TechTypes::TECH_TYPE_ANCESTRAL_RITES . "
             ";
 
-            $server_power = (int)$this->mysqli->query($query)->fetch_column();
+            $server_power = (int)$this->db->execute_query($query, $all_units_params)->fetch_column();
 
             if ($server_power < WORLD_EVENT_MIN_SERVER_POWER) $server_power = WORLD_EVENT_MIN_SERVER_POWER;
 
             $total_hp = (int)($server_power * WORLD_EVENT_POWER_FACTOR);
         }
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "INSERT INTO world_events (event_type, start_time, end_time, total_hp, current_hp, monster_index) VALUES (?, ?, ?, ?, ?, ?)",
             [$event_type, $now, $end_time, $total_hp, $total_hp, $monster_index]
         );
+
+        $this->active_event_loaded = false;
 
         Logger::get_instance()->log_game("ADMIN", "WORLD_EVENT_SPAWN", [
             "type" => $event_type,
@@ -96,10 +100,10 @@ class WorldEvent
 
     public function record_damage(int $event_id, int $user_id, int $damage, string $type, int $kingdom_id): int
     {
-        $this->mysqli->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$user_id]);
+        $this->db->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$user_id]);
 
         if ($type === "DAMAGE") {
-            $check = $this->mysqli->execute_query(
+            $check = $this->db->execute_query(
                 "SELECT attempts_used FROM world_event_participants WHERE event_id = ? AND userid = ?",
                 [$event_id, $user_id]
             )->fetch_assoc();
@@ -113,7 +117,7 @@ class WorldEvent
 
         $old_damage = 0;
         if ($type === "DAMAGE") {
-            $res_old = $this->mysqli->execute_query(
+            $res_old = $this->db->execute_query(
                 "SELECT total_damage FROM world_event_participants WHERE event_id = ? AND userid = ?",
                 [$event_id, $user_id]
             );
@@ -122,7 +126,7 @@ class WorldEvent
 
         try {
             if ($type === "BOSS_HP") {
-                $res = $this->mysqli->execute_query(
+                $res = $this->db->execute_query(
                     "SELECT current_hp FROM world_events WHERE id = ? FOR UPDATE",
                     [$event_id]
                 );
@@ -136,7 +140,7 @@ class WorldEvent
                 $actual_damage = min($damage, $old_hp);
                 $new_hp = $old_hp - $actual_damage;
 
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE world_events SET current_hp = current_hp - ? WHERE id = ?",
                     [$actual_damage, $event_id]
                 );
@@ -144,7 +148,7 @@ class WorldEvent
                 if ($old_hp > 0 && $new_hp <= 0) {
                     $new_end_time = time() + WORLD_EVENT_HP_REWARD_TIME;
 
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE world_events SET end_time = ? WHERE id = ?",
                         [$new_end_time, $event_id]
                     );
@@ -153,7 +157,7 @@ class WorldEvent
                 }
             }
 
-            $this->mysqli->execute_query("
+            $this->db->execute_query("
                     INSERT INTO world_event_participants (event_id, userid, total_damage, attempts_used, top_kingdom_id, top_kingdom_damage)
                     VALUES (?, ?, ?, 1, ?, ?)
                     ON DUPLICATE KEY UPDATE 
@@ -168,7 +172,7 @@ class WorldEvent
                 $actual_damage
             ]);
 
-            if ($this->mysqli->affected_rows === 1) {
+            if ($this->db->affected_rows === 1) {
                 Stats::update_player_stat($user_id, "events_attended");
             }
 
@@ -199,7 +203,7 @@ class WorldEvent
                         "total_damage" => $new_damage
                     ];
 
-                    $u_name = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column() ?: "Spieler";
+                    $u_name = $this->db->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column() ?: "Spieler";
                     Messages::send_server_message($user_id, $u_name, MessageCategories::CATEGORY_EVENT, $tier_json);
                 }
             }
@@ -208,7 +212,7 @@ class WorldEvent
 
             return $actual_damage;
         } catch (Exception $e) {
-            error_log("WorldEvent Error: " . $e->getMessage());
+            Logger::get_instance()->error("WorldEvent Error: " . $e->getMessage());
             return 0;
         }
     }
@@ -259,7 +263,7 @@ class WorldEvent
 
     public function broadcast_defeat_notification(int $event_id): void
     {
-        $res = $this->mysqli->execute_query("SELECT monster_index FROM world_events WHERE id = ?", [$event_id]);
+        $res = $this->db->execute_query("SELECT monster_index FROM world_events WHERE id = ?", [$event_id]);
         $ev = $res->fetch_assoc();
 
         $pool = $this->get_monster_pool();
@@ -286,7 +290,7 @@ class WorldEvent
 
     public function get_last_event_type(): ?string
     {
-        $res = $this->mysqli->query("SELECT event_type FROM world_events ORDER BY id DESC LIMIT 1");
+        $res = $this->db->query("SELECT event_type FROM world_events ORDER BY id DESC LIMIT 1");
 
         if ($row = $res->fetch_assoc()) {
             return $row["event_type"];
@@ -309,17 +313,17 @@ class WorldEvent
     {
         $threshold = time() - ($days_to_keep * 86400);
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "DELETE FROM world_events WHERE is_rewarded = 1 AND end_time < ?",
             [$threshold]
         );
 
-        return $this->mysqli->affected_rows;
+        return $this->db->affected_rows;
     }
 
     public function get_max_tc_level(int $user_id): int
     {
-        $res = $this->mysqli->execute_query("
+        $res = $this->db->execute_query("
         SELECT MAX(buildinglevel) 
         FROM buildings 
         WHERE buildingid = ? 
@@ -408,7 +412,7 @@ class WorldEvent
             LIMIT 1
         ";
 
-        $res = $this->mysqli->execute_query($query, [$user_id, $preferred_id]);
+        $res = $this->db->execute_query($query, [$user_id, $preferred_id]);
         return (int)($res->fetch_column() ?? 0);
     }
 

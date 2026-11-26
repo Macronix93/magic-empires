@@ -343,7 +343,7 @@ class PhpBBBridge
             if (self::create_forum_user($username, $email, $password_hash)) {
                 $created++;
             } else {
-                $errors[] = "Fehler beim Anlegen von: " . htmlspecialchars($username);
+                $errors[] = "Fehler beim Anlegen von: " . e($username);
             }
         }
 

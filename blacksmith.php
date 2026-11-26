@@ -16,7 +16,7 @@ $techs = array_filter(
 );
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 
-$kingdom_is_researching = $kingdom->is_kingdom_smithing($current_kingdom);
+$kingdom_is_researching = $kingdom->is_kingdom_smithing();
 $kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {

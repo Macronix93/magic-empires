@@ -4,8 +4,7 @@ require_once("../includes/ajax_core.php");
 $type = post_str("type") ?: get_str("type", "private");
 $allowed_types = ["private", "world", "guild"];
 if (!in_array($type, $allowed_types, true)) {
-    echo json_encode(["error" => "Ungültiger Chat-Typ"]);
-    exit;
+    send_json(["error" => "Ungültiger Chat-Typ"]);
 }
 
 $u_id = $user->get_user_id();
@@ -26,8 +25,7 @@ if ($type === "guild" && isset($_POST["mark_all_read"])) {
         }
     }
 
-    echo json_encode(["success" => true]);
-    exit;
+    send_json(["success" => true]);
 }
 
 session_write_close();
@@ -59,9 +57,8 @@ $get_visible_ids = function (string $table, string $extra_where = "", array $ext
 };
 
 if ($type === "world") {
-    if ($last_id > 0) {
-        $result = $db_instance->execute_query(
-            "SELECT * FROM world_chat WHERE id > ? AND deleted = 0 ORDER BY id LIMIT ?",
+    if ($last_id >= 0) {
+        $result = $db_instance->execute_query("SELECT * FROM world_chat WHERE id > ? AND deleted = 0 ORDER BY id LIMIT ?",
             [$last_id, MAX_WORLD_CHAT_MESSAGES_SHOWN]
         );
 
@@ -70,22 +67,19 @@ if ($type === "world") {
             if ((int)$row["userid"] === $u_id) continue;
 
             $html .= Messages::render_chat_bubble(
-                "world",
-                (int)$row["id"],
-                (int)$row["userid"],
-                $row["username"],
-                $row["message"],
-                (int)$row["date"],
-                $user
+                "world", (int)$row["id"], (int)$row["userid"], $row["username"], $row["message"], (int)$row["date"], $user, null, []
             );
         }
 
-        $del_res = $db_instance->execute_query(
-            "SELECT id FROM world_chat WHERE id > ? AND deleted = 1",
-            [$del_since]
-        );
-        while ($del_row = $del_res->fetch_assoc()) {
-            $deleted_ids[] = (int)$del_row["id"];
+        if ($last_id > 0) {
+            $del_res = $db_instance->execute_query(
+                "SELECT id FROM world_chat WHERE id > ? AND deleted = 1",
+                [$del_since]
+            );
+
+            while ($del_row = $del_res->fetch_assoc()) {
+                $deleted_ids[] = (int)$del_row["id"];
+            }
         }
 
         if ($new_last_id > $last_id) {
@@ -98,8 +92,7 @@ if ($type === "world") {
 } else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
-        echo json_encode(["error" => "redirect"]);
-        exit;
+        send_json(["error" => "redirect"]);
     }
 
     $mark_read = (get_str("mark_read", "1") !== "0");
@@ -115,7 +108,7 @@ if ($type === "world") {
             if ((int)$row["userid"] === $u_id) continue;
 
             $html .= Messages::render_chat_bubble(
-                "guild", (int)$row["id"], (int)$row["userid"], $row["username"], $row["message"], (int)$row["date"], $user
+                "guild", (int)$row["id"], (int)$row["userid"], $row["username"], $row["message"], (int)$row["date"], $user, null, []
             );
         }
 
@@ -141,13 +134,12 @@ if ($type === "world") {
 } else {
     $partner_id = get_int("s");
     if ($partner_id <= 0) {
-        echo json_encode([
+        send_json([
             "html" => "",
             "lastId" => $last_id,
             "messagesToDelete" => [],
             "reactionUpdates" => []
         ]);
-        exit;
     }
 
     $result = $db_instance->execute_query(
@@ -155,40 +147,43 @@ if ($type === "world") {
         [$partner_id, $u_id, $u_id, $partner_id, $last_id]
     );
 
+    $read_ids = [];
     while ($row = $result->fetch_assoc()) {
         $new_last_id = (int)$row["id"];
         $is_me = ((int)$row["senderid"] === $u_id);
 
         $html .= Messages::render_chat_bubble(
-            "private",
-            (int)$row["id"],
-            (int)$row["senderid"],
-            $row["sender"],
-            $row["message"],
-            (int)$row["date"],
-            $user
+            "private", (int)$row["id"], (int)$row["senderid"], $row["sender"], $row["message"], (int)$row["date"], $user, null, []
         );
 
         if (!$is_me) {
-            $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id = ?", [$row["id"]]);
+            $read_ids[] = (int)$row["id"];
         }
     }
 
-    $del_res = $db_instance->execute_query(
-        "SELECT id FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND id > ? AND deleted = 1",
-        [$partner_id, $u_id, $u_id, $partner_id, $del_since]
-    );
-    while ($del_row = $del_res->fetch_assoc()) {
-        $deleted_ids[] = (int)$del_row["id"];
+    if (!empty($read_ids)) {
+        $ph = implode(',', array_fill(0, count($read_ids), '?'));
+        $db_instance->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($ph)", $read_ids);
+    }
+
+    if ($last_id > 0) {
+        $del_res = $db_instance->execute_query(
+            "SELECT id FROM messages WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) AND id > ? AND deleted = 1",
+            [$partner_id, $u_id, $u_id, $partner_id, $del_since]
+        );
+
+        while ($del_row = $del_res->fetch_assoc()) {
+            $deleted_ids[] = (int)$del_row["id"];
+        }
     }
 
     $visible_ids = $get_visible_ids("messages", "(senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)", [$partner_id, $u_id, $u_id, $partner_id]);
     $reaction_updates = Messages::get_batch_reaction_badges("chat", $visible_ids, $user);
 }
 
-echo json_encode(array_merge([
+send_json(array_merge([
     "html" => $html,
     "lastId" => $new_last_id,
     "messagesToDelete" => $deleted_ids,
     "reactionUpdates" => $reaction_updates
-], $extra_data), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+], $extra_data));

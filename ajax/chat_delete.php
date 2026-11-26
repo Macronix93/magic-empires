@@ -8,8 +8,7 @@ $type = post_str("type", "private");
 
 $allowed_types = ["private", "world", "guild", "server"];
 if (!in_array($type, $allowed_types, true)) {
-    echo json_encode(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
 }
 
 $msg_id = post_int("m_id");
@@ -36,8 +35,7 @@ if ($type === "server") {
             }
         }
 
-        echo json_encode(["success" => true]);
-        exit;
+        send_json(["success" => true]);
     }
 
     // Delete ONE server message
@@ -45,24 +43,20 @@ if ($type === "server") {
     $row = $res->fetch_assoc();
 
     if (!$row) {
-        echo json_encode(["success" => false, "error" => "Diese Nachricht existiert nicht!"]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Nachricht existiert nicht!"]);
     }
 
     if ((int)$row["receiverid"] !== $u_id) {
-        echo json_encode(["success" => false, "error" => "Diese Nachricht kannst du nicht löschen!"]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Nachricht kannst du nicht löschen!"]);
     }
 
     $db_instance->execute_query("DELETE FROM server_messages WHERE id = ?", [$msg_id]);
 
-    echo json_encode(["success" => true, "id" => $msg_id]);
-    exit;
+    send_json(["success" => true, "id" => $msg_id]);
 }
 
 if ($msg_id <= 0) {
-    echo json_encode(["success" => false, "error" => "Ungültige Nachrichten-ID"]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültige Nachrichten-ID"]);
 }
 
 if ($type === "world") {
@@ -70,30 +64,27 @@ if ($type === "world") {
     $row = $res->fetch_assoc();
 
     if (!$row) {
-        echo json_encode(["success" => false, "error" => "Diese Nachricht existiert nicht!"]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Nachricht existiert nicht!"]);
     }
 
     if (!$is_admin && (int)$row["userid"] !== $u_id) {
-        echo json_encode(["success" => false, "error" => "Diese Nachricht kannst du nicht löschen!"]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Nachricht kannst du nicht löschen!"]);
     }
 
     $db_instance->execute_query("UPDATE world_chat SET deleted = 1 WHERE id = ?", [$msg_id]);
-    echo json_encode(["success" => true, "id" => $msg_id]);
+
+    send_json(["success" => true, "id" => $msg_id]);
 } else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
-        echo json_encode(["success" => false, "error" => "Keine Gilde"]);
-        exit;
+        send_json(["success" => false, "error" => "Keine Gilde"]);
     }
 
     $res = $db_instance->execute_query("SELECT userid, guild_id FROM guild_chat WHERE id = ?", [$msg_id]);
     $msg = $res->fetch_assoc();
 
     if (!$msg || (int)$msg["guild_id"] !== $guild_id) {
-        echo json_encode(["success" => false, "error" => "Nachricht nicht gefunden"]);
-        exit;
+        send_json(["success" => false, "error" => "Nachricht nicht gefunden"]);
     }
 
     $is_owner = ((int)$msg["userid"] === $u_id);
@@ -102,25 +93,25 @@ if ($type === "world") {
 
     if ($is_admin || $is_owner || $is_officer) {
         $db_instance->execute_query("UPDATE guild_chat SET deleted = 1 WHERE id = ?", [$msg_id]);
-        echo json_encode(["success" => true, "id" => $msg_id]);
-    } else {
-        echo json_encode(["success" => false, "error" => "Keine Berechtigung"]);
+
+        send_json(["success" => true, "id" => $msg_id]);
     }
+
+    send_json(["success" => false, "error" => "Keine Berechtigung"]);
 } else {
     $res = $db_instance->execute_query("SELECT senderid FROM messages WHERE id = ?", [$msg_id]);
     $row = $res->fetch_assoc();
 
     if (!$row) {
-        echo json_encode(["success" => false, "error" => "Diese Nachricht existiert nicht!"]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Nachricht existiert nicht!"]);
     }
 
     $is_owner = ((int)$row["senderid"] === $u_id);
     if (!$is_owner && !$is_admin) {
-        echo json_encode(["success" => false, "error" => "Diese Nachricht kannst du nicht löschen!"]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Nachricht kannst du nicht löschen!"]);
     }
 
     $db_instance->execute_query("UPDATE messages SET deleted = 1 WHERE id = ?", [$msg_id]);
-    echo json_encode(["success" => true, "id" => $msg_id]);
+
+    send_json(["success" => true, "id" => $msg_id]);
 }

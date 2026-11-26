@@ -2,7 +2,7 @@
 
 class Conquest
 {
-    private object $mysqli;
+    private mysqli $db;
     private array $soldiers = [];
     private array $enemy_soldiers = [];
     private int $enemy_def_without_wall = 0;
@@ -25,11 +25,12 @@ class Conquest
     private int $enemy_garrison_loss_count = 0;
     private Kingdom $enemy_kingdom;
     private array $own_garrison_soldiers = [];
+    private array $own_garrison_losses = [];
     private int $siege_level = 0;
 
     public function __construct()
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
     }
 
     public function set_target_id(int $target_id): void
@@ -55,7 +56,7 @@ class Conquest
                     JOIN soldier_list s ON st.soldierid = s.id
                     WHERE st.eventid = ?
                 ";
-        $result = $this->mysqli->execute_query($query, [$this->event_id]);
+        $result = $this->db->execute_query($query, [$this->event_id]);
 
         foreach ($result as $row) {
             $soldier_id = $row["id"];
@@ -137,7 +138,7 @@ class Conquest
 
     public function get_enemy_soldiers(): void
     {
-        $enemy_soldiers_result = $this->mysqli->execute_query("SELECT * FROM soldiers WHERE kingdomid = ?", [$this->target_id]);
+        $enemy_soldiers_result = $this->db->execute_query("SELECT * FROM soldiers WHERE kingdomid = ?", [$this->target_id]);
         foreach ($enemy_soldiers_result as $row) {
             $sid = (int)$row["soldierid"];
             $cnt = (int)$row["soldiercount"];
@@ -145,7 +146,7 @@ class Conquest
             $this->enemy_soldiers[$sid] = $cnt;
         }
 
-        $res_stat = $this->mysqli->execute_query("
+        $res_stat = $this->db->execute_query("
             SELECT soldier_id, SUM(soldiercount) as total 
             FROM stationed_troops 
             WHERE target_kingdom_id = ? 
@@ -163,7 +164,7 @@ class Conquest
 
     public function initialize_soldier_types(): void
     {
-        $result = $this->mysqli->execute_query("SELECT id, soldiername, category, attack, defense, scoregain FROM soldier_list");
+        $result = $this->db->execute_query("SELECT id, soldiername, category, attack, defense, scoregain FROM soldier_list");
 
         foreach ($result as $row) {
             $this->soldier_types[$row["id"]] = [
@@ -341,6 +342,7 @@ class Conquest
     public function calculate_loss_counts(): void
     {
         $this->enemy_garrison_loss_count = 0;
+        $this->own_garrison_losses = [];
 
         foreach ($this->soldier_types as $id => $soldier) {
             $init_my = (int)$this->initial_soldiers[$id]["initial_my_soldiers"];
@@ -353,13 +355,13 @@ class Conquest
             if ($init_my > 0) {
                 $my_loss = (int)$this->initial_soldiers[$id]["my_losses"];
                 if ($my_loss >= $init_my) {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?",
                         [$this->event_id, $id]
                     );
                 } else if ($my_loss > 0) {
                     $my_survivors = $init_my - $my_loss;
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE sent_troops SET soldiercount = ? WHERE eventid = ? AND soldierid = ?",
                         [$my_survivors, $this->event_id, $id]
                     );
@@ -376,24 +378,22 @@ class Conquest
             if ($init_enemy > 0) {
                 $total_unit_losses = (int)$this->initial_soldiers[$id]["enemy_losses"];
                 $res_own_garrison = $this->own_garrison_soldiers[$id] ?? 0;
+                $own_losses = 0;
 
                 if ($total_unit_losses > 0 && $res_own_garrison > 0) {
-                    $garrison_share = $res_own_garrison / $init_enemy;
-                    $own_losses = (int)floor($total_unit_losses * $garrison_share);
-
-                    if ($own_losses === 0 && $total_unit_losses >= $init_enemy) {
+                    if ($total_unit_losses >= $init_enemy) {
                         $own_losses = $res_own_garrison;
+                    } else {
+                        $garrison_share = $res_own_garrison / $init_enemy;
+                        $own_losses = min($res_own_garrison, (int)floor($total_unit_losses * $garrison_share));
                     }
-                    $own_losses = min($res_own_garrison, $own_losses);
 
                     if ($own_losses >= $res_own_garrison) {
-                        $this->mysqli->execute_query(
-                            "DELETE FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
+                        $this->db->execute_query("DELETE FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
                             [$this->enemy_kingdom->get_kingdom_id(), $id]
                         );
                     } else if ($own_losses > 0) {
-                        $this->mysqli->execute_query(
-                            "UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?",
+                        $this->db->execute_query("UPDATE soldiers SET soldiercount = soldiercount - ? WHERE kingdomid = ? AND soldierid = ?",
                             [$own_losses, $this->enemy_kingdom->get_kingdom_id(), $id]
                         );
                     }
@@ -402,6 +402,7 @@ class Conquest
                     $this->enemy_garrison_loss_count += $own_losses;
                 }
 
+                $this->own_garrison_losses[$id] = $own_losses;
                 $this->enemy_loss_count += $total_unit_losses;
             }
         }
@@ -438,12 +439,12 @@ class Conquest
             ON DUPLICATE KEY UPDATE soldiercount = soldiers.soldiercount + VALUES(soldiercount);
         ";
 
-            $this->mysqli->execute_query($query, $params);
+            $this->db->execute_query($query, $params);
         }
 
         // Cleanup
-        $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$this->event_id]);
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$this->event_id]);
+        $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$this->event_id]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$this->event_id]);
     }
 
     public function get_soldier_types(): array
@@ -561,18 +562,13 @@ class Conquest
         return (int)($this->soldiers[$soldier_id]["count"] ?? 0);
     }
 
-    public function get_battle_result_data(bool $for_attacker, bool $is_stationing = false): array
+    public function get_battle_result_data(bool $for_attacker): array
     {
         $data = [];
 
         foreach ($this->initial_soldiers as $id => $stats) {
-            $initial = $for_attacker
-                ? ($stats["initial_my_soldiers"] ?? 0)
-                : ($stats["initial_enemy_soldiers"] ?? 0);
-
-            $losses = $for_attacker
-                ? ($stats["my_losses"] ?? 0)
-                : ($stats["enemy_losses"] ?? 0);
+            $initial = $for_attacker ? ($stats["initial_my_soldiers"] ?? 0) : ($stats["initial_enemy_soldiers"] ?? 0);
+            $losses = $for_attacker ? ($stats["my_losses"] ?? 0) : ($stats["enemy_losses"] ?? 0);
 
             if ($initial === 0 && $for_attacker && isset($this->soldiers[$id]["count"])) {
                 $initial = $this->soldiers[$id]["count"];
@@ -581,7 +577,8 @@ class Conquest
             if ($initial > 0) {
                 $display_atk = 0;
                 $display_def = 0;
-                if (!$is_stationing && !is_string($id)) {
+
+                if (!is_string($id)) {
                     $display_atk = $for_attacker ? $this->soldier_type_atk[$id] : $this->enemy_soldier_type_atk[$id];
                     $display_def = $for_attacker ? $this->soldier_type_def[$id] : $this->enemy_soldier_type_def[$id];
                 }
@@ -607,7 +604,7 @@ class Conquest
 
     public function get_monster_defenders(int $x, int $y): void
     {
-        $res = $this->mysqli->execute_query("
+        $res = $this->db->execute_query("
         SELECT mcu.count, ml.id as monster_id, ml.attack, ml.defense
         FROM monster_camp_units mcu
         JOIN monster_list ml ON mcu.monster_id = ml.id
@@ -662,13 +659,13 @@ class Conquest
 
     public function apply_losses_to_stationed_troops(): array
     {
-        $query = "SELECT st.*, sl.scoregain, sl.attack, sl.defense, sl.category, u.username AS owner_name 
+        $query = "SELECT st.*, sl.scoregain, u.username AS owner_name 
                   FROM stationed_troops st 
                   JOIN soldier_list sl ON st.soldier_id = sl.id 
                   JOIN users u ON st.owner_id = u.id 
                   WHERE st.target_kingdom_id = ? 
                   ORDER BY st.soldier_id, st.id";
-        $res = $this->mysqli->execute_query($query, [$this->target_id]);
+        $res = $this->db->execute_query($query, [$this->target_id]);
         $rows = $res->fetch_all(MYSQLI_ASSOC);
 
         if (empty($rows)) {
@@ -678,10 +675,7 @@ class Conquest
         $remaining_losses_per_type = [];
         foreach ($this->soldier_types as $id => $s) {
             $tot_loss = (int)($this->initial_soldiers[$id]["enemy_losses"] ?? 0);
-            $res_own_garrison = $this->own_garrison_soldiers[$id] ?? 0;
-            $tot_init = (int)($this->initial_soldiers[$id]["initial_enemy_soldiers"] ?? 0);
-            $garrison_share = ($tot_init > 0) ? ($res_own_garrison / $tot_init) : 0;
-            $garrison_loss = min($res_own_garrison, (int)floor($tot_loss * $garrison_share));
+            $garrison_loss = $this->own_garrison_losses[$id] ?? 0;
             $remaining_losses_per_type[$id] = max(0, $tot_loss - $garrison_loss);
         }
 
@@ -738,16 +732,16 @@ class Conquest
             if ($loss > 0) {
                 $score_loss = $loss * (int)$row["scoregain"];
                 if ($score_loss > 0) {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?",
                         [$score_loss, $uid]
                     );
                 }
 
                 if ($loss >= $initial) {
-                    $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$row["id"]]);
+                    $this->db->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$row["id"]]);
                 } else {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE stationed_troops SET soldiercount = soldiercount - ? WHERE id = ?",
                         [$loss, $row["id"]]
                     );
@@ -767,9 +761,7 @@ class Conquest
                 $supporters_data[$uid]["units"][$sid] = [
                     "id" => $sid,
                     "initial" => 0,
-                    "losses" => 0,
-                    "atk" => (int)$row["attack"],
-                    "def" => (int)$row["defense"]
+                    "losses" => 0
                 ];
             }
             $supporters_data[$uid]["units"][$sid]["initial"] += $initial;
@@ -954,16 +946,19 @@ class Conquest
             }
         }
 
-        return [
+        $payload = [
             "template" => "watchtower_alert",
             "kingdom_name" => $row["kingdomname"],
             "intel_level" => $intel_level,
             "arrival_seconds" => $arrival_seconds,
             "arrival_time" => $arrival_time,
-            "source" => $source_data,
-            "total_units" => $total_units,
-            "units" => $identified_units,
-            "strength" => $strength_data
         ];
+
+        if ($source_data !== null) $payload["source"] = $source_data;
+        if ($total_units !== null) $payload["total_units"] = $total_units;
+        if ($identified_units !== null) $payload["units"] = $identified_units;
+        if ($strength_data !== null) $payload["strength"] = $strength_data;
+
+        return $payload;
     }
 }

@@ -22,8 +22,6 @@ if ($label === null) {
     exit;
 }
 
-$my_gid = $user->get_user_guild_id();
-
 echo Messages::render_share_modal_form(
     "<b>⚔️ " . e($label) . "</b>",
     ["report_msg_id" => $msg_id],

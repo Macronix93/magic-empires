@@ -37,14 +37,13 @@ class Support
     {
         $uid = $this->user->get_user_id();
         $now = time();
-        $clean_msg = preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $message) ?? '';
         $t_res = $this->db->execute_query("SELECT userid FROM support_tickets WHERE id = ?", [$tid]);
         $ticket_creator_id = (int)($t_res->fetch_column() ?? 0);
         $is_staff_reply = ($is_admin && $uid !== $ticket_creator_id);
 
         $this->db->execute_query(
             "INSERT INTO support_messages (ticketid, senderid, message, is_admin_reply, hasread, created_at) VALUES (?, ?, ?, ?, 0, ?)",
-            [$tid, $uid, $clean_msg, (int)$is_staff_reply, $now]
+            [$tid, $uid, $message, (int)$is_staff_reply, $now]
         );
         $msg_id = (int)$this->db->insert_id;
 
@@ -111,7 +110,7 @@ class Support
         if ($is_me) {
             $sender_display = "Du$support_label";
         } else if ($viewer_is_staff) {
-            $sender_display = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($m["username"]) . "</a>$support_label";
+            $sender_display = "<a href='#' data-on-click='openOverlay' data-url='ajax/userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($m["username"]) . "</a>$support_label";
         } else {
             $sender_display = e($m["username"]) . $support_label;
         }

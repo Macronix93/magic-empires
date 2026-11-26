@@ -45,33 +45,21 @@ if (!empty($k_ids)) {
 }
 
 // Get all troops in one query (+ atk and def)
+[$owned_sql, $owned_params] = Soldier::build_owned_units_sql([
+        "user_id" => $uid,
+        "include_upgrading" => true,
+        "include_incoming_station" => true,
+]);
+
 $query = "
-    SELECT 
+    SELECT
         t.kingdom_id, t.type, t.soldierid, SUM(t.cnt) AS total_count,
         sl.id, sl.soldiername, sl.icon, sl.category, sl.attack, sl.defense, t.owner_name
     FROM (
-        SELECT kingdomid AS kingdom_id, soldierid, soldiercount AS cnt, 'garrison' AS type, '' AS owner_name FROM soldiers 
-        WHERE kingdomid IN ($k_ids_str)
+        SELECT kingdom_id, soldierid, cnt, source_type AS type, '' AS owner_name
+        FROM ($owned_sql) owned
         UNION ALL
-        SELECT kingdomid AS kingdom_id, buildingid AS soldierid, soldiergoal AS cnt, 'garrison' AS type, '' AS owner_name FROM events
-        WHERE userid = ? AND actionid = ?
-        UNION ALL
-        SELECT st.source_kingdom_id AS kingdom_id, st.soldierid, st.soldiercount AS cnt, 'away' AS type, '' AS owner_name
-        FROM sent_troops st
-        JOIN events e ON st.eventid = e.eventid
-        WHERE e.userid = ?
-        UNION ALL
-        SELECT source_kingdom_id AS kingdom_id, soldier_id AS soldierid, soldiercount AS cnt, 'away' AS type, '' AS owner_name FROM stationed_troops 
-        WHERE owner_id = ?
-        UNION ALL
-        SELECT kingdom_id, soldier_id AS soldierid, soldiercount AS cnt, 'away' AS type, '' AS owner_name FROM mine_stationed_troops 
-        WHERE user_id = ?
-        UNION ALL
-        SELECT e.targetid AS kingdom_id, st.soldierid, st.soldiercount AS cnt, 'incoming_station' AS type, '' AS owner_name FROM events e
-        JOIN sent_troops st ON e.eventid = st.eventid
-        WHERE e.userid = ? AND e.actionid = ? AND e.targetid IN ($k_ids_str) AND e.kingdomid != e.targetid
-        UNION ALL
-        SELECT st.target_kingdom_id AS kingdom_id, st.soldier_id AS soldierid, st.soldiercount AS cnt, 'support' AS type, u.username AS owner_name 
+        SELECT st.target_kingdom_id AS kingdom_id, st.soldier_id AS soldierid, st.soldiercount AS cnt, 'support' AS type, u.username AS owner_name
         FROM stationed_troops st
         JOIN users u ON st.owner_id = u.id
         WHERE st.target_kingdom_id IN ($k_ids_str) AND st.owner_id != ?
@@ -81,17 +69,11 @@ $query = "
     GROUP BY t.kingdom_id, t.type, t.owner_name, t.soldierid, sl.id, sl.soldiername, sl.icon, sl.category, sl.attack, sl.defense
     ORDER BY sl.category, sl.id
 ";
-
-$res_troops = $db_instance->execute_query($query, [
-        $uid,                               // e.userid (currently upgrading troops)
-        ActionTypes::ACTION_UPGRADE_TROOPS, // e.actionid (currently upgrading troops)
-        $uid,
-        $uid,                               // owner_id (stationed_troops away)
-        $uid,                               // user_id (mines away)
-        $uid,                               // e.userid (incoming stationing)
-        ActionTypes::ACTION_SEND_TROOPS,    // e.actionid (incoming stationing)
-        $uid                                // owner_id != ? (support)
-])->fetch_all(MYSQLI_ASSOC);
+if ($owned_sql === "" || empty($k_ids)) {
+    $res_troops = [];
+} else {
+    $res_troops = $db_instance->execute_query($query, array_merge($owned_params, [$uid]))->fetch_all(MYSQLI_ASSOC);
+}
 
 $global_troops = [];
 $kingdom_troops = [];

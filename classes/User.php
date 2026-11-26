@@ -3,7 +3,7 @@
 class User
 {
     private static ?array $title_cache = null;
-    private object $mysqli;
+    private mysqli $db;
     private string $reg_status = "";
     private int $user_id;
     private string $user_name;
@@ -14,7 +14,7 @@ class User
 
     public function __construct(int $user_id, string $user_name, int $current_kingdom = -1)
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
         $this->user_id = $user_id;
         $this->user_name = $user_name;
         $this->current_kingdom = $current_kingdom;
@@ -78,7 +78,7 @@ class User
         ";
 
         if (send_mail($email, $subject, $message)) {
-            $this->mysqli->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, lastactivity, sessionid, ip, device_id) 
+            $this->db->execute_query("INSERT INTO users (username, password, activationkey, email, registerdate, lastactivity, sessionid, ip, device_id) 
                                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [$name, $password, $activation_key, $email, $timestamp, $timestamp, session_id(), $ip, $device_id]);
 
@@ -108,7 +108,7 @@ class User
         setcookie("me_device_id", $device_id, time() + (86400 * 365 * 2), "/", "", false, true);
 
         // Fetch users data
-        $result = $this->mysqli->execute_query("SELECT username, mainkingdom, msgcount, lastsentmsgend, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
+        $result = $this->db->execute_query("SELECT username, mainkingdom, msgcount, lastsentmsgend, device_id, chat_filter, tutorial_done FROM users WHERE id = ?", [$user_id]);
         $row = $result->fetch_assoc();
         $_SESSION["currlogin"] = $timestamp;
         $_SESSION["userid"] = $user_id;
@@ -121,7 +121,7 @@ class User
         $target_kid = (int)$row["mainkingdom"];
         if (!empty($_COOKIE["me_last_kid"])) {
             $cookie_kid = (int)$_COOKIE["me_last_kid"];
-            $check_k = $this->mysqli->execute_query("SELECT 1 FROM kingdoms WHERE id = ? AND userid = ?", [$cookie_kid, $user_id]);
+            $check_k = $this->db->execute_query("SELECT 1 FROM kingdoms WHERE id = ? AND userid = ?", [$cookie_kid, $user_id]);
             if ($check_k && $check_k->num_rows > 0) {
                 $target_kid = $cookie_kid;
             }
@@ -129,7 +129,7 @@ class User
         $_SESSION["kingdomid"] = $target_kid;
 
         // Update login time and session id
-        $this->mysqli->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ?, device_id = ? WHERE id = ?",
+        $this->db->execute_query("UPDATE users SET sessionid = ?, ip = ?, lastlogin = ?, lastactivity = ?, device_id = ? WHERE id = ?",
             [session_id(), $_SERVER["REMOTE_ADDR"], $timestamp, $timestamp, $device_id, $user_id]);
 
         // Check for new achievements
@@ -185,7 +185,7 @@ class User
                 $link_pop_id = "act_link_" . $this->user_id . "_" . $avatar_render_counter;
 
                 $content = "<a href='#' data-on-click='openOverlay'  
-                                        data-url='userinfo.php?userid=$this->user_id'  
+                                        data-url='ajax/userinfo.php?userid=$this->user_id'  
                                         data-title='Spieler-Info'  
                                         class='popup user-name-link' 
                                         id='$link_pop_id' 
@@ -193,7 +193,7 @@ class User
             } else {
                 $content = "<a href='#' class='user-name-link'  
                                     data-on-click='openOverlay'  
-                                    data-url='userinfo.php?userid=$this->user_id'  
+                                    data-url='ajax/userinfo.php?userid=$this->user_id'  
                                     data-title='Spieler-Info'  
                                     style='cursor: pointer;'>" . e($this->user_name) . "</a>";
             }
@@ -210,8 +210,8 @@ class User
 
         $guild_html = "";
         if ($show_guild) {
-            if ($guild_tag === null) {
-                $g_res = $this->mysqli->execute_query(
+            if ($guild_tag === null && $guild_id === null) {
+                $g_res = $this->db->execute_query(
                     "SELECT g.id, g.tag FROM guilds g JOIN users u ON g.id = u.guildid WHERE u.id = ?",
                     [$this->user_id]
                 )->fetch_assoc();
@@ -269,7 +269,7 @@ class User
     private function load_user_row(): array
     {
         if ($this->user_row === null && $this->user_id > 0) {
-            $res = $this->mysqli->execute_query("SELECT * FROM users WHERE id = ?", [$this->user_id]);
+            $res = $this->db->execute_query("SELECT * FROM users WHERE id = ?", [$this->user_id]);
             $this->user_row = $res->fetch_assoc() ?: [];
         }
         return $this->user_row ?? [];
@@ -295,7 +295,7 @@ class User
         }
 
         if (self::$title_cache === null) {
-            $res = $this->mysqli->query("SELECT id, title, title_f FROM achievements");
+            $res = $this->db->query("SELECT id, title, title_f FROM achievements");
             self::$title_cache = [];
             while ($ach = $res->fetch_assoc()) {
                 self::$title_cache[(int)$ach["id"]] = $ach;
@@ -452,7 +452,6 @@ class User
 
         $gid = $this->get_user_guild_id();
         $is_staff = ($this->get_user_admin_level() > 0);
-        $claimable_achs = Achievement::get_claimable_count($uid);
 
         $support_subquery = $is_staff
             ? "(SELECT COUNT(*) FROM support_messages sm 
@@ -486,6 +485,9 @@ class User
             (SELECT COUNT(*) FROM messages WHERE receiverid = u.id AND hasread = 0 AND deleted = 0) AS pms,
             (SELECT COUNT(*) FROM server_messages WHERE receiverid = u.id AND hasread = 0) AS server,
             (SELECT COUNT(*) FROM world_chat WHERE id > u.last_world_chat_id AND userid != u.id AND deleted = 0) AS world,
+            (SELECT COUNT(*) FROM user_achievements ua
+             JOIN achievements a ON ua.achievement_id = a.id
+             WHERE ua.user_id = u.id AND ua.is_claimed = 0 AND a.reward_coins > 0) AS claimable_achs,
             $guild_subquery AS guild,
             $support_subquery AS support,
             (SELECT COUNT(*) FROM news WHERE date > u.last_news_read) AS news,
@@ -498,7 +500,7 @@ class User
         FROM users u 
         WHERE u.id = ?";
 
-        $res = $this->mysqli->execute_query($query, [$uid])->fetch_assoc();
+        $res = $this->db->execute_query($query, [$uid])->fetch_assoc();
 
         $pms = (int)($res["pms"] ?? 0);
         $server = (int)($res["server"] ?? 0);
@@ -509,6 +511,7 @@ class User
         $suggestions = (int)($res["suggestions"] ?? 0);
         $arena_unread = (int)($res["arena_unread"] ?? 0);
         $forum_unread = PhpBBBridge::get_unread_topics_count($this->get_user_name());
+        $claimable_achs = (int)($res["claimable_achs"] ?? 0);
 
         $this->cached_unread_counts = [
             "pms" => $pms,
@@ -568,19 +571,18 @@ class User
     {
         if ($cost <= 0) return true;
 
-        $this->mysqli->execute_query("UPDATE users SET coins = coins - ? WHERE id = ? AND coins >= ?",
+        $this->db->execute_query("UPDATE users SET coins = coins - ? WHERE id = ? AND coins >= ?",
             [$cost, $this->user_id, $cost]
         );
 
-        if ($this->mysqli->affected_rows !== 1) {
+        if ($this->db->affected_rows !== 1) {
             return false;
         }
 
-        $fresh = (int)($this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?",
-            [$this->user_id])->fetch_column() ?? 0);
-
         if ($this->user_row !== null) {
-            $this->user_row["coins"] = $fresh;
+            $this->user_row["coins"] = (int)($this->db->execute_query("SELECT coins FROM users WHERE id = ?",
+                [$this->user_id]
+            )->fetch_column() ?? 0);
         }
 
         return true;
@@ -593,18 +595,18 @@ class User
         $limit = $this->get_coin_limit();
 
         if ($amount > 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE users SET coins = IF(coins >= ?, coins, LEAST(?, coins + ?)) WHERE id = ?",
                 [$limit, $limit, $amount, $this->user_id]
             );
         } else {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE users SET coins = GREATEST(0, coins + ?) WHERE id = ?",
                 [$amount, $this->user_id]
             );
         }
 
-        $fresh = (int)($this->mysqli->execute_query("SELECT coins FROM users WHERE id = ?", [$this->user_id])->fetch_column() ?? 0);
+        $fresh = (int)($this->db->execute_query("SELECT coins FROM users WHERE id = ?", [$this->user_id])->fetch_column() ?? 0);
         if ($this->user_row !== null) {
             $this->user_row["coins"] = $fresh;
         }
@@ -622,7 +624,7 @@ class User
             return $this->cached_coin_limit;
         }
 
-        $result = $this->mysqli->execute_query("
+        $result = $this->db->execute_query("
             SELECT MAX(b.buildinglevel) AS max_lvl 
             FROM buildings b 
             JOIN kingdoms k ON b.kingdomid = k.id 
@@ -647,8 +649,12 @@ class User
 
     public function get_guild_rank_id(): int
     {
-        $res = $this->mysqli->execute_query("SELECT guild_rank_id FROM users WHERE id = ?", [$this->get_user_id()]);
-        return (int)($res->fetch_column() ?? 0);
+        if ($this->user_id <= 0) {
+            return 0;
+        }
+
+        $row = $this->load_user_row();
+        return (int)($row["guild_rank_id"] ?? 0);
     }
 
     public function get_reg_status(): string
@@ -666,12 +672,12 @@ class User
      */
     public function create_remember_me_token(): void
     {
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "DELETE FROM user_remember_tokens WHERE userid = ? AND expires_at < ?",
             [$this->user_id, time()]
         );
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "DELETE FROM user_remember_tokens 
          WHERE userid = ? 
          AND id NOT IN (
@@ -689,7 +695,7 @@ class User
         $token_hash = hash("sha256", $random_token);
 
         $expires = time() + (86400 * REMEMBER_ME_COOKIE_DAYS);
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "INSERT INTO user_remember_tokens (userid, token_hash, expires_at) VALUES (?, ?, ?)",
             [$this->user_id, $token_hash, $expires]
         );
@@ -709,7 +715,7 @@ class User
     {
         $expires = time() + (86400 * REMEMBER_ME_COOKIE_DAYS);
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "UPDATE user_remember_tokens SET expires_at = ? WHERE userid = ? AND token_hash = ?",
             [$expires, $this->user_id, $token_hash]
         );
@@ -737,7 +743,7 @@ class User
         $kingdom = new Kingdom($current_kingdom);
 
         // Get building info
-        $building = $kingdom->fetch_kingdom_building($current_kingdom, $building_type);
+        $building = $kingdom->fetch_kingdom_building($building_type);
 
         // Check if building is built
         if (!$building) {
@@ -779,32 +785,21 @@ class User
     {
         $errors = [];
         $uid = $this->user_id;
+        $flags = Soldier::get_user_deployment_flags($uid);
 
-        // Troops on the way?
-        $res_events = $this->mysqli->execute_query(
-            "SELECT COUNT(*) FROM events WHERE userid = ? AND actionid IN (?, ?, ?, ?)",
-            [$uid, ActionTypes::ACTION_SEND_TROOPS, ActionTypes::ACTION_RETURN_TROOPS, ActionTypes::ACTION_STATION_TROOPS, ActionTypes::ACTION_SUPPORT_RETURN]
-        );
-        if ((int)$res_events->fetch_column() > 0) {
+        if ($flags["marching"]) {
             $errors[] = "Es befinden sich noch eigene Truppen auf dem Marsch.";
         }
-
-        // Troops in mines?
-        $res_mines = $this->mysqli->execute_query("SELECT COUNT(*) FROM mine_stationed_troops WHERE user_id = ?", [$uid]);
-        if ((int)$res_mines->fetch_column() > 0) {
+        if ($flags["mining"]) {
             $errors[] = "Du hast noch Schürftruppen in Minen stationiert.";
         }
-
-        // Supporting troops at allied kingdoms?
-        $res_support = $this->mysqli->execute_query("SELECT COUNT(*) FROM stationed_troops WHERE owner_id = ?", [$uid]);
-        if ((int)$res_support->fetch_column() > 0) {
+        if ($flags["supporting"]) {
             $errors[] = "Du hast noch Unterstützungstruppen bei Gildenmitgliedern stehen.";
         }
 
         // Incoming attacks on kingdoms?
-        $res_attacks = $this->mysqli->execute_query("
-            SELECT COUNT(*) FROM events e
-            JOIN kingdoms k ON e.targetid = k.id
+        $res_attacks = $this->db->execute_query("
+            SELECT COUNT(*) FROM events e JOIN kingdoms k ON e.targetid = k.id
             WHERE k.userid = ? AND e.userid != ? AND e.actionid = ? AND e.arrivaltime > UNIX_TIMESTAMP()
         ", [$uid, $uid, ActionTypes::ACTION_SEND_TROOPS]);
         if ((int)$res_attacks->fetch_column() > 0) {
@@ -868,7 +863,7 @@ class User
             ORDER BY arrivaltime
         ";
 
-        $result = $this->mysqli->execute_query($query, [$uid, $now, $now, $uid, $uid, $now]);
+        $result = $this->db->execute_query($query, [$uid, $now, $now, $uid, $uid, $now]);
         $all_attacks = $result->fetch_all(MYSQLI_ASSOC);
 
         $ack_ids = $_SESSION["acknowledged_attacks"] ?? [];
@@ -901,7 +896,7 @@ class User
               AND e.arrivaltime > ?
             ORDER BY e.arrivaltime
         ";
-        $result = $this->mysqli->execute_query($query, [$this->user_id, ActionTypes::ACTION_STATION_TROOPS, $now]);
+        $result = $this->db->execute_query($query, [$this->user_id, ActionTypes::ACTION_STATION_TROOPS, $now]);
         $supports = $result->fetch_all(MYSQLI_ASSOC);
 
         $ack_ids = $_SESSION["acknowledged_supports"] ?? [];
@@ -934,7 +929,7 @@ class User
             LEFT JOIN kingdom_alchemy ka ON ka.kingdom_id = ?
             LEFT JOIN buildings b ON b.kingdomid = ? AND b.buildingid = " . BuildingTypes::BUILDING_ALCHEMY_LAB . "
         ";
-        $res = $this->mysqli->execute_query($query, [$gid, $uid, $gid, $gid, $kid, $kid])->fetch_assoc();
+        $res = $this->db->execute_query($query, [$gid, $uid, $gid, $gid, $kid, $kid])->fetch_assoc();
 
         $guild_status = '';
         if ($gid > 0) {

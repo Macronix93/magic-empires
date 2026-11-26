@@ -7,16 +7,18 @@ if ($target_uid <= 0) {
     exit;
 }
 
-$db = Database::get_instance()->get_connection();
-
-$u_res = $db->execute_query("SELECT id, username, guildid FROM users WHERE id = ?", [$target_uid]);
-$u_data = $u_res->fetch_assoc();
+$u_data = $db_instance->execute_query(
+        "SELECT u.id, u.username, u.guildid, g.tag AS guild_tag
+     FROM users u LEFT JOIN guilds g ON u.guildid = g.id
+     WHERE u.id = ?",
+        [$target_uid]
+)->fetch_assoc();
 if (!$u_data) {
     echo show_error_box("Spieler nicht gefunden.");
     exit;
 }
 
-$arena = new Arena($target_uid);
+$arena = new Arena($target_uid, true);
 $p_data = $arena->get_player_data();
 $hero_info = $arena->get_hero_full_data();
 $h_data = $hero_info["hero"];
@@ -24,7 +26,7 @@ $active_skill = $hero_info["active_skill"];
 
 $target_user_obj = new User($target_uid, $u_data["username"]);
 
-$res_history = $db->execute_query("
+$res_history = $db_instance->execute_query("
     SELECT season_month, rank_pos, elo, wins, losses, draws, battles
     FROM arena_season_history
     WHERE user_id = ?
@@ -50,14 +52,12 @@ $winrate = $total_fights > 0 ? round(($wins / $total_fights) * 100, 1) : 0;
                  alt="">
             <div>
                 <b style="font-size: 18px;"><?= e($u_data["username"]) ?></b>
-                <?php if ($u_data["guildid"] > 0):
-                    $gtag = $db->execute_query("SELECT tag FROM guilds WHERE id = ?", [$u_data["guildid"]])->fetch_column();
-                    ?>
-                    <small style="color: var(--link-color);">[<?= e($gtag) ?>]</small>
+                <?php if ($u_data["guildid"] > 0): ?>
+                    <small style="color: var(--link-color);">[<?= e($u_data["guild_tag"]) ?>]</small>
                 <?php endif; ?>
             </div>
         </div>
-        <button type="button" data-on-click="openOverlay" data-url="userinfo.php?userid=<?= $target_uid ?>"
+        <button type="button" data-on-click="openOverlay" data-url="ajax/userinfo.php?userid=<?= $target_uid ?>"
                 data-title="Spieler-Info" style="padding: 5px 12px;">
             Spieler-Info
         </button>

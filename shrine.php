@@ -24,26 +24,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         $db_instance->begin_transaction();
         try {
-            $locked_k = $db_instance->execute_query(
-                "SELECT alignment, gold FROM kingdoms WHERE id = ? FOR UPDATE",
+            $locked_k = $db_instance->execute_query("SELECT alignment, gold FROM kingdoms WHERE id = ? FOR UPDATE",
                 [$current_kingdom]
             )->fetch_assoc();
 
             $fresh_align = (int)($locked_k["alignment"] ?? 0);
             $fresh_gold = (int)($locked_k["gold"] ?? 0);
 
-            if ($choice === $fresh_align && $choice !== AlignmentTypes::ALIGN_NONE) {
+            if ($choice === $fresh_align) {
                 throw new RuntimeException("Diese Gesinnung ist bereits aktiv!");
             }
-            if ($choice === AlignmentTypes::ALIGN_NONE && $fresh_align === AlignmentTypes::ALIGN_NONE) {
+            if ($choice === AlignmentTypes::ALIGN_NONE) {
                 throw new RuntimeException("Derzeit ist keine Gesinnung aktiv!");
             }
             if ($fresh_gold < SHRINE_CHANGE_COST) {
                 throw new RuntimeException("Du hast nicht genug Gold für das Opferritual!");
             }
 
-            $db_instance->execute_query(
-                "UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?",
+            $db_instance->execute_query("UPDATE kingdoms SET alignment = ?, gold = gold - ? WHERE id = ?",
                 [$choice, SHRINE_CHANGE_COST, $current_kingdom]
             );
 

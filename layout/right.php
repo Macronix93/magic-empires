@@ -223,7 +223,7 @@
             $total_market_offers = $sidebar_data["market_offers"];
 
             // Show kingdom buildings
-            $kingdom_buildings = $kingdom->get_kingdom_buildings($user->get_current_kingdom());
+            $kingdom_buildings = $kingdom->get_kingdom_buildings();
             $current_page = basename(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 
             foreach ($kingdom_buildings as $building) {

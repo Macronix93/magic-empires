@@ -8,7 +8,7 @@ if (!MAINTENANCE_MODE) {
 $reason = !empty(MAINTENANCE_REASON) ? e(MAINTENANCE_REASON) : "Wartungsarbeiten & Updates";
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="refresh" content="30">

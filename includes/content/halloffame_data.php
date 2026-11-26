@@ -128,6 +128,7 @@ $categories = [
         "title" => "Höchstes Dorfzentrum",
         "limit" => 20,
         "type" => "player",
+        "val_label" => "Wert (Anz.)",
         "query" => "SELECT 
                         u.username, 
                         u.id AS uid, 
@@ -151,38 +152,49 @@ $categories = [
         "title" => "Gebäude-Stufen",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, SUM(b.buildinglevel) as val 
-                    FROM users u 
-                    JOIN kingdoms k ON u.id = k.userid 
-                    JOIN buildings b ON k.id = b.kingdomid 
-                    GROUP BY u.id 
-                    ORDER BY val DESC, uid"
+        "val_label" => "Wert (&Oslash;)",
+        "query" => "SELECT u.username, u.id AS uid, SUM(b.buildinglevel) AS val,
+            (SUM(b.buildinglevel) / GREATEST(1, kc.kingdom_count)) AS extra_avg
+            FROM users u
+            JOIN kingdoms k ON u.id = k.userid
+            JOIN (SELECT userid, COUNT(*) AS kingdom_count FROM kingdoms GROUP BY userid) kc ON kc.userid = u.id
+            JOIN buildings b ON k.id = b.kingdomid
+            GROUP BY u.id, u.username, kc.kingdom_count
+            ORDER BY val DESC, extra_avg DESC, uid"
     ],
     "research_sum" => [
         "label" => "Forschungs-Magnat",
         "title" => "Universitäts-Forschungen",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val  
-                    FROM users u  
-                        JOIN kingdoms k ON u.id = k.userid  
-                        JOIN techs t ON k.id = t.kingdomid 
-                        JOIN tech_list tl ON t.techid = tl.id 
-                    WHERE tl.origin_building = " . BuildingTypes::BUILDING_UNIVERSITY . " 
-                    AND t.techlevel > 0 GROUP BY u.id  ORDER BY val DESC, uid"
+        "query" => "SELECT u.username, u.id AS uid, SUM(t.techlevel) AS val,
+            (SUM(t.techlevel) / GREATEST(1, kc.kingdom_count)) AS extra_avg
+            FROM users u
+            JOIN kingdoms k ON u.id = k.userid
+            JOIN (SELECT userid, COUNT(*) AS kingdom_count FROM kingdoms GROUP BY userid) kc ON kc.userid = u.id
+            JOIN techs t ON k.id = t.kingdomid
+            JOIN tech_list tl ON t.techid = tl.id
+            WHERE tl.origin_building = " . BuildingTypes::BUILDING_UNIVERSITY . "
+              AND t.techlevel > 0
+            GROUP BY u.id, u.username, kc.kingdom_count
+            ORDER BY val DESC, extra_avg DESC, uid"
     ],
     "smithy_sum" => [
         "label" => "Schmiede-Magnat",
         "title" => "Schmiede-Verbesserungen",
         "limit" => 20,
         "type" => "player",
-        "query" => "SELECT u.username, u.id as uid, SUM(t.techlevel) as val  
-                    FROM users u  
-                        JOIN kingdoms k ON u.id = k.userid  
-                        JOIN techs t ON k.id = t.kingdomid 
-                        JOIN tech_list tl ON t.techid = tl.id 
-                    WHERE tl.origin_building = " . BuildingTypes::BUILDING_SMITHY . " 
-                    AND t.techlevel > 0 GROUP BY u.id  ORDER BY val DESC, uid"
+        "query" => "SELECT u.username, u.id AS uid, SUM(t.techlevel) AS val,
+            (SUM(t.techlevel) / GREATEST(1, kc.kingdom_count)) AS extra_avg
+            FROM users u
+            JOIN kingdoms k ON u.id = k.userid
+            JOIN (SELECT userid, COUNT(*) AS kingdom_count FROM kingdoms GROUP BY userid) kc ON kc.userid = u.id
+            JOIN techs t ON k.id = t.kingdomid
+            JOIN tech_list tl ON t.techid = tl.id
+            WHERE tl.origin_building = " . BuildingTypes::BUILDING_SMITHY . "
+              AND t.techlevel > 0
+            GROUP BY u.id, u.username, kc.kingdom_count
+            ORDER BY val DESC, extra_avg DESC, uid"
     ],
     "guild_research" => [
         "label" => "Gilden-Forschung",
@@ -220,7 +232,8 @@ $categories = [
                         ) AS val 
                     FROM users u 
                     LEFT JOIN kingdoms k ON u.id = k.userid 
-                    LEFT JOIN buildings b ON k.id = b.kingdomid AND b.buildingid IN (" . BuildingTypes::BUILDING_MILL . ", " . BuildingTypes::BUILDING_SAWMILL . ", " . BuildingTypes::BUILDING_STONEMINE . ", " . BuildingTypes::BUILDING_GOLDMINE . ") 
+                    LEFT JOIN buildings b ON k.id = b.kingdomid AND b.buildingid IN (" . BuildingTypes::BUILDING_MILL . ", 
+                    " . BuildingTypes::BUILDING_SAWMILL . ", " . BuildingTypes::BUILDING_STONEMINE . ", " . BuildingTypes::BUILDING_GOLDMINE . ") 
                     WHERE u.status = 1 
                     GROUP BY u.id, u.username 
                     ORDER BY val DESC, uid"
@@ -326,7 +339,12 @@ function render_hof_tab_content(array $data, mysqli $db, User $current_user): st
                 $val_display = fnum($row["val"]);
 
                 if (isset($row["extra_count"])) {
-                    $val_display .= " <small style='font-size: 14px; font-weight: normal; color: rgb(230, 220, 200); opacity: 0.6;'>(" . (int)$row["extra_count"] . ")</small>";
+                    $val_display .= " <small class='hof-extra-count'>(" . (int)$row["extra_count"] . ")</small>";
+                }
+
+                if (isset($row["extra_avg"])) {
+                    $avg_formatted = fdec((float)$row["extra_avg"]);
+                    $val_display .= " <small class='hof-extra-avg'>($avg_formatted)</small>";
                 }
             }
 

@@ -32,8 +32,9 @@ const W_CONF = {
     pvpDampingMaxDiscount: parseFloat(warsimConstEl.dataset.pvp_damping_max_discount),
     pvpDampingSlope: parseFloat(warsimConstEl.dataset.pvp_damping_slope),
     pvpDampingExponent: parseFloat(warsimConstEl.dataset.pvp_damping_exponent),
-    rpsTargetFocus: parseFloat(warsimConstEl.dataset.rps_target_focus || 0.7),
-    armorWeightExponent: parseFloat(warsimConstEl.dataset.armor_weight_exponent || 0.5)
+    rpsTargetFocus: parseFloat(warsimConstEl.dataset.rps_target_focus),
+    armorWeightExponent: parseFloat(warsimConstEl.dataset.armor_weight_exponent),
+    ramSoldierId: warsimConstEl.dataset.ram_soldier_id
 };
 let currentSimWallHp = null;
 let lastSimState = null;
@@ -375,31 +376,90 @@ function calculateWarOutcome(soldierTypes) {
 
         if (totalOwnUnits === 0 && totalEnemyUnits === 0) return;
 
-        let pRatio = (playerDefPool > 0) ? Math.min(1.0, enemyAtkPool / (playerDefPool * W_CONF.lethalityPve)) : 1.0;
-        let eRatio = (enemyDefPool > 0) ? Math.min(1.0, playerAtkPool / (enemyDefPool * W_CONF.lethalityPve)) : 1.0;
+        let pRawRatio = (playerDefPool > 0) ? (enemyAtkPool / (playerDefPool * W_CONF.lethalityPve)) : 1.0;
+        let eRawRatio = (enemyDefPool > 0) ? (playerAtkPool / (enemyDefPool * W_CONF.lethalityPve)) : 1.0;
 
         if (playerAtkPool > 0 && enemyAtkPool > 0) {
             const ratio = playerAtkPool / enemyAtkPool;
-            const lossMultiplier = Math.pow(1.0 - Math.max(0.0, Math.min(1.0, ratio / W_CONF.monsterDmgClampedMaxVal)), W_CONF.monsterDmgLossExponent);
-            pRatio = pRatio * lossMultiplier;
+            const lossMultiplier = Math.pow(
+                1.0 - Math.max(0.0, Math.min(1.0, ratio / W_CONF.monsterDmgClampedMaxVal)),
+                W_CONF.monsterDmgLossExponent
+            );
+
+            pRawRatio *= lossMultiplier;
         }
 
+        const distributePveLosses = (entries, rawRatio, avgDef) => {
+            const losses = {};
+
+            if (rawRatio <= 0 || entries.length === 0) {
+                entries.forEach(e => {
+                    losses[e.key] = 0;
+                });
+                return losses;
+            }
+
+            const remainders = {};
+            let sumExact = 0;
+            let sumFloor = 0;
+
+            entries.forEach(e => {
+                const armor = Math.pow(avgDef / Math.max(1, e.def), W_CONF.armorWeightExponent);
+                const unitRatio = Math.max(0.0, Math.min(1.0, rawRatio * armor));
+                const ex = e.initial * unitRatio;
+                const fl = Math.min(e.initial, Math.floor(ex));
+
+                losses[e.key] = fl;
+                remainders[e.key] = ex - fl;
+                sumExact += ex;
+                sumFloor += fl;
+            });
+
+            let extra = Math.max(0, Math.round(sumExact) - sumFloor);
+            if (extra > 0) {
+                const sorted = [...entries].sort((a, b) => {
+                    const diff = remainders[b.key] - remainders[a.key];
+                    return diff !== 0 ? diff : (a.def - b.def);
+                });
+
+                for (const e of sorted) {
+                    if (extra <= 0) break;
+                    if (losses[e.key] < e.initial) {
+                        losses[e.key]++;
+                        extra--;
+                    }
+                }
+            }
+            return losses;
+        };
+
+        const ownEntries = soldierTypes
+            .filter(type => myUnits[type].initial > 0)
+            .map(type => ({key: type, initial: myUnits[type].initial, def: myUnits[type].def}));
+        const avgOwnDef = totalOwnUnits > 0 ? (playerDefPool / totalOwnUnits) : 1;
+        const ownLosses = distributePveLosses(ownEntries, pRawRatio, avgOwnDef);
+
         soldierTypes.forEach(type => {
-            let oIn = document.getElementById(`${type}_own`);
+            const oIn = document.getElementById(`${type}_own`);
             if (myUnits[type].initial > 0) {
-                let losses = Math.round(myUnits[type].initial * pRatio);
+                const losses = ownLosses[type] || 0;
                 oIn.value = myUnits[type].initial - losses;
                 oIn.style.color = (losses > 0) ? "#F55353" : "";
             }
         });
 
-        document.querySelectorAll('.js-mon-input').forEach(i => {
-            const initial = parseInt(i.value) || 0;
+        const monInputs = Array.from(document.querySelectorAll('.js-mon-input'));
+        const monEntries = monInputs
+            .filter(i => (parseInt(i.value, 10) || 0) > 0)
+            .map(i => ({key: i.id, initial: parseInt(i.value, 10), def: parseInt(i.dataset.def, 10) || 1}));
+        const avgMonDef = totalEnemyUnits > 0 ? (enemyDefPool / totalEnemyUnits) : 1;
+        const monLosses = distributePveLosses(monEntries, eRawRatio, avgMonDef);
+
+        monInputs.forEach(i => {
+            const initial = parseInt(i.value, 10) || 0;
+
             if (initial > 0) {
-                let losses = Math.round(initial * eRatio);
-                if (eRatio < 1.0 && losses >= initial) {
-                    losses = initial - 1;
-                }
+                const losses = monLosses[i.id] || 0;
                 i.value = initial - losses;
                 i.style.color = (losses > 0) ? "#F55353" : "";
             }
@@ -425,7 +485,7 @@ function calculateWarOutcome(soldierTypes) {
 
     const siegeLvl = parseInt(document.getElementById("my_tech_20")?.value) || 0;
     const siegeMultiplier = 1.0 + (siegeLvl * W_CONF.siegeBonus);
-    const ramCount = parseInt(document.getElementById("Rammbock_own")?.value) || 0;
+    const ramCount = parseInt(document.querySelector(`.js-own-unit-input[data-soldier-id="${W_CONF.ramSoldierId}"]`)?.value, 10) || 0;
     const ramDamage = Math.round((ramCount * W_CONF.ramFlat) * siegeMultiplier);
     const hpAfterRams = (lvl > 0) ? Math.max(0, currentSimWallHp - ramDamage) : 0;
 
@@ -813,10 +873,7 @@ function updateLivePowerSummary() {
     const ownAtkEl = document.getElementById("live-atk-own");
     const enemyAtkEl = document.getElementById("live-atk-enemy");
 
-    ownAtkEl.innerText = formatNumJS(tAtkO);
     ownAtkEl.title = tAtkO.toLocaleString("de-DE");
-
-    enemyAtkEl.innerText = formatNumJS(tAtkE);
     enemyAtkEl.title = tAtkE.toLocaleString("de-DE");
 
     const updateDisplay = (id, value) => {
@@ -991,7 +1048,7 @@ function getDynamicShrineMult(prefix) {
 
 function saveWarsimState() {
     if (!isManualAction) return;
-    
+
     const warsimData = document.getElementById("warsim-data");
     const currentKid = warsimData ? warsimData.dataset.currentKid : null;
     const state = {

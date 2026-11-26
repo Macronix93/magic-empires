@@ -1,9 +1,7 @@
 <?php
 require_once("includes/core.php");
 
-if (!($user->is_logged_in())) {
-    change_location("index.php");
-}
+$user->check_user_login();
 
 Achievement::unlock($user->get_user_id(), AchievementTypes::ACHIEVEMENT_SECRET_TECHTREE);
 
@@ -60,7 +58,7 @@ foreach ($buildings as $i => $building_obj) {
         $dependency_text = "<span style='white-space: nowrap;'>Keine</span>";
     }
 
-    $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?bid=" . e($i) . "' data-title='Gebäude-Info'>
+    $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='ajax/techinfo.php?bid=" . e($i) . "' data-title='Gebäude-Info'>
                 <td class='td-center' style='width: 5%;'>" . $building_obj->get_building_icon() . "</td>
                 <td style='width: 35%;'>" . $building_obj->get_building_name() . " ($current_building_level)</td>
                 <td class='techtree-requirements'>" . (!empty($dependency_text) ? $dependency_text : "-") . "</td>
@@ -124,7 +122,7 @@ $render_tech_table = function ($tech_array, $title, $info_title) use ($buildings
             $dependency_text = "Nur in <i>" . $main_k->get_kingdom_name() . "</i>";
         }
 
-        $html .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?tid=" . e($t->get_tech_id()) . "' data-title='$info_title'>
+        $html .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='ajax/techinfo.php?tid=" . e($t->get_tech_id()) . "' data-title='$info_title'>
                     <td class='td-center' style='width: 5%;'>{$t->get_tech_icon()}</td>
                     <td style='width: 35%;'>{$t->get_tech_name()} ($current_tech_level)</td>
                     <td class='techtree-requirements'>$dependency_text</td>
@@ -161,7 +159,7 @@ foreach ($all_guild_techs as $index => $gt) {
     $icon = "images/icons/" . e($gt["icon"]) . ".png";
 
     $lvl_display = $in_guild ? "($cur_lvl/$max_lvl)" : "";
-    $overlay_attrs = "data-on-click='openOverlay' data-url='techinfo.php?gtid=" . (int)$gt["id"] . "' data-title='Gilden-Forschung'";
+    $overlay_attrs = "data-on-click='openOverlay' data-url='ajax/techinfo.php?gtid=" . (int)$gt["id"] . "' data-title='Gilden-Forschung'";
 
     $view .= "<tr class='tr-hover'>
                 <td class='td-center td-cursor' style='width: 5%;' $overlay_attrs>
@@ -214,7 +212,7 @@ foreach ($res_soldiers as $row) {
     $is_hero = $s_obj->get_soldier_id() == Soldiers::SOLDIER_HERO;
     $status_class = $is_hero ? "style='font-style: italic;'" : (($barracks_lvl >= $req_lvl) ? "class='passed'" : "class='error'");
 
-    $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='techinfo.php?sid=" . $s_obj->get_soldier_id() . "' data-title='Einheiten-Info'>
+    $view .= "<tr class='tr-hover td-cursor' data-on-click='openOverlay' data-url='ajax/techinfo.php?sid=" . $s_obj->get_soldier_id() . "' data-title='Einheiten-Info'>
                 <td class='td-center' style='width: 5%;'>{$s_obj->get_soldier_icon()}</td>
                 <td style='width: 35%;'>" . $s_obj->get_soldier_name() . "</td>
                 <td class='techtree-requirements'><span $status_class>" . ($is_hero ? "Verteilung alle 24 Stunden" : "Kaserne ($req_lvl)") . "</span></td>

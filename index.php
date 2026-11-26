@@ -611,8 +611,6 @@ $count_online = $res_online->fetch_row()[0];
                                                             <span class="passed">✔</span> <b>Botschutz
                                                                 verifiziert</b>
                                                         </div>
-                                                        <input type="hidden" name="captcha_already_passed"
-                                                               value="1">
                                                     <?php else: ?>
                                                         <div class="g-recaptcha"
                                                              data-sitekey="<?= getenv("CLIENT_KEY") ?>"></div>

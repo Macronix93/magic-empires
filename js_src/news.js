@@ -53,9 +53,40 @@ registerAction("editNewsInline", (el, event) => {
     document.addEventListener("keydown", handleKeyDown);
 });
 registerAction("cancelNewsEdit", () => {
-    cancelEdit();
-});
-
-function cancelEdit() {
     window.location.reload();
-}
+});
+registerAction("confirmDeleteNews", (el) => {
+    const newsId = el.dataset.id;
+
+    showConfirmationDialog(
+        "Soll dieser Neuigkeiten-Eintrag wirklich gelöscht werden?",
+        "Ja, löschen",
+        "Abbrechen",
+        () => {
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = "news.php";
+
+            const idInput = document.createElement("input");
+            idInput.type = "hidden";
+            idInput.name = "news_id";
+            idInput.value = newsId;
+            form.appendChild(idInput);
+
+            const actionInput = document.createElement("input");
+            actionInput.type = "hidden";
+            actionInput.name = "delete_news";
+            actionInput.value = "1";
+            form.appendChild(actionInput);
+
+            const tokenInput = document.createElement("input");
+            tokenInput.type = "hidden";
+            tokenInput.name = "csrf_token";
+            tokenInput.value = getCsrfToken();
+            form.appendChild(tokenInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    );
+});

@@ -18,8 +18,7 @@ if (!Messages::is_valid_reaction_type($type) || $id <= 0 || empty($emoji)) {
 
 $allowed_emojis = Messages::get_chat_emojis();
 if (!in_array($emoji, $allowed_emojis, true)) {
-    echo json_encode(["error" => "Dieses Symbol ist als Reaktion nicht erlaubt!"]);
-    exit;
+    send_json(["success" => false, "error" => "Dieses Symbol ist als Reaktion nicht erlaubt!"]);
 }
 
 if (!Messages::can_access_reaction_entity($type, $id, $user)) {
@@ -65,7 +64,7 @@ try {
     send_json(["success" => false, "error" => "Fehler beim Speichern der Reaktion."]);
 }
 
-echo json_encode([
+send_json([
     "success" => true,
     "html" => Messages::render_reactions_bar($type, $id, $user, $mode)
 ]);

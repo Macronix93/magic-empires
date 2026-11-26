@@ -429,24 +429,46 @@ function updateTroopSummary() {
             existingBadges.forEach(badge => {
                 const sid = String(badge.dataset.soldierId);
                 const baseCount = parseInt(badge.dataset.baseCount, 10) || 0;
+                const garrisonCount = parseInt(badge.dataset.garrisonCount, 10) || 0;
+                const awayCount = parseInt(badge.dataset.awayCount, 10) || 0;
+                const queueCount = parseInt(badge.dataset.queueCount, 10) || 0;
+                const incomingCount = parseInt(badge.dataset.incomingCount, 10) || 0;
                 const baseName = badge.dataset.name || "";
                 const bEl = badge.querySelector("b");
                 const added = selectedStationUnits.get(sid);
 
+                const buildTitle = (addedCount = 0) => {
+                    const hasExtra = (awayCount > 0 || queueCount > 0 || incomingCount > 0 || addedCount > 0);
+                    if (!hasExtra) return baseName;
+
+                    const parts = [];
+                    if (garrisonCount > 0) parts.push(`${garrisonCount.toLocaleString("de-DE")} vor Ort`);
+                    if (awayCount > 0) parts.push(`${awayCount.toLocaleString("de-DE")} unterwegs`);
+                    if (queueCount > 0) parts.push(`${queueCount.toLocaleString("de-DE")} in Ausbildung`);
+                    if (incomingCount > 0) parts.push(`+${incomingCount.toLocaleString("de-DE")} im Anmarsch`);
+                    if (addedCount > 0) parts.push(`+${addedCount.toLocaleString("de-DE")} neu`);
+                    return `${baseName} (${parts.join(", ")})`;
+                };
+
                 if (added && added.count > 0) {
                     const newTotal = baseCount + added.count;
+
                     if (bEl) {
                         bEl.textContent = formatNumJS(newTotal);
+                        bEl.classList.remove("warning");
                         bEl.classList.add("passed");
                     }
-                    badge.title = `${baseName} (${baseCount.toLocaleString("de-DE")} + ${added.count.toLocaleString("de-DE")})`;
+
+                    badge.title = buildTitle(added.count);
                     selectedStationUnits.delete(sid);
                 } else {
                     if (bEl) {
                         bEl.textContent = formatNumJS(baseCount);
                         bEl.classList.remove("passed");
+                        bEl.classList.toggle("warning", incomingCount > 0);
                     }
-                    badge.title = baseName;
+
+                    badge.title = buildTitle(0);
                 }
             });
 
@@ -561,19 +583,7 @@ function updateTroopSummary() {
         const rateDisplay = document.getElementById("mine-rate-display");
         const durDisplay = document.getElementById("mine-duration-display");
 
-        let hasOnlyScouts;
-        let nonScoutCount = 0;
-        let scoutCount = 0;
-        const scoutId = form?.dataset.scoutId ? String(form.dataset.scoutId) : null;
-
-        inputs.forEach(input => {
-            const val = parseInt(input.value) || 0;
-            if (val > 0) {
-                if (input.dataset.id === scoutId) scoutCount += val;
-                else nonScoutCount += val;
-            }
-        });
-        hasOnlyScouts = (scoutCount > 0 && nonScoutCount === 0);
+        const hasOnlyScouts = (scoutCount > 0 && (thiefCount + otherCount) === 0);
 
         if (hasOnlyScouts) {
             if (rateDisplay) rateDisplay.innerHTML = `<i>Spionage-Mission (kein Abbau)</i>`;
@@ -599,8 +609,8 @@ function updateTroopSummary() {
                     const estSec = isFriendly
                         ? Math.ceil(workRem / totalRate)
                         : Math.max(mineMinDuration, Math.ceil(workTotal / totalRate));
-
-                    durDisplay.innerHTML = `ca. ${formatMineDuration(estSec)}`;
+                    
+                    durDisplay.innerHTML = `ca. ${formatDurationJS(estSec, {hideSecondsWithDays: true})}`;
                 } else {
                     durDisplay.innerHTML = `<i>Keine Truppen gewählt</i>`;
                 }
@@ -650,23 +660,6 @@ function updateTroopSummary() {
             submitBtn.disabled = disabled;
         }
     }
-}
-
-function formatMineDuration(totalSeconds) {
-    if (totalSeconds <= 0) return "0 Sek.";
-
-    const days = Math.floor(totalSeconds / 86400);
-    const hours = Math.floor((totalSeconds % 86400) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    let parts = [];
-    if (days > 0) parts.push(days + "T");
-    if (hours > 0) parts.push(hours + " Std.");
-    if (minutes > 0) parts.push(minutes + " Min.");
-    if (seconds > 0 && days === 0) parts.push(seconds + " Sek.");
-
-    return parts.length > 0 ? parts.join(" ") : "wenigen Sekunden";
 }
 
 document.addEventListener("input", (e) => {

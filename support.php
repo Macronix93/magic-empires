@@ -16,9 +16,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST["open_ticket"])) {
         $raw_subject = trim(post_str("subject"));
         $raw_text = post_str("text");
-        $sub_clean = trim(preg_replace(['/^\s+/', '/\p{Z}+/u', '/\s+/u', '/\p{Mn}/u'], ['', ' ', ' ', ''], $raw_subject) ?? '');
-        $text_clean = trim(preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_text) ?? '');
-        $val_error = Support::validate_message_text($raw_text);
+        $sub_clean = Messages::sanitize_text($raw_subject, false, false);
+        $text_clean = Messages::sanitize_text($raw_text);
+        $val_error = Support::validate_message_text($text_clean);
 
         $fail_open = function (string $msg) use ($raw_subject, $raw_text): never {
             set_form_flash("support_ticket", ["subject" => $raw_subject, "text" => $raw_text]);
@@ -27,15 +27,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if (empty($raw_subject)) $fail_open("Bitte einen Betreff angeben!");
         if ($val_error) $fail_open($val_error);
-
-        $current_time = time();
-        if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
-            $_SESSION["message_count"] = 0;
-            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-        }
-        if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
-            $fail_open("Du schickst zu viele Nachrichten! Bitte warte kurz.");
-        }
         if (empty($sub_clean) || mb_strlen($sub_clean) < 3) $fail_open("Bitte einen gültigen Betreff angeben!");
         if (empty($text_clean) || mb_strlen($text_clean) < 10) $fail_open("Deine Nachricht ist zu kurz!");
         if (mb_strlen($raw_subject) > MAX_SUPPORT_TICKET_SUBJECT_LENGTH) {
@@ -52,11 +43,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($support->has_active_ticket($uid)) {
                 throw new RuntimeException("Du hast bereits ein offenes Support-Ticket!");
             }
+            $wait = Messages::check_rate_limit();
+            if ($wait > 0) {
+                throw new RuntimeException("Du schickst zu viele Nachrichten! Bitte warte noch $wait Sek.");
+            }
 
             $support->create_ticket($sub, $msg);
 
             $db_instance->commit();
-            $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
 
             change_location("support.php");
         } catch (RuntimeException $e) {
@@ -91,9 +85,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST["send_msg"], $_POST["tid"]) && is_numeric($_POST["tid"])) {
         $tid = post_int("tid");
         $raw_text = post_str("text");
-        $t_check = $db_instance->execute_query("SELECT userid, status FROM support_tickets WHERE id = ?", [$tid])->fetch_assoc();
-        $val_error = Support::validate_message_text($raw_text);
+        $text_clean = Messages::sanitize_text($raw_text, true, true);
+        $val_error = Support::validate_message_text($text_clean);
 
+        $t_check = $db_instance->execute_query("SELECT userid, status FROM support_tickets WHERE id = ?", [$tid])->fetch_assoc();
         if (!$t_check) {
             change_location("support.php", error: "Das Ticket existiert nicht mehr oder wurde gelöscht.");
         }
@@ -106,19 +101,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if ($val_error) {
             change_location("support.php?tid=$tid", error: $val_error);
         }
-
-        $current_time = time();
-        if ($current_time > ($_SESSION["message_timeframe_end"] ?? 0)) {
-            $_SESSION["message_count"] = 0;
-            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
+        $wait = Messages::check_rate_limit();
+        if ($wait > 0) {
+            change_location("support.php?tid=$tid", error: "Du schickst zu viele Nachrichten! Bitte warte noch $wait Sek.");
         }
 
-        if (($_SESSION["message_count"] ?? 0) >= MAX_MESSAGES_RATELIMIT) {
-            change_location("support.php?tid=$tid", error: "Du schickst zu viele Nachrichten! Bitte warte kurz.");
-        }
+        $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
 
-        $msg = Messages::filter_chat_message(nl2br(e($raw_text)));
-        $_SESSION["message_count"] = ($_SESSION["message_count"] ?? 0) + 1;
         $is_acting_as_staff = ($is_staff && (int)$t_check["userid"] !== $uid);
 
         $support->add_message($tid, $msg, $is_acting_as_staff);
@@ -179,7 +168,7 @@ if (isset($_GET["tid"])) {
     }
 
     $view .= "<div class='info-box event-error' id='support-chat-error' style='display: none;'></div>";
-    $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='navigate' data-url='support.php'>Zurück</button>";
+    $view .= "<div class='msg-back-button-container'><button data-on-click='navigate' data-url='support.php'>Zurück</button>";
     $view .= "<h3 style='margin: 0; flex: 1;'>Ticket #$tid: " . e($ticket["subject"]) . "</h3>";
 
     if ($ticket["status"]) {
@@ -232,7 +221,7 @@ if (isset($_GET["tid"])) {
     }
 } else {
     // TICKET LIST
-    $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button></div>";
+    $view .= "<div class='msg-back-button-container'><button data-on-click='navigate' data-url='messages.php'>Zurück</button></div>";
 
     $active_tab = get_str("tab", $is_staff ? "all" : "my");
     if (!in_array($active_tab, ["all", "my"], true)) {
@@ -276,15 +265,15 @@ if (isset($_GET["tid"])) {
             }
 
             $html .= "<tr class='tr-hover$closed_ticket'>
-                <td class='td-cursor td-center' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>$status</td>
-                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}' style='width: 58%;'>
+                <td class='td-cursor td-center' data-on-click='navigate' data-url='support.php?tid={$t["id"]}'>$status</td>
+                <td class='td-cursor' data-on-click='navigate' data-url='support.php?tid={$t["id"]}' style='width: 58%;'>
                     <div style='display: flex; justify-content: space-between; align-items: center; gap: 6px;'>
                         <div>" . e($t["subject"]) . "$assigned_info</div>
                         $unread_badge
                     </div>
                 </td>
-                " . (!$is_my_view ? "<td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>" . e($t["username"]) . "</td>" : "") . "
-                <td class='td-cursor' data-on-click='redirect' data-url='support.php?tid={$t["id"]}'>am " . date("d.m.Y \u\m H:i:s", $t["updated_at"]) . "</td>
+                " . (!$is_my_view ? "<td class='td-cursor' data-on-click='navigate' data-url='support.php?tid={$t["id"]}'>" . e($t["username"]) . "</td>" : "") . "
+                <td class='td-cursor' data-on-click='navigate' data-url='support.php?tid={$t["id"]}'>am " . date("d.m.Y \u\m H:i:s", $t["updated_at"]) . "</td>
                 <td class='td-center' style='width: 40px;'>
                     <img src='images/icons/icon_delete.png' class='ressource-icons' style='cursor: pointer;' 
                          data-on-click='confirmDeleteTicket' data-id='{$t["id"]}' title='Ticket löschen' alt=''>

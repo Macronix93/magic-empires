@@ -65,7 +65,7 @@ registerAction("checkMarket", (form, event) => {
     }
 });
 registerAction("checkInternalTransport", (form, event) => {
-    if (form.dataset.dailyFull === "true" || (window.marketConfig && window.marketConfig.is_daily_full)) {
+    if (window.marketConfig && window.marketConfig.is_daily_full) {
         event.preventDefault();
         showGameError("Du hast dein tägliches Limit an Handelsaktionen bereits erreicht!");
         return;

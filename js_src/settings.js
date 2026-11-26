@@ -1,6 +1,6 @@
 registerAction("togglePushNotifications", async (el) => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        alert('Dein Browser unterstützt leider keine Push-Benachrichtigungen.');
+        showGameError("Dein Browser unterstützt leider keine Push-Benachrichtigungen.");
         return;
     }
 
@@ -31,7 +31,7 @@ registerAction("togglePushNotifications", async (el) => {
             // --- ACTIVATE ---
             const vapidKey = el.dataset.vapid;
             if (!vapidKey) {
-                alert('Fehler: Kein VAPID Public Key hinterlegt.');
+                showGameError("Fehler: Kein VAPID Public Key hinterlegt.");
                 el.disabled = false;
                 return;
             }
@@ -40,7 +40,7 @@ registerAction("togglePushNotifications", async (el) => {
 
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
-                alert('Benachrichtigungen wurden blockiert oder abgelehnt.');
+                showGameError("Benachrichtigungen wurden blockiert oder abgelehnt.");
                 el.disabled = false;
                 el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
                 return;
@@ -74,14 +74,13 @@ registerAction("togglePushNotifications", async (el) => {
                 localStorage.setItem('me_push_endpoint', newSub.endpoint);
                 window.location.reload();
             } else {
-                alert('Fehler: ' + (result.error || 'Speichern fehlgeschlagen'));
+                showGameError("Fehler: " + (result.error || "Speichern fehlgeschlagen"));
                 el.disabled = false;
                 el.innerText = '🔔 Benachrichtigungen auf diesem Gerät aktivieren';
             }
         }
     } catch (err) {
-        showGameError('Push Toggle Fehler:' + err);
-        alert('Vorgang fehlgeschlagen: ' + err.message);
+        showGameError('Push Toggle Fehler:' + err.message);
         el.disabled = false;
     }
 });

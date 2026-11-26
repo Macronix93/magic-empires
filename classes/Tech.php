@@ -108,7 +108,7 @@ class Tech
         return $this->t_description;
     }
 
-    function calculate_tech_cost(): array
+    public function calculate_tech_cost(): array
     {
         $level = $this->t_level;
         $factor = $this->t_mult;

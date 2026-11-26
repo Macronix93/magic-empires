@@ -29,12 +29,12 @@ if (isset($_GET["minepage"])) {
     }
 }
 
-$is_invite_only = !empty($_POST["g_invite_only"]);
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         change_location("guild.php", error: "Ungültiger Sicherheits-Token!");
     }
+
+    $is_invite_only = !empty($_POST["g_invite_only"]);
 
     if ($my_guild_id === -1) {
         if (isset($_POST["create_guild"])) {
@@ -284,8 +284,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 change_location("guild.php?tab=research", error: "Interner Fehler beim Einzahlen der Ressourcen.");
             }
         } else if (isset($_POST["cancel_project"])) {
-            $my_perms = $guild_logic->get_user_permissions($user->get_user_id());
-
             $db_instance->begin_transaction();
             try {
                 $db_instance->execute_query("SELECT id FROM guilds WHERE id = ? FOR UPDATE", [$my_guild_id]);
@@ -473,7 +471,7 @@ if ($my_guild_id === -1) {
     } else {
         $view .= "<div class='title-border' style='margin-top: 20px;'>Gilde gründen</div>";
         $view .= show_warning_box(
-            "Du benötigst eine <b><a href='#' data-on-click='openOverlay' data-url='techinfo.php?bid=" . BuildingTypes::BUILDING_EMBASSY . "' data-title='Gebäude-Info'>Botschaft</a></b>, 
+            "Du benötigst eine <b><a href='#' data-on-click='openOverlay' data-url='ajax/techinfo.php?bid=" . BuildingTypes::BUILDING_EMBASSY . "' data-title='Gebäude-Info'>Botschaft</a></b>, 
                         um eine Gilde zu gründen.");
     }
 } else {
@@ -483,7 +481,7 @@ if ($my_guild_id === -1) {
     $unread_guild = $messages->get_unread_guild_count();
     $should_show_badge = ($active_tab !== "chat" && $unread_guild > 0);
     $unread_badge_style = $should_show_badge ? "display: inline-flex;" : "display: none;";
-    $unread_badge_text = $messages->show_messages_indicator($unread_guild);
+    $unread_badge_text = Messages::show_messages_indicator($unread_guild);
 
     $guild_info = $guild_logic->get_guild_info($my_guild_id);
     $ranks_res = $guild_logic->get_ranks();
@@ -819,15 +817,6 @@ if ($my_guild_id === -1) {
         $view .= "<p style='text-align: center; opacity: 0.6;'>Bisher wurden noch keine Spezial-Erze eingelagert.</p>";
     }
 
-    $res_miner_count = $db_instance->execute_query("
-        SELECT COUNT(DISTINCT mst.mine_id) 
-        FROM mine_stationed_troops mst 
-        JOIN users u ON mst.user_id = u.id 
-        JOIN mines mn ON mst.mine_id = mn.id
-        WHERE u.guildid = ?
-    ", [$my_guild_id]);
-    $active_miners_count = (int)($res_miner_count->fetch_column() ?? 0);
-
     $mines_per_page = NUM_MINES_PER_PAGE;
     $current_mine_page = max(1, get_int("minepage", 1));
     $mine_offset = ($current_mine_page - 1) * $mines_per_page;
@@ -909,9 +898,9 @@ if ($my_guild_id === -1) {
             $work_total = max(1, (int)$am["work_total"]);
             $work_done = (float)$am["work_done"];
 
-            if ($elapsed > 0 && $total_mine_atk > 0) {
-                $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
-                $effective_rate = min($total_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+            $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
+            $effective_rate = ($total_mine_atk > 0) ? min($total_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate) : 0.0;
+            if ($elapsed > 0 && $effective_rate > 0) {
                 $work_delta = $effective_rate * $elapsed;
                 $work_done = min($work_total, $work_done + $work_delta);
             }
@@ -938,7 +927,6 @@ if ($my_guild_id === -1) {
 
             $percent_val = ($work_done / $work_total) * 100;
             $percent_display = fdec($percent_val);
-            $rate = (float)$am["total_mine_atk"] * MINE_WORK_RATE_FACTOR;
             $c_link = "<a href='map.php?startx=$mx&starty=$my' data-on-click='mapJump' data-x='$mx' data-y='$my'>$mx:$my</a>";
 
             $members_html = "<div style='display: flex; flex-direction: column; gap: 4px; align-items: center;'>";
@@ -974,7 +962,7 @@ if ($my_guild_id === -1) {
                     </div>
                 </td>
                 <td class='td-center'>
-                    <span><b class='js-mine-progress' data-work-done='$work_done' data-work-total='$work_total' data-rate='$rate'>$percent_display %</b></span>
+                    <span><b class='js-mine-progress' data-work-done='$work_done' data-work-total='$work_total' data-rate='$effective_rate'>$percent_display %</b></span>
                     <div class='tick-progress-bg mining-progress'>
                         <div class='tick-progress-fill js-mine-progress-bar' style='width: " . min(100, $percent_val) . "%;'></div>
                     </div>
@@ -1098,10 +1086,10 @@ if ($my_guild_id === -1) {
             ResourceTypes::RESOURCE_TYPE_GOLD => $k->get_kingdom_gold()
         ];
         $needed_map = [
-            0 => [ResourceTypes::RESOURCE_TYPE_FOOD, $rem_food, "Nahrung"],
-            1 => [ResourceTypes::RESOURCE_TYPE_WOOD, $rem_wood, "Holz"],
-            2 => [ResourceTypes::RESOURCE_TYPE_STONE, $rem_stone, "Stein"],
-            3 => [ResourceTypes::RESOURCE_TYPE_GOLD, $rem_gold, "Gold"]
+            0 => [ResourceTypes::RESOURCE_TYPE_FOOD, $rem_food],
+            1 => [ResourceTypes::RESOURCE_TYPE_WOOD, $rem_wood],
+            2 => [ResourceTypes::RESOURCE_TYPE_STONE, $rem_stone],
+            3 => [ResourceTypes::RESOURCE_TYPE_GOLD, $rem_gold]
         ];
         $donate_html = "";
 

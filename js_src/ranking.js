@@ -10,8 +10,6 @@ registerAction("switchRankingTab", (el) => {
         target.style.display = "block";
     }
 
-    sessionStorage.setItem("active_ranking_tab", tabName);
-
     const url = new URL(window.location);
     url.searchParams.set("tab", tabName);
     if (url.searchParams.has("currentpage")) {

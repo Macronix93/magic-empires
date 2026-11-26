@@ -4,14 +4,13 @@ $_SERVER["HTTP_HOST"] = "localhost";
 $_SERVER["REMOTE_ADDR"] = "127.0.0.1";
 $_SERVER["REQUEST_METHOD"] = "GET";
 
-require_once("../includes/core.php");
+require_once(__DIR__ . "/../includes/core.php");
 
 if (MAINTENANCE_MODE) {
     echo "[" . date("Y-m-d H:i:s") . "] Wartungsmodus ist aktiv. Cron-Tick abgebrochen.\n";
     exit;
 }
 
-$db = Database::get_instance()->get_connection();
 $now = time();
 
 echo "[" . date("Y-m-d H:i:s") . "] Starte Cron-Tick...\n";
@@ -42,7 +41,7 @@ $action_movement_list = implode(',', [
 $query = "SELECT e.*, u.username 
           FROM events e
           JOIN users u ON e.userid = u.id
-          WHERE (e.is_processing = 0 OR e.is_processing < " . (time() - 60) . ")
+          WHERE (e.is_processing = 0 OR e.is_processing < " . (time() - EVENT_LOCK_TIMEOUT_SECONDS) . ")
           AND (
               (e.actionid IN ($action_building_list) AND e.buildingtime > 0 AND e.buildingtime <= ?) 
               OR (e.actionid IN ($action_movement_list) AND e.arrivaltime > 0 AND e.arrivaltime <= ?)
@@ -57,27 +56,27 @@ $result = $db_instance->execute_query($query, [$now, $now, $now, $now, $now]);
 $count = 0;
 foreach ($result as $row) {
     // Locking
-    $db->execute_query(
+    $db_instance->execute_query(
         "UPDATE events SET is_processing = ? WHERE eventid = ? AND (is_processing = 0 OR is_processing < ?)",
-        [$now, $row["eventid"], ($now - 60)]
+        [$now, $row["eventid"], ($now - EVENT_LOCK_TIMEOUT_SECONDS)]
     );
 
-    if ($db->affected_rows > 0) {
+    if ($db_instance->affected_rows > 0) {
         try {
             $event_owner = new User((int)$row["userid"], $row["username"]);
             $GLOBALS["user"] = $event_owner;
 
-            $db->begin_transaction();
+            $db_instance->begin_transaction();
             $em = new EventManager($event_owner);
             $em->handle_event($row);
-            $db->commit();
+            $db_instance->commit();
 
             $count++;
         } catch (Throwable $t) {
-            $db->rollback();
-            $db->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+            $db_instance->rollback();
+            $db_instance->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
 
-            error_log("Cronjob Error in Event " . $row["eventid"] . ": " . $t->getMessage());
+            Logger::get_instance()->error("Cronjob Error in Event " . $row["eventid"] . ": " . $t->getMessage());
         }
     }
 }
@@ -89,7 +88,7 @@ if ($count > 0) {
 //// World Event Logic
 $we_logic = new WorldEvent();
 
-$finished_events = $db->execute_query("SELECT * FROM world_events WHERE is_rewarded = 0 AND end_time <= ?", [time()]);
+$finished_events = $db_instance->execute_query("SELECT * FROM world_events WHERE is_rewarded = 0 AND end_time <= ?", [time()]);
 
 while ($ev = $finished_events->fetch_assoc()) {
     $pool = $we_logic->get_monster_pool();
@@ -128,8 +127,7 @@ while ($ev = $finished_events->fetch_assoc()) {
                     $delivery = Kingdom::deliver_reward_troops($u_id, $actual_target_kid, $loot["soldiers"]);
 
                     if ($delivery["score_gain"] > 0) {
-                        $db_instance->execute_query(
-                            "UPDATE users SET score = score + ? WHERE id = ?",
+                        $db_instance->execute_query("UPDATE users SET score = score + ? WHERE id = ?",
                             [$delivery["score_gain"], $u_id]
                         );
                         Achievement::check($u_id, AchievementTypes::ACHIEVEMENT_SCORE);
@@ -194,24 +192,21 @@ while ($ev = $finished_events->fetch_assoc()) {
 }
 
 //// Storage Push Message
-$storage_push_cooldown = 14400;
-$warning_threshold = 0.95;
-
 $full_storage_query = "
     SELECT k.id AS kingdom_id, k.userid, k.kingdomname,
            k.food, k.maxfood, k.wood, k.maxwood, k.stone, k.maxstone, k.gold, k.maxgold,
            k.last_storage_push
     FROM kingdoms k
     WHERE (
-        k.food >= (k.maxfood * $warning_threshold) OR 
-        k.wood >= (k.maxwood * $warning_threshold) OR 
-        k.stone >= (k.maxstone * $warning_threshold) OR 
-        k.gold >= (k.maxgold * $warning_threshold)
+        k.food >= (k.maxfood * " . KINGDOM_OVERFLOW_FACTOR . ") OR 
+        k.wood >= (k.maxwood * " . KINGDOM_OVERFLOW_FACTOR . ") OR 
+        k.stone >= (k.maxstone * " . KINGDOM_OVERFLOW_FACTOR . ") OR 
+        k.gold >= (k.maxgold * " . KINGDOM_OVERFLOW_FACTOR . ")
     )
     AND (? - k.last_storage_push) >= ?
 ";
 
-$res_storage = $db_instance->execute_query($full_storage_query, [$now, $storage_push_cooldown]);
+$res_storage = $db_instance->execute_query($full_storage_query, [$now, STORAGE_PUSH_COOLDOWN]);
 
 $user_notifications = [];
 $updated_kingdom_ids = [];
@@ -259,8 +254,8 @@ $db_instance->execute_query("
     UPDATE kingdoms 
     SET last_storage_push = 0 
     WHERE last_storage_push > 0 
-      AND food < (maxfood * 0.85) 
-      AND wood < (maxwood * 0.85) 
-      AND stone < (maxstone * 0.85) 
-      AND gold < (maxgold * 0.85)
+      AND food < (maxfood * " . STORAGE_RESET_LIMIT . ") 
+      AND wood < (maxwood * " . STORAGE_RESET_LIMIT . ") 
+      AND stone < (maxstone * " . STORAGE_RESET_LIMIT . ") 
+      AND gold < (maxgold * " . STORAGE_RESET_LIMIT . ")
 ");

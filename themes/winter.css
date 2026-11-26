@@ -48,7 +48,7 @@ html.theme-winter .box-content-bg {
     background-color: rgb(24, 35, 48) !important;
 }
 
-html.theme-winter select {
+html.theme-winter select:not(:disabled) {
     background-color: var(--table-color) !important;
     border-color: var(--border-gold) !important;
     color: rgb(235, 245, 255) !important;
@@ -115,14 +115,8 @@ html.theme-winter .arena-power-sticky {
 /* --- BUTTONS --- */
 html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept),
 html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept),
-html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down) {
+html.theme-winter button:not(:disabled):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down) {
     background: linear-gradient(0deg, #16324a 0%, #25527a 100%) !important;
-    border: 2px solid rgba(0, 0, 0, 0.63) !important;
-}
-
-html.theme-winter button.btn-delete:not(:disabled),
-html.theme-winter .box-content-bg-danger button:not(:disabled) {
-    background: linear-gradient(0deg, #4b140a 0%, #781e14 39%) !important;
     border: 2px solid rgba(0, 0, 0, 0.63) !important;
 }
 
@@ -142,7 +136,7 @@ html.theme-winter button:focus-visible {
 /* BUTTON EFFECTS */
 html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
 html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
-html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {
+html.theme-winter button:not(:disabled):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {
     background: linear-gradient(180deg, #12283b 0%, #1c3e5c 100%) !important;
     border-top-width: 2px !important;
     border-bottom-width: 2px !important;
@@ -153,14 +147,32 @@ html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.b
     text-shadow: -1px -1px 0 rgba(0, 0, 0, 0.5), 1px -1px 0 rgba(0, 0, 0, 0.5), -1px 1px 0 rgba(0, 0, 0, 0.5), 1px 1px 0 rgba(0, 0, 0, 0.5) !important;
 }
 
-html.theme-winter button.btn-delete:not(:disabled):active,
-html.theme-winter .box-content-bg-danger button:not(:disabled):active {
-    background: linear-gradient(180deg, #3d1209 0%, #5e1910 100%) !important;
-    border-top-width: 2px !important;
-    border-bottom-width: 2px !important;
-    transform: translateY(1px);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5) !important;
-    transition: none !important;
+html.theme-winter .map-viewport,
+html.theme-winter #map-container,
+html.theme-winter .minimap-container {
+    background-color: #0d1620 !important;
+}
+
+html.theme-winter #map-loader {
+    background-image: radial-gradient(circle, #1e2e40 0%, #0d1620 100%) !important;
+}
+
+html.theme-winter .key-badge {
+    background: linear-gradient(180deg, #2b455e 0%, #152433 100%) !important;
+    border-color: var(--border-gold) !important;
+}
+
+html.theme-winter input:-webkit-autofill,
+html.theme-winter input:-webkit-autofill:hover,
+html.theme-winter input:-webkit-autofill:focus,
+html.theme-winter input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #14202d inset !important;
+    box-shadow: 0 0 0 1000px #14202d inset !important;
+}
+
+html.theme-winter .maintenance-box {
+    background: rgba(22, 32, 45, 0.95) !important;
+    border-color: var(--border-gold) !important;
 }
 
 @media (hover: none) {
@@ -174,24 +186,14 @@ html.theme-winter .box-content-bg-danger button:not(:disabled):active {
 @media (hover: hover) and (pointer: fine) {
     html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept):hover,
     html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept):hover,
-    html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):hover {
+    html.theme-winter button:not(:disabled):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):hover {
         background: #2e6698 !important;
     }
 
     html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
     html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
-    html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {
+    html.theme-winter button:not(:disabled):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {
         background: #193f63 !important;
-    }
-
-    html.theme-winter button.btn-delete:not(:disabled):hover,
-    html.theme-winter .box-content-bg-danger button:not(:disabled):hover {
-        background: #96281e !important;
-    }
-
-    html.theme-winter button.btn-delete:not(:disabled):active,
-    html.theme-winter .box-content-bg-danger button:not(:disabled):active {
-        background: #6e1a10 !important;
     }
 
     html.theme-winter input.btn-delete:not(:disabled):hover {
@@ -211,19 +213,8 @@ html.theme-winter .box-content-bg-danger button:not(:disabled):active {
 
     html.theme-winter input[type=submit]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
     html.theme-winter input[type=button]:not(:disabled):not(.btn-delete):not(.btn-accept):active,
-    html.theme-winter button:not(:disabled):not(.btn-delete):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {
+    html.theme-winter button:not(:disabled):not(.btn-accept):not(.btn-logout):not(.btn-stepper):not(.btn-vote-up):not(.btn-vote-down):active {
         background: linear-gradient(180deg, #1e3e5c 0%, #25527a 100%) !important;
-        border-top-width: 2px !important;
-        border-bottom-width: 2px !important;
-        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
-        transform: none;
-        -webkit-appearance: none;
-        transition: box-shadow 0.01s ease, background 0.01s ease !important;
-    }
-
-    html.theme-winter button.btn-delete:not(:disabled):active,
-    html.theme-winter .box-content-bg-danger button:not(:disabled):active {
-        background: linear-gradient(180deg, #52160d 0%, #6e1a10 100%) !important;
         border-top-width: 2px !important;
         border-bottom-width: 2px !important;
         box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;

@@ -135,14 +135,7 @@ $total_support_limit = 0;
 
 if ($is_ally) {
     $total_support_limit = new Kingdom($kingdom_id)->get_support_limit();
-
-    $res_load = $db_instance->execute_query("
-        SELECT (
-            (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?) +
-            (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.actionid = ?)
-        ) AS total", [$kingdom_id, $kingdom_id, ActionTypes::ACTION_STATION_TROOPS]);
-
-    $current_support_load = (int)$res_load->fetch_column();
+    $current_support_load = Soldier::get_target_support_count($kingdom_id);
 } else {
     if ($enemy_user_id > 0 && $enemy_user_id != $user->get_user_id()) {
         $res_vac = $db_instance->execute_query("SELECT is_vacation, vacation_until FROM users WHERE id = ?", [$enemy_user_id])->fetch_assoc();
@@ -255,7 +248,7 @@ if ($expires_at > 0) {
     $remaining_time = $expires_at - time();
 
     if ($arrival_time > $remaining_time) {
-        $warning_box = show_warning_box("<b>Warnung:</b> Deine Truppen werden nicht rechtzeitig ankommen<br>(Restzeit: " . convert_sec_to_str($remaining_time) . ").");
+        $warning_box = show_warning_box("<b>Warnung:</b> Deine Truppen werden nicht rechtzeitig ankommen<br>(Restzeit: " . convert_sec_to_str($remaining_time, false, false) . ").");
     }
 }
 
@@ -528,21 +521,43 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
 
-            $claimed_gid = (int)$res_mine["claimed_guild_id"];
-            $claimed_uid = (int)$res_mine["claimed_user_id"];
-            $res_curr = $db_instance->execute_query(
-                "SELECT (
-                    (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE mine_id = ?) +
-                    (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid
-                     WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? AND e.actionid = ?)
-                ) AS total",
-                [$res_mine["id"], MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS]
-            );
-            $current_mine_troops = (int)$res_curr->fetch_column();
-            $max_capacity = (int)$res_mine["max_troops"];
-            $free_space = max(0, $max_capacity - $current_mine_troops);
-            $is_mine_empty = ($current_mine_troops === 0);
+            $claimed_gid = (int)($res_mine["claimed_guild_id"] ?? 0);
+            $claimed_uid = (int)($res_mine["claimed_user_id"] ?? 0);
+
+            $stationed_mine_troops = (int)$db_instance->execute_query(
+                "SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE mine_id = ?",
+                [$res_mine["id"]]
+            )->fetch_column();
+
+            $is_mine_empty = ($stationed_mine_troops === 0);
             $is_friendly = ($my_guild_id > 0 && $claimed_gid === $my_guild_id) || ($claimed_uid === $my_uid);
+
+            $friendly_incoming_troops = 0;
+            if ($is_friendly && !$is_mine_empty) {
+                if ($my_guild_id > 0) {
+                    $friendly_incoming_troops = (int)$db_instance->execute_query(
+                        "SELECT IFNULL(SUM(st.soldiercount), 0)
+                     FROM sent_troops st
+                     JOIN events e ON st.eventid = e.eventid
+                     JOIN users u ON e.userid = u.id
+                     WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? AND e.actionid = ?
+                       AND st.soldierid != ? AND (u.guildid = ? OR u.id = ?)",
+                        [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, Soldiers::SOLDIER_SCOUT, $my_guild_id, $my_uid]
+                    )->fetch_column();
+                } else {
+                    $friendly_incoming_troops = (int)$db_instance->execute_query(
+                        "SELECT IFNULL(SUM(st.soldiercount), 0)
+                     FROM sent_troops st
+                     JOIN events e ON st.eventid = e.eventid
+                     WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? AND e.actionid = ?
+                       AND st.soldierid != ? AND e.userid = ?",
+                        [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, Soldiers::SOLDIER_SCOUT, $my_uid]
+                    )->fetch_column();
+                }
+            }
+
+            $max_capacity = (int)$res_mine["max_troops"];
+            $free_space = max(0, $max_capacity - ($stationed_mine_troops + $friendly_incoming_troops));
 
             if (!$has_non_scout_units) {
                 if ($is_friendly && !$is_mine_empty) {
@@ -592,14 +607,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $target_barracks_lvl = $target_k_obj->get_kingdom_building_level(BuildingTypes::BUILDING_BARRACKS);
             $g_cap_lvl = Guild::get_user_guild_tech_level($enemy_user_id, GuildTechTypes::GUILD_TECH_SUPPORT_CAPACITY);
             $support_limit = SUPPORT_LIMIT_BASE + ($target_barracks_lvl * SUPPORT_LIMIT_PER_BARRACKS) + ($g_cap_lvl * GUILD_BONUS_SUPPORT_CAP_PER_LVL);
+            $current_support_count = Soldier::get_target_support_count($kingdom_id);
 
-            $res_current = $db_instance->execute_query(
-                "SELECT
-                    (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?) +
-                    (SELECT IFNULL(SUM(st.soldiercount), 0) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = ? AND e.actionid = ?) AS total",
-                [$kingdom_id, $kingdom_id, ActionTypes::ACTION_STATION_TROOPS]
-            );
-            $current_support_count = (int)$res_current->fetch_column();
             if (($current_support_count + $total_units_in_request) > $support_limit) {
                 throw new RuntimeException("Das Ziel-Königreich kann keine weitere Unterstützung aufnehmen (Limit: $support_limit).");
             }
@@ -676,7 +685,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         send_json(["success" => false, "error" => "Interner Fehler beim Absenden der Truppen."]);
     }
 
-    $cache_file = sys_get_temp_dir() . "/me_map_cache_" . $my_uid . ".json";
+    $cache_file = sys_get_temp_dir() . "/me_map_cache_$my_uid.json";
     if (file_exists($cache_file)) {
         @unlink($cache_file);
     }
@@ -771,19 +780,22 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
                 JOIN users u ON e.userid = u.id
                 WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? 
                   AND e.actionid = ? AND (u.guildid = ? OR u.id = ?)
+                  AND st.soldierid != ?
                 GROUP BY u.id, u.username
                 ORDER BY earliest_arrival
-            ", [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, $my_gid, $user->get_user_id()]);
+            ", [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, $my_gid,
+            $user->get_user_id(), Soldiers::SOLDIER_SCOUT]);
 
         while ($inc = $res_inc->fetch_assoc()) {
             $incoming_guild_troops += (int)$inc["count"];
-
             $time_diff = (int)$inc["earliest_arrival"] - $now;
+
             if ($time_diff <= 0) {
                 $time_text = "treffen gerade ein";
             } else {
                 $time_text = "Ankunft in " . convert_sec_to_str($time_diff);
             }
+
             $info_text = "<b>" . e($inc["username"]) . "</b> (" . fnum($inc["count"]) . " Truppen, $time_text)";
 
             if ((int)$inc["id"] !== $user->get_user_id()) {
@@ -797,14 +809,12 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
                 JOIN sent_troops st ON e.eventid = st.eventid
                 WHERE e.targetid = ? AND e.targetx = ? AND e.targety = ? 
                   AND e.actionid = ? AND e.userid = ?
-            ", [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS, $user->get_user_id()]);
+                  AND st.soldierid != ?
+            ", [MapFieldTypes::MAP_FIELD_MINE, $target_x, $target_y, ActionTypes::ACTION_SEND_TROOPS,
+            $user->get_user_id(), Soldiers::SOLDIER_SCOUT]);
 
         $row_inc = $res_inc->fetch_assoc();
         $incoming_guild_troops = (int)($row_inc["count"] ?? 0);
-
-        if ($incoming_guild_troops > 0) {
-            $time_left = max(0, (int)$row_inc["earliest_arrival"] - $now);
-        }
     }
 
     if (!empty($other_guild_members_warning)) {
@@ -812,7 +822,7 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
     }
 
     $total_occupied_or_incoming = $current_mine_troops + $incoming_guild_troops;
-    $free_space = max(0, $max_capacity - $current_mine_troops);
+    $free_space = max(0, $max_capacity - $total_occupied_or_incoming);
 
     $is_mine_empty = ($current_mine_troops === 0);
     $is_friendly = ($my_gid > 0 && $claimed_gid === $my_gid) || ($claimed_uid === $user->get_user_id());
@@ -959,6 +969,8 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
     }
 
     $target_soldiers = [];
+    $target_special_counts = [];
+    $target_k_obj = null;
     $target_occupied = 0;
     $target_limit = 0;
     $target_free_space = 0;
@@ -970,38 +982,41 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
         $target_occupied = $target_k_obj->get_current_troop_count(true, true);
         $target_free_space = max(0, $target_limit - $target_occupied);
 
+        [$target_units_sql, $target_units_params] = Soldier::build_owned_units_sql([
+            "kingdom_id" => $kingdom_id,
+            "include_upgrading" => true,
+            "include_queue" => true,
+            "include_incoming_station" => true,
+        ]);
+
         $res_target_soldiers = $db_instance->execute_query("
-            SELECT s.soldierid, s.soldiercount, sl.soldiername, sl.icon
-            FROM soldiers s
-            JOIN soldier_list sl ON s.soldierid = sl.id
-            WHERE s.kingdomid = ? AND s.soldiercount > 0
+            SELECT
+                t.soldierid,
+                SUM(IF(t.source_type = 'garrison', t.cnt, 0)) AS garrison_count,
+                SUM(IF(t.source_type = 'away', t.cnt, 0)) AS away_count,
+                SUM(IF(t.source_type = 'recruiting', t.cnt, 0)) AS queue_count,
+                SUM(IF(t.source_type = 'incoming_station', t.cnt, 0)) AS incoming_count,
+                SUM(t.cnt) AS total_count,
+                sl.soldiername,
+                sl.icon
+            FROM ($target_units_sql) t
+            JOIN soldier_list sl ON t.soldierid = sl.id
+            WHERE t.cnt > 0
+            GROUP BY t.soldierid, sl.category, sl.id, sl.soldiername, sl.icon
             ORDER BY sl.category, sl.id
-        ", [$kingdom_id]);
+        ", $target_units_params);
         $target_soldiers = $res_target_soldiers->fetch_all(MYSQLI_ASSOC);
 
-        $target_extra = $db_instance->execute_query("
-            SELECT
-                (SELECT IFNULL(SUM(st.soldiercount), 0)
-                 FROM sent_troops st
-                 JOIN events e ON st.eventid = e.eventid
-                 WHERE e.targetid = ? AND e.actionid = ? AND e.kingdomid != ? AND e.userid = ?) AS incoming_count,
-                (
-                    (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops WHERE source_kingdom_id = ?) +
-                    (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE source_kingdom_id = ?) +
-                    (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE kingdom_id = ?)
-                ) AS away_count,
-                (SELECT IFNULL(SUM(soldiergoal), 0)
-                 FROM events
-                 WHERE kingdomid = ? AND actionid IN (?, ?)) AS queue_count,
-                (SELECT IFNULL(SUM(soldiercount), 0)
-                 FROM stationed_troops
-                 WHERE target_kingdom_id = ?) AS support_count
-        ", [
-            $kingdom_id, ActionTypes::ACTION_SEND_TROOPS, $kingdom_id, $user->get_user_id(),
-            $kingdom_id, $kingdom_id, $kingdom_id,
-            $kingdom_id, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_UPGRADE_TROOPS,
-            $kingdom_id
-        ])->fetch_assoc() ?: [];
+        foreach ($target_soldiers as $ts) {
+            $target_special_counts[(int)$ts["soldierid"]] = (int)$ts["total_count"];
+        }
+
+        $target_extra = [
+            "incoming_count" => array_sum(array_column($target_soldiers, "incoming_count")),
+            "away_count" => array_sum(array_column($target_soldiers, "away_count")),
+            "queue_count" => array_sum(array_column($target_soldiers, "queue_count")),
+            "support_count" => Soldier::get_target_support_count($kingdom_id, include_incoming: false),
+        ];
     }
 
     $view .= '<div id="stealth-warning-box" style="display: none; margin-bottom: 10px;"></div>
@@ -1042,7 +1057,7 @@ if ($kingdom_id == MapFieldTypes::MAP_FIELD_MINE) {
                       <td class="td-mapinfo"><b>Besitzer</b></td>
                       <td><a href="#" 
                            data-on-click="openOverlay" 
-                           data-url="userinfo.php?userid=' . e($enemy_user_id) . '" 
+                           data-url="ajax/userinfo.php?userid=' . e($enemy_user_id) . '" 
                            data-title="Spieler-Info">' . e($row["username"]) . '</a></td>
                   </tr>';
     }
@@ -1093,13 +1108,33 @@ if ($is_self_station) {
     if ($has_target_soldiers) {
         foreach ($target_soldiers as $ts) {
             $sid = (int)$ts["soldierid"];
-            $cnt = (int)$ts["soldiercount"];
+            $garrison_cnt = (int)$ts["garrison_count"];
+            $away_cnt = (int)$ts["away_count"];
+            $queue_cnt = (int)$ts["queue_count"];
+            $incoming_cnt = (int)$ts["incoming_count"];
+            $base_total = (int)$ts["total_count"];
             $s_name = e($ts["soldiername"]);
             $s_icon = e($ts["icon"]);
 
-            $badges_html .= "<div class='unit-badge' data-soldier-id='$sid' data-base-count='$cnt' data-name='$s_name' title='$s_name'>
+            $has_non_garrison = ($away_cnt > 0 || $queue_cnt > 0 || $incoming_cnt > 0);
+            $title_parts = [];
+            if ($garrison_cnt > 0) $title_parts[] = fnum($garrison_cnt, true) . " vor Ort";
+            if ($away_cnt > 0) $title_parts[] = fnum($away_cnt, true) . " unterwegs";
+            if ($queue_cnt > 0) $title_parts[] = fnum($queue_cnt, true) . " in Ausbildung";
+            if ($incoming_cnt > 0) $title_parts[] = "+" . fnum($incoming_cnt, true) . " im Anmarsch";
+            $badge_title = $has_non_garrison ? "$s_name (" . implode(", ", $title_parts) . ")" : $s_name;
+            $b_class = ($incoming_cnt > 0) ? " class='warning'" : "";
+
+            $badges_html .= "<div class='unit-badge' 
+                                data-soldier-id='$sid' 
+                                data-base-count='$base_total' 
+                                data-garrison-count='$garrison_cnt' 
+                                data-away-count='$away_cnt' 
+                                data-queue-count='$queue_cnt' 
+                                data-incoming-count='$incoming_cnt' 
+                                data-name='$s_name' title='$badge_title'>
                 <img src='images/icons/$s_icon.png' class='ressource-icons' alt='$s_name'>
-                <b>" . fnum($cnt) . "</b>
+                <b$b_class>" . format_num($base_total) . "</b>
             </div>";
         }
     }
@@ -1119,14 +1154,11 @@ if ($is_self_station) {
 
     $view .= "
     <div style='display: flex; flex-direction: column; align-items: center; max-width: 500px; margin: 15px auto 0 auto;'>
-        <div class='title-border' style='margin-bottom: 10px;'>
-            Truppen im Zielkönigreich 
-        </div>
+        <div class='title-border' style='margin-bottom: 10px;'>Truppen im Zielkönigreich </div>
         $badges_html
         $extra_html
     </div>";
 }
-
 
 $away_special_counts = $kingdom->get_away_unit_counts(array_keys(SPECIAL_UNIT_LIMITS));
 $category_counts = SoldierTypes::get_empty_category_map();
@@ -1160,6 +1192,14 @@ foreach ($soldiers as $soldier_id => $s_obj) {
         $sp_away = ($sp_limit !== null) ? ($away_special_counts[$soldier_id] ?? 0) : 0;
         $sp_remaining = ($sp_limit !== null) ? max(0, $sp_limit - $sp_away) : null;
         $eff_max = ($sp_remaining !== null) ? min($count, $sp_remaining) : $count;
+
+        if ($is_self_station && $target_k_obj !== null && isset(SPECIAL_UNIT_LIMITS[$soldier_id])) {
+            $target_sp_limit = $target_k_obj->get_special_unit_limit($soldier_id) ?? 0;
+            $target_sp_cur = $target_special_counts[$soldier_id] ?? 0;
+            $target_sp_rem = max(0, $target_sp_limit - $target_sp_cur);
+            $eff_max = min($eff_max, $target_sp_rem);
+        }
+
         $effective_max_by_soldier[$soldier_id] = $eff_max;
 
         if ($eff_max > 0) {

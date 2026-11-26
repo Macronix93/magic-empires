@@ -7,8 +7,7 @@ $data = json_decode($raw, true);
 
 if (!is_array($data) || !is_string($data["endpoint"] ?? null) || !is_array($data["keys"] ?? null) ||
     !is_string($data["keys"]["p256dh"] ?? null) || !is_string($data["keys"]["auth"] ?? null)) {
-    echo json_encode(["success" => false, "error" => "Ungültige Push-Daten."]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültige Push-Daten."]);
 }
 
 $endpoint = (string)$data["endpoint"];
@@ -35,21 +34,18 @@ if (!$is_allowed_host && $host !== "") {
 
 if (!filter_var($endpoint, FILTER_VALIDATE_URL) || ($parts["scheme"] ?? "") !== "https" || isset($parts["port"]) ||
     isset($parts["user"]) || isset($parts["pass"]) || !$is_allowed_host) {
-    echo json_encode(["success" => false, "error" => "Ungültiger Push-Endpunkt."]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültiger Push-Endpunkt."]);
 }
 
 $key = $data["keys"]["p256dh"];
 $token = $data["keys"]["auth"];
 
 if (!preg_match('/^[A-Za-z0-9\-_]{20,255}$/', $key) || !preg_match('/^[A-Za-z0-9\-_]{10,255}$/', $token)) {
-    echo json_encode(["success" => false, "error" => "Ungültige Push-Schlüssel."]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültige Push-Schlüssel."]);
 }
 
 if (strlen($endpoint) > 512 || strlen($key) > 255 || strlen($token) > 255) {
-    echo json_encode(["success" => false, "error" => "Push-Daten überschreiten die zulässige Länge."]);
-    exit;
+    send_json(["success" => false, "error" => "Push-Daten überschreiten die zulässige Länge."]);
 }
 
 $uid = $user->get_user_id();
@@ -76,4 +72,4 @@ $db_instance->execute_query("
       )
 ", [$uid, $uid]);
 
-echo json_encode(["success" => true]);
+send_json(["success" => true]);

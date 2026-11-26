@@ -17,14 +17,12 @@ if ($report_msg_id > 0) {
     $row = $res->fetch_assoc();
 
     if (!$row) {
-        echo json_encode(["success" => false, "error" => "Kampfbericht nicht gefunden oder keine Berechtigung."]);
-        exit;
+        send_json(["success" => false, "error" => "Kampfbericht nicht gefunden oder keine Berechtigung."]);
     }
 
     $data = json_decode($row["data_json"] ?? "{}", true);
     if (!is_array($data) || !Messages::is_report_shareable($data["template"] ?? null)) {
-        echo json_encode(["success" => false, "error" => "Diese Art von Bericht kann nicht geteilt werden."]);
-        exit;
+        send_json(["success" => false, "error" => "Diese Art von Bericht kann nicht geteilt werden."]);
     }
 
     $label = Messages::get_report_share_label($data) ?? "Kampfbericht";
@@ -58,58 +56,51 @@ if ($report_msg_id > 0) {
 }
 
 if (empty($raw_msg)) {
-    echo json_encode(["success" => false, "error" => "Keine Nachricht übergeben."]);
-    exit;
+    send_json(["success" => false, "error" => "Keine Nachricht übergeben."]);
 }
 
 if ($target === "copy") {
-    echo json_encode([
+    send_json([
         "success" => true,
         "message" => $raw_msg,
         "copied" => true
     ]);
-    exit;
 }
 
 if ($target === "world") {
-    echo json_encode([
+    send_json([
         "success" => true,
         "message" => $raw_msg,
         "redirect_url" => "messages.php?worldchat"
     ]);
-    exit;
 }
 
 if ($target === "guild") {
     $gid = $user->get_user_guild_id();
     if ($gid <= 0) {
-        echo json_encode(["success" => false, "error" => "Du bist in keiner Gilde."]);
-        exit;
+        send_json(["success" => false, "error" => "Du bist in keiner Gilde."]);
     }
-    echo json_encode([
+
+    send_json([
         "success" => true,
         "message" => $raw_msg,
         "redirect_url" => "guild.php?tab=chat"
     ]);
-    exit;
 }
 
 if ($target === "private") {
     if (empty($recipient_name)) {
-        echo json_encode(["success" => false, "error" => "Bitte gib einen Empfänger an."]);
-        exit;
+        send_json(["success" => false, "error" => "Bitte gib einen Empfänger an."]);
     }
 
     $res_rec = $db_instance->execute_query("SELECT id, username FROM users WHERE username = ? LIMIT 1", [$recipient_name]);
     $rec = $res_rec->fetch_assoc();
     if (!$rec) {
-        echo json_encode(["success" => false, "error" => "Dieser Spieler existiert nicht."]);
-        exit;
+        send_json(["success" => false, "error" => "Dieser Spieler existiert nicht."]);
     }
 
     if ((int)$rec["id"] === $uid) {
-        echo json_encode(["success" => false, "error" => "Du kannst dir selbst keine Nachricht schicken."]);
-        exit;
+        send_json(["success" => false, "error" => "Du kannst dir selbst keine Nachricht schicken."]);
     }
 
     $target_uid = (int)$rec["id"];
@@ -122,12 +113,11 @@ if ($target === "private") {
         ? "messages.php?action=read&s=" . $target_uid
         : "messages.php?action=new&receiver=" . urlencode($rec["username"]);
 
-    echo json_encode([
+    send_json([
         "success" => true,
         "message" => $raw_msg,
         "redirect_url" => $redirect_url
     ]);
-    exit;
 }
 
-echo json_encode(["success" => false, "error" => "Ungültiges Ziel."]);
+send_json(["success" => false, "error" => "Ungültiges Ziel."]);

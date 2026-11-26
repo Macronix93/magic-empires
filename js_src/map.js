@@ -1,3 +1,41 @@
+const formatTimeJS = (s, showSeconds = true) => formatDurationJS(s, {showSeconds, zeroText: "0s"});
+const friction = 0.95;
+const MAP_DIMENSION = 100;
+const MAX_X = MAP_DIMENSION;
+const MAX_Y = MAP_DIMENSION
+const BASE_TILE_SIZE = 60;
+const MAP_POLL_ACTIVE_INTERVAL = 60000;     // 1 minute with activity
+const MAP_POLL_IDLE_INTERVAL = 300000;      // 5 minutes with inactivity (30+ Min)
+const MAP_IDLE_THRESHOLD = 1800000;         // 30 minutes inactivity boundary
+const isWinter = document.documentElement.classList.contains("theme-winter");
+const STANDARD_COLORS = {
+    1: "#576574", // Gebirge
+    2: "#0984e3", // Küste
+    3: "#166733", // Wald
+    4: "#dca34b", // Wüste
+    5: "#78a55a"  // Hochland
+};
+const WINTER_COLORS = {
+    1: "#5d738a", // Gebirge
+    2: "#1e5b82", // Küste
+    3: "#1b4337", // Wald
+    4: "#b5a895", // Wüste
+    5: "#d0e0eb"  // Hochland
+};
+const COLORS = isWinter ? WINTER_COLORS : STANDARD_COLORS;
+const WINTER_HAT_CONFIG = {
+    goblin: {
+        x: 0.29,
+        y: -0.08,
+        size: 0.42
+    },
+    golem: {
+        x: 0.33,
+        y: -0.07,
+        size: 0.34
+    }
+};
+const IMAGE_SMOOTHING = true;
 let canvas, ctx, viewport;
 let mapData = [];
 let images = {};
@@ -10,7 +48,6 @@ let currentTranslateY = 0;
 let zoom = 1.0;
 let mapCache = null;
 let panAnimationID = null;
-let costGrid = {};
 let isAutoPanning = false;
 let burningKingdoms = [];
 let lastAnimFrame = 0;
@@ -31,43 +68,8 @@ let lastMapInteraction = Date.now();
 let mapPollTimeout = null;
 let gameConfig = {};
 let lastMapSync = Date.now();
-const friction = 0.95;
-const MAP_DIMENSION = 100;
-const MAX_X = MAP_DIMENSION;
-const MAX_Y = MAP_DIMENSION
-const BASE_TILE_SIZE = 60;
-const MAP_POLL_ACTIVE_INTERVAL = 60000;   // 1 minute with activity
-const MAP_POLL_IDLE_INTERVAL = 300000;  // 5 minutes with inactivity (30+ Min)
-const MAP_IDLE_THRESHOLD = 1800000; // 30 minutes inactivity boundary
-const isWinter = document.documentElement.classList.contains("theme-winter");
-const STANDARD_COLORS = {
-    1: "#576574", // Gebirge
-    2: "#0984e3", // Küste
-    3: "#166733", // Wald
-    4: "#dca34b", // Wüste
-    5: "#78a55a"  // Hochland
-};
-const WINTER_COLORS = {
-    1: "#5d738a", // Gebirge
-    2: "#1e5b82", // Küste
-    3: "#1b4337", // Wald
-    4: "#b5a895", // Wüste
-    5: "#d0e0eb"  // Hochland
-};
-const COLORS = isWinter ? WINTER_COLORS : STANDARD_COLORS;
-const WINTER_HAT_CONFIG = {
-    goblin: {
-        x: 0.30,
-        y: -0.08,
-        size: 0.42
-    },
-    golem: {
-        x: 0.32,
-        y: -0.07,
-        size: 0.34
-    }
-};
-const IMAGE_SMOOTHING = true;
+let entityTiles = [];
+let minTraversalCost = null;
 
 registerAction("jumpToHome", (el, e) => {
     if (e) e.stopPropagation();
@@ -130,7 +132,6 @@ function createSmartMapImage(filename, onLoadCallback) {
     const img = new Image();
     const defaultPath = `images/icons/${filename}`;
     const winterPath = `images/winter/icons/${filename}`;
-    const isWinter = document.documentElement.classList.contains("theme-winter");
 
     let finished = false;
     const onDone = () => {
@@ -225,6 +226,33 @@ function buildBiomeMapCache() {
     });
 }
 
+function rebuildMapIndices() {
+    burningKingdoms = [];
+    entityTiles = [];
+
+    for (let i = 0; i < mapData.length; i++) {
+        const t = mapData[i];
+        const kid = t[3] ?? -1;
+
+        if (kid !== -1 || (t[16] || 0) > 0 || !!t[12]) {
+            entityTiles.push(t);
+
+            if (kid > 0 && t[5]) {
+                burningKingdoms.push(t);
+            }
+        }
+    }
+}
+
+function getTileAt(x, y) {
+    if (x < 1 || x > MAX_X || y < 1 || y > MAX_Y) return null;
+
+    const direct = mapData[(y - 1) * MAX_X + (x - 1)];
+    if (direct && direct[0] === x && direct[1] === y) return direct;
+
+    return mapData.find(t => t[0] === x && t[1] === y) || null;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     viewport = document.getElementById("map-viewport");
     canvas = document.getElementById("map-canvas");
@@ -274,40 +302,15 @@ document.addEventListener("DOMContentLoaded", () => {
             zoom = 1.0;
         }
 
-        const shouldRestore = sessionStorage.getItem("restore_map_zoom_after_send");
         const savedZoom = sessionStorage.getItem("last_map_zoom");
-        if (shouldRestore === "true" && savedZoom !== null) {
+        if (savedZoom !== null) {
             const parsed = parseFloat(savedZoom);
 
             if (!isNaN(parsed) && parsed >= 0.15 && parsed <= 2.0) {
                 zoom = parsed;
             }
 
-            sessionStorage.removeItem("restore_map_zoom_after_send");
             sessionStorage.removeItem("last_map_zoom");
-        }
-
-        const shouldRestoreFilters = sessionStorage.getItem("restore_map_filters_after_send");
-        if (shouldRestoreFilters === "true") {
-            sessionStorage.removeItem("restore_map_filters_after_send");
-            const savedFilters = sessionStorage.getItem("me_map_temp_filters");
-
-            if (savedFilters) {
-                try {
-                    const filterStates = JSON.parse(savedFilters);
-                    ["filter-players", "filter-resources", "filter-monsters", "filter-ruins", "filter-mines"].forEach(id => {
-                        const el = document.getElementById(id);
-
-                        if (el && filterStates[id] !== undefined) {
-                            el.checked = filterStates[id];
-                        }
-                    });
-                } catch (e) {
-                    showGameError("Filter-Restore-Fehler:" + e);
-                }
-
-                sessionStorage.removeItem("me_map_temp_filters");
-            }
         }
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -319,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 mapData = data.map_data;
                 window.activeEventInfo = data.event_info;
                 mapCache = null;
-                burningKingdoms = mapData.filter(t => t[3] > 0 && t[5]);
+                rebuildMapIndices();
 
                 if (gameConfig.useAutoTiling) {
                     buildBiomeMapCache();
@@ -370,9 +373,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (btn) {
             sessionStorage.setItem("last_map_zoom", zoom.toString());
-            sessionStorage.setItem("restore_map_zoom_after_send", "true");
-
-            saveCurrentFilters();
         }
 
         const mapContainer = document.getElementById("map-container");
@@ -496,21 +496,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     const filterIds = ["filter-players", "filter-resources", "filter-monsters", "filter-ruins", "filter-mines"];
-
-    function saveCurrentFilters() {
-        const filterStates = {};
-        filterIds.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) filterStates[id] = el.checked;
-        });
-        sessionStorage.setItem("me_map_temp_filters", JSON.stringify(filterStates));
-    }
-
     filterIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener("change", () => {
-                saveCurrentFilters();
                 draw();
             });
         }
@@ -571,11 +560,7 @@ function resizeCanvas() {
     canvas.style.height = newHeight + "px";
 
     ctx.scale(ratio, ratio);
-
     ctx.imageSmoothingEnabled = IMAGE_SMOOTHING;
-    ctx.mozImageSmoothingEnabled = IMAGE_SMOOTHING;
-    ctx.webkitImageSmoothingEnabled = IMAGE_SMOOTHING;
-    ctx.msImageSmoothingEnabled = IMAGE_SMOOTHING;
 
     clampMapPosition();
     draw();
@@ -767,7 +752,7 @@ function draw() {
         const filterRuins = document.getElementById("filter-ruins").checked;
         const filterMines = document.getElementById("filter-mines")?.checked;
 
-        mapData.forEach(tile => {
+        entityTiles.forEach(tile => {
             const [x, y, , kid = -1, level = 0, isBurning = false, monsterLevel = 0, , , ,
                 owner_id = 0, , myTroopIcon = "", enemyGuildId = -1, , mineInfo = null, giftDay = 0] = tile;
 
@@ -793,12 +778,12 @@ function draw() {
                     ctx.fillRect(bX, bY, badgeW, badgeH);
                     ctx.strokeRect(bX, bY, badgeW, badgeH);
 
-                    const fontSize = Math.max(7, Math.round(badgeH * 0.75));
+                    const fontSize = badgeH * 0.72;
                     ctx.fillStyle = "#d4af37";
-                    ctx.font = `bold ${fontSize}px "Roboto Mono", monospace`;
+                    ctx.font = `bold ${fontSize.toFixed(1)}px "Roboto Mono", monospace`;
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
-                    ctx.fillText(giftDay, bX + (badgeW / 2), bY + (badgeH / 2));
+                    ctx.fillText(giftDay, bX + (badgeW / 2), bY + (badgeH / 2) + (fontSize * 0.05));
                 }
             }
 
@@ -1078,7 +1063,6 @@ function dragStart(e) {
 
 function dragMove(e) {
     if (!isDragging) return;
-    const now = Date.now();
 
     const moveX = Math.abs(e.pageX - initialMouseX);
     const moveY = Math.abs(e.pageY - initialMouseY);
@@ -1102,7 +1086,7 @@ function dragMove(e) {
     currentTranslateY = e.pageY - startY;
     lastMouseX = e.pageX;
     lastMouseY = e.pageY;
-    lastMoveTime = now;
+    lastMoveTime = Date.now();
 
     clampMapPosition();
 
@@ -1159,7 +1143,7 @@ function selectField(x, y, shouldCenter = false) {
 
     if (shouldCenter) centerMapOn(x, y);
 
-    const tile = mapData.find(t => t[0] === x && t[1] === y);
+    const tile = getTileAt(x, y);
     if (!tile) return;
 
     const [tx, ty, fieldtype, kid = -1, level = 0, , m_lvl = 0, owner = "", kname = "",
@@ -1171,7 +1155,7 @@ function selectField(x, y, shouldCenter = false) {
     currentPath = pathResult.path;
 
     let baseTravelTime = pathResult.totalTime * gameConfig.currentKingdom.marchMultiplier;
-    const now = Math.floor(Date.now() / 1000);
+    const nowTime = Math.floor(Date.now() / 1000);
 
     let isCommandLimitReached = gameConfig.currentKingdom.commandsFull;
     let cmdLimitMsg = `Befehlslimit erreicht (${gameConfig.currentKingdom.occupiedCommands}/${gameConfig.currentKingdom.maxCommands})`;
@@ -1208,7 +1192,7 @@ function selectField(x, y, shouldCenter = false) {
         html += `<div class="title-border">Advents-Geschenk (Tag ${giftDay})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
         html += `${coordsRowHtml}`;
-        html += `<tr><td class="td-mapinfo"><b>Belohnung</b></td><td>Rohstoffe, ${giftDay} ${giftDay === 1 ? "Münze" : "Münzen"} & Truppen-Chance</td></tr>`;
+        html += `<tr><td class="td-mapinfo"><b>Belohnung</b></td><td>Rohstoffe, ${giftDay} ${giftDay === 1 ? "Münze" : "Münzen"}<br>& Truppen-Chance</td></tr>`;
         html += `<tr><td class="td-mapinfo"><b>Ankunftszeit</b></td><td>${formatTimeJS(travelGift)} <small style="color: #0BDA51;">(Eilbote)</small></td></tr>`;
         html += `<tr><td colspan="2" class="td-mapinfo" style="text-align: center;">`;
 
@@ -1245,7 +1229,7 @@ function selectField(x, y, shouldCenter = false) {
     } else if (kid === -2) {
         // --- RESOURCE TILE
         const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
-        const lifetime = expiresAt - now;
+        const lifetime = expiresAt - nowTime;
         const arrivalNormal = Math.round(baseTravelTime);
         const isTooSlow = arrivalNormal > lifetime;
 
@@ -1276,8 +1260,8 @@ function selectField(x, y, shouldCenter = false) {
     } else if (kid === -3) {
         // --- MONSTER CAMP
         const travelMonster = baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST;
-        const arrivalScout = (travelMonster / gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST) * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST;
-        const lifetime = expiresAt - now;
+        const arrivalScout = baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST;
+        const lifetime = expiresAt - nowTime;
         const isTooSlow = travelMonster > lifetime;
 
         const troops = gameConfig.currentKingdom.troops || {};
@@ -1322,7 +1306,7 @@ function selectField(x, y, shouldCenter = false) {
         // --- ABANDONED KINGDOM ---
         const travelTime = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_TRAVEL_BOOST);
         const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
-        const lifetime = expiresAt - now;
+        const lifetime = expiresAt - nowTime;
 
         html += `<div class="title-border">Ruinen von ${kname}</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
@@ -1360,7 +1344,7 @@ function selectField(x, y, shouldCenter = false) {
         const arrivalScout = Math.round(baseTravelTime * gameConfig.constants.MONSTER_CAMP_SCOUT_BOOST);
         const travelMine = Math.round(baseTravelTime * (gameConfig.constants.MINE_TRAVEL_BOOST || 0.3));
 
-        const lifetime = expiresAt - now;
+        const lifetime = expiresAt - nowTime;
         const isTooSlow = travelMine > lifetime;
         const timeColorStyle = isTooSlow ? "style='color: #ff4d4d;'" : "";
 
@@ -1520,7 +1504,7 @@ function selectField(x, y, shouldCenter = false) {
     } else {
         // --- PLAYER KINGDOM
         const scoreIcon = `<img src="images/icons/icon_score.png" class="ressource-icons" alt="">`;
-        const ownerDisplay = `<a href="#" data-on-click="openOverlay" data-url="userinfo.php?userid=${ownerId}" data-title="Spieler-Info">${owner}</a>`;
+        const ownerDisplay = `<a href="#" data-on-click="openOverlay" data-url="ajax/userinfo.php?userid=${ownerId}" data-title="Spieler-Info">${owner}</a>`;
 
         html += `<div class="title-border">Königreich-Info (${fieldName})</div>`;
         html += `<table class="table" style="margin-top: 20px; max-width: 500px; text-align: left;">`;
@@ -1751,91 +1735,121 @@ function updateMapCommandDisplay() {
     }
 }
 
-function formatTimeJS(s, showSeconds = true) {
-    s = parseInt(s);
-    if (isNaN(s) || s <= 0) return "0s";
-
-    const d = Math.floor(s / 86400);
-    const h = Math.floor((s % 86400) / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-
-    let parts = [];
-    if (d > 0) parts.push(d + "T");
-    if (h > 0) parts.push(h + " Std.");
-    if (m > 0) parts.push(m + " Min.");
-
-    if ((showSeconds && sec > 0) || parts.length === 0) {
-        parts.push(sec + " Sek.");
-    }
-
-    return parts.length > 0 ? parts.join(" ") : "0s";
-}
-
 function calculatePathLocal(sx, sy, ex, ey) {
-    if (Object.keys(costGrid).length === 0) {
-        mapData.forEach(tile => {
-            if (!costGrid[tile[0]]) costGrid[tile[0]] = {};
-            costGrid[tile[0]][tile[1]] = tile[2];
-        });
+    if (sx === ex && sy === ey) {
+        return {path: [{x: sx, y: sy}], totalTime: 0};
     }
 
-    const start = {x: sx, y: sy};
-    const end = {x: ex, y: ey};
+    if (minTraversalCost === null) {
+        const metaVals = Object.values(gameConfig.fieldMeta || {}).map(Number).filter(v => v > 0);
+        minTraversalCost = metaVals.length > 0 ? Math.min(...metaVals) : 40;
+    }
 
-    let openList = [];
-    let closedList = new Set();
-    let nodes = new Map();
-
-    const encode = (p) => `${p.x},${p.y}`;
-    const getCost = (p) => {
-        const type = costGrid[p.x] ? costGrid[p.x][p.y] : 5;
+    const getCost = (x, y) => {
+        const tile = getTileAt(x, y);
+        const type = tile ? tile[2] : 5;
         return gameConfig.fieldMeta[type] || 100;
     };
 
-    const startKey = encode(start);
-    nodes.set(startKey, {g: 0, f: Math.abs(sx - ex) + Math.abs(sy - ey), x: sx, y: sy, parent: null});
-    openList.push(nodes.get(startKey));
+    const heap = [];
+    const heapPush = (node) => {
+        heap.push(node);
 
-    while (openList.length > 0) {
-        openList.sort((a, b) => a.f - b.f);
-        let current = openList.shift();
+        let i = heap.length - 1;
 
-        if (current.x === end.x && current.y === end.y) {
-            let path = [];
-            let totalTime = current.g;
-            let temp = current;
-            while (temp) {
-                path.push({x: temp.x, y: temp.y});
-                temp = temp.parent;
+        while (i > 0) {
+            const parent = (i - 1) >> 1;
+
+            if (heap[parent].f <= heap[i].f) break;
+
+            const tmp = heap[parent];
+            heap[parent] = heap[i];
+            heap[i] = tmp;
+            i = parent;
+        }
+    };
+    const heapPop = () => {
+        const top = heap[0];
+        const last = heap.pop();
+
+        if (heap.length > 0) {
+            heap[0] = last;
+            let i = 0;
+            const len = heap.length;
+
+            while (true) {
+                const l = (i << 1) + 1;
+                const r = l + 1;
+                let smallest = i;
+                if (l < len && heap[l].f < heap[smallest].f) smallest = l;
+                if (r < len && heap[r].f < heap[smallest].f) smallest = r;
+                if (smallest === i) break;
+                const tmp = heap[i];
+                heap[i] = heap[smallest];
+                heap[smallest] = tmp;
+                i = smallest;
             }
-            return {path: path.reverse(), totalTime: totalTime};
+        }
+        return top;
+    };
+
+    const startKey = sx * 1000 + sy;
+    const endKey = ex * 1000 + ey;
+    const gScores = new Map([[startKey, 0]]);
+    const parents = new Map();
+    const closed = new Set();
+
+    heapPush({
+        key: startKey,
+        x: sx,
+        y: sy,
+        f: (Math.abs(sx - ex) + Math.abs(sy - ey)) * minTraversalCost
+    });
+
+    while (heap.length > 0) {
+        const current = heapPop();
+
+        if (current.key === endKey) {
+            const path = [];
+            let k = endKey;
+
+            while (k !== undefined) {
+                path.push({x: Math.floor(k / 1000), y: k % 1000});
+                k = parents.get(k);
+            }
+
+            return {path: path.reverse(), totalTime: gScores.get(endKey)};
         }
 
-        closedList.add(encode(current));
+        if (closed.has(current.key)) continue;
+        closed.add(current.key);
 
-        const neighbors = [
-            {x: current.x, y: current.y + 1}, {x: current.x, y: current.y - 1},
-            {x: current.x + 1, y: current.y}, {x: current.x - 1, y: current.y}
-        ];
+        const currentG = gScores.get(current.key);
+        const cx = current.x;
+        const cy = current.y;
 
-        for (let n of neighbors) {
-            if (n.x < 1 || n.x > MAX_X || n.y < 1 || n.y > MAX_Y) continue;
-            if (closedList.has(encode(n))) continue;
+        const neighbors = [];
+        if (cy < MAX_Y) neighbors.push([cx, cy + 1, current.key + 1]);
+        if (cy > 1) neighbors.push([cx, cy - 1, current.key - 1]);
+        if (cx < MAX_X) neighbors.push([cx + 1, cy, current.key + 1000]);
+        if (cx > 1) neighbors.push([cx - 1, cy, current.key - 1000]);
 
-            let moveCost = getCost(n);
-            let gScore = current.g + moveCost;
-            let nKey = encode(n);
-            let neighborNode = nodes.get(nKey);
+        for (let i = 0; i < neighbors.length; i++) {
+            const [nx, ny, nKey] = neighbors[i];
+            if (closed.has(nKey)) continue;
 
-            if (!neighborNode || gScore < neighborNode.g) {
-                let h = Math.abs(n.x - end.x) + Math.abs(n.y - end.y);
-                let newNode = {g: gScore, f: gScore + h, x: n.x, y: n.y, parent: current};
-                nodes.set(nKey, newNode);
-                if (!neighborNode) openList.push(newNode);
+            const gScore = currentG + getCost(nx, ny);
+            const prevG = gScores.get(nKey);
+
+            if (prevG === undefined || gScore < prevG) {
+                gScores.set(nKey, gScore);
+                parents.set(nKey, current.key);
+                const h = (Math.abs(nx - ex) + Math.abs(ny - ey)) * minTraversalCost;
+                heapPush({key: nKey, x: nx, y: ny, f: gScore + h});
             }
         }
     }
+
     return {path: [], totalTime: 0};
 }
 
@@ -1874,8 +1888,7 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
         .then(data => {
             mapData = data.map_data;
             window.activeEventInfo = data.event_info;
-            burningKingdoms = mapData.filter(t => t[3] > 0 && t[5]);
-
+            rebuildMapIndices();
             draw();
 
             if (selectedX && selectedY) {
@@ -2018,26 +2031,11 @@ function refreshMapDataSilently(closePopup = false, callback = null) {
     });
 })();
 
-window.handleMapKingdomSwitch = function (firstArg, sidebarDataFallback, hasAnyAlchemyReady) {
-    if (!firstArg) return;
+window.handleMapKingdomSwitch = function (dataObj) {
+    if (!dataObj || !dataObj.kingdom) return;
 
-    let dataObj;
-    let newKingdom;
-
-    if (firstArg.kingdom) {
-        dataObj = firstArg;
-        newKingdom = firstArg.kingdom;
-        hasAnyAlchemyReady = firstArg.has_any_alchemy_ready;
-    } else {
-        newKingdom = firstArg;
-        dataObj = {
-            kingdom: newKingdom,
-            sidebar_html: typeof sidebarDataFallback === "string" ? sidebarDataFallback : "",
-            sidebar_html_desk: sidebarDataFallback?.sidebar_html_desk || sidebarDataFallback,
-            sidebar_html_mob: sidebarDataFallback?.sidebar_html_mob || sidebarDataFallback,
-            has_any_alchemy_ready: hasAnyAlchemyReady
-        };
-    }
+    const newKingdom = dataObj.kingdom;
+    const hasAnyAlchemyReady = dataObj.has_any_alchemy_ready;
 
     if (gameConfig && gameConfig.currentKingdom) {
         Object.assign(gameConfig.currentKingdom, newKingdom);
@@ -2056,7 +2054,8 @@ window.handleMapKingdomSwitch = function (firstArg, sidebarDataFallback, hasAnyA
     const prevTargetY = selectedY;
 
     if (prevTargetX !== null && prevTargetY !== null && mapData.length > 0) {
-        const currentSelectedTile = mapData.find(t => t[0] === prevTargetX && t[1] === prevTargetY);
+        const currentSelectedTile = getTileAt(prevTargetX, prevTargetY);
+
         if (currentSelectedTile) {
             keepTarget = true;
         }

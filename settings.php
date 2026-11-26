@@ -6,7 +6,9 @@ $user->check_user_login();
 
 $uid = $user->get_user_id();
 $res_user = $db_instance->execute_query("
-    SELECT u.linked_user_id, u.last_avatar_change, partner.username AS partner_name
+    SELECT u.username, u.email, u.registerdate, u.lastlogin, u.adminlevel,
+           u.linked_user_id, u.last_avatar_change, u.active_title_id, u.gender,
+           partner.username AS partner_name
     FROM users u
     LEFT JOIN users partner ON u.linked_user_id = partner.id
     WHERE u.id = ?
@@ -72,17 +74,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         $check_result = check_image_content($file_tmp);
-        if ($check_result === "loading") {
-            change_location($tab_url, error: "Sicherheitsprüfung lädt noch... Bitte in 15 Sekunden erneut versuchen.");
-        }
         if (str_starts_with($check_result, "error")) {
-            change_location($tab_url, error: "Technischer Fehler bei der Bildprüfung: " . htmlspecialchars($check_result));
+            change_location($tab_url, error: "Technischer Fehler bei der Bildprüfung: " . e($check_result));
         }
         if ($check_result === "blocked") {
             change_location($tab_url, error: "Dein Bild wurde als unangemessen eingestuft und ist nicht erlaubt.");
         }
         if ($check_result !== "ok") {
-            change_location($tab_url, error: "Bild konnte nicht verifiziert werden (" . htmlspecialchars($check_result) . ").");
+            change_location($tab_url, error: "Bild konnte nicht verifiziert werden (" . e($check_result) . ").");
         }
 
         $hashed_name = substr(hash("sha256", $user->get_user_id() . AVATAR_SALT), 0, 12);
@@ -609,7 +608,7 @@ $view .= '<div style="display: flex; align-items: center;  justify-content: cent
 $view .= "<div id='tab_profile' class='settings-tab' style='display: " . ($active_tab === 'profile' ? 'block' : 'none') . "; width: 100%;'>";
 
 $unlocked_titles = Achievement::get_unlocked_titles($uid);
-$current_title_id = (int)($db_instance->execute_query("SELECT active_title_id FROM users WHERE id = ?", [$uid])->fetch_column() ?? 0);
+$current_title_id = (int)($user_data["active_title_id"] ?? 0);
 
 $title_options = "<option value='0'" . ($current_title_id === 0 ? " selected" : "") . " 
                             data-title-m='-- Kein Titel (Ausblenden) --' 
@@ -621,7 +620,7 @@ foreach ($unlocked_titles as $t) {
     $title_options .= "<option value='{$t['id']}' $selected data-title-m='" . e($t['title_m']) . "' data-title-f='" . e($t['title_f']) . "'>" . e($t['title']) . "</option>";
 }
 
-$user_gender = $db_instance->execute_query("SELECT gender FROM users WHERE id = ?", [$uid])->fetch_column() ?: 'm';
+$user_gender = $user_data["gender"] ?: 'm';
 
 $view .= '
 <div class="box-container">
@@ -774,12 +773,12 @@ $view .= '
     </div>
 </div>';
 
-$user_kingdoms_list = $db_instance->execute_query(
+$all_user_kingdoms = $db_instance->execute_query(
     "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
     [$uid]
 )->fetch_all(MYSQLI_ASSOC);
 
-if (count($user_kingdoms_list) > 1) {
+if (count($all_user_kingdoms) > 1) {
     $view .= '
     <div class="box-container">
         <div class="box-header">Königreiche sortieren</div>
@@ -792,7 +791,7 @@ if (count($user_kingdoms_list) > 1) {
                 <input type="hidden" name="save_kingdom_order" value="1">
                 <div id="kingdom-sort-list" style="display: flex; flex-direction: column; margin-bottom: 15px;">';
 
-    foreach ($user_kingdoms_list as $idx => $uk) {
+    foreach ($all_user_kingdoms as $idx => $uk) {
         $pos = $idx + 1;
         $view .= '
                     <div class="kingdom-sort-item" draggable="true">
@@ -843,13 +842,9 @@ $view .= "</div>";
 $view .= "<div id='tab_account' class='settings-tab' style='display: " . ($active_tab === 'account' ? 'block' : 'none') . "; width: 100%;'>";
 
 // Get user data
-$query = "SELECT username, email, registerdate, lastlogin, adminlevel FROM users WHERE id = ?";
-$res = $db_instance->execute_query($query, [$uid]);
-$data = $res->fetch_assoc();
-
 $time_diff = $now - $_SESSION["currlogin"];
 
-$role = match ($data["adminlevel"]) {
+$role = match ($user_data["adminlevel"]) {
     ADMIN_LEVEL_SUPPORTER => "Supporter",
     ADMIN_LEVEL_LIGHT_ADMIN => "Light Admin",
     ADMIN_LEVEL_FULL_ADMIN => "Full Admin",
@@ -858,12 +853,12 @@ $role = match ($data["adminlevel"]) {
 
 $view .= "<div class='title-border'>Account-Informationen</div>
         <table class='table' style='max-width: 600px; margin-bottom: 20px;'>
-            <tr><td><b>Spieler-Name:</b></td><td>" . e($data["username"]) . "</td></tr>
-            <tr><td><b>E-Mail Adresse:</b></td><td>" . e($data["email"]) . "</td></tr>
-            <tr><td><b>Registriert seit:</b></td><td>" . date("d.m.Y H:i:s", $data["registerdate"]) . " Uhr</td></tr>
-            <tr><td><b>Letzter Login:</b></td><td>" . date("d.m.Y H:i:s", $data["lastlogin"]) . " Uhr</td></tr>
+            <tr><td><b>Spieler-Name:</b></td><td>" . e($user_data["username"]) . "</td></tr>
+            <tr><td><b>E-Mail Adresse:</b></td><td>" . e($user_data["email"]) . "</td></tr>
+            <tr><td><b>Registriert seit:</b></td><td>" . date("d.m.Y H:i:s", $user_data["registerdate"]) . " Uhr</td></tr>
+            <tr><td><b>Letzter Login:</b></td><td>" . date("d.m.Y H:i:s", $user_data["lastlogin"]) . " Uhr</td></tr>
             <tr><td><b>Login-Zeit:</b></td><td><span id='login-counter' data-start='$time_diff'></span></td></tr>
-            <tr><td><b>Account-Level:</b></td><td>{$data["adminlevel"]} ($role)</td></tr>
+            <tr><td><b>Account-Level:</b></td><td>{$user_data["adminlevel"]} ($role)</td></tr>
         </table>";
 
 $view .= '

@@ -1,8 +1,6 @@
 <?php
 require_once("../includes/ajax_core.php");
 
-$db = Database::get_instance()->get_connection();
-
 $german_months = [
         1 => "Januar", 2 => "Februar", 3 => "März", 4 => "April",
         5 => "Mai", 6 => "Juni", 7 => "Juli", 8 => "August",
@@ -10,14 +8,14 @@ $german_months = [
 ];
 
 // Get all available months
-$months_res = $db->query("SELECT DISTINCT season_month FROM arena_season_history ORDER BY season_month DESC");
+$months_res = $db_instance->query("SELECT DISTINCT season_month FROM arena_season_history ORDER BY season_month DESC");
 $available_months = array_column($months_res->fetch_all(MYSQLI_ASSOC), "season_month");
 
 $selected_month = get_str("month", $available_months[0] ?? date("Y-m"));
 
 $entries = [];
 if (!empty($available_months)) {
-    $res = $db->execute_query("
+    $res = $db_instance->execute_query("
         SELECT h.*, u.username, u.guildid, g.tag AS guild_tag
         FROM arena_season_history h
         JOIN users u ON h.user_id = u.id

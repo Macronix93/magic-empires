@@ -470,8 +470,8 @@ if ($other_kingdoms_res->num_rows > 0) {
                             </div>
                         </td>
                     </tr>
-                    </form>
-                    </table>';
+                    </table>
+                    </form>';
 
         $view .= "<div id='internal-arrival-data' data-times='" . json_encode($arrival_times_cache) . "' data-stocks='" . e(json_encode($target_kingdoms_data)) . "'></div>";
     }

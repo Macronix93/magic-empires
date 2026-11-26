@@ -1,7 +1,5 @@
 <?php
-require_once("includes/core.php");
-
-$user->check_user_login();
+require_once("../includes/ajax_core.php");
 
 $building_id = isset($_GET["bid"]) ? get_int("bid", -1) : null;
 $tech_id = isset($_GET["tid"]) ? get_int("tid", -1) : null;
@@ -23,7 +21,7 @@ if ($building_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM building_list WHERE id = ?", [$building_id])->fetch_assoc();
 
     if ($row) {
-        $building = $kingdom->fetch_kingdom_building($user->get_current_kingdom(), $building_id);
+        $building = $kingdom->fetch_kingdom_building($building_id);
         $current_level_value = $building ? $building->get_building_level() : 0;
         $max_lvl_to_show = Building::get_max_building_level($building_id);
         $time_key = "timetobuild";
@@ -33,7 +31,7 @@ if ($building_id !== null) {
     $row = $db_instance->execute_query("SELECT * FROM tech_list WHERE id = ?", [$tech_id])->fetch_assoc();
 
     if ($row) {
-        $tech = $kingdom->fetch_kingdom_tech($user->get_current_kingdom(), $tech_id);
+        $tech = $kingdom->fetch_kingdom_tech($tech_id);
         $current_level_value = $tech ? $tech->get_tech_level() : 0;
         $max_lvl_to_show = ($tech_id === TechTypes::TECH_TYPE_IMPERIAL)
             ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
@@ -312,7 +310,6 @@ if ($row) {
         $view .= "</div></div>";
     } else {
         $m = $row["multiplicator"];
-        $current_bid = $building_id ?? (int)($row["id"] ?? -1);
         $calc_cost = ($building_id !== null)
             ? fn(int $base, int $lvl) => Building::calculate_cost($building_id, $base, $lvl, $m)
             : fn(int $base, int $lvl) => ($base <= 0) ? 0 : (int)round($base * pow($m, $lvl));

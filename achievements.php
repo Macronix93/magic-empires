@@ -108,7 +108,7 @@ foreach ($grouped as $catKey => $items) {
         }
 
         $progress_html = "";
-        if (!$is_secret) {
+        if (!$is_secret && !$is_unlocked) {
             $req_type = (int)$ach["req_type"];
             $req_val = (int)$ach["req_value"];
             $current_val = $player_metrics[$req_type] ?? 0;

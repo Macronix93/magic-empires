@@ -50,7 +50,7 @@ class Database
                         $post_info = " | POST-Keys: ($keys)";
                     }
 
-                    $target = (getenv("HOST") ?: "127.0.0.1") . ":" . $port;
+                    $target = $host . ":" . $port;
 
                     $details = sprintf(
                         "DB-Verbindungsfehler nach %d Versuchen zu [%s]! Aufruf: [%s %s%s]%s | Fehler (%d): %s",

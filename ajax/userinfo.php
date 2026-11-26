@@ -1,7 +1,6 @@
 <?php
-require_once("includes/core.php");
+require_once("../includes/ajax_core.php");
 
-$user->check_user_login();
 $user_id = get_int("userid");
 
 if ($user_id) {
@@ -57,10 +56,7 @@ if ($user_id) {
             k.mapx, 
             k.mapy,
             IFNULL(b.buildinglevel, 0) AS barracks_level,
-            (
-                IFNULL((SELECT SUM(soldiercount) FROM stationed_troops WHERE target_kingdom_id = k.id), 0) +
-                IFNULL((SELECT SUM(st.soldiercount) FROM sent_troops st JOIN events e ON st.eventid = e.eventid WHERE e.targetid = k.id AND e.actionid = " . ActionTypes::ACTION_STATION_TROOPS . "), 0)
-            ) AS current_support
+            " . Soldier::get_support_load_sql("k.id") . " AS current_support
         FROM kingdoms k
         LEFT JOIN buildings b ON b.kingdomid = k.id AND b.buildingid = " . BuildingTypes::BUILDING_BARRACKS . "
         WHERE k.userid = ?
@@ -146,7 +142,7 @@ if ($user_id) {
                     <?php endif; ?>
                     <?php
                     if ($user_id !== $user->get_user_id()): ?>
-                        <div data-on-click="redirect" data-url="<?= $msg_url ?>"
+                        <div data-on-click="navigate" data-url="<?= $msg_url ?>"
                              style="font-size: 18px; cursor: pointer;"><?= Messages::wrap_emojis("✉️") ?>
                         </div>
                     <?php endif; ?>
@@ -241,9 +237,9 @@ if ($user_id) {
                                 data-userid='$user_id' 
                                 data-username='" . e($user_name) . "'
                                 class='guild-invitation-button'>Einladen</button>
-                    </td>
-                  </tr>";
+                ";
             }
+            echo "</td>";
             ?>
         </tr>
         <tr>

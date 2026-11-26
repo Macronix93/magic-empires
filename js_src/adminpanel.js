@@ -127,43 +127,9 @@ registerAction("banUserDialog", (el) => {
         );
     }
 });
+registerAction("confirmDeleteLog", (el, e) => {
+    if (e) e.stopPropagation();
 
-registerAction("confirmDeleteNews", (el) => {
-    const newsId = el.dataset.id;
-
-    showConfirmationDialog(
-        "Soll dieser Neuigkeiten-Eintrag wirklich gelöscht werden?",
-        "Ja, löschen",
-        "Abbrechen",
-        () => {
-            const form = document.createElement("form");
-            form.method = "POST";
-            form.action = "news.php";
-
-            const idInput = document.createElement("input");
-            idInput.type = "hidden";
-            idInput.name = "news_id";
-            idInput.value = newsId;
-            form.appendChild(idInput);
-
-            const actionInput = document.createElement("input");
-            actionInput.type = "hidden";
-            actionInput.name = "delete_news";
-            actionInput.value = "1";
-            form.appendChild(actionInput);
-
-            const tokenInput = document.createElement("input");
-            tokenInput.type = "hidden";
-            tokenInput.name = "csrf_token";
-            tokenInput.value = getCsrfToken();
-            form.appendChild(tokenInput);
-
-            document.body.appendChild(form);
-            form.submit();
-        }
-    );
-});
-registerAction("confirmDeleteLog", (el) => {
     const logId = el.dataset.id;
     const page = el.dataset.page || 1;
 
@@ -259,6 +225,7 @@ registerAction("switchAdminTab", (el) => {
 
     const url = new URL(window.location);
     url.searchParams.set("tab", tabName);
+    document.cookie = "me_admin_tab=" + tabName + "; path=/; max-age=31536000; SameSite=Lax";
 
     if (tabName !== "users") {
         url.searchParams.delete("userid");

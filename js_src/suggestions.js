@@ -227,9 +227,8 @@ registerAction("paginateSuggestionComments", (el, e) => {
     loadSuggestionCommentsModal(sugId, page);
 });
 
-function loadSuggestionCommentsModal(sugId, page = 1, extraParams = "") {
+function loadSuggestionCommentsModal(sugId, page = 1) {
     let url = `ajax/suggestion_comments.php?id=${sugId}&cpage=${page}`;
-    if (extraParams) url += `&${extraParams}`;
 
     fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
         .then(r => r.text())

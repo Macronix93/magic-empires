@@ -11,7 +11,6 @@ const AFK_SECONDS = 300;                                // 5 Minutes
 const USER_UPDATE_TICK = 30;                            // 30 Seconds
 const INACTIVITY_DELAY = 864000;
 const REMEMBER_ME_COOKIE_DAYS = 365;
-const ERROR_LOG_FILE = __DIR__ . "/../logs/error.log";
 const ERROR_DATE_FORMAT = "D M d H:i:s";
 const MAX_SQL_BACKUPS = 7;
 const PAGE_ICONS = [
@@ -41,6 +40,7 @@ const PAGE_ICONS = [
     'privacy.php' => 'images/icons/icon_privacy.png',
     'support.php' => 'images/icons/icon_question.png',
 ];
+const EVENT_LOCK_TIMEOUT_SECONDS = 60;
 
 // --- Admin-Level & Support-System ---
 const ADMIN_LEVEL_SUPPORTER = 1;
@@ -95,6 +95,8 @@ const MAX_RESOURCES_PER_TILE = 32334;
 const STORAGE_STARTING_VALUE = 10000;
 const STORAGE_INC_FACTOR = 1.888;
 const STORAGE_SECURE_PERCENT_STEP = 0.015;
+const STORAGE_PUSH_COOLDOWN = 14400;
+const STORAGE_RESET_LIMIT = 0.85;
 const BASE_BOOST_DURATION = 2;
 const BOOST_BASE_AMOUNT = 400;
 const BOOST_AMOUNT_PER_LEVEL = 50;
@@ -364,9 +366,6 @@ const WORLD_EVENT_HP_CHANCE_CONQUEROR = 3;       // Chance for Conqueror Reward
 const WORLD_EVENT_HP_MAX_CONQUEROR = 1;          // Number of Conqueror Rewards per slot
 const WORLD_EVENT_HP_CHANCE_RAM = 2;            // Chance for Ram Reward
 const WORLD_EVENT_HP_MAX_RAM = 1;               // Number of Ram Rewards per slot
-// Damage-Boss Loot
-const WORLD_EVENT_DMG_GOLD_RATIO = 35;           // 1 Gold per X Dmg
-const WORLD_EVENT_DMG_GOLD_MAX = 100000;         // Max Gold Cap
 
 // --- Guilds ---
 const GUILD_TAG_MIN = 2;
@@ -589,6 +588,7 @@ const ADVENT_CALENDAR_TROOP_CHANCE_INCREMENT = 2;
 const ADVENT_CALENDAR_TROOP_CHANCE_DAY_24 = 90;
 const ADVENT_CALENDAR_BUILDING_FACTOR_COEFF = 0.5;
 const ADVENT_CALENDAR_MIN_BUILDING_FACTOR = 0.5;
+const ADVENT_CALENDAR_DAY_24_HEROES = 4;
 
 
 /*

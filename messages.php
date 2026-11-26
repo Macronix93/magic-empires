@@ -23,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         $raw_receiver = trim(post_str("receiver"));
         $receiver_name = (strlen($raw_receiver) <= MAX_USERNAME_LENGTH * 4)
-            ? (preg_replace(['/^\s+/', '/\p{Z}+/u', '/\p{Mn}/u'], ['', ' ', ''], $raw_receiver) ?? '')
+            ? Messages::sanitize_text($raw_receiver, false, false)
             : '';
         $validation = Messages::clean_and_validate_chat_text(post_str("text"));
 
@@ -53,22 +53,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $fail_redirect("Du kannst dir selbst keine Nachricht schicken!");
         }
 
-        $current_time = time();
-        $message_timeframe_end = $_SESSION["message_timeframe_end"] ?? 0;
-        $message_count = $_SESSION["message_count"] ?? 0;
-        if ($current_time > $message_timeframe_end) {
-            $_SESSION["message_count"] = 0;
-            $_SESSION["message_timeframe_end"] = $current_time + MESSAGES_RATE_INTERVAL;
-            $message_count = 0;
+        $wait = Messages::check_rate_limit();
+        if ($wait > 0) {
+            $fail_redirect("Du schickst zu viele Nachrichten! Warte bitte: $wait Sek.");
         }
 
-        if ($message_count >= MAX_MESSAGES_RATELIMIT) {
-            $remaining_time_in_seconds = $message_timeframe_end - $current_time;
-            $fail_redirect("Du schickst zu viele Nachrichten! Warte bitte: " . $remaining_time_in_seconds . " Sek.");
-        }
-
-        $_SESSION["message_count"] = ++$message_count;
-        $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_username, $current_time, $cleaned_text);
+        $messages->send_message($sender_id, $sender_name, $receiver_id, $receiver_username, time(), $cleaned_text);
 
         change_location("messages.php?action=read&s=$receiver_id");
     }
@@ -152,7 +142,7 @@ if (isset($_GET["action"])) {
 
         $view .= "
             <div class='msg-back-button-container'>
-                <button class='msg-back-button' data-on-click='redirect' data-url='messages.php?privmsgs'>Zurück</button>
+                <button data-on-click='navigate' data-url='messages.php?privmsgs'>Zurück</button>
             </div>
         ";
         $view .= "<form id='newmessage'
@@ -168,7 +158,7 @@ if (isset($_GET["action"])) {
                                 <label>
                                     <input type='text' name='receiver' maxlength='" . MAX_USERNAME_LENGTH . "' value='$receiver_value'>
                                 </label>
-                                <button type='button' data-on-click='openOverlay' data-url='userlist.php' data-title='Spielerliste'>
+                                <button type='button' data-on-click='openOverlay' data-url='ajax/userlist.php' data-title='Spielerliste'>
                                 Spielerliste
                                 </button>
                             </td>
@@ -216,11 +206,11 @@ if (isset($_GET["action"])) {
         }
 
         $view .= "<div class='info-box event-error' style='display: none;'></div>";
-        $view .= "<div class='msg-back-button-container'><button class='msg-back-button' data-on-click='redirect' data-url='messages.php?privmsgs'>Zurück</button>
+        $view .= "<div class='msg-back-button-container'><button data-on-click='navigate' data-url='messages.php?privmsgs'>Zurück</button>
                     <h3 style='width: 100%; margin: 0;'>
                         <a href='#' 
                          data-on-click='openOverlay' 
-                         data-url='userinfo.php?userid=" . e($sender_id) . "' 
+                         data-url='ajax/userinfo.php?userid=" . e($sender_id) . "' 
                          data-title='Spieler-Info'
                          class='popup' 
                          style='cursor: pointer;'>
@@ -265,7 +255,7 @@ if (isset($_GET["worldchat"])) {
     $current_max_id = (int)($res_max_id->fetch_column() ?? 0);
 
     $view .= "<div class='msg-back-button-container'>
-                <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
+                <button data-on-click='navigate' data-url='messages.php'>Zurück</button>
                 <button class='btn-delete' data-on-click='confirmDeleteAllServer' data-max-id='$current_max_id'>Alle löschen</button>
             </div>
     ";
@@ -306,7 +296,7 @@ if (isset($_GET["worldchat"])) {
         <span>Privatnachrichten</span>
     </div>";
     if ($private > 0) {
-        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($private) . "</span>";
+        $view .= "<span class='msg-badge'>" . Messages::show_messages_indicator($private) . "</span>";
     }
     $view .= "</a>";
 
@@ -317,7 +307,7 @@ if (isset($_GET["worldchat"])) {
         <span>Servernachrichten</span>
     </div>";
     if ($server > 0) {
-        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($server) . "</span>";
+        $view .= "<span class='msg-badge'>" . Messages::show_messages_indicator($server) . "</span>";
     }
     $view .= "</a>";
 
@@ -328,7 +318,7 @@ if (isset($_GET["worldchat"])) {
         <span>Support-Tickets</span>
     </div>";
     if ($support_unread > 0) {
-        $view .= "<span class='msg-badge'>" . $messages->show_messages_indicator($support_unread) . "</span>";
+        $view .= "<span class='msg-badge'>" . Messages::show_messages_indicator($support_unread) . "</span>";
     }
     $view .= "</a>";
 

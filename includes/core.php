@@ -156,8 +156,10 @@ $user = new User($_SESSION["userid"] ?? -1, "", $_SESSION["kingdomid"] ?? -1);
 
 if (!$is_cli) {
     require_once(__DIR__ . "/sessions.php");
-
-    ob_start("auto_inject_csrf_token");
+    
+    if (!is_ajax_request()) {
+        ob_start("auto_inject_csrf_token");
+    }
 }
 
 $error = "";

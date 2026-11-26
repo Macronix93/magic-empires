@@ -88,6 +88,27 @@ foreach ($players_res as $row) {
     $last_active = $row["lastactivity"];
     $user_score = $row["score"];
     $user_guild_id = $row["guildid"];
+    $last_rank = (int)$row["lastrank"];
+
+    $trend_html = "";
+    if ($last_rank > 0) {
+        $rank_diff = $last_rank - $pos;
+
+        if ($rank_diff !== 0) {
+            $is_up = ($rank_diff > 0);
+            $arrow_icon = $is_up ? "icon_arrow_up.png" : "icon_arrow_down.png";
+            $diff_text = $is_up ? "+$rank_diff" : (string)$rank_diff;
+            $diff_class = $is_up ? "passed" : "error";
+
+            $trend_html = "
+            <span class='popup ranking-trend-arrow' id='rank_trend_$pos'>
+                <img src='images/icons/$arrow_icon' alt='$diff_text'>
+                <div id='rank_trend_{$pos}_box' class='popupbox'>
+                    Rang um 0 Uhr: $last_rank <span class='$diff_class'>($diff_text)</span>
+                </div>
+            </span>";
+        }
+    }
 
     $inactive = ($now - $last_active > INACTIVITY_DELAY && $last_active != 0);
     $is_same_guild = ($my_guild_id > 0 && $my_guild_id === (int)$user_guild_id);
@@ -121,7 +142,7 @@ foreach ($players_res as $row) {
     $player->set_user_row($row);
     $user_link = "<a href='#' 
             data-on-click='openOverlay' 
-            data-url='userinfo.php?userid=$user_id' 
+            data-url='ajax/userinfo.php?userid=$user_id' 
             data-title='Spieler-Info' 
             class='popup' 
             id='activity_$pos' 
@@ -130,7 +151,7 @@ foreach ($players_res as $row) {
         </a>";
 
     $view .= "<tr>
-            <td class='td-shrink' style='text-align: right;'>$pos</td>
+            <td class='td-shrink' style='text-align: right;'>$pos$trend_html</td>
             <td class='td-expand'>" . $player->render_user(
             content: $user_link,
             status_color: $color,
@@ -143,6 +164,7 @@ foreach ($players_res as $row) {
         ) . "</td>
             <td class='td-score'>" . fnum($row["score"], true) . "$sword_icon</td>
         </tr>";
+
     $pos++;
 }
 $view .= "</table>";

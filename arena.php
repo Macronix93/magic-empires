@@ -315,7 +315,7 @@ if (!$is_season_active) {
                 </div>
                 <div class='title-border' style='margin-top: 20px;'>Truppenkontingent</div>
                 <div id='hero-data-node' data-atk='{$h_data["atk"]}' data-def='{$h_data["def"]}' style='display: none;'></div>
-                    <div class='arena-counter-bar' style='display: flex; justify-content: space-between; margin-bottom: 15px;'>
+                    <div style='display: flex; justify-content: space-between; margin-bottom: 15px;'>
                         <span>Einheiten vergeben:</span>
                         <b id='defense-troops-counter' class='$init_troops_class'>" . fnum($init_troops_sum) . " / " . fnum(ARENA_ARMY_UNIT_LIMIT) . "</b>
                     </div>";
@@ -339,7 +339,7 @@ if (!$is_season_active) {
 
     $view .= "
                 <div class='title-border' style='margin-top: 25px;'>Schmiede-Attribute</div>
-                <div class='arena-counter-bar' style='display: flex; justify-content: space-between; margin-bottom: 15px;'>
+                <div style='display: flex; justify-content: space-between; margin-bottom: 15px;'>
                     <span>Schmiedepunkte vergeben:</span>
                     <b id='defense-techs-counter' class='$init_techs_class'>$init_techs_sum / " . ARENA_MAX_TECH_POINTS . "</b>
                 </div>";
@@ -361,7 +361,7 @@ if (!$is_season_active) {
                 </div>";
     }
 
-    $user_kingdoms = $db_instance->execute_query("
+    $all_user_kingdoms = $db_instance->execute_query("
         SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at
     ", [$uid])->fetch_all(MYSQLI_ASSOC);
 
@@ -375,7 +375,7 @@ if (!$is_season_active) {
             <option value='0'>Haupt-Königreich (Automatisch)</option>";
 
     $k_pos = 1;
-    foreach ($user_kingdoms as $uk) {
+    foreach ($all_user_kingdoms as $uk) {
         $sel = ($uk["id"] == $current_reward_kid) ? "selected" : "";
         $view .= "<option value='{$uk["id"]}' $sel>$k_pos - " . e($uk["kingdomname"]) . " ({$uk["mapx"]}:{$uk["mapy"]})</option>";
         $k_pos++;

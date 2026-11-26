@@ -2,7 +2,6 @@
 require_once("includes/core.php");
 
 [
-    "current_kingdom" => $current_kingdom,
     "building" => $building,
     "building_name" => $building_name,
     "kingdom" => $kingdom,
@@ -21,7 +20,7 @@ if ($level < MAX_BUILDING_LEVEL) {
     $next_max = (int)round(STORAGE_STARTING_VALUE * pow(STORAGE_INC_FACTOR, $next_level - 1))
         + ($storage_tech_level * RESEARCH_STORAGE_INC);
     $next_display_percent = fdec($next_level * STORAGE_SECURE_PERCENT_STEP * 100);
-    
+
     $next_level_text = "
         <div class='split-content' style='margin: 10px;'>
             <div><b>Nächste Stufe:</b></div>

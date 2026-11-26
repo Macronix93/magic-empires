@@ -2,7 +2,7 @@
 require_once("includes/core.php");
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

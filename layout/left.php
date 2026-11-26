@@ -1,9 +1,7 @@
 <?php
 $current_page = basename($_SERVER["PHP_SELF"]);
-$messages = new Messages($user);
 
 $unreads = $user->get_unread_counts();
-
 $unread_news = $unreads["news"];
 $unread_world = $unreads["world"];
 $unread_guild = $unreads["guild"];
@@ -11,7 +9,6 @@ $unread_suggestions = $unreads["suggestions"] ?? 0;
 $unread_achievements = $unreads["achievements"] ?? 0;
 $unread_arena = $unreads["arena"] ?? 0;
 $unread_forum = $unreads["forum"] ?? 0;
-
 $inbox_only_unread = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 
 if ($current_page === 'messages.php' && get_str("action") === "read" && get_int("s") > 0) {
@@ -57,10 +54,10 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                  data-on-click="navigate" data-url="overview.php">
                 <?= get_page_icon("overview.php") ?> Übersicht
                 <span class="msg-badge" style="<?= $atk_count > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($atk_count) ?>
+                    <?= Messages::show_messages_indicator($atk_count) ?>
                 </span>
                 <span class="msg-badge badge-blue" style="<?= $sup_count > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($sup_count) ?>
+                    <?= Messages::show_messages_indicator($sup_count) ?>
                 </span>
             </div>
             <div class="box<?= ($current_page === 'messages.php' && !isset($_GET["worldchat"])) ? " active" : '' ?>"
@@ -68,7 +65,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <?= get_page_icon("messages.php") ?>
                 Nachrichten
                 <span class="msg-badge js-badge-priv" style="<?= $inbox_only_unread > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($inbox_only_unread) ?>
+                    <?= Messages::show_messages_indicator($inbox_only_unread) ?>
                 </span>
             </div>
             <div class="box<?= isset($_GET["worldchat"]) ? " active" : '' ?>"
@@ -76,7 +73,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <?= get_page_icon("worldchat") ?>
                 Welt-Chat
                 <span class="msg-badge js-badge-world" style="<?= $unread_world > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($unread_world) ?>
+                    <?= Messages::show_messages_indicator($unread_world) ?>
                 </span>
             </div>
             <div class="box<?= $current_page === 'guild.php' ? ' active' : '' ?>" data-on-click="navigate"
@@ -87,7 +84,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                     <?= $sidebar_data["guild_status"] ?>
                     <span class="msg-badge js-badge-guild"
                           style="margin-left: 0; <?= $unread_guild > 0 ? '' : 'display: none;' ?>">
-                        <?= $messages->show_messages_indicator($unread_guild) ?>
+                        <?= Messages::show_messages_indicator($unread_guild) ?>
                     </span>
                 </div>
             </div>
@@ -111,7 +108,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <?= get_page_icon("arena.php") ?>
                 <span style="flex: 1;">Arena</span>
                 <span class="msg-badge js-badge-arena" style="<?= $unread_arena > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($unread_arena) ?>
+                    <?= Messages::show_messages_indicator($unread_arena) ?>
                 </span>
                 <span class="js-badge-arena-coins"
                       title="Arena-Münzen verfügbar!"
@@ -123,7 +120,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <?= get_page_icon("achievements.php") ?> Errungenschaften
                 <span class="msg-badge js-badge-achievements"
                       style="<?= $unread_achievements > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($unread_achievements) ?>
+                    <?= Messages::show_messages_indicator($unread_achievements) ?>
                 </span>
             </div>
             <div class="box<?= $current_page === 'halloffame.php' ? ' active' : '' ?>"
@@ -155,13 +152,13 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                 <?= get_page_icon("news.php") ?>
                 Neuigkeiten
                 <?php if ($unread_news > 0): ?>
-                    <span class="msg-badge"><?= $messages->show_messages_indicator($unread_news) ?></span>
+                    <span class="msg-badge"><?= Messages::show_messages_indicator($unread_news) ?></span>
                 <?php endif; ?>
             </div>
             <div class="box" data-on-click="navigate" data-url="forum.php">
                 <?= get_page_icon("forum.php") ?> Forum
                 <span class="msg-badge js-badge-forum" style="<?= $unread_forum > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($unread_forum) ?>
+                    <?= Messages::show_messages_indicator($unread_forum) ?>
                 </span>
             </div>
             <div class="box<?= $current_page === 'settings.php' ? ' active' : '' ?>"
@@ -186,7 +183,7 @@ $arena_attr = $arena_active ? 'data-on-click="navigate" data-url="arena.php"' : 
                     <?= get_page_icon("suggestions.php") ?> Vorschläge
                     <span class="msg-badge js-badge-suggestions"
                           style="<?= $unread_suggestions > 0 ? '' : 'display: none;' ?>">
-                    <?= $messages->show_messages_indicator($unread_suggestions) ?>
+                    <?= Messages::show_messages_indicator($unread_suggestions) ?>
                 </span>
                 </div>
             <?php endif ?>

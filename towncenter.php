@@ -12,7 +12,7 @@ require_once("includes/core.php");
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 $tc_level = $buildings[BuildingTypes::BUILDING_TOWNCENTER]->get_building_level();
 
-$kingdom_is_building = $kingdom->is_kingdom_building($current_kingdom);
+$kingdom_is_building = $kingdom->is_kingdom_building();
 $kingdom_building_id = $kingdom_is_building ? $kingdom->get_kingdom_building_id() : -1;
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {

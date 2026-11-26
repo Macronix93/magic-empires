@@ -8,6 +8,12 @@ $support = new Support($user);
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $tid = post_int("tid");
     $raw_text = post_str("text");
+    $text_clean = Messages::sanitize_text($raw_text);
+    $val_error = Support::validate_message_text($text_clean);
+
+    if ($val_error !== null) {
+        send_json(["error" => $val_error]);
+    }
 
     $t_check = $db_instance->execute_query(
         "SELECT userid, status FROM support_tickets WHERE id = ?",
@@ -26,11 +32,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         send_json(["error" => "Dieses Ticket ist bereits geschlossen!", "closed" => true]);
     }
 
-    $val_error = Support::validate_message_text($raw_text);
-    if ($val_error !== null) {
-        send_json(["error" => $val_error]);
-    }
-
     $remaining_seconds = Messages::check_rate_limit();
     if ($remaining_seconds > 0) {
         send_json([
@@ -39,7 +40,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         ]);
     }
 
-    $msg = Messages::filter_chat_message(nl2br(e(trim($raw_text))));
+    $msg = Messages::filter_chat_message(nl2br(e($text_clean)));
     $is_acting_as_staff = ($is_staff && (int)$t_check["userid"] !== $uid);
     $new_id = $support->add_message($tid, $msg, $is_acting_as_staff);
 

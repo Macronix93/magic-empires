@@ -13,8 +13,7 @@ $type = post_str("type"); // "up" or "down"
 $uid = $user->get_user_id();
 
 if ($sug_id <= 0 || $sug_id > PHP_INT_MAX || !in_array($type, ["up", "down"], true)) {
-    echo json_encode(["success" => false, "error" => "Ungültige Eingabe"]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültige Eingabe"]);
 }
 
 $vote_val = ($type === "up") ? 1 : -1;
@@ -28,8 +27,7 @@ try {
     if (!$exists || $exists->num_rows === 0) {
         $db_instance->rollback();
 
-        echo json_encode(["success" => false, "error" => "Dieser Vorschlag existiert nicht."]);
-        exit;
+        send_json(["success" => false, "error" => "Dieser Vorschlag existiert nicht."]);
     }
 
     $existing = $db_instance->execute_query(
@@ -66,8 +64,8 @@ try {
 } catch (Throwable $e) {
     $db_instance->rollback();
     Logger::get_instance()->error("suggestion_vote error: " . $e->getMessage());
-    echo json_encode(["success" => false, "error" => "Fehler beim Abstimmen."]);
-    exit;
+
+    send_json(["success" => false, "error" => "Fehler beim Abstimmen."]);
 }
 
 $res_counts = $db_instance->execute_query("
@@ -87,7 +85,7 @@ $res_voters = $db_instance->execute_query("
              WHERE v2.suggestion_id = ? AND v2.vote = -1) AS downvoters
     ", [$sug_id, $sug_id])->fetch_assoc();
 
-echo json_encode([
+send_json([
     "success" => true,
     "upvotes" => (int)$res_counts["upvotes"],
     "downvotes" => (int)$res_counts["downvotes"],

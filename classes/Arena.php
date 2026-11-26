@@ -4,13 +4,15 @@ class Arena
 {
     private mysqli $db;
     private int $user_id;
+    private ?array $player_data_cache = null;
+    private bool $player_data_loaded = false;
 
-    public function __construct(int $user_id)
+    public function __construct(int $user_id, bool $readonly = false)
     {
         $this->db = Database::get_instance()->get_connection();
         $this->user_id = $user_id;
 
-        if ($this->user_id > 0 && $this->is_participating()) {
+        if (!$readonly && $this->user_id > 0 && $this->is_participating()) {
             $this->check_daily_reset();
             $this->regenerate_coins();
         }
@@ -19,7 +21,12 @@ class Arena
     public function is_participating(?int $uid = null): bool
     {
         $target_id = $uid ?? $this->user_id;
+
         if ($target_id <= 0) return false;
+        if ($target_id === $this->user_id) {
+            $data = $this->get_player_data();
+            return $data !== null && !empty($data["defense_troops"]);
+        }
 
         $res = $this->db->execute_query(
             "SELECT 1 FROM arena_players WHERE user_id = ? AND defense_troops IS NOT NULL LIMIT 1",
@@ -44,25 +51,48 @@ class Arena
                 SET daily_rerolls = 0, last_reroll_reset = ?, current_opponents = NULL 
                 WHERE user_id = ?
             ", [$now, $this->user_id]);
+
+            if ($this->player_data_cache !== null) {
+                $this->player_data_cache["daily_rerolls"] = 0;
+                $this->player_data_cache["last_reroll_reset"] = $now;
+                $this->player_data_cache["current_opponents"] = [];
+            }
         }
     }
 
-    public function get_player_data(?int $uid = null): ?array
+    public function get_player_data(?int $uid = null, bool $force_refresh = false): ?array
     {
         $target_id = $uid ?? $this->user_id;
+        $is_self = ($target_id === $this->user_id);
+
+        if ($is_self && !$force_refresh && $this->player_data_loaded) {
+            return $this->player_data_cache;
+        }
+
         $res = $this->db->execute_query("
             SELECT ap.*, u.username 
             FROM arena_players ap
             JOIN users u ON ap.user_id = u.id
             WHERE ap.user_id = ?
         ", [$target_id]);
-
         $row = $res->fetch_assoc();
-        if (!$row) return null;
+
+        if (!$row) {
+            if ($is_self) {
+                $this->player_data_cache = null;
+                $this->player_data_loaded = true;
+            }
+            return null;
+        }
 
         $row["defense_troops"] = json_decode($row["defense_troops"] ?? "{}", true);
         $row["defense_techs"] = json_decode($row["defense_techs"] ?? "{}", true);
         $row["current_opponents"] = json_decode($row["current_opponents"] ?? "[]", true);
+
+        if ($is_self) {
+            $this->player_data_cache = $row;
+            $this->player_data_loaded = true;
+        }
         return $row;
     }
 
@@ -89,6 +119,11 @@ class Arena
                 SET coins = ?, last_coin_update = ? 
                 WHERE user_id = ?
             ", [$new_coins, $new_update_time, $this->user_id]);
+
+            if ($this->player_data_cache !== null) {
+                $this->player_data_cache["coins"] = $new_coins;
+                $this->player_data_cache["last_coin_update"] = $new_update_time;
+            }
         }
     }
 
@@ -148,7 +183,7 @@ class Arena
             }
 
             $html .= "
-            <div class='box-container opponent-card' style='margin-bottom: 0;'>
+            <div class='box-container' style='margin-bottom: 0;'>
                 <div class='box-content box-content-bg' style='padding: 10px 15px; display: flex; align-items: center; justify-content: space-between;'>
                     <div style='display: flex; align-items: center; gap: 10px;'>
                         <img src='{$opp["avatar"]}' class='user-image arena-opponent-avatar' alt=''>
@@ -529,8 +564,7 @@ class Arena
 
         $valid_reward_kid = null;
         if ($reward_kingdom_id > 0) {
-            $check = $this->db->execute_query(
-                "SELECT id FROM kingdoms WHERE id = ? AND userid = ?",
+            $check = $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? AND userid = ?",
                 [$reward_kingdom_id, $this->user_id]
             );
             if ($check->num_rows > 0) {
@@ -544,20 +578,18 @@ class Arena
                 SET defense_troops = ?, 
                     defense_techs = ?, 
                     reward_kingdom_id = ?, 
-                    defense_hero_participates = 1, 
                     updated_at = ? 
                 WHERE user_id = ?
             ", [$troops_json, $techs_json, $valid_reward_kid, $now, $this->user_id]);
         } else {
             $this->db->execute_query("
                 INSERT INTO arena_players 
-                    (user_id, elo, coins, last_coin_update, defense_troops, defense_techs, reward_kingdom_id, defense_hero_participates, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    (user_id, elo, coins, last_coin_update, defense_troops, defense_techs, reward_kingdom_id, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE 
                     defense_troops = VALUES(defense_troops),
                     defense_techs = VALUES(defense_techs),
                     reward_kingdom_id = VALUES(reward_kingdom_id),
-                    defense_hero_participates = 1,
                     updated_at = VALUES(updated_at)
             ", [
                 $this->user_id,
@@ -570,6 +602,8 @@ class Arena
                 $now
             ]);
         }
+
+        $this->player_data_loaded = false;
 
         return null;
     }
@@ -752,6 +786,8 @@ class Arena
             WHERE user_id = ?
         ", [json_encode($selected_ids), $this->user_id]);
 
+        $this->player_data_loaded = false;
+
         return $this->fetch_opponents_by_ids($selected_ids);
     }
 
@@ -861,11 +897,6 @@ class Arena
             return ["success" => false, "error" => "Du kannst dich nicht selbst herausfordern."];
         }
 
-        $defender = $this->get_player_data($defender_id);
-        if (!$defender || empty($defender["defense_troops"])) {
-            return ["success" => false, "error" => "Dieser Gegner ist nicht mehr verfügbar."];
-        }
-
         $validated = self::normalize_and_validate_setup($attack_troops, $attack_techs);
         if ($validated["error"] !== null) {
             return ["success" => false, "error" => $validated["error"]];
@@ -874,40 +905,45 @@ class Arena
         $attack_troops = $validated["troops"];
         $attack_techs = $validated["techs"];
 
-        // Load defender hero
-        $def_arena = new Arena($defender_id);
-        $def_data = $def_arena->get_hero_full_data();
-        $def_hero = $def_data["hero"];
-        $def_skill = $def_data["active_skill"];
-
         $res_soldiers = $this->db->query("SELECT id, soldiername, category, attack, defense, icon FROM soldier_list");
         $soldier_meta = [];
         while ($s = $res_soldiers->fetch_assoc()) {
             $soldier_meta[(int)$s["id"]] = $s;
         }
-        $def_prepared = $this->prepare_combat_units($defender["defense_troops"], $defender["defense_techs"], $soldier_meta);
-        $def_prepared[] = [
-            "id" => "hero_1",
-            "key" => "def_hero",
-            "count" => 1,
-            "category" => SoldierTypes::SOLDIER_TYPE_SPECIAL,
-            "atk" => (int)$def_hero["atk"],
-            "def" => (int)$def_hero["def"],
-            "target_cat" => (int)$def_skill["target_cat"],
-            "rps_bonus" => (float)$def_skill["rps_bonus"],
-            "target_focus" => 1.0,
-            "h_lvl" => (int)$def_hero["level"],
-            "s_id" => (int)$def_skill["id"]
-        ];
 
         $this->db->begin_transaction();
         try {
             $lock_ids = [$this->user_id, $defender_id];
             sort($lock_ids);
-            $this->db->execute_query(
-                "SELECT user_id FROM arena_players WHERE user_id IN (?, ?) ORDER BY user_id FOR UPDATE",
+            $this->db->execute_query("SELECT user_id FROM arena_players WHERE user_id IN (?, ?) ORDER BY user_id FOR UPDATE",
                 $lock_ids
             );
+
+            // Load defender hero
+            $def_arena = new Arena($defender_id);
+            $defender = $this->get_player_data($defender_id);
+            if (!$defender || empty($defender["defense_troops"])) {
+                $this->db->rollback();
+                return ["success" => false, "error" => "Dieser Gegner ist nicht mehr verfügbar."];
+            }
+            $def_data = $def_arena->get_hero_full_data();
+            $def_hero = $def_data["hero"];
+            $def_skill = $def_data["active_skill"];
+            $def_prepared = $this->prepare_combat_units($defender["defense_troops"], $defender["defense_techs"], $soldier_meta);
+            $def_prepared[] = [
+                "id" => "hero_1",
+                "key" => "def_hero",
+                "count" => 1,
+                "category" => SoldierTypes::SOLDIER_TYPE_SPECIAL,
+                "atk" => (int)$def_hero["atk"],
+                "def" => (int)$def_hero["def"],
+                "target_cat" => (int)$def_skill["target_cat"],
+                "rps_bonus" => (float)$def_skill["rps_bonus"],
+                "target_focus" => 1.0,
+                "h_lvl" => (int)$def_hero["level"],
+                "s_id" => (int)$def_skill["id"]
+            ];
+
             $defender["elo"] = (int)$this->db->execute_query(
                 "SELECT elo FROM arena_players WHERE user_id = ?",
                 [$defender_id]
@@ -1075,11 +1111,14 @@ class Arena
                 return array_map(function ($u) {
                     $entry = [
                         "id" => $u["id"],
-                        "key" => $u["key"] ?? $u["id"],
                         "count" => (int)$u["count"],
                         "atk" => (int)$u["atk"],
                         "def" => (int)$u["def"]
                     ];
+
+                    if (isset($u["key"]) && $u["key"] !== $u["id"]) {
+                        $entry["key"] = $u["key"];
+                    }
 
                     if (!empty($u["h_lvl"])) {
                         $entry["h_lvl"] = (int)$u["h_lvl"];
@@ -1183,6 +1222,8 @@ class Arena
                 </div>
             </div>";
 
+            $this->player_data_loaded = false;
+
             return [
                 "success" => true,
                 "battle_html" => $battle_html
@@ -1272,24 +1313,30 @@ class Arena
                 break;
             }
         }
-        if ($hero_lvl >= ARENA_HERO_MAX_LEVEL) {
+
+        if ($hero_lvl >= ARENA_HERO_MAX_LEVEL && $hero_xp !== 0) {
             $hero_xp = 0;
             $hero_updated = true;
         }
+
         if ($hero_updated) {
-            $this->db->execute_query(
-                "UPDATE arena_players SET hero_level = ?, hero_xp = ? WHERE user_id = ?",
+            $this->db->execute_query("UPDATE arena_players SET hero_level = ?, hero_xp = ? WHERE user_id = ?",
                 [$hero_lvl, $hero_xp, $this->user_id]
             );
+
+            if ($this->player_data_cache !== null) {
+                $this->player_data_cache["hero_level"] = $hero_lvl;
+                $this->player_data_cache["hero_xp"] = $hero_xp;
+            }
         }
 
         $base_atk = (int)round(ARENA_HERO_BASE_ATK * pow(ARENA_HERO_STAT_FACTOR, $hero_lvl - 1));
         $base_def = (int)round(ARENA_HERO_BASE_DEF * pow(ARENA_HERO_STAT_FACTOR, $hero_lvl - 1));
 
-        $res = $this->db->execute_query(
-            "SELECT skill_id, level, xp FROM arena_hero_skills WHERE user_id = ?",
+        $res = $this->db->execute_query("SELECT skill_id, level, xp FROM arena_hero_skills WHERE user_id = ?",
             [$this->user_id]
         );
+
         $progress = [];
         while ($r = $res->fetch_assoc()) {
             $progress[(int)$r["skill_id"]] = $r;
@@ -1311,10 +1358,12 @@ class Arena
                     break;
                 }
             }
-            if ($s_lvl >= ARENA_SKILL_MAX_LEVEL) {
+
+            if ($s_lvl >= ARENA_SKILL_MAX_LEVEL && $s_xp !== 0) {
                 $s_xp = 0;
                 $skill_updated = true;
             }
+
             if ($skill_updated) {
                 $this->db->execute_query("
                     INSERT INTO arena_hero_skills (user_id, skill_id, level, xp)
@@ -1344,7 +1393,6 @@ class Arena
                 "xp_needed" => self::get_hero_xp_needed($hero_lvl),
                 "atk" => $base_atk,
                 "def" => $base_def,
-                "participates" => (bool)($p["defense_hero_participates"] ?? true)
             ],
             "active_skill" => $active_skill,
             "skills" => $skills
@@ -1430,6 +1478,8 @@ class Arena
         if ($leveled_up) {
             Achievement::check($this->user_id, AchievementTypes::ACHIEVEMENT_ARENA_HERO_LEVEL);
         }
+
+        $this->player_data_loaded = false;
 
         return ["level" => $cur_lvl, "xp" => $cur_xp, "leveled_up" => $leveled_up];
     }
@@ -1530,6 +1580,10 @@ class Arena
             "UPDATE arena_players SET active_hero_skill_id = ? WHERE user_id = ?",
             [$skill_id, $this->user_id]
         );
+
+        if ($this->player_data_cache !== null) {
+            $this->player_data_cache["active_hero_skill_id"] = $skill_id;
+        }
         return true;
     }
 

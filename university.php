@@ -16,19 +16,11 @@ $techs = array_filter(
 );
 $buildings = $kingdom->fetch_all_kingdom_buildings();
 
-$kingdom_is_researching = $kingdom->is_kingdom_researching($current_kingdom);
+$kingdom_is_researching = $kingdom->is_kingdom_researching();
 $kingdom_research_id = $kingdom_is_researching ? $kingdom->get_kingdom_research_id() : -1;
 
 $uid = $user->get_user_id();
 $main_kid = $user->get_main_kingdom();
-
-$imp_data = $db_instance->execute_query("
-        SELECT COUNT(*) AS founded_count
-         FROM kingdoms 
-         WHERE userid = ? AND creation_method != ?
-", [$uid, KingdomCreationTypes::KINGDOM_CREATION_CONQUEST])->fetch_assoc();
-
-$curr_founded = (int)($imp_data["founded_count"] ?? 1);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
@@ -52,7 +44,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if ($tech_id == TechTypes::TECH_TYPE_IMPERIAL) {
             $max_imp_lvl = max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT);
-            
+
             if ($current_kingdom != $main_kid) {
                 change_location("university.php", error: "Die Imperium-Forschung kann nur in deinem Hauptkönigreich durchgeführt werden!");
             }
@@ -227,6 +219,9 @@ if ($current_kingdom == $main_kid) {
     $settlement_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_IMPERIAL);
 
     if ($settlement_lvl > 0) {
+        $curr_founded = (int)($db_instance->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != ?",
+            [$uid, KingdomCreationTypes::KINGDOM_CREATION_CONQUEST]
+        )->fetch_column() ?? 1);
         $current_allowed = min(GLOBAL_SETTLEMENT_MAX, BASE_SETTLEMENT_LIMIT + $settlement_lvl);
 
         $boni_view .= "<tr>

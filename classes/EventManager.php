@@ -3,12 +3,12 @@
 class EventManager
 {
     private static ?array $cached_soldiers = null;
-    private mysqli $mysqli;
+    private mysqli $db;
     private User $user;
 
     public function __construct(User $user)
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
         $this->user = $user;
     }
 
@@ -22,9 +22,13 @@ class EventManager
 
         $current_kid = $this->user->get_current_kingdom();
         if ($current_kid > 0) {
-            $lab_lvl = (int)($this->mysqli->execute_query(
-                "SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
-                [$current_kid, BuildingTypes::BUILDING_ALCHEMY_LAB]
+            $lab_lvl = (int)($this->db->execute_query(
+                "SELECT b.buildinglevel
+                 FROM kingdom_alchemy a
+                 JOIN buildings b ON b.kingdomid = a.kingdom_id AND b.buildingid = ?
+                 WHERE a.kingdom_id = ? AND a.input_amount > 0 AND a.input_resource != -1
+                 LIMIT 1",
+                [BuildingTypes::BUILDING_ALCHEMY_LAB, $current_kid]
             )->fetch_column() ?? 0);
 
             if ($lab_lvl > 0) {
@@ -56,24 +60,28 @@ class EventManager
                 OR (e.actionid IN (" . ActionTypes::ACTION_BUILD_TROOPS . ", " . ActionTypes::ACTION_UPGRADE_TROOPS . "))
             )
         ";
-        $query = "
-            SELECT e.* FROM events e WHERE e.userid = ? AND $due_condition
-            UNION
-            SELECT e.* FROM events e JOIN kingdoms k ON e.targetid = k.id WHERE k.userid = ? AND e.userid != ? AND $due_condition
-            UNION
-            SELECT e.* FROM events e JOIN users u ON e.guild_id = u.guildid WHERE u.id = ? AND e.guild_id > 0 AND $due_condition
-            UNION
-            SELECT e.* FROM events e
-            JOIN mines mn ON mn.mapx = e.targetx AND mn.mapy = e.targety
-            JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
-            WHERE e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . " AND mst.user_id = ? AND $due_condition
-        ";
-        $result = $this->mysqli->execute_query($query, [
+        $branches = [
+            "SELECT e.* FROM events e WHERE e.userid = ? AND $due_condition",
+            "SELECT e.* FROM events e JOIN kingdoms k ON e.targetid = k.id WHERE k.userid = ? AND e.userid != ? AND $due_condition",
+            "SELECT e.* FROM events e WHERE e.targetid = " . MapFieldTypes::MAP_FIELD_MINE . " AND e.userid != ? AND $due_condition AND EXISTS (
+                SELECT 1 FROM mines mn JOIN mine_stationed_troops mst ON mn.id = mst.mine_id
+                WHERE mn.mapx = e.targetx AND mn.mapy = e.targety AND mst.user_id = ?
+            )"
+        ];
+        $params = [
             $uid, $now, $now,
             $uid, $uid, $now, $now,
-            $uid, $now, $now,
-            $uid, $now, $now
-        ]);
+            $uid, $now, $now, $uid
+        ];
+
+        $gid = $this->user->get_user_guild_id();
+        if ($gid > 0) {
+            $branches[] = "SELECT e.* FROM events e WHERE e.guild_id = ? AND e.userid != ? AND $due_condition";
+            array_push($params, $gid, $uid, $now, $now);
+        }
+
+        $query = implode(" UNION ALL ", $branches);
+        $result = $this->db->execute_query($query, $params);
 
         foreach ($result as $row) {
             $is_due = false;
@@ -106,27 +114,26 @@ class EventManager
 
             if (!$is_due) continue;
 
-            $lock_timeout = 10;
-            if ($row["is_processing"] > 0 && ($now - $row["is_processing"]) < $lock_timeout) {
+            if ($row["is_processing"] > 0 && ($now - $row["is_processing"]) < EVENT_LOCK_TIMEOUT_SECONDS) {
                 continue;
             }
 
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET is_processing = ? WHERE eventid = ? AND (is_processing = 0 OR is_processing < ?)",
-                [$now, $row["eventid"], ($now - 60)]
+                [$now, $row["eventid"], ($now - EVENT_LOCK_TIMEOUT_SECONDS)]
             );
 
-            if ($this->mysqli->affected_rows === 1) {
+            if ($this->db->affected_rows === 1) {
                 $max_retries = 3;
 
                 for ($attempt = 1; $attempt <= $max_retries; $attempt++) {
                     try {
-                        $this->mysqli->begin_transaction();
+                        $this->db->begin_transaction();
                         $this->handle_event($row);
-                        $this->mysqli->commit();
+                        $this->db->commit();
                         break;
                     } catch (Throwable $t) {
-                        $this->mysqli->rollback();
+                        $this->db->rollback();
 
                         // Check if it's a concurrency or deadlock error
                         $error_code = ($t instanceof mysqli_sql_exception) ? $t->getCode() : 0;
@@ -142,7 +149,7 @@ class EventManager
                         }
 
                         // Real code error OR after 3 failed retries: logging & cancel
-                        $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+                        $this->db->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
                         $action_name = $this->get_action_name((int)$row["actionid"]);
                         $event_data = json_encode($row, JSON_UNESCAPED_UNICODE);
 
@@ -163,7 +170,7 @@ class EventManager
         $mine_id_filter = null;
 
         if ($user_id !== null && $user_id > 0) {
-            $has_mine_activity = $this->mysqli->execute_query("
+            $has_mine_activity = $this->db->execute_query("
                 SELECT 1 FROM mine_stationed_troops WHERE user_id = ?
                 UNION ALL
                 SELECT 1 FROM events WHERE userid = ? AND targetid = " . MapFieldTypes::MAP_FIELD_MINE . " AND actionid = " . ActionTypes::ACTION_SEND_TROOPS . "
@@ -174,7 +181,7 @@ class EventManager
                 return;
             }
 
-            $gid = (int)$this->mysqli->execute_query("SELECT guildid FROM users WHERE id = ?", [$user_id])->fetch_column();
+            $gid = (int)$this->db->execute_query("SELECT guildid FROM users WHERE id = ?", [$user_id])->fetch_column();
 
             $filter_sql = "
                 SELECT DISTINCT mn.id 
@@ -195,7 +202,7 @@ class EventManager
                 $params[] = $gid;
             }
 
-            $res_ids = $this->mysqli->execute_query($filter_sql, $params);
+            $res_ids = $this->db->execute_query($filter_sql, $params);
             $mine_id_filter = array_column($res_ids->fetch_all(MYSQLI_ASSOC), "id");
 
             if (empty($mine_id_filter)) {
@@ -205,15 +212,15 @@ class EventManager
 
         // Check empty, expired mines
         if ($mine_id_filter === null) {
-            $this->mysqli->execute_query("DELETE FROM mines WHERE expires_at <= ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
+            $this->db->execute_query("DELETE FROM mines WHERE expires_at <= ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", [$now]);
         } else {
             $placeholders = implode(',', array_fill(0, count($mine_id_filter), '?'));
-            $this->mysqli->execute_query("DELETE FROM mines WHERE id IN ($placeholders) AND expires_at <= ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", array_merge($mine_id_filter, [$now]));
+            $this->db->execute_query("DELETE FROM mines WHERE id IN ($placeholders) AND expires_at <= ? AND id NOT IN (SELECT DISTINCT mine_id FROM mine_stationed_troops)", array_merge($mine_id_filter, [$now]));
         }
 
         // Get active mines
         if ($mine_id_filter === null) {
-            $active_mines = $this->mysqli->query("
+            $active_mines = $this->db->query("
                 SELECT m.*, IFNULL(SUM(mst.soldiercount * mst.unit_atk), 0) AS current_atk 
                 FROM mines m 
                 JOIN mine_stationed_troops mst ON m.id = mst.mine_id 
@@ -221,7 +228,7 @@ class EventManager
             ");
         } else {
             $placeholders = implode(',', array_fill(0, count($mine_id_filter), '?'));
-            $active_mines = $this->mysqli->execute_query("
+            $active_mines = $this->db->execute_query("
                 SELECT m.*, IFNULL(SUM(mst.soldiercount * mst.unit_atk), 0) AS current_atk 
                 FROM mines m 
                 JOIN mine_stationed_troops mst ON m.id = mst.mine_id 
@@ -241,7 +248,7 @@ class EventManager
 
             if ($elapsed > 0 && $current_atk > 0) {
                 $work_delta = $effective_rate * $elapsed;
-                $this->mysqli->execute_query("
+                $this->db->execute_query("
                     UPDATE mine_stationed_troops 
                     SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
                     WHERE mine_id = ?
@@ -253,7 +260,7 @@ class EventManager
             $is_expired = ((int)$m["expires_at"] <= $now);
 
             if ($is_expired && !$is_completed) {
-                $res_in_time = $this->mysqli->execute_query("
+                $res_in_time = $this->db->execute_query("
                     SELECT e.* 
                     FROM events e
                     WHERE e.targetid = ? 
@@ -281,7 +288,7 @@ class EventManager
                 }
 
                 if ($processed_any_arrival) {
-                    $refreshed_m = $this->mysqli->execute_query("SELECT * FROM mines WHERE id = ?", [$m["id"]])->fetch_assoc();
+                    $refreshed_m = $this->db->execute_query("SELECT * FROM mines WHERE id = ?", [$m["id"]])->fetch_assoc();
                     if ($refreshed_m) {
                         $m = array_merge($m, $refreshed_m);
                     }
@@ -289,7 +296,7 @@ class EventManager
             }
 
             if ($is_completed || $is_expired) {
-                $participants = $this->mysqli->execute_query("
+                $participants = $this->db->execute_query("
                     SELECT user_id, kingdom_id, SUM(work_contributed) as my_work 
                     FROM mine_stationed_troops 
                     WHERE mine_id = ? 
@@ -347,14 +354,14 @@ class EventManager
                         $rem_diamond -= $p_diamond;
                     }
 
-                    $res_k = $this->mysqli->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$p["kingdom_id"]])->fetch_assoc();
+                    $res_k = $this->db->execute_query("SELECT mapx, mapy FROM kingdoms WHERE id = ?", [$p["kingdom_id"]])->fetch_assoc();
                     $kx = (int)($res_k["mapx"] ?? 1);
                     $ky = (int)($res_k["mapy"] ?? 1);
 
                     $map_helper = new Map(new User((int)$p["user_id"], ""));
                     $travel_time = $map_helper->get_arrival_time($kx, $ky, (int)$m["mapx"], (int)$m["mapy"], (int)$p["kingdom_id"], MapFieldTypes::MAP_FIELD_MINE);
 
-                    $this->mysqli->execute_query("
+                    $this->db->execute_query("
                         INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, 
                                             loot_food, loot_wood, loot_stone, loot_gold, loot_coal, loot_iron, loot_sapphire, loot_diamond, buildingname)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)
@@ -376,9 +383,9 @@ class EventManager
                         $event_name
                     ]);
 
-                    $return_eid = $this->mysqli->insert_id;
+                    $return_eid = $this->db->insert_id;
 
-                    $troops = $this->mysqli->execute_query("
+                    $troops = $this->db->execute_query("
                         SELECT soldier_id, SUM(soldiercount) as soldiercount 
                         FROM mine_stationed_troops 
                         WHERE mine_id = ? AND user_id = ? AND kingdom_id = ?
@@ -392,10 +399,10 @@ class EventManager
                         $insert_troops[] = "($return_eid, $sid, $scnt, $scnt, " . (int)$p["kingdom_id"] . ")";
                     }
                     if (!empty($insert_troops)) {
-                        $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
+                        $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_troops));
                     }
 
-                    $k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$p["kingdom_id"]])->fetch_column() ?: "Dein Königreich";
+                    $k_name = $this->db->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$p["kingdom_id"]])->fetch_column() ?: "Dein Königreich";
                     $status_text = $is_completed ? "vollständig abgebaut" : "abgelaufen und geräumt";
                     send_user_push(
                         (int)$p["user_id"],
@@ -410,7 +417,7 @@ class EventManager
                     }
                 }
 
-                $res_incoming = $this->mysqli->execute_query("
+                $res_incoming = $this->db->execute_query("
                     SELECT e.*, u.username, k.kingdomname 
                     FROM events e
                     JOIN users u ON e.userid = u.id
@@ -432,7 +439,7 @@ class EventManager
                     $already_marched = max(5, $now - (int)$inc["buildingtime"]);
                     $new_arrival = $now + $already_marched;
 
-                    $this->mysqli->execute_query("
+                    $this->db->execute_query("
                         UPDATE events 
                         SET actionid = ?, 
                             arrivaltime = ?, 
@@ -447,7 +454,7 @@ class EventManager
                         $event_id
                     ]);
 
-                    $units_res = $this->mysqli->execute_query("
+                    $units_res = $this->db->execute_query("
                         SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?
                     ", [$event_id]);
                     $units_data = [];
@@ -476,9 +483,9 @@ class EventManager
                     );
                 }
 
-                $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$m["id"]]);
-                $this->mysqli->execute_query("DELETE FROM mines WHERE id = ?", [$m["id"]]);
-                $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$m["mapx"], $m["mapy"]]);
+                $this->db->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$m["id"]]);
+                $this->db->execute_query("DELETE FROM mines WHERE id = ?", [$m["id"]]);
+                $this->db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$m["mapx"], $m["mapy"]]);
 
                 $log_action = $is_completed ? "MINE_DEPLETED" : "MINE_EXPIRED";
                 Logger::get_instance()->log_game("ECONOMY", $log_action, [
@@ -488,7 +495,7 @@ class EventManager
                     "completion_percent" => round($completion_ratio * 100, 1)
                 ]);
             } else {
-                $this->mysqli->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$new_work_done, $now, $m["id"]]);
+                $this->db->execute_query("UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?", [$new_work_done, $now, $m["id"]]);
             }
         }
     }
@@ -498,7 +505,7 @@ class EventManager
         $target_id = (int)$row["targetid"];
         $attacker_id = (int)$row["userid"];
 
-        $res_atk = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$attacker_id]);
+        $res_atk = $this->db->execute_query("SELECT username FROM users WHERE id = ?", [$attacker_id]);
         $atk_data = $res_atk->fetch_assoc();
         $attacker_name = $atk_data["username"] ?? "Unbekannt";
         $attacker_user_obj = new User($attacker_id, $attacker_name, (int)$row["kingdomid"]);
@@ -507,7 +514,7 @@ class EventManager
         $return_time = (int)($row["arrivaltime"] - $row["buildingtime"]);
 
         // Check for troop composition
-        $res = $this->mysqli->execute_query(
+        $res = $this->db->execute_query(
             "SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?",
             [$row["eventid"]]
         );
@@ -531,10 +538,10 @@ class EventManager
         $is_pure_thief = ($combat_units === 0 && $scout_count === 0 && $thief_count > 0);
 
         if ($target_id > 0) {
-            $check = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ?", [$target_id]);
+            $check = $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ?", [$target_id]);
 
             if ($check->num_rows === 0) {
-                $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, targetid = -1, is_processing = 0 WHERE eventid = ?",
+                $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, targetid = -1, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
 
                 $target_lost_json = [
@@ -559,7 +566,7 @@ class EventManager
                 $report_units = [];
                 $damage_per_kingdom = [];
 
-                $res_troops = $this->mysqli->execute_query("
+                $res_troops = $this->db->execute_query("
                     SELECT st.soldierid, st.soldiercount, st.source_kingdom_id, sl.attack, sl.category
                     FROM sent_troops st 
                     JOIN soldier_list sl ON st.soldierid = sl.id 
@@ -665,7 +672,7 @@ class EventManager
             $duration = $world_event_manager->get_current_duration();
             $event_type = $active_event["event_type"] ?? "BOSS_HP";
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, buildingname = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, buildingname = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $duration, $event_type, $row["eventid"]]);
 
             return;
@@ -681,7 +688,7 @@ class EventManager
                 return;
             }
 
-            $mine = $this->mysqli->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ? FOR UPDATE", [$tx, $ty])->fetch_assoc();
+            $mine = $this->db->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ? FOR UPDATE", [$tx, $ty])->fetch_assoc();
 
             if (!$mine || ($mine["expires_at"] > 0 && (int)$row["arrivaltime"] > (int)$mine["expires_at"])) {
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
@@ -694,7 +701,7 @@ class EventManager
                 ];
                 Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $empty_mine_json);
 
-                $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
                 return;
             }
@@ -703,7 +710,7 @@ class EventManager
             $attacker_guild_id = $attacker_user_obj->get_user_guild_id();
             $now = time();
 
-            $defenders = $this->mysqli->execute_query("
+            $defenders = $this->db->execute_query("
                 SELECT mst.*, u.username, u.guildid, k.kingdomname, sl.attack, sl.defense, IFNULL(sl.category, 0) AS category
                 FROM mine_stationed_troops mst
                 JOIN users u ON mst.user_id = u.id
@@ -732,21 +739,21 @@ class EventManager
             $same_user = (!$is_mine_empty && (int)$mine["claimed_user_id"] === $attacker_id);
 
             if ($same_guild && $claimed_gid !== $attacker_guild_id) {
-                $this->mysqli->execute_query("UPDATE mines SET claimed_guild_id = ? WHERE id = ?", [$attacker_guild_id, $mine_id]);
+                $this->db->execute_query("UPDATE mines SET claimed_guild_id = ? WHERE id = ?", [$attacker_guild_id, $mine_id]);
             }
 
             // PEACEFUL ARRIVAL
             if ($is_mine_empty || $same_guild || $same_user) {
                 $max_capacity = (int)$mine["max_troops"];
 
-                $current_troops_count = (int)$this->mysqli->execute_query(
+                $current_troops_count = (int)$this->db->execute_query(
                     "SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops WHERE mine_id = ?",
                     [$mine_id]
                 )->fetch_column();
 
                 $free_space = max(0, $max_capacity - $current_troops_count);
 
-                $res_sent = $this->mysqli->execute_query("
+                $res_sent = $this->db->execute_query("
                     SELECT st.soldierid, st.soldiercount, sl.attack 
                     FROM sent_troops st 
                     JOIN soldier_list sl ON st.soldierid = sl.id 
@@ -760,7 +767,7 @@ class EventManager
                 $sy = $src_k->get_kingdom_map_y();
 
                 if ($free_space <= 0 && !$is_mine_empty) {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                         [ActionTypes::ACTION_RETURN_TROOPS, $now + $return_time, $event_id]
                     );
@@ -833,7 +840,7 @@ class EventManager
                 $last_update = (int)($mine["last_update"] ?: $now);
                 $elapsed = max(0, $now - $last_update);
                 if ($elapsed > 0 && !$is_mine_empty) {
-                    $cur_atk = (float)$this->mysqli->execute_query(
+                    $cur_atk = (float)$this->db->execute_query(
                         "SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?",
                         [$mine_id]
                     )->fetch_column();
@@ -844,13 +851,13 @@ class EventManager
                         $effective_rate = min($cur_atk * MINE_WORK_RATE_FACTOR, $max_rate);
                         $work_delta = $effective_rate * $elapsed;
 
-                        $this->mysqli->execute_query("
+                        $this->db->execute_query("
                             UPDATE mine_stationed_troops 
                             SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
                             WHERE mine_id = ?
                         ", [$work_delta, $cur_atk, $mine_id]);
 
-                        $this->mysqli->execute_query(
+                        $this->db->execute_query(
                             "UPDATE mines SET work_done = work_done + ?, last_update = ? WHERE id = ?",
                             [$work_delta, $now, $mine_id]
                         );
@@ -862,19 +869,19 @@ class EventManager
                     $insert_batch[] = "($mine_id, $attacker_id, " . (int)$row["kingdomid"] . ", {$ts["soldierid"]}, {$ts["soldiercount"]}, {$ts["attack"]}, $now)";
                 }
                 if (!empty($insert_batch)) {
-                    $this->mysqli->query("INSERT INTO mine_stationed_troops (mine_id, user_id, kingdom_id, soldier_id, soldiercount, unit_atk, arrived_at) VALUES " . implode(',', $insert_batch));
+                    $this->db->query("INSERT INTO mine_stationed_troops (mine_id, user_id, kingdom_id, soldier_id, soldiercount, unit_atk, arrived_at) VALUES " . implode(',', $insert_batch));
                 }
 
                 if ($is_mine_empty) {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE mines SET claimed_guild_id = ?, claimed_user_id = ?, last_update = ? WHERE id = ?",
                         [$attacker_guild_id > 0 ? $attacker_guild_id : null, $attacker_id, $now, $mine_id]
                     );
                 }
 
-                $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+                $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
                 if (empty($troops_to_return)) {
-                    $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+                    $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
 
                     $stationed_units = [];
                     foreach ($troops_to_station as $u) {
@@ -899,10 +906,10 @@ class EventManager
                         $return_batch[] = "($event_id, {$tr["soldierid"]}, {$tr["soldiercount"]}, {$tr["soldiercount"]}, " . (int)$row["kingdomid"] . ")";
                     }
                     if (!empty($return_batch)) {
-                        $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $return_batch));
+                        $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $return_batch));
                     }
 
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                         [ActionTypes::ACTION_RETURN_TROOPS, $now + $return_time, $event_id]
                     );
@@ -941,10 +948,10 @@ class EventManager
             // BATTLE FOR THE MINE
             if ((int)$mine["level"] === 1) {
                 $claimed_uid = (int)$mine["claimed_user_id"];
-                $claimed_score = (int)$this->mysqli->execute_query("SELECT score FROM users WHERE id = ?", [$claimed_uid])->fetch_column();
+                $claimed_score = (int)$this->db->execute_query("SELECT score FROM users WHERE id = ?", [$claimed_uid])->fetch_column();
 
                 if (Conquest::has_noob_protection($attacker_user_obj->get_user_score(), $claimed_score)) {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                         [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
                     );
@@ -976,7 +983,7 @@ class EventManager
                     "d" => $home_kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_DOUBLET) * SMITHY_ARC_DEF_BONUS],
             ];
 
-            $res_atk_troops = $this->mysqli->execute_query("
+            $res_atk_troops = $this->db->execute_query("
                 SELECT st.soldierid, st.soldiercount, sl.attack, sl.defense, sl.category 
                 FROM sent_troops st 
                 JOIN soldier_list sl ON st.soldierid = sl.id 
@@ -1068,13 +1075,11 @@ class EventManager
             // Fictional losses in mine battles
             foreach ($atk_cards as $idx => &$ac) {
                 $ac["losses"] = $combat_result["attacker_losses"]["atk_" . $idx] ?? 0;
-                $ac["is_fictional"] = true;
             }
             unset($ac);
 
             foreach ($def_cards as $idx => &$dc) {
                 $dc["losses"] = $combat_result["defender_losses"]["def_" . $idx] ?? 0;
-                $dc["is_fictional"] = true;
             }
             unset($dc);
 
@@ -1099,7 +1104,7 @@ class EventManager
                 }
 
                 foreach ($def_groups as $dg) {
-                    $res_dg_k = $this->mysqli->execute_query("SELECT kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$dg["kingdom_id"]])->fetch_assoc();
+                    $res_dg_k = $this->db->execute_query("SELECT kingdomname, mapx, mapy FROM kingdoms WHERE id = ?", [$dg["kingdom_id"]])->fetch_assoc();
                     $dg_name = $res_dg_k["kingdomname"] ?? "Königreich";
                     $dg_x = (int)($res_dg_k["mapx"] ?? 1);
                     $dg_y = (int)($res_dg_k["mapy"] ?? 1);
@@ -1107,18 +1112,18 @@ class EventManager
                     $map_helper = new Map(new User((int)$dg["user_id"], ""));
                     $travel_time = $map_helper->get_arrival_time($dg_x, $dg_y, $tx, $ty, (int)$dg["kingdom_id"], MapFieldTypes::MAP_FIELD_MINE);
 
-                    $this->mysqli->execute_query("
+                    $this->db->execute_query("
                         INSERT INTO events (actionid, userid, kingdomid, targetid, targetx, targety, arrivaltime, buildingtime, loot_food, loot_wood, loot_stone, loot_gold, buildingname)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 'Minen-Vertreibung')
                     ", [ActionTypes::ACTION_RETURN_TROOPS, $dg["user_id"], $dg["kingdom_id"], MapFieldTypes::MAP_FIELD_MINE, $tx, $ty, $now + $travel_time, $now]);
-                    $ret_id = $this->mysqli->insert_id;
+                    $ret_id = $this->db->insert_id;
 
                     $insert_def_troops = [];
                     foreach ($dg["troops"] as $dt) {
                         $insert_def_troops[] = "($ret_id, " . (int)$dt["soldier_id"] . ", " . (int)$dt["soldiercount"] . ", " . (int)$dt["soldiercount"] . ", " . (int)$dg["kingdom_id"] . ")";
                     }
                     if (!empty($insert_def_troops)) {
-                        $this->mysqli->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_def_troops));
+                        $this->db->query("INSERT INTO sent_troops (eventid, soldierid, soldiercount, initial_count, source_kingdom_id) VALUES " . implode(',', $insert_def_troops));
                     }
 
                     $def_json = [
@@ -1145,8 +1150,8 @@ class EventManager
                     );
                 }
 
-                $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id]);
-                $this->mysqli->execute_query("
+                $this->db->execute_query("DELETE FROM mine_stationed_troops WHERE mine_id = ?", [$mine_id]);
+                $this->db->execute_query("
                     UPDATE mines SET 
                         claimed_guild_id = ?, claimed_user_id = ?, last_update = ? 
                     WHERE id = ?
@@ -1157,13 +1162,13 @@ class EventManager
                     $insert_atk_batch[] = "($mine_id, $attacker_id, " . (int)$row["kingdomid"] . ", " . (int)$at["soldierid"] . ", " . (int)$at["soldiercount"] . ", " . (int)$at["attack"] . ", $now)";
                 }
                 if (!empty($insert_atk_batch)) {
-                    $this->mysqli->query("INSERT INTO mine_stationed_troops (mine_id, user_id, kingdom_id, soldier_id, soldiercount, unit_atk, arrived_at) VALUES " . implode(',', $insert_atk_batch));
+                    $this->db->query("INSERT INTO mine_stationed_troops (mine_id, user_id, kingdom_id, soldier_id, soldiercount, unit_atk, arrived_at) VALUES " . implode(',', $insert_atk_batch));
                 }
 
                 Stats::update_player_stat($attacker_id, "mines_captured");
 
-                $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+                $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
 
                 $atk_json = [
                     "template" => "mine_battle",
@@ -1184,7 +1189,7 @@ class EventManager
                 ], (int)$row["kingdomid"]);
             } else {
                 // DEFENDER WINS
-                $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, $now + $return_time, $event_id]);
 
                 $atk_json = [
@@ -1199,11 +1204,13 @@ class EventManager
                 ];
                 Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $atk_json);
 
-                $def_uids = array_unique(array_column($defenders, "user_id"));
-                foreach ($def_uids as $duid) {
-                    Stats::update_player_stat($duid, "mines_defended");
+                $def_users = [];
+                foreach ($defenders as $d) {
+                    $def_users[(int)$d["user_id"]] = $d["username"];
+                }
 
-                    $dname = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$duid])->fetch_column();
+                foreach ($def_users as $duid => $dname) {
+                    Stats::update_player_stat($duid, "mines_defended");
 
                     $def_json = [
                         "template" => "mine_battle",
@@ -1266,12 +1273,12 @@ class EventManager
             $this->process_empty_field_conquest($row, $attacker_user_obj);
 
             // Troop return
-            $res_check = $this->mysqli->execute_query("SELECT COUNT(*) FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
+            $res_check = $this->db->execute_query("SELECT COUNT(*) FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
             if ($res_check->fetch_row()[0] > 0) {
-                $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+                $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
             } else {
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             }
             return;
         }
@@ -1294,13 +1301,14 @@ class EventManager
         $conquest->set_event_id($row["eventid"]);
         $conquest->fetch_sent_troops();
         $conquest->initialize_soldier_types();
-
         $current_owner_id = $enemy_kingdom->get_kingdom_owner_id();
 
         if ($attacker_id == $current_owner_id) {
             $conquest->set_initial_soldiers();
-            $stationed_units = $conquest->get_battle_result_data(true, true);
-
+            $stationed_units = [];
+            foreach ($conquest->get_initial_soldiers_detailed() as $sid => $cnt) {
+                $stationed_units[] = ["id" => $sid, "count" => $cnt];
+            }
             $conquest->set_target_id($row["targetid"]);
             $conquest->deploy_soldiers_to_kingdom();
 
@@ -1326,7 +1334,7 @@ class EventManager
         $ty = (int)$row["targety"];
         $event_id = (int)$row["eventid"];
 
-        $mine = $this->mysqli->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
+        $mine = $this->db->execute_query("SELECT * FROM mines WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
 
         if (!$mine) {
             $empty_mine_json = [
@@ -1336,7 +1344,7 @@ class EventManager
             ];
             Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, $empty_mine_json);
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
@@ -1348,7 +1356,7 @@ class EventManager
         $last_update = (int)($mine["last_update"] ?: $now);
         $elapsed = max(0, $now - $last_update);
 
-        $current_atk = (float)$this->mysqli->execute_query(
+        $current_atk = (float)$this->db->execute_query(
             "SELECT IFNULL(SUM(soldiercount * unit_atk), 0) FROM mine_stationed_troops WHERE mine_id = ?",
             [$mine_id]
         )->fetch_column();
@@ -1362,13 +1370,13 @@ class EventManager
             $work_delta = $effective_rate * $elapsed;
             $work_done = min($work_total, $work_done + $work_delta);
 
-            $this->mysqli->execute_query("
+            $this->db->execute_query("
                 UPDATE mine_stationed_troops 
                 SET work_contributed = work_contributed + (? * ((soldiercount * unit_atk) / ?))
                 WHERE mine_id = ?
             ", [$work_delta, max(1, $current_atk), $mine_id]);
 
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE mines SET work_done = ?, last_update = ? WHERE id = ?",
                 [$work_done, $now, $mine_id]
             );
@@ -1379,7 +1387,7 @@ class EventManager
         $remaining_ratio = max(0.0, 1.0 - $mined_ratio);
 
         // Get stationed troops
-        $defenders = $this->mysqli->execute_query("
+        $defenders = $this->db->execute_query("
             SELECT mst.*, u.username, u.guildid
             FROM mine_stationed_troops mst
             JOIN users u ON mst.user_id = u.id
@@ -1409,11 +1417,11 @@ class EventManager
         $survivors = $atk_scouts - $losses;
 
         if ($losses > 0) {
-            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $res_scout_score = $this->db->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
             $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
             $total_score_loss = $losses * $scout_score_val;
 
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
                 [$losses, $event_id, Soldiers::SOLDIER_SCOUT]
             );
@@ -1421,7 +1429,7 @@ class EventManager
             Stats::update_global_stat("total_fallen_soldiers", $losses);
             Stats::update_player_stat($attacker_id, "units_fallen_pvp", $losses);
 
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
         }
 
         $home_k = new Kingdom((int)$row["kingdomid"]);
@@ -1497,11 +1505,11 @@ class EventManager
         }
 
         if ($survivors > 0) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         Stats::update_player_stat($attacker_id, "spy_count");
@@ -1514,16 +1522,19 @@ class EventManager
         $ty = (int)$row["targety"];
         $event_id = (int)$row["eventid"];
 
-        $res_ruin = $this->mysqli->execute_query("SELECT * FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
+        $res_ruin = $this->db->execute_query("SELECT * FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
         if (!$res_ruin) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
 
         $ruin_lvl = max(1, (int)($res_ruin["tc_level"] ?? 1));
         $detection_chance = BASE_DANGER_RATE_SCOUTING + ($ruin_lvl - 1);
 
-        $units = $this->mysqli->execute_query("SELECT count, initial_count FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_all(MYSQLI_ASSOC);
+        $units = $this->db->execute_query(
+            "SELECT monster_id, count, initial_count FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ?",
+            [$tx, $ty]
+        )->fetch_all(MYSQLI_ASSOC);
 
         $current_monsters = 0;
         $initial_monsters = 0;
@@ -1548,49 +1559,56 @@ class EventManager
 
         $survivors = $atk_scouts - $losses;
         if ($losses > 0) {
-            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $res_scout_score = $this->db->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
             $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
             $total_score_loss = $losses * $scout_score_val;
-            $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_SCOUT]);
+            $this->db->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_SCOUT]);
 
             Stats::update_global_stat("total_fallen_soldiers", $losses);
             Stats::update_player_stat($attacker_id, "units_fallen_pve", $losses);
 
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
         }
 
-        $units_data = $this->mysqli->execute_query("SELECT monster_id, count FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_all(MYSQLI_ASSOC);
+        $is_success = ($survivors > 0);
         $monster_units = [];
-        foreach ($units_data as $u) {
-            $monster_units[] = [
-                "id" => "m" . (int)$u["monster_id"],
-                "count" => (int)$u["count"]
+        $resources = [];
+
+        if ($is_success) {
+            foreach ($units as $u) {
+                $monster_units[] = [
+                    "id" => "m" . (int)$u["monster_id"],
+                    "count" => (int)$u["count"]
+                ];
+            }
+
+            $resources = [
+                "food" => (int)$res_ruin["food"],
+                "wood" => (int)$res_ruin["wood"],
+                "stone" => (int)$res_ruin["stone"],
+                "gold" => (int)$res_ruin["gold"]
             ];
         }
 
         $spy_json = [
             "template" => "spy_ruin",
+            "success" => $is_success,
             "target_x" => $tx,
             "target_y" => $ty,
             "ruin_name" => $res_ruin["kingdom_name"],
             "atk_scouts" => $atk_scouts,
             "losses" => $losses,
-            "resources" => [
-                "food" => (int)$res_ruin["food"],
-                "wood" => (int)$res_ruin["wood"],
-                "stone" => (int)$res_ruin["stone"],
-                "gold" => (int)$res_ruin["gold"]
-            ],
+            "resources" => $resources,
             "monsters" => $monster_units
         ];
 
         Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $spy_json);
 
         if ($survivors > 0) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?", [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         Stats::update_player_stat($attacker_id, "spy_count");
@@ -1603,7 +1621,7 @@ class EventManager
         $ty = (int)$row["targety"];
         $event_id = (int)$row["eventid"];
 
-        $res_ruin = $this->mysqli->execute_query(
+        $res_ruin = $this->db->execute_query(
             "SELECT * FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ? FOR UPDATE",
             [$tx, $ty]
         )->fetch_assoc();
@@ -1616,12 +1634,12 @@ class EventManager
             ];
             Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $decayed_json);
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
 
-        $res_units = $this->mysqli->execute_query("
+        $res_units = $this->db->execute_query("
             SELECT aku.count, ml.id as monster_id, ml.attack, ml.defense
             FROM abandoned_kingdom_units aku
             JOIN monster_list ml ON aku.monster_id = ml.id
@@ -1646,9 +1664,16 @@ class EventManager
         $combat = $this->execute_pve_combat_math($conquest, $home_k, $enemy_monsters);
 
         foreach ($combat["report_attacker_units"] as $au) {
-            if ($au["losses"] > 0) {
-                $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
-                    [$au["losses"], $event_id, $au["id"]]);
+            if ($au["losses"] >= $au["initial"]) {
+                $this->db->execute_query(
+                    "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?",
+                    [$event_id, $au["id"]]
+                );
+            } else if ($au["losses"] > 0) {
+                $this->db->execute_query(
+                    "UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                    [$au["losses"], $event_id, $au["id"]]
+                );
             }
         }
 
@@ -1671,17 +1696,17 @@ class EventManager
                 $loot["gold"] = (int)$res_ruin["gold"];
             }
 
-            $this->mysqli->execute_query("DELETE FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
-            $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $this->db->execute_query("DELETE FROM abandoned_kingdoms WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $this->db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
         } else {
             foreach ($combat["report_monster_units"] as $rm) {
-                $mid = $rm["monster_id"];
+                $mid = (int)substr($rm["id"], 1);
                 $rem = $rm["initial"] - $rm["losses"];
 
                 if ($rem <= 0) {
-                    $this->mysqli->execute_query("DELETE FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$tx, $ty, $mid]);
+                    $this->db->execute_query("DELETE FROM abandoned_kingdom_units WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$tx, $ty, $mid]);
                 } else {
-                    $this->mysqli->execute_query("UPDATE abandoned_kingdom_units SET count = ? WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$rem, $tx, $ty, $mid]);
+                    $this->db->execute_query("UPDATE abandoned_kingdom_units SET count = ? WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$rem, $tx, $ty, $mid]);
                 }
             }
         }
@@ -1716,17 +1741,17 @@ class EventManager
         Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $ruin_json);
 
         if ($combat["total_score_loss"] > 0) {
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
         }
 
         if ($combat["surviving_attacker_units"] > 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $loot["food"], $loot["wood"], $loot["stone"], $loot["gold"], $event_id]
             );
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
     }
 
@@ -1782,60 +1807,122 @@ class EventManager
         }
 
         $lethality = LETHALITY_PVE;
-        $atk_loss_ratio = ($atk_def_pool > 0) ? min(1.0, $mon_atk_pool / ($atk_def_pool * $lethality)) : 1.0;
-        $mon_loss_ratio = ($mon_def_pool > 0) ? min(1.0, $atk_atk_pool / ($mon_def_pool * $lethality)) : 1.0;
+        $atk_raw_ratio = ($atk_def_pool > 0) ? ($mon_atk_pool / ($atk_def_pool * $lethality)) : 1.0;
+        $mon_raw_ratio = ($mon_def_pool > 0) ? ($atk_atk_pool / ($mon_def_pool * $lethality)) : 1.0;
 
         if ($atk_atk_pool > 0 && $mon_atk_pool > 0) {
             $ratio = $atk_atk_pool / $mon_atk_pool;
             $clamped_ratio_val = max(0.0, min(1.0, $ratio / MONSTER_DMG_CLAMPED_MAX_VAL));
             $lossMultiplier = pow(1.0 - $clamped_ratio_val, MONSTER_DMG_LOSS_EXPONENT);
-
-            $atk_loss_ratio = $atk_loss_ratio * $lossMultiplier;
+            $atk_raw_ratio *= $lossMultiplier;
         }
+
+        $distribute_pve_losses = static function (array $entries, float $raw_ratio, float $avg_def): array {
+            if ($raw_ratio <= 0.0 || empty($entries)) {
+                return array_fill_keys(array_keys($entries), 0);
+            }
+
+            $losses = [];
+            $remainders = [];
+            $sum_exact = 0.0;
+            $sum_floor = 0;
+
+            foreach ($entries as $key => $e) {
+                $init = (int)$e["initial"];
+
+                if ($init <= 0) {
+                    $losses[$key] = 0;
+                    continue;
+                }
+
+                $armor = pow($avg_def / max(1, (int)$e["def"]), ARMOR_WEIGHT_EXPONENT);
+                $unit_ratio = max(0.0, min(1.0, $raw_ratio * $armor));
+                $ex = $init * $unit_ratio;
+                $fl = min($init, (int)floor($ex));
+
+                $losses[$key] = $fl;
+                $remainders[$key] = $ex - $fl;
+                $sum_exact += $ex;
+                $sum_floor += $fl;
+            }
+
+            $extra = max(0, (int)round($sum_exact) - $sum_floor);
+            if ($extra > 0) {
+                $keys = array_keys($remainders);
+
+                usort($keys, static function ($a, $b) use ($remainders, $entries) {
+                    $cmp = $remainders[$b] <=> $remainders[$a];
+                    return ($cmp !== 0) ? $cmp : ((int)$entries[$a]["def"] <=> (int)$entries[$b]["def"]);
+                });
+
+                foreach ($keys as $key) {
+                    if ($extra <= 0) break;
+                    if ($losses[$key] < (int)$entries[$key]["initial"]) {
+                        $losses[$key]++;
+                        $extra--;
+                    }
+                }
+            }
+
+            return $losses;
+        };
+
+        // Player losses
+        $atk_entries = [];
+        $total_atk_units = 0;
+        foreach ($soldier_types as $id => $s) {
+            $initial = $conquest->get_initial_count_by_id($id, true);
+            if ($initial > 0) {
+                $atk_entries[$id] = ["initial" => $initial, "def" => $unit_stats[$id]["def"]];
+                $total_atk_units += $initial;
+            }
+        }
+        $avg_atk_def = ($total_atk_units > 0) ? ($atk_def_pool / $total_atk_units) : 1.0;
+        $atk_losses_map = $distribute_pve_losses($atk_entries, $atk_raw_ratio, $avg_atk_def);
 
         $report_attacker_units = [];
         $total_score_loss = 0;
         $surviving_attacker_units = 0;
         $total_atk_loss = 0;
+        foreach ($atk_entries as $id => $e) {
+            $initial = $e["initial"];
+            $loss = $atk_losses_map[$id] ?? 0;
+            $surviving_attacker_units += ($initial - $loss);
+            $total_atk_loss += $loss;
+            $total_score_loss += ($loss * $soldier_types[$id]["score"]);
+            $report_attacker_units[] = [
+                "id" => $id,
+                "initial" => $initial,
+                "losses" => $loss,
+                "atk" => $unit_stats[$id]["atk"],
+                "def" => $unit_stats[$id]["def"]
+            ];
+        }
 
-        foreach ($soldier_types as $id => $s) {
-            $initial = $conquest->get_initial_count_by_id($id, true);
-
+        // Monster losses
+        $mon_entries = [];
+        $total_mon_units = 0;
+        foreach ($enemy_monsters as $m_id => $m) {
+            $initial = (int)$m["count"];
             if ($initial > 0) {
-                $loss = (int)round($initial * $atk_loss_ratio);
-                $surviving_attacker_units += ($initial - $loss);
-                $total_atk_loss += $loss;
-                $total_score_loss += ($loss * $s["score"]);
-
-                $report_attacker_units[] = [
-                    "id" => $id,
-                    "initial" => $initial,
-                    "losses" => $loss,
-                    "atk" => $unit_stats[$id]["atk"],
-                    "def" => $unit_stats[$id]["def"]
-                ];
+                $mon_entries[$m_id] = ["initial" => $initial, "def" => (int)$m["def"]];
+                $total_mon_units += $initial;
             }
         }
+        $avg_mon_def = ($total_mon_units > 0) ? ($mon_def_pool / $total_mon_units) : 1.0;
+        $mon_losses_map = $distribute_pve_losses($mon_entries, $mon_raw_ratio, $avg_mon_def);
 
         $report_monster_units = [];
         $monsters_slain = 0;
         $total_monsters_remaining = 0;
-
         foreach ($enemy_monsters as $m_id => $m) {
             $initial = (int)$m["count"];
-            $loss = (int)round($initial * $mon_loss_ratio);
-
-            if ($mon_loss_ratio < 1.0 && $loss >= $initial) {
-                $loss = $initial - 1;
-            }
-
+            $loss = $mon_losses_map[$m_id] ?? 0;
             $survivors = max(0, $initial - $loss);
             $monsters_slain += $loss;
             $total_monsters_remaining += $survivors;
-
             $report_monster_units[] = [
                 "id" => "m" . $m_id,
-                "monster_id" => (int)$m_id,
                 "initial" => $initial,
                 "losses" => $loss,
                 "atk" => $m["atk"],
@@ -1862,7 +1949,7 @@ class EventManager
         $tx = (int)$row["targetx"];
         $ty = (int)$row["targety"];
 
-        $res_camp = $this->mysqli->execute_query("
+        $res_camp = $this->db->execute_query("
             SELECT mcu.monster_id, mc.level, mc.expires_at, mcu.count, mcu.initial_count 
             FROM monster_camps mc
             JOIN monster_camp_units mcu ON mc.mapx = mcu.mapx AND mc.mapy = mcu.mapy
@@ -1880,7 +1967,7 @@ class EventManager
             ];
             Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $cleared_json);
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
@@ -1913,16 +2000,16 @@ class EventManager
         $survivors = $atk_scouts - $losses;
 
         if ($losses > 0) {
-            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $res_scout_score = $this->db->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
             $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
             $total_score_loss = $losses * $scout_score_val;
 
-            $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+            $this->db->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
                 [$losses, $event_id, Soldiers::SOLDIER_SCOUT]);
             Stats::update_global_stat("total_fallen_soldiers", $losses);
             Stats::update_player_stat($attacker_id, "units_fallen_pve", $losses);
 
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_id]);
         }
 
         $home_k = new Kingdom((int)$row["kingdomid"]);
@@ -1968,11 +2055,11 @@ class EventManager
         Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $spy_json);
 
         if ($survivors > 0) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         Stats::update_player_stat($attacker_id, "spy_count");
@@ -1985,7 +2072,7 @@ class EventManager
         $ty = (int)$row["targety"];
         $event_id = (int)$row["eventid"];
 
-        $res_expires = $this->mysqli->execute_query("SELECT expires_at FROM monster_camps WHERE mapx = ? AND mapy = ? FOR UPDATE",
+        $res_expires = $this->db->execute_query("SELECT expires_at FROM monster_camps WHERE mapx = ? AND mapy = ? FOR UPDATE",
             [$tx, $ty]
         );
         $row_camp = $res_expires->fetch_assoc();
@@ -1999,12 +2086,12 @@ class EventManager
 
             Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $cleared_json);
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
 
-        $res_pristine = $this->mysqli->execute_query("
+        $res_pristine = $this->db->execute_query("
             SELECT 
                 SUM(count) AS cur_monsters, 
                 SUM(initial_count) AS init_monsters
@@ -2023,7 +2110,7 @@ class EventManager
         $conquest->initialize_soldier_values();
         $conquest->set_initial_monster_battle();
 
-        $camp_res = $this->mysqli->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+        $camp_res = $this->db->execute_query("SELECT level FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
         $camp_lvl = (int)($camp_res->fetch_column() ?: 1);
 
         // PvE Calculation
@@ -2031,9 +2118,16 @@ class EventManager
 
         // Insert losses to database
         foreach ($combat["report_attacker_units"] as $au) {
-            if ($au["losses"] > 0) {
-                $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
-                    [$au["losses"], $event_id, $au["id"]]);
+            if ($au["losses"] >= $au["initial"]) {
+                $this->db->execute_query(
+                    "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?",
+                    [$event_id, $au["id"]]
+                );
+            } else if ($au["losses"] > 0) {
+                $this->db->execute_query(
+                    "UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+                    [$au["losses"], $event_id, $au["id"]]
+                );
             }
         }
 
@@ -2048,14 +2142,14 @@ class EventManager
 
         if (!$victory) {
             foreach ($combat["report_monster_units"] as $rep_m) {
-                $current_m_id = $rep_m["monster_id"];
+                $current_m_id = (int)substr($rep_m["id"], 1);
                 $rem_count = $rep_m["initial"] - $rep_m["losses"];
 
                 if ($rep_m["losses"] > 0) {
                     if ($rem_count <= 0) {
-                        $this->mysqli->execute_query("DELETE FROM monster_camp_units WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$tx, $ty, $current_m_id]);
+                        $this->db->execute_query("DELETE FROM monster_camp_units WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$tx, $ty, $current_m_id]);
                     } else {
-                        $this->mysqli->execute_query("UPDATE monster_camp_units SET count = ? WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$rem_count, $tx, $ty, $current_m_id]);
+                        $this->db->execute_query("UPDATE monster_camp_units SET count = ? WHERE mapx = ? AND mapy = ? AND monster_id = ?", [$rem_count, $tx, $ty, $current_m_id]);
                     }
                 }
             }
@@ -2098,8 +2192,8 @@ class EventManager
                 $loot_res[$random_key] = (int)($camp_lvl * MONSTER_CAMP_BASE_RESOURCE_LOOT);
             }
 
-            $this->mysqli->execute_query("DELETE FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
-            $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $this->db->execute_query("DELETE FROM monster_camps WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
+            $this->db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$tx, $ty]);
 
             if ($camp_lvl === 10 && $combat["total_atk_loss"] === 0 && $is_pristine_camp) {
                 Achievement::unlock($attacker_id, AchievementTypes::ACHIEVEMENT_PERFECT_CAMP_KILL);
@@ -2155,7 +2249,7 @@ class EventManager
         Messages::send_server_message($attacker_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $battle_json);
 
         if ($combat["total_score_loss"] > 0) {
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$combat["total_score_loss"], $attacker_id]);
         }
         Stats::update_global_stat("total_slain_monsters", $combat["monsters_slain"]);
 
@@ -2165,14 +2259,14 @@ class EventManager
         }
 
         if ($combat["surviving_attacker_units"] > 0) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, loot_coins = ?, 
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, loot_coins = ?, 
                     loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $looted_coins,
                     $loot_res["food"], $loot_res["wood"], $loot_res["stone"], $loot_res["gold"], $event_id]
             );
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         $troops_sent_details = [];
@@ -2198,10 +2292,10 @@ class EventManager
         $event_id = (int)$row["eventid"];
         $u_id = $attacker_user->get_user_id();
 
-        $res_tile = $this->mysqli->execute_query("SELECT * FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
+        $res_tile = $this->db->execute_query("SELECT * FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$tx, $ty])->fetch_assoc();
 
         if (!$res_tile || (time() > $res_tile["expires_at"] && $res_tile["expires_at"] > 0)) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
             return;
         }
@@ -2218,14 +2312,14 @@ class EventManager
         $survivors = $atk_scouts - $losses;
 
         if ($losses > 0) {
-            $res_scout_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
+            $res_scout_score = $this->db->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_SCOUT]);
             $scout_score_val = (int)$res_scout_score->fetch_column() ?: 1;
 
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$losses * $scout_score_val, $u_id]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$losses * $scout_score_val, $u_id]);
             Stats::update_global_stat("total_fallen_soldiers", $losses);
             Stats::update_player_stat($u_id, "units_fallen_pve", $losses);
 
-            $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
+            $this->db->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?",
                 [$losses, $event_id, Soldiers::SOLDIER_SCOUT]);
         }
 
@@ -2252,11 +2346,11 @@ class EventManager
         Messages::send_server_message($u_id, $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, $spy_json);
 
         if ($survivors > 0) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]);
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         Stats::update_player_stat($u_id, "spy_count");
@@ -2279,7 +2373,7 @@ class EventManager
         $home_kingdom_id = $row["kingdomid"];
 
         // Check already plundered tile
-        $res_data = $this->mysqli->execute_query("SELECT * FROM resource_tiles_data WHERE mapx = ? AND mapy = ? FOR UPDATE",
+        $res_data = $this->db->execute_query("SELECT * FROM resource_tiles_data WHERE mapx = ? AND mapy = ? FOR UPDATE",
             [$target_x, $target_y]
         );
         $tile = $res_data->fetch_assoc();
@@ -2289,10 +2383,10 @@ class EventManager
                 "template" => "plunder_already_empty"
             ]);
 
-            $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+            $this->db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
 
             $return_time = max(60, (int)($row["arrivaltime"] - $row["buildingtime"]));
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -2300,7 +2394,7 @@ class EventManager
         }
 
         // Count raiders
-        $res = $this->mysqli->execute_query(
+        $res = $this->db->execute_query(
             "SELECT soldiercount FROM sent_troops WHERE eventid = ? AND soldierid = ?",
             [$event_id, Soldiers::SOLDIER_RAIDER]
         );
@@ -2317,16 +2411,16 @@ class EventManager
                 $loss_roll = mt_rand(RAIDER_LOSS_MIN_PERC, RAIDER_LOSS_MAX_PERC) / 100;
                 $losses = (int)ceil($raider_count * $loss_roll);
 
-                $res_score = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_RAIDER]);
+                $res_score = $this->db->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [Soldiers::SOLDIER_RAIDER]);
                 $total_score_loss = $losses * ($res_score->fetch_column() ?: 1);
-                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_user->get_user_id()]);
+                $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_score_loss, $attacker_user->get_user_id()]);
 
                 if ($losses >= $raider_count) {
-                    $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?", [$event_id, Soldiers::SOLDIER_RAIDER]);
+                    $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?", [$event_id, Soldiers::SOLDIER_RAIDER]);
 
                     $losses = $raider_count;
                 } else {
-                    $this->mysqli->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_RAIDER]);
+                    $this->db->execute_query("UPDATE sent_troops SET soldiercount = soldiercount - ? WHERE eventid = ? AND soldierid = ?", [$losses, $event_id, Soldiers::SOLDIER_RAIDER]);
                 }
             }
 
@@ -2381,8 +2475,8 @@ class EventManager
             if ($is_empty) {
                 Stats::update_player_stat($attacker_user->get_user_id(), "res_tiles_cleared");
 
-                $this->mysqli->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
-                $this->mysqli->execute_query("DELETE FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+                $this->db->execute_query("UPDATE map SET kingdomid = -1 WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
+                $this->db->execute_query("DELETE FROM resource_tiles_data WHERE mapx = ? AND mapy = ?", [$target_x, $target_y]);
 
                 $this->turn_back_incoming_resource_tile_troops($target_x, $target_y, $event_id);
 
@@ -2390,25 +2484,25 @@ class EventManager
                     Achievement::unlock($attacker_user->get_user_id(), AchievementTypes::ACHIEVEMENT_PERFECT_PLUNDER);
                 }
             } else {
-                $this->mysqli->execute_query("UPDATE resource_tiles_data SET food = food - ?, wood = wood - ?, stone = stone - ?, gold = gold - ? WHERE mapx = ? AND mapy = ?",
+                $this->db->execute_query("UPDATE resource_tiles_data SET food = food - ?, wood = wood - ?, stone = stone - ?, gold = gold - ? WHERE mapx = ? AND mapy = ?",
                     [$loot_f, $loot_w, $loot_s, $loot_g, $target_x, $target_y]);
             }
 
             // Save loot / Update event
             if ($is_success) {
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, is_processing = 0 WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_TROOPS, time() + (int)($row["arrivaltime"] - $row["buildingtime"]), $loot_f, $loot_w, $loot_s, $loot_g, $event_id]
                 );
             } else {
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
             }
         } else {
             Messages::send_server_message($attacker_user->get_user_id(), $attacker_user->get_user_name(), MessageCategories::CATEGORY_PVE, [
                 "template" => "plunder_no_raiders"
             ]);
 
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + (int)($row["arrivaltime"] - $row["buildingtime"]), $event_id]);
         }
 
@@ -2441,7 +2535,7 @@ class EventManager
             $params[] = $exclude_event_id;
         }
 
-        $res_incoming = $this->mysqli->execute_query($sql, $params);
+        $res_incoming = $this->db->execute_query($sql, $params);
 
         while ($inc = $res_incoming->fetch_assoc()) {
             $event_id = (int)$inc["eventid"];
@@ -2449,7 +2543,7 @@ class EventManager
             $already_marched = max(5, $now - (int)$inc["buildingtime"]);
             $new_arrival = $now + $already_marched;
 
-            $this->mysqli->execute_query("
+            $this->db->execute_query("
                 UPDATE events 
                 SET actionid = ?, 
                     arrivaltime = ?, 
@@ -2459,7 +2553,7 @@ class EventManager
                 WHERE eventid = ?
             ", [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival, $now, $event_id]);
 
-            $units_res = $this->mysqli->execute_query("
+            $units_res = $this->db->execute_query("
                 SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?
             ", [$event_id]);
 
@@ -2498,7 +2592,7 @@ class EventManager
         $target_y = $row["targety"];
         $uid = $attacker_user->get_user_id();
 
-        $check_field = $this->mysqli->execute_query("
+        $check_field = $this->db->execute_query("
             SELECT m.kingdomid, ft.fieldname 
             FROM map m 
             JOIN field_types ft ON m.fieldtype = ft.fieldid 
@@ -2519,11 +2613,11 @@ class EventManager
             return;
         }
 
-        $res_curr = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
+        $res_curr = $this->db->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ? AND creation_method != " . KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
             [$uid]);
         $current_count = (int)$res_curr->fetch_column();
 
-        $res_imp = $this->mysqli->execute_query("
+        $res_imp = $this->db->execute_query("
             SELECT IFNULL(MAX(t.techlevel), 0) FROM techs t JOIN kingdoms k ON t.kingdomid = k.id 
             WHERE k.userid = ? AND t.techid = ?
         ", [$uid, TechTypes::TECH_TYPE_IMPERIAL]);
@@ -2541,7 +2635,7 @@ class EventManager
             return;
         }
 
-        $res = $this->mysqli->execute_query(
+        $res = $this->db->execute_query(
             "SELECT soldiercount FROM sent_troops WHERE eventid = ? AND soldierid = ?",
             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
         );
@@ -2550,7 +2644,7 @@ class EventManager
         if ($wagon_count > 0) {
             $chance = min(MAX_SETTLER_CHANCE, BASE_SETTLER_CHANCE + (($wagon_count - 1) * SETTLER_CHANCE_STEP));
 
-            if (mt_rand(0, 100) <= ($chance * 100)) {
+            if (mt_rand(1, 100) <= ($chance * 100)) {
                 $new_kingdom_obj = new Kingdom();
                 $new_kingdom_id = $new_kingdom_obj->create_kingdom(
                     $attacker_user->get_user_id(),
@@ -2562,12 +2656,12 @@ class EventManager
 
                 if ($new_kingdom_id) {
                     if ($wagon_count > 1) {
-                        $this->mysqli->execute_query(
+                        $this->db->execute_query(
                             "UPDATE sent_troops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?",
                             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
                         );
                     } else {
-                        $this->mysqli->execute_query(
+                        $this->db->execute_query(
                             "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?",
                             [$event_id, Soldiers::SOLDIER_SETTLER_WAGON]
                         );
@@ -2648,7 +2742,7 @@ class EventManager
         $enemy_gid = $enemy_user_obj->get_user_guild_id();
 
         if ($attacker_gid > 0 && $attacker_gid === $enemy_gid) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -2696,7 +2790,7 @@ class EventManager
                 "intel" => $this->get_scouted_kingdom_intel($enemy_k, $survivors, true)
             ];
 
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -2715,8 +2809,8 @@ class EventManager
                 "atk_losses" => $atk_losses
             ];
 
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         // Message for defender
@@ -2795,12 +2889,16 @@ class EventManager
             $buildings = [];
 
             if ($survivors >= SPY_INTEL_THRESHOLD_TROOPS) {
-                $b_res = $this->mysqli->execute_query(
+                $b_res = $this->db->execute_query(
                     "SELECT buildingid, buildingname, buildinglevel FROM buildings WHERE kingdomid = ? ORDER BY buildinglevel DESC",
                     [$enemy_k->get_kingdom_id()]
                 );
                 while ($b = $b_res->fetch_assoc()) {
-                    $buildings[] = ["id" => (int)$b["buildingid"], "name" => $b["buildingname"], "level" => (int)$b["buildinglevel"]];
+                    $buildings[] = [
+                        "id" => (int)$b["buildingid"],
+                        "name" => $b["buildingname"],
+                        "level" => (int)$b["buildinglevel"]
+                    ];
                 }
             } else {
                 $buildings[] = ["id" => BuildingTypes::BUILDING_TOWNCENTER, "name" => "Dorfzentrum", "level" => $enemy_k->get_kingdom_building_level(BuildingTypes::BUILDING_TOWNCENTER)];
@@ -2835,7 +2933,7 @@ class EventManager
                 $def_atk_shrine += $enemy_k->calculate_shrine_bonus($enemy_k->get_shrine_modifier());
             }
 
-            $res_sol_meta = $this->mysqli->query("SELECT id, attack, defense, category FROM soldier_list");
+            $res_sol_meta = $this->db->query("SELECT id, attack, defense, category FROM soldier_list");
             $sol_meta_map = [];
             while ($sm = $res_sol_meta->fetch_assoc()) {
                 $sol_meta_map[(int)$sm["id"]] = $sm;
@@ -2862,7 +2960,7 @@ class EventManager
             };
 
             $troops = [];
-            $t_res = $this->mysqli->execute_query(
+            $t_res = $this->db->execute_query(
                 "SELECT soldierid, soldiercount FROM soldiers WHERE kingdomid = ? AND soldiercount > 0",
                 [$enemy_k->get_kingdom_id()]
             );
@@ -2874,15 +2972,13 @@ class EventManager
                 $total_garrison_def += ($cnt * $power["def"]);
                 $troops[] = [
                     "id" => $sid,
-                    "count" => $cnt,
-                    "atk" => $power["atk"],
-                    "def" => $power["def"]
+                    "count" => $cnt
                 ];
             }
             $intel["troops"] = $troops;
 
             $support_troops = [];
-            $st_res = $this->mysqli->execute_query(
+            $st_res = $this->db->execute_query(
                 "SELECT soldier_id, SUM(soldiercount) AS total_count 
                  FROM stationed_troops 
                  WHERE target_kingdom_id = ? 
@@ -2899,9 +2995,7 @@ class EventManager
                 $total_support_def += ($cnt * $power["def"]);
                 $support_troops[] = [
                     "id" => $sid,
-                    "count" => $cnt,
-                    "atk" => $power["atk"],
-                    "def" => $power["def"]
+                    "count" => $cnt
                 ];
             }
 
@@ -2918,7 +3012,7 @@ class EventManager
         // TIER 4: Techs
         if ($survivors >= SPY_INTEL_THRESHOLD_TECHS) {
             $techs = [];
-            $t_res = $this->mysqli->execute_query(
+            $t_res = $this->db->execute_query(
                 "SELECT t.techid, t.techname, t.techlevel, tl.origin_building
                  FROM techs t
                  JOIN tech_list tl ON t.techid = tl.id
@@ -2951,12 +3045,12 @@ class EventManager
         $enemy_user_name = $enemy_kingdom->get_kingdom_owner_name();
         $enemy_user = new User($enemy_user_id, $enemy_user_name);
 
-        $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE",
+        $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE",
             [$enemy_kingdom->get_kingdom_id()]
         );
 
         if (Conquest::has_noob_protection($attacker_user->get_user_score(), $enemy_user->get_user_score())) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
 
             Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, [
@@ -2970,7 +3064,7 @@ class EventManager
         }
 
         if ($enemy_kingdom->has_new_kingdom_protection()) {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
 
             Messages::send_server_message($attacker_id, $attacker_name, MessageCategories::CATEGORY_PVP, [
@@ -2983,7 +3077,7 @@ class EventManager
             return;
         }
 
-        $res_guilds = $this->mysqli->execute_query("
+        $res_guilds = $this->db->execute_query("
             SELECT u1.guildid AS atk_gid, u2.guildid AS def_gid 
             FROM users u1, users u2 
             WHERE u1.id = ? AND u2.id = ?",
@@ -2993,7 +3087,7 @@ class EventManager
         $is_now_ally = (!empty($res_guilds["atk_gid"]) && $res_guilds["atk_gid"] > 0 && $res_guilds["atk_gid"] === $res_guilds["def_gid"]);
 
         if ($is_now_ally) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]
             );
@@ -3012,7 +3106,6 @@ class EventManager
         // Initialize battle calculation
         $conquest->set_target_id($row["targetid"]);
         $conquest->set_enemy_kingdom($enemy_kingdom);
-        $conquest->initialize_soldier_types();
         $conquest->initialize_soldier_values();
         $conquest->get_enemy_soldiers();
         $conquest->set_initial_soldiers();
@@ -3072,15 +3165,15 @@ class EventManager
         }
 
         // Score & Wall-Updates
-        $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_my_score_loss(), $attacker_id]);
-        $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_enemy_score_loss(), $enemy_user_id]);
+        $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_my_score_loss(), $attacker_id]);
+        $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$conquest->get_enemy_score_loss(), $enemy_user_id]);
         $enemy_kingdom->set_wall_hp($wall_after);
 
         // Event-Handling: Delete troops or send back
         if ($conquest->get_initial_soldier_count() == $conquest->get_my_loss_count()) {
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
         } else {
-            $this->mysqli->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
+            $this->db->execute_query("UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $row["eventid"]]);
         }
 
@@ -3222,8 +3315,8 @@ class EventManager
             "troops_defender" => $conquest->get_initial_enemy_detailed(),
             "losses_attacker" => $conquest->get_attacker_losses_detailed(),
             "losses_defender" => $conquest->get_defender_losses_detailed(),
-            "wall_before" => $enemy_kingdom->get_wall_hp(),
-            "wall_after" => $conquest->calculate_wall_damage()
+            "wall_before" => $wall_before,
+            "wall_after" => $wall_after
         ];
 
         Logger::get_instance()->log_game("COMBAT", "RESULT", $log_details, $row["kingdomid"]);
@@ -3238,12 +3331,13 @@ class EventManager
         $is_conquered = $conquest->is_conquered($rate);
 
         if ($is_conquered) {
-            $this->mysqli->execute_query(
-                "DELETE FROM events WHERE kingdomid = ? AND actionid IN (?, ?, ?, ?)",
+            $this->db->execute_query(
+                "DELETE FROM events WHERE kingdomid = ? AND actionid IN (?, ?, ?, ?, ?)",
                 [
                     $enemy_kingdom->get_kingdom_id(),
                     ActionTypes::ACTION_BUILD_BUILDING,
                     ActionTypes::ACTION_RESEARCH_TECH,
+                    ActionTypes::ACTION_SMITHY_UPGRADE,
                     ActionTypes::ACTION_BUILD_TROOPS,
                     ActionTypes::ACTION_UPGRADE_TROOPS
                 ]
@@ -3254,19 +3348,19 @@ class EventManager
             $score_loss = $soldier_types[$c_id]["score"];
 
             // Score decrease for losing one Conquerer
-            $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$score_loss, $attacker_user->get_user_id()]);
+            $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$score_loss, $attacker_user->get_user_id()]);
 
-            $this->mysqli->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?"
+            $this->db->execute_query($conquest->get_conquerer_count() <= 1 ? "DELETE FROM sent_troops WHERE eventid = ? AND soldierid = ?"
                 : "UPDATE sent_troops SET soldiercount = soldiercount - 1 WHERE eventid = ? AND soldierid = ?", [$row["eventid"], $c_id]);
 
             // Check: Is it the last kingdom of the defender?
-            $k_count_res = $this->mysqli->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$enemy_user->get_user_id()]);
+            $k_count_res = $this->db->execute_query("SELECT COUNT(*) FROM kingdoms WHERE userid = ?", [$enemy_user->get_user_id()]);
             $has_more_kingdoms = ($k_count_res->fetch_column() > 1);
 
             // Get all Buildings for score loss
             $base_buildings = implode(',', [BuildingTypes::BUILDING_TOWNCENTER, BuildingTypes::BUILDING_WALL, BuildingTypes::BUILDING_STORAGE]);
 
-            $res_b_score = $this->mysqli->execute_query("
+            $res_b_score = $this->db->execute_query("
                 SELECT SUM(
                     IF(b.buildingid IN ($base_buildings), GREATEST(0, (b.buildinglevel * (b.buildinglevel + 1) / 2) - 1) * bl.buildingscore, 
                     (b.buildinglevel * (b.buildinglevel + 1) / 2) * bl.buildingscore)
@@ -3277,7 +3371,7 @@ class EventManager
             $village_building_score = (int)($res_b_score->fetch_assoc()["loss"] ?? 0);
 
             // Get all techs for score loss
-            $res_t_score = $this->mysqli->execute_query("
+            $res_t_score = $this->db->execute_query("
                 SELECT SUM((t.techlevel * (t.techlevel + 1) / 2) * tl.techscore) AS loss 
                 FROM techs t 
                 JOIN tech_list tl ON t.techid = tl.id 
@@ -3296,7 +3390,7 @@ class EventManager
                 $ty = $enemy_kingdom->get_kingdom_map_y();
                 $old_owner_id = $enemy_user->get_user_id();
 
-                $res_inc_station = $this->mysqli->execute_query("
+                $res_inc_station = $this->db->execute_query("
                     SELECT e.eventid, e.buildingtime, k.kingdomname AS home_name
                     FROM events e
                     JOIN kingdoms k ON e.kingdomid = k.id
@@ -3310,7 +3404,7 @@ class EventManager
                     $already_marched = max(5, $now - (int)$inc["buildingtime"]);
                     $new_arrival = $now + $already_marched;
 
-                    $this->mysqli->execute_query("
+                    $this->db->execute_query("
                         UPDATE events
                         SET actionid = ?,
                             arrivaltime = ?,
@@ -3320,7 +3414,7 @@ class EventManager
                         WHERE eventid = ?
                     ", [ActionTypes::ACTION_RETURN_TROOPS, $new_arrival, $now, $inc_event_id]);
 
-                    $units_res = $this->mysqli->execute_query(
+                    $units_res = $this->db->execute_query(
                         "SELECT soldierid, soldiercount FROM sent_troops WHERE eventid = ?",
                         [$inc_event_id]
                     );
@@ -3352,39 +3446,39 @@ class EventManager
                 }
 
                 // Remove score from defender
-                $this->mysqli->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_village_value, $enemy_user->get_user_id()]);
+                $this->db->execute_query("UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?", [$total_village_value, $enemy_user->get_user_id()]);
                 // Add score to attacker
-                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
+                $this->db->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
                 Achievement::check($attacker_user->get_user_id(), AchievementTypes::ACHIEVEMENT_SCORE);
 
                 if ($enemy_kingdom->get_kingdom_id() == $enemy_user->get_main_kingdom()) {
-                    $new_main_id = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE userid = ? AND id != ? LIMIT 1",
+                    $new_main_id = $this->db->execute_query("SELECT id FROM kingdoms WHERE userid = ? AND id != ? LIMIT 1",
                         [$enemy_user->get_user_id(), $enemy_kingdom->get_kingdom_id()])->fetch_column();
 
                     if ($new_main_id) {
-                        $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_main_id, $enemy_user->get_user_id()]);
+                        $this->db->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_main_id, $enemy_user->get_user_id()]);
 
                         // Move Embassy, if it exists
-                        $check_embassy = $this->mysqli->execute_query(
+                        $check_embassy = $this->db->execute_query(
                             "SELECT buildinglevel FROM buildings WHERE kingdomid = ? AND buildingid = ?",
                             [$enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_EMBASSY]
                         );
 
                         if ($check_embassy->num_rows > 0) {
-                            $this->mysqli->execute_query(
+                            $this->db->execute_query(
                                 "UPDATE buildings SET kingdomid = ? WHERE kingdomid = ? AND buildingid = ?",
                                 [$new_main_id, $enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_EMBASSY]
                             );
                         }
 
                         // Move Imperial Tech, if it exists
-                        $check_imperium = $this->mysqli->execute_query(
+                        $check_imperium = $this->db->execute_query(
                             "SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ?",
                             [$enemy_kingdom->get_kingdom_id(), TechTypes::TECH_TYPE_IMPERIAL]
                         );
 
                         if ($check_imperium->num_rows > 0) {
-                            $this->mysqli->execute_query(
+                            $this->db->execute_query(
                                 "UPDATE techs SET kingdomid = ? WHERE kingdomid = ? AND techid = ?",
                                 [$new_main_id, $enemy_kingdom->get_kingdom_id(), TechTypes::TECH_TYPE_IMPERIAL]
                             );
@@ -3394,25 +3488,25 @@ class EventManager
 
                 $fallback_kid = !empty($new_main_id) ? (int)$new_main_id : $enemy_user->get_main_kingdom();
                 if ($fallback_kid > 0 && $fallback_kid !== $conquered_kid) {
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE mine_stationed_troops SET kingdom_id = ? WHERE user_id = ? AND kingdom_id = ?",
                         [$fallback_kid, $old_owner_id, $conquered_kid]
                     );
 
-                    $this->mysqli->execute_query(
+                    $this->db->execute_query(
                         "UPDATE marketplace SET kingdomid = ? WHERE userid = ? AND kingdomid = ?",
                         [$fallback_kid, $old_owner_id, $conquered_kid]
                     );
                 }
             } else {
                 // Give attacker score
-                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
+                $this->db->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$total_village_value, $attacker_user->get_user_id()]);
 
                 // Defender was completely destroyed -> defender starts over again
-                $this->mysqli->execute_query("UPDATE users SET score = ? WHERE id = ?", [STARTING_SCORE, $enemy_user->get_user_id()]);
-                $this->mysqli->execute_query("DELETE FROM events WHERE userid = ? AND guild_id IS NULL", [$enemy_user->get_user_id()]);
+                $this->db->execute_query("UPDATE users SET score = ? WHERE id = ?", [STARTING_SCORE, $enemy_user->get_user_id()]);
+                $this->db->execute_query("DELETE FROM events WHERE userid = ? AND guild_id IS NULL", [$enemy_user->get_user_id()]);
 
-                $res_stationed = $this->mysqli->execute_query("
+                $res_stationed = $this->db->execute_query("
                     SELECT st.target_kingdom_id, k.userid as host_uid, k.username as host_name, k.kingdomname as host_kname
                     FROM stationed_troops st
                     JOIN kingdoms k ON st.target_kingdom_id = k.id
@@ -3428,9 +3522,9 @@ class EventManager
                     ];
                     Messages::send_server_message((int)$host["host_uid"], $host["host_name"], MessageCategories::CATEGORY_GUILD, $disband_json);
                 }
-                $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE owner_id = ?", [$enemy_user->get_user_id()]);
-                $this->mysqli->execute_query("DELETE FROM marketplace WHERE userid = ?", [$enemy_user->get_user_id()]);
-                $this->mysqli->execute_query(
+                $this->db->execute_query("DELETE FROM stationed_troops WHERE owner_id = ?", [$enemy_user->get_user_id()]);
+                $this->db->execute_query("DELETE FROM marketplace WHERE userid = ?", [$enemy_user->get_user_id()]);
+                $this->db->execute_query(
                     "UPDATE mines m SET
                         m.claimed_user_id = (SELECT mst.user_id FROM mine_stationed_troops mst WHERE mst.mine_id = m.id AND mst.user_id != ? LIMIT 1),
                         m.claimed_guild_id = IF(
@@ -3441,25 +3535,25 @@ class EventManager
                      WHERE m.claimed_user_id = ?",
                     [$enemy_user->get_user_id(), $enemy_user->get_user_id(), $enemy_user->get_user_id()]
                 );
-                $this->mysqli->execute_query("DELETE FROM mine_stationed_troops WHERE user_id = ?", [$enemy_user->get_user_id()]);
+                $this->db->execute_query("DELETE FROM mine_stationed_troops WHERE user_id = ?", [$enemy_user->get_user_id()]);
 
                 $new_k_id = new Kingdom()->create_kingdom($enemy_user->get_user_id(), $enemy_user->get_user_name());
 
                 if ($new_k_id) {
-                    $this->mysqli->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $enemy_user->get_user_id()]);
+                    $this->db->execute_query("UPDATE users SET mainkingdom = ? WHERE id = ?", [$new_k_id, $enemy_user->get_user_id()]);
                 }
             }
 
             // Safety Deletion for Embassy and Imperial for the conquered Kingdom
-            $this->mysqli->execute_query("DELETE FROM buildings WHERE kingdomid = ? AND buildingid = ?",
+            $this->db->execute_query("DELETE FROM buildings WHERE kingdomid = ? AND buildingid = ?",
                 [$enemy_kingdom->get_kingdom_id(), BuildingTypes::BUILDING_EMBASSY]
             );
-            $this->mysqli->execute_query("DELETE FROM techs WHERE kingdomid = ? AND techid = ?",
+            $this->db->execute_query("DELETE FROM techs WHERE kingdomid = ? AND techid = ?",
                 [$enemy_kingdom->get_kingdom_id(), TechTypes::TECH_TYPE_IMPERIAL]
             );
 
             // Kingdom now belongs to the attacker
-            $this->mysqli->execute_query("UPDATE kingdoms SET userid = ?, username = ?, creation_method = ?, created_at = ? WHERE id = ?",
+            $this->db->execute_query("UPDATE kingdoms SET userid = ?, username = ?, creation_method = ?, created_at = ? WHERE id = ?",
                 [$attacker_user->get_user_id(), $attacker_user->get_user_name(), KingdomCreationTypes::KINGDOM_CREATION_CONQUEST,
                     time(), $enemy_kingdom->get_kingdom_id()]);
 
@@ -3509,17 +3603,17 @@ class EventManager
             $user_filter
         ";
 
-        $results = $this->mysqli->query($query);
+        $results = $this->db->query($query);
         $push_queue = [];
 
         foreach ($results as $row) {
             // Notification lock
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET notification_sent = 1 WHERE eventid = ? AND notification_sent = 0",
                 [$row["eventid"]]
             );
 
-            if ($this->mysqli->affected_rows !== 1) {
+            if ($this->db->affected_rows !== 1) {
                 continue;
             }
 
@@ -3565,7 +3659,7 @@ class EventManager
                     "overview.php"
                 );
 
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE kingdoms SET last_watchtower_push = ? WHERE id = ?",
                     [$current_time, $kid]
                 );
@@ -3580,7 +3674,7 @@ class EventManager
         }
 
         $soldiers = [];
-        $res = $this->mysqli->execute_query("SELECT * FROM soldier_list");
+        $res = $this->db->execute_query("SELECT * FROM soldier_list");
 
         foreach ($res as $row) {
             $s = new Soldier();
@@ -3626,19 +3720,19 @@ class EventManager
                 $owner_id = (int)$row["userid"];
                 $origin_kingdom_id = (int)$row["kingdomid"];
 
-                $current_owner = (int)($this->mysqli->execute_query("SELECT userid FROM kingdoms WHERE id = ?",
+                $current_owner = (int)($this->db->execute_query("SELECT userid FROM kingdoms WHERE id = ?",
                     [$origin_kingdom_id]
                 )->fetch_column() ?? 0);
 
                 if ($current_owner !== $owner_id) {
-                    $main_kid = (int)($this->mysqli->execute_query("SELECT mainkingdom FROM users WHERE id = ?",
+                    $main_kid = (int)($this->db->execute_query("SELECT mainkingdom FROM users WHERE id = ?",
                         [$owner_id]
                     )->fetch_column() ?? 0);
 
                     if ($main_kid > 0 && $main_kid !== $origin_kingdom_id) {
                         $origin_kingdom_id = $main_kid;
                     } else {
-                        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
                         break;
                     }
                 }
@@ -3676,7 +3770,7 @@ class EventManager
                     ], $origin_kingdom_id);
                 }
 
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
                 break;
             case ActionTypes::ACTION_UPGRADE_TROOPS:
                 $this->handle_upgrade_finish($row);
@@ -3692,20 +3786,21 @@ class EventManager
         $guild_id = $row["guild_id"];
         $tech_id = $row["buildingid"];
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "INSERT INTO guild_techs (guild_id, tech_id, level) VALUES (?, ?, 1) 
                     ON DUPLICATE KEY UPDATE level = level + 1",
             [$guild_id, $tech_id]
         );
 
-        $this->mysqli->execute_query("DELETE FROM guild_member_contributions WHERE guild_id = ?", [$guild_id]);
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $this->db->execute_query("DELETE FROM guild_member_contributions WHERE guild_id = ?", [$guild_id]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
         // Notify guild members
         $tech_name = $row["buildingname"];
-        $new_lvl = (int)$this->mysqli->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?", [$guild_id, $tech_id])->fetch_column();
+        $new_lvl = (int)$this->db->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?", [$guild_id, $tech_id])->fetch_column();
 
         new Guild($this->user, $guild_id)->notify_guild("guild_research_completed", ["tech" => $tech_name, "level" => $new_lvl]);
+        Guild::clear_tech_cache();
     }
 
     private function handle_research(array $row): void
@@ -3713,40 +3808,50 @@ class EventManager
         if ($row["buildingtime"] > time()) return;
 
         $kingdom_id = $row["kingdomid"];
+
+        $res_check = $this->db->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$kingdom_id]);
+        $current_owner = $res_check->fetch_column();
+
+        if ($current_owner != $row["userid"]) {
+            // Kingdom was conquered! Delete research action
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            return;
+        }
+
         $tech_id = $row["buildingid"];
 
         if ($row["buildinglevel"] == 0) {
-            $this->mysqli->execute_query("INSERT INTO techs (kingdomid, techid, techname, techlevel) VALUES (?, ?, ?, ?)",
+            $this->db->execute_query("INSERT INTO techs (kingdomid, techid, techname, techlevel) VALUES (?, ?, ?, ?)",
                 [$kingdom_id, $tech_id, $row["buildingname"], 1]);
         } else {
-            $this->mysqli->execute_query("UPDATE techs SET techlevel = techlevel + 1 WHERE kingdomid = ? AND techid = ?",
+            $this->db->execute_query("UPDATE techs SET techlevel = techlevel + 1 WHERE kingdomid = ? AND techid = ?",
                 [$kingdom_id, $tech_id]);
         }
 
         switch ($tech_id) {
             case TechTypes::TECH_TYPE_WOOD_INC:
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE kingdoms SET base_wood_rate = base_wood_rate + ? WHERE id = ?",
                     [RESEARCH_WOOD_INC, $kingdom_id]
                 );
                 new Kingdom($kingdom_id)->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_FOOD_INC:
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE kingdoms SET base_food_rate = base_food_rate + ? WHERE id = ?",
                     [RESEARCH_FOOD_INC, $kingdom_id]
                 );
                 new Kingdom($kingdom_id)->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_STONE_INC:
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE kingdoms SET base_stone_rate = base_stone_rate + ? WHERE id = ?",
                     [RESEARCH_STONE_INC, $kingdom_id]
                 );
                 new Kingdom($kingdom_id)->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_GOLD_INC:
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE kingdoms SET base_gold_rate = base_gold_rate + ? WHERE id = ?",
                     [RESEARCH_GOLD_INC, $kingdom_id]
                 );
@@ -3764,7 +3869,7 @@ class EventManager
                 new Kingdom($kingdom_id)->recalculate_production();
                 break;
             case TechTypes::TECH_TYPE_WEIGHT:
-                $res_recruit = $this->mysqli->execute_query(
+                $res_recruit = $this->db->execute_query(
                     "SELECT eventid, actionid, soldierid, buildingtime, recruittime, soldiergoal FROM events WHERE kingdomid = ? AND actionid IN (?, ?) LIMIT 1 FOR UPDATE",
                     [$kingdom_id, ActionTypes::ACTION_BUILD_TROOPS, ActionTypes::ACTION_UPGRADE_TROOPS]
                 );
@@ -3786,7 +3891,7 @@ class EventManager
                         }
 
                         $new_recruittime = $base_start + ((int)$rec_ev["soldiergoal"] * $new_unit_time);
-                        $this->mysqli->execute_query(
+                        $this->db->execute_query(
                             "UPDATE events SET buildingtime = ?, recruittime = ? WHERE eventid = ?",
                             [$base_start, $new_recruittime, $rec_ev["eventid"]]
                         );
@@ -3796,10 +3901,10 @@ class EventManager
         }
 
         // Calculate score
-        $res = $this->mysqli->execute_query("SELECT techscore FROM tech_list WHERE id = ?", [$tech_id]);
+        $res = $this->db->execute_query("SELECT techscore FROM tech_list WHERE id = ?", [$tech_id]);
         $score_gain = $res->fetch_assoc()["techscore"] * ($row["buildinglevel"] + 1);
 
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
         $origin_building = ((int)$row["actionid"] === ActionTypes::ACTION_SMITHY_UPGRADE)
             ? BuildingTypes::BUILDING_SMITHY
@@ -3820,14 +3925,14 @@ class EventManager
         ], $kingdom_id);
 
         // Send push msg
-        $k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$kingdom_id])->fetch_column() ?: "Dein Königreich";
+        $k_name = $this->db->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$kingdom_id])->fetch_column() ?: "Dein Königreich";
 
         send_user_push(
             (int)$row["userid"],
             "📜 Forschung fertig: $k_name",
             "{$row["buildingname"]} (" . ($row["buildinglevel"] + 1) . ") wurde in $k_name erfolgreich erforscht.",
             "building",
-            "university.php"
+            $origin_building == BuildingTypes::BUILDING_UNIVERSITY ? "university.php" : "blacksmith.php"
         );
     }
 
@@ -3836,8 +3941,8 @@ class EventManager
         if ($add == 0) return;
         $uid = $target_user->get_user_id();
 
-        $this->mysqli->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
-        $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$add, $uid]);
+        $this->db->execute_query("SELECT id FROM users WHERE id = ? FOR UPDATE", [$uid]);
+        $this->db->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$add, $uid]);
 
         if ($add > 0) {
             Achievement::check($uid, AchievementTypes::ACHIEVEMENT_SCORE);
@@ -3848,27 +3953,25 @@ class EventManager
     {
         if ($row["buildingtime"] > time()) return;
 
-        $res_check = $this->mysqli->execute_query(
-            "SELECT userid FROM kingdoms WHERE id = ?", [$row["kingdomid"]]
-        );
+        $res_check = $this->db->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$row["kingdomid"]]);
         $current_owner = $res_check->fetch_column();
 
         if ($current_owner != $row["userid"]) {
             // Kingdom was conquered! Delete building action
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             return;
         }
 
-        $res = $this->mysqli->execute_query("SELECT buildingscore FROM building_list WHERE id = ?", [$row["buildingid"]]);
+        $res = $this->db->execute_query("SELECT buildingscore FROM building_list WHERE id = ?", [$row["buildingid"]]);
         $score_gain = $res->fetch_assoc()["buildingscore"] * ($row["buildinglevel"] + 1);
 
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
         if ($row["buildinglevel"] == 0) {
-            $this->mysqli->execute_query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES (?, ?, ?, ?)",
+            $this->db->execute_query("INSERT INTO buildings (kingdomid, buildingid, buildingname, buildinglevel) VALUES (?, ?, ?, ?)",
                 [$row["kingdomid"], $row["buildingid"], $row["buildingname"], 1]);
         } else {
-            $this->mysqli->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = ? AND buildingid = ?",
+            $this->db->execute_query("UPDATE buildings SET buildinglevel = buildinglevel + 1 WHERE kingdomid = ? AND buildingid = ?",
                 [$row["kingdomid"], $row["buildingid"]]);
         }
 
@@ -3895,7 +3998,7 @@ class EventManager
         ], $row["kingdomid"]);
 
         // Send push msg
-        $k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$row["kingdomid"]])->fetch_column() ?: "Dein Königreich";
+        $k_name = $this->db->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$row["kingdomid"]])->fetch_column() ?: "Dein Königreich";
         $new_lvl = (int)$row["buildinglevel"] + 1;
 
         if ($new_lvl >= MAX_BUILDING_LEVEL) {
@@ -3919,7 +4022,7 @@ class EventManager
 
                 $hp = (($lvl + 1) * DEFAULT_WALL_HP) + $tech_bonus;
 
-                $this->mysqli->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$hp, $kid]);
+                $this->db->execute_query("UPDATE kingdoms SET wallhp = ? WHERE id = ?", [$hp, $kid]);
                 break;
             case BuildingTypes::BUILDING_STORAGE:
                 new Kingdom($kid)->recalculate_storage_capacity();
@@ -3945,7 +4048,7 @@ class EventManager
                     $growth_increase = 1;
                 }
 
-                $this->mysqli->execute_query("UPDATE kingdoms SET maxvillager = maxvillager + ?, villagerperhour = villagerperhour + ? WHERE id = ?",
+                $this->db->execute_query("UPDATE kingdoms SET maxvillager = maxvillager + ?, villagerperhour = villagerperhour + ? WHERE id = ?",
                     [$new_limit, $growth_increase, $kid]
                 );
                 break;
@@ -3954,13 +4057,13 @@ class EventManager
 
     private function update_production(int $kid, string $rate_field, int $base, string $target_field): void
     {
-        $res = $this->mysqli->execute_query("SELECT ft.$rate_field FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$kid]);
+        $res = $this->db->execute_query("SELECT ft.$rate_field FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.kingdomid = ?", [$kid]);
         $rate = $res->fetch_assoc()[$rate_field];
 
         $base_field = "base_" . str_replace("perhour", "_rate", $target_field);
         $increase = $base * $rate;
 
-        $this->mysqli->execute_query("UPDATE kingdoms SET $base_field = $base_field + ? WHERE id = ?", [$increase, $kid]);
+        $this->db->execute_query("UPDATE kingdoms SET $base_field = $base_field + ? WHERE id = ?", [$increase, $kid]);
 
         $kingdom = new Kingdom($kid);
         $kingdom->recalculate_production();
@@ -3989,17 +4092,17 @@ class EventManager
             if ($units_to_deliver > 0) {
                 $soldier_name = $soldiers[$s_id]->get_soldier_name();
 
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
                  VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
                     [$row["kingdomid"], $s_id, $soldier_name, $units_to_deliver, $units_to_deliver]
                 );
 
                 $vill_total = $units_to_deliver * $soldiers[$s_id]->get_soldier_villager_cost();
-                $this->mysqli->execute_query("UPDATE kingdoms SET villager = GREATEST(0, villager - ?) WHERE id = ?",
+                $this->db->execute_query("UPDATE kingdoms SET villager = GREATEST(0, villager - ?) WHERE id = ?",
                     [$vill_total, $row["kingdomid"]]);
 
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE events SET soldiergoal = soldiergoal - ?, buildingtime = buildingtime + (? * ?) WHERE eventid = ?",
                     [$units_to_deliver, $units_to_deliver, $unit_time, $row["eventid"]]
                 );
@@ -4020,13 +4123,13 @@ class EventManager
             }
         }
 
-        $res = $this->mysqli->execute_query("SELECT soldiergoal FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $res = $this->db->execute_query("SELECT soldiergoal FROM events WHERE eventid = ?", [$row["eventid"]]);
         $check = $res->fetch_assoc();
 
         if (!$check || $check["soldiergoal"] <= 0) {
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
 
-            $k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$row["kingdomid"]])->fetch_column() ?: "Dein Königreich";
+            $k_name = $this->db->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$row["kingdomid"]])->fetch_column() ?: "Dein Königreich";
             $s_name = $soldiers[$s_id]->get_soldier_name();
 
             send_user_push(
@@ -4037,7 +4140,7 @@ class EventManager
                 "barracks.php"
             );
         } else {
-            $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+            $this->db->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
         }
     }
 
@@ -4046,24 +4149,24 @@ class EventManager
         $owner_id = (int)$row["userid"];
         $home_id = (int)$row["kingdomid"];
 
-        $check_home = $this->mysqli->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$home_id]);
+        $check_home = $this->db->execute_query("SELECT userid FROM kingdoms WHERE id = ?", [$home_id]);
         $current_home_owner = $check_home->fetch_assoc()["userid"] ?? null;
 
         if ($current_home_owner !== $owner_id) {
-            $main_res = $this->mysqli->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$owner_id]);
+            $main_res = $this->db->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$owner_id]);
             $user_data = $main_res->fetch_assoc();
             $main_k_id = $user_data["mainkingdom"];
             $u_name = $user_data["username"];
 
             if ($main_k_id && $main_k_id != $home_id) {
-                $old_k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$home_id])->fetch_column() ?? "Unbekannt";
-                $main_k_name = $this->mysqli->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$main_k_id])->fetch_column() ?? "Hauptstadt";
+                $old_k_name = $this->db->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$home_id])->fetch_column() ?? "Unbekannt";
+                $main_k_name = $this->db->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$main_k_id])->fetch_column() ?? "Hauptstadt";
 
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE events SET kingdomid = ?, arrivaltime = arrivaltime + ?, is_processing = 0 WHERE eventid = ?",
                     [$main_k_id, CONQUERED_HOME_REDIRECT_DELAY, $row["eventid"]]
                 );
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE sent_troops SET source_kingdom_id = ? WHERE eventid = ?",
                     [$main_k_id, $row["eventid"]]
                 );
@@ -4078,8 +4181,8 @@ class EventManager
 
                 Logger::get_instance()->log_game("COMBAT", "TROOP_REDIRECTED", ["from" => $home_id, "to" => $main_k_id], $main_k_id);
             } else {
-                $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             }
             return;
         }
@@ -4087,12 +4190,12 @@ class EventManager
         $target_x = $row["targetx"];
         $target_y = $row["targety"];
 
-        $res_owner = $this->mysqli->execute_query("SELECT username, guildid FROM users WHERE id = ?", [$owner_id])->fetch_assoc();
+        $res_owner = $this->db->execute_query("SELECT username, guildid FROM users WHERE id = ?", [$owner_id])->fetch_assoc();
         $u_name = $res_owner["username"] ?? "Spieler";
         $user_gid = (int)($res_owner["guildid"] ?? -1);
 
         if ($row["targetid"] <= -1) {
-            $res_map = $this->mysqli->execute_query(
+            $res_map = $this->db->execute_query(
                 "SELECT ft.fieldname FROM map m JOIN field_types ft ON m.fieldtype = ft.fieldid WHERE m.mapx = ? AND m.mapy = ?",
                 [$target_x, $target_y]
             );
@@ -4139,7 +4242,7 @@ class EventManager
         if ($loot_diamond > 0) $loot[ResourceTypes::RESOURCE_TYPE_DIAMOND] = $loot_diamond;
 
         // Generate troop cards
-        $res_troops = $this->mysqli->execute_query(
+        $res_troops = $this->db->execute_query(
             "SELECT soldierid, 
                     SUM(soldiercount) AS soldiercount, 
                     SUM(initial_count) AS initial_count 
@@ -4175,7 +4278,7 @@ class EventManager
         ];
 
         // Set troops back to kingdom
-        $res_update = $this->mysqli->execute_query(
+        $res_update = $this->db->execute_query(
             "SELECT st.soldierid, st.soldiercount, st.source_kingdom_id, sl.soldiername 
              FROM sent_troops st 
              JOIN soldier_list sl ON st.soldierid = sl.id 
@@ -4183,7 +4286,7 @@ class EventManager
             [$row["eventid"]]
         );
 
-        $my_kids_res = $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE userid = ?", [$owner_id]);
+        $my_kids_res = $this->db->execute_query("SELECT id FROM kingdoms WHERE userid = ?", [$owner_id]);
         $owned_kingdoms = array_flip(array_column($my_kids_res->fetch_all(MYSQLI_ASSOC), "id"));
 
         $insert_rows = [];
@@ -4208,7 +4311,7 @@ class EventManager
             $sql = "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
                     VALUES " . implode(', ', $insert_rows) . " 
                     ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)";
-            $stmt = $this->mysqli->prepare($sql);
+            $stmt = $this->db->prepare($sql);
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
         }
@@ -4238,7 +4341,7 @@ class EventManager
             if ($loot_sapphire > 0) $guild_logic->modify_storage_resource("sapphire", $loot_sapphire);
             if ($loot_diamond > 0) $guild_logic->modify_storage_resource("diamond", $loot_diamond);
 
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "INSERT INTO guild_storage_logs (guild_id, user_id, username, coal, iron, sapphire, diamond, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 [$user_gid, $owner_id, $u_name, $loot_coal, $loot_iron, $loot_sapphire, $loot_diamond, time()]
             );
@@ -4248,7 +4351,7 @@ class EventManager
             if ($total_special_loot > 0) {
                 Stats::update_player_stat($owner_id, "special_resources_mined", $total_special_loot);
 
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE guilds SET total_special_mined = total_special_mined + ? WHERE id = ?",
                     [$total_special_loot, $user_gid]
                 );
@@ -4297,8 +4400,8 @@ class EventManager
         }
 
         // Cleanup
-        $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$row["eventid"]]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
     }
 
     private function handle_resource_transfer(array $row): void
@@ -4308,15 +4411,15 @@ class EventManager
         $original_recipient_id = (int)$row["userid"];
         $target_kingdom_id = (int)$row["kingdomid"];
 
-        $res_check = $this->mysqli->execute_query("SELECT userid, kingdomname FROM kingdoms WHERE id = ?", [$target_kingdom_id]);
+        $res_check = $this->db->execute_query("SELECT userid, kingdomname FROM kingdoms WHERE id = ?", [$target_kingdom_id]);
         $k_data = $res_check->fetch_assoc();
 
         if (!$k_data) {
-            $res_user = $this->mysqli->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$original_recipient_id]);
+            $res_user = $this->db->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$original_recipient_id]);
             $u_data = $res_user->fetch_assoc();
 
             if ($u_data && $u_data["mainkingdom"] > 0) {
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE events SET actionid = ?, arrivaltime = UNIX_TIMESTAMP() + ?, is_processing = 0, buildingname = 'Transport-Fehlgeschlagen' WHERE eventid = ?",
                     [ActionTypes::ACTION_RETURN_RESOURCES, TRADE_REROUTE_DELAY, $row["eventid"]]
                 );
@@ -4328,7 +4431,7 @@ class EventManager
 
                 Messages::send_server_message($original_recipient_id, $u_data["username"], MessageCategories::CATEGORY_TRADE, $abort_json);
             } else {
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             }
             return;
         }
@@ -4336,12 +4439,12 @@ class EventManager
         $current_owner_id = (int)$k_data["userid"];
 
         if ($current_owner_id !== $original_recipient_id) {
-            $res_user = $this->mysqli->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$original_recipient_id]);
+            $res_user = $this->db->execute_query("SELECT mainkingdom, username FROM users WHERE id = ?", [$original_recipient_id]);
             $u_data = $res_user->fetch_assoc();
             $new_target_id = $u_data["mainkingdom"] ?? -1;
 
             if ($new_target_id != -1 && $new_target_id != $target_kingdom_id) {
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE events SET kingdomid = ?, arrivaltime = arrivaltime + ?, is_processing = 0, buildingname = 'Umgeleiteter Transport' WHERE eventid = ?",
                     [$new_target_id, TRADE_REROUTE_DELAY, $row["eventid"]]
                 );
@@ -4358,7 +4461,7 @@ class EventManager
 
                 Messages::send_server_message($original_recipient_id, $u_data["username"] ?? "Spieler", MessageCategories::CATEGORY_TRADE, $lost_json);
 
-                $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+                $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
             }
             return;
         }
@@ -4398,18 +4501,18 @@ class EventManager
             "loot" => $loot_received
         ];
 
-        $res_u = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$original_recipient_id]);
+        $res_u = $this->db->execute_query("SELECT username FROM users WHERE id = ?", [$original_recipient_id]);
         $u_name = $res_u->fetch_column() ?: "Spieler";
 
         Messages::send_server_message($original_recipient_id, $u_name, MessageCategories::CATEGORY_TRADE, $delivery_json);
 
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
     }
 
     private function handle_upgrade_finish(array $row): void
     {
         $now = time();
-        $fresh_res = $this->mysqli->execute_query(
+        $fresh_res = $this->db->execute_query(
             "SELECT * FROM events WHERE eventid = ? FOR UPDATE",
             [$row["eventid"]]
         );
@@ -4425,10 +4528,10 @@ class EventManager
         $to_id = (int)$row["soldierid"];
         $goal = (int)$row["soldiergoal"];
 
-        $res_to = $this->mysqli->execute_query("SELECT soldiername, requiredtime, scoregain, category FROM soldier_list WHERE id = ?", [$to_id]);
+        $res_to = $this->db->execute_query("SELECT soldiername, requiredtime, scoregain, category FROM soldier_list WHERE id = ?", [$to_id]);
         $target_data = $res_to->fetch_assoc();
 
-        $res_from = $this->mysqli->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$from_id]);
+        $res_from = $this->db->execute_query("SELECT scoregain FROM soldier_list WHERE id = ?", [$from_id]);
         $source_score = $res_from->fetch_assoc()["scoregain"];
 
         $kingdom = new Kingdom($kingdom_id);
@@ -4449,7 +4552,7 @@ class EventManager
         $units_to_add = min($goal, $units_finished_total);
 
         if ($units_to_add > 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount) 
                  VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE soldiercount = soldiercount + ?",
                 [$kingdom_id, $to_id, $s_name, $units_to_add, $units_to_add]
@@ -4457,7 +4560,7 @@ class EventManager
 
             if ($units_to_add < $goal) {
                 $new_buildingtime = $start_time + ($units_to_add * $unit_time);
-                $this->mysqli->execute_query(
+                $this->db->execute_query(
                     "UPDATE events SET soldiergoal = soldiergoal - ?, buildingtime = ? WHERE eventid = ?",
                     [$units_to_add, $new_buildingtime, $row["eventid"]]
                 );
@@ -4473,14 +4576,14 @@ class EventManager
         }
 
         if ($units_to_add >= $goal) {
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$row["eventid"]]);
         } else if ((int)$row["buildingtime"] <= 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET buildingtime = ?, is_processing = 0 WHERE eventid = ?",
                 [$start_time, $row["eventid"]]
             );
         } else {
-            $this->mysqli->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
+            $this->db->execute_query("UPDATE events SET is_processing = 0 WHERE eventid = ?", [$row["eventid"]]);
         }
     }
 
@@ -4498,7 +4601,7 @@ class EventManager
             JOIN users u_recv ON u_recv.id = k.userid
             WHERE k.id = ?
         ";
-        $data = $this->mysqli->execute_query($query, [$sender_id, $target_kid])->fetch_assoc();
+        $data = $this->db->execute_query($query, [$sender_id, $target_kid])->fetch_assoc();
 
         if (!$data) {
             $this->turn_back_support($row, "target_lost", $row["targetx"] . ":" . $row["targety"]);
@@ -4513,9 +4616,9 @@ class EventManager
         }
 
         $support_limit = new Kingdom($target_kid)->get_support_limit();
-        $current_support = (int)$this->mysqli->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$target_kid])->fetch_column();
+        $current_support = Soldier::get_target_support_count($target_kid, include_incoming: false);
 
-        $res_incoming = $this->mysqli->execute_query("SELECT soldierid, soldiercount, initial_count FROM sent_troops WHERE eventid = ?", [$event_id]);
+        $res_incoming = $this->db->execute_query("SELECT soldierid, soldiercount, initial_count FROM sent_troops WHERE eventid = ?", [$event_id]);
         $incoming_troops = $res_incoming->fetch_all(MYSQLI_ASSOC);
         $incoming_count = array_sum(array_column($incoming_troops, 'soldiercount'));
 
@@ -4525,7 +4628,7 @@ class EventManager
         }
 
         foreach ($incoming_troops as $t) {
-            $this->mysqli->execute_query("
+            $this->db->execute_query("
                 INSERT INTO stationed_troops (owner_id, source_kingdom_id, target_kingdom_id, soldier_id, soldiercount)
                 VALUES (?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)",
@@ -4557,8 +4660,8 @@ class EventManager
         Messages::send_server_message((int)$data["recipient_id"], $data["recipient_name"], MessageCategories::CATEGORY_GUILD, $recv_json);
         Messages::send_server_message($sender_id, $data["sender_name"], MessageCategories::CATEGORY_GUILD, $send_json);
 
-        $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-        $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+        $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+        $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
     }
 
     private function turn_back_support(array $row, string $reason_short, string $target_name): void
@@ -4566,7 +4669,7 @@ class EventManager
         $now = time();
         $duration = max(60, (int)($row["arrivaltime"] - $row["buildingtime"]));
 
-        $this->mysqli->execute_query("
+        $this->db->execute_query("
             UPDATE events SET 
                 actionid = ?, 
                 arrivaltime = ?, 
@@ -4576,7 +4679,7 @@ class EventManager
             [ActionTypes::ACTION_SUPPORT_RETURN, $now + $duration, $now, $row["eventid"]]
         );
 
-        $res_sender = $this->mysqli->execute_query("SELECT username FROM users WHERE id = ?", [$row["userid"]]);
+        $res_sender = $this->db->execute_query("SELECT username FROM users WHERE id = ?", [$row["userid"]]);
         $s_name = $res_sender->fetch_column();
 
         $turn_back_json = [
@@ -4610,7 +4713,7 @@ class EventManager
     {
         $now = time();
         // Find all expired offers
-        $result = $this->mysqli->execute_query("SELECT * FROM marketplace WHERE expires_at <= ?", [$now]);
+        $result = $this->db->execute_query("SELECT * FROM marketplace WHERE expires_at <= ?", [$now]);
 
         while ($row = $result->fetch_assoc()) {
             $offer_id = $row["offerid"];
@@ -4630,7 +4733,7 @@ class EventManager
             };
 
             if ($res_field) {
-                $this->mysqli->execute_query("UPDATE kingdoms SET $res_field = $res_field + ? WHERE id = ?",
+                $this->db->execute_query("UPDATE kingdoms SET $res_field = $res_field + ? WHERE id = ?",
                     [$amount, $k_id]
                 );
             }
@@ -4653,7 +4756,7 @@ class EventManager
             Messages::send_server_message($u_id, $u_name, MessageCategories::CATEGORY_TRADE, $expired_json);
 
             // Delete offer
-            $this->mysqli->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
+            $this->db->execute_query("DELETE FROM marketplace WHERE offerid = ?", [$offer_id]);
         }
     }
 
@@ -4667,7 +4770,7 @@ class EventManager
             JOIN soldier_list sl ON st.soldier_id = sl.id
             WHERE k.id IS NULL
         ";
-        $res = $this->mysqli->query($query);
+        $res = $this->db->query($query);
 
         $orphans = [];
         while ($row = $res->fetch_assoc()) {
@@ -4683,7 +4786,7 @@ class EventManager
 
             $units_data = [];
             foreach ($troops as $t) {
-                $this->mysqli->execute_query("
+                $this->db->execute_query("
                     INSERT INTO soldiers (kingdomid, soldierid, soldiername, soldiercount)
                     VALUES (?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE soldiercount = soldiercount + VALUES(soldiercount)
@@ -4699,7 +4802,7 @@ class EventManager
                     "count" => (int)$t["soldiercount"]
                 ];
 
-                $this->mysqli->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$t["id"]]);
+                $this->db->execute_query("DELETE FROM stationed_troops WHERE id = ?", [$t["id"]]);
             }
 
             $orphaned_json = [
@@ -4726,14 +4829,14 @@ class EventManager
         $home_k = new Kingdom($home_kid);
         $return_time = max(30, (int)($row["arrivaltime"] - $row["buildingtime"]));
 
-        $gift_res = $this->mysqli->execute_query(
+        $gift_res = $this->db->execute_query(
             "SELECT * FROM advent_calendar_gifts WHERE user_id = ? AND mapx = ? AND mapy = ? AND is_collected = 0 FOR UPDATE",
             [$user_id, $tx, $ty]
         );
         $gift = $gift_res->fetch_assoc();
 
         if (!$gift) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -4741,7 +4844,7 @@ class EventManager
         }
 
         $day = (int)$gift["day"];
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "UPDATE advent_calendar_gifts SET is_collected = 1, collected_at = ? WHERE id = ?",
             [time(), $gift["id"]]
         );
@@ -4755,14 +4858,14 @@ class EventManager
             $redirects = $delivery["redirects"];
 
             if ($delivery["score_gain"] > 0) {
-                $this->mysqli->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$delivery["score_gain"], $user_id]);
+                $this->db->execute_query("UPDATE users SET score = score + ? WHERE id = ?", [$delivery["score_gain"], $user_id]);
 
                 Achievement::check($user_id, AchievementTypes::ACHIEVEMENT_SCORE);
             }
         }
 
         $res = $loot["resources"];
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "UPDATE events SET actionid = ?, arrivaltime = ?, loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ?, loot_coins = ?, buildingname = ?, is_processing = 0 WHERE eventid = ?",
             [
                 ActionTypes::ACTION_RETURN_TROOPS,
@@ -4873,7 +4976,7 @@ class EventManager
             }
         }
 
-        $this->mysqli->execute_query(
+        $this->db->execute_query(
             "UPDATE events SET loot_food = ?, loot_wood = ?, loot_stone = ?, loot_gold = ? WHERE eventid = ?",
             [$stolen_total["food"], $stolen_total["wood"], $stolen_total["stone"], $stolen_total["gold"], $event_id]
         );
@@ -4983,12 +5086,12 @@ class EventManager
         $attacker_name = $attacker_user->get_user_name();
         $event_id = (int)$row["eventid"];
 
-        $this->mysqli->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$enemy_k->get_kingdom_id()]);
+        $this->db->execute_query("SELECT id FROM kingdoms WHERE id = ? FOR UPDATE", [$enemy_k->get_kingdom_id()]);
 
         $enemy_user_obj = new User($enemy_owner_id, $enemy_owner_name);
 
         if (Conquest::has_noob_protection($attacker_user->get_user_score(), $enemy_user_obj->get_user_score())) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -5003,7 +5106,7 @@ class EventManager
         }
 
         if ($enemy_k->has_new_kingdom_protection()) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -5020,7 +5123,7 @@ class EventManager
         $attacker_gid = $attacker_user->get_user_guild_id();
         $enemy_gid = $enemy_user_obj->get_user_guild_id();
         if ($attacker_gid > 0 && $attacker_gid === $enemy_gid) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
@@ -5051,13 +5154,13 @@ class EventManager
         $loot = [];
         if ($survivors > 0) {
             $loot = $this->steal_kingdom_resources($home_k, $enemy_k, $survivors, $event_id, $attacker_id);
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE events SET actionid = ?, arrivaltime = ?, is_processing = 0 WHERE eventid = ?",
                 [ActionTypes::ACTION_RETURN_TROOPS, time() + $return_time, $event_id]
             );
         } else {
-            $this->mysqli->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
-            $this->mysqli->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM sent_troops WHERE eventid = ?", [$event_id]);
+            $this->db->execute_query("DELETE FROM events WHERE eventid = ?", [$event_id]);
         }
 
         $attacker_json = [
@@ -5140,7 +5243,7 @@ class EventManager
         $def_u_def = $def_soldier ? max(1, $def_soldier->get_soldier_defense()) : 1;
         $def_score_val = $def_soldier ? $def_soldier->get_soldier_score_gain() : 1;
 
-        $res_def = $this->mysqli->execute_query(
+        $res_def = $this->db->execute_query(
             "SELECT soldiercount FROM soldiers WHERE kingdomid = ? AND soldierid = ?",
             [$enemy_k->get_kingdom_id(), Soldiers::SOLDIER_SCOUT]
         );
@@ -5161,11 +5264,11 @@ class EventManager
         $def_losses = $result["def_losses"];
 
         if ($atk_losses > 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE sent_troops SET soldiercount = GREATEST(0, soldiercount - ?) WHERE eventid = ? AND soldierid = ?",
                 [$atk_losses, $event_id, $atk_unit_id]
             );
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?",
                 [$atk_losses * $atk_score_val, $attacker_id]
             );
@@ -5175,11 +5278,11 @@ class EventManager
         }
 
         if ($def_losses > 0) {
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE soldiers SET soldiercount = GREATEST(0, soldiercount - ?) WHERE kingdomid = ? AND soldierid = ?",
                 [$def_losses, $enemy_k->get_kingdom_id(), Soldiers::SOLDIER_SCOUT]
             );
-            $this->mysqli->execute_query(
+            $this->db->execute_query(
                 "UPDATE users SET score = GREATEST(0, score - ?) WHERE id = ?",
                 [$def_losses * $def_score_val, $enemy_owner_id]
             );

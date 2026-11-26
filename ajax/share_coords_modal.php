@@ -38,11 +38,8 @@ if ($kid > 0) {
     $location_desc = "Auge des Sturms";
 }
 
-$my_gid = $user->get_user_guild_id();
-$preset_msg = "$x:$y - $location_desc";
-
 echo Messages::render_share_modal_form(
-        "<b>($x:$y)</b> – $location_desc",
-        ["x" => $x, "y" => $y, "message" => "$x:$y - $location_desc"],
-        $user->get_user_guild_id()
+    "<b>($x:$y)</b> – $location_desc",
+    ["x" => $x, "y" => $y, "message" => "$x:$y - $location_desc"],
+    $user->get_user_guild_id()
 );

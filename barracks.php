@@ -20,9 +20,8 @@ $kingdom_wood = $kingdom->get_kingdom_wood();
 $kingdom_villager = $kingdom->get_kingdom_villager();
 $weight_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_WEIGHT);
 $smithy_multiplier = 1 - ($weight_lvl * SMITHY_WEIGHT_REDUCTION);
-$s_id = -1;
 $kingdom_recruiting_id = -1;
-$kingdom_is_recruiting = $kingdom->is_kingdom_recruiting($current_kingdom);
+$kingdom_is_recruiting = $kingdom->is_kingdom_recruiting();
 $kingdom_is_upgrading = false;
 $upgrade_event = null;
 $building_level = $building->get_building_level();
@@ -62,24 +61,7 @@ foreach ($result as $row) {
 }
 
 // Get ALL soldiers from the kingdom
-$total_kingdom_soldiers = [];
-$res_total_units = $db_instance->execute_query("
-    SELECT soldierid, SUM(cnt) as total_owned
-    FROM (
-        SELECT soldierid, soldiercount as cnt FROM soldiers WHERE kingdomid = ?
-        UNION ALL
-        SELECT soldierid, soldiercount as cnt FROM sent_troops WHERE source_kingdom_id = ?
-        UNION ALL
-        SELECT soldier_id as soldierid, soldiercount as cnt FROM stationed_troops WHERE source_kingdom_id = ?
-        UNION ALL
-        SELECT soldier_id as soldierid, soldiercount as cnt FROM mine_stationed_troops WHERE kingdom_id = ?
-    ) t
-    GROUP BY soldierid
-", [$current_kingdom, $current_kingdom, $current_kingdom, $current_kingdom]);
-
-while ($row_u = $res_total_units->fetch_assoc()) {
-    $total_kingdom_soldiers[(int)$row_u["soldierid"]] = (int)$row_u["total_owned"];
-}
+$total_kingdom_soldiers = Soldier::get_kingdom_unit_counts($current_kingdom);
 
 // Standard soldier category
 $active_cat = 0;
@@ -567,14 +549,12 @@ $category_availability = [
     SoldierTypes::SOLDIER_TYPE_SUPPORT => $show_support_feature
 ];
 
-$barracks_lvl = $building->get_building_level();
-
 foreach ($soldiers as $s) {
     $cat = $s->get_soldier_category();
     $owned = $kingdom_soldiers[$s->get_soldier_id()] ?? 0;
     $req = $s->get_soldier_required_level();
 
-    if ($req <= $barracks_lvl || $owned > 0) {
+    if ($req <= $building_level || $owned > 0) {
         $category_availability[$cat] = true;
     }
 }
@@ -613,8 +593,7 @@ $total_support_units = 0;
 $support_limit = 0;
 
 if ($show_support_feature) {
-    $res_support_sum = $db_instance->execute_query("SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops WHERE target_kingdom_id = ?", [$current_kingdom]);
-    $total_support_units = (int)$res_support_sum->fetch_row()[0];
+    $total_support_units = Soldier::get_target_support_count($current_kingdom, include_incoming: false);
     $support_limit = $kingdom->get_support_limit();
 }
 
@@ -919,16 +898,22 @@ $imp_bonus = (int)($db_instance->execute_query(
     [$user->get_user_id(), TechTypes::TECH_TYPE_IMPERIAL]
 )->fetch_column() ?? 0);
 
+$special_unit_totals = Soldier::get_kingdom_unit_counts($current_kingdom, [
+    "include_queue" => true,
+    "include_incoming_station" => true,
+    "soldier_ids" => array_keys(SPECIAL_UNIT_LIMITS),
+]);
+
 foreach ($soldiers as $i => $soldier_obj) {
     $s_id_internal = $soldier_obj->get_soldier_id();
     $owned_count = $kingdom_soldiers[$s_id_internal] ?? 0;
     $req_lvl = $soldier_obj->get_soldier_required_level();
 
-    if ($req_lvl > $barracks_lvl && $owned_count <= 0) {
+    if ($req_lvl > $building_level && $owned_count <= 0) {
         continue;
     }
 
-    $can_train = ($req_lvl <= $barracks_lvl);
+    $can_train = ($req_lvl <= $building_level);
     $is_hero = ($soldier_obj->get_soldier_id() == Soldiers::SOLDIER_HERO);
     $unit_cat = $soldier_obj->get_soldier_category();
 
@@ -952,9 +937,7 @@ foreach ($soldiers as $i => $soldier_obj) {
     $plunder_lvl = $kingdom->get_kingdom_tech_level(TechTypes::TECH_TYPE_PLUNDER);
 
     $unit_special_limit = $kingdom->get_special_unit_limit($s_id_internal);
-    $unit_total_in_kingdom = ($unit_special_limit !== null)
-        ? $kingdom->get_unit_total_count($s_id_internal, true, true)
-        : 0;
+    $unit_total_in_kingdom = ($unit_special_limit !== null) ? ($special_unit_totals[$s_id_internal] ?? 0) : 0;
     $is_space_exempt = in_array($s_id_internal, TROOP_LIMIT_EXEMPT, true);
 
     $cost_food = (int)($soldier_obj->get_soldier_food_cost());
@@ -1135,8 +1118,6 @@ foreach ($soldiers as $i => $soldier_obj) {
         if ($vill_cost > 0) $max_soldiers = min($max_soldiers, floor($kingdom_villager / $vill_cost));
 
         $max_soldiers = max(0, $max_soldiers);
-        $owned_count = $kingdom_soldiers[$soldier_obj->get_soldier_id()] ?? 0;
-
         $unit_cap_remaining = ($unit_special_limit !== null) ? max(0, $unit_special_limit - $unit_total_in_kingdom) : 999999;
         $max_space_for_this = $is_space_exempt ? $unit_cap_remaining : min($space_left, $unit_cap_remaining);
         $can_train_at_least_one = ($max_soldiers > 0 && $max_space_for_this > 0);
@@ -1203,7 +1184,7 @@ foreach ($soldiers as $i => $soldier_obj) {
     if ($is_support_tab) {
         $row_style = "display: none;";
     }
-    $row_class = "unit-row" . (!$can_train ? " unit-not-trainable" : "");
+    $row_class = "unit-row";
 
     $owned_in_garrison = $kingdom_soldiers[$s_id_internal] ?? 0;
     $owned_total = $total_kingdom_soldiers[$s_id_internal] ?? $owned_in_garrison;
@@ -1263,7 +1244,6 @@ $view .= "<div id='support-container' data-unit-category='" . SoldierTypes::SOLD
 // --- SECTION: INCOMING ---
 $map_support_helper = new Map($user);
 
-// --- SECTION: INCOMING ---
 $view .= "<div class='title-border'>Erhaltene Unterstützung</div>";
 $res_in = $db_instance->execute_query("
     SELECT st.owner_id, st.source_kingdom_id, st.target_kingdom_id, st.soldier_id, 
@@ -1308,10 +1288,10 @@ foreach ($res_in as $row) {
 if (!empty($grouped_in)) {
     $view .= "<table class='table support-incoming-table'>
     <colgroup>
-        <col style='width: 31%;'>  <!-- Soldaten -->
-        <col style='width: 33%;'>  <!-- Unterstützer -->
-        <col style='width: 18%;'>  <!-- Dauer -->
-        <col style='width: 18%;'>  <!-- Aktion -->
+        <col style='width: 22%;'>  <!-- Soldaten -->
+        <col style='width: 38%;'>  <!-- Unterstützer -->
+        <col style='width: 16%;'>  <!-- Dauer -->
+        <col style='width: 16%;'>  <!-- Aktion -->
     </colgroup>
     <tr>
         <td class='td-gradient td-center'><b>Soldaten</b></td>
@@ -1352,7 +1332,7 @@ if (!empty($grouped_in)) {
                     <input type='hidden' name='target_id' value='{$data["target_id"]}'>
                     <input type='hidden' name='source_id' value='{$data["source_id"]}'>
                     <input type='hidden' name='owner_id' value='{$data["owner_id"]}'>
-                    <input type='submit' name='return_support_stack' value='Entlassen'>
+                    <input type='submit' value='Entlassen'>
                 </form>
             </td>
         </tr>";
@@ -1436,7 +1416,7 @@ if (!empty($grouped_out)) {
         );
         $return_time_str = convert_sec_to_str($return_secs, true);
 
-        $sender_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=" . $data["target_userid"] . "' data-title='Spieler-Info'>" . e($data["target_owner"]) . "</a>";
+        $sender_link = "<a href='#' data-on-click='openOverlay' data-url='ajax/userinfo.php?userid=" . $data["target_userid"] . "' data-title='Spieler-Info'>" . e($data["target_owner"]) . "</a>";
         $c_link = "<a href='map.php?startx={$data["mapx"]}&starty={$data["mapy"]}' data-on-click='mapJump' data-x='{$data["mapx"]}' data-y='{$data["mapy"]}'>{$data["mapx"]}:{$data["mapy"]}</a>";
 
         $view .= "<tr>
@@ -1450,10 +1430,9 @@ if (!empty($grouped_out)) {
             <td class='td-center'>
                 <form method='POST'>
                     <input type='hidden' name='action' value='return_support_stack'>
-                    <input type='hidden' name='return_support_stack' value='1'>
                     <input type='hidden' name='target_id' value='{$data["target_id"]}'>
                     <input type='hidden' name='source_id' value='{$data["source_id"]}'>
-                    <input type='submit' name='return_support_stack' value='Heimrufen'>
+                    <input type='submit' value='Heimrufen'>
                 </form>
             </td>
         </tr>";

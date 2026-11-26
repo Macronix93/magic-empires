@@ -11,8 +11,7 @@ if ($type === "private") {
     $session_token = $_SESSION["active_chat_token"] ?? "";
 
     if ($sender_id <= 0 || $session_token === "" || !hash_equals($session_token, $token)) {
-        echo json_encode(["error" => "redirect"]);
-        exit;
+        send_json(["error" => "redirect"]);
     }
 
     $chat_data = $messages->get_private_history_html($sender_id);

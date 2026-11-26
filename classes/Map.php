@@ -2,17 +2,17 @@
 
 class Map
 {
-    private object $mysqli;
+    private mysqli $db;
     private User $user;
     private static array $path_cache = [];
     private static ?array $map_cache = null;
     private static array $origin_path_cache = [];
-
+    private static array $march_mult_cache = [];
 
     // Constructor
     public function __construct(User $user)
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
         $this->user = $user;
     }
 
@@ -49,7 +49,7 @@ class Map
               WHERE m.mapx BETWEEN ? AND ? AND m.mapy BETWEEN ? AND ?
               ORDER BY m.mapy, m.mapx";
 
-        $result = $this->mysqli->execute_query($query, [BuildingTypes::BUILDING_TOWNCENTER, $min_x, $max_x, $min_y, $max_y]);
+        $result = $this->db->execute_query($query, [BuildingTypes::BUILDING_TOWNCENTER, $min_x, $max_x, $min_y, $max_y]);
 
         $tiles = [];
         foreach ($result as $row) {
@@ -85,8 +85,6 @@ class Map
                         $content = "⛏️";
                     } else if ($kid === MapFieldTypes::MAP_FIELD_ABANDONED_KINGDOM) {
                         $content = "🏚️";
-                    } else if ($kid === MapFieldTypes::MAP_FIELD_GIFT) {
-                        $content = "🎁";
                     }
 
                     $html .= "<div class='" . e($class) . "' style='background-color: " . e($color) . ";'>" . e($content) . "</div>";
@@ -128,11 +126,6 @@ class Map
         };
     }
 
-    public function render_field_info(): void
-    {
-        echo '<div id="map-info-content"></div>';
-    }
-
     public function get_arrival_time(int  $start_x,
                                      int  $start_y,
                                      int  $end_x,
@@ -156,8 +149,14 @@ class Map
         }
 
         $kid = ($origin_kingdom_id != -1) ? $origin_kingdom_id : $this->user->get_current_kingdom();
-        $kingdom = new Kingdom($kid);
-        $modified_time = $base_total_time * $kingdom->get_march_speed_multiplier();
+        if (!isset(self::$march_mult_cache[$kid])) {
+            $carto_lvl = (int)($this->db->execute_query("SELECT techlevel FROM techs WHERE kingdomid = ? AND techid = ? LIMIT 1",
+                [$kid, TechTypes::TECH_TYPE_CARTOGRAPHY]
+            )->fetch_column() ?? 0);
+
+            self::$march_mult_cache[$kid] = max(0.1, 1.0 - ($carto_lvl * CARTOGRAPHY_SPEED_BONUS));
+        }
+        $modified_time = $base_total_time * self::$march_mult_cache[$kid];
 
         if ($is_support) {
             $g_sup_lvl = Guild::get_user_guild_tech_level($this->user->get_user_id(), GuildTechTypes::GUILD_TECH_SUPPORT_SPEED);
@@ -327,7 +326,7 @@ class Map
         }
 
         $query = "SELECT m.mapx, m.mapy, f.traversaltime FROM map m JOIN field_types f ON m.fieldtype = f.fieldid";
-        $result = $this->mysqli->execute_query($query);
+        $result = $this->db->execute_query($query);
         $costs = [];
         $min_cost = null;
 
@@ -353,6 +352,7 @@ class Map
         self::$map_cache = null;
         self::$path_cache = [];
         self::$origin_path_cache = [];
+        self::$march_mult_cache = [];
 
         $cache_file = sys_get_temp_dir() . "/me_world_traversals.json";
         if (file_exists($cache_file)) {
@@ -371,7 +371,7 @@ class Map
 
     public function get_field_kingdom_id(int $map_x, int $map_y): int
     {
-        $result = $this->mysqli->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?",
+        $result = $this->db->execute_query("SELECT kingdomid FROM map WHERE mapx = ? AND mapy = ?",
             [$map_x, $map_y]
         );
         $val = $result->fetch_column();

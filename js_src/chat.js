@@ -6,6 +6,7 @@ let lastSeenId = 0;
 let isUpdatingChat = false;
 let isSendingChat = false;
 let isChatRateLimited = false;
+let isChatInitialized = false;
 
 registerAction("sendWorldMessage", () => sendChatMessage("world"));
 registerAction("sendGuildMessage", () => sendChatMessage("guild"));
@@ -364,7 +365,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function updateChat(chatPartner) {
-    if (isUpdatingChat) return;
+    if (isUpdatingChat || !isChatInitialized) return;
 
     const messageSection = document.getElementById("messages-section");
     if (!messageSection) return;
@@ -387,8 +388,7 @@ function updateChat(chatPartner) {
         }
     });
 
-    const safeLastId = Math.max(lastSeenId, highestDomId);
-    if (safeLastId <= 0 && chatType !== "guild") return;
+    const safeLastId = Math.max(lastSeenId || 0, highestDomId || 0);
 
     let queryParams = `?type=${encodeURIComponent(chatType)}&last_id=${safeLastId}&oldest_id=${oldestDomId}`;
     if (chatType === "private") {
@@ -693,7 +693,6 @@ function initializeChat() {
     if (chatType === "private") {
         params.append("s", messageSection.dataset.partnerId || "0");
         params.append("token", messageSection.dataset.token || "");
-        params.append("partner_name", messageSection.dataset.partnerName || "");
     } else if (chatType === "guild" && !isGuildChatVisible()) {
         params.append("mark_read", "0");
     }
@@ -730,14 +729,15 @@ function initializeChat() {
             const chatCfg = document.getElementById("chat-config");
 
             lastSeenId = data.lastId;
+            isChatInitialized = true;
+
             if (chatCfg) {
                 canLoadMore = chatCfg.dataset.hasMore === "true";
             }
+
             if (loadMoreBtn && !canLoadMore) {
                 loadMoreBtn.style.display = "none";
             }
-
-            messageSection.addEventListener("scroll", () => checkScrollPosition());
 
             if (messageInput) {
                 messageInput.addEventListener("keydown", e => {

@@ -3,7 +3,6 @@ require_once("includes/core.php");
 
 $result = $user->check_user_login_and_kingdom(BuildingTypes::BUILDING_EMBASSY);
 
-$current_kingdom = $result['current_kingdom'];
 $building = $result['building'];
 $building_name = $building->get_building_name();
 $kingdom = $result['kingdom'];

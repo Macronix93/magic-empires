@@ -5,16 +5,14 @@ $oldest_id = get_int("oldest_id");
 $u_id = $user->get_user_id();
 
 if ($oldest_id <= 0) {
-    echo json_encode(["count" => 0, "hasMore" => false, "html" => ""]);
-    exit;
+    send_json(["count" => 0, "hasMore" => false, "html" => ""]);
 }
 
 $type = get_str("type", "private");
 
 $allowed_types = ["private", "world", "guild", "server"];
 if (!in_array($type, $allowed_types, true)) {
-    echo json_encode(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
 }
 
 if ($type === "server") {
@@ -63,12 +61,11 @@ if ($type === "server") {
         </div>";
     }
 
-    echo json_encode([
+    send_json([
         "html" => $html,
         "hasMore" => $has_more,
         "count" => count($history)
     ]);
-    exit;
 }
 
 
@@ -90,8 +87,7 @@ if ($type === "world") {
 } else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
-        echo json_encode(["count" => 0, "hasMore" => false, "html" => ""]);
-        exit;
+        send_json(["count" => 0, "hasMore" => false, "html" => ""]);
     }
 
     $limit = MAX_GUILD_CHAT_MESSAGES_SHOWN;
@@ -107,8 +103,7 @@ if ($type === "world") {
 } else {
     $partner_id = get_int("s");
     if ($partner_id <= 0) {
-        echo json_encode(["count" => 0, "hasMore" => false, "html" => ""]);
-        exit;
+        send_json(["count" => 0, "hasMore" => false, "html" => ""]);
     }
 
     $limit = SHOW_MESSAGES_LIMIT;

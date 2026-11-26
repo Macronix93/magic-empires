@@ -4,8 +4,7 @@ require_once("../includes/ajax_core.php");
 session_write_close();
 
 $uid = $user->get_user_id();
-
-$cache_file = sys_get_temp_dir() . "/me_map_cache_" . $uid . ".json";
+$cache_file = sys_get_temp_dir() . "/me_map_cache_$uid.json";
 
 // 2 seconds cache
 if (file_exists($cache_file) && (time() - filemtime($cache_file)) < 2) {
@@ -22,14 +21,14 @@ $query = "SELECT m.mapx, m.mapy, m.fieldtype,
                 WHEN m.kingdomid = " . MapFieldTypes::MAP_FIELD_MINE . " AND (mn.mapx IS NULL OR mn.expires_at < $now) THEN " . MapFieldTypes::MAP_FIELD_EMPTY . "
                 ELSE m.kingdomid 
             END AS kingdomid, 
-            COALESCE(k.username, ak.kingdom_name, u_mn.username, '') AS username,
-            COALESCE(k.kingdomname, ak.kingdom_name, CONCAT('Mine Stufe ', mn.level), '') AS kingdomname,
+            COALESCE(k.username, u_mn.username, '') AS username,
+            COALESCE(k.kingdomname, ak.kingdom_name, '') AS kingdomname,
             COALESCE(b_tc.buildinglevel, ak.tc_level, mn.level, 1) AS buildinglevel,
             u.ranking_points AS score,
             CASE WHEN m.kingdomid > 0 AND k.wallhp <= (
                (IFNULL(b_wall.buildinglevel, 1) * " . DEFAULT_WALL_HP . " + IFNULL(t_wall.techlevel, 0) * " . RESEARCH_WALL_HP_INC . ") / 2
             ) THEN 1 ELSE 0 END AS is_burning,
-            IFNULL(mc.level, IFNULL(mn.level, 0)) AS monsterlevel,
+            IFNULL(mc.level, 0) AS monsterlevel,
             COALESCE(r.expires_at, mc.expires_at, ak.expires_at, mn.expires_at, 0) AS expires_at,
             COALESCE(k.userid, mn.claimed_user_id, 0) AS owner_id,
             COALESCE(u.guildid, u_mn.guildid, mn.claimed_guild_id, -1) AS guildid,
@@ -195,6 +194,6 @@ $response = [
 ];
 
 $json = json_encode($response);
-file_put_contents($cache_file, $json);
+file_put_contents($cache_file, $json, LOCK_EX);
 
 send_json($json);

@@ -195,7 +195,7 @@ if (!$active_event) {
 
     if ($res_mv->num_rows > 0) {
         $view .= "<div class='title-border'>Deine Truppenbewegungen</div>";
-        $view .= "<table class='table event-move-table' style='margin-bottom: 20px; table-layout: fixed; max-width: 600px;'>
+        $view .= "<table class='table' style='margin-bottom: 20px; table-layout: fixed; max-width: 600px;'>
                     <colgroup>
                         <col style='width: 120px;'>  <!-- Typ -->
                         <col style='width: auto;'>  <!-- Units -->
@@ -335,7 +335,10 @@ if (!$active_event) {
                         </button>
                         <div style='width: 100%; margin: 5px 0; border: 0; border-top: 1px solid rgba(212, 175, 55, 0.3);'></div>
                         <form method='POST' style='display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;'>
-                            <button type='submit' name='attack_all_kingdoms' $mass_disabled $mass_title style='width: 230px;'>
+                            <button type='submit' name='attack_all_kingdoms' 
+                                data-event-locked='" . ($is_event_locked ? "true" : "false") . "' 
+                                data-has-barracks='" . ($has_any_barracks ? "true" : "false") . "' $mass_disabled $mass_title 
+                                style='width: 230px;'>
                                 " . Messages::wrap_emojis("⚔️ Massenmobilisierung") . "
                             </button>
                             <label style='display: inline-flex; align-items: center; gap: 6px; user-select: none; margin-top: 15px;'>
@@ -435,7 +438,7 @@ if (!$active_event) {
                     </div>
                 </div>";
 
-        $user_all_k = $db_instance->execute_query(
+        $all_user_kingdoms = $db_instance->execute_query(
             "SELECT id, kingdomname, mapx, mapy FROM kingdoms WHERE userid = ? ORDER BY created_at, id",
             [$user_id]
         )->fetch_all(MYSQLI_ASSOC);
@@ -445,16 +448,17 @@ if (!$active_event) {
 
         $auto_label = "Automatisch (Höchster Schaden)";
         if ($top_kid > 0) {
-            $top_k_name = $db_instance->execute_query("SELECT kingdomname FROM kingdoms WHERE id = ?", [$top_kid])->fetch_column();
-            if ($top_k_name) {
-                $auto_label = "Automatisch (" . e($top_k_name) . ")";
+            $k_names_by_id = array_column($all_user_kingdoms, "kingdomname", "id");
+
+            if (!empty($k_names_by_id[$top_kid])) {
+                $auto_label = "Automatisch (" . e($k_names_by_id[$top_kid]) . ")";
             }
         }
 
         $options_html = "<option value='0' " . ($current_reward_kid === 0 ? "selected" : "") . ">$auto_label</option>";
 
         $count = 0;
-        foreach ($user_all_k as $uk) {
+        foreach ($all_user_kingdoms as $uk) {
             $count++;
             $uk_id = (int)$uk["id"];
             $sel = ($uk_id === $current_reward_kid) ? "selected" : "";
@@ -463,7 +467,7 @@ if (!$active_event) {
         }
 
         $view .= "<div style='font-size: 13px; border-top: 1px solid #555; padding-top: 10px; margin-top: 10px;'>";
-        if (count($user_all_k) > 1) {
+        if (count($all_user_kingdoms) > 1) {
             $view .= "
             <form method='POST' class='event-loot-target'>
                 <b style='width: 100%; flex: 1;'>Beute-Ziel:</b>
@@ -475,7 +479,7 @@ if (!$active_event) {
                 </div>
             </form>";
         } else {
-            $single_kname = !empty($user_all_k) ? e($user_all_k[0]["kingdomname"]) : "Haupt-Königreich";
+            $single_kname = !empty($all_user_kingdoms) ? e($all_user_kingdoms[0]["kingdomname"]) : "Haupt-Königreich";
             $view .= "Beute-Ziel: <b>$single_kname</b>";
         }
         $view .= "</div>";

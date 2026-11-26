@@ -73,6 +73,7 @@ function gcd(a, b) {
 function getAlchemyStepSize(from, to, weights = null) {
     if (!weights) {
         const configEl = document.getElementById("alchemy-config");
+
         if (configEl && configEl.dataset.weights) {
             try {
                 weights = JSON.parse(configEl.dataset.weights);
@@ -169,16 +170,7 @@ function updateAlchemyPreview() {
 
     if (effectiveAmt > 0 && effectiveSpeed > 0) {
         const totalSec = Math.ceil((effectiveAmt / effectiveSpeed) * 3600);
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = totalSec % 60;
-
-        let parts = [];
-        if (h > 0) parts.push(h + " Std.");
-        if (m > 0) parts.push(m + " Min.");
-        if (s > 0 || parts.length === 0) parts.push(s + " Sek.");
-
-        prevTime.innerText = parts.join(" ");
+        prevTime.innerText = formatDurationJS(totalSec, {showDays: false});
     } else {
         prevTime.innerText = "0 Sek.";
     }

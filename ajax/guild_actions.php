@@ -10,11 +10,9 @@ switch ($action) {
     case "invite":
         $target_id = post_int("target_id");
         $res = $guild_logic->invite_user($target_id);
-
+        
         if ($res === null) {
             $response["success"] = true;
-
-            $response["html"] = show_passed_box("Einladung wurde erfolgreich verschickt!");
         } else {
             $response["error"] = $res;
         }

@@ -7,7 +7,10 @@ if (!SUGGESTIONS_ENABLED) {
 
 $uid = $user->get_user_id();
 $sug_id = get_int("id");
-if ($sug_id <= 0) die("Ungültige ID");
+if ($sug_id <= 0) {
+    echo show_error_box("Ungültige ID");
+    exit;
+}
 
 $sug = $db_instance->execute_query("SELECT id, title FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
 if (!$sug) {
@@ -62,13 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 return "Dein Kommentar ist zu lang.";
             }
 
-            $clean = preg_replace([
-                    '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-                    '/[ \t]+/u',
-                    '/^[ \t]+/m',
-                    '/[ \t]+$/m'
-            ], ['', ' ', '', ''], $raw);
-            $clean = trim($clean ?? "");
+            $clean = Messages::sanitize_text($raw);
             $len = mb_strlen($clean, "UTF-8");
             $line_breaks = substr_count($clean, "\n");
 

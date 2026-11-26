@@ -72,27 +72,56 @@ class AdventCalendar
 
     public function spawn_day_for_all(int $day): int
     {
-        $res = $this->db->query("SELECT id FROM users WHERE status = 1 AND is_banned = 0");
-        $users = $res->fetch_all(MYSQLI_ASSOC);
+        $users = $this->db->execute_query("
+            SELECT u.id FROM users u
+            WHERE u.status = 1 AND u.is_banned = 0
+              AND NOT EXISTS (SELECT 1 FROM advent_calendar_gifts ag WHERE ag.user_id = u.id AND ag.day = ?)
+        ", [$day])->fetch_all(MYSQLI_ASSOC);
+
         if (empty($users)) return 0;
 
-        $existing_res = $this->db->execute_query("SELECT user_id FROM advent_calendar_gifts WHERE day = ?", [$day]);
-        $existing_uids = array_column($existing_res->fetch_all(MYSQLI_ASSOC), "user_id");
-        $existing_map = array_flip($existing_uids);
+        // Get all gifts that were not collected yet
+        $taken_by_user = [];
+        $res_taken = $this->db->query("SELECT user_id, mapx, mapy FROM advent_calendar_gifts WHERE is_collected = 0");
+        while ($t = $res_taken->fetch_assoc()) {
+            $taken_by_user[(int)$t["user_id"]]["{$t["mapx"]}:{$t["mapy"]}"] = true;
+        }
+
+        // Get free fields once per user
+        $pool_size = count($users) + ADVENT_CALENDAR_TOTAL_DAYS;
+        $cx_min = WORLD_EVENT_CENTER_X - 1;
+        $cx_max = WORLD_EVENT_CENTER_X + 1;
+        $cy_min = WORLD_EVENT_CENTER_Y - 1;
+        $cy_max = WORLD_EVENT_CENTER_Y + 1;
+
+        $free_coords = $this->db->execute_query("
+            SELECT mapx, mapy FROM map
+            WHERE kingdomid = -1
+              AND NOT (mapx BETWEEN ? AND ? AND mapy BETWEEN ? AND ?)
+            ORDER BY RAND()
+            LIMIT ?
+        ", [$cx_min, $cx_max, $cy_min, $cy_max, $pool_size])->fetch_all(MYSQLI_ASSOC);
+
+        if (empty($free_coords)) return 0;
 
         $entries = [];
         foreach ($users as $u) {
             $uid = (int)$u["id"];
-            if (isset($existing_map[$uid])) continue;
 
-            $coords = $this->find_free_coordinates($uid);
-            if (!empty($coords)) {
-                $entries[] = [
-                    "user_id" => $uid,
-                    "day" => $day,
-                    "x" => $coords[0]["x"],
-                    "y" => $coords[0]["y"]
-                ];
+            foreach ($free_coords as $c) {
+                $key = "{$c['mapx']}:{$c['mapy']}";
+
+                if (!isset($taken_by_user[$uid][$key])) {
+                    $entries[] = [
+                        "user_id" => $uid,
+                        "day" => $day,
+                        "x" => (int)$c["mapx"],
+                        "y" => (int)$c["mapy"]
+                    ];
+
+                    $taken_by_user[$uid][$key] = true;
+                    break;
+                }
             }
         }
 
@@ -239,6 +268,13 @@ class AdventCalendar
             $bonus_troops[] = [
                 "id" => $chosen_id,
                 "count" => $unit_count
+            ];
+        }
+
+        if ($is_day_24 && ADVENT_CALENDAR_DAY_24_HEROES > 0) {
+            $bonus_troops[] = [
+                "id" => Soldiers::SOLDIER_HERO,
+                "count" => ADVENT_CALENDAR_DAY_24_HEROES
             ];
         }
 

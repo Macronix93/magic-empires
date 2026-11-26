@@ -46,7 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $db_instance->execute_query("UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?", [$token, $expires, $row["id"]]);
 
             $reset_link = "https://" . $_SERVER["HTTP_HOST"] . BASE_URL . "resetpassword.php?token=" . $token;
-            $subject = "Magic Empires - Passwort zurücksetzen";
+            $subject = "Passwort zurücksetzen";
             $message = "
                 <h2 style='color: #d4af37; text-align: center; margin-top: 0;'>Passwort vergessen?</h2>
                 <p>Werte/r <b>" . e($row["username"]) . "</b>,</p>
@@ -80,14 +80,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <?php include_once("layout/head.php"); ?>
 <body>
 <?php include_once("layout/banner.html"); ?>
+<div id="middle-flash-container" class="middle-flash-container landing-flash">
+    <?php
+    if (!empty($success)) echo show_passed_box($success);
+    if (!empty($error)) echo show_error_box($error);
+    ?>
+</div>
 <div class="form">
     <form class="login-register" method="POST" action="forgotpassword.php">
-        <fieldset>
+        <fieldset class="box-content-bg">
             <legend><b>Passwort vergessen</b></legend>
-            <?php
-            if (!empty($success)) echo show_passed_box($success);
-            if (!empty($error)) echo show_error_box($error);
-            ?>
             <p style="margin-top: 0;">Gib deine E-Mail-Adresse ein, um einen Reset-Link zu erhalten.</p>
             <table class="table" style="margin-bottom: 15px;">
                 <tr>
@@ -103,5 +105,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <?php include_once("layout/copyright.php"); ?>
     </form>
 </div>
+<script nonce="<?= $nonce ?>">
+    document.addEventListener("DOMContentLoaded", () => {
+        const flashContainer = document.getElementById("middle-flash-container");
+        if (!flashContainer) return;
+
+        const boxes = flashContainer.querySelectorAll(".info-box");
+        const dismissBox = (box) => {
+            if (!box || box.classList.contains("fade-out")) return;
+            box.classList.add("fade-out");
+            box.addEventListener("animationend", () => box.remove(), {once: true});
+        };
+
+        boxes.forEach(box => {
+            setTimeout(() => dismissBox(box), 4000);
+            box.addEventListener("click", () => dismissBox(box));
+        });
+    });
+</script>
 </body>
 </html>

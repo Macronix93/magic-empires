@@ -412,6 +412,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if (isset($_POST["delete_user"])) {
         $user_id = post_int("user_id");
+        $redir = "adminpanel.php?userid=$user_id&tab=users";
+        $target_admin_lvl = (int)($db_instance->execute_query("SELECT adminlevel FROM users WHERE id = ?", [$user_id])->fetch_column() ?? 0);
+
+        if (!$is_full_admin && $target_admin_lvl >= $user->get_user_admin_level()) {
+            change_location($redir, error: "Du kannst keinen Account mit gleichem oder höherem Admin-Level löschen!");
+        }
+
         $username = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$user_id])->fetch_column();
 
         $err = User::delete_account($user_id);
@@ -431,11 +438,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $user_id = post_int("user_id");
         $redir = "adminpanel.php?userid=$user_id&tab=users";
 
+        $target_admin_lvl = (int)($db_instance->execute_query("SELECT adminlevel FROM users WHERE id = ?", [$user_id])->fetch_column() ?? 0);
+        if (!$is_full_admin && $target_admin_lvl >= $user->get_user_admin_level()) {
+            change_location($redir, error: "Du kannst keinen Account mit gleichem oder höherem Admin-Level bearbeiten!");
+        }
+
         if ($field === "avatar") {
-            $old_filename = basename($old_value);
-            $new_filename = basename($new_value);
-            if (in_array($old_filename, ["", ".", ".."], true) || in_array($new_filename, ["", ".", ".."], true)) {
-                change_location($redir, error: "Ungültiger Dateiname!");
+            $old_filename = basename(parse_url($old_value, PHP_URL_PATH) ?: "");
+            $new_filename = basename(parse_url($new_value, PHP_URL_PATH) ?: "");
+            $default_avatar_file = basename(DEFAULT_AVATAR);
+
+            if (in_array($old_filename, ["", ".", "..", $default_avatar_file], true) || in_array($new_filename, ["", ".", "..", $default_avatar_file], true)) {
+                change_location($redir, error: "Ungültiger oder geschützter Dateiname!");
             }
 
             $allowed_ext = ["jpg", "jpeg", "png", "gif"];
@@ -459,7 +473,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } else {
             $allowed_editable_fields = [
                 "username", "email", "status", "adminlevel", "score", "coins", "mainkingdom", "guildid", "password",
-                "avatar", "is_banned", "ban_reason", "gender", "active_title_id", "is_vacation", "vacation_until",
+                "is_banned", "ban_reason", "gender", "active_title_id", "is_vacation", "vacation_until",
                 "linked_user_id", "msgcount", "lastsentmsgend", "daily_trades_count", "ban_until"
             ];
 
@@ -1001,12 +1015,10 @@ $settings_list .= "
                     <input type='submit' name='spawn_test_advent_user' value='Für Test-User'>
                 </form>
                 " . (!$cal_active ? "
-                <form method='POST'>
-                    <input type='button' data-on-click='confirmStartAdvent' value='🎄 Für alle starten (24 Tage)'>
-                </form>" : "
-                <form method='POST'>
-                    <input type='button' data-on-click='confirmStopAdvent' value='Kalender stoppen & leeren' class='btn-delete'>
-                </form>") . "
+                <input type='button' data-on-click='confirmStartAdvent' value='🎄 Für alle starten (24 Tage)'>
+                " : "
+                <input type='button' data-on-click='confirmStopAdvent' value='Kalender stoppen & leeren' class='btn-delete'>
+                ") . "
             </div>
         </div>
     </div>";
@@ -1061,11 +1073,8 @@ $backup_dir = __DIR__ . "/logs/chat_backups/";
 $backups = [];
 
 if (is_dir($backup_dir)) {
-    $files = glob($backup_dir . "chat_log_*.log");
-
-    usort($files, function ($a, $b) {
-        return filemtime($b) - filemtime($a);
-    });
+    $files = glob($backup_dir . "chat_log_*.log") ?: [];
+    usort($files, fn($a, $b) => filemtime($b) - filemtime($a));
 
     foreach ($files as $f) {
         $backups[] = basename($f);
@@ -1155,25 +1164,27 @@ if ($logs->num_rows > 0) {
         } else {
             $user_display = "<i>System</i>";
         }
-
+        
         $action_clean = str_replace('_', ' ', $l['action']);
+        $log_id_int = (int)$l['id'];
+        $detail_attrs = "data-on-click='openOverlay' data-url='ajax/admin_gamelog_view.php?id=$log_id_int' data-title='Game-Log #$log_id_int'";
 
-        $game_logs_table .= "<tr>
-                <td class='log-id'>{$l['id']}</td>
-                <td class='log-player'>$user_display</td>
-                <td class='log-content'>
-                    <div class='log-stack'>
-                        <span class='log-cat'>[" . e($l['category']) . "]</span>
-                        <span class='log-action-text'>$action_clean</span>
-                    </div>
-                </td>
-                <td class='log-date'>" . date("d.m.Y H:i:s", $l['created_at']) . "</td>
-                <td class='td-center'>
-                    <a href='#' data-on-click='confirmDeleteLog' data-id='{$l['id']}' data-page='$current_page_logs'>
-                        <img src='images/icons/icon_delete.png' class='ressource-icons' alt='X'>
-                    </a>
-                </td>
-              </tr>";
+        $game_logs_table .= "<tr class='tr-hover'>
+            <td class='log-id td-cursor' $detail_attrs>$log_id_int</td>
+            <td class='log-player td-cursor' $detail_attrs>$user_display</td>
+            <td class='log-content td-cursor' $detail_attrs>
+                <div class='log-stack'>
+                    <span class='log-cat'>[" . e($l['category']) . "]</span>
+                    <span class='log-action-text'>" . e($action_clean) . "</span>
+                </div>
+            </td>
+            <td class='log-date td-cursor' $detail_attrs>" . date("d.m.Y H:i:s", $l['created_at']) . "</td>
+            <td class='td-center'>
+                <a href='#' data-on-click='confirmDeleteLog' data-id='$log_id_int' data-page='$current_page_logs'>
+                    <img src='images/icons/icon_delete.png' class='ressource-icons' alt='X'>
+                </a>
+            </td>
+        </tr>";
     }
 } else {
     $game_logs_table .= "<tr><td colspan='5' class='td-center'>Keine Einträge gefunden.</td></tr>";

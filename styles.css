@@ -7,7 +7,6 @@
     --sender-bubble: rgb(75, 68, 59);
     --receiver-bubble: rgb(60, 65, 70);
     --border-gold: rgb(165, 124, 0);
-    --map-tile-size: 60px;
     --map-viewport-height: 650px;
     --map-viewport-width: 850px;
 }
@@ -25,7 +24,7 @@
 html {
     color: rgb(230, 220, 200);
     text-shadow: -1px -1px 0 rgb(0, 0, 0), 1px -1px 0 rgb(0, 0, 0), -1px 1px 0 rgb(0, 0, 0), 1px 1px 0 rgb(0, 0, 0);
-    font-family: 'Georgia', 'Times New Roman', serif;
+    font-family: 'Georgia', 'Times New Roman', "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif;
     font-variant-numeric: lining-nums tabular-nums;
     font-feature-settings: "lnum" 1, "tnum" 1;
     width: 100%;
@@ -323,12 +322,9 @@ li {
 /* Emoji-Container */
 .emoji-fix {
     text-shadow: none !important;
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif !important;
-    font-variant-emoji: emoji;
-}
-
-button .emoji-fix {
-    line-height: 1;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
 }
 
 .emoji-menu span {
@@ -337,7 +333,20 @@ button .emoji-fix {
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
     text-shadow: none !important;
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif !important;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important;
+}
+
+.emoji-trigger {
+    font-size: 20px !important;
+    padding: 5px 8px !important;
+    line-height: 1;
+    height: 100%;
+    text-shadow: none !important;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif !important;
+}
+
+button .emoji-fix {
+    line-height: 1;
 }
 
 .emoji-picker-container {
@@ -347,14 +356,10 @@ button .emoji-fix {
     margin-right: 5px;
 }
 
+.emoji-fix,
+.emoji-menu span,
 .emoji-trigger {
-    font-size: 20px !important;
-    padding: 5px 8px !important;
-    line-height: 1;
-    height: 100%;
-    text-shadow: none !important;
-    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif !important;
-    font-variant-emoji: emoji;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif !important;
 }
 
 /* Emoji Menu */
@@ -450,6 +455,10 @@ button .emoji-fix {
 
 .unit-badge b.passed {
     color: rgb(11, 218, 81);
+}
+
+.unit-badge b.warning {
+    color: var(--link-color);
 }
 
 .unit-badge img.badge-arrow-up {
@@ -2047,11 +2056,6 @@ tr:first-child td.td-gradient {
     }
 }
 
-.loader-hidden {
-    opacity: 0;
-    pointer-events: none;
-}
-
 .map-viewport {
     width: 100%;
     height: 100%;
@@ -2096,9 +2100,9 @@ tr:first-child td.td-gradient {
 #live-power-container {
     display: flex;
     justify-content: center;
-    align-items: stretch;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 30px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
 }
 
 #live-power-container .box-container {
@@ -2265,7 +2269,6 @@ tr:first-child td.td-gradient {
     min-width: 450px;
     max-width: 620px;
     pointer-events: auto;
-    animation: popup-fade-in 0.15s ease-out;
 }
 
 .map-floating-popup .table {
@@ -2360,27 +2363,6 @@ tr:first-child td.td-gradient {
     z-index: 1000;
     pointer-events: none;
     animation: spin 0.8s linear infinite;
-}
-
-#map-flash-message {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: 80%;
-    margin: 0;
-    z-index: 1100;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.85);
-    animation: flashToastIn 0.25s ease-out forwards;
-    transition: opacity 0.4s ease;
-    pointer-events: none;
-    text-align: center;
-    line-height: 1.3;
-    min-height: unset;
-    box-sizing: border-box;
-    font-size: 18px;
-    padding: 6px 14px;
 }
 
 /* Mobile Nav Logic */
@@ -2538,12 +2520,6 @@ tr:first-child td.td-gradient {
     top: 1px;
 }
 
-.mobile-trigger p {
-    margin: 0;
-    font-size: 24px;
-    color: var(--link-color);
-}
-
 .mobile-side-nav {
     position: fixed;
     top: 0;
@@ -2600,6 +2576,7 @@ body:has(#nav-right-menu.open) #mobile-kingdom-dropdown {
 }
 
 .td-shrink {
+    position: relative;
     width: 10%;
     white-space: nowrap;
     padding-right: 20px;
@@ -2614,6 +2591,25 @@ body:has(#nav-right-menu.open) #mobile-kingdom-dropdown {
     width: 25%;
     white-space: nowrap;
     text-align: center;
+}
+
+.ranking-trend-arrow {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.ranking-trend-arrow img {
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
 .ranking-attack-sword {
@@ -2796,11 +2792,6 @@ body.modal-open footer {
     font-size: 11px;
     color: #bbb;
     margin-bottom: 3px;
-}
-
-#tick-timer {
-    font-weight: bold;
-    color: #eee;
 }
 
 .tick-progress-bg {
@@ -3025,12 +3016,14 @@ body.modal-open footer {
     min-width: 310px;
 }
 
-#tutorial-overlay {
+#tutorial-overlay,
+#advent-overlay {
     overflow-y: auto;
     padding: 20px 10px;
 }
 
-#tutorial-overlay .tutorial-box {
+#tutorial-overlay .tutorial-box,
+#advent-overlay .tutorial-box {
     width: 100%;
     max-width: 600px;
     margin: auto;
@@ -4118,6 +4111,15 @@ img[data-on-click] {
     color: rgb(230, 220, 200);
 }
 
+.hof-extra-avg,
+.hof-extra-count {
+    font-size: 13px;
+    font-weight: normal;
+    color: rgb(230, 220, 200);
+    opacity: 0.65;
+    white-space: nowrap;
+}
+
 .battle-supporter-name {
     font-size: 1.0em;
     color: var(--link-color);
@@ -4353,7 +4355,7 @@ button.btn-logout:not(:disabled):active {
     button,
     select,
     option {
-        font-family: "Baskerville", "Times New Roman", Times, serif;
+        font-family: "Baskerville", "Times New Roman", Times, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", serif;
         font-variant-numeric: tabular-nums lining-nums;
         font-feature-settings: "tnum" 1, "lnum" 1;
     }
@@ -4396,7 +4398,6 @@ button.btn-logout:not(:disabled):active {
 /* Smartphone View */
 @media screen and (max-width: 600px) {
     :root {
-        --map-tile-size: 40px;
         --map-viewport-height: 350px;
     }
 
@@ -4664,13 +4665,9 @@ button.btn-logout:not(:disabled):active {
         font-size: 9px;
     }
 
-    div[id^="pop_k_preview_"][id$="_box"] {
-        pointer-events: auto !important;
-    }
-
-    div[id^="pop_k_preview_"][id$="_box"] button {
-        pointer-events: auto !important;
-        cursor: pointer !important;
+    .hof-extra-avg,
+    .hof-extra-count {
+        font-size: 10px;
     }
 
     .mobile-only-switch-wrap {
@@ -4792,12 +4789,6 @@ button.btn-logout:not(:disabled):active {
     .arena-battle-anim-gif {
         width: 240px;
         max-width: 70vw;
-    }
-
-    .opponent-card button.btn-accept {
-        min-width: 90px !important;
-        padding: 3px 8px !important;
-        font-size: 11px !important;
     }
 
     .scout-grid {
@@ -4955,13 +4946,6 @@ button.btn-logout:not(:disabled):active {
         padding: 4px 8px;
         margin-bottom: 10px;
         line-height: 1.25;
-    }
-
-    #map-flash-message {
-        top: 6px;
-        max-width: 92%;
-        font-size: 14px;
-        padding: 4px 10px;
     }
 
     #chat-loading-wrapper {
@@ -5155,6 +5139,12 @@ button.btn-logout:not(:disabled):active {
 
     .ranking-attack-sword {
         top: 2px;
+        right: 2px;
+        width: 11px;
+        height: 11px;
+    }
+
+    .ranking-trend-arrow {
         right: 2px;
         width: 11px;
         height: 11px;
@@ -5487,15 +5477,6 @@ button.btn-logout:not(:disabled):active {
     .mobile-nav-arrow {
         -webkit-tap-highlight-color: transparent;
         -webkit-touch-callout: none;
-    }
-
-    .mobile-nav-arrow > .arrow-nav {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        user-select: none;
-        -webkit-user-select: none;
-        -webkit-tap-highlight-color: transparent;
     }
 
     .overview-info-table td {
@@ -6069,14 +6050,6 @@ button.btn-logout:not(:disabled):active {
     .warsim-table {
         table-layout: fixed;
         width: 100% !important;
-    }
-
-    .warsim-table colgroup col:nth-child(1) {
-        width: 60%;
-    }
-
-    .warsim-table colgroup col:nth-child(2) {
-        width: 20%;
     }
 
     .warsim-table td {

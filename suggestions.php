@@ -29,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $raw_title = post_str("title");
         $raw_content = post_str("content");
         $title = sanitize_input($raw_title);
-        $content = trim($raw_content);
+        $content = Messages::sanitize_text($raw_content);
 
         $fail_submit = function (string $msg) use ($raw_title, $raw_content): never {
             set_form_flash("suggestion", ["title" => $raw_title, "content" => $raw_content]);
@@ -61,7 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST["edit_suggestion"])) {
         $sug_id = post_int("suggestion_id");
         $title = sanitize_input(post_str("title"));
-        $content = trim(post_str("content"));
+        $content = Messages::sanitize_text(post_str("content"));
         $res_check = $db_instance->execute_query("SELECT user_id, status FROM suggestions WHERE id = ?", [$sug_id])->fetch_assoc();
 
         if (!$res_check) {
@@ -327,7 +327,7 @@ while ($row = $suggestions->fetch_assoc()) {
     $sug_id = (int)$row["id"];
     $status_data = $status_meta[$row["status"]] ?? $status_meta[0];
     $my_vote = (int)$row["my_vote"];
-    $author_link = "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid={$row["user_id"]}' data-title='Spieler-Info'><b>" . e($row["username"]) . "</b></a>";
+    $author_link = "<a href='#' data-on-click='openOverlay' data-url='ajax/userinfo.php?userid={$row["user_id"]}' data-title='Spieler-Info'><b>" . e($row["username"]) . "</b></a>";
     $date_str = date("d.m.Y \u\m H:i:s", $row["created_at"]);
     $score = (int)$row["score"];
 
@@ -404,7 +404,7 @@ while ($row = $suggestions->fetch_assoc()) {
     $downvoters = !empty($row["downvoters"]) ? e($row["downvoters"]) : "<i>Noch keine Stimmen</i>";
 
     $vote_buttons = "
-    <div class='suggestion-vote-bar' data-id='$sug_id' style='display: flex; gap: 8px; align-items: center;'>
+    <div data-id='$sug_id' style='display: flex; gap: 8px; align-items: center;'>
         <button type='button' class='btn-vote-up$btn_up_active popup' id='pop_v_up_$sug_id' data-on-click='voteSuggestion' data-id='$sug_id' data-type='up' style='font-size: 13px; padding: 3px 10px; cursor: pointer;'>
             " . Messages::wrap_emojis("👍") . " <b class='count-up'>{$row["upvotes"]}</b>
             <div id='pop_v_up_{$sug_id}_box' class='popupbox' style='text-align: left;'>

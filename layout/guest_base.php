@@ -5,7 +5,7 @@ if (empty($header_icon)) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
 <?php include_once("layout/head.php"); ?>
 <body>
 <?php include_once("layout/banner.html"); ?>

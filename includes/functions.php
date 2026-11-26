@@ -39,21 +39,12 @@ function e($value): string
 
 function make_secure(string $data): string
 {
-    $data = trim($data);
-    $data = stripslashes($data);
-    $data = preg_replace('/\s+/', '', $data) ?? '';
-    return htmlspecialchars($data, ENT_QUOTES, "UTF-8");
+    return preg_replace('/\s+/', '', trim($data)) ?? '';
 }
 
 function sanitize_input(string $str): string
 {
-    if (!mb_check_encoding($str, "UTF-8")) {
-        $str = mb_scrub($str, "UTF-8");
-    }
-
-    $str = preg_replace('/\p{C}/u', '', $str) ?? '';
-    $str = preg_replace('/\s+/u', ' ', $str) ?? '';
-    return trim($str);
+    return Messages::sanitize_text($str, false, false);
 }
 
 // Convert seconds to a string
@@ -211,19 +202,19 @@ function change_location(string  $url, int $seconds = 0, ?int $ajax_status_code 
     exit;
 }
 
-function show_passed_box(string $info_text, bool $display = true): string
+function show_passed_box(string $info_text, bool $show_icon = true): string
 {
-    return "<div class='info-box event-passed' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_checked.png' alt='Erfolg'><span>$info_text</span></div>";
+    return "<div class='info-box event-passed'>" . ($show_icon ? "<img src='images/icons/icon_checked.png' alt='Erfolg'>" : "") . "<span>$info_text</span></div>";
 }
 
-function show_error_box(string $info_text, bool $display = true): string
+function show_error_box(string $info_text, bool $show_icon = true): string
 {
-    return "<div class='info-box event-error' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_error.png' alt='Fehler'><span>$info_text</span></div>";
+    return "<div class='info-box event-error'>" . ($show_icon ? "<img src='images/icons/icon_error.png' alt='Fehler'>" : "") . "<span>$info_text</span></div>";
 }
 
-function show_warning_box(string $info_text, bool $display = true): string
+function show_warning_box(string $info_text, bool $show_icon = true): string
 {
-    return "<div class='info-box event-warning' " . ($display ? "" : "style='display: none;'") . "><img src='images/icons/icon_warning.png' alt='Hinweis'><span>$info_text</span></div>";
+    return "<div class='info-box event-warning'>" . ($show_icon ? "<img src='images/icons/icon_warning.png' alt='Hinweis'>" : "") . "<span>$info_text</span></div>";
 }
 
 function show_weighted_box(string $info_text, string $weighted_text): string
@@ -414,7 +405,7 @@ function send_mail(string $to, string $subject, string $body): bool
         $mail->send();
         return true;
     } catch (Exception) {
-        error_log("PHPMailer Error: $mail->ErrorInfo");
+        Logger::get_instance()->error("PHPMailer Error: $mail->ErrorInfo");
         return false;
     }
 }
@@ -506,6 +497,10 @@ function generate_safe_password(int $length = 12): string
 #[NoReturn]
 function render_error_page(string $title, string $message): void
 {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     if (is_ajax_request()) {
         send_json(["error" => $title . ": " . $message], 500);
     }
@@ -599,9 +594,7 @@ function render_error_page(string $title, string $message): void
 #[NoReturn]
 function global_exception_handler($e): void
 {
-    error_log("[" . date(ERROR_DATE_FORMAT) . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString() . "\n", 3, ERROR_LOG_FILE);
-    Logger::get_instance()->error($e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
-
+    Logger::get_instance()->error("[" . date(ERROR_DATE_FORMAT) . "] " . $e->getMessage() . " on line " . $e->getLine() . " in file " . $e->getFile() . "\nTrace:" . $e->getTraceAsString());
     render_error_page("Ausnahmefehler", "Ein unerwarteter Fehler ist aufgetreten!");
 }
 
@@ -619,11 +612,10 @@ function global_error_handler($err_no, $err_str, $err_file, $err_line): false
 function fatal_error_shutdown_handler(): void
 {
     $error = error_get_last();
+    $fatal_types = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
 
-    if ($error !== null) {
-        error_log("[" . date(ERROR_DATE_FORMAT) . "] Fatal Error: " . $error['message'] . " in " . $error['file'] . " on line " . $error['line'] . "\n", 3, ERROR_LOG_FILE);
-        Logger::get_instance()->error("FATAL: " . $error['message'] . " in " . $error['file']);
-
+    if ($error !== null && in_array($error['type'], $fatal_types, true)) {
+        Logger::get_instance()->error("FATAL: {$error['message']} in {$error['file']} on line {$error['line']}");
         render_error_page("Kritischer Fehler", "Ein fataler Fehler ist aufgetreten!");
     }
 }
@@ -1073,6 +1065,10 @@ function csrf_input(): string
 function auto_inject_csrf_token(string $buffer): string
 {
     if (empty($buffer) || stripos($buffer, '<form') === false) {
+        return $buffer;
+    }
+
+    if (array_any(headers_list(), fn($h) => stripos($h, "content-type:") === 0 && stripos($h, "application/json") !== false)) {
         return $buffer;
     }
 

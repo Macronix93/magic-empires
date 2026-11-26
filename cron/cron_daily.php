@@ -3,7 +3,7 @@ $_SERVER["HTTP_HOST"] = "localhost";
 $_SERVER["REMOTE_ADDR"] = "127.0.0.1";
 $_SERVER["REQUEST_METHOD"] = "GET";
 
-require_once("../includes/core.php");
+require_once(__DIR__ . "/../includes/core.php");
 
 $db = Database::get_instance()->get_connection();
 

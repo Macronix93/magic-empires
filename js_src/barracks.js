@@ -65,69 +65,9 @@ registerAction("filterBarracks", (el) => {
     window.history.replaceState({}, '', url);
 });
 registerAction("fillMaxAndCalc", (el) => {
-    const targetId = el.dataset.target;
-    const input = document.getElementById(targetId);
-    const kRes = getLatestKingdomResources();
-
-    if (!input || !kRes) return;
-
-    const form = input.closest("form");
-    const upgradeSelect = form.querySelector(".js-upgrade-select");
-    const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
-
-    let maxCanAfford = kRes.dynamicLimit;
-
-    if (isUpgrade) {
-        const selectedOpt = upgradeSelect.selectedOptions[0];
-        if (!selectedOpt) return;
-
-        const ownedUnits = parseInt(input.dataset.owned) || 0;
-
-        const diffs = {
-            food: Math.max(0, (parseInt(selectedOpt.dataset.ufood) || 0) - (parseInt(input.dataset.costFood) || 0)),
-            wood: Math.max(0, (parseInt(selectedOpt.dataset.uwood) || 0) - (parseInt(input.dataset.costWood) || 0)),
-            stone: Math.max(0, (parseInt(selectedOpt.dataset.ustone) || 0) - (parseInt(input.dataset.costStone) || 0)),
-            gold: Math.max(0, (parseInt(selectedOpt.dataset.ugold) || 0) - (parseInt(input.dataset.costGold) || 0))
-        };
-
-        for (const [res, cost] of Object.entries(diffs)) {
-            if (cost > 0) {
-                const affordable = Math.floor(kRes[res] / cost);
-                maxCanAfford = Math.min(maxCanAfford, affordable);
-            }
-        }
-        maxCanAfford = Math.min(maxCanAfford, ownedUnits);
-    } else {
-        const costs = {
-            food: parseInt(input.dataset.costFood) || 0,
-            wood: parseInt(input.dataset.costWood) || 0,
-            stone: parseInt(input.dataset.costStone) || 0,
-            gold: parseInt(input.dataset.costGold) || 0,
-            villager: parseInt(input.dataset.costVillager) || 0
-        };
-
-        for (const [res, cost] of Object.entries(costs)) {
-            if (cost > 0) {
-                const affordable = Math.floor(kRes[res] / cost);
-                maxCanAfford = Math.min(maxCanAfford, affordable);
-            }
-        }
-    }
-
-    const isSpaceExempt = input.dataset.spaceExempt === "true";
-
-    if (!isUpgrade && !isSpaceExempt) {
-        maxCanAfford = Math.min(maxCanAfford, kRes.spaceLeft);
-    }
-
-    if (input.dataset.unitLimit) {
-        const uLimit = parseInt(input.dataset.unitLimit, 10) || 0;
-        const uTotal = parseInt(input.dataset.unitTotal, 10) || 0;
-
-        maxCanAfford = Math.min(maxCanAfford, Math.max(0, uLimit - uTotal));
-    }
-
-    input.value = Math.max(0, maxCanAfford);
+    const input = document.getElementById(el.dataset.target);
+    if (!input) return;
+    input.value = getMaxRecruitable(input);
     updateRecruitCosts(input);
 });
 registerAction("openStationOverlay", () => {
@@ -155,6 +95,60 @@ registerAction("openAllTroopsOverlay", () => {
     openOverlay(`ajax/all_kingdom_troops.php`, "Gesamt Streitkräfte");
 });
 
+function getMaxRecruitable(input) {
+    const kRes = getLatestKingdomResources();
+    if (!input || !kRes) return 0;
+
+    const form = input.closest("form");
+    const upgradeSelect = form?.querySelector(".js-upgrade-select");
+    const isUpgrade = !!(upgradeSelect && upgradeSelect.value !== "");
+    let maxAllowed = kRes.dynamicLimit;
+
+    if (isUpgrade) {
+        const selectedOpt = upgradeSelect.selectedOptions[0];
+        if (!selectedOpt) return 0;
+
+        const ownedUnits = parseInt(input.dataset.owned, 10) || 0;
+        maxAllowed = Math.min(maxAllowed, ownedUnits);
+
+        ["food", "wood", "stone", "gold"].forEach(res => {
+            const baseCost = parseInt(input.dataset["cost" + res.charAt(0).toUpperCase() + res.slice(1)], 10) || 0;
+            const targetCost = parseInt(selectedOpt.dataset["u" + res], 10) || 0;
+            const diffCost = Math.max(0, targetCost - baseCost);
+
+            if (diffCost > 0) {
+                maxAllowed = Math.min(maxAllowed, Math.floor(kRes[res] / diffCost));
+            }
+        });
+    } else {
+        const costs = {
+            food: parseInt(input.dataset.costFood, 10) || 0,
+            wood: parseInt(input.dataset.costWood, 10) || 0,
+            stone: parseInt(input.dataset.costStone, 10) || 0,
+            gold: parseInt(input.dataset.costGold, 10) || 0,
+            villager: parseInt(input.dataset.costVillager, 10) || 0
+        };
+        for (const [res, cost] of Object.entries(costs)) {
+            if (cost > 0) {
+                maxAllowed = Math.min(maxAllowed, Math.floor(kRes[res] / cost));
+            }
+        }
+
+        const isSpaceExempt = input.dataset.spaceExempt === "true";
+        if (!isSpaceExempt) {
+            maxAllowed = Math.min(maxAllowed, kRes.spaceLeft);
+        }
+
+        if (input.dataset.unitLimit) {
+            const uLimit = parseInt(input.dataset.unitLimit, 10) || 0;
+            const uTotal = parseInt(input.dataset.unitTotal, 10) || 0;
+            maxAllowed = Math.min(maxAllowed, Math.max(0, uLimit - uTotal));
+        }
+    }
+
+    return Math.max(0, maxAllowed);
+}
+
 function getLatestKingdomResources() {
     const resEl = document.getElementById("kingdom-resources");
     if (!resEl) return null;
@@ -169,18 +163,6 @@ function getLatestKingdomResources() {
         multiplier: parseFloat(resEl.dataset.smithyMultiplier) || 1.0,
         spaceLeft: parseInt(resEl.dataset.spaceLeft) || 0
     };
-}
-
-function formatRecruitTime(totalSec) {
-    if (totalSec <= 0) return "0 Sek.";
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    let parts = [];
-    if (h > 0) parts.push(h + " Std.");
-    if (m > 0) parts.push(m + " Min.");
-    if (s > 0) parts.push(s + " Sek.");
-    return parts.join(" ");
 }
 
 function updateRecruitCosts(input) {
@@ -211,7 +193,7 @@ function updateRecruitCosts(input) {
 
     const timeEl = document.getElementById(`time-${id}`);
     if (timeEl) {
-        timeEl.innerText = formatRecruitTime(discountedUnitTime * displayAmount);
+        timeEl.innerText = formatDurationJS(discountedUnitTime * displayAmount, {showDays: false});
     }
 
     const resources = ["food", "gold", "stone", "wood", "villager"];
@@ -301,63 +283,15 @@ document.addEventListener("DOMContentLoaded", () => {
         updateRecruitCosts(input);
 
         input.addEventListener("input", function () {
-            let rawValue = this.value.replace(/[^0-9]/g, '');
-
+            const rawValue = this.value.replace(/[^0-9]/g, '');
             if (rawValue === "") {
                 this.value = "";
                 updateRecruitCosts(this);
                 return;
             }
 
-            let amount = parseInt(rawValue) || 0;
-            const kRes = getLatestKingdomResources();
-            if (!kRes) return;
-
-            const form = this.closest("form");
-            const upgradeSelect = form.querySelector(".js-upgrade-select");
-            const isUpgrade = upgradeSelect && upgradeSelect.value !== "";
-
-            let maxAllowed = kRes.dynamicLimit;
-            const isSpaceExempt = this.dataset.spaceExempt === "true";
-
-            if (!isUpgrade && !isSpaceExempt) {
-                maxAllowed = Math.min(maxAllowed, kRes.spaceLeft);
-            }
-            if (this.dataset.unitLimit) {
-                const uLimit = parseInt(this.dataset.unitLimit, 10) || 0;
-                const uTotal = parseInt(this.dataset.unitTotal, 10) || 0;
-                maxAllowed = Math.min(maxAllowed, Math.max(0, uLimit - uTotal));
-            }
-
-            const villCost = parseInt(this.dataset.costVillager) || 0;
-            if (villCost > 0) {
-                maxAllowed = Math.min(maxAllowed, Math.floor(kRes.villager / villCost));
-            }
-
-            const resources = ["food", "wood", "stone", "gold"];
-            resources.forEach(res => {
-                let costPerUnit;
-                const baseCost = parseInt(this.dataset["cost" + res.charAt(0).toUpperCase() + res.slice(1)]) || 0;
-
-                if (isUpgrade) {
-                    const selectedOpt = upgradeSelect.selectedOptions[0];
-                    const targetCost = parseInt(selectedOpt.dataset["u" + res]) || 0;
-                    costPerUnit = Math.max(0, targetCost - baseCost);
-                } else {
-                    costPerUnit = baseCost;
-                }
-
-                if (costPerUnit > 0) {
-                    const affordable = Math.floor(kRes[res] / costPerUnit);
-                    maxAllowed = Math.min(maxAllowed, affordable);
-                }
-            });
-
-            if (amount > maxAllowed) {
-                amount = maxAllowed;
-            }
-
-            this.value = amount;
+            const maxAllowed = getMaxRecruitable(this);
+            this.value = Math.min(parseInt(rawValue, 10) || 0, maxAllowed);
 
             updateRecruitCosts(this);
         });

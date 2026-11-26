@@ -33,7 +33,7 @@ registerAction("openArenaAttackInline", (btn) => {
 
     showActionLoader("Lade Duell...");
 
-    fetch(`ajax/arena_attack_modal.php?defender_id=${oppId}&name=${encodeURIComponent(oppName)}&elo=${oppElo}`, {
+    fetch(`ajax/arena_attack_modal.php?defender_id=${oppId}`, {
         headers: {"X-Requested-With": "XMLHttpRequest"}
     })
         .then(r => r.text())

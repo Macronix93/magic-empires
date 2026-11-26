@@ -186,8 +186,8 @@ class Alchemy
             return "Start- und Zielressource dürfen nicht identisch sein.";
         }
 
-        $cost_key = self::resource_to_cost_key($from_res);
-        if ($cost_key === null || self::resource_to_cost_key($to_res) === null) {
+        $cost_key = resource_to_cost_key($from_res);
+        if ($cost_key === null || resource_to_cost_key($to_res) === null) {
             return "Ungültige Ressourcen gewählt.";
         }
 
@@ -290,7 +290,7 @@ class Alchemy
             $out_res = (int)$state["target_resource"];
             $cur_in = (int)$state["input_amount"];
 
-            $cost_key = self::resource_to_cost_key($in_res);
+            $cost_key = resource_to_cost_key($in_res);
             if ($cost_key === null) {
                 throw new RuntimeException("Ungültige Ressource im Kessel.");
             }
@@ -411,16 +411,4 @@ class Alchemy
             return "Fehler beim Abbrechen.";
         }
     }
-
-    private static function resource_to_cost_key(int $res_type): ?string
-    {
-        return match ($res_type) {
-            ResourceTypes::RESOURCE_TYPE_FOOD => "cost_food",
-            ResourceTypes::RESOURCE_TYPE_WOOD => "cost_wood",
-            ResourceTypes::RESOURCE_TYPE_STONE => "cost_stone",
-            ResourceTypes::RESOURCE_TYPE_GOLD => "cost_gold",
-            default => null
-        };
-    }
-
 }

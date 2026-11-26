@@ -26,9 +26,14 @@ $atk_count = 0;
 $sup_count = 0;
 
 if ($user->is_logged_in()) {
-    if (in_array("userinfo", $script_files ?? [])
-            && !in_array("sendtroops", $script_files ?? [])) {
-        $script_files[] = "sendtroops";
+    if (in_array("userinfo", $script_files ?? [], true)) {
+        if (!in_array("sendtroops", $script_files, true)) {
+            $script_files[] = "sendtroops";
+        }
+        
+        if (!in_array("guild", $script_files, true)) {
+            $script_files[] = "guild";
+        }
     }
 
     $uid = $user->get_user_id();
@@ -55,10 +60,6 @@ if ($user->is_logged_in()) {
 
     $show_attack_alert = ($atk_count > 0);
     $show_support_alert = ($sup_count > 0);
-
-    if (AdventCalendar::should_show_intro($user->get_user_id())) {
-        echo AdventCalendar::render_intro_modal();
-    }
 }
 ?>
 <!DOCTYPE html>
@@ -102,6 +103,11 @@ if ($user->is_logged_in()) {
       data-server-time="<?= time(); ?>"
       data-flash-limit="<?= TITLE_FLASH_SECONDS ?>"
 >
+<?php
+if ($user->is_logged_in() && AdventCalendar::should_show_intro($user->get_user_id())) {
+    echo AdventCalendar::render_intro_modal();
+}
+?>
 <?php if (isset($show_attack_alert) && $show_attack_alert): ?>
     <?php
     $sync_offset = fmod(microtime(true), 2);

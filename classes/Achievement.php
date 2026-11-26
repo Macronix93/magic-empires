@@ -365,20 +365,6 @@ class Achievement
         }
     }
 
-    public static function get_claimable_count(int $user_id): int
-    {
-        if ($user_id <= 0) return 0;
-
-        $db = Database::get_instance()->get_connection();
-
-        return (int)$db->execute_query("
-            SELECT COUNT(*)
-            FROM user_achievements ua
-            JOIN achievements a ON ua.achievement_id = a.id
-            WHERE ua.user_id = ? AND ua.is_claimed = 0 AND a.reward_coins > 0
-        ", [$user_id])->fetch_column();
-    }
-
     public static function get_all_with_status(int $user_id): array
     {
         $db = Database::get_instance()->get_connection();

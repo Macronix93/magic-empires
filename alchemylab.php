@@ -124,9 +124,6 @@ if ($has_active_process) {
     $stock = ($in_res !== -1) ? ($stocks[$in_res] ?? 0) : 0;
     $free_space = max(0, $capacity - $in_amt);
 
-    $input_per_sec = $speed / 3600;
-    $output_per_sec = $input_per_sec * $conversion_rate;
-
     $header_text = ($in_amt > 0) ? "Laufende Umwandlung" : "Umwandlung abgeschlossen";
 
     $view .= "

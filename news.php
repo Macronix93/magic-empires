@@ -74,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             "INSERT INTO news (userid, username, title, content, date) VALUES (?, ?, ?, ?, ?)",
             [$user->get_user_id(), $user->get_user_name(), $title, $content, time()]
         );
-        
+
         change_location("news.php", success: "Neuigkeit veröffentlicht!");
     } else if (isset($_POST["delete_news"])) {
         $db_instance->execute_query("DELETE FROM news WHERE id = ?", [post_int("news_id")]);
@@ -127,7 +127,13 @@ if ($is_admin) {
 }
 
 if ($result->num_rows > 0) {
-    foreach ($result as $row) {
+    $news_rows = $result->fetch_all(MYSQLI_ASSOC);
+    $news_ids = array_column($news_rows, "id");
+    $news_reactions = $user->is_logged_in()
+        ? Messages::fetch_reactions_for_ids("news", $news_ids, $user->get_user_id())
+        : [];
+
+    foreach ($news_rows as $row) {
         $date = date("d.m.Y \u\m H:i:s", $row["date"]);
         $del_button = "";
 
@@ -165,7 +171,7 @@ if ($result->num_rows > 0) {
                         <div class='news-author-info'>
                             Verfasst von: <b>" . e($row["username"]) . "</b> am $date
                         </div>
-                        " . Messages::render_reactions_bar("news", $row["id"], $user) . "
+                        " . Messages::render_reactions_bar("news", (int)$row["id"], $user, "full", $news_reactions[(int)$row["id"]] ?? []) . "
                     </div>
                 </div>
         </div>";
@@ -211,7 +217,7 @@ $header = "Neuigkeiten";
 if ($user->is_logged_in() && !$is_admin) {
     $head_extra = '<meta name="chat-emojis" content="' . e(json_encode(Messages::get_chat_emojis(), JSON_UNESCAPED_UNICODE)) . '">';
 }
-$script_files = $is_admin ? ["adminpanel", "news"] : ["news"];
+$script_files = ["news"];
 
 if ($user->is_logged_in()) {
     include("layout/base.php");

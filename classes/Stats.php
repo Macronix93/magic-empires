@@ -85,39 +85,16 @@ class Stats
         $score_techs = (int)$res_t->fetch_column();
 
         // Troop Score
-        $hero_id = Soldiers::SOLDIER_HERO;
+        [$units_sql, $units_params] = Soldier::build_owned_units_sql([
+            "user_id" => $user_id,
+            "include_upgrading" => true,
+            "exclude_soldier_ids" => [Soldiers::SOLDIER_HERO]
+        ]);
         $res_u = $db->execute_query("
-            SELECT IFNULL(SUM(total_count * sl.scoregain), 0) 
-            FROM (
-                SELECT soldierid, SUM(soldiercount) AS total_count 
-                FROM soldiers 
-                WHERE kingdomid IN (SELECT id FROM kingdoms WHERE userid = ?) 
-                GROUP BY soldierid
-                UNION ALL 
-                SELECT st.soldierid, SUM(st.soldiercount) AS total_count 
-                FROM sent_troops st 
-                JOIN events e ON st.eventid = e.eventid 
-                WHERE e.userid = ? 
-                GROUP BY st.soldierid
-                UNION ALL 
-                SELECT soldier_id AS soldierid, SUM(soldiercount) AS total_count 
-                FROM stationed_troops 
-                WHERE owner_id = ? 
-                GROUP BY soldier_id
-                UNION ALL 
-                SELECT mst.soldier_id AS soldierid, SUM(mst.soldiercount) AS total_count 
-                FROM mine_stationed_troops mst 
-                WHERE mst.user_id = ? 
-                GROUP BY mst.soldier_id
-                UNION ALL 
-                SELECT e.buildingid AS soldierid, SUM(e.soldiergoal) AS total_count 
-                FROM events e 
-                WHERE e.userid = ? AND e.actionid = ? 
-                GROUP BY e.buildingid
-            ) AS all_units 
-            JOIN soldier_list sl ON all_units.soldierid = sl.id 
-            WHERE sl.id != ?
-        ", [$user_id, $user_id, $user_id, $user_id, $user_id, ActionTypes::ACTION_UPGRADE_TROOPS, $hero_id]);
+            SELECT IFNULL(SUM(all_units.cnt * sl.scoregain), 0)
+            FROM ($units_sql) AS all_units
+            JOIN soldier_list sl ON all_units.soldierid = sl.id
+        ", $units_params);
         $score_troops = (int)$res_u->fetch_column();
 
         $sum = $score_buildings + $score_techs + $score_troops;
@@ -163,6 +140,7 @@ class Stats
     public static function get_global_stats(): array
     {
         $db = Database::get_instance()->get_connection();
+        [$global_units_sql] = Soldier::build_owned_units_sql();
 
         $stats_query = "
             SELECT 
@@ -186,10 +164,7 @@ class Stats
                 (SELECT COUNT(*) FROM monster_camps WHERE expires_at > UNIX_TIMESTAMP()) as monster_camps,
                 (SELECT COUNT(*) FROM mines WHERE expires_at > UNIX_TIMESTAMP()) as active_mines,
                 -- Military
-                ((SELECT IFNULL(SUM(soldiercount), 0) FROM soldiers)
-                + (SELECT IFNULL(SUM(soldiercount), 0) FROM sent_troops)
-                + (SELECT IFNULL(SUM(soldiercount), 0) FROM stationed_troops)
-                + (SELECT IFNULL(SUM(soldiercount), 0) FROM mine_stationed_troops)) as total_soldiers,
+                (SELECT IFNULL(SUM(cnt), 0) FROM ($global_units_sql) AS gs) as total_soldiers,
                 (SELECT IFNULL(AVG(buildinglevel), 0) FROM buildings) as avg_building_lvl,
                 (SELECT IFNULL(SUM(techlevel), 0) FROM techs) as total_tech_lvls,
                 (SELECT IFNULL(value, 0) FROM system_settings WHERE name = 'total_fallen_soldiers') as total_fallen,

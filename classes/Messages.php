@@ -2,27 +2,16 @@
 
 class Messages
 {
-    private object $mysqli;
+    private mysqli $db;
     private User $user;
-    private string $view = "";
     public const array SHAREABLE_REPORT_TEMPLATES = [
-        "battle_pvp",
-        "battle_monster",
-        "battle_ruin",
-        "mine_battle",
-        "spy_report",
-        "spy_monster_camp",
-        "spy_mine",
-        "spy_ruin",
-        "spy_resource_tile",
-        "watchtower_alert",
-        "thief_report",
-        "thief_detected"
+        "battle_pvp", "battle_monster", "battle_ruin", "mine_battle", "spy_report", "spy_monster_camp", "spy_mine",
+        "spy_ruin", "spy_resource_tile", "watchtower_alert", "thief_report", "thief_detected"
     ];
 
     public function __construct(User $user)
     {
-        $this->mysqli = Database::get_instance()->get_connection();
+        $this->db = Database::get_instance()->get_connection();
         $this->user = $user;
     }
 
@@ -80,7 +69,7 @@ class Messages
     {
         $db = Database::get_instance()->get_connection();
         $now = time();
-        $json = is_array($data) ? json_encode($data) : null;
+        $json = is_array($data) ? json_encode($data, JSON_UNESCAPED_UNICODE) : null;
 
         $res = $db->query("SELECT id, username FROM users WHERE status = 1");
         if ($res->num_rows === 0) return [];
@@ -150,21 +139,47 @@ class Messages
         return 0;
     }
 
+    public static function sanitize_text(string $raw_text, bool $allow_newlines = true, bool $allow_emojis = true): string
+    {
+        if (!mb_check_encoding($raw_text, "UTF-8")) {
+            $raw_text = mb_scrub($raw_text, "UTF-8");
+        }
+
+        $strip_pattern = '[^\P{Cc}\r\n]|\p{Cf}|\p{Mn}|\p{Me}|[\x{115F}\x{1160}\x{2800}\x{3164}\x{FFA0}]';
+        if ($allow_emojis) {
+            $cp = '[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B50}]';
+            $unit = $cp . '\x{FE0F}?[\x{1F3FB}-\x{1F3FF}]?';
+            $emoji_seq = "([0-9#*]\x{FE0F}?\x{20E3}|$unit(?:\x{200D}$unit)*)";
+            $cleaned = preg_replace_callback(
+                "/$emoji_seq|(?:$strip_pattern)+/u",
+                static fn(array $m): string => !empty($m[1]) ? $m[1] : '',
+                $raw_text
+            ) ?? '';
+        } else {
+            $cleaned = preg_replace("/$strip_pattern/u", '', $raw_text) ?? '';
+        }
+
+        if ($allow_newlines) {
+            $cleaned = preg_replace([
+                '/\r\n?|\p{Zl}|\p{Zp}/u',
+                '/\h+/u',
+                '/^\h+|\h+$/mu',
+            ], ["\n", ' ', ''], $cleaned) ?? '';
+        } else {
+            $cleaned = preg_replace('/\s+/u', ' ', $cleaned) ?? '';
+        }
+
+        return preg_replace('/^\s+|\s+$/u', '', $cleaned) ?? '';
+    }
+
     public static function clean_and_validate_chat_text(string $raw_text): array
     {
         if (strlen($raw_text) > MAX_MESSAGE_LENGTH * 8) {
             return ["error" => "Nachricht zu lang! (Max. " . MAX_MESSAGE_LENGTH . " Zeichen)"];
         }
 
-        $cleaned = preg_replace([
-            '/[^\P{Cc}\r\n]+|[\p{Cf}\p{Mn}]+/u',
-            '/[ \t]+/u',
-            '/^[ \t]+/m',
-            '/[ \t]+$/m'
-        ], ['', ' ', '', ''], $raw_text);
-        $cleaned = trim($cleaned ?? "");
+        $cleaned = self::sanitize_text($raw_text);
         $text_only = trim(preg_replace('/\[\/?quote.*?]/i', '', $cleaned) ?? "");
-
         if (empty($cleaned) || empty($text_only)) {
             return ["error" => "Bitte eine Nachricht eingeben!"];
         }
@@ -209,7 +224,7 @@ class Messages
             $avatar_url = $sender_obj->get_avatar();
         }
 
-        $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($sender_name) . "</a>";
+        $sender_display = $is_me ? "Du" : "<a href='#' data-on-click='openOverlay' data-url='ajax/userinfo.php?userid=$sender_id' data-title='Spieler-Info'>" . e($sender_name) . "</a>";
 
         $quote_icon = "<img src='images/icons/icon_quote.png' class='ressource-icons' style='cursor: pointer;' " .
             "data-on-click='quoteMessage' data-author='" . e($sender_name) . "' data-text='" . e($raw_message) . "' title='Nachricht zitieren' alt=''>";
@@ -405,11 +420,23 @@ class Messages
 
     public static function wrap_emojis($text): array|string|null
     {
-        $pattern = '/(<[^>]+>)|([0-9#*]\x{FE0F}?\x{20E3}|[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}])/u';
+        $cp = '[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B50}]';
+        $unit = $cp . '\x{FE0F}?[\x{1F3FB}-\x{1F3FF}]?';
+        $keycap = '[0-9#*]\x{FE0F}?\x{20E3}';
+        $flag = '[\x{1F1E6}-\x{1F1FF}]{2}';
+        $pattern = "/(<[^>]+>)|($keycap|$flag|$unit(?:\x{200D}$unit)*)/u";
 
-        return preg_replace_callback($pattern, function ($m) {
-            if (!empty($m[1])) return $m[1];
-            return '<span class="emoji-fix">' . $m[2] . '</span>';
+        return preg_replace_callback($pattern, static function (array $m): string {
+            if (!empty($m[1])) {
+                return $m[1];
+            }
+
+            $emoji = $m[2];
+            if (preg_match('/^([0-9#*])\x{20E3}$/u', $emoji, $km)) {
+                $emoji = $km[1] . "\u{FE0F}\u{20E3}";
+            }
+
+            return '<span class="emoji-fix">' . $emoji . '</span>';
         }, (string)$text);
     }
 
@@ -542,48 +569,13 @@ class Messages
     {
         if (empty($message_ids)) return [];
 
-        $db = Database::get_instance()->get_connection();
-        $my_id = $viewer_user->get_user_id();
+        $reactions_map = self::fetch_reactions_for_ids($reaction_type, $message_ids, $viewer_user->get_user_id());
 
         $result_map = [];
         foreach ($message_ids as $id) {
-            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '"></div>';
-        }
-
-        $raw_badges = array_fill_keys($message_ids, "");
-
-        $placeholders = implode(',', array_fill(0, count($message_ids), '?'));
-        $query = "SELECT r.entity_id, r.emoji, COUNT(*) as total, 
-                         MAX(IF(r.user_id = ?, 1, 0)) as self_reacted, 
-                         GROUP_CONCAT(u.username ORDER BY r.id ASC SEPARATOR ', ') as names 
-                  FROM reactions r 
-                  JOIN users u ON r.user_id = u.id 
-                  WHERE r.entity_type = ? AND r.entity_id IN ($placeholders) 
-                  GROUP BY r.entity_id, r.emoji";
-
-        $params = array_merge([$my_id, $reaction_type], $message_ids);
-        $res = $db->execute_query($query, $params);
-
-        while ($row = $res->fetch_assoc()) {
-            $eid = (int)$row["entity_id"];
-            $active_class = (!empty($row["self_reacted"])) ? " active" : "";
-            $user_list = e($row["names"]);
-            $popup_id = "reac_" . $reaction_type . "_" . $eid . "_" . md5($row["emoji"]);
-
-            $raw_badges[$eid] .= '
-            <span class="reaction-badge' . $active_class . ' popup" id="' . $popup_id . '" data-on-click="toggleReaction" 
-                  data-type="' . $reaction_type . '" 
-                  data-id="' . $eid . '" 
-                  data-emoji="' . e($row["emoji"]) . '">
-                ' . e($row["emoji"]) . ' <small>' . $row["total"] . '</small>
-                <div id="' . $popup_id . '_box" class="popupbox">
-                    <b>Reaktionen:</b><br>' . $user_list . '
-                </div>
-            </span>';
-        }
-
-        foreach ($message_ids as $id) {
-            $result_map[$id] = '<div class="reaction-container mode-badges_only" data-type="' . $reaction_type . '" data-id="' . $id . '">' . $raw_badges[$id] . '</div>';
+            $result_map[$id] = self::render_reactions_bar(
+                $reaction_type, (int)$id, $viewer_user, "badges_only", $reactions_map[(int)$id] ?? []
+            );
         }
 
         return $result_map;
@@ -598,7 +590,7 @@ class Messages
         string $message): void
     {
         $query = "INSERT INTO messages (senderid, sender, receiverid, receiver, date, message) VALUES (?, ?, ?, ?, ?, ?)";
-        $this->mysqli->execute_query($query, [$sender_id, $sender_name, $receiver_id, $receiver_name, $time, $message]);
+        $this->db->execute_query($query, [$sender_id, $sender_name, $receiver_id, $receiver_name, $time, $message]);
 
         send_user_push(
             $receiver_id,
@@ -628,12 +620,14 @@ class Messages
         }
 
         $params[] = $limit;
-        $result = $this->mysqli->execute_query($query, $params);
+        $result = $this->db->execute_query($query, $params);
         return $result->fetch_all(MYSQLI_ASSOC);
     }
 
-    function show_private_inbox(): string
+    public function show_private_inbox(): string
     {
+        $html = "";
+
         // Get all conversations for the user
         $query = "
                     SELECT 
@@ -652,14 +646,14 @@ class Messages
         ";
 
         $uid = $this->user->get_user_id();
-        $result = $this->mysqli->execute_query($query, [$uid, $uid, $uid, $uid, $uid]);
+        $result = $this->db->execute_query($query, [$uid, $uid, $uid, $uid, $uid]);
 
-        $this->view .= "
+        $html .= "
                     <div class='msg-back-button-container'>
-                        <button class='msg-back-button' data-on-click='redirect' data-url='messages.php'>Zurück</button>
+                        <button data-on-click='navigate' data-url='messages.php'>Zurück</button>
                     </div>
         ";
-        $this->view .= "
+        $html .= "
             <form id='form-delete-conversation' method='POST' action='messages.php' style='display: none;'>
                 <input type='hidden' name='delete_conversation' value='1'>
                 <input type='hidden' name='partner_id' id='delete-partner-id' value=''>
@@ -667,18 +661,18 @@ class Messages
         ";
 
         if ($result->num_rows == 0) {
-            $this->view .= "Du hast keine Konversationen!<br>";
+            $html .= "Du hast keine Konversationen!<br>";
         } else {
-            $this->view .= "
-                        <table class='table'>
-                            <tr>
-                                <td class='td-center td-gradient'>
-                                    <b>Chatpartner</b>
-                                </td>
-                                <td class='td-center td-gradient' colspan='2' style='width: 55%;'>
-                                    <b>Letzte Nachricht</b>
-                                </td>
-                            </tr>
+            $html .= "
+                    <table class='table'>
+                        <tr>
+                            <td class='td-center td-gradient'>
+                                <b>Chatpartner</b>
+                            </td>
+                            <td class='td-center td-gradient' colspan='2' style='width: 55%;'>
+                                <b>Letzte Nachricht</b>
+                            </td>
+                        </tr>
             ";
 
             foreach ($result as $row) {
@@ -689,19 +683,19 @@ class Messages
                 $chat_partner = new User($row["participant_id"], $sender_name);
 
                 $badge = ($num_unread_messages > 0)
-                    ? "<span class='msg-badge'>" . $this->show_messages_indicator($num_unread_messages) . "</span>"
+                    ? "<span class='msg-badge'>" . self::show_messages_indicator($num_unread_messages) . "</span>"
                     : "";
                 $name_and_badge = "<div style='display: flex; justify-content: space-between; align-items: center; width: 100%;'><span>" . e($sender_name) . "</span>$badge</div>";
 
-                $this->view .= "
+                $html .= "
                     <tr class='tr-hover$old_conversation'>
                         <td class='td-cursor' 
-                            data-on-click='redirect' 
+                            data-on-click='navigate' 
                             data-url='messages.php?action=read&s=" . e($row["participant_id"]) . "'>
                             " . $chat_partner->render_user($name_and_badge) . "
                         </td>
                         <td class='td-cursor' 
-                            data-on-click='redirect' 
+                            data-on-click='navigate' 
                             data-url='messages.php?action=read&s=" . e($row["participant_id"]) . "'>
                             am " . date("d.m.Y \u\m H:i:s", $latest_timestamp) . "
                         </td>
@@ -718,15 +712,15 @@ class Messages
                 ";
             }
 
-            $this->view .= "</table>";
+            $html .= "</table>";
         }
 
-        $this->view .= "<br><a href='messages.php?action=new'><button type='button' style='margin-top: 5px;'>Neue Konversation</button></a>";
+        $html .= "<br><a href='messages.php?action=new'><button type='button' style='margin-top: 5px;'>Neue Konversation</button></a>";
 
-        return $this->view;
+        return $html;
     }
 
-    function show_messages_indicator(int $number): string
+    public static function show_messages_indicator(int $number): string
     {
         if ($number <= 0) {
             return "";
@@ -735,19 +729,19 @@ class Messages
         return ($number > 9) ? "9+" : (string)$number;
     }
 
-    function show_server_inbox(): string
+    public function show_server_inbox(): string
     {
         $uid = $this->user->get_user_id();
 
         // How many new messages do we have?
-        $res_count = $this->mysqli->execute_query("SELECT COUNT(*) FROM server_messages WHERE receiverid = ? AND hasread = 0", [$uid]);
+        $res_count = $this->db->execute_query("SELECT COUNT(*) FROM server_messages WHERE receiverid = ? AND hasread = 0", [$uid]);
         $unread_count = (int)$res_count->fetch_row()[0];
 
         // Calculate dynamic limit (up to max. 100 new messages)
         $dynamic_limit = max(SHOW_MESSAGES_LIMIT, min(100, $unread_count));
 
         $query = "SELECT * FROM server_messages WHERE receiverid = ? ORDER BY id DESC LIMIT ?";
-        $result = $this->mysqli->execute_query($query, [$uid, $dynamic_limit + 1]);
+        $result = $this->db->execute_query($query, [$uid, $dynamic_limit + 1]);
 
         if ($result->num_rows == 0) {
             return "<div id='server-empty-category' style='opacity: 0.6;'>Keine Servernachrichten vorhanden.</div>";
@@ -756,7 +750,7 @@ class Messages
         $rows = $result->fetch_all(MYSQLI_ASSOC);
 
         // Mark every unread message as read
-        $this->mysqli->execute_query("UPDATE server_messages SET hasread = 1 WHERE receiverid = ? AND hasread = 0", [$uid]);
+        $this->db->execute_query("UPDATE server_messages SET hasread = 1 WHERE receiverid = ? AND hasread = 0", [$uid]);
 
         $has_more = (count($rows) > $dynamic_limit);
         if ($has_more) {
@@ -1887,7 +1881,7 @@ class Messages
                     $html .= "<div class='report-section-title' style='margin-top: 15px;'>Stationierte Truppen</div>";
                     $defenders = $data["defenders"] ?? [];
                     if (!empty($defenders)) {
-                        $occupiers = array_map('htmlspecialchars', $data["occupiers"] ?? []);
+                        $occupiers = array_map('e', $data["occupiers"] ?? []);
                         $html .= "<div style='text-align: center; margin-bottom: 8px; font-size: 13px; color: var(--link-color);'>Besetzt durch: <b>" . implode(", ", $occupiers) . "</b></div>";
                         $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
 
@@ -1913,7 +1907,6 @@ class Messages
                         "Es konnten keine Informationen beschafft werden.",
                         "error"
                     );
-                    $html .= "<div style='display: flex; justify-content: center; margin-top: 10px;'>" . BattleReportRenderer::render_unit_card("Deine Späher", $atk_scouts, $losses, "icon_scout", true) . "</div>";
                 }
 
                 $html .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
@@ -1978,32 +1971,41 @@ class Messages
                 $losses = (int)($data["losses"] ?? 0);
                 $kname = e($data["ruin_name"] ?? "Vergessenes Reich");
                 $atk_scouts = (int)($data["atk_scouts"] ?? 0);
+                $is_success = array_key_exists("success", $data) ? !empty($data["success"]) : ($atk_scouts > $losses);
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
 
                 $html = "<div class='battle-report'><div class='battle-column'>";
                 $html .= "<div class='title-border'>Kundschafterbericht: Ruinen von $kname ($c_link)</div>";
-                $html .= "<div class='report-section-title'>Gelagerte Schätze</div>";
-                $html .= BattleReportRenderer::render_scout_resource_bar($data["resources"] ?? []);
 
-                $html .= "<div class='report-section-title' style='margin-top: 15px;'>Gesichtete Besatzer</div>";
-                $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 10px;'>";
+                if ($is_success) {
+                    $html .= "<div class='report-section-title'>Gelagerte Schätze</div>";
+                    $html .= BattleReportRenderer::render_scout_resource_bar($data["resources"] ?? []);
+                    $html .= "<div class='report-section-title' style='margin-top: 15px;'>Gesichtete Besatzer</div>";
+                    $html .= "<div style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 10px;'>";
 
-                $sim_data = [];
-                foreach (($data["monsters"] ?? []) as $u) {
-                    $sim_data[$u["id"]] = (int)$u["count"];
-                    $html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
+                    $sim_data = [];
+                    foreach (($data["monsters"] ?? []) as $u) {
+                        $sim_data[$u["id"]] = (int)$u["count"];
+                        $html .= BattleReportRenderer::render_unit_card($u, 0, 0, "", true);
+                    }
+
+                    $html .= "</div>";
+
+                    if (!empty($sim_data)) {
+                        $encoded = urlencode(json_encode($sim_data));
+                        $html .= "<div style='text-align: center; margin: 15px 0;'>
+                            <a href='warsim.php?import_monsters=$encoded'>
+                                <button type='button'>⚔️ Werte in War Simulator übertragen</button>
+                            </a>
+                        </div>";
+                    }
+                } else {
+                    $html .= BattleReportRenderer::render_outcome_box(
+                        "Mission gescheitert!",
+                        "Keiner der Späher kehrte aus den Ruinen zurück.",
+                        0, 0, "", "error"
+                    );
                 }
-                $html .= "</div>";
-
-                if (!empty($sim_data)) {
-                    $encoded = urlencode(json_encode($sim_data));
-                    $html .= "<div style='text-align: center; margin: 15px 0;'>
-                        <a href='warsim.php?import_monsters=$encoded'>
-                            <button type='button'>⚔️ Werte in War Simulator übertragen</button>
-                        </a>
-                    </div>";
-                }
-
                 $html .= BattleReportRenderer::render_own_scout_status($atk_scouts, $losses);
                 $html .= "</div></div>";
                 return $html;
@@ -2471,8 +2473,12 @@ class Messages
                 $c_link = "<a href='map.php?startx=$tx&starty=$ty' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>";
                 $attacker = e($data["attacker_name"] ?? "Gegner");
                 $def_list = e($data["def_list"] ?? "die Besatzung");
-                $atk_units = $data["atk_units"] ?? [];
-                $def_units = $data["def_units"] ?? [];
+                $mark_fictional = static fn(array $units): array => array_map(
+                    static fn(array $u): array => array_merge($u, ["is_fictional" => true]),
+                    $units
+                );
+                $atk_units = $mark_fictional($data["atk_units"] ?? []);
+                $def_units = $mark_fictional($data["def_units"] ?? []);
 
                 $html = "<div class='battle-report'>";
 
@@ -2724,7 +2730,7 @@ class Messages
                     ? "Ein gewaltiger Boss ist im <b>Auge des Sturms</b> erschienen! Alle Herrscher sind aufgerufen, ihre Truppen zu senden, um die Bestie gemeinsam zu fällen."
                     : "Im <b>Auge des Sturms</b> hat ein neues Event begonnen! Zeige deine Stärke und sichere dir Belohnungen anhand deines persönlich angerichteten Schadens.";
                 $text .= " Jeder der mitmacht, erhält Belohnungen! Weitere Infos auf der Event-Seite.";
-                $text .= "<div style='margin: 10px; text-align: center;'><button data-on-click='redirect' data-url='events.php'>Zum Event</button></div>";
+                $text .= "<div style='margin: 10px; text-align: center;'><button data-on-click='navigate' data-url='events.php'>Zum Event</button></div>";
 
                 return "<div class='battle-report'>" .
                     BattleReportRenderer::render_outcome_box("$m_name gesichtet!", $text) .
@@ -2915,7 +2921,7 @@ class Messages
               AND userid != ? 
               AND deleted = 0";
 
-        return (int)$this->mysqli->execute_query($query, [$guild_id, $uid, $uid])->fetch_row()[0];
+        return (int)$this->db->execute_query($query, [$guild_id, $uid, $uid])->fetch_row()[0];
     }
 
     public function show_messages_with_chatpartner(int $sender_id, string $chat_partner): string
@@ -2985,7 +2991,7 @@ class Messages
 
         if (!empty($unread_message_ids)) {
             $placeholders = implode(",", array_fill(0, count($unread_message_ids), "?"));
-            $this->mysqli->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
+            $this->db->execute_query("UPDATE messages SET hasread = 1 WHERE id IN ($placeholders)", $unread_message_ids);
         }
 
         return [
@@ -3003,13 +3009,13 @@ class Messages
                   WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
                   AND deleted = 0 
                   ORDER BY id DESC LIMIT ?";
-            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $limit]);
+            $result = $this->db->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $limit]);
         } else {
             $query = "SELECT * FROM messages 
                   WHERE ((senderid = ? AND receiverid = ?) OR (senderid = ? AND receiverid = ?)) 
                   AND deleted = 0 AND id < ?
                   ORDER BY id DESC LIMIT ?";
-            $result = $this->mysqli->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $oldest_id, $limit]);
+            $result = $this->db->execute_query($query, [$sender_id, $uid, $uid, $sender_id, $oldest_id, $limit]);
         }
 
         $messages = [];
@@ -3055,7 +3061,7 @@ class Messages
     public function get_world_history_html(): array
     {
         $limit = MAX_WORLD_CHAT_MESSAGES_SHOWN;
-        $result = $this->mysqli->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
+        $result = $this->db->execute_query("SELECT * FROM world_chat WHERE deleted = 0 ORDER BY id DESC LIMIT ?", [$limit + 1]);
         $rows = $result->fetch_all(MYSQLI_ASSOC);
 
         $has_more = (count($rows) > $limit);
@@ -3078,7 +3084,7 @@ class Messages
         } else {
             $msg_ids = array_column($rows, "id");
             $reactions_map = self::fetch_reactions_for_ids("world_chat", $msg_ids, $this->user->get_user_id());
-            $last_read_id = (int)($this->mysqli->execute_query(
+            $last_read_id = (int)($this->db->execute_query(
                 "SELECT last_world_chat_id FROM users WHERE id = ?", [$this->user->get_user_id()]
             )->fetch_column() ?? 0);
             $unread_line_shown = false;
@@ -3101,7 +3107,7 @@ class Messages
         }
 
         if ($last_id > 0) {
-            $this->mysqli->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?",
+            $this->db->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?",
                 [$last_id, $this->user->get_user_id()]
             );
         }
@@ -3154,7 +3160,7 @@ class Messages
         $u_id = $this->user->get_user_id();
 
         // Get the guild messages
-        $result = $this->mysqli->execute_query("SELECT * FROM guild_chat WHERE guild_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?", [$guild_id, $limit + 1]);
+        $result = $this->db->execute_query("SELECT * FROM guild_chat WHERE guild_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ?", [$guild_id, $limit + 1]);
         $rows = $result->fetch_all(MYSQLI_ASSOC);
 
         $has_more = (count($rows) > $limit);
@@ -3176,7 +3182,7 @@ class Messages
 
         $msg_ids = array_column($rows, "id");
         $reactions_map = self::fetch_reactions_for_ids("guild_chat", $msg_ids, $u_id);
-        $last_read_id = (int)($this->mysqli->execute_query(
+        $last_read_id = (int)($this->db->execute_query(
             "SELECT last_guild_chat_id FROM users WHERE id = ?", [$u_id]
         )->fetch_column() ?? 0);
         $unread_line_shown = false;
@@ -3198,7 +3204,7 @@ class Messages
         }
 
         if ($mark_read && $last_id > 0) {
-            $this->mysqli->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$last_id, $u_id]);
+            $this->db->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$last_id, $u_id]);
         }
 
         return [
@@ -3256,7 +3262,7 @@ class Messages
                     <div style='display: flex; gap: 6px; align-items: center;'>
                         <label for='share-recipient-input'></label>
                         <input type='text' name='recipient' id='share-recipient-input' placeholder='Name eingeben...' maxlength='" . MAX_USERNAME_LENGTH . "' style='flex: 1;'>
-                        <button type='button' data-on-click='openOverlay' data-url='userlist.php' data-title='Spielerliste' style='white-space: nowrap; padding: 5px 10px;'>
+                        <button type='button' data-on-click='openOverlay' data-url='ajax/userlist.php' data-title='Spielerliste' style='white-space: nowrap; padding: 5px 10px;'>
                             Spielerliste
                         </button>
                     </div>

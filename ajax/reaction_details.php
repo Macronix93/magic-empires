@@ -4,13 +4,11 @@ require_once("../includes/ajax_core.php");
 $type = get_str("type");
 $id = get_int("id");
 
-if (!Messages::is_valid_reaction_type($type) || $id <= 0) die("Ungültige Anfrage");
-if (!Messages::can_access_reaction_entity($type, $id, $user)) {
-    echo show_error_box("Kein Zugriff auf diese Nachricht.");
+if (!Messages::is_valid_reaction_type($type) || $id <= 0) {
+    echo show_error_box("Ungültige Anfrage");
     exit;
 }
-
-if (!$has_access) {
+if (!Messages::can_access_reaction_entity($type, $id, $user)) {
     echo show_error_box("Kein Zugriff auf diese Nachricht.");
     exit;
 }

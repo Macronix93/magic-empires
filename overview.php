@@ -9,20 +9,6 @@ $uid = $user->get_user_id();
 $now = time();
 $kingdom = new Kingdom($active_k_id);
 
-$tp_actions = [
-    ActionTypes::ACTION_SEND_TROOPS,
-    ActionTypes::ACTION_RETURN_TROOPS,
-    ActionTypes::ACTION_STATION_TROOPS,
-    ActionTypes::ACTION_SUPPORT_RETURN
-];
-$tp_list = implode(',', $tp_actions);
-
-$count_wp = (int)$db_instance->execute_query("
-    SELECT COUNT(*) 
-    FROM events 
-    WHERE userid = ? AND actionid IN (?, ?)
-", [$uid, ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])->fetch_column();
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!verify_csrf_token()) {
         change_location("overview.php", error: "Ungültiger Sicherheits-Token!");
@@ -216,7 +202,7 @@ if (!empty($_SESSION["active_supports"])) {
         $tx = (int)($sup["targetx"] ?? 0);
         $ty = (int)($sup["targety"] ?? 0);
         $coords_link = ($tx > 0 && $ty > 0) ? " (<a href='#' data-on-click='mapJump' data-x='$tx' data-y='$ty'>$tx:$ty</a>)" : "";
-        $new_badge = $is_new_support ? "<span class='msg-badge badge-cell-right' title='Neue Unterstützung!'>!</span>" : "";
+        $new_badge = $is_new_support ? "<span class='msg-badge badge-blue badge-cell-right' title='Neue Unterstützung!'>!</span>" : "";
 
         $badge_count = 0;
         $units_html = "<div class='badge-container' style='display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;'>";
@@ -306,30 +292,7 @@ $user_kingdoms = $db_instance->execute_query(
     [$uid, $offset_kp, $limit]
 )->fetch_all(MYSQLI_ASSOC);
 
-$all_cmds_res = $db_instance->execute_query("
-    SELECT 
-        k.id AS kingdomid,
-        (IFNULL(e.cnt, 0) + IFNULL(m.cnt, 0)) AS total_commands
-    FROM kingdoms k
-    LEFT JOIN (
-        SELECT kingdomid, COUNT(*) AS cnt 
-        FROM events 
-        WHERE userid = ? AND actionid IN ($tp_list) 
-        GROUP BY kingdomid
-    ) e ON k.id = e.kingdomid
-    LEFT JOIN (
-        SELECT kingdom_id, COUNT(DISTINCT mine_id) AS cnt 
-        FROM mine_stationed_troops 
-        WHERE user_id = ? 
-        GROUP BY kingdom_id
-    ) m ON k.id = m.kingdom_id
-    WHERE k.userid = ?
-", [$uid, $uid, $uid]);
-
-$commands_by_kingdom = [];
-while ($cmd = $all_cmds_res->fetch_assoc()) {
-    $commands_by_kingdom[(int)$cmd["kingdomid"]] = (int)$cmd["total_commands"];
-}
+$commands_by_kingdom = Soldier::get_user_command_counts($uid);
 
 $k_events_res = $db_instance->execute_query("
     SELECT e.*, sl.icon AS soldier_icon, sl.soldiername AS soldiername 
@@ -390,13 +353,6 @@ while ($tl = $res_tl->fetch_assoc()) {
         ? max(0, GLOBAL_SETTLEMENT_MAX - BASE_SETTLEMENT_LIMIT)
         : (int)$tl["maxlevel"];
 }
-
-$user_b_res = $db_instance->execute_query("
-    SELECT b.kingdomid, b.buildingid, b.buildinglevel 
-    FROM buildings b
-    JOIN kingdoms k ON b.kingdomid = k.id
-    WHERE k.userid = ?
-", [$uid]);
 
 $visible_k_ids = array_map(fn($uk) => (int)$uk["id"], $user_kingdoms);
 $kingdom_buildings = [];
@@ -832,12 +788,11 @@ while ($m_row = $res_active_miners->fetch_assoc()) {
         $work_done = (float)$m_row["work_done"];
         $my_work = (float)$m_row["my_work_stored"];
 
-        if ($elapsed > 0 && $total_mine_atk > 0) {
-            $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
-            $effective_rate = min($total_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate);
+        $max_rate = $work_total / MINE_MIN_DURATION_SECONDS;
+        $effective_rate = ($total_mine_atk > 0) ? min($total_mine_atk * MINE_WORK_RATE_FACTOR, $max_rate) : 0.0;
+        if ($elapsed > 0 && $effective_rate > 0) {
             $work_delta = $effective_rate * $elapsed;
             $work_done = min($work_total, $work_done + $work_delta);
-
             $my_work += ($work_delta * ($my_mine_atk / $total_mine_atk));
         }
 
@@ -851,6 +806,7 @@ while ($m_row = $res_active_miners->fetch_assoc()) {
             "work_done" => (int)round($work_done),
             "work_total" => $work_total,
             "total_atk" => (int)$total_mine_atk,
+            "effective_rate" => $effective_rate,
             "loot" => [
                 "stone" => (int)floor($m_row["stone"] * $mined_ratio * $share),
                 "gold" => (int)floor($m_row["gold"] * $mined_ratio * $share),
@@ -898,7 +854,7 @@ if (!empty($all_tp_entries)) {
             $my = $mine_data["mapy"];
             $m_coords = "<a href='#' data-on-click='mapJump' data-x='$mx' data-y='$my'>$mx:$my</a>";
 
-            $rate = $mine_data["total_atk"] * MINE_WORK_RATE_FACTOR;
+            $rate = (float)$mine_data["effective_rate"];
             $rem_work = max(0, $mine_data["work_total"] - $mine_data["work_done"]);
             $rem_sec = $rate > 0 ? (int)ceil($rem_work / $rate) : 0;
             $percent_val = ($mine_data["work_total"] > 0) ? ($mine_data["work_done"] / $mine_data["work_total"]) * 100 : 0;
@@ -1143,6 +1099,12 @@ if (!empty($all_tp_entries)) {
     $view .= "<span class='no-event'>Derzeit sind keine Truppen unterwegs.</span>";
 }
 
+$count_wp = (int)$db_instance->execute_query("
+    SELECT COUNT(*) 
+    FROM events 
+    WHERE userid = ? AND actionid IN (?, ?)
+", [$uid, ActionTypes::ACTION_RECEIVE_RESOURCES, ActionTypes::ACTION_RETURN_RESOURCES])->fetch_column();
+
 // --- MARKETPLACE AND TRANSPORTS OVERVIEW ---
 $pages_wp = ceil($count_wp / $limit);
 $curr_wp = max(1, min(max(1, (int)$pages_wp), get_int("wp", 1)));
@@ -1206,7 +1168,7 @@ if ($result_trades && $result_trades->num_rows > 0) {
         }
 
         $view .= "<tr>
-                <td class='td-center'><div class='type-name-break' title='{$row["buildingname"]}'>{$row["buildingname"]}</div></td>
+                <td class='td-center'><div title='{$row["buildingname"]}'>{$row["buildingname"]}</div></td>
                 <td class='td-center'>$res_display</td>
                 <td class='td-center'>
                     <div class='location-wrapper'>

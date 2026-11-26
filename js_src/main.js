@@ -132,21 +132,13 @@ registerAction("copyShareReport", async (btn) => {
 });
 registerAction("navigate", (el) => {
     const url = el.dataset.url;
-    if (url) {
+    if (!url) return;
+
+    const forbiddenProtocols = ["javascript:", "data:", "vbscript:"];
+    const isForbidden = forbiddenProtocols.some(proto => url.trim().toLowerCase().startsWith(proto));
+    if (!isForbidden) {
         showActionLoader("Lade Seite...");
         window.location.href = url;
-    }
-});
-registerAction("redirect", (el) => {
-    const url = el.dataset.url;
-    if (url) {
-        const forbiddenProtocols = ["javascript:", "data:", "vbscript:"];
-        const isForbidden = forbiddenProtocols.some(proto => url.trim().toLowerCase().startsWith(proto));
-
-        if (!isForbidden) {
-            showActionLoader("Lade Seite...");
-            window.location.href = url;
-        }
     }
 });
 registerAction("closeAdventModal", (el) => {
@@ -178,17 +170,6 @@ registerAction("switchKingdomFromPopup", (el, e) => {
         hideGlobalPopup();
 
         switchKingdomById(kid);
-    }
-});
-registerAction("redirect", (el) => {
-    const url = el.dataset.url;
-    if (url) {
-        const forbiddenProtocols = ["javascript:", "data:", "vbscript:"];
-        const isForbidden = forbiddenProtocols.some(proto => url.trim().toLowerCase().startsWith(proto));
-
-        if (!isForbidden) {
-            window.location.href = url;
-        }
     }
 });
 registerAction("toggleMobileKingdomMenu", (el, e) => {
@@ -234,10 +215,6 @@ registerAction("pickUser", (el) => {
     if (typeof selectUser === "function") {
         selectUser(username);
     }
-});
-registerAction("navigate", (el) => {
-    const url = el.dataset.url;
-    if (url) window.location.href = url;
 });
 registerAction("changeKingdomSelect", (el) => {
     if (typeof updateKingdom === "function") {
@@ -311,12 +288,6 @@ registerAction("finishTutorial", (el) => {
 
                         if (data.advent_html) {
                             renderModal(data.advent_html);
-                        } else {
-                            fetch("ajax/advent_modal.php", {
-                                headers: {"X-Requested-With": "XMLHttpRequest"}
-                            })
-                                .then(r => r.text())
-                                .then(renderModal);
                         }
                     }
                 }
@@ -605,8 +576,7 @@ const observer = new MutationObserver((mutations) => {
 
 observer.observe(document.body, {
     childList: true,
-    subtree: true,
-    attributeFilter: ["data-on-click", "data-on-submit", "data-on-change"]
+    subtree: true
 });
 
 function scheduleGlobalClockTick() {
@@ -686,7 +656,7 @@ function updateSidebarAndHeaderDOM(data) {
     if (!data) return;
 
     const deskHtml = data.sidebar_html_desk || data.sidebar_html;
-    const mobHtml = data.sidebar_html_mob || data.sidebar_html;
+    const mobHtml = data.sidebar_html_mob || (deskHtml ? deskHtml.replaceAll("desk_boost_info_", "mob_boost_info_") : null);
     if (!deskHtml && !mobHtml) return;
 
     const updateContainer = (container, html) => {
@@ -908,7 +878,8 @@ function showKingdomSwitchLoader() {
         el.style.pointerEvents = "none";
     });
 
-    showActionLoader("Wechsle Königreich...");
+    const delayMs = 260;
+    showActionLoader("Wechsle Königreich...", null, delayMs);
     setTimeout(() => {
         if (activeLoaderState?.shown) {
             document.querySelectorAll("select[name='choosekingdom']").forEach(s => s.disabled = true);
@@ -919,7 +890,7 @@ function showKingdomSwitchLoader() {
                 });
             }
         }
-    }, 260);
+    }, delayMs + 10);
 }
 
 function resetKingdomSwitchLoader() {
@@ -939,7 +910,7 @@ function switchKingdomById(kingdomId) {
 
     const currentUrl = new URL(window.location.href);
     const filename = currentUrl.pathname.split('/').pop();
-    const keepParamsPages = ["ranking.php", "support.php", "guild.php", "arena.php", "settings.php"];
+    const keepParamsPages = ["ranking.php", "guild.php", "arena.php", "settings.php"];
 
     const isGuildChatActive = filename === "guild.php"
         && document.getElementById("guild_tab_chat")
@@ -1011,8 +982,10 @@ function switchKingdomById(kingdomId) {
                     }
 
                     const massBtn = document.querySelector("button[name='attack_all_kingdoms']");
-                    if (massBtn && data.kingdom && massBtn.dataset.eventLocked !== "true") {
-                        massBtn.disabled = !!data.kingdom.commandsFull;
+                    if (massBtn && data.kingdom) {
+                        const eventLocked = massBtn.dataset.eventLocked === "true";
+                        const hasAnyBarracks = massBtn.dataset.hasBarracks === "true";
+                        massBtn.disabled = eventLocked || !hasAnyBarracks || !!data.kingdom.commandsFull;
                     }
 
                     if (typeof window.reloadOverlay === "function") {
@@ -1026,18 +999,6 @@ function switchKingdomById(kingdomId) {
                 if (filename === "messages.php" || filename === "chat_embed.php" || filename === "support.php" || isGuildChatActive) {
                     updateSidebarAndHeaderDOM(data);
                     isKingdomSwitching = false;
-                    return;
-                }
-
-                if (filename === "barracks.php") {
-                    const cat = currentUrl.searchParams.get("cat");
-                    window.location.href = cat !== null ? `${currentUrl.pathname}?cat=${cat}` : currentUrl.pathname;
-                } else if (filename === "warsim.php") {
-                    window.location.href = "warsim.php?keep_sim=1";
-                } else if (keepParamsPages.includes(filename)) {
-                    window.location.href = currentUrl.pathname + currentUrl.search;
-                } else {
-                    window.location.href = currentUrl.pathname;
                 }
             } else {
                 isKingdomSwitching = false;
@@ -1157,6 +1118,34 @@ function sendReaction(type, id, emoji, sourceContainer) {
             }
         });
 }
+
+function formatDurationJS(totalSeconds, {
+    showSeconds = true, showDays = true, hideSecondsWithDays = false,
+    zeroText = "0 Sek."
+} = {}) {
+    const s = Math.floor(Number(totalSeconds));
+    if (isNaN(s) || s <= 0) return zeroText;
+
+    const d = showDays ? Math.floor(s / 86400) : 0;
+    const rem = showDays ? (s % 86400) : s;
+    const h = Math.floor(rem / 3600);
+    const m = Math.floor((rem % 3600) / 60);
+    const sec = rem % 60;
+
+    const parts = [];
+    if (d > 0) parts.push(`${d}T`);
+    if (h > 0) parts.push(`${h} Std.`);
+    if (m > 0) parts.push(`${m} Min.`);
+
+    const includeSec = showSeconds && !(hideSecondsWithDays && d > 0);
+    if ((includeSec && sec > 0) || parts.length === 0) {
+        parts.push(`${sec} Sek.`);
+    }
+
+    return parts.join(" ");
+}
+
+window.formatDurationJS = formatDurationJS;
 
 function formatNumJS(number, simpleFormat = false) {
     if (!number || isNaN(number)) return "0";
@@ -1279,16 +1268,6 @@ function getMouseLocation(e) {
         p.clientX + document.body.scrollLeft + document.documentElement.scrollLeft,
         p.clientY + document.body.scrollTop + document.documentElement.scrollTop
     ];
-}
-
-function adjustUsernameDisplay() {
-    document.querySelectorAll(".username-text").forEach(div => {
-        const container = div.closest(".username-container");
-
-        if (container && div.scrollWidth > container.clientWidth) {
-            div.style.textOverflow = "ellipsis";
-        }
-    });
 }
 
 function updateServerTime(initialServerTimestamp) {
@@ -1766,31 +1745,12 @@ window.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    if (sessionStorage.getItem("keepRightMenuOpen") === "true") {
-        const rightTrigger = document.getElementById("nav-right-trigger");
-        const rightMenu = document.getElementById("nav-right-menu");
-
-        if (rightTrigger && rightMenu) {
-            document.body.classList.add("no-transition");
-
-            rightTrigger.classList.add("open");
-            rightMenu.classList.add("open");
-
-            toggleMobileElements(true);
-
-            void document.body.offsetHeight;
-            document.body.classList.remove("no-transition");
-        }
-        sessionStorage.removeItem("keepRightMenuOpen");
-    }
-
     getGlobalPopupBox();
     cleanupPopups();
-    adjustUsernameDisplay();
 
     window.ME_CLOCK_ANCHOR = Date.now();
     if (serverTime) updateServerTime(parseInt(serverTime));
-    initAutomaticCountdowns();
+    initAutomaticCountdowns(true);
 
     const isTouchDevice = ('ontouchstart' in window || navigator.maxTouchPoints > 0);
     let pageLoadedAt = Date.now();
@@ -1911,8 +1871,10 @@ function selectUser(username) {
     closeOverlay();
 }
 
-function initAutomaticCountdowns() {
-    const batchNow = window.ME_CLOCK_ANCHOR;
+function initAutomaticCountdowns(useClockAnchor = false) {
+    if (typeof startCountdown !== "function") return;
+
+    const batchNow = useClockAnchor ? window.ME_CLOCK_ANCHOR : Date.now();
 
     document.querySelectorAll('.js-countdown').forEach(el => {
         const seconds = parseInt(el.dataset.seconds) || 0;
@@ -1920,7 +1882,6 @@ function initAutomaticCountdowns() {
         const hideID = el.dataset.hideId || null;
         const keepParams = el.dataset.keepParams === "true";
         const noReload = el.dataset.noReload === "true";
-
         startCountdown(el, seconds, timerType, hideID, keepParams, noReload, batchNow);
     });
 }
@@ -2334,15 +2295,17 @@ window.fetch = function (url, options = {}) {
                 options.headers["X-CSRF-TOKEN"] = options.headers["X-CSRF-TOKEN"] || token;
             }
 
+            const contentTypeHeader = (options.headers instanceof Headers)
+                ? (options.headers.get("Content-Type") || "")
+                : (options.headers["Content-Type"] || options.headers["content-type"] || "");
+            const isJsonBody = contentTypeHeader.toLowerCase().includes("application/json")
+                || (typeof options.body === "string" && /^\s*[\[{]/.test(options.body));
+
             if (options.body instanceof FormData) {
-                if (!options.body.has("csrf_token")) {
-                    options.body.append("csrf_token", token);
-                }
+                if (!options.body.has("csrf_token")) options.body.append("csrf_token", token);
             } else if (options.body instanceof URLSearchParams) {
-                if (!options.body.has("csrf_token")) {
-                    options.body.append("csrf_token", token);
-                }
-            } else if (typeof options.body === "string" && options.body.includes("=") && !options.body.includes("csrf_token=")) {
+                if (!options.body.has("csrf_token")) options.body.append("csrf_token", token);
+            } else if (!isJsonBody && typeof options.body === "string" && options.body.includes("=") && !options.body.includes("csrf_token=")) {
                 options.body += (options.body.length > 0 ? "&" : "") + "csrf_token=" + encodeURIComponent(token);
             }
         }

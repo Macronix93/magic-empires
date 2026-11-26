@@ -6,7 +6,7 @@ session_write_close();
 
 $inbox_only = $unreads["pms"] + $unreads["server"] + $unreads["support"];
 
-echo json_encode([
+send_json([
     "priv" => $inbox_only,
     "world" => (int)$unreads["world"],
     "guild" => (int)$unreads["guild"],

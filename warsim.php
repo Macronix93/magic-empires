@@ -100,25 +100,10 @@ foreach ($result as $row) {
 }
 
 // Owned Troops
+$counts_by_id = Soldier::get_kingdom_unit_counts($user->get_current_kingdom());
 $owned_troops = [];
-$query_all_troops = "
-    SELECT s_name, SUM(amount) as total
-    FROM (
-        SELECT soldiername AS s_name, soldiercount AS amount FROM soldiers WHERE kingdomid = ?
-        UNION ALL
-        SELECT sl.soldiername AS s_name, st.soldiercount AS amount 
-        FROM sent_troops st 
-        JOIN events e ON st.eventid = e.eventid 
-        JOIN soldier_list sl ON st.soldierid = sl.id 
-        WHERE e.kingdomid = ?
-    ) AS combined_troops
-    GROUP BY s_name";
-$res_owned = $db_instance->execute_query($query_all_troops, [
-    $user->get_current_kingdom(),
-    $user->get_current_kingdom()
-]);
-while ($row = $res_owned->fetch_assoc()) {
-    $owned_troops[$row["s_name"]] = (int)$row["total"];
+foreach ($soldiers as $s) {
+    $owned_troops[$s->get_soldier_name()] = $counts_by_id[$s->get_soldier_id()] ?? 0;
 }
 
 // Monsterlist
@@ -190,7 +175,7 @@ $view .= '<div class="box-container" id="enemy-tech-box" ' . $enemy_tech_style .
 </div>';
 $view .= '</div>';
 
-$view .= '<div id="live-power-container" style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px; flex-wrap: wrap;">
+$view .= '<div id="live-power-container">
                 <div class="box-container" style="max-width: 270px; margin: 0;">
                     <div class="box-header" style="font-size: 18px;">Stärke Spieler</div>
                     <div class="box-content box-content-bg" style="padding: 10px; display: flex; justify-content: space-around;">
@@ -247,7 +232,7 @@ $view .= '<div style="text-align: center; margin-bottom: 15px;">
 $view .= '<div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">';
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">
                 <div class="box-header">Deine Armee</div>
-                <table class="table warsim-table" style="width: 100%;">
+                <table class="table warsim-table" style="width: 100%; border: none;">
                     <tr>
                         <td class="td-center td-gradient">Einheit</td>
                         <td class="td-center td-gradient" style="width: 80px;">Anzahl</td>
@@ -288,7 +273,7 @@ foreach ($soldiers as $s) {
                     </div>
                 </td>
                 <td class='td-center'>
-                    <input type='text' id='{$name}_own' size='4' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' data-on-input='updateLivePower' style='width: 100%;'>
+                    <input type='text' id='{$name}_own' class='js-own-unit-input' data-soldier-id='{$s->get_soldier_id()}' size='4' maxlength='5' inputmode='numeric' pattern='[0-9]*' placeholder='0' data-on-input='updateLivePower' style='width: 100%;'>
                 </td>
                 <div id='{$name}_atk' data-attack='{$s->get_soldier_attack()}' data-category='$cat' style='display:none;'></div>
                 <div id='{$name}_def' data-defense='{$s->get_soldier_defense()}' style='display:none;'></div>
@@ -296,14 +281,14 @@ foreach ($soldiers as $s) {
 }
 $view .= '</table></div>';
 $view .= '<div class="box-container" style="flex: 1; min-width: 320px; margin: 0;">
-                <div class="tab" style="margin-bottom: 0; border-bottom: none; padding: 0;">
+                <div class="tab" style="margin-bottom: 0; padding: 0; border: none;">
                     <div class="tablinks ' . (!$is_monster_mode ? 'active' : '') . '" data-on-click="switchSimTab" data-tab="players" style="padding: 7px;">Spieler</div>
                     <div class="tablinks ' . ($is_monster_mode ? 'active' : '') . '" data-on-click="switchSimTab" data-tab="monsters" style="padding: 7px;">Monster</div>
                 </div>';
 
 // TAB 1: Normal Enemy
 $view .= "<div id='sim-players' class='sim-tab-content' style='background: var(--box-content-color); display: " . (!$is_monster_mode ? 'block' : 'none') . ";'>";
-$view .= '<table class="table warsim-table" style="width: 100%;">
+$view .= '<table class="table warsim-table" style="width: 100%; border: none;">
                     <tr><td class="td-center td-gradient">Einheit</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
 foreach ($soldiers as $s) {
     $name = $s->get_soldier_name();
@@ -344,7 +329,7 @@ $view .= '</table></div>';
 
 // TAB 2: Monster
 $view .= "<div id='sim-monsters' class='sim-tab-content' style='background: var(--box-content-color); display: " . ($is_monster_mode ? 'block' : 'none') . ";'>";
-$view .= '<table class="table warsim-table" style="width: 100%;">
+$view .= '<table class="table warsim-table" style="width: 100%; border: none;">
                     <tr><td class="td-center td-gradient">Monster</td><td class="td-center td-gradient" style="width: 80px;">Anzahl</td></tr>';
 foreach ($monsters as $m) {
     $m_name = e($m["monster_name"]);
@@ -418,7 +403,8 @@ $view .= '<div id="warsim-data"
                 data-pvp_damping_slope="' . PVP_DAMPING_SLOPE . '" 
                 data-pvp_damping_exponent="' . PVP_DAMPING_EXPONENT . '"
                 data-rps_target_focus="' . RPS_TARGET_FOCUS . '"
-                data-armor_weight_exponent="' . ARMOR_WEIGHT_EXPONENT . '">
+                data-armor_weight_exponent="' . ARMOR_WEIGHT_EXPONENT . '"
+                data-ram_soldier_id="' . Soldiers::SOLDIER_RAM . '">
             </div>';
 
 $monster_import = get_str("import_monsters");

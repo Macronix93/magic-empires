@@ -11,6 +11,8 @@ class Guild
     private int $min_score = 0;
     private int $last_settings_change = 0;
     private array $storage = [];
+    private ?array $tech_levels_cache = null;
+    private static array $user_tech_cache = [];
 
     public function __construct(User $user, ?int $guild_id = null)
     {
@@ -38,6 +40,8 @@ class Guild
                 "sapphire" => (int)$row["sapphire"], "diamond" => (int)$row["diamond"]
             ];
         }
+
+        $this->tech_levels_cache = null;
     }
 
     public function create_guild(string $name, string $tag, string $motto = "", int $min_score = 0): ?string
@@ -874,18 +878,14 @@ class Guild
         }
 
         $check_result = check_image_content($file_tmp);
-
-        if ($check_result === "loading") {
-            return "Sicherheitsprüfung lädt noch... Bitte in 15 Sekunden erneut versuchen.";
-        }
         if (str_starts_with($check_result, "error")) {
-            return "Technischer Fehler bei der Bildprüfung: " . htmlspecialchars($check_result);
+            return "Technischer Fehler bei der Bildprüfung: " . e($check_result);
         }
         if ($check_result === "blocked") {
             return "Dein Bild wurde als unangemessen eingestuft und ist nicht erlaubt.";
         }
         if ($check_result !== "ok") {
-            return "Bild konnte nicht verifiziert werden (" . htmlspecialchars($check_result) . ").";
+            return "Bild konnte nicht verifiziert werden (" . e($check_result) . ").";
         }
 
         $hashed_name = substr(hash("sha256", $guild_id . "GUILD_AVATAR_SALT"), 0, 12);
@@ -1114,9 +1114,22 @@ class Guild
 
     public function get_tech_level(int $tech_id): int
     {
-        $res = $this->db->execute_query("SELECT level FROM guild_techs WHERE guild_id = ? AND tech_id = ?",
-            [$this->id, $tech_id]);
-        return (int)($res->fetch_column() ?? 0);
+        if (!$this->id || $this->id <= 0) {
+            return 0;
+        }
+
+        if ($this->tech_levels_cache === null) {
+            $this->tech_levels_cache = [];
+
+            $res = $this->db->execute_query("SELECT tech_id, level FROM guild_techs WHERE guild_id = ?",
+                [$this->id]
+            );
+
+            while ($row = $res->fetch_assoc()) {
+                $this->tech_levels_cache[(int)$row["tech_id"]] = (int)$row["level"];
+            }
+        }
+        return $this->tech_levels_cache[$tech_id] ?? 0;
     }
 
     public function get_storage_limit(string $res_key): int
@@ -1270,16 +1283,27 @@ class Guild
     {
         if ($user_id <= 0) return 0;
 
-        $db = Database::get_instance()->get_connection();
+        if (!isset(self::$user_tech_cache[$user_id])) {
+            self::$user_tech_cache[$user_id] = [];
+            $db = Database::get_instance()->get_connection();
 
-        $res = $db->execute_query("
-            SELECT gt.level 
-            FROM users u
-            JOIN guild_techs gt ON u.guildid = gt.guild_id
-            WHERE u.id = ? AND gt.tech_id = ?
-        ", [$user_id, $tech_id]);
+            $res = $db->execute_query("
+                SELECT gt.tech_id, gt.level
+                FROM users u
+                JOIN guild_techs gt ON u.guildid = gt.guild_id
+                WHERE u.id = ?
+            ", [$user_id]);
 
-        return (int)($res->fetch_column() ?? 0);
+            while ($row = $res->fetch_assoc()) {
+                self::$user_tech_cache[$user_id][(int)$row["tech_id"]] = (int)$row["level"];
+            }
+        }
+        return self::$user_tech_cache[$user_id][$tech_id] ?? 0;
+    }
+
+    public static function clear_tech_cache(): void
+    {
+        self::$user_tech_cache = [];
     }
 
     public function get_max_members(?int $specific_guild_id = null): int

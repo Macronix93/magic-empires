@@ -4,7 +4,7 @@ require_once("includes/core.php");
 if (!$user->is_logged_in()) {
     ?>
     <!DOCTYPE html>
-    <html lang="de">
+    <html lang="de" class="<?= WINTER_THEME_ACTIVE ? "theme-winter" : '' ?>">
     <head>
         <meta charset="UTF-8">
         <title>Magic Empires - Login erforderlich</title>
@@ -60,8 +60,10 @@ $css_v = file_exists("styles.css") ? filemtime("styles.css") : 1;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= get_csrf_token() ?>">
     <title>Magic Empires - Welt-Chat</title>
     <link rel="stylesheet" href="styles.css?v=<?= $css_v ?>">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
     <script src="<?= $main_js ?>?v=<?= $main_v ?>" defer></script>
     <script src="<?= $timer_js ?>?v=<?= $timer_v ?>" defer></script>
     <script src="<?= $chat_js ?>?v=<?= $chat_v ?>" defer></script>

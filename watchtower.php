@@ -2,7 +2,6 @@
 require_once("includes/core.php");
 
 [
-    "current_kingdom" => $current_kingdom,
     "building" => $building,
     "building_name" => $building_name,
     "kingdom" => $kingdom,

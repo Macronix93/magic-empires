@@ -1,6 +1,7 @@
 <?php
 $_SERVER["HTTP_HOST"] = "localhost";
 $_SERVER["REMOTE_ADDR"] = "127.0.0.1";
+
 require_once(__DIR__ . "/../includes/core.php");
 
 // Config

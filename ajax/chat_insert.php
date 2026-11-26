@@ -6,8 +6,7 @@ $type = post_str("type", "private");
 
 $allowed_types = ["private", "world", "guild"];
 if (!in_array($type, $allowed_types, true)) {
-    echo json_encode(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
-    exit;
+    send_json(["success" => false, "error" => "Ungültiger Chat-Typ!"]);
 }
 
 $u_id = $user->get_user_id();
@@ -17,18 +16,16 @@ $now = time();
 // Rate limit check
 $remaining_seconds = Messages::check_rate_limit();
 if ($remaining_seconds > 0) {
-    echo json_encode([
+    send_json([
         "error" => "Du schickst zu viele Nachrichten! Warte bitte:",
         "counter" => $remaining_seconds
     ]);
-    exit;
 }
 
 // Validate text
 $validation = Messages::clean_and_validate_chat_text(post_str("text"));
 if (isset($validation["error"])) {
-    echo json_encode(["error" => $validation["error"]]);
-    exit;
+    send_json(["error" => $validation["error"]]);
 }
 $cleaned_text = $validation["text"];
 
@@ -40,13 +37,12 @@ if ($type === "world") {
         [$u_id, $u_name, $cleaned_text, $now]
     );
     $message_id = (int)$res->fetch_assoc()["id"];
-    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
 
+    $db_instance->execute_query("UPDATE users SET last_world_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
 } else if ($type === "guild") {
     $guild_id = $user->get_user_guild_id();
     if ($guild_id <= 0) {
-        echo json_encode(["error" => "Du bist in keiner Gilde!"]);
-        exit;
+        send_json(["error" => "Du bist in keiner Gilde!"]);
     }
 
     $res = $db_instance->execute_query(
@@ -54,28 +50,25 @@ if ($type === "world") {
         [$guild_id, $u_id, $u_name, $cleaned_text, $now]
     );
     $message_id = (int)$res->fetch_assoc()["id"];
-    $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
 
+    $db_instance->execute_query("UPDATE users SET last_guild_chat_id = ? WHERE id = ?", [$message_id, $u_id]);
 } else { // private
     $client_token = post_str("token");
     $session_token = $_SESSION["active_chat_token"] ?? "";
     $receiver_id = post_int("receiver");
 
     if ($session_token === "" || !hash_equals($session_token, $client_token)) {
-        echo json_encode(["error" => "redirect", "chatPartner" => "privmsgs"]);
-        exit;
+        send_json(["error" => "redirect", "chatPartner" => "privmsgs"]);
     }
 
     if ($receiver_id <= 0 || $receiver_id === $u_id) {
-        echo json_encode(["error" => "Kein gültiger Empfänger angegeben!"]);
-        exit;
+        send_json(["error" => "Kein gültiger Empfänger angegeben!"]);
     }
 
     $res_u = $db_instance->execute_query("SELECT username FROM users WHERE id = ?", [$receiver_id]);
     $receiver_name = $res_u->fetch_column();
     if (!$receiver_name) {
-        echo json_encode(["error" => "Dieser Spieler existiert nicht!"]);
-        exit;
+        send_json(["error" => "Dieser Spieler existiert nicht!"]);
     }
 
     $res = $db_instance->execute_query(
@@ -112,7 +105,7 @@ $bubble_html = Messages::render_chat_bubble(
     []
 );
 
-echo json_encode([
+send_json([
     "lastId" => $message_id,
     "html" => $bubble_html
 ]);

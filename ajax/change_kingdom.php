@@ -39,12 +39,10 @@ if (is_numeric($chosen)) {
         $kingdom = $k;
         include(__DIR__ . "/../layout/right.php");
         $sidebar_html_desk = ob_get_clean();
-        $sidebar_html_mob = str_replace("desk_boost_info_", "mob_boost_info_", $sidebar_html_desk);
 
-        echo json_encode([
+        send_json([
             "success" => true,
             "sidebar_html_desk" => $sidebar_html_desk,
-            "sidebar_html_mob" => $sidebar_html_mob,
             "has_any_alchemy_ready" => !empty($sidebar_data["has_any_alchemy_ready"]),
             "kingdom" => [
                 "id" => $chosen,
@@ -60,8 +58,7 @@ if (is_numeric($chosen)) {
                 "commandsFull" => $cmd_stats["is_full"]
             ]
         ]);
-        exit;
     }
 }
 
-echo json_encode(["success" => false]);
+send_json(["success" => false]);
